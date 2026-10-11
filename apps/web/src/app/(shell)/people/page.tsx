@@ -44,20 +44,18 @@ export default async function PeoplePage() {
       <PageHeader
         eyebrow={location ? location.name : me.tenant.name}
         title={title}
-        description={
-          people.length === 1 ? "1 person in your care." : `${people.length} people in your care.`
-        }
+        description={t("people.list.count", { count: people.length })}
       />
       <PeopleTable
         people={people}
         showLocation={me.locations.length > 1 && !locationId}
         labels={{
           caption: title,
-          photo: "Photo",
-          name: "Name",
-          room: "Room",
-          dateOfBirth: "Date of birth",
-          allergies: "Allergies",
+          photo: t("people.list.photo"),
+          name: t("people.list.name"),
+          room: t("people.list.room"),
+          dateOfBirth: t("people.list.dateOfBirth"),
+          allergies: t("people.list.allergies"),
           communication: t("people.header.communicationNeeds"),
           communicationFlag: t("people.header.communicationNeeds"),
           notRecorded: t("common.notRecorded"),

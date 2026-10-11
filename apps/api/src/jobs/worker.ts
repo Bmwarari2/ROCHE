@@ -4,13 +4,16 @@ import { loadConfig } from "../config";
 import { createAdapterResolver } from "../integrations/registry";
 import { createLogger, idleErrorLogger } from "../logger";
 import {
+  detectOutbreaks,
   endExpiredAssignments,
+  escalateStatutoryNotifications,
   escalateTasks,
   materialiseTaskSeries,
   type OutboxHandler,
   processDeliveries,
   raiseCareReviews,
   relayOutbox,
+  remindDolsExpiry,
   runEscalations,
 } from "./tasks";
 
@@ -43,6 +46,9 @@ const QUEUES = {
   taskSeries: "task-series-materialise",
   taskEscalations: "task-escalations",
   careReviews: "care-reviews",
+  dolsExpiry: "dols-expiry-reminders",
+  statutoryNotifications: "statutory-notification-escalations",
+  outbreaks: "outbreak-detection",
 } as const;
 
 for (const name of Object.values(QUEUES)) await boss.createQueue(name);
@@ -72,6 +78,15 @@ await boss.work(QUEUES.taskEscalations, async () => {
 await boss.work(QUEUES.careReviews, async () => {
   await raiseCareReviews(deps);
 });
+await boss.work(QUEUES.dolsExpiry, async () => {
+  await remindDolsExpiry(deps);
+});
+await boss.work(QUEUES.statutoryNotifications, async () => {
+  await escalateStatutoryNotifications(deps);
+});
+await boss.work(QUEUES.outbreaks, async () => {
+  await detectOutbreaks(deps);
+});
 
 // Every minute: escalations are measured in minutes (section 9.1, e.g. on-call after 10 minutes).
 await boss.schedule(QUEUES.outbox, "* * * * *");
@@ -82,6 +97,12 @@ await boss.schedule(QUEUES.taskSeries, "*/15 * * * *");
 await boss.schedule(QUEUES.taskEscalations, "* * * * *");
 // Hourly: reviews fall due by the day; each overdue review raises one task, once.
 await boss.schedule(QUEUES.careReviews, "7 * * * *");
+// Every minute: a without-delay notification is overdue at once, so its alert must not wait.
+await boss.schedule(QUEUES.statutoryNotifications, "* * * * *");
+// Hourly: DoLS reminders fall due by the day; outbreak detection is a safety net behind the
+// classification that runs whenever an infection incident is recorded.
+await boss.schedule(QUEUES.dolsExpiry, "13 * * * *");
+await boss.schedule(QUEUES.outbreaks, "19 * * * *");
 
 logger.info("Harbour worker started");
 

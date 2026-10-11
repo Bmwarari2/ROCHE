@@ -52,6 +52,7 @@ for an answer.
 | [0030](0030-web-session-and-browser-security.md) | Web sessions, token exposure and the browser security policy | accepted | 2026-10-11 | Phase 0 |
 | [0031](0031-document-storage-scanning-and-destruction.md) | Document storage, malware scanning and destruction past retention | accepted | 2026-10-11 | Phase 1 |
 | [0032](0032-risk-assessment-rating.md) | Risk assessment ratings: the NPSA matrix on the assessor's judgements, and no falls rating | proposed | 2026-10-11 | Phase 1 |
+| [0033](0033-incident-scope.md) | Incident scope: visible through any of its people, and classified with tenant-wide scope | proposed | 2026-10-11 | Phase 1 |
 | [0050](0050-evidence-pack-links.md) | Evidence pack links: hashed random tokens bound to one recipient by an emailed code | accepted | 2026-10-11 | Phase 1 |
 | [0051](0051-personal-data-in-template-emails.md) | Personal data in template emails: none in subjects, no special category data in bodies | proposed | 2026-10-11 | Phase 1 |
 

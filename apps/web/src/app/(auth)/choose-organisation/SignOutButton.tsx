@@ -2,8 +2,7 @@
 
 import { Button, type ButtonVariant } from "@harbour/ui";
 import { useState } from "react";
-import { clearContext } from "@/app/actions/context";
-import { authClient } from "@/lib/auth-client";
+import { signOutAndForget } from "@/lib/sign-out";
 
 export function SignOutButton({
   label,
@@ -17,14 +16,9 @@ export function SignOutButton({
     <Button
       variant={variant}
       disabled={busy}
-      onClick={async () => {
+      onClick={() => {
         setBusy(true);
-        try {
-          await authClient().signOut();
-        } finally {
-          await clearContext().catch(() => undefined);
-          window.location.assign("/sign-in");
-        }
+        void signOutAndForget();
       }}
     >
       {label}

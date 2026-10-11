@@ -33,14 +33,19 @@ only when they link spec, code, tests and user documentation; no user guides exi
    session; invitations and MFA enrolment flow end to end; admin session revoke and idle timeouts
    per role; record history PDF export; device push registration; OpenFeature provider; user
    guides per role (moves PLAT and MOB rows to `done`).
-5. Open engineering decisions: certificate pinning (ADR-0028), shared-device sign-in (ADR-0025),
-   the risk rating matrix (ADR-0032, proposed).
-6. `@harbour/ui` defaults without a label prop stay English in a Welsh shell (sidebar expand and
-   collapse, data table density, app bar "None selected").
+5. Open engineering decisions: certificate pinning (ADR-0028), shared-device sign-in (ADR-0025,
+   needs CSO and DPO), the risk rating matrix (ADR-0032, proposed).
+6. `@harbour/ui` defaults without a label prop stay English in a Welsh shell: the sidebar's expand
+   and collapse labels, the data table's density control ("Row density", "Comfortable", "Compact")
+   and the app bar's "None selected"; add label props before Welsh tenants (Phase 7).
 7. Nation coverage: `care_plan.initial_working_days` and the classifier are England-only; the bank
    holiday calendar runs to the end of 2028.
 8. Role matrix question from slice 4b: care workers hold `care.assessment.write` and team leaders
    lack `care.plan.write`, while the spec says nurses and seniors assess and publish.
+9. Web follow-ups: the person photo route returns 404 until photo upload lands (Phase 1), so
+   initials show. Done on `feat/web-i18n-and-ui`: every word in the web app's own code comes from
+   the catalogues (guarded by `apps/web/src/copy.test.ts`); `TextArea` and `AccountMenu` are in
+   `@harbour/ui` and the phone-width header fix lives in the app bar styles.
 
 ## Human actions outstanding
 
@@ -57,10 +62,10 @@ Apple and Google accounts).
 | `packages/db` | 142 (real Postgres: RLS coverage, isolation, scope, audit chain, seed, tasks, documents, care record, care planning, bank holidays, pools) |
 | `packages/sync` | 10 (PowerSync rules engine) |
 | `packages/contracts` | 7 |
-| `packages/i18n` | 14 (34 with pull request #7) |
-| `packages/ui` | 190, 136 axe runs (233 and 160 with pull request #7) |
+| `packages/i18n` | 34 |
+| `packages/ui` | 233 (160 axe runs) |
 | `packages/ui-native` | 133 |
 | `apps/api` | 161 (sessions, tasks, workflow, documents, care record, care planning, production config) |
 | `apps/mobile` | 208 |
-| `apps/web` | 101 unit (142 with pull request #7); 8 Playwright journeys with axe (WCAG 2.2 AA), passkey sign-in, nonce CSP |
+| `apps/web` | 142 unit (incl. the no-literal-copy check); 8 Playwright journeys with axe (WCAG 2.2 AA), passkey sign-in, nonce CSP |
 | `infra` | `terraform test` 3, TFLint, Trivy and Checkov clean |

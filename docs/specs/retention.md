@@ -64,9 +64,11 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `person`, `contact`, `allergy`, `placement`, `about_me` | care_record |
 | `pre_admission_assessment`, `admission_decision`, `admission_condition`, `bed_occupancy`, `welcome_checklist_item`, `property_item`, `key_issue`, `care_plan_change`, `review_record`, `hospital_transfer`, `exit_record`, `exit_checklist_item`, `sharing_decision`, `about_me_share_link` ([people.md](people.md)) | care_record |
 | `break_glass_event`, `break_glass_weekly_report` | audit_event |
-| `care_plan`, `care_plan_item`, `assessment`, `risk_assessment`, `care_note`, `observation`, `capacity_record`, `dols_authorisation` | care_record |
-| `incident` (not serious), `investigation` | care_record |
-| `incident` (serious), `notification` | serious_incident |
+| `care_plan`, `care_plan_item`, `assessment`, `risk_assessment`, `care_note`, `observation` | care_record |
+| `consent_record`, `capacity_assessment`, `best_interests_decision`, `dols_authorisation`, `dols_legal_change_review` | care_record |
+| `incident` with `retention_class` `care_record` (no notification applies), and its `incident_person`, `classifier_answer` and `investigation` rows | care_record |
+| `incident` with `retention_class` `serious_incident` (set once any notification applies), its people, answers, `candour_record` and `investigation`, and `statutory_notification` | serious_incident |
+| `statutory_notification` of a RIDDOR kind (`riddor_*`) | riddor_report (the incident keeps serious_incident; longest wins) |
 | `medication`, `medication_schedule`, `medication_administration` | mar_chart |
 | `controlled_drug_entry` | controlled_drugs_register (and mar_chart for administrations) |
 | `staff_profile`, `compliance_item`, `er_case` | staff_file (tenant's chosen row) |

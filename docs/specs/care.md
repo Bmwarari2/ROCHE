@@ -42,6 +42,7 @@ Append-only tables have no UPDATE or DELETE grant for the app; a correction is a
 | `capacity_assessment` | append-only | person, decision, time specific, stage 1 (impairment or disturbance), stage 2 (understand, retain, use or weigh, communicate), practicable steps taken, outcome, assessor, review date | `care_record` |
 | `best_interests_decision` | append-only | capacity assessment, section 4 checklist answers, people consulted, less restrictive options considered, decision, review date | `care_record` |
 | `dols_authorisation` | mutable, versioned | person, type (`urgent`, `standard`, `court_order`), request date, granted from and to, extension, conditions, RPR, supervisory body, outcome, CQC notification link, objection evidence, legal-change review status | `care_record` |
+| `dols_legal_change_review` | mutable, versioned | authorisation (one review each), state (`awaiting_review`, `reviewed`, `referred`, `closed`, mirroring the workflow engine), the DHSC multifactorial factors, objection and its forms, consent signs, decision, decided at and by, referral to the local authority, closing reason | `care_record` |
 
 New personal data fields are added to `docs/compliance/records-of-processing.md` and mapped in
 `data-standards.md` (PRSB PCSP sections, SNOMED CT for chart concepts where a code exists) in the
@@ -51,7 +52,9 @@ same pull request as the table.
 
 From the catalogue in `packages/domain/src/platform/roles.ts` (matrix: [permissions.md](permissions.md)):
 `care.plan.read`, `care.plan.write`, `care.note.read`, `care.note.write`, `care.assessment.write`,
-`care.handover.manage`, `care.capacity.write`, `care.dols.manage`, `care.respect.record`. Scope
+`care.handover.manage`, `care.capacity.write` (consent, capacity assessments and best-interests
+decisions), `care.dols.manage` (the register and the legal-change review), `care.respect.record`;
+reading consents, capacity, best interests and DoLS needs `care.plan.read`. Scope
 follows the person (tenant, location, assigned or break-glass). Care workers write notes, charts,
 body-map marks and tasks for assigned people; nurses and seniors also complete assessments and
 publish care plans; capacity assessments and DoLS need the senior or manager roles. Every read of
@@ -252,6 +255,78 @@ or `not_recorded` (HZ-015). `GET /v1/people/{id}/care-history/{table}/{recordId}
 versions of the mutable records. Every write for a discharged, deceased or archived person is
 refused. Outbox events `care.plan.published` and `care.assessment.completed` are written.
 
+Built in slice 6 (`apps/api/src/routes/mca.ts`, `apps/api/src/services/mca.ts`; tables in
+migrations 0018 and 0019): `GET` and `POST /v1/people/{id}/consents` and `POST
+.../consents/{consentId}/withdraw`. The capacity status stored with a consent is found from the
+person's assessments of that decision (`capacityFinding`), never taken from the request, and
+`checkConsentRecord` refuses, in its words, a representative without authority (relatives,
+appointees, IMCAs and advocates; a property and financial attorney; an unregistered attorney; a
+deputy outside their order or past its end), the person's own consent while assessed as lacking
+capacity, bed rails without the restraint conditions and covert medicines without a lack of capacity
+and a best-interests decision (HZ-026). The list returns each decision's `consentStatus` with the
+capacity found now: a later refusal or withdrawal replaces consent, expired consent is not valid, and
+a representative's consent stops applying once the person has capacity. A withdrawal keeps the record
+with its reason. `GET` and `POST /v1/people/{id}/capacity-assessments` and `/best-interests` are
+append-only with device ids (a correction supersedes with a reason): `checkCapacityAssessment` stores
+the outcome, the elements the person could not do and the reason in the Act's words, and
+`checkBestInterests` needs every section 4 item, a consultation or why there was none, and a review
+date, storing the IMCA prompt where nobody appropriate could be consulted. `GET`, `POST` and `PUT
+/v1/people/{id}/dols` check the dates against Schedule A1 (`checkDolsAuthorisation`), England and
+Wales only, and return the status, days left, reminders and the CQC notification; when the outcome
+of a standard request or a court application is known (or it is withdrawn), the regulation 18(4A)
+draft is created with its 18(4B) statement and `care.dols.outcome_known` is published (an urgent
+authorisation is not notified on its own) (HZ-020). `GET /v1/dols/legal-change-review` lists, where
+the tenant flag `dols.post_2026_review_workflow` is on, the authorisations granted before the
+judgment and still in force with no review, soonest ending first, and the reviews under way; `POST
+/v1/dols/legal-change-review/{authorisationId}` records each step through the workflow engine with
+`legalChangeStepProblems` (the review before `reviewed`, the referral before closing when the person
+is no longer deprived of liberty or there is doubt). An hourly job raises each expiry reminder once
+(a task, an alert to the Registered Manager and `care.dols.expiring`), and none for an authorisation
+that has ended or a closed record. The history route covers these mutable records through
+`record_version`.
+
+Built in slice 9 (web, part 1): the person's record in `apps/web/src/app/(shell)/people/[id]/` as
+ten tabs (overview, care plan, assessments, risk assessments, notes, charts, body map, advance care,
+activities and visits, history), each its own page with its own title. Every page renders the
+point-of-care header through a shared server component (`RecordFrame`), so moving between tabs
+reads it again; the header says when it was checked, refreshes when the window regains focus and
+on a fixed interval, and has a refresh control (HZ-001, HZ-002). The header data is parsed with the
+contract schemas at run time. The header adds the resuscitation decision in force as a word and
+an icon with its source and review date, "not recorded" or "could not be read" as a warning
+(HZ-015), and the prescribed IDDSI levels as number, name and colour, or says they are not
+available to the viewer (HZ-016). Notes are grouped by correction chain, the
+original struck through with who corrected it, when and why. Charts show the fluid day in UK time
+as the API summed it; vital signs show the NEWS2 score, the RCP's wording and the workings as
+stored; food and drink show the prescribed level beside the choice (HZ-014, HZ-016). The body map
+has front and back drawings labelled with the person's left and right and a list of the same areas
+for keyboard and screen reader users; the side is confirmed in words and the API's refusal of a
+mismatch is shown word for word (HZ-019). Care plan versions carry their status in word and icon; a
+draft is edited by need domain and published from a sheet that records who agreed it (HZ-024).
+Assessments, risk assessments, advance care records, activities, visits and record history follow
+the API. The web app never scores: every result, band and response is the API's. Playwright
+journeys with axe are in `apps/web/e2e/care-record.spec.ts`.
+
+After the accessibility and clinical reviews of slice 9, the web forms also:
+
+- read typed event times with the shared domain rule `resolveRecordedUkTime`
+  (`packages/domain/src/shared/time.ts`) through `DateInput` and `DateTimeInput` from `@harbour/ui`:
+  a time left at "Now" is the instant the form is sent; a time in the repeated autumn hour asks
+  "BST, before the clocks went back" or "GMT, after" with nothing chosen; a time in the skipped
+  spring hour is refused; a time later than now beyond the clock-drift tolerance is refused
+  (`DEFAULT_CLOCK_DRIFT_TOLERANCE_MINUTES` until the rate table value is served). The device's send
+  time goes in `x-harbour-sent-at` so the API can flag drift (HZ-009, HZ-010, HZ-017);
+- give each write a client UUIDv7 that is kept across retries of the same form, where the contract
+  takes one (HZ-029);
+- pre-select nothing in NEWS2 (air or oxygen, consciousness) or IDDSI choices, need a drink level
+  whenever one is prescribed, and withhold the scale-dependent NEWS2 inputs when the care profile
+  cannot be read (HZ-012, HZ-016);
+- tie each refusal to its field (`aria-invalid`, `aria-describedby`, a linked summary), map known
+  API refusals to catalogue wording by the domain rule messages (`apps/web/src/lib/refusals.ts`) and
+  show the API's detail only for unknown ones;
+- show a saved NEWS2 entry's total, the RCP's response and its workings as the API returns them on
+  read, warn when follow-ups or workings rows cannot be read (with their codes), and put the late
+  and clock-drift flags on the overview tiles (HZ-012, HZ-014, HZ-017).
+
 
 Resources under `/v1/people/{personId}/...`: `care-plans`, `risk-assessments`, `assessments`,
 `notes`, `observations`, `body-map`, `tasks`, `activities`, `visits`, `advance-care`, `consents`,
@@ -300,6 +375,9 @@ through recorded sharing decisions ([people.md](people.md)).
 - Database: RLS coverage and HZ-011 isolation for every new table; append-only grants; supersedes
   chains.
 - API: contract tests and audit events for every route; idempotent replays of offline writes.
+  Built in slice 6: `packages/db/test/mca-and-incidents.test.ts` (HZ-011 person scope,
+  append-only assessments, the consent and DoLS constraints) and `apps/api/test/mca.test.ts`
+  (HZ-020, HZ-026).
 - Web and mobile: Playwright journeys (care plan, notes, charts, body map, assessments, handover,
   capacity and DoLS) with axe; Maestro offline journey (notes and charts written offline, synced,
   conflict reviewed).
@@ -310,3 +388,33 @@ through recorded sharing decisions ([people.md](people.md)).
   defaulting off in production tenants, on in the demo tenant.
 - Scale 2 SpO2 needs a clinician's record; Phase 1 stores who recorded it and when, Phase 5 links it
   to GP Connect.
+- API gaps found building the web screens (slice 9), for the API owners:
+  - Entries, sign-offs, publications and record versions carry a tenant user id only, so the screens
+    say "recorded by you" or "by a colleague". Regulation 17 attribution needs the staff member's
+    name (and role) on the output, or a staff lookup route.
+  - The NEWS2 flags omit the RCP's chart 4 clinical response lines, and nothing gives the tenant's
+    escalation policy to link from a result (medical-device boundary, section 5 rule 4).
+  - Validated tool citations (`VALIDATED_TOOLS`), body map regions, and the low-band MUST wording are
+    not served, so the web keeps copies. Only the copies with tests are checked: body map regions
+    and the drawn side (`body-map.test.ts`), tool sources and band wording (`assessments.test.ts`)
+    and known refusals (`refusals.test.ts`) against `packages/domain`, and assessment answer options
+    (`assessment-answers.test.ts`), chart entries (`chart-entry.test.ts`) and risk fields
+    (`risk.test.ts`) against `packages/contracts`.
+  - Problem details carry `code: "invalid"` and English `detail` text only. The web recognises known
+    refusals by the domain rule's message; a rule code and the field it concerns would make this
+    robust and translatable.
+  - The clock-drift tolerance in `rate_table` is not served to clients, so the web form uses
+    `DEFAULT_CLOCK_DRIFT_TOLERANCE_MINUTES` before the API applies the tenant's value.
+  - `CreateAdvanceCareRecord`, `CreateRiskAssessment`, `CreateCarePlan` (a new draft) and
+    `CreateCarePlanAction` take no client id, so a retried save can record twice (HZ-029). The web
+    sends a kept UUIDv7 wherever a contract takes one.
+  - The API accepts a food or drink entry without a drink IDDSI level when a drink level is
+    prescribed; the web requires it, the API should too (HZ-016).
+  - The body map side is taken from the client; the server should derive it from the region drawn
+    (HZ-019).
+  - The NEWS2 total, the RCP's response and the workings are returned on read and shown on saved
+    entries; this is not a gap.
+  - Risk template titles and questions, and refusal details, come in English only, so a Welsh shell
+    would show them in English.
+  - A group activity is recorded per person, with a new session id each time; a route that records a
+    group session for several people at once is needed to count attendance.

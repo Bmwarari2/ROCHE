@@ -179,6 +179,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | ecm.tolerance_minutes.low | 60 | minutes | 2000-01-01 | - | all | master prompt 13.2 (defaults 15, 30, 60 by client risk); tenant default | master-prompt |
 | notification.missed_visit_escalation_minutes | 10 | minutes | 2000-01-01 | - | all | master prompt 9.1, 19 Phase 4 gate | master-prompt |
 | task.overdue_escalation_minutes | 30 | minutes | 2000-01-01 | - | all | Harbour default for the task engine (master prompt 9.1): an overdue task escalates once to the nurse in charge; tenant default | to-verify |
+| statutory_notification.escalation_minutes | 60 | minutes | 2000-01-01 | - | all | Harbour default (safety.md rule 10, HZ-013): an overdue statutory notification alerts the holders of safety.notification.submit at once and escalates to the Nominated Individual (owner role) after this many minutes unless the tenant sets its own chain; tenant default | to-verify |
 | homecare.min_planned_visit_minutes | 30 | minutes | 2000-01-01 | - | england | master prompt 13.2 (NICE NG21: shorter planned visits flagged) | master-prompt |
 | enquiry.first_response_working_hours | 1 | working_hours | 2000-01-01 | - | all | master prompt 13.1; tenant default | master-prompt |
 | care_note.late_entry_hours | 2 | hours | 2000-01-01 | - | all | master prompt 10.1 | master-prompt |
@@ -260,6 +261,11 @@ literals, and tests assert against the table, not a literal (section 7, section 
   figure exists; they are tenant defaults for the tenant's DoLS lead to confirm (human action H-64). A
   reminder that would fall before an authorisation starts (an urgent authorisation is shorter than
   28 days) fires when it starts.
+- `statutory_notification.escalation_minutes` (60): how long an overdue statutory notification
+  waits before the default escalation chain tells the Nominated Individual (the owner role), after
+  the holders of `safety.notification.submit` were told at once (safety.md rule 10, HZ-013). No
+  statutory figure exists; a tenant may replace the chain (`safety.notification.overdue`) or the
+  figure. For the CSO and the tenant to confirm (human action H-69).
 - `falls.monitoring_hours` (24) and `falls.head_injury_obs.*` (30 minutes for 2 hours, 60 minutes for
   4 hours, then 120 minutes): NICE NG232 recommendation 1.9.11 gives the observation frequency for
   people admitted to hospital with a head injury and a GCS score of 15; NICE gives no care home

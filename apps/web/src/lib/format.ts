@@ -1,3 +1,5 @@
+import { isUkClockChangeDay, ukZoneAbbreviation } from "@harbour/domain";
+
 /**
  * UK formats (CONTENT.md, section 5.4): dates dd/mm/yyyy, 24-hour times in UK local time, NHS
  * numbers in 3-3-4 groups. Pure functions, unit tested.
@@ -27,7 +29,11 @@ const dateTimeFormatter = new Intl.DateTimeFormat("en-GB", {
   hourCycle: "h23",
 });
 
-/** An instant as "03/10/2026 14:05" in UK local time. */
+/**
+ * An instant as "03/10/2026 14:05" in UK local time. On the two days a year the clocks change,
+ * the zone follows ("25/10/2026 01:30 BST", "25/10/2026 01:30 GMT"), so the two 01:30s of that
+ * night can be told apart and entries read in the right order (HZ-009, HZ-017).
+ */
 export function formatDateTime(iso: string | null | undefined): string | null {
   if (!iso) return null;
   const date = new Date(iso);
@@ -35,7 +41,10 @@ export function formatDateTime(iso: string | null | undefined): string | null {
   const parts = Object.fromEntries(
     dateTimeFormatter.formatToParts(date).map((part) => [part.type, part.value]),
   );
-  return `${parts.day}/${parts.month}/${parts.year} ${parts.hour}:${parts.minute}`;
+  const text = `${parts.day}/${parts.month}/${parts.year} ${parts.hour}:${parts.minute}`;
+  return isUkClockChangeDay(Number(parts.year), Number(parts.month), Number(parts.day))
+    ? `${text} ${ukZoneAbbreviation(date)}`
+    : text;
 }
 
 /** "9990000018" as "999 000 0018". Anything that is not 10 digits is returned unchanged. */

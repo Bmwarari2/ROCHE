@@ -26,7 +26,7 @@ export function CommunicationFlag({
         <span className="hb-status-chip__label">{label}</span>
       </span>
       {compact ? (
-        <span className="text-callout text-text-secondary">{needs.join("; ")}</span>
+        <span className="text-body-dense text-text-secondary">{needs.join("; ")}</span>
       ) : null}
     </span>
   );

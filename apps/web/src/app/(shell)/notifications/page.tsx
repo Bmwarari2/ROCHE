@@ -1,4 +1,5 @@
 import type { NotificationItem } from "@harbour/contracts";
+import type { MessageKey } from "@harbour/i18n";
 import { Button, Card, EmptyState, PageHeader, StatusChip, VisuallyHidden } from "@harbour/ui";
 import { BellOff } from "lucide-react";
 import type { Metadata } from "next";
@@ -13,17 +14,19 @@ export const metadata: Metadata = { title: t("notifications.title") };
 
 const SEVERITY: Record<
   NotificationItem["severity"],
-  { status: "overdue" | "due" | "info"; label: string }
+  { status: "overdue" | "due" | "info"; label: MessageKey }
 > = {
-  urgent: { status: "overdue", label: "Urgent" },
-  warning: { status: "due", label: "Needs attention" },
-  info: { status: "info", label: "Information" },
+  urgent: { status: "overdue", label: "notifications.severity.urgent" },
+  warning: { status: "due", label: "notifications.severity.warning" },
+  info: { status: "info", label: "notifications.severity.info" },
 };
 
 function stateChip(item: NotificationItem) {
-  if (item.acknowledgedAt) return <StatusChip status="done" label="Acknowledged" />;
-  if (item.readAt) return <StatusChip status="neutral" label="Read" />;
-  return <StatusChip status="info" label="New" />;
+  if (item.acknowledgedAt) {
+    return <StatusChip status="done" label={t("notifications.state.acknowledged")} />;
+  }
+  if (item.readAt) return <StatusChip status="neutral" label={t("notifications.state.read")} />;
+  return <StatusChip status="info" label={t("notifications.state.new")} />;
 }
 
 /** The person's notifications, newest first, with mark as read and acknowledge. */
@@ -43,9 +46,7 @@ export default async function NotificationsPage() {
             ? undefined
             : unread === 0
               ? t("notifications.empty")
-              : unread === 1
-                ? "1 notification not read yet."
-                : `${unread} notifications not read yet.`
+              : t("notifications.unread", { count: unread })
         }
       />
       {data.items.length === 0 ? (
@@ -54,7 +55,7 @@ export default async function NotificationsPage() {
             headingLevel={2}
             icon={<BellOff size={32} strokeWidth={1.5} aria-hidden="true" />}
             title={t("notifications.empty")}
-            description="Alerts about the people you support and tasks for you will appear here."
+            description={t("notifications.emptyBody")}
           />
         </Card>
       ) : (
@@ -68,7 +69,7 @@ export default async function NotificationsPage() {
                 <Card as="article" aria-labelledby={`notification-${item.id}`}>
                   <div className="flex flex-col gap-3">
                     <div className="flex flex-wrap items-center gap-2">
-                      <StatusChip status={severity.status} label={severity.label} />
+                      <StatusChip status={severity.status} label={t(severity.label)} />
                       {stateChip(item)}
                       {when ? (
                         <time

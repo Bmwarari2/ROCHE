@@ -1,33 +1,34 @@
 "use client";
 
-import { Button, buttonClassName, Sheet, SheetClose } from "@harbour/ui";
+import { Button, buttonClassName, Sheet, SheetClose, TextArea } from "@harbour/ui";
 import { LockOpen } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
 import { type BreakGlassOutcome, openBreakGlass } from "@/app/actions/people";
-import { BREAK_GLASS_MIN_LENGTH } from "@/lib/people";
+import { characterCount } from "@/lib/i18n";
+import { BREAK_GLASS_MAX_LENGTH, justificationProblem } from "@/lib/people";
+
+type FailureReason = Exclude<Exclude<BreakGlassOutcome, { ok: true }>["reason"], "step-up">;
 
 export interface BreakGlassLabels {
   readonly title: string;
   readonly body: string;
   readonly justification: string;
+  readonly hint: string;
+  readonly submit: string;
   readonly cancel: string;
+  readonly close: string;
   readonly stepUpTitle: string;
   readonly stepUpBody: string;
+  readonly stepUpReason: string;
+  readonly signInAgain: string;
+  /** What to do next for each way opening the record can fail. */
+  readonly failure: Readonly<Record<FailureReason, string>>;
 }
 
-const FAILURE: Record<Exclude<BreakGlassOutcome, { ok: true }>["reason"], string> = {
-  "step-up": "",
-  forbidden:
-    "You do not have access to open records outside your access. Ask your manager if you need it.",
-  "not-found": "We could not find a record with this address. Check the link and try again.",
-  "too-short": `Explain why you need this record in ${BREAK_GLASS_MIN_LENGTH} characters or more.`,
-  unavailable: "Harbour could not open the record just now. Try again in a moment.",
-};
-
 /**
- * "Open a record outside your access" (section 4): a typed reason of at least 20 characters. Only
+ * "Open a record outside your access" (section 4): a typed reason of 20 to 1000 characters. Only
  * rendered for people with people.person.break_glass; the API checks again and needs a fresh
  * sign-in.
  */
@@ -39,17 +40,24 @@ export function BreakGlass({
   readonly labels: BreakGlassLabels;
 }) {
   const router = useRouter();
-  const fieldId = useId();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stepUp, setStepUp] = useState(false);
+  const fieldRef = useRef<HTMLTextAreaElement>(null);
+
+  // The message is part of the field's description, so moving focus to the field reads it out.
+  const fail = (message: string) => {
+    setError(message);
+    requestAnimationFrame(() => fieldRef.current?.focus());
+  };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const reason = String(new FormData(event.currentTarget).get("justification") ?? "").trim();
-    if (reason.length < BREAK_GLASS_MIN_LENGTH) {
-      setError(FAILURE["too-short"]);
+    const problem = justificationProblem(reason);
+    if (problem) {
+      fail(labels.failure[problem]);
       return;
     }
     setError(null);
@@ -65,9 +73,9 @@ export function BreakGlass({
         setStepUp(true);
         return;
       }
-      setError(FAILURE[outcome.reason]);
+      fail(labels.failure[outcome.reason]);
     } catch {
-      setError(FAILURE.unavailable);
+      fail(labels.failure.unavailable);
     } finally {
       setBusy(false);
     }
@@ -95,17 +103,17 @@ export function BreakGlass({
       }
       title={labels.title}
       description={labels.body}
+      closeLabel={labels.close}
     >
       {stepUp ? (
         <div role="alert" className="flex flex-col gap-4">
           <p className="m-0 font-semibold">{labels.stepUpTitle}</p>
           <p className="m-0">
-            {labels.stepUpBody} You signed in a while ago, so Harbour needs you to sign in again
-            before it opens a record outside your access.
+            {labels.stepUpBody} {labels.stepUpReason}
           </p>
           <div className="flex flex-wrap gap-2">
             <Link href={signInAgain} className={buttonClassName({ variant: "primary" })}>
-              Sign in again
+              {labels.signInAgain}
             </Link>
             <SheetClose asChild>
               <Button variant="secondary">{labels.cancel}</Button>
@@ -114,37 +122,23 @@ export function BreakGlass({
         </div>
       ) : (
         <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
-          <div className={`hb-field${error ? " hb-field--invalid" : ""}`}>
-            <label htmlFor={fieldId} className="hb-field__label">
-              {labels.justification}
-            </label>
-            <p id={`${fieldId}-hint`} className="hb-field__hint">
-              At least {BREAK_GLASS_MIN_LENGTH} characters. It is recorded in the audit log with
-              your name.
-            </p>
-            {error ? (
-              <p id={`${fieldId}-error`} className="hb-field__error" role="alert">
-                {error}
-              </p>
-            ) : null}
-            <textarea
-              id={fieldId}
-              name="justification"
-              rows={4}
-              required
-              minLength={BREAK_GLASS_MIN_LENGTH}
-              maxLength={1000}
-              className="hb-field__input resize-y"
-              aria-describedby={`${fieldId}-hint${error ? ` ${fieldId}-error` : ""}`}
-              aria-invalid={error ? true : undefined}
-            />
-          </div>
+          <TextArea
+            ref={fieldRef}
+            name="justification"
+            label={labels.justification}
+            hint={labels.hint}
+            rows={4}
+            required
+            maxLength={BREAK_GLASS_MAX_LENGTH}
+            formatCount={(remaining) => characterCount(remaining)}
+            {...(error ? { error } : {})}
+          />
           <div className="flex flex-wrap justify-end gap-2">
             <SheetClose asChild>
               <Button variant="secondary">{labels.cancel}</Button>
             </SheetClose>
             <Button type="submit" variant="destructive" disabled={busy}>
-              Open record
+              {labels.submit}
             </Button>
           </div>
         </form>
