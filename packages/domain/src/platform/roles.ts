@@ -31,6 +31,7 @@ const pointOfCare: Permission[] = [
   "workforce.self.read",
   "comms.message.send",
   "insights.dashboard.read",
+  "platform.search.use",
 ];
 
 const registeredManager: Permission[] = ALL_PERMISSIONS.filter(
@@ -48,6 +49,11 @@ const registeredManager: Permission[] = ALL_PERMISSIONS.filter(
   "platform.grant.manage",
   "platform.task.manage",
   "platform.document.manage",
+  "platform.search.use",
+  "platform.search.archived",
+  "platform.onboarding.read",
+  "platform.dpia.read",
+  "platform.dpia.prepare",
 ]);
 
 export const BUILTIN_ROLES: readonly BuiltinRole[] = [
@@ -79,6 +85,8 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "insights.report.manage",
       "insights.group.read",
       "platform.audit.read",
+      "platform.dpia.read",
+      "platform.search.use",
       "scheduling.rota.read",
       "comms.message.send",
     ],
@@ -97,7 +105,10 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "As Registered Manager minus tenant settings; submits notifications only under an acting-up grant.",
     scopeKind: "location",
     permissions: registeredManager.filter(
-      (p) => p !== "safety.notification.submit" && p !== "platform.grant.manage",
+      (p) =>
+        p !== "safety.notification.submit" &&
+        p !== "platform.grant.manage" &&
+        p !== "platform.dpia.prepare",
     ),
   },
   {
@@ -161,6 +172,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "safety.incident.report",
       "comms.message.send",
       "insights.dashboard.read",
+      "platform.search.use",
     ],
   },
   {
@@ -231,6 +243,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "comms.message.send",
       "comms.letter.manage",
       "platform.document.manage",
+      "platform.search.use",
     ],
   },
   {
@@ -261,6 +274,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "workforce.casework.manage",
       "workforce.competence.observe",
       "insights.dashboard.read",
+      "platform.search.use",
     ],
   },
   {
@@ -283,6 +297,12 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "platform.audit.read",
       "platform.document.manage",
       "platform.retention.manage",
+      "platform.search.use",
+      "platform.search.archived",
+      "platform.onboarding.read",
+      "platform.dpia.read",
+      "platform.dpia.prepare",
+      "platform.dpia.sign",
       "insights.dashboard.read",
       "insights.report.manage",
     ],

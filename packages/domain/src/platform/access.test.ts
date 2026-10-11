@@ -107,7 +107,7 @@ describe("resolveAccess permissions", () => {
         revokedAt: PAST,
       },
       {
-        permissions: ["platform.data.export"],
+        permissions: ["platform.export.create"],
         locationId: null,
         validFrom: PAST,
         validTo: PAST,
@@ -117,7 +117,7 @@ describe("resolveAccess permissions", () => {
     const access = resolveAccess([assignment("care_worker")], grants, NOW);
     expect(can(access, "safety.notification.submit")).toBe(true);
     expect(can(access, "finance.ledger.approve")).toBe(false);
-    expect(can(access, "platform.data.export")).toBe(false);
+    expect(can(access, "platform.export.create")).toBe(false);
   });
 
   it("records the active role keys for the audit log", () => {
@@ -146,6 +146,30 @@ describe("built-in roles follow section 4", () => {
     ["group_executive", "care.plan.write", false],
     ["inspector", "quality.evidence.read", true],
     ["owner", "comms.portal.family", false],
+    // Platform completions (platform-completions.md section 3).
+    ["owner", "platform.export.create", true],
+    ["registered_manager", "platform.export.create", false],
+    ["quality_lead", "platform.export.create", false],
+    ["care_worker", "platform.search.use", true],
+    ["agency_worker", "platform.search.use", true],
+    ["administrator", "platform.search.use", true],
+    ["hr", "platform.search.use", true],
+    ["external_professional", "platform.search.use", false],
+    ["family_representative", "platform.search.use", false],
+    ["inspector", "platform.search.use", false],
+    ["housekeeping", "platform.search.use", false],
+    ["care_worker", "platform.search.archived", false],
+    ["registered_manager", "platform.search.archived", true],
+    ["quality_lead", "platform.search.archived", true],
+    ["owner", "platform.onboarding.manage", true],
+    ["registered_manager", "platform.onboarding.manage", false],
+    ["registered_manager", "platform.onboarding.read", true],
+    ["registered_manager", "platform.dpia.prepare", true],
+    ["deputy_manager", "platform.dpia.prepare", false],
+    ["deputy_manager", "platform.dpia.read", true],
+    ["registered_manager", "platform.dpia.sign", false],
+    ["quality_lead", "platform.dpia.sign", true],
+    ["owner", "platform.dpia.sign", true],
   ] as const)("%s has %s: %s", (roleKey, permission, expected) => {
     const role = builtinRole(roleKey);
     expect(role?.permissions.includes(permission)).toBe(expected);
@@ -185,7 +209,9 @@ describe("permission catalogue", () => {
   it.each([
     ["medicines.cd.administer", true],
     ["finance.ledger.approve", true],
-    ["platform.data.export", true],
+    ["platform.export.create", true],
+    ["platform.search.use", false],
+    ["platform.dpia.sign", false],
     ["people.person.break_glass", true],
     ["safety.notification.submit", true],
     ["care.note.write", false],
