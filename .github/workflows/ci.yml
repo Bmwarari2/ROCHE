@@ -218,14 +218,10 @@ jobs:
           docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.28.0 \
             git /repo --config /repo/.gitleaks.toml --redact --verbose
       - name: Vulnerabilities in dependencies and config (Trivy)
-        uses: aquasecurity/trivy-action@0.33.1
-        with:
-          scan-type: fs
-          scan-ref: .
-          scanners: vuln,secret,misconfig
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: "1"
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src aquasec/trivy:0.67.2 fs \
+            --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --ignore-unfixed \
+            --exit-code 1 --no-progress .
       - name: Software bill of materials (Syft)
         uses: anchore/sbom-action@v0
         with:
