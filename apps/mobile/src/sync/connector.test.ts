@@ -3,15 +3,21 @@ import type { FetchLike } from "../auth/http";
 import {
   type CrudEntryLike,
   classifyUploadError,
+  DEVICE_HEADER,
   HarbourConnector,
   parseSyncCredentials,
+  readProblem,
+  SENT_AT_HEADER,
   SessionRevokedError,
+  TENANT_HEADER,
   toUploadOperation,
   UploadRejectedError,
   type UploadSource,
 } from "./connector";
 
 const API = "https://api.example.invalid";
+const TENANT = "00000000-0000-4000-8000-0000000000a1";
+const PERSON = "00000000-0000-4000-8000-0000000000b1";
 
 function fakeFetch(responses: Array<Response | Error>) {
   const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
@@ -31,10 +37,18 @@ const json = (body: unknown, status = 200, headers: Record<string, string> = {})
     headers: { "content-type": "application/json", ...headers },
   });
 
+const problem = (status: number, code: string, title: string, detail?: string) =>
+  json({ type: "about:blank", status, code, title, ...(detail ? { detail } : {}) }, status);
+
+/** A fake PowerSync queue holding one transaction, recording local SQL (upload_issue writes). */
 function fakeQueue(entries: CrudEntryLike[] | null) {
-  const state = { completed: 0 };
+  const state = { completed: 0, sql: [] as Array<{ sql: string; params: unknown[] }> };
   const source = {
     getClientId: async () => "client-1",
+    execute: async (sql: string, params: unknown[] = []) => {
+      state.sql.push({ sql, params });
+      return { rowsAffected: 1 };
+    },
     getNextCrudTransaction: async () =>
       entries
         ? {
@@ -47,10 +61,23 @@ function fakeQueue(entries: CrudEntryLike[] | null) {
           }
         : null,
   } as unknown as UploadSource;
-  return { source, state };
+  const issues = () =>
+    state.sql
+      .filter((s) => s.sql.startsWith("INSERT INTO upload_issue"))
+      .map((s) => ({
+        id: s.params[0],
+        tenantId: s.params[1],
+        personId: s.params[2],
+        table: s.params[3],
+        httpStatus: s.params[4],
+        code: s.params[5],
+        message: s.params[6],
+        payload: JSON.parse(String(s.params[7])) as Record<string, unknown>,
+      }));
+  return { source, state, issues };
 }
 
-function connector(fetch: FetchLike, overrides: { token?: string | null } = {}) {
+function connector(fetch: FetchLike, overrides: { token?: string | null; now?: () => Date } = {}) {
   const revoked = { count: 0 };
   const sleeps: number[] = [];
   const instance = new HarbourConnector({
@@ -65,19 +92,40 @@ function connector(fetch: FetchLike, overrides: { token?: string | null } = {}) 
     sleep: async (ms) => {
       sleeps.push(ms);
     },
+    now: overrides.now ?? (() => new Date("2026-10-11T15:00:00.000Z")),
   });
   return { instance, revoked, sleeps };
 }
 
-const put: CrudEntryLike = { op: "PUT", table: "care_note", id: "n1", opData: { body: "Text" } };
+/** A note written offline at 09:00 by the device clock. */
+const note = (id = "0199d000-0000-7000-8000-000000000001"): CrudEntryLike => ({
+  op: "PUT",
+  table: "care_note",
+  id,
+  opData: {
+    tenant_id: TENANT,
+    person_id: PERSON,
+    location_id: "loc",
+    category: "personal_care",
+    body: "Helped with a wash; skin intact.",
+    tags: '["refusal"]',
+    occurred_at: "2026-10-11T08:55:00.000Z",
+    device_time: "2026-10-11T09:00:00.000Z",
+    supersedes_id: null,
+    correction_reason: null,
+  },
+});
+
+/** A table the device never writes, which goes through /v1/sync/upload. */
+const other: CrudEntryLike = { op: "PUT", table: "person", id: "p1", opData: { given_name: "X" } };
 
 describe("toUploadOperation", () => {
   it("maps PUT, PATCH and DELETE entries to the upload contract", () => {
-    expect(toUploadOperation(put)).toEqual({
+    expect(toUploadOperation(other)).toEqual({
       op: "PUT",
-      table: "care_note",
-      id: "n1",
-      data: { body: "Text" },
+      table: "person",
+      id: "p1",
+      data: { given_name: "X" },
     });
     expect(toUploadOperation({ op: "PATCH", table: "t", id: "1", opData: { a: 1 } }).data).toEqual({
       a: 1,
@@ -155,7 +203,7 @@ describe("fetchCredentials", () => {
   });
 });
 
-describe("uploadData", () => {
+describe("uploadData: care entries go to their own endpoints", () => {
   it("does nothing when the queue is empty", async () => {
     const { fetch, calls } = fakeFetch([]);
     const { instance } = connector(fetch);
@@ -163,19 +211,193 @@ describe("uploadData", () => {
     expect(calls).toHaveLength(0);
   });
 
-  it("uploads the transaction with an idempotency key, then completes it", async () => {
-    const { fetch, calls } = fakeFetch([json({ ok: true })]);
+  it("hazard HZ-010 hazard HZ-017 sends the time it was written and the time it was sent apart", async () => {
+    const { fetch, calls } = fakeFetch([json({}, 201)]);
     const { instance } = connector(fetch);
-    const queue = fakeQueue([put, { op: "DELETE", table: "care_note", id: "n2" }]);
+    const queue = fakeQueue([note()]);
+    await instance.uploadData(queue.source);
+
+    expect(calls[0]?.url).toBe(`${API}/v1/people/${PERSON}/notes`);
+    expect(calls[0]?.init?.method).toBe("POST");
+    const headers = new Headers(calls[0]?.init?.headers);
+    // Sent at 15:00 by the device clock: the server measures drift from this.
+    expect(headers.get(SENT_AT_HEADER)).toBe("2026-10-11T15:00:00.000Z");
+    expect(headers.get(TENANT_HEADER)).toBe(TENANT);
+    expect(headers.get(DEVICE_HEADER)).toBe("client-1");
+    expect(headers.get("idempotency-key")).toBe("0199d000-0000-7000-8000-000000000001");
+    expect(headers.get("authorization")).toBe("Bearer tok");
+    // Written at 09:00 for an event at 08:55: not late, even though it uploaded six hours later.
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
+      id: "0199d000-0000-7000-8000-000000000001",
+      occurredAt: "2026-10-11T08:55:00.000Z",
+      deviceTime: "2026-10-11T09:00:00.000Z",
+      category: "personal_care",
+      body: "Helped with a wash; skin intact.",
+      tags: ["refusal"],
+      attachmentDocumentIds: [],
+    });
+    expect(queue.state.completed).toBe(1);
+  });
+
+  it("hazard HZ-010 stamps each retry with the time it is sent", async () => {
+    const times = ["2026-10-11T15:00:00.000Z", "2026-10-11T15:00:05.000Z"];
+    const { fetch, calls } = fakeFetch([json({}, 503), json({}, 201)]);
+    const { instance } = connector(fetch, { now: () => new Date(times.shift() ?? "") });
+    await instance.uploadData(fakeQueue([note()]).source);
+    const sent = calls.map((c) => new Headers(c.init?.headers).get(SENT_AT_HEADER));
+    expect(sent).toEqual(["2026-10-11T15:00:00.000Z", "2026-10-11T15:00:05.000Z"]);
+    // The same id both times, so the API keeps one note.
+    const ids = calls.map((c) => JSON.parse(String(c.init?.body)).id);
+    expect(new Set(ids).size).toBe(1);
+  });
+
+  it("treats the API's answer to a replayed id as success", async () => {
+    // The first response was lost after the API saved the note; the replay returns the saved copy.
+    const { fetch, calls } = fakeFetch([new TypeError("Network request failed"), json({}, 201)]);
+    const { instance } = connector(fetch);
+    const queue = fakeQueue([note()]);
+    await instance.uploadData(queue.source);
+    expect(calls).toHaveLength(2);
+    expect(queue.state.completed).toBe(1);
+    expect(queue.issues()).toEqual([]);
+  });
+
+  it.each([
+    [
+      "observation",
+      "observations",
+      { chart_values: '{"chart":"weight","kg":61.2,"method":"chair"}' },
+    ],
+    [
+      "body_map_mark",
+      "body-map",
+      { view: "front", region: "shin", side: "left", drawn_side: "left", mark_type: "rash" },
+    ],
+    [
+      "activity_record",
+      "activities",
+      { activity: "Gardening", format: "one_to_one", attendance: "attended" },
+    ],
+    ["visit_log", "visits", { kind: "facilitated_visit", visitor_name: "Invented visitor" }],
+  ])("sends %s to /%s", async (table, path, data) => {
+    const { fetch, calls } = fakeFetch([json({}, 201)]);
+    const { instance } = connector(fetch);
+    const entry = note();
+    await instance.uploadData(
+      fakeQueue([{ ...entry, table, opData: { ...entry.opData, ...data } }]).source,
+    );
+    expect(calls[0]?.url).toBe(`${API}/v1/people/${PERSON}/${path}`);
+  });
+
+  it("hazard HZ-006 moves a refused entry to needs attention with its content, and the queue moves on", async () => {
+    const { fetch, calls } = fakeFetch([
+      problem(
+        422,
+        "invalid",
+        "Some details need checking.",
+        "This person's record is closed; only post-event notes can be added.",
+      ),
+      json({}, 201),
+    ]);
+    const { instance } = connector(fetch);
+    const second = note("0199d000-0000-7000-8000-000000000002");
+    const queue = fakeQueue([note(), second]);
+    await instance.uploadData(queue.source);
+
+    expect(calls).toHaveLength(2);
+    expect(queue.state.completed).toBe(1);
+    expect(queue.issues()).toEqual([
+      {
+        id: "0199d000-0000-7000-8000-000000000001",
+        tenantId: TENANT,
+        personId: PERSON,
+        table: "care_note",
+        httpStatus: 422,
+        code: "invalid",
+        message: "This person's record is closed; only post-event notes can be added.",
+        payload: note().opData,
+      },
+    ]);
+  });
+
+  it("hazard HZ-006 keeps a refusal for a missing permission on the device, without wiping it", async () => {
+    const { fetch } = fakeFetch([
+      problem(403, "missing_permission", "You do not have access to this."),
+    ]);
+    const { instance, revoked } = connector(fetch);
+    const queue = fakeQueue([note()]);
+    await instance.uploadData(queue.source);
+    expect(revoked.count).toBe(0);
+    expect(queue.issues()[0]).toMatchObject({
+      code: "missing_permission",
+      message: "You do not have access to this.",
+    });
+  });
+
+  it("refuses to send a change to an append-only entry and keeps it for attention", async () => {
+    const { fetch, calls } = fakeFetch([]);
+    const { instance } = connector(fetch);
+    const queue = fakeQueue([{ ...note(), op: "PATCH" }]);
+    await instance.uploadData(queue.source);
+    expect(calls).toHaveLength(0);
+    expect(queue.issues()[0]).toMatchObject({ code: "entry_not_editable", httpStatus: null });
+    expect(queue.state.completed).toBe(1);
+  });
+
+  it("refuses an entry without its person rather than sending it anywhere", async () => {
+    const { fetch, calls } = fakeFetch([]);
+    const { instance } = connector(fetch);
+    const queue = fakeQueue([{ ...note(), opData: { ...note().opData, person_id: null } }]);
+    await instance.uploadData(queue.source);
+    expect(calls).toHaveLength(0);
+    expect(queue.issues()[0]).toMatchObject({ code: "entry_incomplete" });
+  });
+
+  it("keeps entries queued when the network stays down", async () => {
+    const { fetch, calls } = fakeFetch([json({}, 500), json({}, 502), json({}, 504)]);
+    const { instance } = connector(fetch);
+    const queue = fakeQueue([note()]);
+    await expect(instance.uploadData(queue.source)).rejects.toMatchObject({ status: 504 });
+    expect(calls).toHaveLength(3);
+    expect(queue.state.completed).toBe(0);
+    expect(queue.issues()).toEqual([]);
+  });
+
+  it("stops and triggers the wipe when the session was revoked", async () => {
+    const { fetch } = fakeFetch([json({}, 401)]);
+    const { instance, revoked } = connector(fetch);
+    const queue = fakeQueue([note()]);
+    await expect(instance.uploadData(queue.source)).rejects.toBeInstanceOf(SessionRevokedError);
+    expect(revoked.count).toBe(1);
+    expect(queue.state.completed).toBe(0);
+  });
+});
+
+describe("uploadData: other tables through /v1/sync/upload", () => {
+  it("uploads the transaction with an idempotency key and the time it was sent", async () => {
+    const { fetch, calls } = fakeFetch([json({ applied: 2, rejected: [] })]);
+    const { instance } = connector(fetch);
+    const queue = fakeQueue([other, { op: "DELETE", table: "person", id: "p2" }]);
     await instance.uploadData(queue.source);
     expect(calls[0]?.url).toBe(`${API}/v1/sync/upload`);
     const headers = new Headers(calls[0]?.init?.headers);
     expect(headers.get("idempotency-key")).toBe("client-1:42");
-    expect(headers.get("authorization")).toBe("Bearer tok");
     expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
       operations: [
-        { op: "PUT", table: "care_note", id: "n1", data: { body: "Text" } },
-        { op: "DELETE", table: "care_note", id: "n2", data: {} },
+        {
+          op: "PUT",
+          table: "person",
+          id: "p1",
+          data: { given_name: "X" },
+          deviceSentAt: "2026-10-11T15:00:00.000Z",
+        },
+        {
+          op: "DELETE",
+          table: "person",
+          id: "p2",
+          data: {},
+          deviceSentAt: "2026-10-11T15:00:00.000Z",
+        },
       ],
     });
     expect(queue.state.completed).toBe(1);
@@ -185,10 +407,10 @@ describe("uploadData", () => {
     const { fetch, calls } = fakeFetch([
       new TypeError("Network request failed"),
       json({}, 503),
-      json({ ok: true }),
+      json({ applied: 1, rejected: [] }),
     ]);
     const { instance, sleeps } = connector(fetch);
-    const queue = fakeQueue([put]);
+    const queue = fakeQueue([other]);
     await instance.uploadData(queue.source);
     expect(calls).toHaveLength(3);
     expect(sleeps).toEqual([50, 100]);
@@ -196,37 +418,78 @@ describe("uploadData", () => {
   });
 
   it("honours Retry-After on 429", async () => {
-    const { fetch } = fakeFetch([json({}, 429, { "retry-after": "1" }), json({ ok: true })]);
+    const { fetch } = fakeFetch([
+      json({}, 429, { "retry-after": "1" }),
+      json({ applied: 1, rejected: [] }),
+    ]);
     const { instance, sleeps } = connector(fetch);
-    await instance.uploadData(fakeQueue([put]).source);
+    await instance.uploadData(fakeQueue([other]).source);
     expect(sleeps).toEqual([1000]);
   });
 
-  it("keeps the transaction queued when retries run out", async () => {
-    const { fetch, calls } = fakeFetch([json({}, 500), json({}, 502), json({}, 504)]);
+  it("hazard HZ-006 never completes an operation the API refused inside a 200", async () => {
+    const { fetch } = fakeFetch([
+      json({
+        applied: 0,
+        rejected: [
+          {
+            id: "p1",
+            code: "table_not_writable",
+            message: "This kind of record cannot be changed from a device yet.",
+          },
+        ],
+      }),
+    ]);
     const { instance } = connector(fetch);
-    const queue = fakeQueue([put]);
-    await expect(instance.uploadData(queue.source)).rejects.toMatchObject({ status: 504 });
-    expect(calls).toHaveLength(3);
-    expect(queue.state.completed).toBe(0);
+    const queue = fakeQueue([other]);
+    await instance.uploadData(queue.source);
+    expect(queue.issues()).toEqual([
+      expect.objectContaining({
+        id: "p1",
+        code: "table_not_writable",
+        message: "This kind of record cannot be changed from a device yet.",
+        payload: { given_name: "X" },
+      }),
+    ]);
   });
 
-  it("never discards a rejected write: it stays queued and the error surfaces", async () => {
+  it("hazard HZ-006 never discards a refused write: it moves to needs attention", async () => {
     const { fetch, calls } = fakeFetch([json({ error: "conflict" }, 409)]);
     const { instance } = connector(fetch);
-    const queue = fakeQueue([put]);
-    await expect(instance.uploadData(queue.source)).rejects.toBeInstanceOf(UploadRejectedError);
+    const queue = fakeQueue([other]);
+    await instance.uploadData(queue.source);
     expect(calls).toHaveLength(1);
-    expect(queue.state.completed).toBe(0);
+    expect(queue.issues()).toEqual([expect.objectContaining({ id: "p1", httpStatus: 409 })]);
+    expect(queue.state.completed).toBe(1);
   });
 
-  it("stops and triggers the wipe when the session was revoked", async () => {
-    const { fetch } = fakeFetch([json({}, 401)]);
+  it.each([401, 403])("stops and triggers the wipe on %i", async (status) => {
+    const { fetch } = fakeFetch([json({}, status)]);
     const { instance, revoked } = connector(fetch);
-    const queue = fakeQueue([put]);
+    const queue = fakeQueue([other]);
     await expect(instance.uploadData(queue.source)).rejects.toBeInstanceOf(SessionRevokedError);
     expect(revoked.count).toBe(1);
     expect(queue.state.completed).toBe(0);
+  });
+});
+
+describe("readProblem", () => {
+  it("prefers the detail, then the title", async () => {
+    await expect(readProblem(problem(422, "invalid", "Title", "Detail"))).resolves.toEqual({
+      code: "invalid",
+      reason: "Detail",
+    });
+    await expect(readProblem(problem(404, "not_found", "Not found"))).resolves.toEqual({
+      code: "not_found",
+      reason: "Not found",
+    });
+  });
+
+  it("copes with a body that is not problem details", async () => {
+    await expect(readProblem(new Response("<html>", { status: 400 }))).resolves.toEqual({
+      code: "http_400",
+      reason: null,
+    });
   });
 });
 

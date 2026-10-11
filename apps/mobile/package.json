@@ -17,6 +17,8 @@
     "e2e": "maestro test .maestro"
   },
   "dependencies": {
+    "@harbour/domain": "workspace:*",
+    "@harbour/i18n": "workspace:*",
     "@harbour/sync": "workspace:*",
     "@harbour/ui-native": "workspace:*",
     "@op-engineering/op-sqlite": "~18.2.5",
@@ -48,6 +50,7 @@
   },
   "devDependencies": {
     "@harbour/config": "workspace:*",
+    "@harbour/contracts": "workspace:*",
     "@react-native/metro-config": "0.86.3",
     "@types/react": "~19.2.18",
     "typescript": "~6.0.3",
