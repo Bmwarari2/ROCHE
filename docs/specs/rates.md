@@ -258,7 +258,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
   waits before the default escalation chain tells the Nominated Individual (the owner role), after
   the holders of `safety.notification.submit` were told at once (safety.md rule 10, HZ-013). No
   statutory figure exists; a tenant may replace the chain (`safety.notification.overdue`) or the
-  figure. For the CSO and the tenant to confirm (human action H-67).
+  figure. For the CSO and the tenant to confirm (human action H-69).
 - `falls.monitoring_hours` (24) and `falls.head_injury_obs.*` (30 minutes for 2 hours, 60 minutes for
   4 hours, then 120 minutes): NICE NG232 recommendation 1.9.11 gives the observation frequency for
   people admitted to hospital with a head injury and a GCS score of 15; NICE gives no care home

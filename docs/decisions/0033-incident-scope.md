@@ -1,7 +1,7 @@
 ---
 status: proposed
 date: 2026-10-11
-decision-makers: Claude Code (lead engineer); the DPO and the CSO accept or reject (human action H-68)
+decision-makers: Claude Code (lead engineer); the DPO and the CSO accept or reject (human action H-70)
 consulted: master prompt sections 4, 5.1 and 11.1; docs/specs/safety.md section 2; ADR-0002
 informed: everyone working on the safety and care modules
 ---
@@ -68,7 +68,7 @@ Chosen option: "a list of the people on the incident", because it keeps every he
 - Bad, because `person_ids` duplicates `incident_person`; the trigger and the API keep them in step,
   and a test refuses a person row the list does not name.
 - Bad, because staff who can see only some people on an incident do not see its narrative; the DPO
-  and CSO decide whether that is right (H-68).
+  and CSO decide whether that is right (H-70).
 - Neutral, because tenant-wide scope inside a request is used only by the classifier and the close
   check, never to answer a read.
 

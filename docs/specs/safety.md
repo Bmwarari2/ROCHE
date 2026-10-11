@@ -257,7 +257,7 @@ takes the `CANDOUR_WORKFLOW` steps that `candourStepProblems` allows; `GET` and 
 date becomes a task) and lessons. Worker jobs: every minute, each overdue draft alerts the holders of
 `safety.notification.submit` at its location (role or acting-up grant) once, through the tenant's
 `safety.notification.overdue` escalation chain (by default the Nominated Individual after
-`statutory_notification.escalation_minutes`, H-67), and publishes `safety.notification.overdue`;
+`statutory_notification.escalation_minutes`, H-69), and publishes `safety.notification.overdue`;
 hourly, outbreak detection classifies the latest infection incident at each English location again
 with the location's cases (from incident people's infection details since the last decided report),
 which drafts the UKHSA report once per threshold. Observations carry no infection case yet, so cases
