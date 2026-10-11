@@ -1,7 +1,80 @@
 import { describe, expect, it } from "vitest";
-import { AppSchema } from "../src/client/schema";
+import { parse } from "yaml";
+import {
+  AppSchema,
+  DEVICE_WRITABLE_TABLES,
+  NEVER_EVICT_TABLES,
+  OFFLINE_WINDOW_TABLES,
+} from "../src/client/schema";
 import { readSyncConfig } from "../src/streams/index";
 import { compile, ids, syncFor } from "./support/simulator";
+
+interface StreamDefinition {
+  readonly query?: string;
+  readonly queries?: readonly string[];
+}
+
+/** The output table and column names of a stream query, read with plain string operations. */
+function outputColumns(raw: string): { table: string; columns: string[] } {
+  // Folded YAML keeps the line breaks of more-indented lines, so normalise all whitespace first.
+  const query = raw.split(/\s+/).join(" ");
+  const upper = query.toUpperCase();
+  const select = upper.indexOf("SELECT ") + "SELECT ".length;
+  const from = upper.indexOf(" FROM ");
+  const table =
+    query
+      .slice(from + " FROM ".length)
+      .trim()
+      .split(/[\s,]/)[0] ?? "";
+  const columns = query
+    .slice(select, from)
+    .split(",")
+    .map((item) => {
+      const words = item.trim().split(/\s+/);
+      const last = words[words.length - 1] ?? "";
+      const name = last.includes(".") ? last.slice(last.lastIndexOf(".") + 1) : last;
+      return name.replaceAll('"', "");
+    });
+  return { table, columns };
+}
+
+describe("client schema covers every stream", () => {
+  it("declares every column every stream query selects", () => {
+    const parsed = parse(readSyncConfig()) as { streams: Record<string, StreamDefinition> };
+    const queries = Object.values(parsed.streams).flatMap((s) => [
+      ...(s.query ? [s.query] : []),
+      ...(s.queries ?? []),
+    ]);
+    const tablesSeen = new Set<string>();
+    for (const query of queries) {
+      const { table, columns } = outputColumns(query);
+      tablesSeen.add(table);
+      const declared = new Set(
+        AppSchema.tables.find((t) => t.name === table)?.columns.map((c) => c.name) ?? [],
+      );
+      expect(declared.size, `${table} is declared`).toBeGreaterThan(0);
+      for (const column of columns) {
+        if (column === "id") continue;
+        expect(declared.has(column), `${table}.${column}`).toBe(true);
+      }
+    }
+    // Every synced table on the device has a stream; only local-only tables have none.
+    for (const table of AppSchema.tables) {
+      expect(tablesSeen.has(table.name) || table.localOnly, table.name).toBe(true);
+    }
+  });
+
+  it("splits the care tables into reference data and windowed entries, and only entries are written", () => {
+    const synced = AppSchema.tables.filter((t) => !t.localOnly).map((t) => t.name);
+    expect([...NEVER_EVICT_TABLES, ...OFFLINE_WINDOW_TABLES].sort()).toEqual(synced.sort());
+    expect(DEVICE_WRITABLE_TABLES).toEqual(OFFLINE_WINDOW_TABLES);
+  });
+
+  it("keeps upload problems and bookkeeping on the device only", () => {
+    const localOnly = AppSchema.tables.filter((t) => t.localOnly).map((t) => t.name);
+    expect(localOnly.sort()).toEqual(["sync_meta", "upload_issue"]);
+  });
+});
 
 /** The device schema and the stream outputs must agree, or synced columns are silently dropped. */
 describe("client schema matches stream output", () => {

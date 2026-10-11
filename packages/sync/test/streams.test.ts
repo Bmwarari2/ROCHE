@@ -1,4 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { parse } from "yaml";
+import { OFFLINE_WINDOW_TABLES } from "../src/client/schema";
 import { readSyncConfig, type SyncTokenClaims } from "../src/streams/index";
 import { compile, ids, type SourceRows, syncFor } from "./support/simulator";
 
@@ -131,12 +133,51 @@ beforeAll(() => {
   hydrated = compiled.hydrated;
 });
 
+interface StreamDefinition {
+  readonly query?: string;
+  readonly queries?: readonly string[];
+}
+
+function streamQueries(): Array<{ stream: string; query: string }> {
+  const parsed = parse(readSyncConfig()) as { streams: Record<string, StreamDefinition> };
+  return Object.entries(parsed.streams).flatMap(([stream, definition]) =>
+    [...(definition.query ? [definition.query] : []), ...(definition.queries ?? [])].map(
+      (query) => ({ stream, query }),
+    ),
+  );
+}
+
 describe("sync streams definition", () => {
   it("pins every stream query to the token's tenant", () => {
-    const yaml = readSyncConfig();
-    const queries = yaml.split(/\n {2}[a-z_]+:\n/).slice(1);
+    const queries = streamQueries();
     expect(queries.length).toBeGreaterThanOrEqual(5);
-    for (const q of queries) expect(q).toContain("auth.parameter('tenant_id')");
+    for (const { stream, query } of queries) {
+      expect(query, stream).toContain("auth.parameter('tenant_id')");
+    }
+  });
+
+  it("takes the people in scope from the token, never from the device", () => {
+    for (const { stream, query } of streamQueries()) {
+      if (stream === "my_locations") continue;
+      const scoped =
+        query.includes("auth.user_id()") || query.includes("auth.parameter('people_location_ids')");
+      expect(scoped, stream).toBe(true);
+      // The only connection parameter is the offline window, which narrows and never widens.
+      const connectionParameters = query.match(/connection\.parameter\('[a-z_]+'\)/g) ?? [];
+      for (const p of connectionParameters) {
+        expect(p, stream).toBe("connection.parameter('offline_days')");
+      }
+    }
+  });
+
+  it("limits every point-of-care entry to the offline window", () => {
+    const entryQueries = streamQueries().filter(({ query }) =>
+      OFFLINE_WINDOW_TABLES.some((t) => query.includes(`FROM ${t},`)),
+    );
+    expect(entryQueries).toHaveLength(OFFLINE_WINDOW_TABLES.length * 2);
+    for (const { stream, query } of entryQueries) {
+      expect(query, stream).toContain("IN connection.parameter('offline_days')");
+    }
   });
 });
 

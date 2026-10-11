@@ -9,8 +9,10 @@ export function readSyncConfig(): string {
 }
 
 /**
- * Claims the API puts in the PowerSync token. The streams read nothing else, so this type is the
- * whole contract between the API and the sync service.
+ * Claims the API puts in the PowerSync token. The streams read nothing else from the token, so
+ * this type is the whole contract between the API and the sync service for scope (tenant and
+ * people). The device adds only the offline window, as a connection parameter
+ * (`SyncConnectionParameters` in ../client/window.ts), which can narrow data but never widen it.
  */
 export interface SyncTokenClaims {
   /** tenant_user id. */

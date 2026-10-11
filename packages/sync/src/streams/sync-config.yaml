@@ -13,6 +13,23 @@
 #
 # Assignments end by soft delete (deleted_at) when valid_to passes or when revoked, because sync
 # streams cannot read the clock; the short token expiry bounds how long a device keeps syncing.
+#
+# Connection parameters (sent by the device in connect({ params }), so never trusted for scope):
+#   offline_days          UTC calendar days (yyyy-mm-dd) of the offline window: tomorrow, today and
+#                         the days before it, `mobile.offline_window_days` in all, read from the rate
+#                         table through GET /v1/rates/{key} (offlineWindowDays in ../client/window.ts).
+#                         It only narrows the point-of-care entries a device keeps (data
+#                         minimisation, ADR-0011); the tenant and the person always come from the
+#                         token. A device that sends nothing receives no entries.
+#
+# Care record streams (care.md section 6), each in two scopes like the people streams above:
+#   *_care_reference      care profile, the active care plan, active risk assessments, every
+#                         validated-tool result (the device shows the latest per tool) and active
+#                         advance care records: never evicted while the person is in scope
+#   *_care_plan_details   sections and actions of the active plan only (no drafts, HZ-024)
+#   *_recent_entries      notes, chart observations, body-map marks, activities and visits whose
+#                         event day is in the offline window; queries in one stream share buckets
+#                         (one per person or location and day), which keeps the bucket count low
 
 config:
   edition: 3
@@ -72,3 +89,385 @@ streams:
         AND allergy.tenant_id = auth.parameter('tenant_id')
         AND person.tenant_id = auth.parameter('tenant_id')
         AND person.location_id IN auth.parameter('people_location_ids')
+
+  # ----------------------------------------------------------------------------------------------
+  # Care record: reference data (never evicted while the person is in scope)
+  # ----------------------------------------------------------------------------------------------
+
+  assigned_care_reference:
+    auto_subscribe: true
+    queries:
+      - >-
+        SELECT person_care_profile.id, person_care_profile.tenant_id,
+               person_care_profile.person_id, person_care_profile.iddsi_food_level,
+               person_care_profile.iddsi_drink_level, person_care_profile.iddsi_advised_by,
+               person_care_profile.iddsi_changed_at, person_care_profile.fluid_target_ml,
+               person_care_profile.spo2_scale2, person_care_profile.skin_risk,
+               person_care_profile.updated_at, person_care_profile.version
+        FROM person_care_profile, person_assignment
+        WHERE person_care_profile.person_id = person_assignment.person_id
+          AND person_care_profile.tenant_id = auth.parameter('tenant_id')
+          AND person_care_profile.deleted_at IS NULL
+          AND person_assignment.tenant_id = auth.parameter('tenant_id')
+          AND person_assignment.tenant_user_id = auth.user_id()
+          AND person_assignment.deleted_at IS NULL
+      - >-
+        SELECT care_plan.id, care_plan.tenant_id, care_plan.person_id, care_plan.location_id,
+               care_plan.status, care_plan.published_version, care_plan.summary,
+               care_plan.review_due_on, care_plan.published_at, care_plan.sign_off_kind,
+               care_plan.signed_off_at, care_plan.updated_at, care_plan.version
+        FROM care_plan, person_assignment
+        WHERE care_plan.person_id = person_assignment.person_id
+          AND care_plan.tenant_id = auth.parameter('tenant_id')
+          AND care_plan.status = 'active'
+          AND care_plan.deleted_at IS NULL
+          AND person_assignment.tenant_id = auth.parameter('tenant_id')
+          AND person_assignment.tenant_user_id = auth.user_id()
+          AND person_assignment.deleted_at IS NULL
+      - >-
+        SELECT risk_assessment.id, risk_assessment.tenant_id, risk_assessment.person_id,
+               risk_assessment.template_key, risk_assessment.template_version,
+               risk_assessment.hazard, risk_assessment.who_at_risk, risk_assessment.risk_rating,
+               risk_assessment.risk_band, risk_assessment.residual_rating,
+               risk_assessment.residual_band, risk_assessment.controls,
+               risk_assessment.positive_risk_statement, risk_assessment.person_views,
+               risk_assessment.assessed_on, risk_assessment.review_due_on, risk_assessment.status,
+               risk_assessment.updated_at, risk_assessment.version
+        FROM risk_assessment, person_assignment
+        WHERE risk_assessment.person_id = person_assignment.person_id
+          AND risk_assessment.tenant_id = auth.parameter('tenant_id')
+          AND risk_assessment.status = 'active'
+          AND risk_assessment.deleted_at IS NULL
+          AND person_assignment.tenant_id = auth.parameter('tenant_id')
+          AND person_assignment.tenant_user_id = auth.user_id()
+          AND person_assignment.deleted_at IS NULL
+      - >-
+        SELECT assessment.id, assessment.tenant_id, assessment.person_id, assessment.location_id,
+               assessment.tool_key, assessment.tool_version, assessment.score, assessment.band,
+               assessment.occurred_at, assessment.next_due_on, assessment.supersedes_id,
+               assessment.correction_reason, assessment.late_entry
+        FROM assessment, person_assignment
+        WHERE assessment.person_id = person_assignment.person_id
+          AND assessment.tenant_id = auth.parameter('tenant_id')
+          AND person_assignment.tenant_id = auth.parameter('tenant_id')
+          AND person_assignment.tenant_user_id = auth.user_id()
+          AND person_assignment.deleted_at IS NULL
+      - >-
+        SELECT advance_care_record.id, advance_care_record.tenant_id,
+               advance_care_record.person_id, advance_care_record.kind, advance_care_record.status,
+               advance_care_record.cpr_decision, advance_care_record.clinician_name,
+               advance_care_record.clinician_role, advance_care_record.completed_on,
+               advance_care_record.review_due_on, advance_care_record.details,
+               advance_care_record.updated_at, advance_care_record.version
+        FROM advance_care_record, person_assignment
+        WHERE advance_care_record.person_id = person_assignment.person_id
+          AND advance_care_record.tenant_id = auth.parameter('tenant_id')
+          AND advance_care_record.status = 'active'
+          AND advance_care_record.deleted_at IS NULL
+          AND person_assignment.tenant_id = auth.parameter('tenant_id')
+          AND person_assignment.tenant_user_id = auth.user_id()
+          AND person_assignment.deleted_at IS NULL
+
+  location_care_reference:
+    auto_subscribe: true
+    queries:
+      - >-
+        SELECT person_care_profile.id, person_care_profile.tenant_id,
+               person_care_profile.person_id, person_care_profile.iddsi_food_level,
+               person_care_profile.iddsi_drink_level, person_care_profile.iddsi_advised_by,
+               person_care_profile.iddsi_changed_at, person_care_profile.fluid_target_ml,
+               person_care_profile.spo2_scale2, person_care_profile.skin_risk,
+               person_care_profile.updated_at, person_care_profile.version
+        FROM person_care_profile, person
+        WHERE person_care_profile.person_id = person.id
+          AND person_care_profile.tenant_id = auth.parameter('tenant_id')
+          AND person_care_profile.deleted_at IS NULL
+          AND person.tenant_id = auth.parameter('tenant_id')
+          AND person.location_id IN auth.parameter('people_location_ids')
+      - >-
+        SELECT care_plan.id, care_plan.tenant_id, care_plan.person_id, care_plan.location_id,
+               care_plan.status, care_plan.published_version, care_plan.summary,
+               care_plan.review_due_on, care_plan.published_at, care_plan.sign_off_kind,
+               care_plan.signed_off_at, care_plan.updated_at, care_plan.version
+        FROM care_plan, person
+        WHERE care_plan.person_id = person.id
+          AND care_plan.tenant_id = auth.parameter('tenant_id')
+          AND care_plan.status = 'active'
+          AND care_plan.deleted_at IS NULL
+          AND person.tenant_id = auth.parameter('tenant_id')
+          AND person.location_id IN auth.parameter('people_location_ids')
+      - >-
+        SELECT risk_assessment.id, risk_assessment.tenant_id, risk_assessment.person_id,
+               risk_assessment.template_key, risk_assessment.template_version,
+               risk_assessment.hazard, risk_assessment.who_at_risk, risk_assessment.risk_rating,
+               risk_assessment.risk_band, risk_assessment.residual_rating,
+               risk_assessment.residual_band, risk_assessment.controls,
+               risk_assessment.positive_risk_statement, risk_assessment.person_views,
+               risk_assessment.assessed_on, risk_assessment.review_due_on, risk_assessment.status,
+               risk_assessment.updated_at, risk_assessment.version
+        FROM risk_assessment, person
+        WHERE risk_assessment.person_id = person.id
+          AND risk_assessment.tenant_id = auth.parameter('tenant_id')
+          AND risk_assessment.status = 'active'
+          AND risk_assessment.deleted_at IS NULL
+          AND person.tenant_id = auth.parameter('tenant_id')
+          AND person.location_id IN auth.parameter('people_location_ids')
+      - >-
+        SELECT assessment.id, assessment.tenant_id, assessment.person_id, assessment.location_id,
+               assessment.tool_key, assessment.tool_version, assessment.score, assessment.band,
+               assessment.occurred_at, assessment.next_due_on, assessment.supersedes_id,
+               assessment.correction_reason, assessment.late_entry
+        FROM assessment, person
+        WHERE assessment.person_id = person.id
+          AND assessment.tenant_id = auth.parameter('tenant_id')
+          AND person.tenant_id = auth.parameter('tenant_id')
+          AND person.location_id IN auth.parameter('people_location_ids')
+      - >-
+        SELECT advance_care_record.id, advance_care_record.tenant_id,
+               advance_care_record.person_id, advance_care_record.kind, advance_care_record.status,
+               advance_care_record.cpr_decision, advance_care_record.clinician_name,
+               advance_care_record.clinician_role, advance_care_record.completed_on,
+               advance_care_record.review_due_on, advance_care_record.details,
+               advance_care_record.updated_at, advance_care_record.version
+        FROM advance_care_record, person
+        WHERE advance_care_record.person_id = person.id
+          AND advance_care_record.tenant_id = auth.parameter('tenant_id')
+          AND advance_care_record.status = 'active'
+          AND advance_care_record.deleted_at IS NULL
+          AND person.tenant_id = auth.parameter('tenant_id')
+          AND person.location_id IN auth.parameter('people_location_ids')
+
+  # ----------------------------------------------------------------------------------------------
+  # Care record: sections and actions of the active care plan
+  # ----------------------------------------------------------------------------------------------
+
+  assigned_care_plan_details:
+    auto_subscribe: true
+    queries:
+      - >-
+        SELECT care_plan_section.id, care_plan_section.tenant_id, care_plan_section.person_id,
+               care_plan_section.plan_id, care_plan_section.domain, care_plan_section.need,
+               care_plan_section.outcome, care_plan_section.strengths,
+               care_plan_section.contingency, care_plan_section.updated_at,
+               care_plan_section.version
+        FROM care_plan_section, care_plan, person_assignment
+        WHERE care_plan_section.plan_id = care_plan.id
+          AND care_plan.person_id = person_assignment.person_id
+          AND care_plan_section.tenant_id = auth.parameter('tenant_id')
+          AND care_plan_section.deleted_at IS NULL
+          AND care_plan.tenant_id = auth.parameter('tenant_id')
+          AND care_plan.status = 'active'
+          AND care_plan.deleted_at IS NULL
+          AND person_assignment.tenant_id = auth.parameter('tenant_id')
+          AND person_assignment.tenant_user_id = auth.user_id()
+          AND person_assignment.deleted_at IS NULL
+      - >-
+        SELECT care_plan_action.id, care_plan_action.tenant_id, care_plan_action.person_id,
+               care_plan_action.plan_id, care_plan_action.section_id, care_plan_action.action,
+               care_plan_action.role_key, care_plan_action.when_text,
+               care_plan_action.recurrence, care_plan_action.risk_assessment_id,
+               care_plan_action.updated_at, care_plan_action.version
+        FROM care_plan_action, care_plan, person_assignment
+        WHERE care_plan_action.plan_id = care_plan.id
+          AND care_plan.person_id = person_assignment.person_id
+          AND care_plan_action.tenant_id = auth.parameter('tenant_id')
+          AND care_plan_action.deleted_at IS NULL
+          AND care_plan.tenant_id = auth.parameter('tenant_id')
+          AND care_plan.status = 'active'
+          AND care_plan.deleted_at IS NULL
+          AND person_assignment.tenant_id = auth.parameter('tenant_id')
+          AND person_assignment.tenant_user_id = auth.user_id()
+          AND person_assignment.deleted_at IS NULL
+
+  location_care_plan_details:
+    auto_subscribe: true
+    queries:
+      - >-
+        SELECT care_plan_section.id, care_plan_section.tenant_id, care_plan_section.person_id,
+               care_plan_section.plan_id, care_plan_section.domain, care_plan_section.need,
+               care_plan_section.outcome, care_plan_section.strengths,
+               care_plan_section.contingency, care_plan_section.updated_at,
+               care_plan_section.version
+        FROM care_plan_section, care_plan, person
+        WHERE care_plan_section.plan_id = care_plan.id
+          AND care_plan.person_id = person.id
+          AND care_plan_section.tenant_id = auth.parameter('tenant_id')
+          AND care_plan_section.deleted_at IS NULL
+          AND care_plan.tenant_id = auth.parameter('tenant_id')
+          AND care_plan.status = 'active'
+          AND care_plan.deleted_at IS NULL
+          AND person.tenant_id = auth.parameter('tenant_id')
+          AND person.location_id IN auth.parameter('people_location_ids')
+      - >-
+        SELECT care_plan_action.id, care_plan_action.tenant_id, care_plan_action.person_id,
+               care_plan_action.plan_id, care_plan_action.section_id, care_plan_action.action,
+               care_plan_action.role_key, care_plan_action.when_text,
+               care_plan_action.recurrence, care_plan_action.risk_assessment_id,
+               care_plan_action.updated_at, care_plan_action.version
+        FROM care_plan_action, care_plan, person
+        WHERE care_plan_action.plan_id = care_plan.id
+          AND care_plan.person_id = person.id
+          AND care_plan_action.tenant_id = auth.parameter('tenant_id')
+          AND care_plan_action.deleted_at IS NULL
+          AND care_plan.tenant_id = auth.parameter('tenant_id')
+          AND care_plan.status = 'active'
+          AND care_plan.deleted_at IS NULL
+          AND person.tenant_id = auth.parameter('tenant_id')
+          AND person.location_id IN auth.parameter('people_location_ids')
+
+  # ----------------------------------------------------------------------------------------------
+  # Care record: point-of-care entries in the offline window (append-only, written offline)
+  # ----------------------------------------------------------------------------------------------
+
+  assigned_recent_entries:
+    auto_subscribe: true
+    queries:
+      - >-
+        SELECT care_note.id, care_note.tenant_id, care_note.person_id, care_note.location_id,
+               care_note.occurred_at, care_note.recorded_at, care_note.device_time,
+               care_note.late_entry, care_note.clock_drift, care_note.supersedes_id,
+               care_note.correction_reason, care_note.created_by, care_note.category,
+               care_note.body, care_note.tags
+        FROM care_note, person_assignment
+        WHERE care_note.person_id = person_assignment.person_id
+          AND care_note.tenant_id = auth.parameter('tenant_id')
+          AND substring(care_note.occurred_at, 1, 10) IN connection.parameter('offline_days')
+          AND person_assignment.tenant_id = auth.parameter('tenant_id')
+          AND person_assignment.tenant_user_id = auth.user_id()
+          AND person_assignment.deleted_at IS NULL
+      - >-
+        SELECT observation.id, observation.tenant_id, observation.person_id,
+               observation.location_id, observation.occurred_at, observation.recorded_at,
+               observation.device_time, observation.late_entry, observation.clock_drift,
+               observation.supersedes_id, observation.correction_reason, observation.created_by,
+               observation.chart, observation."values" AS chart_values, observation.flags
+        FROM observation, person_assignment
+        WHERE observation.person_id = person_assignment.person_id
+          AND observation.tenant_id = auth.parameter('tenant_id')
+          AND substring(observation.occurred_at, 1, 10) IN connection.parameter('offline_days')
+          AND person_assignment.tenant_id = auth.parameter('tenant_id')
+          AND person_assignment.tenant_user_id = auth.user_id()
+          AND person_assignment.deleted_at IS NULL
+      - >-
+        SELECT body_map_mark.id, body_map_mark.tenant_id, body_map_mark.person_id,
+               body_map_mark.location_id, body_map_mark.occurred_at, body_map_mark.recorded_at,
+               body_map_mark.device_time, body_map_mark.late_entry, body_map_mark.clock_drift,
+               body_map_mark.supersedes_id, body_map_mark.correction_reason,
+               body_map_mark.created_by, body_map_mark.view, body_map_mark.region,
+               body_map_mark.side, body_map_mark.mark_type, body_map_mark.pressure_category,
+               body_map_mark.device_related, body_map_mark.bruise_explained,
+               body_map_mark.length_mm, body_map_mark.width_mm, body_map_mark.depth_mm,
+               body_map_mark.description, body_map_mark.status
+        FROM body_map_mark, person_assignment
+        WHERE body_map_mark.person_id = person_assignment.person_id
+          AND body_map_mark.tenant_id = auth.parameter('tenant_id')
+          AND substring(body_map_mark.occurred_at, 1, 10) IN connection.parameter('offline_days')
+          AND person_assignment.tenant_id = auth.parameter('tenant_id')
+          AND person_assignment.tenant_user_id = auth.user_id()
+          AND person_assignment.deleted_at IS NULL
+      - >-
+        SELECT activity_record.id, activity_record.tenant_id, activity_record.person_id,
+               activity_record.location_id, activity_record.occurred_at,
+               activity_record.recorded_at, activity_record.device_time,
+               activity_record.late_entry, activity_record.clock_drift,
+               activity_record.supersedes_id, activity_record.correction_reason,
+               activity_record.created_by, activity_record.activity, activity_record.format,
+               activity_record.group_session_id, activity_record.attendance,
+               activity_record.engagement, activity_record.duration_minutes,
+               activity_record.notes
+        FROM activity_record, person_assignment
+        WHERE activity_record.person_id = person_assignment.person_id
+          AND activity_record.tenant_id = auth.parameter('tenant_id')
+          AND substring(activity_record.occurred_at, 1, 10) IN connection.parameter('offline_days')
+          AND person_assignment.tenant_id = auth.parameter('tenant_id')
+          AND person_assignment.tenant_user_id = auth.user_id()
+          AND person_assignment.deleted_at IS NULL
+      - >-
+        SELECT visit_log.id, visit_log.tenant_id, visit_log.person_id, visit_log.location_id,
+               visit_log.occurred_at, visit_log.recorded_at, visit_log.device_time,
+               visit_log.late_entry, visit_log.clock_drift, visit_log.supersedes_id,
+               visit_log.correction_reason, visit_log.created_by, visit_log.kind,
+               visit_log.contact_id, visit_log.visitor_name, visit_log.visitor_relationship,
+               visit_log.ended_at, visit_log.restrictions_applied, visit_log.restriction_reason,
+               visit_log.notes
+        FROM visit_log, person_assignment
+        WHERE visit_log.person_id = person_assignment.person_id
+          AND visit_log.tenant_id = auth.parameter('tenant_id')
+          AND substring(visit_log.occurred_at, 1, 10) IN connection.parameter('offline_days')
+          AND person_assignment.tenant_id = auth.parameter('tenant_id')
+          AND person_assignment.tenant_user_id = auth.user_id()
+          AND person_assignment.deleted_at IS NULL
+
+  location_recent_entries:
+    auto_subscribe: true
+    queries:
+      - >-
+        SELECT care_note.id, care_note.tenant_id, care_note.person_id, care_note.location_id,
+               care_note.occurred_at, care_note.recorded_at, care_note.device_time,
+               care_note.late_entry, care_note.clock_drift, care_note.supersedes_id,
+               care_note.correction_reason, care_note.created_by, care_note.category,
+               care_note.body, care_note.tags
+        FROM care_note, person
+        WHERE care_note.person_id = person.id
+          AND care_note.tenant_id = auth.parameter('tenant_id')
+          AND substring(care_note.occurred_at, 1, 10) IN connection.parameter('offline_days')
+          AND person.tenant_id = auth.parameter('tenant_id')
+          AND person.location_id IN auth.parameter('people_location_ids')
+      - >-
+        SELECT observation.id, observation.tenant_id, observation.person_id,
+               observation.location_id, observation.occurred_at, observation.recorded_at,
+               observation.device_time, observation.late_entry, observation.clock_drift,
+               observation.supersedes_id, observation.correction_reason, observation.created_by,
+               observation.chart, observation."values" AS chart_values, observation.flags
+        FROM observation, person
+        WHERE observation.person_id = person.id
+          AND observation.tenant_id = auth.parameter('tenant_id')
+          AND substring(observation.occurred_at, 1, 10) IN connection.parameter('offline_days')
+          AND person.tenant_id = auth.parameter('tenant_id')
+          AND person.location_id IN auth.parameter('people_location_ids')
+      - >-
+        SELECT body_map_mark.id, body_map_mark.tenant_id, body_map_mark.person_id,
+               body_map_mark.location_id, body_map_mark.occurred_at, body_map_mark.recorded_at,
+               body_map_mark.device_time, body_map_mark.late_entry, body_map_mark.clock_drift,
+               body_map_mark.supersedes_id, body_map_mark.correction_reason,
+               body_map_mark.created_by, body_map_mark.view, body_map_mark.region,
+               body_map_mark.side, body_map_mark.mark_type, body_map_mark.pressure_category,
+               body_map_mark.device_related, body_map_mark.bruise_explained,
+               body_map_mark.length_mm, body_map_mark.width_mm, body_map_mark.depth_mm,
+               body_map_mark.description, body_map_mark.status
+        FROM body_map_mark, person
+        WHERE body_map_mark.person_id = person.id
+          AND body_map_mark.tenant_id = auth.parameter('tenant_id')
+          AND substring(body_map_mark.occurred_at, 1, 10) IN connection.parameter('offline_days')
+          AND person.tenant_id = auth.parameter('tenant_id')
+          AND person.location_id IN auth.parameter('people_location_ids')
+      - >-
+        SELECT activity_record.id, activity_record.tenant_id, activity_record.person_id,
+               activity_record.location_id, activity_record.occurred_at,
+               activity_record.recorded_at, activity_record.device_time,
+               activity_record.late_entry, activity_record.clock_drift,
+               activity_record.supersedes_id, activity_record.correction_reason,
+               activity_record.created_by, activity_record.activity, activity_record.format,
+               activity_record.group_session_id, activity_record.attendance,
+               activity_record.engagement, activity_record.duration_minutes,
+               activity_record.notes
+        FROM activity_record, person
+        WHERE activity_record.person_id = person.id
+          AND activity_record.tenant_id = auth.parameter('tenant_id')
+          AND substring(activity_record.occurred_at, 1, 10) IN connection.parameter('offline_days')
+          AND person.tenant_id = auth.parameter('tenant_id')
+          AND person.location_id IN auth.parameter('people_location_ids')
+      - >-
+        SELECT visit_log.id, visit_log.tenant_id, visit_log.person_id, visit_log.location_id,
+               visit_log.occurred_at, visit_log.recorded_at, visit_log.device_time,
+               visit_log.late_entry, visit_log.clock_drift, visit_log.supersedes_id,
+               visit_log.correction_reason, visit_log.created_by, visit_log.kind,
+               visit_log.contact_id, visit_log.visitor_name, visit_log.visitor_relationship,
+               visit_log.ended_at, visit_log.restrictions_applied, visit_log.restriction_reason,
+               visit_log.notes
+        FROM visit_log, person
+        WHERE visit_log.person_id = person.id
+          AND visit_log.tenant_id = auth.parameter('tenant_id')
+          AND substring(visit_log.occurred_at, 1, 10) IN connection.parameter('offline_days')
+          AND person.tenant_id = auth.parameter('tenant_id')
+          AND person.location_id IN auth.parameter('people_location_ids')
