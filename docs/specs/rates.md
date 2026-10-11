@@ -167,6 +167,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | weight.at_risk_interval_weeks | 1 | weeks | 2000-01-01 | - | all | master prompt 10.1; tenant default | master-prompt |
 | repositioning.interval_hours.at_risk | 6 | hours | 2000-01-01 | - | all | master prompt 10.1 (4- or 6-hourly defaults; NICE CG179); tenant default | master-prompt |
 | repositioning.interval_hours.high_risk | 4 | hours | 2000-01-01 | - | all | master prompt 10.1 (4- or 6-hourly defaults; NICE CG179); tenant default | master-prompt |
+| bowel.no_movement_prompt_days | 3 | days | 2026-10-01 | - | all | tenant default | to-verify |
 | ld.annual_health_check.min_age_years | 14 | years | 2000-01-01 | - | england | master prompt 10.1 (annual health check from 14) | master-prompt |
 | medicines.paracetamol.min_interval_hours | 4 | hours | 2000-01-01 | - | all | master prompt 10.2 (time-critical rules) | master-prompt |
 | medicines.bisphosphonate.before_food_minutes | 30 | minutes | 2000-01-01 | - | all | master prompt 10.2 (time-critical rules) | master-prompt |
@@ -225,6 +226,10 @@ literals, and tests assert against the table, not a literal (section 7, section 
 - `candour.written_notification.working_days` (10): regulation 20 says "as soon as reasonably
   practicable" and sets no number of days. 10 working days is a tenant-configurable target (ADR-0021),
   never presented as a statutory deadline. Brian to confirm the value to encode (Appendix open question).
+- `bowel.no_movement_prompt_days` (3): the number of days without a recorded bowel movement before
+  the bowel chart prompts staff (care.md section 4 rule 6 calls it the 3-day prompt). It is a tenant
+  default, not a clinical threshold from a published source; the tenant's clinical lead confirms it
+  or sets a different value.
 
 ## Other notes
 
