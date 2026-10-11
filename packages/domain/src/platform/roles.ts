@@ -96,8 +96,13 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
     description:
       "As Registered Manager minus tenant settings; submits notifications only under an acting-up grant.",
     scopeKind: "location",
+    // The statement of purpose is approved by the registered provider or manager (CQC
+    // Registration Regulations 2009 reg 12), not by a deputy.
     permissions: registeredManager.filter(
-      (p) => p !== "safety.notification.submit" && p !== "platform.grant.manage",
+      (p) =>
+        p !== "safety.notification.submit" &&
+        p !== "platform.grant.manage" &&
+        p !== "quality.statement_of_purpose.approve",
     ),
   },
   {
@@ -121,6 +126,8 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "platform.task.manage",
       "people.movement.record",
       "people.property.manage",
+      "operations.downtime.read",
+      "operations.downtime.manage",
     ],
   },
   {
@@ -137,6 +144,8 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "platform.task.manage",
       "people.movement.record",
       "people.property.manage",
+      "operations.downtime.read",
+      "operations.downtime.manage",
     ],
   },
   {
@@ -230,6 +239,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "safety.incident.report",
       "comms.message.send",
       "comms.letter.manage",
+      "comms.template.write",
       "platform.document.manage",
     ],
   },
@@ -277,6 +287,11 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "quality.policy.manage",
       "quality.evidence.manage",
       "quality.evidence.read",
+      "quality.evidence_pack.compose",
+      "quality.evidence_pack.release",
+      "quality.statement_of_purpose.write",
+      "comms.template.write",
+      "comms.template.approve",
       "quality.dsar.manage",
       "safety.whistleblowing.read",
       "safety.complaint.manage",
