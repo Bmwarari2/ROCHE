@@ -54,14 +54,18 @@ nothing more.
   gets the text as written. Latin (including Welsh and Polish), Greek and Cyrillic print. A
   character the font lacks prints as "?", and the first page names each section that holds one.
 - Lines are wrapped by measured width; line breaks in the record start new lines.
-- Photos: JPEG and PNG (8-bit, not interlaced: grey, colour, palette, with or without
-  transparency), at most 4096 x 4096 pixels and 8192 on a side. A photo held in another
-  format, a 16-bit or interlaced PNG, one over the limit, or one that cannot be read, is named on
-  the first page so identity is confirmed another way (HZ-001). Decoding a stored photo is
-  defensive: every PNG chunk read is bounds-checked, IHDR must come first and IEND must be
-  present, inflating is capped at the size the header promises, and the decoder never throws.
-  The pack asks the same decoder whether the photo will print, so the first page and the PDF
-  agree (slice 8 review round 3).
+- Photos: JPEG (8-bit, Huffman-coded, grey or colour; not CMYK or 12-bit) and PNG (8-bit, not
+  interlaced: grey, colour, palette, with or without transparency), at most 2048 pixels a side.
+  A photo held in another format, a 16-bit or interlaced PNG, one over the limit, or one that
+  cannot be read, is named on the first page so identity is confirmed another way (HZ-001).
+  Decoding is defensive: every PNG chunk read is bounds-checked, IHDR must come first and IEND
+  must be present, at most 1024 image chunks and 8 MB of compressed data are read, the data must
+  inflate to exactly the size the header promises with valid row filters and palette indices,
+  and the decoder never throws. Whether a photo prints is decided once, at upload, before the
+  upload's transaction, and stored on the document; the pack reads that, and the PDF reads and
+  decodes the photo after its transaction ends, so no image is decoded while a database
+  connection is held. The pack routes allow 30 requests a user a minute (slice 8 review rounds 3
+  and 4).
 - Each font file is compressed once per process and kept, rather than once per pack.
 - The pack is rendered on request from the snapshot stored with the transfer
   (`hospital_transfer.pack`), never from the live record, so a reprint shows what went with the

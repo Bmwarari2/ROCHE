@@ -448,7 +448,7 @@ assurance pack.
 | `sharing_decision` capacity | Mental Capacity Act 2005 s.1(2) (presumption of capacity) | `presumed`, `assessed_has_capacity`, `assessed_lacks_capacity` | Links the capacity assessment where one exists. |
 | `about_me_share_link.token_hash` | Harbour | Lower-case hex SHA-256 of the link token (64 characters) | The token itself is shown once and never stored; expiry no later than the sharing decision's end. |
 | `recorded_after_exit` on `care_note`, `observation`, `body_map_mark`, `assessment`, `activity_record` and `visit_log` | Harbour | `true` or `false` | Phase 1. True when an entry about an event at or before a discharge, death or move to hospital, or within the clock tolerance after it (`sync.clock_drift_flag_minutes`), is accepted after it (people.md rule 3, HZ-006); shown with the late-entry flag. |
-| `task_id`, `task_outcome` on `care_note`, `observation`, `body_map_mark`, `assessment`, `activity_record` and `visit_log` | Harbour (`TASK_LINK_OUTCOMES`) | UUIDv7; `completed`, `task_cancelled`, `task_already_closed`, `not_linked` | Phase 1 (migration 0023). The task the entry named and what the entry did to it (care.md rule 13, HZ-004, HZ-006): set together or not at all (check `<table>_task_outcome`). `task_already_closed` and `not_linked` are listed for review by the nurse in charge. |
+| `task_id`, `task_outcome` on `care_note`, `observation`, `body_map_mark`, `assessment`, `activity_record` and `visit_log` | Harbour (`TASK_LINK_OUTCOMES`) | UUIDv7; `completed`, `task_cancelled`, `task_already_closed`, `not_linked`, `medicines_conflict` (migration 0026) | Phase 1 (migration 0023). The task the entry named and what the entry did to it (care.md rule 13, HZ-004, HZ-006): set together or not at all (check `<table>_task_outcome`). `task_already_closed` and `not_linked` are listed for review by the nurse in charge; `medicines_conflict` (a medicines task the entry could not complete) for an urgent conflict review. |
 | `break_glass_event.reason_code` | Harbour | `emergency_care`, `covering_another_area`, `safeguarding`, `incident_or_complaint`, `request_from_professional`, `other` | Phase 1; the typed justification is kept as well. |
 
 ## Packs and governance (Phase 1, slice 11)
@@ -555,7 +555,10 @@ they carry `cancel_code` and `inactive_code` (`paused_while_away`, `ended_at_exi
 `exit_recorded_in_error`, `planned_exit_cancelled`, `missed_before_return_recorded`: why the people
 lifecycle stopped them) and `task.evidence_after_close` (evidence that arrived after the task was
 cancelled), and `stopped_by_exit_id` on both (the exit record that ended the task or series, so a
-correction brings back only what that exit stopped). `task.details` is JSON a review task carries:
+correction brings back only what that exit stopped); from migration 0026 `task.restore_code`
+(`caught_up`, `answered_while_stopped`: how a return or correction brought the task back) and
+`document.image_printable` (whether a JPEG or PNG prints on the transfer pack, decided once at
+upload). `task.details` is JSON a review task carries:
 `missedTasks` (task id, kind, due time and whether it was reopened) and `entries` (entry kind,
 client id, device id, user id and times; opaque ids only, never clinical text). Field-level
 detail is in `packages/db/src/schema/`; purposes and lawful bases are in

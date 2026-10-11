@@ -131,11 +131,16 @@ one applies). Figures come from `rate_table` by key, resolved with `resolvePeopl
    or hold the bed, start the retention clock) and one outbox event. The tasks and series a move
    or exit stops carry a code and, for an exit, the exit that stopped them (`stopped_by_exit_id`),
    so a return or correction brings back only what that move or exit stopped (`planTaskRestore`):
-   only tasks whose window ends at or after the return count; a task an entry answered while it
-   was stopped is done, never due again (H-91); one still in its window reopens; of the rest, the
-   latest occurrence of each series reopens as overdue and the earlier ones are coded missed, all
-   listed on one review task for the nurse in charge (H-92). Corrected back to on leave or in
-   hospital, what the exit ended waits, paused, for the return (HZ-003, HZ-004, HZ-008).
+   the rounds that would have fallen due since a series stopped making tasks are made first (at
+   most seven days back), so a long stay loses none; only tasks whose window ends at or after the
+   return count; a task an entry answered while it was stopped is done, never due again (H-91);
+   one still in its window reopens; of the rest, the latest occurrence of each series is caught
+   up once, due now with a fresh window, unless a later occurrence is done or open again, and a
+   missed medicines task is never made due again; the others are coded missed, all listed on one
+   review task for the nurse in charge (H-92, H-131). A correction undoes the latest exit of that
+   kind whatever its state, also one whose workflow has closed (H-135). Corrected back to on
+   leave or in hospital, what the exit ended waits, paused, for the return (HZ-003, HZ-004,
+   HZ-008).
 3. **Read-only after exit** (care.md rule 12). The post-event records are: after-death care and
    the medical examiner pack (deaths only), statutory notifications, exit checklist items,
    property, money and key returns, post-event notes, documents and correspondence. Care events
@@ -192,13 +197,15 @@ one applies). Figures come from `rate_table` by key, resolved with `resolvePeopl
     it and when; an empty list is not. Only active resuscitation records print; allergies print
     most severe first and time-critical medicines first; every section shows its "as of" time.
     Recording the hand-over of an incomplete pack needs a named acknowledgement and reason. The
-    identity block on the first page carries the CPR decision (H-94). A photo prints only as a
-    JPEG or an 8-bit, non-interlaced PNG of at most 4096 x 4096 pixels, decided by the decoder the
-    PDF uses; anything else counts as missing (HZ-023). On return, the checks re-confirm
+    identity block on the first page carries the CPR decision (H-94, H-133). A photo prints only
+    as an 8-bit grey or colour JPEG or an 8-bit, non-interlaced PNG of at most 2048 pixels a side,
+    decided once, when it is uploaded, by the decoder the PDF uses; anything else counts as
+    missing (HZ-023). The pack routes allow 30 requests a user a minute. On return, the checks re-confirm
     medicines, allergies, resuscitation decisions and IDDSI levels (hospitals change them), skin,
     and belongings that went with the person. Each check is recorded only by someone holding the
-    permission its task requires (`care.plan.write` for the clinical checks) or its assignee;
-    checking belongings back in needs `people.movement.record` (HZ-005, HZ-015).
+    permission its task requires (`care.plan.write` for the clinical checks) or its assignee, and a
+    check's task is only given to someone who holds that permission; checking belongings back in
+    needs `people.movement.record`, with or without a task (HZ-005, HZ-015).
 11. **Exit workflows** (`exit.ts`). Discharge and transfer: `planned`, `left`, `awaiting_return`,
     `closed` (or `cancelled` before leaving). Death: `recorded`, `awaiting_return`, `closed` (or
     `cancelled` with step-up when recorded in error). The `awaiting_return` state escalates after

@@ -200,15 +200,22 @@ applies). Figures come from `rate_table` by key.
     death or move to hospital are still accepted when they upload, flagged as recorded after it
     ([people.md](people.md#4-rules-that-are-easy-to-get-wrong) rule 3, HZ-006).
 13. **An entry and the task it names** (`checkTaskLink`, HZ-004, HZ-006). An entry stores the task
-    it named and what it did to it (`task_outcome`). An open or in-progress task for the same
-    person is completed (`completed`). A task the people lifecycle cancelled keeps the entry as
-    evidence, flagged, and stays cancelled (`task_cancelled`; a return or correction later
-    restores it as done). A task already done or skipped (`task_already_closed`) or one the
-    author may not complete (`not_linked`) is left alone; the entry is kept, flagged, and listed
-    on one review task for the nurse in charge (`care.entry_review`). A `medicines.*` task in
-    either case refuses the entry (`task_medicines_already_closed`, `task_medicines_not_yours`),
-    so a second dose is never recorded against a closed round; a task for another person is
-    refused (HZ-001). The chart and task views show the outcome as an icon and words.
+    it named and what it did to it (`task_outcome`). The task row is locked while the entry is
+    planned and written, so of two entries sent at once only one completes it, and a replayed
+    upload returns the stored entry before anything is planned again. An open or in-progress task
+    for the same person, whatever its window, is completed by an author who may complete it
+    (its assignee or a holder of its permission) (`completed`). A cancelled task with no evidence,
+    whether the people lifecycle or a manager cancelled it, keeps the entry as late evidence,
+    flagged, and stays cancelled (`task_cancelled`; a return or correction that brings back what
+    the lifecycle stopped later restores it as done). A task already done or skipped, or a
+    cancelled task an earlier entry already answered (`task_already_closed`), or one the author
+    may not complete (`not_linked`), is left alone; the entry is kept, flagged, and listed on one
+    review task for the nurse in charge (`care.entry_review`). For a `medicines.*` task in any of
+    those cases the entry is kept as `medicines_conflict`, never completing the task, with an
+    urgent conflict review (`care.entry_conflict_review`), and the user is told "Tell the nurse in
+    charge now. Only the person who gave a medicine records it.", so a dose is never given twice
+    on the strength of the record (H-132); a task for another person is refused (HZ-001). Every
+    entry view shows the outcome as an icon and words.
 
 ### Domain modules for consent, capacity and DoLS (slice 6)
 

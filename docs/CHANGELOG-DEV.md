@@ -296,3 +296,33 @@ exit comes with the mobile hand-over of held entries.
 **Tests**: `packages/domain` 3,684, `packages/db` 276, `packages/contracts` 16, `apps/api` 387,
 `apps/web` 299, `packages/ui` 337, `packages/ui-native` 134, `packages/i18n` 34, all passing
 locally.
+
+## 2026-10-11: #21 review round 4 (people lifecycle)
+
+**What changed**
+
+- Rounds: a missed round is caught up only when no later occurrence is done or open again, with a
+  fresh window and its escalation reset; a missed medicines dose is never made due again but listed;
+  a return or correction first makes the rounds the series would have had since it stopped (a stay
+  beyond the 48-hour horizon, a late correction); a correction after the exit workflow closed still
+  restores the status and rounds; restored tasks carry a restore code (migration 0026).
+- Entries: a medicines entry that cannot complete its task is kept as `medicines_conflict` with an
+  urgent conflict review instead of being refused; the task row is locked while an entry is
+  planned, a second entry for an answered cancelled task is reviewed, replays return the stored
+  entry first, review details are capped.
+- Security: a task goes only to someone who holds its permission at its location; photos are capped
+  at 2048 pixels a side with chunk and size limits, decided printable once at upload and never
+  decoded inside a transaction; the pack routes are rate limited per user; refusals are audited
+  after their transaction; device ids are kept only when opaque; the chip links only to this site
+  and names its action.
+- Page 1: an ADRT held without a CPR form says so; a missing confirmer is said; the conflict is said
+  once in sentence case. Web: medicines conflict, catch-up and restored badges and the review
+  details view.
+
+**Human actions logged**: H-131 to H-136; H-90, H-92 and H-94 updated.
+
+**Follow-ups**: mobile badges and details (#15); the server copy of a refused entry (H-134).
+
+**Tests**: `packages/domain` 3,695, `packages/db` 278, `packages/contracts` 16, `apps/api` 411,
+`apps/web` 304, `packages/ui` 342, `packages/ui-native` 134, `packages/i18n` 34, all passing
+locally.

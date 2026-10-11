@@ -109,7 +109,10 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
 - Rules: skip and cancel need a reason; tasks that ask for evidence cannot be completed without it;
   finished tasks never change; two devices cannot overwrite each other (version check). The
   assignee, or anyone holding the permission the task names, completes it; managers with
-  `platform.task.manage` create, assign and schedule.
+  `platform.task.manage` create, assign and schedule. Because the assignee may complete it, a task
+  that names a permission other than `platform.task.manage` (a clinical check, a medicines round)
+  is given only to someone who holds that permission at the task's location, the person
+  assigning included; the refusal is audited (HZ-004, HZ-005).
 - Overdue: once a task's window closes it is overdue; after `task.overdue_escalation_minutes` (rate
   table) the worker notifies the assignee and the clinical leads and team leaders at the location
   (the Registered Manager when there are none), once (HZ-008).
