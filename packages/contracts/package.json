@@ -4,20 +4,24 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./client": "./src/client/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "generate:client": "openapi-typescript ../../apps/api/openapi.json -o src/client/api-types.ts && biome format --write src/client/api-types.ts"
   },
   "devDependencies": {
     "@harbour/config": "workspace:*",
     "@types/node": "^22.15.0",
     "typescript": "~6.0.3",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "openapi-typescript": "^7.13.0"
   },
   "description": "Zod schemas shared by the Harbour API, web and mobile apps (OpenAPI 3.1 source)",
   "dependencies": {
-    "zod": "^4.6.5"
+    "zod": "^4.6.5",
+    "openapi-fetch": "^0.17.0"
   }
 }
