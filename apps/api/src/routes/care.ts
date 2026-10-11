@@ -43,7 +43,6 @@ import { type AppEnv, requirePermission, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { publish } from "../outbox";
 import {
-  applyTaskLink,
   careProfile,
   careRates,
   completeOpenTasks,
@@ -54,6 +53,7 @@ import {
 import { latestMustBand } from "../services/care-planning";
 import { loadPerson, type PersonRecord, requireWrite } from "../services/people";
 import {
+  applyLink,
   entryOut,
   eventKind,
   PersonParam,
@@ -186,7 +186,7 @@ export const careRouter = createRouter()
               rates.clockDriftMinutes,
             );
             await checkSuperseded(tx, careNote, body.supersedesId, personId);
-            const link = await planLink(tx, access, body.taskId, personId, c.get("requestId"));
+            const link = await planLink(tx, access, body.taskId, personId, times.occurredAt);
             const [inserted] = await tx
               .insert(careNote)
               .values({
@@ -222,7 +222,7 @@ export const careRouter = createRouter()
               throw problems.invalid("That id is already used.");
             if (inserted) {
               if (link) {
-                await applyTaskLink(tx, link, {
+                await applyLink(tx, access, c.get("requestId"), link, {
                   evidenceType: "care_note",
                   evidenceId: row.id,
                   personId,
@@ -366,7 +366,7 @@ export const careRouter = createRouter()
             await checkSuperseded(tx, observation, body.supersedesId, personId);
             const profile = await careProfile(tx, personId);
             const { flags, triggers } = chartRules(body.values, profile, times.occurredAt);
-            const link = await planLink(tx, access, body.taskId, personId, c.get("requestId"));
+            const link = await planLink(tx, access, body.taskId, personId, times.occurredAt);
             const [inserted] = await tx
               .insert(observation)
               .values({
@@ -414,7 +414,7 @@ export const careRouter = createRouter()
                 now,
               );
               if (link) {
-                await applyTaskLink(tx, link, {
+                await applyLink(tx, access, c.get("requestId"), link, {
                   evidenceType: "observation",
                   evidenceId: row.id,
                   personId,
@@ -668,7 +668,7 @@ export const careRouter = createRouter()
             );
             await checkSuperseded(tx, bodyMapMark, body.supersedesId, personId);
             await checkMarkIncident(tx, body.incidentId, personId);
-            const link = await planLink(tx, access, body.taskId, personId, c.get("requestId"));
+            const link = await planLink(tx, access, body.taskId, personId, times.occurredAt);
             const [inserted] = await tx
               .insert(bodyMapMark)
               .values({
@@ -744,7 +744,7 @@ export const careRouter = createRouter()
             }
             if (inserted) {
               if (link) {
-                await applyTaskLink(tx, link, {
+                await applyLink(tx, access, c.get("requestId"), link, {
                   evidenceType: "body_map_mark",
                   evidenceId: row.id,
                   personId,

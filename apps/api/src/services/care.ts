@@ -17,6 +17,7 @@ import {
   checkEntryTime,
   checkTaskLink,
   checkTaskTransition,
+  entryPermissionTime,
   hasClockDrift,
   isClosedRecord,
   isMedicinesTask,
@@ -31,7 +32,7 @@ import {
 } from "@harbour/domain";
 import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import { HttpProblem, problems } from "../http/problem";
-import { assigneeMayComplete, OVERDUE_FIRST_RESPONDERS } from "./tasks";
+import { anyoneMayBeGiven, mayBeAssigned, OVERDUE_FIRST_RESPONDERS } from "./tasks";
 
 /**
  * Shared rules for the point-of-care record (docs/specs/care.md): rate-table figures, the person's
@@ -428,6 +429,8 @@ export async function planTaskLink(
     personId: string;
     actorTenantUserId: string;
     actorPermissions: ReadonlySet<string>;
+    /** When the care was recorded (bounded by the clock-drift limit; never after the upload). */
+    occurredAt: Date;
   },
 ): Promise<PlannedTaskLink> {
   const [row] = await tx
@@ -436,14 +439,18 @@ export async function planTaskLink(
     .where(and(eq(task.id, input.taskId), isNull(task.deletedAt)))
     .for("update");
   if (!row) throw problems.invalid("That task is not for this person.");
-  // The permission the task names, or being its assignee while they could still be given it, so
-  // an assignee whose acting-up grant has ended cannot complete an urgent task with an entry and
-  // silence its escalation (S1 follow-on; HZ-004, HZ-005).
-  const holds =
+  // The permission the task names, held at its location when the care was recorded
+  // (`entryPermissionTime`): a grant that ended before the device uploaded still counts, so the
+  // round a carer acting up did is not left open, inviting a repeat dose; a revoked grant never
+  // counts, so nobody completes a task by backdating past a revocation, and neither does a grant
+  // that ended before the task existed (HZ-004, HZ-006; H-138). Holding it now also counts, and an
+  // owner's investigation action is completed by its owner (S1 follow-on; HZ-005).
+  const at = entryPermissionTime(input.occurredAt, row.createdAt, new Date());
+  const heldWhenRecorded = await mayBeAssigned(tx, input.actorTenantUserId, row, at);
+  const holdsNow =
     isPermission(row.requiredPermission) && input.actorPermissions.has(row.requiredPermission);
-  const asAssignee =
-    !holds && (await assigneeMayComplete(tx, input.actorTenantUserId, row, new Date()));
-  const mayComplete = holds || asAssignee;
+  const asOwner = row.assigneeTenantUserId === input.actorTenantUserId && anyoneMayBeGiven(row);
+  const mayComplete = heldWhenRecorded || holdsNow || asOwner;
   const assigneeRefused =
     !mayComplete &&
     row.assigneeTenantUserId === input.actorTenantUserId &&

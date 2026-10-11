@@ -51,7 +51,6 @@ import { type AppEnv, requirePermission, type TenantAccess, withTenant } from ".
 import { problems } from "../http/problem";
 import { publish } from "../outbox";
 import {
-  applyTaskLink,
   careRates,
   completeOpenTasks,
   entryTimes,
@@ -67,6 +66,7 @@ import {
 } from "../services/care-planning";
 import { loadPerson, requireWrite } from "../services/people";
 import {
+  applyLink,
   entryOut,
   iso,
   PersonParam,
@@ -313,7 +313,7 @@ export const careRecordsRouter = createRouter()
               .orderBy(desc(assessment.occurredAt))
               .limit(50);
             const [previous] = currentResults(history);
-            const link = await planLink(tx, access, body.taskId, personId, c.get("requestId"));
+            const link = await planLink(tx, access, body.taskId, personId, times.occurredAt);
             const [inserted] = await tx
               .insert(assessment)
               .values({
@@ -354,7 +354,7 @@ export const careRecordsRouter = createRouter()
             );
             if (inserted) {
               if (link) {
-                await applyTaskLink(tx, link, {
+                await applyLink(tx, access, c.get("requestId"), link, {
                   evidenceType: "assessment",
                   evidenceId: row.id,
                   personId,
@@ -550,7 +550,7 @@ export const careRecordsRouter = createRouter()
                 throw problems.invalid("The entry being corrected was not found.");
               }
             }
-            const link = await planLink(tx, access, body.taskId, personId, c.get("requestId"));
+            const link = await planLink(tx, access, body.taskId, personId, times.occurredAt);
             const [inserted] = await tx
               .insert(activityRecord)
               .values({
@@ -589,7 +589,7 @@ export const careRecordsRouter = createRouter()
             );
             if (inserted) {
               if (link) {
-                await applyTaskLink(tx, link, {
+                await applyLink(tx, access, c.get("requestId"), link, {
                   evidenceType: "activity_record",
                   evidenceId: row.id,
                   personId,
@@ -741,7 +741,7 @@ export const careRecordsRouter = createRouter()
                 throw problems.invalid("The entry being corrected was not found.");
               }
             }
-            const link = await planLink(tx, access, body.taskId, personId, c.get("requestId"));
+            const link = await planLink(tx, access, body.taskId, personId, times.occurredAt);
             const [inserted] = await tx
               .insert(visitLog)
               .values({
@@ -781,7 +781,7 @@ export const careRecordsRouter = createRouter()
             );
             if (inserted) {
               if (link) {
-                await applyTaskLink(tx, link, {
+                await applyLink(tx, access, c.get("requestId"), link, {
                   evidenceType: "visit_log",
                   evidenceId: row.id,
                   personId,

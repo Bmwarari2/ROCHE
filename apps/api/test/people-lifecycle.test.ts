@@ -28,7 +28,7 @@ import type {
   TransferPack,
   WelcomeChecklist,
 } from "@harbour/contracts";
-import { createDatabase, createPool } from "@harbour/db";
+import { createDatabase, createPool, withRequestContext } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
 import {
   PRE_ADMISSION_SECTIONS,
@@ -46,6 +46,7 @@ import {
   type TaskDeps,
 } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
+import { assigneeMayComplete } from "../src/services/tasks";
 import { createHarness, type Harness, LODGE } from "./support/harness";
 import { pdfPages } from "./support/pdf-text";
 
@@ -3232,13 +3233,14 @@ describe("slice 8 review, round 4: rounds, assignments, exits and return checks"
         expect(await auditCount("platform.task.done", byRoute, "denied")).toBe(1);
         expect(await auditCount("platform.task.skipped", byRoute, "denied")).toBe(1);
         expect((await taskRow(byRoute))?.status).toBe("open");
-        // And an entry naming it is kept, but does not complete it: it is reviewed instead.
+        // And an entry recorded now, after the grant ended, is kept but does not complete it: it
+        // is reviewed instead.
         const saved = await as("carer", `/v1/people/${who}/notes`, {
           method: "POST",
           body: {
             category: "health",
             body: "Falls reviewed.",
-            occurredAt: ago(MIN),
+            occurredAt: new Date().toISOString(),
             taskId: byEntry,
           },
         });
@@ -3256,6 +3258,217 @@ describe("slice 8 review, round 4: rounds, assignments, exits and return checks"
       }
     },
   );
+
+  /** An acting-up grant for the care worker at the demo location, from and to hours from now. */
+  const actingUp = (permission: string, fromHours: number, toHours: number) =>
+    asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ id: string }>(
+        `INSERT INTO access_grant (tenant_user_id, permissions, location_id, valid_from, valid_to,
+           reason, granted_by)
+         VALUES ($1, ARRAY[$2], $3, now() + make_interval(secs => $4 * 3600),
+           now() + make_interval(secs => $5 * 3600), 'Acting up as senior carer', $6) RETURNING id`,
+        [
+          DEMO.users.carer.id,
+          permission,
+          DEMO.locationId,
+          fromHours,
+          toHours,
+          DEMO.users.manager.id,
+        ],
+      );
+      return rows[0]?.id ?? "";
+    });
+  const endGrant = (grant: string, sql: string) => asDemoTenant((c) => c.query(sql, [grant]));
+  const revokeGrant = (grant: string) =>
+    endGrant(
+      grant,
+      "UPDATE access_grant SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL",
+    );
+  /** A medicines round the series made the day before, so it existed when the care was given. */
+  const doseMadeYesterday = async (who: string) => {
+    const dose = await insertTask(who, "medicines.round", new Date(ago(40 * MIN)), null, {
+      permission: "medicines.cd.administer",
+    });
+    await asDemoTenant((c) =>
+      c.query("UPDATE task SET created_at = now() - interval '1 day' WHERE id = $1", [dose]),
+    );
+    return dose;
+  };
+  const conflictReviews = async (who: string) =>
+    (await reviewTasks(who, "care.entry_conflict_review")).length;
+  const giveDose = (taskId: string, occurredAt: string) =>
+    as("carer", `/v1/people/${resident(3)}/notes`, {
+      method: "POST",
+      body: { category: "health", body: "Dose given.", occurredAt, taskId },
+    });
+
+  it("hazard HZ-004 completes a medicines round with an entry recorded under a grant that ended before upload", async () => {
+    const who = resident(3);
+    const [own, other] = [await doseMadeYesterday(who), await doseMadeYesterday(who)];
+    const reviewsBefore = await conflictReviews(who);
+    // The care worker acts up for the evening medicines round; one dose is given to them.
+    const grant = await actingUp("medicines.cd.administer", -3, 1);
+    try {
+      const version = (
+        await asDemoTenant((c) =>
+          c.query<{ version: number }>("SELECT version FROM task WHERE id = $1", [own]),
+        )
+      ).rows[0]?.version;
+      const assigned = await as("manager", `/v1/tasks/${own}/assign`, {
+        method: "POST",
+        body: { assigneeTenantUserId: DEMO.users.carer.id, version },
+      });
+      expect(assigned.status).toBe(200);
+      // The doses are given offline at the end of the shift; the grant ends before the device
+      // uploads.
+      await endGrant(
+        grant,
+        "UPDATE access_grant SET valid_to = now() - interval '5 minutes' WHERE id = $1",
+      );
+      for (const dose of [own, other]) {
+        const saved = await giveDose(dose, ago(30 * MIN));
+        expect(saved.status).toBe(201);
+        expect((await json<CareNoteItem>(saved)).taskOutcome).toBe("completed");
+        expect((await taskRow(dose))?.status).toBe("done");
+      }
+      // Nothing is left open or raised as a second dose.
+      expect(await conflictReviews(who)).toBe(reviewsBefore);
+      expect(await auditCount("platform.task.done", own, "denied")).toBe(0);
+    } finally {
+      await revokeGrant(grant);
+    }
+  });
+
+  it("hazard HZ-004 refuses an entry recorded before a grant was revoked: a revocation counts from when it is made", async () => {
+    const who = resident(3);
+    const dose = await doseMadeYesterday(who);
+    const reviewsBefore = await conflictReviews(who);
+    const grant = await actingUp("medicines.cd.administer", -3, 1);
+    await revokeGrant(grant);
+    // Recorded half an hour ago, while the grant still stood, and uploaded after its revocation.
+    const saved = await giveDose(dose, ago(30 * MIN));
+    expect(saved.status).toBe(201);
+    expect((await json<CareNoteItem>(saved)).taskOutcome).toBe("medicines_conflict");
+    expect((await taskRow(dose))?.status).toBe("open");
+    expect(await conflictReviews(who)).toBe(reviewsBefore + 1);
+  });
+
+  it("hazard HZ-004 does not let an entry backdated to an earlier grant complete a task made after it ended", async () => {
+    const who = resident(3);
+    // A grant that ended two days ago, and a dose the series made yesterday.
+    const grant = await actingUp("medicines.cd.administer", -72, -48);
+    try {
+      const dose = await doseMadeYesterday(who);
+      const saved = await giveDose(dose, ago(60 * HOUR));
+      expect(saved.status).toBe(201);
+      expect((await json<CareNoteItem>(saved)).taskOutcome).toBe("medicines_conflict");
+      expect((await taskRow(dose))?.status).toBe("open");
+    } finally {
+      await revokeGrant(grant);
+    }
+  });
+
+  it("hazards HZ-004 and HZ-005 let a care worker acting up complete a task by the task route and by an entry, reading their own roles and grants under row-level security", async () => {
+    const who = resident(3);
+    const review = () =>
+      insertTask(who, "care.falls_review", new Date(Date.now() + 10 * MIN), null, {
+        permission: "care.plan.write",
+      });
+    const [byRoute, byEntry] = [await review(), await review()];
+    const grant = await actingUp("care.plan.write", -1, 1);
+    const asCareWorker = (taskId: string) =>
+      withRequestContext(
+        deps.appDb,
+        {
+          tenantId: DEMO.tenantId,
+          userId: DEMO.users.carer.id,
+          scope: "assigned",
+          locationIds: [],
+        },
+        (tx) =>
+          assigneeMayComplete(
+            tx,
+            DEMO.users.carer.id,
+            {
+              kind: "care.falls_review",
+              assigneeTenantUserId: DEMO.users.carer.id,
+              requiredPermission: "care.plan.write",
+              locationId: DEMO.locationId,
+            },
+            new Date(),
+          ).then((may) => ({ taskId, may })),
+      );
+    try {
+      for (const id of [byRoute, byEntry]) {
+        const version = (
+          await asDemoTenant((c) =>
+            c.query<{ version: number }>("SELECT version FROM task WHERE id = $1", [id]),
+          )
+        ).rows[0]?.version;
+        const assigned = await as("manager", `/v1/tasks/${id}/assign`, {
+          method: "POST",
+          body: { assigneeTenantUserId: DEMO.users.carer.id, version },
+        });
+        expect(assigned.status).toBe(200);
+      }
+      // Read as the care worker, under row-level security, their own grant and roles say yes.
+      expect((await asCareWorker(byRoute)).may).toBe(true);
+      const version = (
+        await asDemoTenant((c) =>
+          c.query<{ version: number }>("SELECT version FROM task WHERE id = $1", [byRoute]),
+        )
+      ).rows[0]?.version;
+      const done = await as("carer", `/v1/tasks/${byRoute}/transition`, {
+        method: "POST",
+        body: { to: "done", version },
+      });
+      expect(done.status).toBe(200);
+      const saved = await as("carer", `/v1/people/${who}/notes`, {
+        method: "POST",
+        body: {
+          category: "health",
+          body: "Falls reviewed.",
+          occurredAt: ago(MIN),
+          taskId: byEntry,
+        },
+      });
+      expect((await json<CareNoteItem>(saved)).taskOutcome).toBe("completed");
+      // Once the grant is revoked the same read says no.
+      await revokeGrant(grant);
+      expect((await asCareWorker(byEntry)).may).toBe(false);
+    } finally {
+      await revokeGrant(grant);
+    }
+  });
+
+  it("audits a refused completion once, for the upload that saved the entry, when a duplicate upload races it", async () => {
+    const who = resident(3);
+    const turn = await insertTask(who, "care.falls_review", new Date(Date.now() + 10 * MIN), null, {
+      permission: "care.plan.write",
+    });
+    // Given to the care worker directly, as before the assignment check, without the permission.
+    await asDemoTenant((c) =>
+      c.query("UPDATE task SET assignee_tenant_user_id = $1 WHERE id = $2", [
+        DEMO.users.carer.id,
+        turn,
+      ]),
+    );
+    const id = newId();
+    const send = () =>
+      as("carer", `/v1/people/${who}/notes`, {
+        method: "POST",
+        body: {
+          id,
+          category: "health",
+          body: "Falls reviewed.",
+          occurredAt: ago(MIN),
+          taskId: turn,
+        },
+      });
+    const [a, b] = await Promise.all([send(), send()]);
+    expect([a.status, b.status]).toEqual([201, 201]);
+    expect(await auditCount("platform.task.done", turn, "denied")).toBe(1);
+  });
 
   it("hazard HZ-005 keeps belongings with whoever records movements when the check has no task (S-L8)", async () => {
     const who = await newResident("Tegid");

@@ -4,6 +4,7 @@ import {
   catchUpTiming,
   checkTaskLink,
   checkTaskTransition,
+  entryPermissionTime,
   hasOccurrence,
   listMissedRounds,
   type MissedRound,
@@ -625,5 +626,22 @@ describe("hazard HZ-003 whether a stopped series had rounds before the look back
     ],
   ])("%s", (_label, series, from, to, expected) => {
     expect(hasOccurrence(series, new Date(from), new Date(to))).toBe(expected);
+  });
+});
+
+describe("hazards HZ-004 and HZ-006 when permission for an entry is judged", () => {
+  const at = (hhmm: string) => new Date(`2026-10-11T${hhmm}:00.000Z`);
+  it.each([
+    ["when the care was recorded, after the task was made", "18:00", "08:00", "20:00", "18:00"],
+    [
+      "no earlier than when the task was made (a backdated entry)",
+      "06:00",
+      "08:00",
+      "20:00",
+      "08:00",
+    ],
+    ["no later than the server's clock (a fast device clock)", "20:03", "08:00", "20:00", "20:00"],
+  ])("%s", (_label, occurred, created, now, expected) => {
+    expect(entryPermissionTime(at(occurred), at(created), at(now))).toEqual(at(expected));
   });
 });
