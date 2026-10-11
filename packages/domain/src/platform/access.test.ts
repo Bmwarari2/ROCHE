@@ -135,6 +135,14 @@ describe("built-in roles follow section 4", () => {
     ["registered_manager", "safety.notification.submit", true],
     ["owner", "safety.notification.submit", true],
     ["deputy_manager", "safety.notification.submit", false],
+    ["quality_lead", "safety.notification.submit", false],
+    ["care_worker", "safety.incident.read", true],
+    ["care_worker", "safety.incident.manage", false],
+    ["team_leader", "safety.incident.manage", false],
+    ["clinical_lead", "safety.incident.manage", true],
+    ["quality_lead", "safety.incident.read", true],
+    ["catering", "safety.incident.report", true],
+    ["catering", "safety.incident.read", false],
     ["care_worker", "care.note.write", true],
     ["care_worker", "platform.user.manage", false],
     ["catering", "care.note.read", false],
@@ -195,6 +203,9 @@ describe("permission catalogue", () => {
 
   it.each([
     ["care.note.read", true],
+    ["safety.incident.read", true],
+    ["safety.notification.submit", true],
+    ["safety.incident.report", false],
     ["operations.catering.manage", false],
   ] as const)("%s touches care records: %s", (permission, expected) => {
     expect(touchesCareRecords(permission)).toBe(expected);
