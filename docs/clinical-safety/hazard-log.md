@@ -50,6 +50,8 @@
 | [HZ-025](#hz-025-bed-rail-entrapment-risk-not-identified) | Bed rail entrapment risk not identified | Major / Low / 3 | Major / Very low / 2 | Open | None (Phase 1) | Phase 1 |
 | [HZ-026](#hz-026-restrictive-or-covert-care-under-consent-or-authority-that-is-not-valid) | Restrictive or covert care under consent or authority that is not valid | Considerable / Medium / 3 | Considerable / Low / 2 | Open | None (Phase 1) | Phase 1 |
 | [HZ-027](#hz-027-head-injury-after-a-fall-not-observed-or-escalated) | Head injury after a fall not observed or escalated | Major / Medium / 3 | Major / Low / 3 | Open | None (Phase 1) | Phase 1 |
+| [HZ-060](#hz-060-health-details-in-an-email-sms-or-push-notification-to-a-family-member) | Health details in an email, SMS or push notification to a family member | Considerable / Medium / 3 | Considerable / Very low / 2 | Open | Outbound title guard on every adapter (Phase 0) | Phase 1 |
+| [HZ-061](#hz-061-family-reassured-by-a-stale-or-misleading-update) | Family reassured by a stale or misleading update | Considerable / Medium / 3 | Considerable / Low / 2 | Open | None (Phase 1) | Phase 1 |
 
 Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
@@ -1147,7 +1149,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 
 **Description**: a section of a person's record (updates, photos, care plan, health summary, medicines, finance, About Me) is shown to a family member, representative, external professional or share-link holder when no sharing decision in force covers that section for that recipient: there was never a decision, it has expired, consent was withdrawn, an attorney's authority has lapsed, sharing was suspended during a safeguarding enquiry, or the person has died or left the service.
 
-**Causes**: a feed that is open by default; a decision that covers "the person" rather than named sections; decisions with no expiry; a withdrawal or suspension not applied at once (including on devices that synced earlier); a decision for one recipient applied to another (contact ids confused, a shared family account); a lasting power of attorney or deputyship accepted without evidence or after it ended, or a health and welfare attorney treated as having authority while the person has capacity; share links that outlive their decision; sharing left open after a death.
+**Causes**: a feed that is open by default; a decision that covers "the person" rather than named sections; decisions with no expiry; a withdrawal or suspension not applied at once (including on devices that synced earlier); a decision for one recipient applied to another (contact ids confused, a shared family account); a lasting power of attorney or deputyship accepted without evidence or after it ended, or a health and welfare attorney treated as having authority while the person has capacity; share links that outlive their decision; sharing left open after a death. In the family feed (slice 12): an update composed for one person shown in another person's feed; updates from before a decision started, or from a gap after a withdrawal, shown once a later decision exists; an update taken down still shown to people who never saw it; a property and financial affairs attorney shown care updates, or a welfare attorney shown finance; a photo shared without consent or a best-interests decision, or one in which other residents can be recognised; another resident named, or a phone or NHS number written, in a shared note or caption; a visit booking refusal that reveals a hospital stay, a safeguarding suspension or a restriction; a staff role holding the family feed permission.
 
 **Effects**: a person's whereabouts, health or money disclosed to someone who may harm them (safeguarding risk, financial abuse); a person with capacity overridden; distress and loss of trust; a reportable personal data breach; a family member relying on information they should no longer see.
 
@@ -1162,10 +1164,17 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Every decision expires; withdrawal, suspension (for example during a safeguarding enquiry) and the end of an authority close the section at once; a stored decision that breaks the rules is never honoured | Phase 1 (domain rule built) |
 | Design | Sharing closes when the person is discharged, dies or is archived; correcting a discharge or death does not reopen it without a manager | Phase 1 (domain rule built) |
 | Design | About Me share links carry About Me only, store only a hash of the token, and cannot outlive their decision | Phase 1 (domain rule built; links with the API step) |
-| Design | Every view by a family member, professional or link holder is audited with the decision that allowed it | Phase 1 (slice 12) |
+| Design | Every view by a family member, professional or link holder is audited with the decision that allowed it (`buildFamilyFeed` names the decision for each entry; the API writes `feed_view`) | Phase 1 (domain rule built; API in slice 12's API step) |
+| Design | The family feed adds nothing to the sharing rules: each update belongs to one section (`FEED_ITEM_SECTIONS`) and is shown only when `checkSectionVisibility` finds a decision in force for that person, section, care plan domain and family contact; an update about another person is never shown; only decisions that had started when the thing happened count, so earlier updates and gaps after a withdrawal stay closed (`checkFeedItemVisibility` in `packages/domain/src/comms/feed-visibility.ts`) | Phase 1 (domain rule built, slice 12) |
+| Design | Attorneys and deputies see only what their authority covers through the same rules: welfare authorities care sections while the person lacks capacity, property and finance authorities the finance placeholder only; a decision naming a section outside the authority is never honoured | Phase 1 (domain rule built, slice 12) |
+| Design | Photos need their own basis (`feedPhotoBasis`): the person's consent or a representative's with authority, or a best-interests decision after an assessment of the photos decision; a refusal or an overdue review stops them; only photos where nobody else can be recognised are composed, and photo updates are taken down when the basis ends | Phase 1 (domain rule built, slice 12) |
+| Design | Composition refuses staff-written words naming another resident, an email address or a run of ten or more digits, and strips staff surnames when the tenant asks; visitors are never named; withdrawn updates disappear for anyone who had not seen them (`composeFeedItem`, `checkFeedText` in `feed-compose.ts`) | Phase 1 (domain rule built, slice 12) |
+| Design | What a family member saw cannot be unseen: `feedExposure` lists what was seen under a decision and flags any view after it closed as a breach candidate | Phase 1 (domain rule built, slice 12) |
+| Design | A visit booking refusal about the person, a sharing decision or a restriction always reads "We cannot book this visit online. Please call the home to arrange it." (`checkVisitBooking`) | Phase 1 (domain rule built, slice 12) |
+| Design | Family-only permissions (`PORTAL_ONLY_PERMISSIONS`) are never given to staff roles; reading the feed needs MFA (`comms.feed.read` touches care records) | Phase 1 (built, slice 12) |
 | Design | Family device sync streams carry only the sections a decision covers, tested on their own (replication bypasses RLS) | Phase 4 (family app mode) |
 | Test | See Verification | Phase 1 |
-| Training and user documentation | Deployer control: the Registered Manager reviews sharing decisions at each care plan review and suspends sharing when a safeguarding concern involves a family member | Phase 1 |
+| Training and user documentation | Deployer control: the Registered Manager reviews sharing decisions at each care plan review and suspends sharing when a safeguarding concern involves a family member; staff check a photo shows only the person before choosing it for the feed | Phase 1 |
 
 **Target residual risk**: severity Major, likelihood Very low, **risk 2**.
 
@@ -1175,6 +1184,12 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | --- | --- |
 | `packages/domain/src/people/sharing.test.ts`: `hazard HZ-022 a section is visible only under a sharing decision in force` (no decision; a section or care plan domain the decision does not name; another recipient; another person; expired; not yet started; withdrawn; suspended; lapsed authority; a stored decision that breaks the rules; a person who has died or left) | Passing (Phase 1) |
 | `packages/domain/src/people/sharing.test.ts`: recording a sharing decision (capacity, authority evidence and coverage, best interests, direct-care limits, share-link limits, expiry) and About Me share links | Passing (Phase 1) |
+| `packages/domain/src/comms/feed-visibility.test.ts`: `hazard HZ-022 the family feed shows an item only under a sharing decision in force` (no decision; another family member; a professional's decision with the same id; a section or care plan domain not covered; expired, withdrawn, suspended, not yet started; another person's item; an item from before the decision started; a withdrawn item never seen; a photo without a basis; the lifecycle statuses; a gap between a withdrawal and a later decision) | Passing (Phase 1, slice 12) |
+| `packages/domain/src/comms/feed-visibility.test.ts`: `hazard HZ-022 attorneys and deputies see what their authority covers` (welfare attorney and deputy, finance attorney and deputy, decisions naming sections outside the authority, capacity, an ended order, a lapsed authority) | Passing (Phase 1, slice 12) |
+| `packages/domain/src/comms/feed-visibility.test.ts`: `hazard HZ-022 photos with ...` (consent, an attorney's consent, best interests, refusals, expired or withdrawn consent, overdue reviews, an older assessment); `hazard HZ-022 is empty with no decision`; `hazard HZ-022 flags views after the decision closed for the breach register` | Passing (Phase 1, slice 12) |
+| `packages/domain/src/comms/feed-compose.test.ts`: `hazard HZ-022 refuses another resident's name`, `... keeps staff surnames out when the tenant asks`, `... refuses a staff surname used on its own`, `... refuses an email address`, `... an NHS number`, `... a phone number`, `hazard HZ-022 refuses a photo ...`, `hazard HZ-022 nothing is composed for the wrong person or a closed record` | Passing (Phase 1, slice 12) |
+| `packages/domain/src/comms/visit-booking.test.ts`: `hazard HZ-022 a refusal never says why when the reason is about the person` | Passing (Phase 1, slice 12) |
+| `packages/domain/src/comms/feed-permissions.test.ts`: `hazard HZ-022 never gives a member of staff a portal-only permission`, `hazard HZ-022 asks for MFA wherever the feed or its sources are read or published` | Passing (Phase 1, slice 12) |
 | `apps/api`: `hazard HZ-022 the family feed returns nothing without a sharing decision in force` | Planned, Phase 1 (slice 12) |
 | `apps/api`: `hazard HZ-022 withdrawing or suspending a decision closes the section on the next request` | Planned, Phase 1 |
 | `packages/sync`: `hazard HZ-022 family streams carry only shared sections` | Planned, Phase 4 |
@@ -1394,6 +1409,93 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain` (safety): `hazard HZ-013 open questions, provisional drafts and tasks` (a fall on anticoagulants raises urgent advice and timed observations) | Passing |
 | `apps/api`: `hazard HZ-027 a fall creates the post-fall tasks with the observation schedule` | Planned, Phase 1 |
 | Maestro `hazard-HZ-027-post-fall-observations.yaml` | Planned, Phase 1 |
+
+---
+
+## HZ-060 Health details in an email, SMS or push notification to a family member
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-060 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]`; data protection lead consulted |
+| Engineering owner | `comms` module (family notifications); `integrations` (adapters) |
+| Source | Master prompt 9.1 (push, email and SMS bodies never carry personal data), 15.1, 15.3 (communications); [comms.md](../specs/comms.md) section 4 rules 13 to 15 |
+
+**Description**: a notification telling a family member about a new update carries something about the person's health or care (a fall, an infection, a score, a hospital visit, the person's name with an event) in an email subject, an SMS or a push notification, where it can be read on a lock screen, a shared phone or tablet, a work inbox, a smartwatch or by the SMS gateway and push services, before or without the family member signing in.
+
+**Causes**: a notification built from the update's text ("Ada had a fall today"); a template with merge fields for the person's name or the update; a template edited by staff without approval; a link that carries the person's id, name or the update in its query; a stale phone number or email address now held by someone else; an urgent-feeling event (a fall, a hospital admission) sent as a notification instead of a phone call; a mobile number shared by several family members.
+
+**Effects**: the person's health or circumstances disclosed to someone who should not know (a safeguarding or financial abuse risk, loss of dignity and trust); a family member learning of a fall or a deterioration from a lock screen without support; a reportable personal data breach.
+
+**Initial risk**: severity Considerable, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Content-free by construction: the planner is given the ids of new updates, never their content, so nothing an update says can reach a message (`planFamilyNotification` in `packages/domain/src/comms/notify-plan.ts`) | Phase 1 (domain rule built, slice 12) |
+| Design | The words are the latest approved template for the channel, the same for everyone: no placeholders; refused when not approved or withdrawn, when the outbound guard objects (NHS numbers, dates, email addresses, phone numbers, more than 80 characters), when it contains a clinical term, or when it names the person (`checkFamilyNotificationTemplate`) | Phase 1 (domain rule built, slice 12) |
+| Design | The link is the portal's updates page with no id, name, query or fragment (`familyUpdatesLink`); the detail is shown only after sign-in with MFA and under the sharing rules (HZ-022) | Phase 1 (domain rule built, slice 12) |
+| Design | Every adapter rechecks the title with `outboundTitleProblem` before sending | Built in Phase 0 |
+| Design | Channels are opt-in and verified; a bounce, complaint, unregistered device or opt-out stops the channel; a new address must be verified again (`channels.ts`) | Phase 1 (domain rule built, slice 12) |
+| Design | Deaths, discharges, falls and hospital admissions are never announced through the feed or a notification; there is no feed kind for them | Phase 1 (domain rule built, slice 12) |
+| Test | See Verification | Phase 1 |
+| Training and user documentation | Deployer control: staff tell next of kin about incidents, hospital admissions, deterioration and deaths by phone or in person under the tenant's policy; template approvers are trained to keep templates generic | Phase 1 |
+
+**Target residual risk**: severity Considerable, likelihood Very low, **risk 2**.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/comms/notify-plan.test.ts`: `hazard HZ-060 sends only the approved words and a link with no ids, whatever the updates are` | Passing (Phase 1, slice 12) |
+| `packages/domain/src/comms/notify-plan.test.ts`: `hazard HZ-060 refuses a template with ...` (a score and the person's name, a diagnosis, a prognosis, the surname in lower case, a merge field, an NHS number, a date, a phone number, an email address, a long message) | Passing (Phase 1, slice 12) |
+| `packages/domain/src/comms/notify-plan.test.ts`: `hazard HZ-060 skips a channel whose template is not allowed, and says why`; `hazard HZ-060 keeps every validated tool name out of templates` | Passing (Phase 1, slice 12) |
+| `apps/api/test/adapters.test.ts`: `refuses a title that looks like personal data` (the port contract every adapter passes) | Passing (Phase 0) |
+| `apps/api`: `hazard HZ-060 the notification worker sends the approved template only` | Planned, Phase 1 (slice 12 API step) |
+
+---
+
+## HZ-061 Family reassured by a stale or misleading update
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-061 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `comms` module (family feed) |
+| Source | Master prompt 15.1 (family portal feed), 8 (plain English for family surfaces); [comms.md](../specs/comms.md) section 4 rules 4, 7 and 12. HZ-002 covers staff reading stale data on an offline device; this hazard is about families reading the feed |
+
+**Description**: a family member or representative reads the feed as a current, complete picture of how the person is, when it is old, selective or wrong: an update from days ago read as today's, routine activity updates while the person is unwell or in hospital, a cheerful sentence that says more than the record does, or an update later found to be wrong. They do not visit, ask questions or raise a concern, or an attorney does not take part in a decision, because the feed reassured them.
+
+**Causes**: updates without the time they happened; an update written days later shown as new; phrasing that claims wellbeing ("Ada had a lovely day", "settled and happy"); a feed that looks like the whole record; a corrected or withdrawn update left showing, or silently removed after being read; few updates read as "all is well"; events that matter (a fall, a hospital admission, a change in needs) missing from a feed that only carries everyday items.
+
+**Effects**: concerns about neglect or deterioration raised late; an attorney or deputy not involved when they should be; distress and loss of trust when the family learns more; complaints.
+
+**Initial risk**: severity Considerable, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Every entry shows when the thing happened, and when it was written if that was on a later UK day; the feed shows when the newest update happened; newest first (`buildFamilyFeed`) | Phase 1 (domain rule built, slice 12) |
+| Design | Every feed says: "These are everyday updates. They are not the full care record. The home will phone you about anything important." (`FEED_NOT_FULL_RECORD_STATEMENT`) | Phase 1 (domain rule built, slice 12) |
+| Design | Approved phrases say what happened, never how the person is; no wellbeing claims (`FEED_PHRASES`, tested) | Phase 1 (domain rule built, slice 12) |
+| Design | A wrong update is taken down with a reason; a family member who saw it sees that it was taken down, and a corrected update names the one it replaces (`checkFeedWithdrawal`, `FEED_WITHDRAWN_NOTICE`) | Phase 1 (domain rule built, slice 12) |
+| Design | The family app mode shows its last sync time (as HZ-002 for staff) | Phase 4 (MOB-004) |
+| Test | See Verification | Phase 1 |
+| Training and user documentation | Deployer control: the tenant's communication policy says what families are told by phone (incidents, hospital admissions, changes in needs, deterioration, deaths) and by whom; the family guide explains what the feed is and is not | Phase 1 |
+
+**Target residual risk**: severity Considerable, likelihood Low, **risk 2**.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/comms/feed-visibility.test.ts`: `hazard HZ-061 lists open items newest first with when they happened and when they were added`; `hazard HZ-061 tells a viewer who saw an update that it was taken down, without its content`; `hazard HZ-061 does not count a withdrawn notice as the last update` | Passing (Phase 1, slice 12) |
+| `packages/domain/src/comms/feed-compose.test.ts`: `hazard HZ-061 approved phrases say what happened, never how the person is` (every phrase: reading-age lint, no clinical words, no wellbeing words) | Passing (Phase 1, slice 12) |
+| `apps/web`: `hazard HZ-061 the family feed shows the statement, the last update time and each entry's times` (Playwright with axe) | Planned, Phase 1 (slice 12 web step) |
 
 ---
 

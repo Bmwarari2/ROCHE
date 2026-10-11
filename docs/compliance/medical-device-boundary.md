@@ -79,6 +79,15 @@ Where the Waterlow card leaves room for reading, the reading taken is stated in 
 
 **Notification, capacity and post-fall rules (Phase 1, slices 6 and 7)**: these stay inside the boundary and add no score. The incident classifier (`packages/domain/src/safety/classifier.ts`) records a health care professional's opinion of harm, in the regulations' words, and applies the regulations' tests (CQC Registration Regulations 2009 regs 16 and 18, RIDDOR 2013, regulation 20 of the 2014 Regulations) to decide which notifications to draft; it does not assess an injury. The capacity rules (`packages/domain/src/care/mca/`) check that a recorded assessment follows the Mental Capacity Act's two-stage test; the assessor decides. The post-fall checklist (`packages/domain/src/safety/post-fall.ts`) applies tenant-configurable observation figures (defaults from NICE NG232, to be confirmed by the CSO, human action H-66) and NG232's published criteria for seeking urgent medical advice, linked to the tenant's post-fall policy; it does not judge the injury or recommend treatment, and a test asserts it returns no score.
 
+**Family feed and notifications (Phase 1, slice 12)**: these stay inside the boundary. The feed
+(`packages/domain/src/comms/`) composes fixed sentences about activities, visits, appointments,
+photos and care plan updates, and words a member of staff wrote for the family; it has no kind for
+observations, charts, assessments, validated tool results, body maps, medicines or incidents, and
+it refuses staff-written words that name a validated tool or a score, or read as a diagnosis or a
+prognosis (`FEED_CLINICAL_TERMS`, a backstop behind the staff member's decision). Approved phrases
+say what happened, never how the person is. Notifications carry an approved generic line and a link
+only. Nothing interprets, scores or predicts ([comms.md](../specs/comms.md) rules 7 to 13).
+
 **Regulatory opinion needed** `[human action]`: MHRA guidance indicates that software performing calculations that inform clinical decisions can be a medical device. Thapsus's position is that reproducing a published paper tool exactly, with every sub-score and the banding visible so the user can verify it, and leaving the response to the provider's own policy, is a record-keeping aid. This position should be confirmed by regulatory advice before the Phase 1 tools are used by a live tenant.
 
 ## 6. Grey areas that need an ADR and CSO review before they are built
