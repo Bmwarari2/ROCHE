@@ -126,6 +126,7 @@ export const SHARING_SECTION_SQL = sqlList([
   "medicines",
   "appointments",
   "finance",
+  "benefits",
   "documents",
 ]);
 /** `SHARING_BASES` (sharing.ts). */
@@ -880,11 +881,20 @@ export const sharingDecision = pgTable(
     authorityReference: text("authority_reference"),
     authorityEvidenceDocumentId: uuid("authority_evidence_document_id"),
     authorityValidUntil: date("authority_valid_until"),
+    /**
+     * For a deputy: the sections the Court of Protection order covers, as recorded from the order
+     * (MCA 2005 s.16 and s.20; people.md rule 13). Required for deputies.
+     */
+    authorityOrderSections: text("authority_order_sections").array(),
     validFrom: timestamp("valid_from", { withTimezone: true }).notNull(),
     /** Every decision expires (people.md rule 13). */
     validTo: timestamp("valid_to", { withTimezone: true }).notNull(),
     withdrawnAt: timestamp("withdrawn_at", { withTimezone: true }),
     withdrawnReason: text("withdrawn_reason"),
+    /**
+     * The suspension in force now, if any, kept with the decision so a change bumps its version.
+     * Every suspension, ended or not, is a period in `sharing_decision_suspension`.
+     */
     suspendedAt: timestamp("suspended_at", { withTimezone: true }),
     suspendedReason: text("suspended_reason"),
     ...mutableColumns(),
@@ -954,7 +964,53 @@ export const sharingDecision = pgTable(
     check("sharing_decision_period", sql`valid_to > valid_from`),
     check("sharing_decision_withdrawn", sql`withdrawn_at IS NULL OR withdrawn_reason IS NOT NULL`),
     check("sharing_decision_suspended", sql`suspended_at IS NULL OR suspended_reason IS NOT NULL`),
+    check(
+      "sharing_decision_order_sections",
+      sql`(authority_order_sections IS NULL OR (cardinality(authority_order_sections) > 0
+        AND authority_order_sections <@ ARRAY[${SHARING_SECTION_SQL}]::text[]))
+        AND (authority_role IS NULL
+          OR authority_role NOT IN ('deputy_personal_welfare', 'deputy_property_affairs')
+          OR authority_order_sections IS NOT NULL)`,
+    ),
     index("sharing_decision_person_idx").on(t.tenantId, t.personId, t.validTo),
+  ],
+);
+
+/**
+ * Every period in which sharing under a decision was suspended (for example during a safeguarding
+ * enquiry; people.md rule 13, comms.md rule 2): from `suspended_at` until `lifted_at`, open while
+ * the suspension lasts. A decision covers only what happened while it was in force and not
+ * suspended, so updates from a suspension stay closed after it is lifted. One open period per
+ * decision.
+ */
+export const sharingDecisionSuspension = pgTable(
+  "sharing_decision_suspension",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    personId: uuid("person_id").notNull(),
+    sharingDecisionId: uuid("sharing_decision_id").notNull(),
+    suspendedAt: timestamp("suspended_at", { withTimezone: true }).notNull(),
+    reason: text("reason").notNull(),
+    liftedAt: timestamp("lifted_at", { withTimezone: true }),
+    liftedBy: uuid("lifted_by"),
+    liftedReason: text("lifted_reason"),
+    ...mutableColumns(),
+  },
+  (t) => [
+    personRef("sharing_decision_suspension_person_fk", t),
+    foreignKey({
+      name: "sharing_decision_suspension_decision_fk",
+      columns: [t.tenantId, t.personId, t.sharingDecisionId],
+      foreignColumns: [sharingDecision.tenantId, sharingDecision.personId, sharingDecision.id],
+    }),
+    userRef("sharing_decision_suspension_lifted_by_fk", t, t.liftedBy),
+    check("sharing_decision_suspension_period", sql`lifted_at IS NULL OR lifted_at > suspended_at`),
+    check("sharing_decision_suspension_lifted", sql`(lifted_at IS NULL) = (lifted_reason IS NULL)`),
+    uniqueIndex("sharing_decision_suspension_open_key")
+      .on(t.tenantId, t.sharingDecisionId)
+      .where(sql`lifted_at IS NULL AND deleted_at IS NULL`),
+    index("sharing_decision_suspension_decision_idx").on(t.tenantId, t.sharingDecisionId),
   ],
 );
 

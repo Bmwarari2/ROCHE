@@ -176,6 +176,13 @@
       "when": 1791728455513,
       "tag": "0024_builtin_role_permissions_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791754231803,
+      "tag": "0025_sharing_suspensions",
+      "breakpoints": true
     }
   ]
 }

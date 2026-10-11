@@ -53,6 +53,7 @@ const PERSON_TABLES = [
   "exit_record",
   "exit_checklist_item",
   "sharing_decision",
+  "sharing_decision_suspension",
   "about_me_share_link",
 ] as const;
 
@@ -147,6 +148,13 @@ async function seedPerson(c: pg.PoolClient, personId: string, locationId: string
     `INSERT INTO about_me_share_link (person_id, sharing_decision_id, token_hash, expires_at)
      VALUES ($1, $2, $3, now() + interval '7 days')`,
     [personId, sharing.rows[0]?.id, tokenHash()],
+  );
+  await c.query(
+    `INSERT INTO sharing_decision_suspension (person_id, sharing_decision_id, suspended_at, reason,
+       lifted_at, lifted_reason)
+     VALUES ($1, $2, now() - interval '2 days', 'Safeguarding enquiry opened',
+       now() - interval '1 day', 'Enquiry closed with no concerns')`,
+    [personId, sharing.rows[0]?.id],
   );
 }
 
@@ -443,6 +451,43 @@ describe("integrity rules in the database", () => {
       "a withdrawal without a reason",
       `UPDATE sharing_decision SET withdrawn_at = now() WHERE person_id = '${a.personAda}'`,
       /sharing_decision_withdrawn/,
+    ],
+    [
+      "a deputy's decision without the sections the order covers",
+      `INSERT INTO sharing_decision (person_id, recipient_kind, sections, basis, authority_role,
+         valid_from, valid_to)
+       VALUES ('${a.personAda}', 'link', '{about_me}', 'legal_authority', 'deputy_personal_welfare',
+         now(), now() + interval '1 day')`,
+      /sharing_decision_order_sections/,
+    ],
+    [
+      "order sections that are not sections",
+      `INSERT INTO sharing_decision (person_id, recipient_kind, sections, basis, authority_role,
+         authority_order_sections, valid_from, valid_to)
+       VALUES ('${a.personAda}', 'link', '{about_me}', 'legal_authority', 'deputy_personal_welfare',
+         '{bank_details}', now(), now() + interval '1 day')`,
+      /sharing_decision_order_sections/,
+    ],
+    [
+      "a suspension that ends before it starts",
+      `UPDATE sharing_decision_suspension SET lifted_at = suspended_at - interval '1 minute'
+       WHERE person_id = '${a.personAda}'`,
+      /sharing_decision_suspension_period/,
+    ],
+    [
+      "a suspension lifted without a reason",
+      `UPDATE sharing_decision_suspension SET lifted_reason = NULL WHERE person_id = '${a.personAda}'`,
+      /sharing_decision_suspension_lifted/,
+    ],
+    [
+      "a second open suspension of the same decision",
+      `INSERT INTO sharing_decision_suspension (person_id, sharing_decision_id, suspended_at, reason)
+       SELECT person_id, sharing_decision_id, now() - interval '1 hour', 'One'
+       FROM sharing_decision_suspension WHERE person_id = '${a.personAda}'
+       UNION ALL
+       SELECT person_id, sharing_decision_id, now(), 'Two'
+       FROM sharing_decision_suspension WHERE person_id = '${a.personAda}'`,
+      /sharing_decision_suspension_open_key/,
     ],
     [
       "a death recorded without the place",
@@ -889,6 +934,53 @@ describe("slice 8 review fixes (migration 0023)", () => {
         ),
       ),
     ).rejects.toThrow(/task_cancel_code/);
+  });
+
+  it("hazard HZ-022 keeps a suspension recorded before 0025 as an open period (backfill)", async () => {
+    const sql = readFileSync(
+      fileURLToPath(new URL("../drizzle/0025_sharing_suspensions.sql", import.meta.url)),
+      "utf8",
+    );
+    const backfill = sql.slice(sql.indexOf("-- backfill: begin"), sql.indexOf("-- backfill: end"));
+    const suspendedAt = new Date("2026-10-08T09:00:00Z");
+    const decisionId = await asOwner(async (c) => {
+      const { rows: found } = await c.query<{ id: string }>(
+        `UPDATE sharing_decision SET suspended_at = $2, suspended_reason = 'Safeguarding enquiry'
+         WHERE person_id = $1 RETURNING id`,
+        [a.personBen, suspendedAt],
+      );
+      return found[0]?.id ?? "";
+    });
+    const client = await db.pool("harbour_owner").connect();
+    try {
+      await client.query("BEGIN");
+      for (const statement of backfill.split("--> statement-breakpoint")) {
+        if (statement.replace(/--.*$/gm, "").trim()) await client.query(statement);
+      }
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+    const periods = await asOwner((c) =>
+      c.query<{ suspended_at: Date; reason: string; lifted_at: Date | null }>(
+        `SELECT suspended_at, reason, lifted_at FROM sharing_decision_suspension
+         WHERE sharing_decision_id = $1 AND lifted_at IS NULL`,
+        [decisionId],
+      ),
+    );
+    expect(periods.rows).toHaveLength(1);
+    expect(periods.rows[0]?.reason).toBe("Safeguarding enquiry");
+    expect(periods.rows[0]?.suspended_at.toISOString()).toBe(suspendedAt.toISOString());
+    // FORCE is back on: no tenant, no rows.
+    const forced = await db
+      .pool("harbour_owner")
+      .query<{ force: boolean }>(
+        "SELECT relforcerowsecurity AS force FROM pg_class WHERE relname = 'sharing_decision_suspension'",
+      );
+    expect(forced.rows[0]?.force).toBe(true);
   });
 
   it("hazard HZ-003 codes only what a lifecycle event stopped, with the exit that stopped it (backfill)", async () => {
