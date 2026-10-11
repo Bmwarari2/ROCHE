@@ -18,12 +18,15 @@ const input = (overrides: Partial<SyncSummaryInput> = {}): SyncSummaryInput => (
 describe("hazard HZ-002 the sync status on Today", () => {
   it("gives the exact time of the last successful sync in UK time and the queued changes", () => {
     const summary = syncSummary(input({ queued: 2 }));
-    expect(summary.lines).toEqual([
-      "Last successful sync 11/10/2026 at 13:55",
-      "2 changes waiting to upload",
-      "Entries from the last 7 days are kept on this device.",
-    ]);
-    expect(summary).toMatchObject({ tone: "info", icon: "cloud-upload", stale: false });
+    expect(summary).toMatchObject({
+      headline: "Last successful sync 11/10/2026 at 13:55",
+      queued: "2 changes waiting to upload",
+      issues: null,
+      window: "Entries from the last 7 days are kept on this device.",
+      tone: "info",
+      icon: "cloud-upload",
+      stale: false,
+    });
   });
 
   it("warns once the data is older than the threshold", () => {
@@ -33,24 +36,27 @@ describe("hazard HZ-002 the sync status on Today", () => {
 
   it("says when the device has never synced", () => {
     const summary = syncSummary(input({ lastSyncedAt: null, windowDays: null }));
-    expect(summary.lines).toEqual([
-      "Not synced yet. Connect to the internet to download your people.",
-      "No changes waiting to upload",
-    ]);
+    expect(summary).toMatchObject({
+      headline: "Not synced yet. Connect to the internet to download your people.",
+      queued: "No changes waiting to upload",
+      window: null,
+    });
     expect(summary.stale).toBe(true);
   });
 
   it("hazard HZ-006 puts refused entries first in importance", () => {
     const summary = syncSummary(input({ issues: 1, queued: 3 }));
-    expect(summary.lines).toContain("1 entry was not saved and needs attention");
+    expect(summary.issues).toBe("1 entry was not saved and needs attention");
     expect(summary).toMatchObject({ tone: "danger", icon: "cloud-alert", needsAttention: true });
   });
 
   it("says plainly that demo entries never upload", () => {
     const summary = syncSummary(input({ demo: true, lastSyncedAt: null }));
-    expect(summary.lines).toEqual([
-      "Demo mode: entries stay on this device and are never uploaded.",
-    ]);
+    expect(summary).toMatchObject({
+      headline: "Demo mode: entries stay on this device and are never uploaded.",
+      queued: null,
+      window: null,
+    });
     expect(summary.stale).toBe(false);
   });
 });

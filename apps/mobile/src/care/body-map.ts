@@ -51,15 +51,6 @@ export const PRESSURE_CATEGORIES = Object.keys(
 /** API limit from `@harbour/contracts` (`CreateBodyMapMark.description`). */
 export const MARK_DESCRIPTION_MAX = 1000;
 
-/** Which third of the drawing was tapped, from the tap's x position and the drawing's width. */
-export function zoneFromTap(x: number, width: number): ViewerZone {
-  if (!(width > 0) || !Number.isFinite(x)) return "centre";
-  const third = width / 3;
-  if (x < third) return "viewer_left";
-  if (x > width - third) return "viewer_right";
-  return "centre";
-}
-
 /** The person's side for a zone of the drawing on a view (HZ-019). */
 export function drawnSide(view: BodyView, zone: ViewerZone): BodySide {
   return personSideFromDrawing(view, zone);

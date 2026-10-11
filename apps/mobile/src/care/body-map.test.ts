@@ -2,7 +2,7 @@ import { CreateBodyMapMark } from "@harbour/contracts";
 import type { BodySide } from "@harbour/domain";
 import { describe, expect, it } from "vitest";
 import { toCareUpload } from "../sync/care-upload";
-import { checkMark, drawnSide, type MarkDraft, regionsFor, zoneFromTap } from "./body-map";
+import { checkMark, drawnSide, type MarkDraft, regionsFor } from "./body-map";
 import type { EntryContext } from "./entries";
 
 const NOW = new Date("2026-10-11T10:00:00Z");
@@ -41,15 +41,6 @@ describe("hazard HZ-019 the side on the drawing and in words", () => {
     ["front", "centre", "midline"],
   ] as const)("on the %s view, %s of the drawing is the person's %s", (view, zone, side) => {
     expect(drawnSide(view, zone)).toBe(side);
-  });
-
-  it.each([
-    [10, 300, "viewer_left"],
-    [150, 300, "centre"],
-    [290, 300, "viewer_right"],
-    [10, 0, "centre"],
-  ] as const)("a tap at %i on a drawing %i wide is %s", (x, width, zone) => {
-    expect(zoneFromTap(x, width)).toBe(zone);
   });
 
   it("refuses a mark drawn on one side and described as the other", () => {

@@ -10,6 +10,8 @@
  * - Sign-out, or the API reporting the session revoked, wipes the device: the database is cleared,
  *   closed and deleted, and the key destroyed, so nothing readable remains (remote wipe).
  */
+
+import { nextWindowChange } from "@harbour/sync/client";
 import type { AbstractPowerSyncDatabase } from "@powersync/common";
 import * as Crypto from "expo-crypto";
 import * as ScreenCapture from "expo-screen-capture";
@@ -41,6 +43,7 @@ import { IdleTimer } from "../security/idle-timer";
 import { HarbourConnector } from "../sync/connector";
 import { deleteDatabaseFile, EncryptionUnavailableError, openDatabase } from "../sync/database";
 import { seedDemoDatabase } from "../sync/demo-seed";
+import { resolveOfflineWindow } from "../sync/offline-window";
 import { usePreferences } from "./preferences";
 import { useSession } from "./session";
 
@@ -56,6 +59,8 @@ interface VaultValue {
   readonly demoSeededAt: Date | null;
   readonly integrity: DeviceIntegrityResult | null;
   readonly autoLockMs: number;
+  /** Days of entries kept on the device (`mobile.offline_window_days`), once known. */
+  readonly offlineWindowDays: number | null;
   /** Shown once after the data on the device had to be reset. */
   readonly resetNotice: string | null;
   unlock(): Promise<void>;
@@ -78,6 +83,9 @@ const RESET_NOTICE =
 
 const SIGN_OUT_TIMEOUT_MS = 5_000;
 
+/** How often to check whether the offline window has moved on (a UTC day boundary passed). */
+const WINDOW_CHECK_MS = 5 * 60_000;
+
 function errorMessage(error: unknown): string {
   if (error instanceof DeviceNotSecureError || error instanceof EncryptionUnavailableError) {
     return error.message;
@@ -96,16 +104,44 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
   const [demoSeededAt, setDemoSeededAt] = useState<Date | null>(null);
   const [integrity, setIntegrity] = useState<DeviceIntegrityResult | null>(null);
   const [resetNotice, setResetNotice] = useState<string | null>(null);
+  const [offlineWindowDays, setOfflineWindowDays] = useState<number | null>(null);
+  /** When the window the device connected with stops being current (the next UTC midnight). */
+  const windowValidUntilRef = useRef<Date | null>(null);
 
   const dbRef = useRef<AbstractPowerSyncDatabase | null>(null);
   const filenameRef = useRef<string | null>(null);
   const connectorRef = useRef<HarbourConnector | null>(null);
   const tokenRef = useRef<string | null>(session.token);
+  const tenantRef = useRef<string | null>(session.me?.tenant.id ?? null);
   const wipingRef = useRef(false);
   const busyRef = useRef(false);
   const signOutAndWipeRef = useRef<(notice?: string) => Promise<void>>(async () => undefined);
 
   tokenRef.current = session.token;
+  tenantRef.current = session.me?.tenant.id ?? null;
+
+  /**
+   * Connects PowerSync with the offline window as connection parameters (ADR-0011): the tenant's
+   * `mobile.offline_window_days` read from the rate table when online, else the cached figure.
+   */
+  const connectSync = useCallback(
+    async (database: AbstractPowerSyncDatabase, connector: HarbourConnector) => {
+      const token = tokenRef.current;
+      const tenantId = tenantRef.current;
+      const now = new Date();
+      const window = await resolveOfflineWindow(
+        database,
+        token && tenantId ? { apiUrl: appEnv.apiUrl, fetch: platformFetch, token, tenantId } : null,
+        now,
+      );
+      setOfflineWindowDays(window.days);
+      windowValidUntilRef.current = nextWindowChange(now);
+      await database.connect(connector, {
+        params: { offline_days: [...window.params.offline_days] },
+      });
+    },
+    [],
+  );
 
   const autoLockMs = resolveAutoLockMs(preferences.deviceMode, preferences.sharedAutoLockMs);
 
@@ -192,14 +228,14 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
         },
       });
       connectorRef.current = connector;
-      opened.connect(connector).catch(() => undefined);
+      connectSync(opened, connector).catch(() => undefined);
       session.refreshMe().then((result) => {
         if (result === "ended") void signOutAndWipeRef.current(REMOTE_WIPE_NOTICE);
       });
     }
     setDb(opened);
     stubIntegrityChecker.check().then(setIntegrity, () => undefined);
-  }, [session.refreshMe]);
+  }, [session.refreshMe, connectSync]);
 
   const unlock = useCallback(async () => {
     if (busyRef.current || session.phase !== "signedIn") return;
@@ -260,6 +296,8 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
         clearPhotoCache();
         setDemoSeededAt(null);
         setIntegrity(null);
+        setOfflineWindowDays(null);
+        windowValidUntilRef.current = null;
         setError(null);
         await session.clearSession(notice);
       } finally {
@@ -275,8 +313,28 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
     const connector = connectorRef.current;
     if (!current || !connector) return;
     await current.disconnect().catch(() => undefined);
-    current.connect(connector).catch(() => undefined);
-  }, []);
+    connectSync(current, connector).catch(() => undefined);
+  }, [connectSync]);
+
+  // The window moves at UTC midnight: once the day has changed since the last connection, reconnect
+  // with the new days, so the oldest day's entries leave the device on time (ADR-0011). Checked on
+  // return to the foreground and every few minutes, because long timers do not run in the
+  // background.
+  useEffect(() => {
+    if (appEnv.demoMode) return;
+    const check = () => {
+      const connectedUntil = windowValidUntilRef.current;
+      if (connectedUntil && Date.now() >= connectedUntil.getTime()) void retrySync();
+    };
+    const interval = setInterval(check, WINDOW_CHECK_MS);
+    const subscription = AppState.addEventListener("change", (next) => {
+      if (next === "active") check();
+    });
+    return () => {
+      clearInterval(interval);
+      subscription.remove();
+    };
+  }, [retrySync]);
 
   const forceResync = useCallback(async (): Promise<ResyncResult> => {
     const current = dbRef.current;
@@ -295,10 +353,10 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
     if (appEnv.demoMode) {
       setDemoSeededAt(await seedDemoDatabase(current));
     } else if (connectorRef.current) {
-      current.connect(connectorRef.current).catch(() => undefined);
+      connectSync(current, connectorRef.current).catch(() => undefined);
     }
     return { ok: true };
-  }, []);
+  }, [connectSync]);
 
   // A remote sign-out can arrive while locked; make sure nothing stays open after the session ends.
   useEffect(() => {
@@ -316,6 +374,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       demoSeededAt,
       integrity,
       autoLockMs,
+      offlineWindowDays,
       resetNotice,
       unlock,
       lock,
@@ -332,6 +391,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       demoSeededAt,
       integrity,
       autoLockMs,
+      offlineWindowDays,
       resetNotice,
       unlock,
       lock,

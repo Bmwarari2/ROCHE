@@ -86,6 +86,17 @@ export interface NoteRow extends EntryRowBase {
   readonly tags: string | null;
 }
 
+/** One entry being corrected, by id, for the person in the tenant. */
+export const NOTE_BY_ID_SQL = `SELECT ${ENTRY_COLUMNS}, category, body, tags
+FROM care_note WHERE tenant_id = ? AND person_id = ? AND id = ?`;
+
+export const OBSERVATION_BY_ID_SQL = `SELECT ${ENTRY_COLUMNS}, chart, chart_values, flags
+FROM observation WHERE tenant_id = ? AND person_id = ? AND id = ?`;
+
+export const MARK_BY_ID_SQL = `SELECT ${ENTRY_COLUMNS}, view, region, side, mark_type,
+  pressure_category, status, description
+FROM body_map_mark WHERE tenant_id = ? AND person_id = ? AND id = ?`;
+
 /** Chart entries, newest first; pass the chart, or null for every chart. */
 export const OBSERVATIONS_SQL = `SELECT ${ENTRY_COLUMNS}, chart, chart_values, flags
 FROM observation

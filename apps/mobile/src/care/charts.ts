@@ -295,18 +295,20 @@ function issuesToErrors(issues: readonly InputIssue[]): ChartErrors {
 
 /** The NEWS2 flags kept with the entry, in the shape the API stores, so lists read both alike. */
 export function news2Flags(result: News2Result): Record<string, unknown> {
+  return { news2: { ...toStoredNews2(result), spo2Scale: result.spo2Scale } };
+}
+
+/** A calculated result in the stored shape, for display. */
+export function toStoredNews2(result: News2Result): StoredNews2 {
   return {
-    news2: {
-      toolVersion: result.toolVersion,
-      score: result.score,
-      band: result.band,
-      redScore: result.redScore,
-      spo2Scale: result.spo2Scale,
-      clinicalRisk: result.clinicalRisk,
-      response: result.response,
-      monitoring: result.monitoring.text,
-      workings: result.workings,
-    },
+    toolVersion: result.toolVersion,
+    score: result.score,
+    band: result.band,
+    redScore: result.redScore,
+    clinicalRisk: result.clinicalRisk,
+    response: result.response,
+    monitoring: result.monitoring.text,
+    workings: result.workings,
   };
 }
 

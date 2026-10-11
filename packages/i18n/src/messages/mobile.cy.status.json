@@ -71,6 +71,7 @@
     "mobile.common.dateTime",
     "mobile.common.no",
     "mobile.common.notRecorded",
+    "mobile.common.selected",
     "mobile.common.yes",
     "mobile.correction.original",
     "mobile.correction.reason",

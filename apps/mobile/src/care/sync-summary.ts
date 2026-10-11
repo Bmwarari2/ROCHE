@@ -22,27 +22,33 @@ export interface SyncSummaryInput {
 export interface SyncSummary {
   readonly tone: "success" | "info" | "warning" | "danger";
   readonly icon: string;
-  readonly lines: readonly string[];
+  /** The last successful sync (or never, or demo mode): shown first, with the icon. */
+  readonly headline: string;
+  /** Changes waiting to upload; null in demo mode, where nothing uploads. */
+  readonly queued: string | null;
+  readonly issues: string | null;
+  readonly window: string | null;
   readonly stale: boolean;
   readonly needsAttention: boolean;
 }
 
 export function syncSummary(input: SyncSummaryInput): SyncSummary {
-  const lines: string[] = [];
+  let headline: string;
   if (input.demo) {
-    lines.push(t("mobile.sync.demo"));
+    headline = t("mobile.sync.demo");
   } else if (input.lastSyncedAt) {
     const { date, time } = ukDateTimeParts(input.lastSyncedAt);
-    lines.push(t("mobile.sync.lastSuccess", { when: t("mobile.common.dateTime", { date, time }) }));
+    headline = t("mobile.sync.lastSuccess", { when: t("mobile.common.dateTime", { date, time }) });
   } else {
-    lines.push(t("mobile.sync.neverSynced"));
+    headline = t("mobile.sync.neverSynced");
   }
-  if (!input.demo) lines.push(t("mobile.sync.queued", { count: input.queued }));
+  const queued = input.demo ? null : t("mobile.sync.queued", { count: input.queued });
   const needsAttention = input.issues > 0;
-  if (needsAttention) lines.push(t("mobile.sync.issues", { count: input.issues }));
-  if (!input.demo && input.windowDays !== null) {
-    lines.push(t("mobile.sync.window", { days: input.windowDays }));
-  }
+  const issues = needsAttention ? t("mobile.sync.issues", { count: input.issues }) : null;
+  const window =
+    !input.demo && input.windowDays !== null
+      ? t("mobile.sync.window", { days: input.windowDays })
+      : null;
 
   const stale = !input.demo && isStale(input.lastSyncedAt, input.now, input.staleAfterMs);
   const tone = needsAttention
@@ -59,5 +65,5 @@ export function syncSummary(input: SyncSummaryInput): SyncSummary {
       : input.queued > 0
         ? "cloud-upload"
         : "circle-check";
-  return { tone, icon, lines, stale, needsAttention };
+  return { tone, icon, headline, queued, issues, window, stale, needsAttention };
 }
