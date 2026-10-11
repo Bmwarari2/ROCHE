@@ -341,6 +341,48 @@ STU3 assets), checked on 2026-10-11 and to be confirmed against the UK edition l
 The point-of-care header shows the decision in force from an active ReSPECT or DNACPR record, or "not
 recorded" when there is none (hazard HZ-015).
 
+## Consent, capacity and DoLS (Phase 1, slice 6)
+
+Code lists for the tables in [care.md](care.md) section 2. They mirror the domain constants in
+`packages/domain/src/care/mca/`; the database CHECKs and the API tests keep them in step. Mental
+Capacity Act 2005 concepts have no national code list; SNOMED CT concepts for capacity and DoLS
+findings are an open item below.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `consent_record.decision` | Harbour (master prompt 5.1, 9.2, 10.4) | `care_plan`, `photos`, `social_media`, `sharing`, `marketing`, `ai_processing`, `bed_rails`, `covert_medicines` | `CONSENT_DECISION_KINDS`; also `capacity_assessment.decision_kind` |
+| `consent_record.outcome` | Harbour | `given`, `refused` | A refusal is a record too |
+| `consent_record.given_by_kind`, `representative_kind` | Mental Capacity Act 2005 s.9, s.16, s.20; DWP appointeeship | `person`, `representative`; `lpa_health_welfare`, `lpa_property_financial`, `deputy`, `appointee`, `imca`, `advocate`, `family_or_friend` | With the OPG reference and registration, or the deputy's `personal_welfare` or `property_and_affairs` scope, decisions, end and court reference |
+| `consent_record.capacity_status` | Mental Capacity Act 2005 s.1(2) | `assumed`, `has_capacity`, `lacks_capacity` | Found from the assessments of the decision, with the assessment id |
+| `capacity_assessment.practicable_steps` | Mental Capacity Act 2005 s.1(3) | `[{ step, detail }]`, step one of `simple_language`, `visual_aids`, `best_time_or_place`, `interpreter_or_communication_aid`, `trusted_person_present`, `information_repeated`, `other` | |
+| `capacity_assessment.stage2`, `unable_to` | Mental Capacity Act 2005 s.3(1) | `understand`, `retain`, `useOrWeigh`, `communicate`, each `{ able, evidence }` | The outcome is `has_capacity` or `lacks_capacity` with the reason in the Act's words |
+| `best_interests_decision.checklist` | Mental Capacity Act 2005 s.4 and s.1(6) | Keyed by `no_unjustified_assumptions`, `relevant_circumstances`, `regaining_capacity`, `participation`, `life_sustaining_treatment`, `wishes_and_feelings`, `beliefs_and_values`, `other_factors`, `views_of_others`, `less_restrictive_option`; each `considered` with a note or `not_applicable` with a reason | |
+| `best_interests_decision.consultations` | Mental Capacity Act 2005 s.4(7) | `[{ consultee, name, contactId, views, consultedAt }]`, consultee one of `named_by_person`, `family_or_friend`, `lpa_donee`, `deputy`, `paid_carer_or_professional`, `imca` | Or `no_consultation_reason` |
+| `dols_authorisation.type`, `outcome`, `nation` | Mental Capacity Act 2005 Schedule A1; s.16(2)(a) | `urgent`, `standard`, `court_order`; `pending`, `granted`, `not_granted`, `withdrawn`; `england`, `wales` | `extensions` are `[{ requestedAt, outcome (pending, granted, refused), extendedTo }]`; the end (`granted_to`) is exclusive |
+| `dols_legal_change_review.state`, `decision`, `objection` | DHSC interim guidance on [2026] UKSC 16 (updated 22 September 2026) | `awaiting_review`, `reviewed`, `referred`, `closed`; `still_deprived`, `no_longer_deprived`, `in_doubt`; `objects`, `does_not_object`, `fluctuates`, `unclear` | `factors` keyed by `type`, `duration`, `effects`, `manner`, `prison_cell_comparison`, `normality`, `purpose`; `objection_forms` from `attempts_to_leave`, `refusing_care_or_treatment`, `restraint_or_one_to_one_care`, `covert_medication`, `sedating_medication` |
+
+## Incidents and statutory notifications (Phase 1, slice 7)
+
+Code lists for the tables in [safety.md](safety.md) section 2. They mirror the domain constants in
+`packages/domain/src/safety/`; the database CHECKs and the API tests keep them in step. Harm grades
+follow the NHS England Learn from Patient Safety Events (LFPSE) physical harm levels and severity
+the NPSA consequence scale, both as staff judge them (Harbour never computes them). A national
+mapping of incident types to LFPSE categories is an open item below.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `incident.type` | Harbour (master prompt 11.1) | `fall`, `medication`, `skin`, `behaviour`, `missing_person`, `safeguarding_concern`, `injury`, `near_miss`, `environmental`, `ipc`, `staff_injury`, `violence_to_staff`, `self_harm`, `sexual_safety`, `absconding`, `fire_setting`, `substance_use`, `data_breach` | `INCIDENT_TYPES` |
+| `incident.severity` | NPSA risk matrix consequence scale (2008) | `negligible`, `minor`, `moderate`, `major`, `catastrophic` | Staff judgement |
+| `incident.harm_grade` | LFPSE physical harm | `none`, `low`, `moderate`, `severe`, `fatal` | Staff judgement |
+| `incident.status` | Harbour (`INCIDENT_WORKFLOW`) | `open`, `under_review`, `closed` | Closed by someone other than `raised_by` |
+| `incident.retention_class` | [retention.md](retention.md) | `care_record`, `serious_incident` | `serious_incident` once any notification applies |
+| `incident_person.kind`, `role` | RIDDOR 2013 reg 4 and 5 (worker, person not at work) | `service_user`, `worker`, `other_not_at_work`; `affected`, `witness`, `involved` | `infection` is `{ syndrome (acute_respiratory, diarrhoea_vomiting), onsetAt, couldBeLinkedWithinSetting, fluConfirmedAt, link ({ group } or not_linked) }` |
+| `classifier_answer.question_key`, `value` | The regulations each question quotes (`CLASSIFIER_QUESTIONS`) | `CLASSIFIER_QUESTION_KEYS`; `yes`, `no`, `unsure`, a whole number of days or hours, or option values | Append-only; the latest answer per key counts |
+| `statutory_notification.kind` | CQC Registration Regulations 2009 regs 16 and 18; RIDDOR 2013; Care Act 2014 s.42; regulation 20 of the 2014 Regulations; LeDeR; UKHSA; death certification reforms | `cqc_reg16_death`, `cqc_reg18_serious_injury`, `cqc_reg18_abuse`, `cqc_reg18_police`, `cqc_reg18_service_disruption`, `cqc_reg18_dols_outcome`, `riddor_death`, `riddor_specified_injury`, `riddor_non_worker_hospital`, `riddor_over_7_day`, `riddor_dangerous_occurrence`, `safeguarding_s42`, `candour`, `leder`, `ukhsa_outbreak`, `medical_examiner`, `police_missing_person` | `STATUTORY_NOTIFICATION_KINDS` |
+| `statutory_notification.status` | Harbour (`STATUTORY_NOTIFICATION_WORKFLOW`) | `draft`, `ready`, `submitted` (time and reference or form), `not_required` (reason) | `deadlines` are `[{ key, dueAt, wording, statutory }]` |
+| `candour_record.state` | Regulation 20 of the 2014 Regulations (`CANDOUR_WORKFLOW`) | `threshold_assessment`, `not_notifiable`, `verbal_due`, `no_contact`, `written_due`, `enquiries_open`, `closed` | |
+| `investigation.method`, `status`, `actions` | Harbour | `root_cause_analysis`, `five_whys`, `fishbone`, `after_action_review`, `swarm_huddle`, `other`; `open`, `completed`; actions `[{ id, action, ownerTenantUserId, dueOn, status (open, done, cancelled), taskId }]` | |
+
 ## Lifecycle records (Phase 1)
 
 Code lists for the tables in [people.md](people.md) section 2. MODS and NHS Data Dictionary
@@ -397,3 +439,5 @@ detail is in `packages/db/src/schema/`; purposes and lawful bases are in
   findings.
 - MODS and NHS Data Dictionary items for admission date, discharge destination and place of death
   (people lifecycle, Phase 1).
+- SNOMED CT concepts for mental capacity findings, consent decisions and DoLS status, and a mapping
+  of incident types and harm grades to LFPSE for national reporting (slices 6 and 7).
