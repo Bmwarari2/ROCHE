@@ -1,25 +1,35 @@
 /**
- * Sending deletions to the API (security review M2, clinical review H2): every deletion of entries
- * that never reached the server becomes an audit event through `POST /v1/sync/discards`.
+ * Sending deletions to the API (security reviews M2 and round 4 M2 and M3, clinical reviews H2 and
+ * round 4 H1): every deletion of entries that never reached the server becomes audit events through
+ * `POST /v1/sync/discards`, one per stage.
  *
- * The deletion is put on record first, as a tombstone in the keystore (`tombstones.ts`); a
- * tombstone that cannot be written refuses the deletion. The device then sends it at once, with
- * the person's own words when they gave any, and deletes the tombstone when the server has it.
- * When the send fails, the tombstone stays, without the words, and is sent again at each sync
- * until the server acknowledges it. The words are never kept on the device, so a deletion whose
- * reason is "other" (the words are the reason) needs the server to take it before anything is
- * deleted.
+ * 1. "requested" is put on record first, as a tombstone in the keystore (`tombstones.ts`); a
+ *    tombstone that cannot be written refuses the deletion. It is sent at once. The caller's own
+ *    entries may then be deleted while it waits to be sent again; anyone else's, or entries whose
+ *    owner is unknown, are deleted only once the server has acknowledged it.
+ * 2. After deleting, "deleted" when the file and its key are gone, otherwise "failed", which
+ *    supersedes the request at the server.
+ *
+ * Stages the server has not acknowledged are sent again, in order, at each sync. A refusal of one
+ * record (403, or a request the server will never take) skips that record for this session and
+ * keeps it; a network or server failure stops until the next try. Only the coded reason is sent;
+ * the person's own words never leave the device (round 4, M3).
  */
 
 import {
-  acknowledgeTombstone,
+  acknowledgeStage,
+  type DiscardOutcome,
+  type DiscardStage,
+  isOpaqueId,
+  readTombstone,
   readTombstones,
   recordTombstone,
+  removeTombstone,
   type Tombstone,
   type TombstoneStore,
 } from "../app-state/tombstones";
 import type { FetchLike } from "../auth/http";
-import { t } from "../i18n/t";
+import { type MessageKey, t } from "../i18n/t";
 import { DEVICE_HEADER, TENANT_HEADER } from "./connector";
 
 export interface ApiOptions {
@@ -32,22 +42,39 @@ export interface ApiOptions {
   readonly deviceId: string | null;
 }
 
-/** acknowledged: the server has it; retry: try again later; rejected: it never will. */
-export type DiscardSendResult = "acknowledged" | "retry" | "rejected";
+/**
+ * acknowledged: the server has it; retry: try again later (no network, a server error, a rate
+ * limit, an ended session); forbidden: this session may not record it (403); rejected: the server
+ * will never take the request as sent (400, 413, 422).
+ */
+export type DiscardSendResult = "acknowledged" | "retry" | "forbidden" | "rejected";
 
-/** The request body (`SyncDiscard` in `@harbour/contracts`). */
-export function discardBody(tombstone: Tombstone, reason: string | null) {
-  const words = reason?.trim();
+/** Mirrors `SYNC_DISCARD_MAX_ENTRY_IDS` in `@harbour/contracts`; a test keeps them equal. */
+export const MAX_SENT_ENTRY_IDS = 500;
+/** Mirrors the API's limit on person ids. */
+export const MAX_SENT_PERSON_IDS = 200;
+
+/**
+ * The request body for one stage (`SyncDiscard` in `@harbour/contracts`). A large deletion sends
+ * a sample of its ids, never more than the API takes, and never more ids than its count, so the
+ * request is never refused for its size (security review round 4, low).
+ */
+export function discardBody(tombstone: Tombstone, stage: DiscardStage) {
+  const entryIds = [...new Set(tombstone.entryIds.filter(isOpaqueId))].slice(0, MAX_SENT_ENTRY_IDS);
+  const personIds = [...new Set(tombstone.personIds.filter(isOpaqueId))].slice(
+    0,
+    MAX_SENT_PERSON_IDS,
+  );
   return {
     id: tombstone.id,
     kind: tombstone.kind,
+    stage,
     reasonCode: tombstone.reasonCode,
-    ...(words ? { reason: words } : {}),
     ownerTenantUserId: tombstone.ownerTenantUserId,
     deletedByTenantUserId: tombstone.deletedByTenantUserId,
-    entryIds: [...tombstone.entryIds],
-    personIds: [...tombstone.personIds],
-    count: tombstone.count,
+    entryIds,
+    personIds,
+    count: tombstone.count === null ? null : Math.max(tombstone.count, entryIds.length),
     discardedAt: tombstone.at,
   };
 }
@@ -62,93 +89,172 @@ export function apiHeaders(options: ApiOptions): Record<string, string> {
   };
 }
 
-/** Sends one deletion. Never throws. A refusal of the request itself (400, 422) is final. */
+/** Sends one stage of a deletion. Never throws. */
 export async function sendDiscard(
   options: ApiOptions,
   tombstone: Tombstone,
-  reason: string | null = null,
+  stage: DiscardStage,
 ): Promise<DiscardSendResult> {
   try {
     const response = await options.fetch(`${options.apiUrl}/v1/sync/discards`, {
       method: "POST",
       headers: apiHeaders(options),
       credentials: "omit",
-      body: JSON.stringify(discardBody(tombstone, reason)),
+      body: JSON.stringify(discardBody(tombstone, stage)),
     });
     if (response.ok) return "acknowledged";
-    if (response.status === 400 || response.status === 422) return "rejected";
-    // 401, 403 (for example a member of staff without the manager's permission sending a
-    // manager's deletion again), rate limits and server errors: a later session may succeed.
+    if (response.status === 403) return "forbidden";
+    if ([400, 413, 422].includes(response.status)) return "rejected";
     return "retry";
   } catch {
     return "retry";
   }
 }
 
+export type DiscardSender = (
+  tombstone: Tombstone,
+  stage: DiscardStage,
+) => Promise<DiscardSendResult>;
+
+/** A sender for a session, or one that always waits when there is no session. */
+export function senderFor(options: ApiOptions | null): DiscardSender {
+  return (tombstone, stage) =>
+    options ? sendDiscard(options, tombstone, stage) : Promise.resolve("retry");
+}
+
+/** True when the caller deletes their own entries: the only deletion that may wait to be sent. */
+export function isOwnDeletion(tombstone: Tombstone): boolean {
+  return (
+    tombstone.ownerTenantUserId !== null &&
+    tombstone.deletedByTenantUserId === tombstone.ownerTenantUserId
+  );
+}
+
+/** Why a deletion could not be put on record at the server, so nothing was deleted. */
+export type NotSentReason = "connection" | "forbidden" | "rejected";
+
+const NOT_SENT_KEYS: Record<NotSentReason, MessageKey> = {
+  connection: "mobile.discard.needsConnection",
+  forbidden: "mobile.discard.notAllowed",
+  rejected: "mobile.discard.notRecorded",
+};
+
 /** The deletion could not be put on record at the server, so nothing was deleted. */
 export class DiscardNotSentError extends Error {
-  readonly needsConnection: boolean;
+  readonly reason: NotSentReason;
 
-  constructor(needsConnection: boolean) {
-    super(t(needsConnection ? "mobile.discard.needsConnection" : "mobile.discard.notRecorded"));
+  constructor(reason: NotSentReason) {
+    super(t(NOT_SENT_KEYS[reason]));
     this.name = "DiscardNotSentError";
-    this.needsConnection = needsConnection;
+    this.reason = reason;
   }
 }
 
 export interface PutOnRecordDeps {
   readonly store: TombstoneStore;
+  /** The deletion at its "requested" stage, with all its ids (the keystore keeps a sample). */
   readonly tombstone: Tombstone;
-  /** The person's own words, sent now and never kept. */
-  readonly reason: string | null;
-  /** Sends the deletion; null when there is no session to send it with. */
-  readonly send:
-    | ((tombstone: Tombstone, reason: string | null) => Promise<DiscardSendResult>)
-    | null;
+  readonly send: DiscardSender;
+}
+
+/** A new deletion, recorded as requested and not yet sent. */
+export function requested(fields: Omit<Tombstone, "stage" | "unsent">): Tombstone {
+  return { ...fields, stage: "requested", unsent: ["requested"] };
 }
 
 /**
  * Puts a deletion on record before anything is deleted: the tombstone first (a keystore failure
- * throws and refuses the deletion), then the request. "sent" when the server has it; "queued"
- * when it will be sent again later. A deletion whose reason is "other" is refused when the server
- * does not take it now, because its words are not kept; one the server rejects is refused too.
+ * throws and refuses the deletion), then the request. "sent" when the server has it; "queued" when
+ * the caller's own entries may be deleted while it waits. Anyone else's entries, or entries whose
+ * owner is unknown, need the server's acknowledgement first (security review round 4, M2); a
+ * refusal refuses the deletion too, and the record is withdrawn since nothing was deleted.
  */
 export async function putDiscardOnRecord(deps: PutOnRecordDeps): Promise<"sent" | "queued"> {
   await recordTombstone(deps.store, deps.tombstone);
-  const result = deps.send ? await deps.send(deps.tombstone, deps.reason) : "retry";
+  const result = await deps.send(deps.tombstone, "requested");
   if (result === "acknowledged") {
-    await acknowledgeTombstone(deps.store, deps.tombstone.id).catch(() => undefined);
+    await acknowledgeStage(deps.store, deps.tombstone.id, "requested").catch(() => undefined);
     return "sent";
   }
-  if (result === "retry" && deps.tombstone.reasonCode !== "other") return "queued";
-  // Nothing has been deleted: the deletion is refused and its record withdrawn.
-  await acknowledgeTombstone(deps.store, deps.tombstone.id).catch(() => undefined);
-  throw new DiscardNotSentError(result === "retry");
+  if (result === "retry" && isOwnDeletion(deps.tombstone)) return "queued";
+  await removeTombstone(deps.store, deps.tombstone.id).catch(() => undefined);
+  throw new DiscardNotSentError(result === "retry" ? "connection" : result);
 }
 
 /** Withdraws a deletion's record on the device when nothing was deleted after all. */
 export async function withdrawDiscard(store: TombstoneStore, id: string): Promise<void> {
-  await acknowledgeTombstone(store, id).catch(() => undefined);
+  await removeTombstone(store, id).catch(() => undefined);
+}
+
+/** Sends a tombstone's waiting stages in order; stops at the first the server does not take. */
+async function sendWaitingStages(
+  store: TombstoneStore,
+  send: DiscardSender,
+  tombstone: Tombstone,
+): Promise<DiscardSendResult> {
+  for (const stage of tombstone.unsent) {
+    const result = await send(tombstone, stage);
+    if (result !== "acknowledged") return result;
+    await acknowledgeStage(store, tombstone.id, stage).catch(() => undefined);
+  }
+  return "acknowledged";
+}
+
+export interface FinishDeps {
+  readonly store: TombstoneStore;
+  /** The same deletion that was put on record, with all its ids. */
+  readonly tombstone: Tombstone;
+  /** "deleted" once the file and its key are gone; "failed" when they are not. */
+  readonly outcome: DiscardOutcome;
+  readonly send: DiscardSender;
 }
 
 /**
- * Sends the tombstones still waiting, oldest first, for the tenant of the current session only
- * (an agency worker's other tenant waits for a session there). Stops at the first that cannot be
- * sent now; one the server will never take is deleted (it can only be a repeat of one it already
- * has, since a refused first send refuses the deletion).
+ * Records how a deletion ended (clinical review round 4, H1) and sends it, after the request if
+ * that is still waiting. Never throws: what cannot be sent now waits in the keystore.
+ */
+export async function finishDiscard(deps: FinishDeps): Promise<DiscardSendResult> {
+  const current = await readTombstone(deps.store, deps.tombstone.id).catch(() => null);
+  // Without the kept record, the request is sent again too (a replay is harmless).
+  const before = current ? current.unsent : (["requested"] as const);
+  const next: Tombstone = {
+    ...deps.tombstone,
+    stage: deps.outcome,
+    unsent: [...before.filter((s) => s !== deps.outcome), deps.outcome],
+  };
+  await recordTombstone(deps.store, next).catch(() => undefined);
+  return sendWaitingStages(deps.store, deps.send, next);
+}
+
+/**
+ * Sends the stages still waiting, oldest record first, for the tenant of the current session only
+ * (an agency worker's other tenant waits for a session there). A record this session may not send
+ * (403), or that the server will not take, is skipped and kept, and added to `skip` so it is not
+ * tried again in this session; a network or server failure stops until the next try. A record is
+ * never dropped before the server has it.
  */
 export async function flushTombstones(
   store: TombstoneStore,
   options: ApiOptions,
-): Promise<{ readonly sent: number; readonly waiting: number }> {
-  const waiting = await readTombstones(store);
+  skip: Set<string> = new Set(),
+): Promise<{ readonly sent: number; readonly skipped: number; readonly waiting: number }> {
+  const kept = await readTombstones(store);
+  const waiting = kept.filter((s) => s.unsent.length > 0);
+  const send = senderFor(options);
   let sent = 0;
+  let skipped = 0;
   for (const tombstone of waiting) {
     if (tombstone.tenantId !== null && tombstone.tenantId !== options.tenantId) continue;
-    const result = await sendDiscard(options, tombstone);
-    if (result === "retry") break;
-    await acknowledgeTombstone(store, tombstone.id).catch(() => undefined);
-    sent += 1;
+    if (skip.has(tombstone.id)) continue;
+    const result = await sendWaitingStages(store, send, tombstone);
+    if (result === "acknowledged") {
+      sent += 1;
+    } else if (result === "retry") {
+      break;
+    } else {
+      skip.add(tombstone.id);
+      skipped += 1;
+    }
   }
-  return { sent, waiting: waiting.length - sent };
+  return { sent, skipped, waiting: waiting.length - sent };
 }

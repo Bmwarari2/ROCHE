@@ -47,7 +47,8 @@ export function heldView(held: HeldWork, now: Date): HeldView {
     title:
       entries === null ? t("mobile.held.titleUnknown") : t("mobile.held.title", { count: entries }),
     owner: held.tenantId !== "" ? t("mobile.held.owner", who) : t("mobile.held.ownerUnknown"),
-    body: t("mobile.held.body"),
+    // A deletion that did not finish: these are never sent (clinical review round 4, H1).
+    body: held.uploadBlocked ? t("mobile.held.blocked") : t("mobile.held.body"),
     time,
     urgent: state !== "open",
     discardLabel:

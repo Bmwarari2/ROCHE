@@ -25,9 +25,10 @@
  * someone else's name.
  *
  * Deleting held entries needs the owner's or a manager's sign-in (not only the device passcode),
- * device authentication and a coded reason; it is put on record before anything is deleted (a
- * tombstone, sent to the API) and is checked: the marker is cleared only once the file and its key
- * are gone (S5).
+ * device authentication and a coded reason; it is put on record as requested before anything is
+ * deleted (a tombstone, sent to the API) and is checked: only once the file and its key are gone is
+ * it recorded as deleted and the marker cleared (S5). A deletion that does not finish is recorded
+ * as failed, and the entries left behind are never uploaded (clinical review round 4, H1).
  *
  * Pure apart from the injected dependencies, so the rules are unit-tested.
  */
@@ -35,11 +36,11 @@ import type { SyncDeviceReport } from "@harbour/contracts";
 import { AppSchema, DEVICE_WRITABLE_TABLES } from "@harbour/sync/client";
 import type { Me } from "../auth/auth-client";
 import type { FieldError } from "../care/entries";
-import { t } from "../i18n/t";
+import { type MessageKey, t } from "../i18n/t";
 import { databaseFilename } from "../security/db-key";
 import { buildDeviceReport } from "../sync/device-report";
 import { HELD_FAIL_SAFE_DAYS, heldDeadline } from "../sync/held-limit";
-import type { DiscardReasonCode } from "./tombstones";
+import type { DiscardOutcome, DiscardReasonCode } from "./tombstones";
 
 // -------------------------------------------------------------------------------------------------
 // The marker in the keystore: who owns the held entries, how many, and until when
@@ -61,6 +62,11 @@ export interface HeldWork {
   readonly expiresAt: string | null;
   /** The last time the device heard from the server before the hold, when known (clock sanity). */
   readonly lastServerTime: string | null;
+  /**
+   * A deletion of these entries was put on record but did not finish (clinical review round 4,
+   * H1): they are never uploaded. When their owner signs in they move to "needs attention".
+   */
+  readonly uploadBlocked?: boolean;
 }
 
 /** Held, with nobody able to resume: a damaged marker or a keystore that could not be read. */
@@ -106,6 +112,7 @@ export function parseHeldWork(raw: string | null | undefined): HeldWork | null {
       heldAt: typeof value.heldAt === "string" ? value.heldAt : "",
       expiresAt: text(value.expiresAt),
       lastServerTime: text(value.lastServerTime),
+      ...(value.uploadBlocked === true ? { uploadBlocked: true } : {}),
     };
   } catch {
     // Never let a damaged marker release entries to whoever signs in next.
@@ -204,32 +211,50 @@ export async function countPendingWork(db: {
   };
 }
 
+export interface UnsentIds {
+  readonly entryIds: string[];
+  readonly personIds: string[];
+  /** The organisations the entries belong to, as written in them. */
+  readonly tenantIds: string[];
+}
+
 /**
- * The ids of the unsent work (opaque UUIDs only) and of the people it was about, for the record
- * of a deletion: the upload queue, refused entries and held entries.
+ * The ids of the unsent work (opaque UUIDs only), of the people it was about and of their
+ * organisations, for the record of a deletion: the upload queue, refused entries and held entries.
  */
 export async function readUnsentIds(db: {
   getAll<T>(sql: string, params?: unknown[]): Promise<T[]>;
   getCrudBatch(limit?: number): Promise<{ readonly crud: readonly CrudLike[] } | null>;
-}): Promise<{ readonly entryIds: string[]; readonly personIds: string[] }> {
+}): Promise<UnsentIds> {
+  type Row = { id: string; person_id: string | null; tenant_id: string | null };
   const [held, refused, batch] = await Promise.all([
-    db.getAll<{ id: string; person_id: string | null }>(
-      "SELECT id, person_id FROM held_entry ORDER BY position, id",
-    ),
-    db.getAll<{ id: string; person_id: string | null }>(
-      "SELECT id, person_id FROM upload_issue ORDER BY rejected_at, id",
-    ),
+    db.getAll<Row>("SELECT id, person_id, tenant_id FROM held_entry ORDER BY position, id"),
+    db.getAll<Row>("SELECT id, person_id, tenant_id FROM upload_issue ORDER BY rejected_at, id"),
     db.getCrudBatch(WHOLE_QUEUE),
   ]);
-  const queued = (batch?.crud ?? []).map((entry) => ({
+  const queued: Row[] = (batch?.crud ?? []).map((entry) => ({
     id: entry.id,
     person_id: text(entry.opData?.person_id),
+    tenant_id: text(entry.opData?.tenant_id),
   }));
   const rows = [...queued, ...held, ...refused];
+  const present = (values: (string | null)[]) => [
+    ...new Set(values.filter((v): v is string => !!v)),
+  ];
   return {
     entryIds: [...new Set(rows.map((r) => r.id))],
-    personIds: [...new Set(rows.map((r) => r.person_id).filter((p): p is string => !!p))],
+    personIds: present(rows.map((r) => r.person_id)),
+    tenantIds: present(rows.map((r) => r.tenant_id)),
   };
+}
+
+/**
+ * Before a manager deletes entries whose owner is unknown (security review round 4, low): the
+ * entries must name the manager's organisation, and no other. Nothing to delete passes.
+ */
+export function heldEntriesInTenant(ids: UnsentIds, tenantId: string): boolean {
+  if (ids.entryIds.length === 0) return true;
+  return ids.tenantIds.length > 0 && ids.tenantIds.every((id) => id === tenantId);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -365,6 +390,12 @@ const WHOLE_QUEUE = 1_000_000;
 export const KEPT_META_IDS = [OWNER_META_ID, "meta:held-entries-max-days"] as const;
 
 /**
+ * `sync_meta` rows keeping the person's own words for a deletion, which never leave the device
+ * (security review round 4, M3); they stay when the device is cleared, until it is wiped.
+ */
+export const DISCARD_NOTE_PREFIX = "discard-note:";
+
+/**
  * Copies the upload queue into `held_entry`, then clears every synced table and the queue
  * (`disconnectAndClear` without the local-only tables) and the bookkeeping except the owner. What
  * is left is the unsent work only: held entries and refused entries. Idempotent: a copy repeated
@@ -401,8 +432,8 @@ export async function holdUnsentWork(db: HoldDb, now: Date): Promise<number> {
   });
   await db.disconnectAndClear({ clearLocal: false });
   await db.execute(
-    `DELETE FROM sync_meta WHERE id NOT IN (${KEPT_META_IDS.map(() => "?").join(", ")})`,
-    [...KEPT_META_IDS],
+    `DELETE FROM sync_meta WHERE id NOT IN (${KEPT_META_IDS.map(() => "?").join(", ")}) AND id NOT LIKE ?`,
+    [...KEPT_META_IDS, `${DISCARD_NOTE_PREFIX}%`],
   );
   return crud.length;
 }
@@ -432,7 +463,16 @@ export interface RestoreResult {
   readonly remaining: number;
 }
 
-async function park(tx: TxLike, row: HeldEntryRow, code: string, now: Date): Promise<void> {
+/** Why a held entry moved to "needs attention" instead of going back into the queue. */
+export type ParkCode = "held_not_restored" | "held_restore_failed" | "held_discard_failed";
+
+const PARK_MESSAGE_KEYS: Record<ParkCode, MessageKey> = {
+  held_not_restored: "mobile.held.notRestored",
+  held_restore_failed: "mobile.held.notRestored",
+  held_discard_failed: "mobile.held.discardFailedEntry",
+};
+
+async function park(tx: TxLike, row: HeldEntryRow, code: ParkCode, now: Date): Promise<void> {
   await tx.execute("DELETE FROM upload_issue WHERE id = ?", [row.id]);
   await tx.execute(
     `INSERT INTO upload_issue (id, tenant_id, person_id, record_table, http_status, code,
@@ -444,7 +484,7 @@ async function park(tx: TxLike, row: HeldEntryRow, code: string, now: Date): Pro
       row.record_table || null,
       null,
       code,
-      t("mobile.held.notRestored"),
+      t(PARK_MESSAGE_KEYS[code]),
       row.payload,
       now.toISOString(),
     ],
@@ -486,8 +526,16 @@ async function putBack(tx: TxLike, row: HeldEntryRow): Promise<void> {
  * cannot go back (not a new care entry, or putting it back fails) moves to "needs attention" with
  * its content; one that cannot even be moved stays held and is counted, so nothing is dropped and
  * nothing is hidden (clinical review M2).
+ *
+ * After a deletion that did not finish (`blocked`), nothing goes back into the queue: every entry
+ * moves to "needs attention", to be checked and removed with a reason (clinical review round 4,
+ * H1).
  */
-export async function restoreHeldWork(db: HoldDb, now: Date): Promise<RestoreResult> {
+export async function restoreHeldWork(
+  db: HoldDb,
+  now: Date,
+  blocked = false,
+): Promise<RestoreResult> {
   const rows = await db.getAll<HeldEntryRow>(
     "SELECT id, tenant_id, person_id, record_table, op, payload FROM held_entry ORDER BY position, id",
   );
@@ -495,6 +543,15 @@ export async function restoreHeldWork(db: HoldDb, now: Date): Promise<RestoreRes
   let parked = 0;
   let remaining = 0;
   for (const row of rows) {
+    if (blocked) {
+      try {
+        await db.writeTransaction((tx) => park(tx, row, "held_discard_failed", now));
+        parked += 1;
+      } catch {
+        remaining += 1;
+      }
+      continue;
+    }
     const resendable = row.op === "PUT" && WRITABLE.has(row.record_table ?? "");
     try {
       await db.writeTransaction((tx) =>
@@ -536,6 +593,8 @@ export interface OpenCheckDeps {
   readonly now: Date;
   /** The tenant's `mobile.held_entries_max_days` from the database's bookkeeping, if cached. */
   readonly cachedHeldMaxDays: () => Promise<number | null>;
+  /** The held marker says a deletion did not finish: nothing here is ever uploaded (round 4, H1). */
+  readonly uploadBlocked?: boolean;
   /** Closes and deletes this database and destroys its key, so a new one is made. */
   readonly reset: () => Promise<void>;
   /** Closes the database, keeping the file and its key. */
@@ -599,12 +658,46 @@ export async function admitToDatabase(deps: OpenCheckDeps): Promise<OpenOutcome>
         heldAt: deps.now.toISOString(),
         expiresAt: heldDeadline(deps.now, days).toISOString(),
         lastServerTime: null,
+        ...(deps.uploadBlocked ? { uploadBlocked: true } : {}),
       },
     };
   }
   if (check === "claim") await writeDeviceOwner(deps.db, ownerOf(deps.me));
-  const restore = await restoreHeldWork(deps.db, deps.now).catch(() => "failed" as const);
+  if (deps.uploadBlocked) {
+    // Anything still in the upload queue is held first, so that nothing of it is sent either.
+    const held = await holdUnsentWork(deps.db, deps.now).then(
+      () => true,
+      () => false,
+    );
+    if (!held) return { kind: "connect", restore: "failed" };
+  }
+  const restore = await restoreHeldWork(deps.db, deps.now, deps.uploadBlocked === true).catch(
+    () => "failed" as const,
+  );
   return { kind: "connect", restore };
+}
+
+/**
+ * Held entries from a deletion that did not finish could not all be moved to "needs attention",
+ * so the device does not connect (clinical review round 4, H1 and M4).
+ */
+export class RestoreFailedError extends Error {
+  constructor() {
+    super(t("mobile.vault.restoreFailed"));
+    this.name = "RestoreFailedError";
+  }
+}
+
+/**
+ * What the person sees when held entries could not all be put back (clinical review round 4, M4):
+ * a whole restore that failed, or entries still held. Null when everything is back.
+ */
+export function restoreProblem(restore: RestoreResult | "failed"): string | null {
+  if (restore === "failed") return t("mobile.vault.restoreFailed");
+  if (restore.remaining > 0) {
+    return t("mobile.vault.restoreIncomplete", { count: restore.remaining });
+  }
+  return null;
 }
 
 /** True when the owner's held entries are all back (or parked), so the marker can go. */
@@ -721,7 +814,7 @@ export class HeldDiscardNotAllowedError extends Error {
   }
 }
 
-/** A reason for deleting: a code from the list, and words (required when the code is "other"). */
+/** A reason for deleting: a code from the list, and words where they are allowed. */
 export interface DiscardReason {
   readonly reasonCode: DiscardReasonCode | null;
   readonly reason: string;
@@ -730,9 +823,21 @@ export interface DiscardReason {
 /** Limits for the words, like a correction's at the API. */
 export const DISCARD_REASON_LIMITS = { min: 3, max: 500 } as const;
 
-/** Deleting entries that never reached the server always says why (S4, C2, M1). */
-export function checkDiscardReason(choice: DiscardReason): FieldError | null {
+/**
+ * Deleting entries that never reached the server always says why (S4, C2, M1). The person's own
+ * words never leave the device (security review round 4, M3): they are kept in the encrypted
+ * database, so they are allowed only where that database stays (`withWords`, removing a refused
+ * entry). Deleting held entries, or signing out, deletes the database too, so there the reason is
+ * one of the listed codes, never "Other".
+ */
+export function checkDiscardReason(
+  choice: DiscardReason,
+  options: { readonly withWords?: boolean } = {},
+): FieldError | null {
   if (!choice.reasonCode) return { key: "mobile.discard.reasonCodeRequired" };
+  if (!options.withWords) {
+    return choice.reasonCode === "other" ? { key: "mobile.discard.reasonCodeRequired" } : null;
+  }
   const length = choice.reason.trim().length;
   if (choice.reasonCode === "other" && length < DISCARD_REASON_LIMITS.min) {
     return { key: "mobile.discard.reasonRequired", values: { min: DISCARD_REASON_LIMITS.min } };
@@ -754,6 +859,17 @@ export class DiscardIncompleteError extends Error {
   }
 }
 
+/**
+ * The key could be read but the entries could not, so the record of the deletion could not say
+ * which entries it removed: nothing is deleted (clinical review round 4, M3).
+ */
+export class HeldIdsUnreadableError extends Error {
+  constructor() {
+    super(t("mobile.held.idsUnreadable"));
+    this.name = "HeldIdsUnreadableError";
+  }
+}
+
 export interface DiscardDeps {
   /** The database id from the keystore's plain bookkeeping (no biometric prompt needed). */
   readonly readDatabaseId: () => Promise<string | null>;
@@ -764,24 +880,27 @@ export interface DiscardDeps {
   /** True while any of the key or its bookkeeping is still in the keystore. */
   readonly keyRemains: () => Promise<boolean>;
   /**
-   * Puts the deletion on record (the tombstone, and the request to the API). Throws when it cannot,
-   * and then nothing is deleted.
+   * Puts the deletion on record as requested (the tombstone, and the request to the API). Throws
+   * when it cannot, and then nothing is deleted.
    */
   readonly putOnRecord: () => Promise<unknown>;
-  /** Withdraws the record when, after all, nothing was deleted. */
-  readonly withdrawRecord: () => Promise<void>;
+  /** Records how the deletion ended: "deleted", or "failed" superseding the request. Never throws. */
+  readonly recordOutcome: (outcome: DiscardOutcome) => Promise<unknown>;
+  /** Marks the entries left behind as never to be uploaded (the held marker). */
+  readonly blockUploads: () => Promise<void>;
   readonly clearHeld: () => Promise<void>;
   readonly demo: boolean;
 }
 
 /**
- * Deletes held entries for good, checked at each step (S5):
+ * Deletes held entries for good, checked at each step (S5, clinical review round 4, H1):
  *
  * 1. the database id is read; if it cannot be, nothing is deleted (L4: the file is never skipped);
- * 2. the deletion is put on record; if it cannot be, nothing is deleted (M1, M2);
- * 3. the file is deleted and checked; if it remains, the record is withdrawn and the entries stay
- *    held, with the same file for a retry;
- * 4. the key is destroyed and checked; only then is the marker cleared.
+ * 2. the deletion is put on record as requested; if it cannot be, nothing is deleted (M1, M2);
+ * 3. the file is deleted and the key destroyed, each checked;
+ * 4. only when both are gone is it recorded as deleted and the marker cleared. If either remains,
+ *    it is recorded as failed (superseding the request), the entries stay held and are marked
+ *    never to be uploaded, and the deletion can be tried again.
  */
 export async function discardHeldWork(deps: DiscardDeps): Promise<void> {
   let id: string | null;
@@ -799,15 +918,25 @@ export async function discardHeldWork(deps: DiscardDeps): Promise<void> {
     }
   }
   await deps.putOnRecord();
+  let gone = true;
   if (filename) {
-    deps.deleteDatabaseFile(filename);
-    if (!(await deps.databaseGone(filename).catch(() => false))) {
-      await deps.withdrawRecord().catch(() => undefined);
-      throw new DiscardIncompleteError();
+    try {
+      deps.deleteDatabaseFile(filename);
+    } catch {
+      // Checked below.
     }
+    gone = await deps.databaseGone(filename).catch(() => false);
   }
-  // The entries are gone; the key goes too, checked (S5).
-  await deps.destroyKey();
-  if (await deps.keyRemains().catch(() => true)) throw new DiscardIncompleteError();
+  if (gone) {
+    // The entries are gone; the key goes too, checked (S5).
+    await deps.destroyKey().catch(() => undefined);
+    gone = !(await deps.keyRemains().catch(() => true));
+  }
+  if (!gone) {
+    await deps.recordOutcome("failed").catch(() => undefined);
+    await deps.blockUploads().catch(() => undefined);
+    throw new DiscardIncompleteError();
+  }
+  await deps.recordOutcome("deleted").catch(() => undefined);
   await deps.clearHeld();
 }

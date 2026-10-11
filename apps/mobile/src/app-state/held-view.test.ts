@@ -29,6 +29,12 @@ describe("hazard HZ-040 the sign-in screen on held entries (clinical review H2, 
     expect(view.discardLabel).toBe("Delete 2 unsent entries");
   });
 
+  it("hazard HZ-040 says entries from a deletion that did not finish will not be sent (round 4, H1)", () => {
+    const view = heldView({ ...held, uploadBlocked: true }, new Date("2026-10-11T08:00:00Z"));
+    expect(view.body).toBe(t("mobile.held.blocked"));
+    expect(view.body).toContain("they will not be sent");
+  });
+
   it("gives a final warning naming the count in the last day", () => {
     const view = heldView(held, new Date(DEADLINE - FINAL_WARNING_MS + 60_000));
     expect(view).toMatchObject({ state: "final", urgent: true });

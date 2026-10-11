@@ -14,30 +14,39 @@ import { TextField } from "./TextField";
 
 export const EMPTY_REASON: DiscardReason = { reasonCode: null, reason: "" };
 
-/** The coded reasons, in the catalogue's words. */
-export function reasonOptions() {
-  return DISCARD_REASON_CODES.map((code: DiscardReasonCode) => ({
-    value: code,
-    label: t(`mobile.discard.code.${code}`),
-  }));
+/**
+ * The coded reasons, in the catalogue's words. "Other" needs words, so it is offered only where
+ * words can be kept on the device.
+ */
+export function reasonOptions(withWords = false) {
+  return DISCARD_REASON_CODES.filter((code) => withWords || code !== "other").map(
+    (code: DiscardReasonCode) => ({
+      value: code,
+      label: t(`mobile.discard.code.${code}`),
+    }),
+  );
 }
 
 /**
- * Why entries that never reached the server are deleted (security review M1): a coded reason from
- * a fixed list, which is all the device keeps, and the person's own words, needed for "Other". The
- * words go to Harbour with the deletion and are never kept on the device.
+ * Why entries that never reached the server are deleted (security reviews M1 and round 4 M3): a
+ * coded reason from a fixed list, which is all Harbour records. With `withWords` (removing one
+ * refused entry), the person's own words too, needed for "Other": they stay on this device,
+ * encrypted, and are never sent. Deleting held entries or signing out deletes the database, so
+ * there are no words, and no "Other", there.
  */
 export function DiscardReasonFields({
   label,
   value,
   onChange,
   error,
+  withWords = false,
   testID,
 }: {
   readonly label: string;
   readonly value: DiscardReason;
   readonly onChange: (next: DiscardReason) => void;
   readonly error: FieldError | null;
+  readonly withWords?: boolean;
   readonly testID: string;
 }) {
   const theme = useTheme();
@@ -46,22 +55,24 @@ export function DiscardReasonFields({
     <View style={{ gap: theme.space[1] }}>
       <ChoiceGroup
         label={label}
-        options={reasonOptions()}
+        options={reasonOptions(withWords)}
         value={value.reasonCode}
         onChange={(reasonCode) => onChange({ ...value, reasonCode })}
         error={error?.key === "mobile.discard.reasonCodeRequired" ? error : null}
         testID={`${testID}-code`}
       />
-      <TextField
-        label={t("mobile.discard.wordsLabel")}
-        hint={t("mobile.discard.wordsHint")}
-        value={value.reason}
-        onChangeText={(reason) => onChange({ ...value, reason })}
-        multiline
-        maxLength={DISCARD_REASON_LIMITS.max}
-        errorText={errorText(wordsError)}
-        testID={`${testID}-reason`}
-      />
+      {withWords ? (
+        <TextField
+          label={t("mobile.discard.wordsLabel")}
+          hint={t("mobile.discard.wordsHint")}
+          value={value.reason}
+          onChangeText={(reason) => onChange({ ...value, reason })}
+          multiline
+          maxLength={DISCARD_REASON_LIMITS.max}
+          errorText={errorText(wordsError)}
+          testID={`${testID}-reason`}
+        />
+      ) : null}
     </View>
   );
 }
@@ -78,6 +89,8 @@ interface DeleteWithReasonProps {
   readonly onConfirm: (choice: DiscardReason) => Promise<void>;
   /** Opens with the reason showing (the caller already asked to delete). */
   readonly initiallyOpen?: boolean;
+  /** Offers words (and "Other"), kept only on the device: removing one refused entry (M3). */
+  readonly withWords?: boolean;
   readonly onCancel?: () => void;
   readonly testID: string;
 }
@@ -96,6 +109,7 @@ export function DeleteWithReason({
   reasonLabel,
   onConfirm,
   initiallyOpen = false,
+  withWords = false,
   onCancel,
   testID,
 }: DeleteWithReasonProps) {
@@ -120,7 +134,7 @@ export function DeleteWithReason({
 
   const proceed = () => {
     if (busy) return;
-    const found = checkDiscardReason(choice);
+    const found = checkDiscardReason(choice, { withWords });
     setProblem(found);
     setFailure(null);
     if (found) return;
@@ -131,7 +145,10 @@ export function DeleteWithReason({
         style: "destructive",
         onPress: () => {
           setBusy(true);
-          onConfirm({ reasonCode: choice.reasonCode, reason: choice.reason.trim() })
+          onConfirm({
+            reasonCode: choice.reasonCode,
+            reason: withWords ? choice.reason.trim() : "",
+          })
             .catch((caught: unknown) =>
               setFailure(
                 caught instanceof Error ? caught.message : t("mobile.held.discardIncomplete"),
@@ -150,6 +167,7 @@ export function DeleteWithReason({
         value={choice}
         onChange={setChoice}
         error={problem}
+        withWords={withWords}
         testID={testID}
       />
       {failure ? (

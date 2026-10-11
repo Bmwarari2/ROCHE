@@ -1,10 +1,15 @@
-import { SYNC_DISCARD_KINDS, SYNC_DISCARD_REASON_CODES } from "@harbour/contracts";
+import {
+  SYNC_DISCARD_KINDS,
+  SYNC_DISCARD_REASON_CODES,
+  SYNC_DISCARD_STAGES,
+} from "@harbour/contracts";
 import { describe, expect, it } from "vitest";
 import {
-  acknowledgeTombstone,
+  acknowledgeStage,
   cleanTombstone,
   DISCARD_KINDS,
   DISCARD_REASON_CODES,
+  DISCARD_STAGES,
   MAX_TOMBSTONE_ENTRY_IDS,
   MAX_TOMBSTONES,
   purgeLegacyTombstones,
@@ -23,6 +28,8 @@ const stone = (n: number, overrides: Partial<Tombstone> = {}): Tombstone => ({
   id: id(n),
   kind: "refused_removed",
   reasonCode: "recorded_elsewhere",
+  stage: "requested",
+  unsent: ["requested"],
   tenantId: "00000000-0000-4000-8000-0000000000a1",
   ownerTenantUserId: "00000000-0000-4000-8000-0000000000c1",
   deletedByTenantUserId: "00000000-0000-4000-8000-0000000000c1",
@@ -51,9 +58,10 @@ function memoryStore(options: { failWrites?: boolean } = {}) {
 }
 
 describe("hazard HZ-040 tombstones hold no personal data (security review M1)", () => {
-  it("uses the API's kinds and reason codes", () => {
+  it("uses the API's kinds, reason codes and stages", () => {
     expect([...DISCARD_KINDS]).toEqual([...SYNC_DISCARD_KINDS]);
     expect([...DISCARD_REASON_CODES]).toEqual([...SYNC_DISCARD_REASON_CODES]);
+    expect([...DISCARD_STAGES]).toEqual([...SYNC_DISCARD_STAGES]);
   });
 
   it("keeps only codes, opaque ids, a count and a time", async () => {
@@ -78,6 +86,7 @@ describe("hazard HZ-040 tombstones hold no personal data (security review M1)", 
     ["an unknown reason code", { reasonCode: "because" }],
     ["an id that is not an id", { id: "tombstone-1" }],
     ["a time that is not UTC", { at: "11/10/2026 08:30" }],
+    ["an unknown stage", { stage: "undone" }],
   ])("refuses %s, and so refuses the deletion", async (_case, change) => {
     const { store } = memoryStore();
     await expect(
@@ -101,25 +110,55 @@ describe("hazard HZ-040 tombstones in the keystore (S4, M1, L4)", () => {
     await expect(recordTombstone(store, stone(1))).rejects.toBeInstanceOf(TombstoneWriteError);
   });
 
-  it("deletes the items that fall off the end of the list, keeping the newest", async () => {
-    const { store, items } = memoryStore();
-    for (let i = 0; i < MAX_TOMBSTONES + 5; i += 1) await recordTombstone(store, stone(i));
+  it("never drops a record the server does not have: a full list refuses the new deletion (round 4, M2)", async () => {
+    const { store } = memoryStore();
+    for (let i = 0; i < MAX_TOMBSTONES; i += 1) await recordTombstone(store, stone(i));
+    const attempt = recordTombstone(store, stone(MAX_TOMBSTONES));
+    await expect(attempt).rejects.toBeInstanceOf(TombstoneWriteError);
+    await expect(attempt).rejects.toMatchObject({ full: true });
     const kept = await readTombstones(store);
     expect(kept).toHaveLength(MAX_TOMBSTONES);
-    expect(kept[0]?.id).toBe(id(5));
-    // The dropped items are gone from the keystore, not just from the index.
-    expect(items.has(`${TOMBSTONE_ITEM_PREFIX}${id(0)}`)).toBe(false);
-    expect(items.size).toBe(MAX_TOMBSTONES + 1);
+    expect(kept[0]?.id).toBe(id(0));
   });
 
-  it("deletes a tombstone once the server acknowledges it", async () => {
+  it("makes room only by dropping records the server already has, oldest first", async () => {
+    const { store, items } = memoryStore();
+    for (let i = 0; i < MAX_TOMBSTONES; i += 1) await recordTombstone(store, stone(i));
+    // The server has the request of the third: that one may go, the first two may not.
+    await acknowledgeStage(store, id(2), "requested");
+    await recordTombstone(store, stone(MAX_TOMBSTONES));
+    const kept = (await readTombstones(store)).map((s) => s.id);
+    expect(kept).toHaveLength(MAX_TOMBSTONES);
+    expect(kept).not.toContain(id(2));
+    expect(kept.slice(0, 2)).toEqual([id(0), id(1)]);
+    // The dropped item is gone from the keystore, not just from the index.
+    expect(items.has(`${TOMBSTONE_ITEM_PREFIX}${id(2)}`)).toBe(false);
+  });
+
+  it("updates a kept record in place for its next stage, even on a full list", async () => {
+    const { store } = memoryStore();
+    for (let i = 0; i < MAX_TOMBSTONES; i += 1) await recordTombstone(store, stone(i));
+    await recordTombstone(store, stone(0, { stage: "failed", unsent: ["requested", "failed"] }));
+    const [first] = await readTombstones(store);
+    expect(first).toMatchObject({ id: id(0), stage: "failed", unsent: ["requested", "failed"] });
+  });
+
+  it("keeps an acknowledged request until its outcome, and forgets a finished deletion the server has", async () => {
     const { store, items } = memoryStore();
     await recordTombstone(store, stone(1));
     await recordTombstone(store, stone(2));
-    await acknowledgeTombstone(store, id(1));
+    await acknowledgeStage(store, id(1), "requested");
+    expect((await readTombstones(store))[0]).toMatchObject({ id: id(1), unsent: [] });
+    await recordTombstone(store, stone(1, { stage: "deleted", unsent: ["deleted"] }));
+    await acknowledgeStage(store, id(1), "deleted");
     expect((await readTombstones(store)).map((s) => s.id)).toEqual([id(2)]);
     expect(items.has(`${TOMBSTONE_ITEM_PREFIX}${id(1)}`)).toBe(false);
     expect(JSON.parse(items.get(TOMBSTONE_INDEX_ITEM) ?? "[]")).toEqual([id(2)]);
+  });
+
+  it("reads a record kept before stages existed as a request to send again", () => {
+    const { stage: _stage, unsent: _unsent, ...older } = stone(1);
+    expect(cleanTombstone(older)).toMatchObject({ stage: "requested", unsent: ["requested"] });
   });
 
   it("removes tombstones in the earlier format, which could hold words", async () => {

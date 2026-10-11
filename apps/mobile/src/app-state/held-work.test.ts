@@ -17,9 +17,12 @@ import {
 import { type CrudEntryLike, HarbourConnector, SessionRevokedError } from "../sync/connector";
 import {
   DiscardNotSentError,
+  type DiscardSender,
+  type DiscardSendResult,
   discardBody,
+  finishDiscard,
   putDiscardOnRecord,
-  withdrawDiscard,
+  requested,
 } from "../sync/discards";
 import {
   HELD_FAIL_SAFE_DAYS,
@@ -37,6 +40,7 @@ import {
   checkDeviceOwner,
   checkDiscardReason,
   countPendingWork,
+  DISCARD_NOTE_PREFIX,
   DISCARD_OTHERS_PERMISSION,
   type DiscardDeps,
   DiscardIncompleteError,
@@ -45,6 +49,7 @@ import {
   HeldWorkOwnerError,
   type HoldDb,
   handleSessionEnded,
+  heldEntriesInTenant,
   holdUnsentWork,
   isHeldWorkOwner,
   loadHeldMarker,
@@ -54,8 +59,10 @@ import {
   parseHeldWork,
   readDeviceOwner,
   readHeldMarker,
+  readUnsentIds,
   restoreComplete,
   restoreHeldWork,
+  restoreProblem,
   serialiseHeldWork,
   totalPending,
   UNKNOWN_OWNER,
@@ -374,6 +381,19 @@ describe("when the API ends the session (401 or 403)", () => {
       expiresAt: "2026-10-18T07:30:00.000Z",
       lastServerTime: null,
     });
+  });
+
+  it("hazard HZ-040 keeps the words given for a removed entry, which never leave the device (round 4, M3)", async () => {
+    const dev = await device({ queued: 1 });
+    const note = `${DISCARD_NOTE_PREFIX}0199d000-0000-7000-8000-0000000000d9`;
+    await dev.execute("INSERT INTO sync_meta (id, key, value) VALUES (?, ?, ?)", [
+      note,
+      "discard_note",
+      '{"reasonCode":"other","words":"Recorded twice by mistake"}',
+    ]);
+    await holdUnsentWork(dev.holdDb, NOW);
+    const meta = all<{ id: string }>(dev.sql, "SELECT id FROM sync_meta ORDER BY id", []);
+    expect(meta.map((m) => m.id)).toContain(note);
   });
 
   it("hazard HZ-006 keeps only the unsent work: identities and the care record leave the device (S2)", async () => {
@@ -800,6 +820,49 @@ describe("opening the database: the owner check before the device connects (S3, 
     expect(restoreComplete("failed")).toBe(false);
     // The entry is still held, so the marker stays and the banner counts it.
     expect(dev.count("held_entry")).toBe(1);
+    // What the person sees on every screen (clinical review round 4, M4).
+    expect(restoreProblem(outcome.kind === "connect" ? outcome.restore : "failed")).toBe(
+      "Your unsent entries could not be put back to be sent. They are still on this device. Close Harbour, open it again and unlock to try again. If this keeps happening, tell the nurse in charge.",
+    );
+  });
+
+  it("hazard HZ-006 says how many entries are still held when only some could not go back (round 4, M4)", () => {
+    expect(restoreProblem({ restored: 2, parked: 0, remaining: 1 })).toBe(
+      "1 unsent entry could not be put back to be sent. It is still on this device. Close Harbour, open it again and unlock to try again. If this keeps happening, tell the nurse in charge.",
+    );
+    expect(restoreProblem({ restored: 2, parked: 1, remaining: 0 })).toBeNull();
+  });
+
+  it("hazard HZ-040 after a deletion that did not finish, nothing is uploaded: every entry moves to needs attention (round 4, H1)", async () => {
+    const { dev } = await heldDevice();
+    // Something in the upload queue too, as after a sign-out whose deletion failed.
+    await dev.execute(
+      `INSERT INTO care_note (${Object.keys(noteRow()).join(", ")}) VALUES (${Object.keys(noteRow())
+        .map(() => "?")
+        .join(", ")})`,
+      Object.values(noteRow("0199d000-0000-7000-8000-0000000000e2")),
+    );
+    const outcome = await admitToDatabase(openDeps(dev, { uploadBlocked: true }).deps);
+    expect(outcome).toEqual({
+      kind: "connect",
+      restore: { restored: 0, parked: 2, remaining: 0 },
+    });
+    expect(dev.queue).toEqual([]);
+    expect(dev.count("held_entry")).toBe(0);
+    const parked = all<{ id: string; code: string; message: string }>(
+      dev.sql,
+      "SELECT id, code, message FROM upload_issue WHERE code = 'held_discard_failed' ORDER BY id",
+      [],
+    );
+    expect(parked.map((p) => p.id)).toEqual([NOTE_ID, "0199d000-0000-7000-8000-0000000000e2"]);
+    expect(parked[0]?.message).toBe(t("mobile.held.discardFailedEntry"));
+  });
+
+  it("hazard HZ-040 someone else's refused sign-in keeps the entries blocked (round 4, H1)", async () => {
+    const dev = await device({ queued: 1 });
+    const outcome = await admitToDatabase(openDeps(dev, { me: kit, uploadBlocked: true }).deps);
+    if (outcome.kind !== "refused") throw new Error("expected a refusal");
+    expect(outcome.held.uploadBlocked).toBe(true);
   });
 });
 
@@ -838,9 +901,10 @@ describe("who may delete held entries on a shared device (M2)", () => {
   });
 });
 
-describe("deleting held entries (S4, S5, M1, M2, L4)", () => {
+describe("deleting held entries (S4, S5, M1, M2, L4; clinical review round 4, H1)", () => {
   const TOMBSTONE_ID = "0199d000-0000-7000-8000-0000000000d1";
-  const tombstone: Tombstone = {
+  /** A manager deleting Sam's held entries. */
+  const tombstone: Tombstone = requested({
     id: TOMBSTONE_ID,
     kind: "held_deleted",
     reasonCode: "recorded_elsewhere",
@@ -851,12 +915,20 @@ describe("deleting held entries (S4, S5, M1, M2, L4)", () => {
     personIds: [ADA_PERSON],
     count: 2,
     at: NOW.toISOString(),
-  };
+  });
 
-  function discardDeps(dev: Device, overrides: Partial<DiscardDeps> & { gone?: boolean } = {}) {
+  function discardDeps(
+    dev: Device,
+    overrides: Partial<DiscardDeps> & { gone?: boolean; answers?: DiscardSendResult[] } = {},
+  ) {
     const tombstones = memoryTombstones();
-    const sent: Array<{ body: unknown }> = [];
-    const { gone, ...rest } = overrides;
+    const sent: Array<Record<string, unknown>> = [];
+    const { gone, answers = [], ...rest } = overrides;
+    const send: DiscardSender = async (stone, stage) => {
+      sent.push(discardBody(stone, stage));
+      return answers.shift() ?? "acknowledged";
+    };
+    const blocked = { value: false };
     const deps: DiscardDeps = {
       readDatabaseId: () => dev.store.getItem(DB_ID_ITEM, keyOptions.plainOptions),
       deleteDatabaseFile: (name: string) => {
@@ -865,30 +937,25 @@ describe("deleting held entries (S4, S5, M1, M2, L4)", () => {
       destroyKey: () => destroyDatabaseKey(dev.store, keyOptions),
       databaseGone: async (name: string) => gone ?? !dev.files.has(name),
       keyRemains: () => databaseKeyRemains(dev.store, keyOptions),
-      putOnRecord: () =>
-        putDiscardOnRecord({
-          store: tombstones.store,
-          tombstone,
-          reason: "Recorded on the paper chart",
-          send: async (stone, reason) => {
-            sent.push({ body: discardBody(stone, reason) });
-            return "retry";
-          },
-        }),
-      withdrawRecord: () => withdrawDiscard(tombstones.store, TOMBSTONE_ID),
+      putOnRecord: () => putDiscardOnRecord({ store: tombstones.store, tombstone, send }),
+      recordOutcome: (outcome) =>
+        finishDiscard({ store: tombstones.store, tombstone, outcome, send }),
+      blockUploads: async () => {
+        blocked.value = true;
+      },
       clearHeld: async () => {
         dev.marker.value = null;
       },
       demo: false,
       ...rest,
     };
-    return { deps, tombstones, sent };
+    return { deps, tombstones, sent, blocked };
   }
 
-  it("hazard HZ-006 hazard HZ-040 the explicit discard wipes, on record first", async () => {
+  it("hazard HZ-006 hazard HZ-040 the explicit discard wipes: requested first, deleted only once the file and key are gone", async () => {
     const { dev } = await heldDevice();
     const filename = databaseFilename(dev.key.id);
-    const { deps, tombstones, sent } = discardDeps(dev);
+    const { deps, tombstones, sent, blocked } = discardDeps(dev);
     await discardHeldWork(deps);
 
     expect(dev.files.has(filename)).toBe(false);
@@ -897,36 +964,63 @@ describe("deleting held entries (S4, S5, M1, M2, L4)", () => {
     const reopened = await dev.reopen();
     expect(reopened.created).toBe(true);
     expect(reopened.key.id).not.toBe(dev.key.id);
-    // The words went with the request only; the keystore keeps codes and opaque ids (M1).
-    expect(sent[0]?.body).toMatchObject({ reason: "Recorded on the paper chart" });
-    expect(await readTombstones(tombstones.store)).toEqual([tombstone]);
-    expect(tombstones.dump()).not.toContain("paper chart");
-  });
-
-  it("hazard HZ-040 stays held, with nothing on record, when the file is still there (S5)", async () => {
-    const { dev } = await heldDevice();
-    const before = dev.marker.value;
-    const { deps, tombstones } = discardDeps(dev, { gone: false });
-    await expect(discardHeldWork(deps)).rejects.toBeInstanceOf(DiscardIncompleteError);
-    // A retry finds the same file again: the key and its id are kept until the file is gone.
-    await expect(discardHeldWork(deps)).rejects.toThrow(t("mobile.held.discardIncomplete"));
-    expect(dev.marker.value).toBe(before);
-    expect((await dev.reopen()).created).toBe(false);
-    // Nothing was deleted, so the record is withdrawn.
+    expect(sent.map((b) => b.stage)).toEqual(["requested", "deleted"]);
+    // Only the coded reason is sent; no words anywhere (round 4, M3).
+    expect(sent.some((b) => "reason" in b)).toBe(false);
+    expect(blocked.value).toBe(false);
+    // The server has the whole deletion, so its record leaves the keystore.
     expect(await readTombstones(tombstones.store)).toEqual([]);
   });
 
-  it("hazard HZ-040 stays held when the key is still in the keystore (S5)", async () => {
+  it("hazard HZ-040 acknowledged, then the file remains: failed supersedes the request, the entries stay held and are never uploaded (round 4, H1)", async () => {
     const { dev } = await heldDevice();
     const before = dev.marker.value;
-    const { deps } = discardDeps(dev, { destroyKey: async () => undefined });
+    const { deps, tombstones, sent, blocked } = discardDeps(dev, { gone: false });
+    await expect(discardHeldWork(deps)).rejects.toBeInstanceOf(DiscardIncompleteError);
+    // The server acknowledged the request, then heard that it failed.
+    expect(sent.map((b) => b.stage)).toEqual(["requested", "failed"]);
+    expect(blocked.value).toBe(true);
+    expect(dev.marker.value).toBe(before);
+    // A retry finds the same file again: the key and its id are kept until the file is gone.
+    expect((await dev.reopen()).created).toBe(false);
+    expect(await readTombstones(tombstones.store)).toEqual([]);
+  });
+
+  it("hazard HZ-040 records failed, and keeps it to send, when the file remains and the server cannot be reached", async () => {
+    const { dev } = await heldDevice();
+    const own = { ...tombstone, deletedByTenantUserId: sam.tenantUserId };
+    const tombstones = memoryTombstones();
+    const { deps } = discardDeps(dev, {
+      gone: false,
+      putOnRecord: () =>
+        putDiscardOnRecord({ store: tombstones.store, tombstone: own, send: async () => "retry" }),
+      recordOutcome: (outcome) =>
+        finishDiscard({
+          store: tombstones.store,
+          tombstone: own,
+          outcome,
+          send: async () => "retry",
+        }),
+    });
+    await expect(discardHeldWork(deps)).rejects.toBeInstanceOf(DiscardIncompleteError);
+    expect(await readTombstones(tombstones.store)).toEqual([
+      { ...own, stage: "failed", unsent: ["requested", "failed"] },
+    ]);
+  });
+
+  it("hazard HZ-040 records failed when the key is still in the keystore (S5)", async () => {
+    const { dev } = await heldDevice();
+    const before = dev.marker.value;
+    const { deps, sent, blocked } = discardDeps(dev, { destroyKey: async () => undefined });
     await expect(discardHeldWork(deps)).rejects.toBeInstanceOf(DiscardIncompleteError);
     expect(dev.marker.value).toBe(before);
+    expect(sent.map((b) => b.stage)).toEqual(["requested", "failed"]);
+    expect(blocked.value).toBe(true);
   });
 
   it("hazard HZ-040 deletes nothing when the database id cannot be read (L4)", async () => {
     const { dev } = await heldDevice();
-    const { deps, tombstones } = discardDeps(dev, {
+    const { deps, tombstones, sent } = discardDeps(dev, {
       readDatabaseId: async () => {
         throw new Error("keystore unavailable");
       },
@@ -935,6 +1029,7 @@ describe("deleting held entries (S4, S5, M1, M2, L4)", () => {
     expect(dev.files.size).toBe(1);
     expect((await dev.reopen()).created).toBe(false);
     expect(await readTombstones(tombstones.store)).toEqual([]);
+    expect(sent).toEqual([]);
   });
 
   it("hazard HZ-040 deletes nothing when the deletion cannot be put on record (L4)", async () => {
@@ -943,24 +1038,16 @@ describe("deleting held entries (S4, S5, M1, M2, L4)", () => {
     const refusing = memoryTombstones({ failWrites: true });
     const { deps } = discardDeps(dev, {
       putOnRecord: () =>
-        putDiscardOnRecord({ store: refusing.store, tombstone, reason: null, send: null }),
+        putDiscardOnRecord({ store: refusing.store, tombstone, send: async () => "acknowledged" }),
     });
     await expect(discardHeldWork(deps)).rejects.toBeInstanceOf(TombstoneWriteError);
     expect(dev.files.size).toBe(1);
     expect(dev.marker.value).toBe(before);
   });
 
-  it("hazard HZ-040 an 'other' reason the server cannot take now deletes nothing", async () => {
+  it("hazard HZ-040 deletes nothing of someone else's until the server has the request (round 4, M2)", async () => {
     const { dev } = await heldDevice();
-    const { deps, tombstones } = discardDeps(dev, {
-      putOnRecord: () =>
-        putDiscardOnRecord({
-          store: tombstones.store,
-          tombstone: { ...tombstone, reasonCode: "other" },
-          reason: "Duplicate device",
-          send: async () => "retry",
-        }),
-    });
+    const { deps, tombstones } = discardDeps(dev, { answers: ["retry"] });
     const attempt = discardHeldWork(deps);
     await expect(attempt).rejects.toBeInstanceOf(DiscardNotSentError);
     await expect(attempt).rejects.toThrow(t("mobile.discard.needsConnection"));
@@ -974,15 +1061,44 @@ describe("deleting held entries (S4, S5, M1, M2, L4)", () => {
     [{ reasonCode: "other", reason: " ok " }, "mobile.discard.reasonRequired"],
     [{ reasonCode: "staff_left", reason: "x".repeat(501) }, "mobile.discard.reasonTooLong"],
     [{ reasonCode: "staff_left", reason: "no" }, "mobile.discard.reasonRequired"],
-  ] as const)("hazard HZ-040 a deletion needs a coded reason (%j)", (choice, key) => {
-    expect(checkDiscardReason(choice)?.key).toBe(key);
+  ] as const)("hazard HZ-040 a deletion with words needs a coded reason (%j)", (choice, key) => {
+    expect(checkDiscardReason(choice, { withWords: true })?.key).toBe(key);
   });
 
   it.each([
     { reasonCode: "recorded_elsewhere", reason: "" },
     { reasonCode: "other", reason: "Duplicate device" },
-  ] as const)("hazard HZ-040 accepts %j", (choice) => {
-    expect(checkDiscardReason(choice)).toBeNull();
+  ] as const)("hazard HZ-040 accepts %j where words are kept", (choice) => {
+    expect(checkDiscardReason(choice, { withWords: true })).toBeNull();
+  });
+
+  it("hazard HZ-040 offers no words, and no Other, where the database is deleted (round 4, M3)", () => {
+    expect(checkDiscardReason({ reasonCode: "other", reason: "Duplicate device" })?.key).toBe(
+      "mobile.discard.reasonCodeRequired",
+    );
+    // Words given anyway are ignored, never checked or kept.
+    expect(checkDiscardReason({ reasonCode: "staff_left", reason: "x".repeat(501) })).toBeNull();
+  });
+
+  it("hazard HZ-040 checks the entries are the manager's organisation's when the owner is unknown (round 4, low)", () => {
+    const ids = (tenantIds: string[], entryIds = [NOTE_ID]) => ({
+      entryIds,
+      personIds: [],
+      tenantIds,
+    });
+    expect(heldEntriesInTenant(ids([DEMO_TENANT_ID]), DEMO_TENANT_ID)).toBe(true);
+    expect(heldEntriesInTenant(ids([DEMO_TENANT_ID, OTHER_TENANT]), DEMO_TENANT_ID)).toBe(false);
+    expect(heldEntriesInTenant(ids([OTHER_TENANT]), DEMO_TENANT_ID)).toBe(false);
+    expect(heldEntriesInTenant(ids([]), DEMO_TENANT_ID)).toBe(false);
+    expect(heldEntriesInTenant(ids([], []), DEMO_TENANT_ID)).toBe(true);
+  });
+
+  it("reads the organisation of every unsent entry for that check", async () => {
+    const dev = await device({ queued: 1, refused: 1 });
+    expect(await readUnsentIds(dev.holdDb)).toMatchObject({
+      entryIds: [NOTE_ID, "refused-0"],
+      tenantIds: [DEMO_TENANT_ID],
+    });
   });
 
   it("hazard HZ-006 the button and its confirmation name the count", () => {

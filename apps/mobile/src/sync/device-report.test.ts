@@ -6,6 +6,7 @@ import { all, openLocalDatabase } from "../test-support/local-db";
 import {
   buildDeviceReport,
   flushPendingReport,
+  holdReport,
   oldestAgeSeconds,
   PENDING_REPORT_ITEM,
   parsePendingReport,
@@ -106,10 +107,27 @@ describe("hazard HZ-006 the device tells the server what it has not sent (queue 
       refused: 1,
       held: 1,
       oldestAgeSeconds: 4 * 3600 + 20 * 60,
+      // The hold started when its oldest entry was held (clinical review round 4, H2).
+      heldSince: "2026-10-11T06:30:00.000Z",
       reportedAt: NOW.toISOString(),
     });
     expect(SyncDeviceReport.safeParse(built).success).toBe(true);
     expect(JSON.stringify(built)).not.toMatch(/Settled|body|i1|h1/);
+  });
+
+  it("says when the hold started only while entries are held", async () => {
+    const db = await openLocalDatabase();
+    const source: ReportDb = {
+      getUploadQueueStats: async () => ({ count: 1 }),
+      getOptional: async <T>(sql: string) => (all<T>(db, sql, [])[0] ?? null) as T | null,
+      getCrudBatch: async () => null,
+    };
+    expect((await buildDeviceReport(source, NOW)).heldSince).toBeNull();
+    // A hold that has just started reports its own start; an unreadable time changes nothing.
+    expect(holdReport(report(), "2026-10-11T07:00:00.000Z").heldSince).toBe(
+      "2026-10-11T07:00:00.000Z",
+    );
+    expect(holdReport(report(), "")).toEqual(report());
   });
 
   it("has no age when nothing waits, and never a negative one", () => {
@@ -141,7 +159,11 @@ describe("hazard HZ-006 the device tells the server what it has not sent (queue 
 
   it("keeps a hold's report for the next session in the same tenant when the session has ended", async () => {
     const { store, items } = memoryStore();
-    const pending = { tenantId: DEMO_TENANT_ID, report: report({ unsent: 0, held: 2 }) };
+    const pending = {
+      tenantId: DEMO_TENANT_ID,
+      report: holdReport(report({ unsent: 0, held: 2 }), "2026-10-11T06:30:00.000Z"),
+    };
+    expect(pending.report.heldSince).toBe("2026-10-11T06:30:00.000Z");
     // The session that ended cannot send it.
     expect(await reportOrKeep(store, pending, options(server([401]).fetch))).toBe("kept");
     expect(parsePendingReport(items.get(PENDING_REPORT_ITEM) ?? null)).toEqual(pending);

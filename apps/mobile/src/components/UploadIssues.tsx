@@ -46,6 +46,7 @@ export function UploadIssues({ personId }: { readonly personId?: string }) {
             confirmLabel={t("mobile.issues.remove")}
             reasonLabel={t("mobile.issues.removeReason")}
             onConfirm={(choice) => vault.removeRefused(item.id, choice)}
+            withWords
             testID={`issue-${item.id}-remove`}
           />
         </View>

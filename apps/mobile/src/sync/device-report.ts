@@ -5,10 +5,15 @@
  * `POST /v1/sync/device-report`, which writes an audit event. Without it, a device lost or wiped
  * with unsent work would leave no trace on the server (HZ-006).
  *
- * Sent after each sync when the counts change (or every half hour while anything waits), and when a
- * hold starts. A hold usually starts because the session ended, so the report cannot go with that
- * session; it waits in the keystore (counts only) and goes with the next session on the device in
- * the same tenant, including one that is refused because the entries are someone else's.
+ * Sent after each sync when the counts change (or every half hour while anything waits), and as
+ * soon as a hold starts, with the hold's start (clinical review round 4, H2). While anything waits,
+ * the server keeps one task for the location's Registered Manager, due at the hold's start plus
+ * `mobile.held_entries_max_days`, and closes it when a report shows nothing waiting. A hold usually
+ * starts because the session ended; the device tries with that session at once (it still works
+ * when only the access Care mode needs was withdrawn) and again whenever the app comes back to the
+ * foreground or every few minutes while it runs. Until then the report waits in the keystore
+ * (counts and times only) and goes with the next session on the device in the same tenant,
+ * including one that is refused because the entries are someone else's.
  */
 import type { SyncDeviceReport } from "@harbour/contracts";
 import { type ApiOptions, apiHeaders } from "./discards";
@@ -56,16 +61,28 @@ export async function buildDeviceReport(db: ReportDb, now: Date): Promise<SyncDe
     db.getCrudBatch(1),
   ]);
   const queuedAt = first?.crud[0]?.opData?.device_time;
+  const heldCount = Number(held?.count ?? 0);
+  const heldAt = heldCount > 0 ? instant(held?.oldest) : null;
   return {
     unsent: stats.count,
     refused: Number(refused?.count ?? 0),
-    held: Number(held?.count ?? 0),
+    held: heldCount,
     oldestAgeSeconds: oldestAgeSeconds(
       [typeof queuedAt === "string" ? queuedAt : null, refused?.oldest, held?.oldest],
       now,
     ),
+    heldSince: heldAt === null ? null : new Date(heldAt).toISOString(),
     reportedAt: now.toISOString(),
   };
+}
+
+/**
+ * The report for a hold that has just started (clinical review round 4, H2): the hold's own start,
+ * so the manager's task falls due at the hold's start plus `mobile.held_entries_max_days`.
+ */
+export function holdReport(report: SyncDeviceReport, heldAt: string): SyncDeviceReport {
+  const at = instant(heldAt);
+  return at === null ? report : { ...report, heldSince: new Date(at).toISOString() };
 }
 
 export interface LastReport {
@@ -141,6 +158,7 @@ export function parsePendingReport(raw: string | null): PendingReport | null {
     if (!whole(r.unsent) || !whole(r.refused) || !whole(r.held)) return null;
     if (r.oldestAgeSeconds !== null && !whole(r.oldestAgeSeconds)) return null;
     if (typeof r.reportedAt !== "string" || instant(r.reportedAt) === null) return null;
+    const heldSince = instant(r.heldSince);
     return {
       tenantId: value.tenantId,
       report: {
@@ -148,6 +166,7 @@ export function parsePendingReport(raw: string | null): PendingReport | null {
         refused: r.refused,
         held: r.held,
         oldestAgeSeconds: r.oldestAgeSeconds as number | null,
+        heldSince: heldSince === null ? null : new Date(heldSince).toISOString(),
         reportedAt: r.reportedAt,
       },
     };

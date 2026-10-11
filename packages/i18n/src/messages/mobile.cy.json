@@ -286,8 +286,8 @@
   "mobile.sync.held": "{count, plural, one {# entry from before the session ended is still held on this device and not yet back in the upload queue.} other {# entries from before the session ended are still held on this device and not yet back in the upload queue.}} Harbour tries again each time it unlocks.",
   "mobile.discard.reasonCodeRequired": "Choose a reason.",
   "mobile.discard.wordsLabel": "The reason in your own words",
-  "mobile.discard.wordsHint": "Needed when the reason is Other. It is sent to Harbour with the deletion and is not kept on this device.",
-  "mobile.discard.needsConnection": "Connect to the internet to give the reason in your own words, or choose one of the listed reasons. Nothing has been deleted.",
+  "mobile.discard.wordsHint": "Needed when the reason is Other. Kept only on this device, encrypted; Harbour records the reason chosen above.",
+  "mobile.discard.needsConnection": "Connect to the internet and try again. Deleting another member of staff's entries, or entries whose owner is not known, needs Harbour to record it first. Nothing has been deleted.",
   "mobile.discard.notRecorded": "The deletion could not be recorded, so nothing has been deleted. Try again.",
   "mobile.discard.code.recorded_elsewhere": "Recorded again elsewhere, for example on paper",
   "mobile.discard.code.entered_in_error": "Entered in error",
@@ -300,5 +300,14 @@
   "mobile.when.zoneBst": "{time} BST, before the clocks went back",
   "mobile.when.zoneGmt": "{time} GMT, after the clocks went back",
   "mobile.iddsi.confirmNoLevel": "Food and drink levels are not on this device. Confirm you checked with the nurse in charge that this drink can be given without a set level.",
-  "mobile.iddsi.confirmNoLevelLabel": "Food and drink levels are not on this device. Have you checked with the nurse in charge that this drink can be given without a set level?"
+  "mobile.iddsi.confirmNoLevelLabel": "Food and drink levels are not on this device. Have you checked with the nurse in charge that this drink can be given without a set level?",
+  "mobile.discard.tooManyWaiting": "Too many deletions on this device have not reached Harbour yet, so nothing has been deleted. Connect to the internet, wait for them to be sent, then try again.",
+  "mobile.discard.notAllowed": "Harbour did not accept the record of this deletion, so nothing has been deleted. Deleting another member of staff's entries needs a manager.",
+  "mobile.discard.removeFailed": "The entry could not be removed from this device. It will not be sent. Try again.",
+  "mobile.held.discardFailedEntry": "Deleting this entry did not finish, so it will not be sent. Check it, then remove it with a reason.",
+  "mobile.held.blocked": "Deleting these entries did not finish, so they will not be sent. When the member of staff who wrote them signs in, they move to the entries that need attention, to be checked and removed.",
+  "mobile.held.idsUnreadable": "The unsent entries could not be read, so the record of the deletion could not say which they were. Nothing has been deleted. Try again, or restart the device and try again.",
+  "mobile.vault.restoreFailed": "Your unsent entries could not be put back to be sent. They are still on this device. Close Harbour, open it again and unlock to try again. If this keeps happening, tell the nurse in charge.",
+  "mobile.vault.restoreIncomplete": "{count, plural, one {# unsent entry could not be put back to be sent. It is still on this device.} other {# unsent entries could not be put back to be sent. They are still on this device.}} Close Harbour, open it again and unlock to try again. If this keeps happening, tell the nurse in charge.",
+  "mobile.sync.heldUnknown": "Some entries on this device could not be counted and need attention. Harbour tries again each time it unlocks."
 }
