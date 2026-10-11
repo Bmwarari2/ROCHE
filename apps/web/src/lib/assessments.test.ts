@@ -1,4 +1,5 @@
 import { AssessmentToolKey, CarePlanStatus, PcspDomain } from "@harbour/contracts";
+import { VALIDATED_TOOLS } from "@harbour/domain";
 import { createTranslator } from "@harbour/i18n";
 import { describe, expect, it } from "vitest";
 import {
@@ -12,6 +13,7 @@ import {
   readWholeNumber,
   readYesNo,
   TOOL_KEYS,
+  TOOL_SOURCES,
   triggerText,
   triggerTexts,
 } from "./assessments";
@@ -116,6 +118,19 @@ describe("validated tools", () => {
     expect(readYesNo("yes")).toBe(true);
     expect(readYesNo("no")).toBe(false);
     expect(readYesNo("maybe")).toBeNull();
+  });
+});
+
+describe("tool sources on screen (medical-device boundary, section 5 rule 1)", () => {
+  it("hazard HZ-012 names the publisher, edition and source the API calculates from", () => {
+    for (const tool of ["news2", "must", "waterlow", "braden"] as const) {
+      const published = VALIDATED_TOOLS[tool];
+      expect(TOOL_SOURCES[tool]).toBe(published.url);
+      const words = t("care.assessments.source", { tool });
+      expect(words, tool).toContain(published.publisher);
+      expect(words, tool).toContain(published.edition);
+    }
+    expect(t("care.assessments.source", { tool: "ng249_falls" })).toContain("NG249");
   });
 });
 

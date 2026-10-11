@@ -15,6 +15,19 @@ export const TOOL_KEYS = [
   "braden",
 ] as const satisfies readonly AssessmentToolKey[];
 
+/**
+ * Where each tool is published (medical-device boundary, section 5 rule 1: publisher, edition and
+ * source on screen). The words are in the catalogue; a test keeps both in step with the domain's
+ * VALIDATED_TOOLS, which the API calculates from.
+ */
+export const TOOL_SOURCES = {
+  news2: "https://www.rcp.ac.uk/improving-care/resources/national-early-warning-score-news-2/",
+  must: "https://www.bapen.org.uk/must-and-self-screening/must-calculator",
+  waterlow: "https://www.judy-waterlow.co.uk",
+  braden: "https://www.bradenscale.com",
+  ng249_falls: "https://www.nice.org.uk/guidance/ng249",
+} as const;
+
 /** The feature flag a tool waits on until its licence is confirmed (H-25), if any. */
 export const TOOL_FLAGS: Readonly<Partial<Record<AssessmentToolKey, string>>> = {
   waterlow: "care.tool.waterlow",

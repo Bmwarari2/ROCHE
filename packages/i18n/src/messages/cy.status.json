@@ -105,6 +105,7 @@
     "care.assessments.noScore",
     "care.assessments.run",
     "care.assessments.score",
+    "care.assessments.source",
     "care.assessments.superseded",
     "care.assessments.title",
     "care.assessments.tool",

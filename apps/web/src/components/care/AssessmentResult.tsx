@@ -1,7 +1,7 @@
 import type { AssessmentItem } from "@harbour/contracts";
 import { StatusChip } from "@harbour/ui";
 import { ClipboardCheck } from "lucide-react";
-import { bandChip, bandLabel, fallsDetails, triggerTexts } from "@/lib/assessments";
+import { bandChip, bandLabel, fallsDetails, TOOL_SOURCES, triggerTexts } from "@/lib/assessments";
 import { readWorkings } from "@/lib/charts";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -75,6 +75,11 @@ export function AssessmentResult({
           <span>{t("care.assessments.nextDue", { date: formatDate(item.nextDueOn) ?? "" })}</span>
         ) : null}
         <span>{t("care.assessments.toolVersion", { version: item.toolVersion })}</span>
+      </p>
+      <p className="m-0 text-callout text-text-secondary">
+        <a href={TOOL_SOURCES[item.toolKey]} rel="noreferrer">
+          {t("care.assessments.source", { tool: item.toolKey })}
+        </a>
       </p>
       <p className="m-0 text-callout text-text-secondary">{t("care.assessments.calculatedBy")}</p>
     </section>

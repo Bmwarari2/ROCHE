@@ -795,5 +795,6 @@
   "care.charts.overrideGiven": "Not the prescribed level. Reason given: {reason}",
   "care.charts.settingsTitle": "Chart settings",
   "care.charts.vitalsReadings": "Respiration rate {rr}, SpO2 {spo2}% on {oxygen, select, yes {oxygen} other {air}}, systolic {systolic} mmHg, pulse {pulse}, {consciousness, select, alert {alert} new_confusion {new confusion} voice {responds to voice} pain {responds to pain} other {unresponsive}}, temperature {temperature} °C",
-  "care.risk.form.limitHint": "The MHRA figure is {rule, select, under {under} other {at least}} {value, number} mm."
+  "care.risk.form.limitHint": "The MHRA figure is {rule, select, under {under} other {at least}} {value, number} mm.",
+  "care.assessments.source": "{tool, select, news2 {Source: Royal College of Physicians, National Early Warning Score 2 (NEWS2), 2017} must {Source: BAPEN, Malnutrition Universal Screening Tool (MUST), 2003, reviewed August 2011} waterlow {Source: Judy Waterlow, Waterlow score, 1985, revised 2005} braden {Source: Barbara Braden and Nancy Bergstrom, Braden Scale for Predicting Pressure Sore Risk, 1988} other {Source: NICE guideline NG249, Falls: assessment and prevention}}"
 }

@@ -1,5 +1,6 @@
 import { StatusChip } from "@harbour/ui";
 import { Activity } from "lucide-react";
+import { TOOL_SOURCES } from "@/lib/assessments";
 import { type News2Flags, news2Chip } from "@/lib/charts";
 import { t } from "@/lib/i18n";
 import { Workings } from "./Workings";
@@ -41,6 +42,11 @@ export function News2Result({
         {t("care.news2.scale", { scale: news2.spo2Scale })}
       </p>
       <Workings workings={news2.workings} />
+      <p className="m-0 text-callout text-text-secondary">
+        <a href={TOOL_SOURCES.news2} rel="noreferrer">
+          {t("care.assessments.source", { tool: "news2" })}
+        </a>
+      </p>
       <p className="m-0 text-callout text-text-secondary">{t("care.news2.source")}</p>
     </section>
   );
