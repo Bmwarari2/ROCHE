@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addUkDays,
+  addUkMonths,
   clockDriftMinutes,
   formatUkDate,
   formatUkDateTime,
@@ -8,7 +9,9 @@ import {
   fromUkWallClock,
   hasClockDrift,
   toUkWallClock,
+  ukEndOfDay,
   ukOffsetMinutes,
+  ukStartOfDay,
 } from "./time";
 
 /** Hazard HZ-009: time-zone and daylight-saving errors. 2026 clocks change on 29 March and 25 October. */
@@ -71,6 +74,50 @@ describe("hazard HZ-009 addUkDays keeps the wall-clock time across a clock chang
     const next = addUkDays(new Date(iso), days);
     expect(next.toISOString()).toBe(expected);
     expect(formatUkTime(next)).toBe(formatUkTime(new Date(iso)));
+  });
+});
+
+describe("hazard HZ-009 addUkMonths and dated periods in UK time", () => {
+  it.each([
+    [
+      "a year from 1 October across the autumn change",
+      "2026-09-30T23:00:00Z",
+      12,
+      "2027-09-30T23:00:00.000Z",
+    ],
+    [
+      "a month from 31 January falls back to 28 February",
+      "2027-01-31T10:00:00Z",
+      1,
+      "2027-02-28T10:00:00.000Z",
+    ],
+    [
+      "a year from 29 February falls back to 28 February",
+      "2028-02-29T12:00:00Z",
+      12,
+      "2029-02-28T12:00:00.000Z",
+    ],
+    [
+      "a month across the spring change keeps 09:00",
+      "2027-03-01T09:00:00Z",
+      1,
+      "2027-04-01T08:00:00.000Z",
+    ],
+  ])("%s", (_name, iso, months, expected) => {
+    expect(addUkMonths(new Date(iso), months).toISOString()).toBe(expected);
+  });
+
+  it("refuses part months", () => {
+    expect(() => addUkMonths(new Date("2026-10-11T09:00:00Z"), 1.5)).toThrow(RangeError);
+  });
+
+  it.each([
+    ["2026-07-01", "2026-06-30T23:00:00.000Z", "2026-07-01T23:00:00.000Z"],
+    ["2026-10-25", "2026-10-24T23:00:00.000Z", "2026-10-26T00:00:00.000Z"],
+    ["2027-03-28", "2027-03-28T00:00:00.000Z", "2027-03-28T23:00:00.000Z"],
+  ])("%s starts at %s and ends at %s UK midnight", (iso, start, end) => {
+    expect(ukStartOfDay(iso).toISOString()).toBe(start);
+    expect(ukEndOfDay(iso).toISOString()).toBe(end);
   });
 });
 

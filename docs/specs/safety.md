@@ -25,8 +25,8 @@ is visible to anyone who can see one of them.
 | --- | --- | --- | --- |
 | `incident` | mutable, versioned | location, type (section 11.1 list), `occurred_at`, `device_time`, `recorded_at`, severity, harm grade, description, immediate actions, emergency services and GP contact, family informed (who, when), status (`open`, `under_review`, `closed`), raised by, closed by (must differ, separation of duties), classifier version | `serious_incident` where any notification applies, otherwise `care_record` |
 | `incident_person` | mutable | incident, person or staff member, role (affected, witness, involved), injury details, body-map marks | as the incident |
-| `classifier_answer` | append-only | incident, question key, answer, answered by and at | as the incident |
-| `statutory_notification` | mutable, versioned | incident (or person for deaths and DoLS outcomes), kind (`cqc_reg16_death`, `cqc_reg18_*`, `riddor_*`, `safeguarding_s42`, `candour`, `leder`, `ukhsa_outbreak`, `medical_examiner`, `police_missing_person`), `due_at` (computed), status (`draft`, `ready`, `submitted`, `not_required` with reason), submitted by, submitted at, external reference, evidence document | `serious_incident`, RIDDOR kinds `riddor_report` |
+| `classifier_answer` | append-only | incident, question key (`CLASSIFIER_QUESTION_KEYS`), answer (`yes`, `no`, `unsure`, a whole number of days or hours, or option values), answered by and at | as the incident |
+| `statutory_notification` | mutable, versioned | incident (or person for deaths and DoLS outcomes), kind (`STATUTORY_NOTIFICATION_KINDS`: `cqc_reg16_death`, `cqc_reg18_serious_injury`, `cqc_reg18_abuse`, `cqc_reg18_police`, `cqc_reg18_service_disruption`, `cqc_reg18_dols_outcome`, `riddor_death`, `riddor_specified_injury`, `riddor_non_worker_hospital`, `riddor_over_7_day`, `riddor_dangerous_occurrence`, `safeguarding_s42`, `candour`, `leder`, `ukhsa_outbreak`, `medical_examiner`, `police_missing_person`), `due_at` (computed), provisional (rests on an "unsure" answer), status (`draft`, `ready`, `submitted`, `not_required` with reason), submitted by, submitted at, external reference, evidence document | `serious_incident`, RIDDOR kinds `riddor_report` |
 | `candour_record` | mutable, versioned | incident, threshold decision and who made it, verbal notification (who, when, apology given), written notification (date, document), enquiries and results shared, outcome, correspondence documents | `serious_incident` |
 | `investigation` | mutable, versioned | incident, lead, method (root-cause template), findings, contributing factors, actions (owner, due, status), lessons, bulletin and read receipts | `serious_incident` |
 
@@ -42,52 +42,162 @@ with the reason.
 
 Each rule has a table-driven test named with HZ-013 (statutory notification missed or late).
 Time limits come from `rate_table`; "without delay" kinds are due at `occurred_at` and shown as
-overdue immediately until submitted.
+overdue immediately until submitted. The rules below were checked against the sources on
+11 October 2026; corrections to the first draft of this section are marked **Corrected**.
+
+The classifier answers each kind three ways: **required** (a draft with its clock), **not required**
+(with the reason, recorded for the audit trail), or **waiting** for a question to be answered. An
+"unsure" answer makes the draft **provisional**: its clock shows, and a holder of
+`safety.notification.submit` confirms it or marks it not required with a reason and step-up. An
+unanswered question raises the task "Answer the notification questions", due when the incident
+happened. Phase 1 checks incidents at locations in England; other nations return "not checked"
+until their nation pack (Phase 7) and never a partial answer.
 
 1. **CQC Regulation 16** (death of a person using the service): draft for every death, due without
-   delay. Expected and unexpected deaths both notify; the medical examiner pack is generated too.
-2. **CQC Regulation 18** (other incidents): serious injury (the regulation's list: a fracture,
-   dislocation, loss of consciousness, burn, an injury needing treatment to prevent death or
-   serious harm, and the others in Reg 18(2)(a) and (b)); abuse or allegation of abuse; an incident
-   reported to or investigated by the police; a DoLS application outcome (Reg 18(4A), drafted from
-   [care.md](care.md) when the outcome is known); events that stop or may stop the service running
-   safely (insufficient staff, utilities, fire, flood). Due without delay.
-3. **RIDDOR** asks one question first: did the injury arise from work activity, the premises or
-   equipment, rather than the person's own condition? Only "yes" continues. Then: a death or a
-   specified injury to a worker, or a non-worker taken from the premises to hospital for treatment,
-   is reported within `riddor.report_days` days (a death or specified injury also needs prompt
-   notification); a worker incapacitated for more than `riddor.over_7_day.threshold_days`
-   consecutive days is reported within `riddor.over_7_day.report_days` days. Falls caused by the
-   person's own condition, with no failing in premises, equipment or the way work was done, are not
-   reportable; the classifier records that reasoning.
-4. **Safeguarding (Care Act s.42)**: abuse or neglect of any kind, including financial and
-   self-neglect, produces a referral draft to the local authority and, where abuse is alleged, the
-   Reg 18 notification. Pressure ulcers of category 3, 4, unstageable or deep tissue injury, and
-   any category 2 with concern about care, run the DHSC 2018 safeguarding decision guide.
-5. **Duty of candour (Regulation 20)**: notifiable when, in the reasonable opinion of a health
-   professional, the incident caused or could cause death, severe or moderate harm, or prolonged
-   psychological harm (`candour.prolonged_harm_days` days or more), or prolonged pain. Verbal
-   notification and apology as soon as reasonably practicable; written notification within
-   `candour.written_notification.working_days` working days (tenant setting, ADR-0021, marked to
-   verify); records of enquiries and correspondence kept.
-6. **LeDeR**: the death of a person with a learning disability or an autistic person prompts a
-   LeDeR notification with the reporting link.
-7. **UKHSA outbreak**: `outbreak.ari_cases` or more acute respiratory infection cases within
-   `outbreak.ari_window_days` days, or `outbreak.diarrhoea_vomiting_cases` or more linked diarrhoea
-   and vomiting cases, at one location prompts the health protection team notification (computed
-   across incidents and observations, not only the incident being recorded).
-8. **Medical examiner**: every death generates the information pack (demographics, diagnoses,
-   recent notes and observations, medicines, advance care records, who was present).
+   delay. Regulation 16(1) covers a death "whilst services were being provided" or one "which has,
+   or may have, resulted from the carrying on of a regulated activity", so expected and unexpected
+   deaths both notify; a death in neither limb (for example in hospital weeks after discharge) is
+   marked not required with the reason. The notification "must include a description of the
+   circumstances of the death" (16(3)). The medical examiner pack is generated too.
+   ([Regulation 16](https://www.legislation.gov.uk/uksi/2009/3112/regulation/16))
+2. **CQC Regulation 18** (other incidents), due without delay
+   ([Regulation 18](https://www.legislation.gov.uk/uksi/2009/3112/regulation/18)):
+   - **Serious injury**, 18(2)(a) and (b), in the regulation's words: any injury which, in the
+     reasonable opinion of a health care professional, has resulted in an impairment of the
+     sensory, motor or intellectual functions which is not likely to be temporary; changes to the
+     structure of the body; prolonged pain or prolonged psychological harm; or the shortening of
+     life expectancy; or which requires treatment by a health care professional to prevent death or
+     an injury that would lead to one of those outcomes. "Prolonged" and "not temporary" mean a
+     continuous period of at least `cqc.reg18.prolonged_harm_days` days (18(5)(g)). **Corrected**:
+     the regulation has no list of fractures, dislocations, loss of consciousness or burns; that list
+     resembles RIDDOR's specified injuries to workers (RIDDOR 2013 reg 4(1)). A fracture usually
+     meets 18(2)(a)(ii) (changes to the structure of the body), which the question asks directly.
+   - **Abuse or allegation of abuse**, 18(2)(e). Abuse is defined in 18(5)(b) as sexual abuse;
+     physical or psychological ill-treatment; theft, misuse or misappropriation of money or
+     property; and neglect and acts of omission which cause harm or place at risk of harm.
+     Self-neglect on its own is a Care Act concern (rule 4) but not regulation 18 abuse (human
+     action H-63 confirms this reading with CQC).
+   - **Police**, 18(2)(f): any incident reported to, or investigated by, the police. CQC's form says
+     to use the death, serious injury or abuse form instead when one of those applies, so the
+     classifier folds police involvement into that notification.
+   - **DoLS outcome**, 18(4A) and (4B): a request to the supervisory body for a standard
+     authorisation, or an application to the court, is notified "once the outcome ... is known or,
+     if the request or application is withdrawn, at the point of withdrawal", with the date and
+     nature of the request, whether an urgent authorisation preceded it, the outcome or reason for
+     withdrawal, and its date. An urgent authorisation is not notified on its own. Drafted from the
+     DoLS register (`dolsCqcNotification`, [care.md](care.md) rule 11), not from an incident.
+   - **Events that stop the service running safely**, 18(2)(g): anything that prevents, or appears
+     likely to threaten to prevent, safe running (fire, flood), insufficient staff, and utility,
+     fire alarm or safety device failures "longer than a continuous period of"
+     `cqc.reg18.interruption_hours` hours.
+3. **RIDDOR** asks one question first: did the accident arise out of or in connection with work
+   (how the work was carried out, organised or supervised, the plant or substances used, or the
+   condition of the premises: RIDDOR reg 2(1) and (2)), rather than the person's own condition?
+   Only "yes" (or "unsure", as a provisional draft) continues. Then: a death of any person
+   (reg 6(1)), a specified injury to a worker (reg 4(1)), a person not at work taken from the place
+   of the accident directly to hospital for treatment (reg 5(a); examinations and tests are not
+   treatment), and a dangerous occurrence in Schedule 2 (reg 7, for example a hoist collapsing)
+   are notified to the enforcing authority without delay, and the report must be received within
+   `riddor.report_days` days (Schedule 1 para 1(1); reporting online does both). **Corrected**: the
+   without-delay notification applies to non-workers taken to hospital too, not only to deaths and
+   specified injuries ([HSE](https://www.hse.gov.uk/riddor/when-do-i-report.htm)). A worker
+   incapacitated for more than `riddor.over_7_day.threshold_days` consecutive days, not counting the
+   day of the accident but counting weekends and rest days, is reported within
+   `riddor.over_7_day.report_days` days (reg 4(2)); until that is known a task checks on the day
+   after the threshold passes. Not reportable, with the reasoning recorded (HSE information sheet
+   [HSIS1](https://www.hse.gov.uk/pubns/hsis1.pdf)): falls caused by the person's own condition with
+   no failing in premises, equipment or the way work was done; suicide and deliberate self-harm
+   (not accidents); physical violence to a person not at work (reg 2(1) counts violence only to a
+   person at work); injuries from an operation, examination or treatment by or under the
+   supervision of a doctor or dentist. A worker hurt while helping someone who self-harmed has had
+   an accident at work.
+4. **Safeguarding (Care Act s.42)**: abuse or neglect of any of the ten types in the Care and
+   support statutory guidance (14.17: physical, domestic, sexual, psychological, financial or
+   material, modern slavery, discriminatory, organisational, neglect and acts of omission,
+   self-neglect) produces a concern draft to the local authority, due without delay (the s.42 duty
+   is the local authority's; the time is Harbour's, so the draft says so), and, where abuse is
+   alleged, the Reg 18 notification. Pressure ulcers: **Corrected**: the DHSC 2018 protocol was
+   withdrawn on 26 June 2023; the current one is
+   [Pressure ulcers: how to safeguard adults](https://www.gov.uk/government/publications/pressure-ulcers-how-to-safeguard-adults)
+   (January 2024, updated June 2025). Its adult safeguarding decision guide is completed
+   "immediately or within 48 hours" (`pressure_ulcer.decision_guide_hours`) where severe damage is
+   suspected, which "may be indicated in some cases by multiple category 2 or single category 3 or
+   4 ulcers, but could also be indicated by the impact the pressure damage has on the person
+   affected (for example, pain)". Harbour runs it for category 3, 4, unstageable, deep tissue
+   injury, more than one category 2, or a single category 2 with a concern of abuse or neglect or a
+   severe impact (unstageable and deep tissue injury are Harbour's reading, for the CSO, H-66).
+5. **Duty of candour (Regulation 20)**: **Corrected**: an adult social care provider is "any other
+   registered person", so the notifiable safety incident is defined by
+   [regulation 20(9)](https://www.legislation.gov.uk/uksi/2014/2936/regulation/20), not 20(8)
+   ("severe harm, moderate harm" and "could result in" apply only to health service bodies). It is
+   an unintended or unexpected incident that, in the reasonable opinion of a health care
+   professional, appears to have resulted in a death relating directly to the incident; an
+   impairment lasting, or likely to last, at least `candour.prolonged_harm_days` days; changes to
+   the structure of the body; prolonged pain or prolonged psychological harm (the same number of
+   days, 20(7)); or the shortening of life expectancy; or that requires treatment by a health care
+   professional to prevent death or such an injury. Verbal notification in person with an apology
+   as soon as reasonably practicable (20(2) and (3)); written notification within
+   `candour.written_notification.working_days` working days as a tenant target from the threshold
+   decision (ADR-0021, marked to verify, never "statutory deadline"); 20(5) where the person cannot
+   be contacted or declines; copies of all correspondence (20(6)). The candour record's threshold
+   decision wins over the classifier's answers.
+6. **LeDeR**: the death of an adult (18 or over) with a learning disability or an autistic adult
+   prompts a LeDeR notification with the reporting link ([leder.nhs.uk/report](https://leder.nhs.uk/report),
+   "Anyone can use this online form"); a child's death goes to Child Death Review instead.
+7. **UKHSA outbreak**: `outbreak.ari_cases` or more people with acute respiratory infection whose
+   symptoms "started within `outbreak.ari_window_days` days of each other" (read as onset dates at
+   most that many UK calendar days apart), counting only cases that "could be linked by spread
+   within your setting" ("If in doubt, report as an outbreak"); a single confirmed case of flu
+   (`outbreak.flu_confirmed_cases`); or `outbreak.diarrhoea_vomiting_cases` or more linked
+   diarrhoea and vomiting cases (linkage is a staff decision; unreviewed cases raise a review task;
+   no national time window was found, H-65). Computed across the location's incidents and
+   observations (`detectOutbreaks`); the clock starts when the threshold was reached.
+   ([UKHSA](https://www.gov.uk/guidance/report-an-outbreak-of-acute-respiratory-infection-in-an-adult-social-care-setting))
+8. **Medical examiner**: every death generates the information pack (`MEDICAL_EXAMINER_PACK_SECTIONS`:
+   demographics, diagnoses, recent notes, recent observations, medicines, advance care records,
+   circumstances and who was present). Since 9 September 2024 every death in England and Wales is
+   scrutinised by a medical examiner or investigated by a coroner
+   ([DHSC](https://www.gov.uk/government/publications/changes-to-the-death-certification-process/an-overview-of-the-death-certification-reforms)).
 9. **Missing person**: Herbert Protocol profile pre-filled from the record (photo, description,
-   places, routines), police reference, search log, return welfare check; a CQC notification where
-   the person is subject to DoLS or the Mental Health Act.
+   places, routines), police reference, search log, return welfare check. CQC: reporting the person
+   missing to the police makes it a Reg 18(2)(f) notification, so it applies to every missing
+   person reported to the police, not only those subject to DoLS or the Mental Health Act; for a
+   person subject to either, the classifier drafts it even before the police answer is recorded
+   (master prompt 11.1). Regulation 17 (unauthorised absence) applies only to services with a low,
+   medium or high security designation
+   ([CQC](https://www.cqc.org.uk/guidance-regulation/registration/unauthorised-absence-notification-form)).
 10. **Clocks**: every draft shows its due time and is listed on the manager dashboard; overdue
     drafts escalate through the notification centre's escalation chain until submitted or marked
-    not required with a reason.
-11. **Separation of duties**: the person who raised an incident cannot close it.
-12. **Falls protocol**: a fall creates the post-fall checklist (injury check, observation schedule,
-    GP contact, NG249 multifactorial review, bone health) as tasks; head injury or anticoagulants
-    shorten the observation schedule and prompt urgent medical advice.
+    not required with a reason. Without-delay kinds that the law does not time (s.42 concern,
+    LeDeR, medical examiner pack, Herbert Protocol, UKHSA report) say that Harbour set the time.
+    Day clocks keep the UK wall-clock time across clock changes; working-day clocks skip the
+    nation's bank holidays.
+11. **Separation of duties**: the person who raised an incident cannot close it, and an incident
+    cannot close while a notification is a draft or ready, a classifier question is open, or the
+    candour record is open (`incidentCloseProblems`).
+12. **Falls protocol**: a fall creates the post-fall checklist (injury check, observations, GP
+    contact, the NG249 falls pathway, bone health) as tasks. Head injury, or current anticoagulant
+    or antiplatelet treatment other than aspirin alone (NICE NG232 1.2.4), or either not yet ruled
+    out, prompts urgent medical advice under the tenant's post-fall policy and replaces general
+    monitoring for `falls.monitoring_hours` hours with timed observations
+    (`falls.head_injury_obs.*`, defaults from NG232 1.9.11, which NICE wrote for people admitted to
+    hospital; to verify by the CSO, H-66). Hazard HZ-027.
+
+### Domain modules (slice 7)
+
+`packages/domain/src/safety/`, exported from `@harbour/domain`; pure functions with no I/O:
+
+| Module | Main exports | For |
+| --- | --- | --- |
+| `classifier.ts` | `classifyIncident(input)`, `CLASSIFIER_VERSION` | Outputs with `dueAt`, deadlines, reasons, sources and provisional flag; exclusions; pending kinds; tasks; open questions |
+| `questions.ts` | `CLASSIFIER_QUESTION_KEYS`, `CLASSIFIER_QUESTIONS`, `classifierAnswerProblem` | The stored question keys, their wording, options and sources, and answer validation |
+| `incident.ts` | `INCIDENT_TYPES`, `IncidentFacts`, `INCIDENT_WORKFLOW`, `incidentCloseProblems` | Classifier facts, the incident workflow and close checks |
+| `notifications.ts` | `STATUTORY_NOTIFICATION_KINDS`, `NOTIFICATION_KINDS`, `STATUTORY_NOTIFICATION_WORKFLOW`, `submissionEvidenceProblems`, `notificationClockState` | Kinds, recipients, clocks, retention class; draft, ready, submitted, not required |
+| `candour.ts` | `CANDOUR_WORKFLOW`, `candourStepProblems`, `candourClocks` | Regulation 20 steps and the ADR-0021 target |
+| `outbreak.ts` | `detectOutbreaks` | UKHSA thresholds over a location's cases |
+| `post-fall.ts` | `postFallChecklist` | Post-fall tasks and observation times |
+| `medical-examiner.ts` | `MEDICAL_EXAMINER_PACK_SECTIONS`, `missingPackSections` | Pack sections |
+| `rates.ts` | `SAFETY_RATE_KEYS`, `resolveSafetyRates` | Every safety figure from `rate_table` |
 
 ## 5. API and events
 
@@ -113,7 +223,12 @@ HZ-013 (statutory notification missed or late) is the main hazard: controls are 
 due-time clocks, escalation, the dashboard list and the step-up "not required" decision with a
 reason, including classifier errors and incidents captured offline that sync late (HZ-006).
 HZ-001 and HZ-007 apply to the capture screen header; HZ-019 to body-map marks on incidents; HZ-020
-to DoLS outcome notifications.
+to DoLS outcome notifications; HZ-027 (head injury after a fall not observed or escalated) to the
+post-fall checklist. Medical-device boundary: the classifier records a health care professional's
+opinion of harm and applies the regulations' tests to it; the post-fall checklist applies
+tenant-configurable figures and published guidance and links the tenant's escalation policy.
+Neither assesses an injury, scores risk or recommends treatment
+([medical-device-boundary.md](../compliance/medical-device-boundary.md)).
 
 ## 8. Data protection
 
@@ -123,9 +238,12 @@ authorities is a legal obligation (Article 6(1)(c)) recorded on the notification
 
 ## 9. Acceptance criteria and tests
 
-- Domain: `packages/domain/src/safety/classifier.test.ts` table-driven over the rules above (every
-  output kind, every exclusion, RIDDOR's own-condition test, outbreak thresholds from the rate
-  table, candour thresholds, clocks across bank holidays and the clock change).
+- Domain (built in slice 7): `packages/domain/src/safety/classifier.test.ts` table-driven over the
+  rules above (every output kind in a scenario, every exclusion with its reason, RIDDOR's
+  own-condition test, candour and Reg 18 thresholds from the rate table, provisional drafts, open
+  questions, tasks, clocks across bank holidays and both clock changes);
+  `outbreak.test.ts` (thresholds and windows); `post-fall.test.ts` (HZ-027);
+  `workflows.test.ts` (incident close, step-up submission, candour steps, evidence, pack sections).
 - Database and API: isolation for incidents involving people in different scopes; step-up on
   submit and "not required"; separation of duties on close; audit events.
 - Web and mobile: Playwright journey from a fall to a submitted Reg 18 draft; Maestro offline
@@ -134,5 +252,12 @@ authorities is a legal obligation (Article 6(1)(c)) recorded on the notification
 ## 10. Open questions
 
 - Candour written-notification timescale (H-50); default as ADR-0021.
+- CQC readings to confirm (H-63): self-neglect alone is not regulation 18 abuse; every missing person
+  reported to the police is a Reg 18(2)(f) notification; a death outside both limbs of regulation
+  16(1) may be marked not required; unstageable and deep tissue injury run the decision guide.
+- Outbreak definitions (H-65): no national definition or window for linked diarrhoea and vomiting
+  cases in adult social care was found; ARI "within 5 days of each other" is read as onsets at most
+  5 UK calendar days apart.
+- Post-fall observation defaults (H-66): NICE NG232 gives a hospital schedule only.
 - Which notifications can be submitted electronically to which regulator (CQC portal, HSE RIDDOR
   online form) without a public API: Phase 1 prepares and records only.

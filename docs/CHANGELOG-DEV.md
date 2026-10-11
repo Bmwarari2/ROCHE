@@ -107,3 +107,33 @@ then their schema and API.
 
 **Tests**: `packages/domain` 813, `packages/db` 112, `apps/api` 131, all passing locally.
 
+## 2026-10-11: Phase 1 rules for handover, people, MCA and incidents; care planning built
+
+**What changed**
+
+- Shift handover and round view rules (slice 5 domain, HZ-018), revised after a clinical safety
+  review: shifts to the minute with any number per location, unacknowledged urgent alerts and
+  skipped tasks carried over, refusals from every chart, acknowledgement by items seen.
+- People lifecycle spec and rules (slice 8 domain): states and the read-only rule after exit,
+  pre-admission and decision to admit, beds, property and keys, welcome checklist, About Me, review
+  scheduler, hospital transfer pack, discharge, transfer and death workflows, sharing, the weekly
+  break-glass report; hazards HZ-022 and HZ-023.
+- Care planning built end to end (slice 4b): care plans with publication and sign-off, risk
+  assessments rated with the NPSA matrix (ADR-0032 proposed), validated tools run on the server
+  with MUST rescreen and weight schedules, advance care records with the resuscitation status on
+  every person summary (HZ-015), activities and Reg 9A visits; migrations 0016 and 0017; hazards
+  HZ-024 and HZ-025.
+- Consent, capacity, best interests and DoLS rules, and the incident classifier for CQC
+  regulations 16 and 18, RIDDOR, s.42, candour (20(9)), LeDeR, medical examiner, missing persons
+  and UKHSA, with clocks, outbreak detection and the post-fall checklist (slices 6 and 7 domain);
+  the safety spec corrected against the regulations; hazards HZ-026 and HZ-027.
+- CI: the breaking-change check reads the OpenAPI document again (inclusive bounds); the
+  accessibility scans wait for animations; test database teardown no longer races.
+- The API and worker survive an idle database connection being ended (pool error listeners).
+
+**Next**: schema and API for slices 6 and 7, then 8, then 5; web UI and offline Care mode.
+
+**Human actions logged**: H-27, H-28, H-38, H-39, H-58 to H-66; H-22 and H-25 extended.
+
+**Tests**: `packages/domain` 1,836, `packages/db` 142, `apps/api` 161, all passing locally.
+

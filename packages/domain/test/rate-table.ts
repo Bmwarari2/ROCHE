@@ -7,8 +7,10 @@
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { type DolsNation, type DolsRates, resolveDolsRates } from "../src/care/mca/dols";
 import { type CareRates, resolveCareRates } from "../src/care/rates";
 import type { RateRow } from "../src/platform/rates";
+import { resolveSafetyRates, type SafetyRates } from "../src/safety/rates";
 
 const RATES_PATH = fileURLToPath(new URL("../../../docs/specs/rates.md", import.meta.url));
 
@@ -53,4 +55,27 @@ export function readRateTable(): RateRow[] {
 /** The care figures for an English location on the day the tests describe. */
 export function tableCareRates(on = "2026-10-11"): CareRates {
   return resolveCareRates(readRateTable(), "england", on, null);
+}
+
+const CALENDAR_PATH = fileURLToPath(new URL("../../../docs/specs/calendar.md", import.meta.url));
+
+/** The bank holidays for a nation from docs/specs/calendar.md (the seed's source). */
+export function tableBankHolidays(nation: string): ReadonlySet<string> {
+  const markdown = readFileSync(CALENDAR_PATH, "utf8");
+  const dates = markdown
+    .split("\n")
+    .map((line) => line.split("|").map((cell) => cell.trim()))
+    .filter((cells) => cells[2] === nation && /^\d{4}-\d{2}-\d{2}$/.test(cells[1] ?? ""))
+    .map((cells) => cells[1] as string);
+  return new Set(dates);
+}
+
+/** The safety figures (classifier, clocks, outbreaks, falls) for an English location. */
+export function tableSafetyRates(on = "2026-10-11"): SafetyRates {
+  return resolveSafetyRates(readRateTable(), "england", on, null);
+}
+
+/** The DoLS figures for a location in England or Wales. */
+export function tableDolsRates(nation: DolsNation = "england", on = "2026-10-11"): DolsRates {
+  return resolveDolsRates(readRateTable(), nation, on, null);
 }
