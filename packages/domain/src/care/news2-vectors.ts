@@ -9,7 +9,7 @@
  * server's calculator (the domain tests) and the device's path from typed readings (the mobile
  * tests) are both checked against the published tool, not against each other. Each parameter's
  * points are checked, not only the total, so two errors cannot cancel out. The Clinical Safety
- * Officer spot-checks these vectors against chart 1 (human action H-67).
+ * Officer spot-checks these vectors against chart 1 (human action H-91).
  */
 import type { News2Band, News2Consciousness, News2ResponseThreshold } from "./news2";
 

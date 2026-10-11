@@ -282,13 +282,23 @@ literals, and tests assert against the table, not a literal (section 7, section 
   property and keys after a discharge, transfer or death. No statute sets one; the default mirrors
   the CMA deposit-return period (`cma.deposit_return_days`) so the two clocks agree. Tenant default
   (H-58); the escalation goes to the Registered Manager, it is not a legal deadline.
-- `mobile.held_entries_max_days` (7): how long a device keeps entries that had not uploaded when the
+- `mobile.held_entries_max_days` (7): how long a device holds entries that had not uploaded when the
   session ended, encrypted and with nothing else from the care record, for their owner to sign in
-  again and send them (HZ-006, HZ-040; [care.md](care.md) section 6). When it runs out the device
-  shows a final warning naming the count during the last day, then deletes them and keeps a
-  tombstone. No statute sets it: it balances losing care records against keeping personal data on
-  a device whose session has ended. The default matches the offline window. Tenant default, to be
-  confirmed by the DPO with the CSO (H-85).
+  again and send them, before the hold escalates to a manager (HZ-006, HZ-040; [care.md](care.md)
+  section 6). The device shows a final warning naming the count during the last day, then says a
+  manager must resolve the entries, with a local notification at each step. Nothing is deleted when
+  it runs out (security review round 3, M3): the entries stay until their owner sends them or the
+  owner or a manager deletes them with a recorded reason. One day until the device has read the
+  figure; the seed refuses a value outside 1 to 31 days. No statute sets it: it balances losing
+  care records against keeping personal data on a device whose session has ended. The default
+  matches the offline window. Tenant default, to be confirmed by the DPO with the CSO, with whether
+  clinical entries may ever be deleted automatically (H-85).
+- `sync.clock_drift_flag_minutes` (5) is also the tolerance for a typed event time on the phone: a
+  time later than the device clock by more than this is refused and never moved to an earlier day
+  (HZ-010, clinical review round 3 H1). The device reads and caches it, and allows no tolerance
+  until it has read the figure. `mobile.offline_window_days` is refused at seeding outside 1 to 31
+  days, and the token route uses a one-day window with an alert when it meets a bad value
+  (security review round 3, L3).
 
 ## Other notes
 

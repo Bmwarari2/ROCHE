@@ -393,17 +393,28 @@ these differences, defined in `packages/sync/src/client/schema.ts`:
 - `body_map_mark.drawn_side` exists only on the device: the side where the mark was drawn, sent with
   the upload as `drawnSide` so the API repeats the HZ-019 check. The database keeps `side` only.
 - `upload_issue` exists only on the device: an entry the API refused, with its content, until
-  someone removes it; the content (`payload`) is cleared once the refusal is older than the offline
-  window. It is never uploaded or exported.
+  someone removes it with a recorded reason (the content never ages out, because the server keeps
+  no copy). It is never uploaded or exported; its removal is recorded through
+  `POST /v1/sync/discards`.
 - `held_entry` exists only on the device: entries that had not uploaded when the session ended,
   each with its table, operation and columns as JSON (`payload`) and its place in the queue, kept
-  for at most `mobile.held_entries_max_days` and put back into their tables when the owner signs in
-  again. `sync_meta` keeps the database's owner (`tenant_user` id, sign-in id, tenant and name, as
-  JSON) under the id `meta:owner`.
+  until the owner signs in again and they go back into their tables, or the owner or a manager
+  deletes them with a recorded reason (nothing is deleted automatically; at
+  `mobile.held_entries_max_days` the hold escalates to a manager). `sync_meta` keeps the database's
+  owner (`tenant_user` id, sign-in id, tenant and name, as JSON) under the id `meta:owner`, and the
+  cached rate figures (offline window, hold limit, clock tolerance).
+- The held marker in the device keystore (outside the database) holds the owner's ids and name, the
+  count, when the hold started, when it escalates and the last server time.
 - Tombstones of deleted unsent entries are kept in the device keystore, outside the database, as
-  JSON: the kind, the tenant, the owner's `tenant_user` id, the count, the entry ids when known, the
-  reason (500 characters at most) and the time. They wait there for an API endpoint that records
-  them as audit events.
+  JSON with no free text: an id, the kind (`held_deleted`, `signed_out_with_unsent`,
+  `refused_removed`), a coded reason (`recorded_elsewhere`, `entered_in_error`, `staff_left`,
+  `nurse_in_charge_informed`, `other`), the tenant, owner and deleter `tenant_user` ids, up to 20
+  entry ids and 10 person ids, the count and the time. Each is sent to `POST /v1/sync/discards`
+  (contract `SyncDiscard`, with the person's own words only in that request) and deleted once the
+  server has it; the audit event (`sync.entries.discarded`, resource type `device_discard`) keeps
+  the reason in words or the code. A hold's device report (counts and the oldest age, contract
+  `SyncDeviceReport`) may wait in the keystore the same way. The keystore also keeps the device's
+  opaque id (the PowerSync client id).
 
 Timestamps arrive on the device as ISO 8601 in UTC with microseconds (`2026-10-11T09:30:00.000000Z`);
 booleans as `1` and `0`; JSON and array columns as JSON text. Entries written on the device carry a

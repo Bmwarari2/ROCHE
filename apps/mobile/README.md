@@ -67,10 +67,11 @@ old seed; sign out and in again to see the care records.
 | Session | `src/app-state/session.tsx` | Token and cached `/v1/me` in the keystore (`WHEN_UNLOCKED_THIS_DEVICE_ONLY`) so the app starts offline. |
 | Encryption key | `src/security/db-key.ts` | Random 32-byte key per install in expo-secure-store with `WHEN_PASSCODE_SET_THIS_DEVICE_ONLY`, passed to SQLCipher as a raw key (`x'…'`). With strong biometrics the key also needs `requireAuthentication`: reading it shows Face ID or a fingerprint, which is the unlock. Without them expo-secure-store cannot tie the key to the device passcode (its `requireAuthentication` accepts biometrics only), so on a passcode-only device the key is readable by the app whenever the device is unlocked, and `expo-local-authentication` asks for the passcode before the database opens: a check in the app, not a lock on the key. Binding the key to the passcode needs a small native module (iOS `SecAccessControl` with `.userPresence`, Android Keystore with device-credential authentication); the decision is human action H-86 (security review S9). Devices without a screen lock are refused. |
 | Lock | `src/app-state/vault.tsx`, `src/security/idle-timer.ts` | Auto-lock after 2 minutes (personal) or 30 seconds to 2 minutes (shared device, set in Settings), counting time in the background. Re-unlock uses strong biometrics with passcode fallback. |
-| Sync | `src/sync/connector.ts` | `fetchCredentials` calls `POST /v1/sync/token`. `uploadData` sends each care entry (notes, observations, body-map marks, activities, visits) to its own API endpoint (`src/sync/care-upload.ts`) with its UUIDv7, `deviceTime`, and the `x-harbour-tenant`, `x-harbour-device`, `Idempotency-Key` and `x-harbour-sent-at` headers (stamped as each request leaves); other tables go to `POST /v1/sync/upload` with `deviceSentAt`. Network errors, 408, 425, 429 (honouring `Retry-After`) and 5xx retry with full-jitter backoff and stay queued. A refusal moves the entry, with its content, to the local-only `upload_issue` table and the queue moves on; Today and the record show it as "not saved: needs attention" until someone removes it. Nothing is discarded silently. |
-| Offline window | `src/sync/offline-window.ts`, `vault.connectSync` | The API puts the window in the signed sync token (`offline_days`, from `mobile.offline_window_days`) and the streams read it only from there, so the device cannot widen it. The device reads the same figure from `GET /v1/rates/{key}` (cached in `sync_meta`; today only until first read) only to say how many days it keeps and to age out refused content, and reconnects when the UTC day changes so a new token moves the window. |
+| Sync | `src/sync/connector.ts` | `fetchCredentials` calls `POST /v1/sync/token`. `uploadData` sends each care entry (notes, observations, body-map marks, activities, visits) to its own API endpoint (`src/sync/care-upload.ts`) with its UUIDv7, `deviceTime`, and the `x-harbour-tenant`, `x-harbour-device`, `Idempotency-Key` and `x-harbour-sent-at` headers (stamped as each request leaves); other tables go to `POST /v1/sync/upload` with `deviceSentAt`. Network errors, 408, 425, 429 (honouring `Retry-After`) and 5xx retry with full-jitter backoff and stay queued. A refusal moves the entry, with its content, to the local-only `upload_issue` table and the queue moves on; Today and the record show it as "not saved: needs attention" until someone removes it with a recorded reason. Nothing is discarded silently. A 403 ends the session only when its problem body carries one of the API's session codes (`src/sync/session-signals.ts`); any other 403 asks `GET /v1/me` first and never wipes or holds. |
+| Offline window | `src/sync/offline-window.ts`, `vault.connectSync` | The API puts the window in the signed sync token (`offline_days`, from `mobile.offline_window_days`) and the streams read it only from there, so the device cannot widen it. The device reads the same figure from `GET /v1/rates/{key}` (cached in `sync_meta`; today only until first read) only to say how many days it keeps, and reconnects when the UTC day changes so a new token moves the window. `src/sync/clock-tolerance.ts` reads `sync.clock_drift_flag_minutes` the same way: how far ahead of the device clock a typed time may be (none until read). |
 | Care mode | `src/app/(care)`, `src/care`, `src/components` | Pure rules in `src/care` (notes, charts, IDDSI, NEWS2 via `@harbour/domain`, body map sides, header flags, Today's sync summary, local SQL), tested in Node. Screens: Today, the person's record, note, chart, body map, care plan and risk assessments, each starting with `CarePersonHeader`. Words come from `@harbour/i18n` (`mobile.*` keys) through `src/i18n/t.ts`. |
-| Remote wipe and held entries | `vault.signOutAndWipe`, `src/app-state/held-work.ts`, `src/app-state/tombstones.ts` | Sign-out clears and deletes the database file and destroys its key; with entries unsent it shows the count and needs a reason and device authentication, and leaves a tombstone. A 401, or a session-level 403, from the sync token, an upload or `/v1/me` does the same only when nothing is waiting to upload. With entries unsent the device copies the upload queue into `held_entry`, clears everything else synced, stops uploading and asks the owner (the `tenant_user` recorded inside the database and checked before connecting) to sign in again, for at most `mobile.held_entries_max_days`; anyone else is refused, and "Sign out and delete N unsent entries" needs a reason, device authentication and a check that the file and key are gone (HZ-006, HZ-040). |
+| Remote wipe and held entries | `vault.signOutAndWipe`, `src/app-state/held-work.ts`, `src/app-state/tombstones.ts`, `src/sync/discards.ts`, `src/sync/held-limit.ts`, `src/platform/notifications.ts` | Sign-out clears and deletes the database file and destroys its key; with entries unsent it shows the count and needs a coded reason and device authentication. A 401, or a 403 with a session code, from the sync token, an upload or `/v1/me` does the same only when nothing is waiting to upload. With entries unsent the device copies the upload queue into `held_entry`, clears everything else synced, stops uploading and asks the owner (the `tenant_user` recorded inside the database and checked before connecting) to sign in again; anyone else is refused. Nothing is deleted automatically: at `mobile.held_entries_max_days` the hold escalates to a manager, with local notifications. Deleting held entries needs the owner's or a manager's sign-in on the device, a coded reason and device authentication. Every deletion is put on record first: a keystore tombstone with codes and opaque ids, and `POST /v1/sync/discards` with the person's words, retried at each sync until acknowledged (HZ-006, HZ-040). |
+| Device report | `src/sync/device-report.ts` | Unsent, refused and held counts and the oldest age (no personal data) to `POST /v1/sync/device-report` after each sync when they change, and when a hold starts. |
 | Schema | `src/sync/schema.ts` | Rebuilds `@harbour/sync`'s schema for PowerSync 2.x from its JSON form (the shared package still uses `@powersync/common` 1.x); a test proves both serialise identically. Remove once `@harbour/sync` moves to 2.x. |
 | Sync banner | `src/components/AppSyncBanner.tsx` | On every signed-in screen: offline, syncing, up to date, or sync failed with Retry; changes waiting to upload; a "may be out of date" warning after 15 minutes without a sync (HZ-002, HZ-006). |
 | People | `src/app/(care)/people` | `useQuery` over local SQLite, scoped to the signed-in tenant, virtualised `FlatList`. Rows show photo or initials, name, room, allergy flag (three states, HZ-007) and communication-needs flag. |
@@ -83,17 +84,19 @@ old seed; sign out and in again to see the care records.
 - List `harbour://` in Better Auth's trusted origins (the app sends it as `Origin`).
 - Expose `set-auth-token` on sign-in and TOTP verification responses.
 - Return 401 from `/v1/me`, `/v1/sync/token` and `/v1/sync/upload` when the session is revoked (the
-  device then wipes itself unless entries are waiting to upload); 403 from the sync token is treated
-  the same way. On a care upload, a 403 ends the session unless its problem `code` is
-  `missing_permission` or `feature_disabled`, which refuse the entry itself.
+  device then wipes itself unless entries are waiting to upload). A 403 ends the session only with
+  an RFC 9457 problem body whose `code` is `not_a_member`, `mfa_enrolment_required` or
+  `step_up_required`; any other 403 is checked against `/v1/me`, then refuses the entry (a care
+  upload) or backs off (the sync token and batch uploads).
 - Return `tenantUserId` from `/v1/me`: it records who owns entries held on the device.
 - Put the offline window in the sync token (`offline_days`, built by `offlineWindowDays` from the
   rate table); the streams read nothing from the device.
+- Record deletions of unsent entries (`POST /v1/sync/discards`, a manager's permission for someone
+  else's entries) and the device's unsent counts (`POST /v1/sync/device-report`) as audit events.
 - Follow-ups (API): a revocation signal distinct from expiry, so a revoked or lost device wipes even
-  when it holds unsent entries (a go-live blocker, human action H-68); an endpoint taking device
-  tombstones as audit events (for example `POST /v1/sync/discards`); keeping a copy of every
-  refused care entry with a review task; storing an unsafe IDDSI entry with an alert instead of
-  refusing it.
+  when it holds unsent entries, and the manager hand-over upload of another member of staff's held
+  entries (task #29; both go-live blockers, human action H-68); keeping a copy of every refused
+  care entry with a review task; storing an unsafe IDDSI entry with an alert instead of refusing it.
 - Accept `Idempotency-Key` on `/v1/sync/upload` and record business conflicts as review tasks
   rather than failing the upload.
 - Serve photos with `Cache-Control: no-store` so the native HTTP cache keeps no copy.
@@ -101,8 +104,9 @@ old seed; sign out and in again to see the care records.
   `/body-map`, `/activities` and `/visits`, answer a replayed id with the saved copy, compute
   late-entry flags from `deviceTime` and clock drift from `x-harbour-sent-at`, and answer refusals
   with problem details (the device shows `detail`, else `title`).
-- Serve `GET /v1/rates/mobile.offline_window_days` and `GET /v1/rates/mobile.held_entries_max_days`
-  to a care worker (what the device says it keeps, and how long it may hold unsent entries).
+- Serve `GET /v1/rates/mobile.offline_window_days`, `GET /v1/rates/mobile.held_entries_max_days` and
+  `GET /v1/rates/sync.clock_drift_flag_minutes` to a care worker (what the device says it keeps,
+  when a hold escalates, and how far ahead a typed time may be).
 
 ## Tests
 
@@ -122,10 +126,12 @@ against a real SQLite engine (`node:sqlite`) with tables built from the shared P
 the demo seed (`src/test-support/local-db.ts`). The point-of-care header is rendered with
 react-test-renderer against a stand-in for `react-native` and the icons
 (`src/components/person-header.render.test.ts`, aliased in `vitest.config.ts`), from the device's own
-rows. The held-entry rules run against the same SQLite engine with PowerSync's behaviour around it
-(`src/app-state/held-work.test.ts`). Screens are otherwise checked by typecheck, by
-`src/care/screens.test.ts` (wiring only: every person screen uses the header and blocks capture) and
-by Maestro.
+rows; so are the pinned identity bar and the form's order (`identity-bar.render.test.ts`),
+sign-out with unsent entries, the NEWS2 panel and an empty chart, on a shared helper
+(`src/test-support/render.ts`). The held-entry rules run against the same SQLite engine with a
+stand-in for PowerSync, whose test file says exactly what it models (`src/app-state/held-work.test.ts`).
+Screens are otherwise checked by typecheck, by `src/care/screens.test.ts` (wiring only: every person
+screen uses the header and blocks capture) and by Maestro.
 
 ### End-to-end tests (Maestro)
 
