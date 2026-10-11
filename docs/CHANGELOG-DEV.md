@@ -274,3 +274,25 @@ exit comes with the mobile hand-over of held entries.
 
 **Tests**: `packages/domain` 1,944, `packages/db` 266, `packages/contracts` 16, `apps/api` 383,
 `apps/web` 114, `packages/ui` 200, `packages/ui-native` 134, all passing locally.
+
+## 2026-10-11: #21 after main: the slice 12 sharing rules, the export catalogue, entry flags
+
+**What changed**
+
+- Sharing API on the slice 12 rules: migration 0025 adds `sharing_decision_suspension` (periods,
+  one open per decision, forced RLS, person scope, versioning, backfill) and a deputy's order
+  sections; every check passes the periods and the current capacity finding for the sharing
+  decision; a new lift-suspension route; authorities are checked against the contact who holds
+  them (role, deputyship, order sections; appointees benefits only); the benefits section reaches
+  the contracts, OpenAPI and client (HZ-022).
+- Export catalogue: every table and column from 0020 to 0025 is classified, 15 of the tables as
+  care records described column by column, with code meanings, units, the token hash secret and
+  the workflow id internal (HZ-071).
+- Web: every entry view shows the lifecycle flags beside the late-entry flag (C-M3); the unused
+  person header keys are gone; main's header fixture gains the new person fields.
+
+**Next**: round 4 of the #21 review.
+
+**Tests**: `packages/domain` 3,684, `packages/db` 276, `packages/contracts` 16, `apps/api` 387,
+`apps/web` 299, `packages/ui` 337, `packages/ui-native` 134, `packages/i18n` 34, all passing
+locally.

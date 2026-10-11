@@ -372,7 +372,14 @@ exit's drafts no longer indicated, never closing them, and gives the holders of
 `safety.notification.submit` one task to tell the regulator about a notification already
 submitted (H-88). Sharing decisions are checked with `checkSharingDecision`, can
 be withdrawn or suspended with a reason, and `GET .../sharing-decisions/visibility` answers per
-section from `checkSectionVisibility`, closed by default (HZ-022). `PUT .../communication-needs`
+section from `checkSectionVisibility`, closed by default (HZ-022). Since slice 12 (migration 0025)
+every suspension is a period in `sharing_decision_suspension` and `POST .../{decisionId}/lift-suspension`
+ends it with a reason, so what happened while suspended stays closed; every check passes the
+current capacity finding for the sharing decision (the latest assessment with `decisionKind`
+`sharing`, presumed without one), and a capacity finding on a new decision must name such an
+assessment; the authority must be held by the contact named (an attorney, deputy or appointee
+by contact role, a deputy within their `authority_scope` and with the sections their order covers,
+`orderSections`), and a reference, evidence or end date left out is taken from the contact. `PUT .../communication-needs`
 records needs or a positive "none identified"; an empty list reads `not_recorded` on the person
 summary (`communicationNeedsStatus`). The worker raises review tasks hourly and stores the weekly
 break-glass report daily for the UK week before (so a missed Monday catches up), one per location,

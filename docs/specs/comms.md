@@ -64,7 +64,8 @@ CHECK constraints for the schema step (the domain also refuses these, fail-close
 its confirmer.
 
 Columns other modules add in their schema steps: `sharing_decision` gains suspension periods
-(`sharing_decision_suspension`: from, to, reason) and, for deputies, the sections the order covers
+(`sharing_decision_suspension`: from, to, reason; built in people migration 0025 as `suspended_at`
+and `lifted_at`) and, for deputies, the sections the order covers
 (people.md rule 13); `best_interests_decision` gains `decision_kind` (`CONSENT_DECISION_KINDS`)
 and, for `photos`, a yes or no outcome (rule 6); `care` adds a standing visit restriction (who it
 applies to, from, to, reason) beside the per-visit restriction in `visit_log`, and an
