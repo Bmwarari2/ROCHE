@@ -1,5 +1,5 @@
 import { ButtonLink, Card, StatusChip } from "@harbour/ui";
-import { History } from "lucide-react";
+import { ClipboardCheck, History } from "lucide-react";
 import type { Metadata } from "next";
 import { AssessmentForm } from "@/components/care/AssessmentForm";
 import { AssessmentResult } from "@/components/care/AssessmentResult";
@@ -87,7 +87,7 @@ async function AssessmentsTab({
         </div>
       ) : null}
       {offTools.map((tool) => (
-        <p key={tool} className="m-0 text-callout text-text-secondary">
+        <p key={tool} className="m-0 text-body-dense text-text-secondary">
           {t("care.assessments.disabled", { tool })}
         </p>
       ))}
@@ -170,7 +170,9 @@ async function AssessmentsTab({
                       {item.score === null ? null : (
                         <span>{t("care.assessments.score", { score: item.score })}</span>
                       )}
-                      {band ? <StatusChip status={bandChip(item)} label={band} /> : null}
+                      {band ? (
+                        <StatusChip status={bandChip(item)} label={band} icon={ClipboardCheck} />
+                      ) : null}
                     </>
                   )}
                 </li>

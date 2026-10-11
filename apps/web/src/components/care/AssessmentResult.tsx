@@ -44,7 +44,7 @@ export function AssessmentResult({
         </Heading>
         <EntryBadges entry={item} />
       </div>
-      <p className="m-0 text-callout text-text-secondary">
+      <p className="m-0 text-body-dense text-text-secondary">
         {t("care.assessments.completed", { dateTime: formatDateTime(item.occurredAt) ?? "" })}
       </p>
       {item.score !== null ? (
@@ -55,7 +55,7 @@ export function AssessmentResult({
           {band ? <StatusChip status={bandChip(item)} label={band} icon={ClipboardCheck} /> : null}
         </p>
       ) : (
-        <p className="m-0 text-callout">{t("care.assessments.noScore")}</p>
+        <p className="m-0 text-body-dense">{t("care.assessments.noScore")}</p>
       )}
       {falls?.recommendation ? (
         <p className="m-0 font-semibold">
@@ -67,7 +67,7 @@ export function AssessmentResult({
       ) : null}
       <Workings workings={readWorkings(item.workings)} />
       <div className="flex flex-col gap-1">
-        <p className="m-0 text-callout font-semibold">{t("care.assessments.triggers.title")}</p>
+        <p className="m-0 text-body-dense font-semibold">{t("care.assessments.triggers.title")}</p>
         {triggers.texts.length === 0 && triggers.unknown.length === 0 ? (
           <p className="m-0 text-body-dense">{t("care.assessments.triggers.none")}</p>
         ) : null}
@@ -93,18 +93,20 @@ export function AssessmentResult({
           </p>
         ) : null}
       </div>
-      <p className="m-0 flex flex-wrap gap-x-4 text-callout text-text-secondary">
+      <p className="m-0 flex flex-wrap gap-x-4 text-body-dense text-text-secondary">
         {item.nextDueOn ? (
           <span>{t("care.assessments.nextDue", { date: formatDate(item.nextDueOn) ?? "" })}</span>
         ) : null}
         <span>{t("care.assessments.toolVersion", { version: item.toolVersion })}</span>
       </p>
-      <p className="m-0 text-callout text-text-secondary">
+      <p className="m-0 text-body-dense text-text-secondary">
         <a href={TOOL_SOURCES[item.toolKey]} rel="noreferrer">
           {t("care.assessments.source", { tool: item.toolKey })}
         </a>
       </p>
-      <p className="m-0 text-callout text-text-secondary">{t("care.assessments.calculatedBy")}</p>
+      <p className="m-0 text-body-dense text-text-secondary">
+        {t("care.assessments.calculatedBy")}
+      </p>
     </section>
   );
 }

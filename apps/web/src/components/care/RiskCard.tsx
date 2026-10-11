@@ -44,7 +44,7 @@ export function RiskCard({
               icon={ShieldAlert}
             />
           ) : (
-            <span className="text-callout">{t("care.risk.notRated")}</span>
+            <span className="text-body-dense">{t("care.risk.notRated")}</span>
           )}
           {item.residualRating !== null ? (
             <StatusChip
@@ -62,11 +62,11 @@ export function RiskCard({
         </div>
         <dl className="m-0 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <dt className="text-callout font-semibold">{t("care.risk.hazard")}</dt>
+            <dt className="text-body-dense font-semibold">{t("care.risk.hazard")}</dt>
             <dd className="m-0">{item.hazard}</dd>
           </div>
           <div>
-            <dt className="text-callout font-semibold">{t("care.risk.whoAtRisk")}</dt>
+            <dt className="text-body-dense font-semibold">{t("care.risk.whoAtRisk")}</dt>
             <dd className="m-0">{item.whoAtRisk}</dd>
           </div>
         </dl>
@@ -82,7 +82,7 @@ export function RiskCard({
           </p>
         ) : null}
         {item.findings.length > 0 ? (
-          <ul className="m-0 flex list-none flex-col gap-1 p-0 text-callout">
+          <ul className="m-0 flex list-none flex-col gap-1 p-0 text-body-dense">
             {item.findings.map((finding) => (
               <li key={finding.questionKey} className="flex flex-wrap items-center gap-2">
                 <StatusChip
@@ -104,7 +104,7 @@ export function RiskCard({
           </ul>
         ) : null}
         <div>
-          <p className="m-0 text-callout font-semibold">{t("care.risk.controls")}</p>
+          <p className="m-0 text-body-dense font-semibold">{t("care.risk.controls")}</p>
           {item.controls.length === 0 ? (
             <p className="m-0 text-text-secondary">{t("care.risk.noControls")}</p>
           ) : (
@@ -117,17 +117,19 @@ export function RiskCard({
         </div>
         {item.positiveRiskStatement ? (
           <div>
-            <p className="m-0 text-callout font-semibold">{t("care.risk.positiveRisk")}</p>
+            <p className="m-0 text-body-dense font-semibold">{t("care.risk.positiveRisk")}</p>
             <p className="m-0 whitespace-pre-line">{item.positiveRiskStatement}</p>
           </div>
         ) : null}
         {item.personViews ? (
           <div>
-            <p className="m-0 text-callout font-semibold">{t("care.risk.personViews", { name })}</p>
+            <p className="m-0 text-body-dense font-semibold">
+              {t("care.risk.personViews", { name })}
+            </p>
             <p className="m-0 whitespace-pre-line">{item.personViews}</p>
           </div>
         ) : null}
-        <p className="m-0 flex flex-wrap gap-x-4 text-callout text-text-secondary">
+        <p className="m-0 flex flex-wrap gap-x-4 text-body-dense text-text-secondary">
           <span>{t("care.risk.assessedOn", { date: formatDate(item.assessedOn) ?? "" })}</span>
           <span>{t("care.risk.reviewDue", { date: formatDate(item.reviewDueOn) ?? "" })}</span>
         </p>
@@ -152,7 +154,7 @@ export function RiskCard({
             </>
           ) : null}
         </div>
-        <p className="m-0 text-callout">
+        <p className="m-0 text-body-dense">
           <Link href={`/people/${personId}/history/risk_assessment/${item.id}`}>
             {t("care.risk.historyLink")}
           </Link>

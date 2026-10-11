@@ -140,7 +140,7 @@ export function RiskForm({
 
   return (
     <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
-      <p className="m-0 text-callout text-text-secondary">
+      <p className="m-0 text-body-dense text-text-secondary">
         {t("care.risk.templateSource", { source: template.source, version: template.version })}
       </p>
       <TextField

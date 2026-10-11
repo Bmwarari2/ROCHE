@@ -61,13 +61,13 @@ export function NoteList({
       footer: (
         <>
           {chain.correctsHidden ? (
-            <p className="m-0 text-callout text-text-secondary">
+            <p className="m-0 text-body-dense text-text-secondary">
               {t("care.timeline.correctsHidden")}
             </p>
           ) : null}
           {previous.length > 0 ? (
-            <details className="text-callout">
-              <summary className="cursor-pointer text-link">
+            <details className="text-body-dense">
+              <summary className="inline-flex min-h-target cursor-pointer items-center text-link">
                 {t("care.timeline.earlier", { count: previous.length })}
               </summary>
               <ol className="m-0 mt-2 flex list-none flex-col gap-2 p-0">

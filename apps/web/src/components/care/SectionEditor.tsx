@@ -227,7 +227,7 @@ export function SectionEditor({
                   >
                     <div className="min-w-0">
                       <p className="m-0 whitespace-pre-line">{action.action}</p>
-                      <p className="m-0 flex flex-wrap gap-x-4 text-callout text-text-secondary">
+                      <p className="m-0 flex flex-wrap gap-x-4 text-body-dense text-text-secondary">
                         {role ? <span>{t("care.plan.action.who", { role })}</span> : null}
                         {action.whenText ? (
                           <span>{t("care.plan.action.when", { when: action.whenText })}</span>
@@ -293,7 +293,9 @@ export function SectionEditor({
               </div>
             </form>
           ) : (
-            <p className="m-0 text-callout text-text-secondary">{t("care.plan.edit.needFirst")}</p>
+            <p className="m-0 text-body-dense text-text-secondary">
+              {t("care.plan.edit.needFirst")}
+            </p>
           )}
           <FormFeedback result={added} success={addedMessage} fieldIds={actionIds} />
         </section>

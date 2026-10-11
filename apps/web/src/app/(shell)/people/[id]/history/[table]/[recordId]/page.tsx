@@ -45,7 +45,7 @@ async function RecordHistoryTab({ params }: { readonly params: Params }) {
 
   return (
     <>
-      <p className="m-0 text-callout">
+      <p className="m-0 text-body-dense">
         <Link href={path}>{t("care.history.back")}</Link>
       </p>
       <h2 className="m-0 text-eyebrow">{t("care.history.versions.title", { record })}</h2>

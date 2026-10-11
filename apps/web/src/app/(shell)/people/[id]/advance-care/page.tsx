@@ -59,7 +59,7 @@ function RecordCard({
               : t("care.advance.clinicianNoRole", { name: item.clinicianName })}
           </p>
         ) : null}
-        <p className="m-0 flex flex-wrap gap-x-4 text-callout text-text-secondary">
+        <p className="m-0 flex flex-wrap gap-x-4 text-body-dense text-text-secondary">
           <span>{t("care.advance.completedOn", { date: formatDate(item.completedOn) ?? "" })}</span>
           {item.reviewDueOn ? (
             <span>{t("care.advance.reviewDue", { date: formatDate(item.reviewDueOn) ?? "" })}</span>
@@ -67,7 +67,7 @@ function RecordCard({
         </p>
         {item.details ? (
           <div>
-            <p className="m-0 text-callout font-semibold">{t("care.advance.details")}</p>
+            <p className="m-0 text-body-dense font-semibold">{t("care.advance.details")}</p>
             <p className="m-0 whitespace-pre-line">{item.details}</p>
           </div>
         ) : null}
@@ -87,7 +87,7 @@ function RecordCard({
             kind={item.kind}
           />
         ) : null}
-        <p className="m-0 text-callout">
+        <p className="m-0 text-body-dense">
           <Link href={`/people/${personId}/history/advance_care_record/${item.id}`}>
             {t("care.advance.historyLink")}
           </Link>

@@ -64,7 +64,7 @@ async function CarePlanVersionTab({ params }: { readonly params: Params }) {
 
   return (
     <>
-      <p className="m-0 text-callout">
+      <p className="m-0 text-body-dense">
         <Link href={path}>{t("care.plan.title")}</Link>
       </p>
       <h2 className="m-0 text-eyebrow">{t("care.plan.title")}</h2>
@@ -105,7 +105,7 @@ async function CarePlanVersionTab({ params }: { readonly params: Params }) {
               <p className="m-0 text-text-secondary">
                 {t("care.plan.edit.description", { name: names.preferred })}
               </p>
-              <p className="m-0 text-callout">
+              <p className="m-0 text-body-dense">
                 {t("care.plan.edit.written", {
                   count: plan.sections.filter((s) => s.need?.trim() || s.outcome?.trim()).length,
                 })}

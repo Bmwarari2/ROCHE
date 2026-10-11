@@ -33,7 +33,7 @@ export function VersionList({
           <p className="m-0 font-semibold">
             {t("care.history.version", { version: version.version })}
           </p>
-          <p className="m-0 flex flex-wrap gap-x-4 text-callout text-text-secondary">
+          <p className="m-0 flex flex-wrap gap-x-4 text-body-dense text-text-secondary">
             <span>
               {t("care.history.validity", {
                 from: formatDateTime(version.validFrom) ?? "",
@@ -46,7 +46,7 @@ export function VersionList({
               })}
             </span>
           </p>
-          <table className="w-full border-collapse text-callout">
+          <table className="w-full border-collapse text-body-dense">
             <thead className="hb-visually-hidden">
               <tr>
                 <th scope="col">{t("care.history.field")}</th>

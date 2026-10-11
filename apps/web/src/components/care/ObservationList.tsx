@@ -37,7 +37,7 @@ export function ObservationList({
             className="flex flex-col gap-1 rounded-input border border-border px-4 py-3"
             data-observation={item.chart}
           >
-            <p className="m-0 flex flex-wrap items-center gap-2 text-callout text-text-secondary">
+            <p className="m-0 flex flex-wrap items-center gap-2 text-body-dense text-text-secondary">
               <time dateTime={item.occurredAt} className="font-semibold text-text tabular-nums">
                 {formatDateTime(item.occurredAt)}
               </time>
@@ -100,7 +100,7 @@ export function ObservationList({
               </p>
             ) : null}
             {iddsi === "mismatch" || iddsi === "unsafe_mismatch" ? (
-              <p className="m-0 text-callout">
+              <p className="m-0 text-body-dense">
                 {t("care.charts.overrideGiven", {
                   reason:
                     typeof item.values.overrideReason === "string"
@@ -110,7 +110,7 @@ export function ObservationList({
               </p>
             ) : null}
             {item.correctionReason ? (
-              <p className="m-0 text-callout text-text-secondary">
+              <p className="m-0 text-body-dense text-text-secondary">
                 {t("care.timeline.reason", { reason: item.correctionReason })}
               </p>
             ) : null}

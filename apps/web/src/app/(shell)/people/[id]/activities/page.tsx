@@ -88,7 +88,7 @@ async function ActivitiesTab({
                   key={item.id}
                   className="flex flex-col gap-1 rounded-input border border-border px-4 py-3"
                 >
-                  <p className="m-0 flex flex-wrap items-center gap-2 text-callout text-text-secondary">
+                  <p className="m-0 flex flex-wrap items-center gap-2 text-body-dense text-text-secondary">
                     <time
                       dateTime={item.occurredAt}
                       className="font-semibold text-text tabular-nums"
@@ -99,7 +99,7 @@ async function ActivitiesTab({
                     <EntryBadges entry={item} />
                   </p>
                   <p className="m-0 font-semibold">{item.activity}</p>
-                  <p className="m-0 flex flex-wrap gap-x-4 text-callout">
+                  <p className="m-0 flex flex-wrap gap-x-4 text-body-dense">
                     <span>{t("care.activities.formatOption", { format: item.format })}</span>
                     <span>
                       {t("care.activities.attendanceOption", { attendance: item.attendance })}
@@ -142,7 +142,7 @@ async function ActivitiesTab({
                   key={item.id}
                   className="flex flex-col gap-1 rounded-input border border-border px-4 py-3"
                 >
-                  <p className="m-0 flex flex-wrap items-center gap-2 text-callout text-text-secondary">
+                  <p className="m-0 flex flex-wrap items-center gap-2 text-body-dense text-text-secondary">
                     <time
                       dateTime={item.occurredAt}
                       className="font-semibold text-text tabular-nums"

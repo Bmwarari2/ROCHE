@@ -166,7 +166,7 @@ export function BodyMapRecorder({
         <div className="flex flex-col gap-4 md:flex-row md:items-start">
           <div className="flex flex-col gap-2">
             <BodyDrawing view={view} selected={place} marks={marks[view]} onSelect={setPlace} />
-            <p className="m-0 max-w-[240px] text-callout text-text-secondary">
+            <p className="m-0 max-w-[240px] text-body-dense text-text-secondary">
               {t("care.bodyMap.drawingHint")}
             </p>
           </div>
@@ -261,7 +261,7 @@ export function BodyMapRecorder({
               />
             ) : null}
             {markType === "pressure_ulcer" || markType === "bruise" ? (
-              <p className="m-0 text-callout text-text-secondary">{t("care.bodyMap.prompts")}</p>
+              <p className="m-0 text-body-dense text-text-secondary">{t("care.bodyMap.prompts")}</p>
             ) : null}
           </div>
         </div>

@@ -8,7 +8,7 @@ import { PlanStatus } from "./PlanStatus";
 function Field({ term, value }: { readonly term: string; readonly value: string | null }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <dt className="text-callout font-semibold">{term}</dt>
+      <dt className="text-body-dense font-semibold">{term}</dt>
       <dd className="m-0 whitespace-pre-line">
         {value?.trim() ? (
           value
@@ -51,7 +51,7 @@ export function CarePlanView({
           </Heading>
           <PlanStatus status={plan.status} />
         </div>
-        <ul className="m-0 flex list-none flex-col gap-1 p-0 text-callout text-text-secondary">
+        <ul className="m-0 flex list-none flex-col gap-1 p-0 text-body-dense text-text-secondary">
           {plan.publishedAt ? (
             <li>{t("care.plan.published", { date: formatDateTime(plan.publishedAt) ?? "" })}</li>
           ) : null}
@@ -65,7 +65,7 @@ export function CarePlanView({
         </ul>
         {plan.summary ? (
           <div>
-            <p className="m-0 text-callout font-semibold">{t("care.plan.summary")}</p>
+            <p className="m-0 text-body-dense font-semibold">{t("care.plan.summary")}</p>
             <p className="m-0 whitespace-pre-line">{plan.summary}</p>
           </div>
         ) : null}
@@ -89,7 +89,7 @@ export function CarePlanView({
               <Field term={t("care.plan.section.contingency")} value={section.contingency} />
             </dl>
             <div className="flex flex-col gap-2">
-              <p className="m-0 text-callout font-semibold">{t("care.plan.section.actions")}</p>
+              <p className="m-0 text-body-dense font-semibold">{t("care.plan.section.actions")}</p>
               {section.actions.length === 0 ? (
                 <p className="m-0 text-text-secondary">{t("care.plan.section.noActions")}</p>
               ) : (
@@ -99,7 +99,7 @@ export function CarePlanView({
                     return (
                       <li key={action.id} className="rounded-input border border-border px-4 py-2">
                         <p className="m-0 whitespace-pre-line">{action.action}</p>
-                        <p className="m-0 flex flex-wrap gap-x-4 text-callout text-text-secondary">
+                        <p className="m-0 flex flex-wrap gap-x-4 text-body-dense text-text-secondary">
                           {role ? <span>{t("care.plan.action.who", { role })}</span> : null}
                           {action.whenText ? (
                             <span>{t("care.plan.action.when", { when: action.whenText })}</span>

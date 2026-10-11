@@ -104,7 +104,7 @@ async function HistoryTab({ params }: { readonly params: Params }) {
                   {risks.items.map((risk) => (
                     <li key={risk.id} className="flex flex-wrap items-center gap-3">
                       <span className="font-semibold">{risk.hazard}</span>
-                      <span className="text-callout text-text-secondary">
+                      <span className="text-body-dense text-text-secondary">
                         {t("care.risk.assessedOn", { date: formatDate(risk.assessedOn) ?? "" })}
                       </span>
                       {historyLink("risk_assessment", risk.id, risk.hazard)}
@@ -126,7 +126,7 @@ async function HistoryTab({ params }: { readonly params: Params }) {
                     return (
                       <li key={record.id} className="flex flex-wrap items-center gap-3">
                         <span className="font-semibold">{name}</span>
-                        <span className="text-callout text-text-secondary">
+                        <span className="text-body-dense text-text-secondary">
                           {t("care.advance.status", { status: record.status })}
                         </span>
                         {historyLink("advance_care_record", record.id, name)}

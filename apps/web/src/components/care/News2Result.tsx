@@ -44,18 +44,18 @@ export function News2Result({
         <p className="m-0">{t("care.news2.monitoring", { frequency: news2.monitoring })}</p>
       ) : null}
       {news2.redScore ? <p className="m-0">{t("care.news2.redScore")}</p> : null}
-      <p className="m-0 text-callout text-text-secondary">
+      <p className="m-0 text-body-dense text-text-secondary">
         {news2.spo2Scale === null
           ? t("care.news2.scaleUnknown")
           : t("care.news2.scale", { scale: news2.spo2Scale })}
       </p>
       <Workings workings={news2.workings} />
-      <p className="m-0 text-callout text-text-secondary">
+      <p className="m-0 text-body-dense text-text-secondary">
         <a href={TOOL_SOURCES.news2} rel="noreferrer">
           {t("care.assessments.source", { tool: "news2" })}
         </a>
       </p>
-      <p className="m-0 text-callout text-text-secondary">{t("care.news2.source")}</p>
+      <p className="m-0 text-body-dense text-text-secondary">{t("care.news2.source")}</p>
     </section>
   );
 }

@@ -122,7 +122,7 @@ async function CarePlanTab({
             {t("care.plan.versions.title")}
           </h3>
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-callout">
+            <table className="w-full border-collapse text-body-dense">
               <caption className="hb-visually-hidden">
                 {t("care.plan.versions.caption", { name: names.preferred })}
               </caption>

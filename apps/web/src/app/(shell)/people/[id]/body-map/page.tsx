@@ -73,7 +73,7 @@ async function BodyMapTab({ params }: { readonly params: Params }) {
           <p className="m-0 text-text-secondary">{t("care.bodyMap.marks.empty")}</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-callout">
+            <table className="w-full border-collapse text-body-dense">
               <caption className="hb-visually-hidden">
                 {t("care.bodyMap.marks.caption", { name: names.preferred })}
               </caption>
@@ -122,7 +122,9 @@ async function BodyMapTab({ params }: { readonly params: Params }) {
                     </td>
                     <td className="py-2 pe-4">{sizeText(mark)}</td>
                     <td className="py-2">
-                      <span className="block tabular-nums">{formatDateTime(mark.occurredAt)}</span>
+                      <time dateTime={mark.occurredAt} className="block tabular-nums">
+                        {formatDateTime(mark.occurredAt)}
+                      </time>
                       <span className="flex flex-wrap gap-1">
                         <EntryBadges entry={mark} />
                       </span>

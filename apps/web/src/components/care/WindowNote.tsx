@@ -16,7 +16,7 @@ export function WindowNote({
   const longer = longerWindow(days);
   const separator = href.includes("?") ? "&" : "?";
   return (
-    <p className="m-0 flex flex-wrap items-center gap-x-4 gap-y-1 text-callout text-text-secondary">
+    <p className="m-0 flex flex-wrap items-center gap-x-4 gap-y-1 text-body-dense text-text-secondary">
       <span>{t("care.entry.window", { days })}</span>
       {longer ? (
         <Link href={`${href}${separator}days=${longer}`} className="hb-button hb-button--tertiary">

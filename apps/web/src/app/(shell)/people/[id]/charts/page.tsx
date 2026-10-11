@@ -163,13 +163,14 @@ async function ChartsTab({
               </span>
             }
           />
-          <p className="m-0 text-callout text-text-secondary">{t("care.charts.fluid.ukDay")}</p>
+          <p className="m-0 text-body-dense text-text-secondary">{t("care.charts.fluid.ukDay")}</p>
         </div>
       </Card>
 
       <TabNav
         label={t("care.charts.record.label")}
         linkComponent={Link}
+        currentAs="true"
         items={CHARTS.map((kind) => ({
           href: here({ record: kind }),
           label: t("care.charts.kind", { chart: kind }),

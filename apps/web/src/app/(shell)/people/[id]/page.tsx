@@ -236,7 +236,9 @@ async function PersonOverviewTab({ params }: { readonly params: Params }) {
                       <span className="font-semibold">
                         {t("care.assessments.tool", { tool: item.toolKey })}
                       </span>
-                      {band ? <StatusChip status={bandChip(item)} label={band} /> : null}
+                      {band ? (
+                        <StatusChip status={bandChip(item)} label={band} icon={ClipboardCheck} />
+                      ) : null}
                       <span className="text-text-secondary">
                         {formatDate(ukToday(new Date(item.occurredAt))) ?? ""}
                       </span>

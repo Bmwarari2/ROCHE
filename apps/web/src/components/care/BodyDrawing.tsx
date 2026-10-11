@@ -93,74 +93,80 @@ export function BodyDrawing({
   };
 
   return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: tapping the picture is for pointers; the body area list beside it is the keyboard and screen reader equivalent.
-    <svg
-      viewBox={`0 0 ${DRAWING.width} ${DRAWING.height}`}
-      width={DRAWING.width}
-      height={DRAWING.height}
-      role="img"
-      aria-labelledby={titleId}
-      className="h-auto max-w-full cursor-crosshair select-none"
-      data-body-view={view}
-      onClick={pick}
-    >
-      <title id={titleId}>{t("care.bodyMap.drawing", { view })}</title>
-      <Limb points={ARM} width={18} />
-      <Limb points={ARM.map(mirrorPoint)} width={18} />
-      <Limb points={LEG} width={26} />
-      <Limb points={LEG.map(mirrorPoint)} width={26} />
-      <g className="fill-bg-secondary stroke-text-tertiary" strokeWidth={1.5}>
-        <ellipse cx={120} cy={38} rx={22} ry={28} />
-        <rect x={110} y={64} width={20} height={18} rx={4} />
-        <path d="M 74 92 Q 120 80 166 92 L 172 160 Q 168 210 160 252 L 80 252 Q 72 210 68 160 Z" />
-        <ellipse cx={96} cy={462} rx={15} ry={10} />
-        <ellipse cx={DRAWING.width - 96} cy={462} rx={15} ry={10} />
-      </g>
-      <line
-        x1={DRAWING.centre}
-        y1={22}
-        x2={DRAWING.centre}
-        y2={DRAWING.height - 4}
-        className="stroke-text-tertiary"
-        strokeDasharray="3 5"
-      />
-      <text x={4} y={14} className="fill-text text-caption">
-        {onYourLeft}
-      </text>
-      <text x={DRAWING.width - 4} y={14} textAnchor="end" className="fill-text text-caption">
-        {onYourRight}
-      </text>
-      {spots.map((spot) => (
-        <circle key={spot.value} cx={spot.x} cy={spot.y} r={2} className="fill-text-tertiary" />
-      ))}
-      {markSpots.map((mark) => (
-        <circle
-          key={mark.id}
-          cx={mark.x}
-          cy={mark.y}
-          r={5}
-          strokeWidth={2}
-          className="fill-text stroke-bg"
-          data-mark={mark.id}
-        />
-      ))}
-      {chosen ? (
-        <g data-selected={chosen.value}>
-          <circle
-            cx={chosen.x}
-            cy={chosen.y}
-            r={10}
-            fill="none"
-            strokeWidth={3}
-            className="stroke-accent"
-          />
-          <path
-            d={`M ${chosen.x - 5} ${chosen.y} L ${chosen.x + 5} ${chosen.y} M ${chosen.x} ${chosen.y - 5} L ${chosen.x} ${chosen.y + 5}`}
-            strokeWidth={2}
-            className="stroke-accent"
-          />
+    <div className="flex w-full max-w-[240px] flex-col gap-1">
+      {/* The drawing's title says the same for screen readers; these labels are for the eye, at a
+          size that stays readable when the drawing shrinks on a phone. */}
+      <p
+        className="m-0 flex justify-between gap-2 text-body-dense font-semibold"
+        aria-hidden="true"
+        data-body-orientation={view}
+      >
+        <span>{onYourLeft}</span>
+        <span className="text-end">{onYourRight}</span>
+      </p>
+      {/* biome-ignore lint/a11y/useKeyWithClickEvents: tapping the picture is for pointers; the body area list beside it is the keyboard and screen reader equivalent. */}
+      <svg
+        viewBox={`0 0 ${DRAWING.width} ${DRAWING.height}`}
+        width={DRAWING.width}
+        height={DRAWING.height}
+        role="img"
+        aria-labelledby={titleId}
+        className="h-auto max-w-full cursor-crosshair select-none"
+        data-body-view={view}
+        onClick={pick}
+      >
+        <title id={titleId}>{t("care.bodyMap.drawing", { view })}</title>
+        <Limb points={ARM} width={18} />
+        <Limb points={ARM.map(mirrorPoint)} width={18} />
+        <Limb points={LEG} width={26} />
+        <Limb points={LEG.map(mirrorPoint)} width={26} />
+        <g className="fill-bg-secondary stroke-text-tertiary" strokeWidth={1.5}>
+          <ellipse cx={120} cy={38} rx={22} ry={28} />
+          <rect x={110} y={64} width={20} height={18} rx={4} />
+          <path d="M 74 92 Q 120 80 166 92 L 172 160 Q 168 210 160 252 L 80 252 Q 72 210 68 160 Z" />
+          <ellipse cx={96} cy={462} rx={15} ry={10} />
+          <ellipse cx={DRAWING.width - 96} cy={462} rx={15} ry={10} />
         </g>
-      ) : null}
-    </svg>
+        <line
+          x1={DRAWING.centre}
+          y1={22}
+          x2={DRAWING.centre}
+          y2={DRAWING.height - 4}
+          className="stroke-text-tertiary"
+          strokeDasharray="3 5"
+        />
+        {spots.map((spot) => (
+          <circle key={spot.value} cx={spot.x} cy={spot.y} r={2} className="fill-text-tertiary" />
+        ))}
+        {markSpots.map((mark) => (
+          <circle
+            key={mark.id}
+            cx={mark.x}
+            cy={mark.y}
+            r={5}
+            strokeWidth={2}
+            className="fill-text stroke-bg"
+            data-mark={mark.id}
+          />
+        ))}
+        {chosen ? (
+          <g data-selected={chosen.value}>
+            <circle
+              cx={chosen.x}
+              cy={chosen.y}
+              r={10}
+              fill="none"
+              strokeWidth={3}
+              className="stroke-accent"
+            />
+            <path
+              d={`M ${chosen.x - 5} ${chosen.y} L ${chosen.x + 5} ${chosen.y} M ${chosen.x} ${chosen.y - 5} L ${chosen.x} ${chosen.y + 5}`}
+              strokeWidth={2}
+              className="stroke-accent"
+            />
+          </g>
+        ) : null}
+      </svg>
+    </div>
   );
 }

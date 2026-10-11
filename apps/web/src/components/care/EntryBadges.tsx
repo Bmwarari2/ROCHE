@@ -19,7 +19,7 @@ export function EntryBadges({
       {entry.lateEntry ? (
         <>
           <StatusChip status="due" label={t("care.entry.lateEntry")} icon={Clock} />
-          <span className="text-callout text-text-secondary">
+          <span className="text-body-dense text-text-secondary">
             {t("care.entry.recordedAt", { dateTime: formatDateTime(entry.recordedAt) ?? "" })}
           </span>
         </>

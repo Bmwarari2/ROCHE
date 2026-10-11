@@ -16,7 +16,7 @@ import { PersonAvatar } from "./PersonAvatar";
 function Detail({ term, children }: { readonly term: string; readonly children: ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <dt className="text-callout text-text-secondary">{term}</dt>
+      <dt className="text-body-dense text-text-secondary">{term}</dt>
       <dd className="m-0 font-semibold">{children}</dd>
     </div>
   );
@@ -101,7 +101,7 @@ export function PersonHeader({
           />
           <div className="flex min-w-0 flex-col">
             {locationName ? (
-              <p className="m-0 text-callout text-text-secondary">
+              <p className="m-0 text-body-dense text-text-secondary">
                 {roomText
                   ? t("people.header.locationAndRoom", { location: locationName, room: roomText })
                   : locationName}
