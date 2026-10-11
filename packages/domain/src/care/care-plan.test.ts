@@ -71,7 +71,7 @@ describe("care plan figures come from the rate table", () => {
   });
 });
 
-describe("rule 1: the first care plan is due within the working days after admission", () => {
+describe("hazard HZ-024 rule 1: the first care plan is due within the working days after admission", () => {
   it.each([
     // Admission day never counts; weekends and the nation's bank holidays are skipped.
     ["2026-10-12", ENGLAND, "an ordinary Monday admission"],
@@ -113,7 +113,7 @@ describe("rule 1: the first care plan is due within the working days after admis
   });
 });
 
-describe("rule 1: reviews every review interval and on change", () => {
+describe("hazard HZ-024 rule 1: reviews every review interval and on change", () => {
   const due = (today: string, activeReviewDueOn: string | null, firstPlanDueOn: string | null) =>
     carePlanDue({ today, activeReviewDueOn, firstPlanDueOn });
 
@@ -237,7 +237,7 @@ describe("rule 2: publication", () => {
   });
 });
 
-describe("rule 2: only an active plan drives tasks", () => {
+describe("hazard HZ-024 rule 2: only an active plan drives tasks", () => {
   const actions = [
     { id: "a1", generatesTasks: true },
     { id: "a2", generatesTasks: false },

@@ -203,7 +203,7 @@ describe("rule 1: when the first plan and the reviews are due", () => {
     expect(expected > addWorkingDays(admittedOn, days, new Set())).toBe(true);
   });
 
-  it("raises one review task to the nurse in charge for an overdue first plan or review", async () => {
+  it("hazard HZ-024 raises one review task to the nurse in charge for an overdue first plan or review", async () => {
     const { draft } = await draftWithSection(5);
     const published = await json<CarePlanDetail>(
       await as("manager", `${plansPath(5)}/${draft.id}/publish`, {
@@ -247,7 +247,7 @@ describe("rule 2: drafting, publishing and signing off a care plan", () => {
     expect((await as("carer", `${plansPath(1)}/${draft.id}`)).status).toBe(200);
   });
 
-  it("publishes a draft, supersedes it with the next version and keeps both", async () => {
+  it("hazard HZ-024 publishes a draft, supersedes it with the next version and keeps both", async () => {
     const { draft, section } = await draftWithSection(2);
     const action = await as("manager", `${plansPath(2)}/${draft.id}/sections/mobility/actions`, {
       method: "POST",
@@ -399,7 +399,7 @@ describe("rule 2: drafting, publishing and signing off a care plan", () => {
 });
 
 describe("risk assessments (CARE-002)", () => {
-  it("lists the templates with the MHRA figures from the rate table", async () => {
+  it("hazard HZ-025 lists the templates with the MHRA figures from the rate table", async () => {
     const list = await json<RiskTemplateList>(await as("carer", "/v1/care/risk-templates"));
     const bedRails = list.items.find((t) => t.key === "bed_rails");
     const gap = bedRails?.questions.find((q) => q.key === "gap_between_bars_mm");
@@ -534,7 +534,7 @@ describe("validated tools (CARE-003, CARE-006)", () => {
     expect(open[0]?.due_on).toBe(expected.toISOString().slice(0, 10));
   });
 
-  it("ignores a replayed upload with the same device id", async () => {
+  it("hazard HZ-017 ignores a replayed upload with the same device id", async () => {
     const id = newId();
     const body = { ...braden, id };
     const first = await as("carer", `/v1/people/${resident(1)}/assessments`, {
@@ -553,7 +553,7 @@ describe("validated tools (CARE-003, CARE-006)", () => {
     expect(list.items.filter((a) => a.id === id)).toHaveLength(1);
   });
 
-  it("corrects a result by superseding it with a reason, and reads the latest per tool", async () => {
+  it("hazard HZ-017 corrects a result by superseding it with a reason, and reads the latest per tool", async () => {
     const original = await json<AssessmentItem>(
       await as("carer", `/v1/people/${resident(2)}/assessments`, { method: "POST", body: braden }),
     );
@@ -584,7 +584,7 @@ describe("validated tools (CARE-003, CARE-006)", () => {
     expect(all.items.find((a) => a.id === original.id)?.superseded).toBe(true);
   });
 
-  it("refuses Braden where its licence flag is off (H-25), and allows it in the demo tenant", async () => {
+  it("hazard HZ-012 refuses Braden where its licence flag is off (H-25), and allows it in the demo tenant", async () => {
     await asDemoTenant((c) =>
       c.query(
         "INSERT INTO feature_flag (location_id, flag_key, enabled) VALUES ($1, 'care.tool.braden', false)",

@@ -225,7 +225,7 @@ describe("NICE NG249 1.1.1: the falls template never produces a rating", () => {
   });
 });
 
-describe("bed rails against the MHRA figures in the rate table", () => {
+describe("hazard HZ-025 bed rails against the MHRA figures in the rate table", () => {
   const value = (key: string) => Number(rows.find((r) => r.key === key)?.value);
   const betweenBars = value(BED_RAIL_RATE_KEYS.betweenBars);
   const betweenBarsSmall = value(BED_RAIL_RATE_KEYS.betweenBarsSmallOrAtypical);

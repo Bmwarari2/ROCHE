@@ -237,7 +237,7 @@ describe("hazard HZ-017 corrections supersede with a reason", () => {
   });
 });
 
-describe("rule 1: a change in the result brings the care plan review forward", () => {
+describe("hazard HZ-024 rule 1: a change in the result brings the care plan review forward", () => {
   const result = (
     toolKey: AssessmentRecord["toolKey"],
     band: string | null,
