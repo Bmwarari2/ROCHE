@@ -63,7 +63,12 @@ describe("resolveAccess scope", () => {
       [],
     ],
     ["care worker", [assignment("care_worker")], "assigned", []],
-    ["person receiving care (self)", [assignment("person_receiving_care")], "assigned", []],
+    [
+      "person receiving care is a portal role: no staff scope (ADR-0061)",
+      [assignment("person_receiving_care")],
+      "none",
+      [],
+    ],
     ["catering has no person scope", [assignment("catering")], "none", []],
     [
       "widest scope wins",
