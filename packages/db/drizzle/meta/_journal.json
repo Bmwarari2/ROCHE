@@ -78,6 +78,20 @@
       "when": 1791688729693,
       "tag": "0010_document_store_and_retention_security",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791689605394,
+      "tag": "0011_care_record_notes_and_charts",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791689606432,
+      "tag": "0012_care_record_notes_and_charts_security",
+      "breakpoints": true
     }
   ]
 }

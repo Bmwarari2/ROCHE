@@ -14,6 +14,9 @@ const APPEND_ONLY_TABLES = [
   "workflow_transition",
   "document_signature",
   "destruction_certificate",
+  "care_note",
+  "observation",
+  "body_map_mark",
 ];
 /** Audit and history rows may be written before a tenant is chosen. */
 const NULLABLE_TENANT_TABLES = ["audit_event", "record_version"];
