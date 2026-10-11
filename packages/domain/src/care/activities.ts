@@ -1,3 +1,5 @@
+import type { PersonStatus } from "../people/lifecycle";
+
 /**
  * Activities and wellbeing, and the visiting log (master prompt 10.1; care.md section 2
  * `activity_record` and `visit_log`; register row CARE-014). Both are append-only point-of-care
@@ -126,15 +128,6 @@ export function checkVisit(
 // ------------------------------------------------------------------------------------------------
 // Rule 12: closed records
 // ------------------------------------------------------------------------------------------------
-
-export type PersonStatus =
-  | "enquiry"
-  | "active"
-  | "on_leave"
-  | "in_hospital"
-  | "discharged"
-  | "deceased"
-  | "archived";
 
 export const CLOSED_PERSON_STATUSES: readonly PersonStatus[] = [
   "discharged",
