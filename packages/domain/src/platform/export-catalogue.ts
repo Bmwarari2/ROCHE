@@ -862,7 +862,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description: "Deputy: the decisions the Court of Protection order covers.",
       },
       deputy_restraint_authorised: {
-        description: "Deputy: true when the order expressly authorises restraint (MCA s.20(8)).",
+        description: "Deputy: true when the order expressly authorises restraint (MCA s.20).",
       },
       deputy_order_ends_at: {
         description: "Deputy: when the order ends (instant, UTC); empty when it has no end date.",
@@ -894,11 +894,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       restraint_necessary: {
         description:
-          "Bed rails agreed by a representative: true when recorded as necessary to prevent harm (MCA s.11(3) or s.20(10)).",
+          "Bed rails agreed by a representative: true when recorded as necessary to prevent harm (MCA s.11(3), or s.20 for a deputy).",
       },
       restraint_proportionate: {
         description:
-          "Bed rails agreed by a representative: true when recorded as proportionate to the likelihood and seriousness of harm (MCA s.11(4) or s.20(11)).",
+          "Bed rails agreed by a representative: true when recorded as proportionate to the likelihood and seriousness of harm (MCA s.11(4), or s.20 for a deputy).",
       },
       best_interests_decision_id: {
         description:
