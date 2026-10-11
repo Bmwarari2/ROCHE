@@ -23,7 +23,7 @@ for dev and pilots (0008); Better Auth (0009); public store listing (0010); 7-da
 duty of candour default (0021); sponsor module in Phase 2 (0022); GP Connect gating (0023).
 Further decisions taken during Phase 0: 0001 stack, 0002 tenancy and RLS, 0024 licence allowlist,
 0025 shared devices (proposed), 0026 design system, 0027 ECM tolerances, 0028 certificate pinning
-(proposed), 0029 mobile offline stack.
+(proposed), 0029 mobile offline stack, 0030 web sessions and browser security.
 
 ## Task list (grouped by section 20 first actions)
 
@@ -49,12 +49,13 @@ task list lives here and in STATUS.md (human action H-01).
 | Types | Pass locally | `pnpm turbo run typecheck` |
 | Unit and domain tests | Pass locally | domain 203 tests, 99% line coverage (gate 90%) |
 | Cross-tenant isolation through the database | Pass | `packages/db` 78 tests against real Postgres |
-| Cross-tenant isolation through the API | Pass | `apps/api` 70 tests |
+| Cross-tenant isolation through the API | Pass | `apps/api` 88 tests |
 | Cross-tenant isolation through the sync streams | Pass | `packages/sync` 10 tests on the PowerSync rules engine |
 | Storybook builds with zero axe violations | Pass | `packages/ui` 190 tests (136 axe runs over every story in both themes); `build-storybook` succeeds |
-| Web shell journeys with axe | See STATUS.md | `apps/web` Playwright suite |
+| Web shell journeys with axe | Pass locally | `apps/web` 8 Playwright journeys (manager, care worker, nurse with a passkey, not-found, nonce CSP, `/v1` not exposed), zero serious or critical axe findings; 101 unit tests |
 | Mobile | Typecheck, 341 unit tests, Android and iOS bundles build | Maestro flows run in CI on emulators (no simulator here) |
 | Terraform plan is clean | `fmt`, `validate`, `terraform test` (mocked providers), TFLint, Trivy and Checkov clean; plan against AWS awaits credentials | H-04 |
+| Container images | Built in CI | `images` job builds `apps/api/Dockerfile` and `apps/web/Dockerfile` (no Docker daemon here; the web standalone server was run locally in the image layout) |
 | CI on GitHub | Runs on the Phase 0 pull request | `.github/workflows/ci.yml` |
 
 ## Human follow-ups

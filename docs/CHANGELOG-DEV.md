@@ -28,6 +28,17 @@ logged, test status.
 - ADR-0001 to ADR-0029; hazard log HZ-001 to HZ-013 with Phase 0 tests linked; compliance
   checklists and templates; runbooks; feature register (233 rows); rates (169) and retention.
 
+- Web shell (Next.js 16): sign-in with password then TOTP or a passkey, organisation and location
+  choice, home, people and the point-of-care header with break-glass, notifications, sign-in and
+  security settings; Playwright journeys with axe; container image.
+- Security hardening found while integrating the web shell (ADR-0030): session tokens only reach
+  the mobile app; devices listed and signed out by id (`/v1/me/sessions`); per-request nonce CSP;
+  the browser reaches only `/api/auth`, passed through at run time so one image serves every
+  environment; sign-in throttling per client address through trusted proxies; production refuses
+  to start without every database URL; the operator database URL is now passed by Terraform.
+- Dependencies: Next.js's optional `sharp` (LGPL libvips) is not installed; React types resolve per
+  app (web 19.3, Expo 19.2).
+
 **Next**: CI on the Phase 0 pull request, then Phase 1 (see STATUS.md).
 
 **Human actions logged**: H-01 to H-57 in `docs/plans/human-actions.md`.

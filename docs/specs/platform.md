@@ -38,8 +38,14 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
 - Break-glass: `POST /v1/people/break-glass` with a justification of at least 20 characters; access
   lapses after 60 minutes; the Registered Manager for the location and quality leads are notified;
   the reason is audited. Weekly break-glass report: Phase 1.
-- Later: invitations and enrolment UI (Phase 1), device and session management (Phase 1), SSO
-  (PLAT-005, Phase 2).
+- Devices: `GET /v1/me/sessions` lists where the person is signed in (this device marked);
+  `POST /v1/me/sessions/{id}/revoke` and `POST /v1/me/sessions/revoke-others` sign devices out.
+  Identity-level, so no organisation header. Session tokens reach only the mobile app (`Origin:
+  harbour://`); browsers rely on the httpOnly cookie ([ADR-0030](../decisions/0030-web-session-and-browser-security.md)).
+- Web: sign-in (password then TOTP, or a passkey), TOTP and passkey set-up and the device list are
+  in `apps/web` (`/sign-in`, `/settings/security`).
+- Later: invitations and enrolment by email (Phase 1), admin revoke and idle timeouts per role
+  (Phase 1), SSO (PLAT-005, Phase 2).
 
 ## Audit trail and history (PLAT-007)
 

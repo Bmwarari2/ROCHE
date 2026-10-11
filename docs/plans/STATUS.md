@@ -9,7 +9,7 @@ only when they link spec, code, tests and user documentation; no user guides exi
 
 | Phase | Scope | State |
 | --- | --- | --- |
-| 0 Foundations | Repo, CI, docs, design system, tenancy and RLS, auth, audit, notifications, forms skeleton, rate table, integrations framework, operator API, API, web and mobile skeletons, Terraform | Built and verified locally; awaiting CI on the pull request and the web shell's final checks. See [phase-0.md](phase-0.md) |
+| 0 Foundations | Repo, CI, docs, design system, tenancy and RLS, auth, audit, notifications, forms skeleton, rate table, integrations framework, operator API, API, web and mobile skeletons, Terraform | Built and verified locally, web shell included; awaiting CI on the pull request. See [phase-0.md](phase-0.md) |
 | 1 Residential MVP | People lifecycle, care plans, assessments, notes, charts, body map, tasks and handover, MCA and DoLS, incidents and classifier, downtime pack, offline Care mode, family feed | Not started |
 | 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Not started |
 | 3 Money and buildings | Funding, billing, council portals, residents' money, P&L, facilities, catering, enquiries, group reporting | Not started |
@@ -24,11 +24,15 @@ only when they link spec, code, tests and user documentation; no user guides exi
 2. Phase 1 plan (`docs/plans/phase-1.md`) and specs for `care`, `safety` and the residential slice of
    `people`; then build schema and domain rules first (section 19 order of work).
 3. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
-   session; invitations and MFA enrolment flow end to end; device and session management; weekly
-   break-glass report; record history PDF export; device push registration; OpenFeature provider;
+   session; invitations and MFA enrolment flow end to end; admin session revoke and idle timeouts
+   per role; weekly break-glass report; record history PDF export; device push registration; OpenFeature provider;
    user guides per role for the Phase 0 features (moves PLAT and MOB rows to `done`).
 4. Open engineering decisions: certificate pinning (ADR-0028), shared-device sign-in (ADR-0025, needs
    CSO and DPO).
+5. Web follow-ups: move the web shell's literal strings (offline message, table headers, security
+   page, break-glass hints, dashboard tiles, sign-in errors) into the i18n catalogues; move the
+   shortened-name header fix, a textarea field and the account menu into `@harbour/ui`; the person
+   photo route returns 404 until photo upload lands (Phase 1), so initials show.
 
 ## Human actions outstanding
 
@@ -48,7 +52,7 @@ Apple and Google accounts).
 | `packages/i18n` | 14 |
 | `packages/ui` | 190 (136 axe runs) |
 | `packages/ui-native` | 133 |
-| `apps/api` | 70 |
+| `apps/api` | 88 (incl. session tokens, devices and production config) |
 | `apps/mobile` | 208 |
-| `apps/web` | see the web shell's report in CHANGELOG-DEV.md |
+| `apps/web` | 101 unit; 8 Playwright journeys with axe (WCAG 2.2 AA), passkey sign-in, nonce CSP |
 | `infra` | `terraform test` 3, TFLint, Trivy and Checkov clean |
