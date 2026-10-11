@@ -26,6 +26,7 @@ Owners: **Brian** (Thapsus Cargo Ltd), **CSO** (Clinical Safety Officer, to be a
 | H-13 | Decide Flagsmith hosting (self-hosted module ready, off by default) | Brian | Flagsmith task definition behind a variable | Remote flag management | open |
 | H-14 | Sign in on dev with a passkey and see the empty demo home (Phase 0 human follow-up) | Brian | Web shell, `HARBOUR_DEMO_OWNER_EMAIL` option in `seed:users` | Phase 0 acceptance | open |
 | H-15 | Create the first Thapsus operator: insert an `operator_user` row (role `admin`) for Brian's identity, with TOTP or a passkey enrolled | Brian | Operator console API | Tenant provisioning | open |
+| H-17 | Enable GitHub code scanning on the repository (GitHub Advanced Security for a private repository), then set `upload: always` in `.github/workflows/codeql.yml` so findings appear as code-scanning alerts | Brian | CodeQL runs on every pull request and fails on high and critical findings via `scripts/check-sarif.mjs`; SARIF kept as an artifact | Code-scanning alerts and history in GitHub | open |
 
 ## Clinical safety
 
