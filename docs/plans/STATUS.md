@@ -4,13 +4,13 @@ Read this and the [feature register](../specs/feature-register.md) at the start 
 (section 20 rule 9). The build is complete only when every register row is `done` and every phase
 gate passes on `main` (section 19, definition of complete).
 
-**Overall: 0% done** (0 of 233 register rows `done`; 15 `partial`, 218 `todo`). Rows become `done`
+**Overall: 0% done** (0 of 233 register rows `done`; 20 `partial`, 213 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; no user guides exist yet.
 
 | Phase | Scope | State |
 | --- | --- | --- |
 | 0 Foundations | Repo, CI, docs, design system, tenancy and RLS, auth, audit, notifications, forms skeleton, rate table, integrations framework, operator API, API, web and mobile skeletons, Terraform | Built and verified locally, web shell included; awaiting CI on the pull request. See [phase-0.md](phase-0.md) |
-| 1 Residential MVP | People lifecycle, care plans, assessments, notes, charts, body map, tasks and handover, MCA and DoLS, incidents and classifier, downtime pack, offline Care mode, family feed | Planned: [phase-1.md](phase-1.md) (14 slices), specs `care.md` and `safety.md`, hazards HZ-014 to HZ-021 |
+| 1 Residential MVP | People lifecycle, care plans, assessments, notes, charts, body map, tasks and handover, MCA and DoLS, incidents and classifier, downtime pack, offline Care mode, family feed | In progress: [phase-1.md](phase-1.md) (14 slices), specs `care.md` and `safety.md`, hazards HZ-014 to HZ-021. Slice 3 (validated tools and chart rules, domain only) on `feat/care-validated-tools` |
 | 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Not started |
 | 3 Money and buildings | Funding, billing, council portals, residents' money, P&L, facilities, catering, enquiries, group reporting | Not started |
 | 4 Home care and family | Packages, runs, ECM, supported living, portals, Manage mode | Not started |
@@ -45,7 +45,7 @@ Apple and Google accounts).
 
 | Package | Tests |
 | --- | --- |
-| `packages/domain` | 203 (99% line coverage) |
+| `packages/domain` | 687 (99.9% line coverage; 484 for the Phase 1 care rules) |
 | `packages/db` | 78 (real Postgres: RLS coverage, isolation, scope, audit chain, seed) |
 | `packages/sync` | 10 (PowerSync rules engine) |
 | `packages/contracts` | 4 |
