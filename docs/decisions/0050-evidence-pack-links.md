@@ -2,7 +2,7 @@
 status: "accepted"
 date: 2026-10-11
 decision-makers: Claude Code (build), Brian (product owner, informed)
-consulted: security-reviewer agent; DPO to review the redaction rules and defaults (H-96)
+consulted: security-reviewer agent (first review and the fix pass); DPO to review the redaction rules and defaults (H-96)
 informed: Brian
 ---
 
@@ -42,23 +42,40 @@ option where revocation and recipient binding hold on every request and every op
    shown once at release and stored only as its SHA-256 hash (`evidence_pack_link.token_hash`),
    compared in constant time.
 2. **Binding.** Opening the link asks for a one-time code sent to the recipient's bound work
-   address (never in the same message as the link). The code is short-lived and single-use; after
-   `EVIDENCE_LINK_MAX_CODE_ATTEMPTS` wrong codes the link locks and the sender issues a new one.
-   An inspector with a Harbour account may instead sign in, with MFA, as that recipient.
-3. **Expiry.** `evidence_pack.link_expiry_days.default` days unless the sender chooses, never more
+   address (never in the same message as the link). The code is `EVIDENCE_LINK_CODE_DIGITS` (6)
+   digits from the cryptographic random source, stored only as a hash, compared in constant time,
+   single-use and valid for `evidence_pack.code_valid_minutes` minutes (rate table policy, never
+   more than `EVIDENCE_CODE_MAX_VALID_MINUTES`, 10). After `EVIDENCE_LINK_MAX_CODE_ATTEMPTS` wrong
+   codes the link locks for good. The failed count never goes down, not even after a correct
+   code, so a guesser cannot take turns with the real recipient. An inspector with a Harbour
+   account may instead sign in, with MFA, as that recipient (`quality.evidence.read`, a
+   care-record permission held by the inspector role alone).
+3. **Session.** A correct code sets an HttpOnly, Secure, SameSite=Strict cookie for that link
+   alone, holding the link and the verified address. The verification lives in that session and
+   never on the link row, so verifying in one browser opens nothing in another, and a forwarded
+   link still needs its own code.
+4. **Expiry.** `evidence_pack.link_expiry_days.default` days unless the sender chooses, never more
    than `.max` (tenant policy defaults in the rate table, marked to verify). Expiry and revocation
    are checked on every request (`evidencePackLinkAccess`).
-4. **Delivery.** The watermarked PDF is streamed by the API with `no-store` and `attachment`
+5. **Delivery.** The watermarked PDF is streamed by the API with `no-store` and `attachment`
    disposition; it is never served from a presigned bucket URL. The bundle is deleted when the
    link expires or is revoked; the manifest stays.
-5. **Release.** Step-up and a second person (not the composer), checked by
-   `checkEvidencePackRelease`.
+6. **Release.** Step-up and a second person who did not shape the pack: not the composer, not
+   anyone who redacted free text by hand and not any other editor (`evidencePackContributors`,
+   checked by `checkEvidencePackRelease`).
+7. **A new link is a release.** After a lock-out or a lost email, a new link needs the same
+   checks as release (permission, step-up, a non-contributor, expiry within the maximum), goes to
+   the same recipient only, and revokes the old link in the same transaction
+   (`checkEvidencePackLinkReissue`). Without this rule a lock-out could be undone by the person who
+   wrote the redactions, alone.
 
 ### Consequences
 
 - Good, because revoking a link or locking it stops access at the next request.
 - Good, because a forwarded link fails at the code step, and every code, failure and open is in
   the audit chain.
+- Good, because a lock-out is permanent for that link and only a non-contributor with step-up can
+  issue another, so guessing and a single insider both stop at the same place.
 - Bad, because the recipient needs access to their mailbox to open the pack, and the provider needs
   working email (SES, H-08); a recipient without email gets the pack on paper.
 - Neutral, because one database read per request is negligible at evidence-pack volumes.
@@ -66,9 +83,11 @@ option where revocation and recipient binding hold on every request and every op
 ### Confirmation
 
 `packages/domain/src/quality/evidence-pack.test.ts` (`hazard HZ-050 the link opens only for its
-recipient before expiry and revocation`; release checks). The API step adds tests that the token is
-stored hashed, the bundle route refuses without a verified code, and the bundle is deleted at link
-end; the security-reviewer agent reviews the public routes.
+recipient's own session, before expiry and revocation`; `hazard HZ-050 one-time codes`; `hazard
+HZ-050 issuing a new link is a release`; `hazard HZ-050 releasing a pack: nobody who shaped it may
+release it`). The API step adds tests that the token and codes are stored hashed, the bundle route
+refuses without a session for that link, the cookie flags are set, a re-issue revokes the old link
+and the bundle is deleted at link end; the security-reviewer agent reviews the public routes.
 
 ## Pros and cons of the options
 
@@ -93,6 +112,6 @@ end; the security-reviewer agent reviews the public routes.
 
 ## More information
 
-Related: [quality.md](../specs/quality.md) rules 5 to 7, ADR-0030 (browser security), ADR-0031
+Related: [quality.md](../specs/quality.md) rules 6 to 10, ADR-0030 (browser security), ADR-0031
 (document storage), hazard HZ-050. Revisit if CQC offers an evidence submission API, which would
 replace links for CQC recipients.

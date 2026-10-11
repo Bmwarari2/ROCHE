@@ -301,12 +301,13 @@ literals, and tests assert against the table, not a literal (section 7, section 
   `downtime.duplicate_match_minutes` of each other are listed as possible duplicates. No statute
   sets any of these figures; the tenant's business continuity lead confirms them (H-98).
 - `evidence_pack.link_expiry_days.default` (7) and `.max` (30): policy defaults for the time-limited
-  link to an inspector evidence pack ([quality.md](quality.md) rule 6). The sender may choose a
+  link to an inspector evidence pack ([quality.md](quality.md) rule 7). The sender may choose a
   shorter or longer expiry up to the maximum; a tenant may lower the maximum. No statute or CQC
   guidance sets a period; the data protection lead confirms them (human action H-96).
 - `evidence_pack.code_valid_minutes` (10): how long a one-time code for opening an evidence pack
-  link stays valid (ADR-0050). A security policy value, not a tenant preference: a tenant may
-  shorten it, never lengthen it. Codes are 6 digits, single-use and stored hashed.
+  link stays valid ([quality.md](quality.md) rule 8, ADR-0050). A security policy value, not a
+  tenant preference: a tenant may shorten it, never lengthen it past 10 minutes
+  (`EVIDENCE_CODE_MAX_VALID_MINUTES`). Codes are 6 digits, single-use and stored hashed.
 
 ## Other notes
 

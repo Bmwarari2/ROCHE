@@ -1421,7 +1421,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Status | Open |
 | Clinical owner | `[CSO name - human action]`; data protection lead consulted |
 | Engineering owner | `quality` module (lead engineer) |
-| Source | Master prompt 11.2 (evidence library: "inspector evidence pack export (PDF bundle, watermarked, time-limited link)"), 4 (inspector role: read-only, time-boxed, watermarked exports), 5.1 (data minimisation); [quality.md](../specs/quality.md) rules 1 to 7; [ADR-0050](../decisions/0050-evidence-pack-links.md) |
+| Source | Master prompt 11.2 (evidence library: "inspector evidence pack export (PDF bundle, watermarked, time-limited link)"), 4 (inspector role: read-only, time-boxed, watermarked exports), 5.1 (data minimisation); [quality.md](../specs/quality.md) rules 1 to 10; [ADR-0050](../decisions/0050-evidence-pack-links.md) |
 
 **Description**: an evidence pack sent to an inspector or commissioner contains the name or details of someone it should not: a relative, visitor, witness or other resident named in a record; a person receiving care who is not in the pack's scope; a whistleblower; or identifiers not needed for the assessment; or the pack reaches someone other than its recipient, or stays open after it should have closed.
 
