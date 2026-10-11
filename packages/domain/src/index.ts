@@ -9,6 +9,7 @@ export * from "./care/iddsi";
 export * from "./care/mca/best-interests";
 export * from "./care/mca/capacity";
 export * from "./care/mca/consent";
+export * from "./care/mca/dols";
 export * from "./care/must";
 export * from "./care/news2";
 export * from "./care/rates";

@@ -7,6 +7,7 @@
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { type DolsNation, type DolsRates, resolveDolsRates } from "../src/care/mca/dols";
 import { type CareRates, resolveCareRates } from "../src/care/rates";
 import type { RateRow } from "../src/platform/rates";
 
@@ -53,4 +54,9 @@ export function readRateTable(): RateRow[] {
 /** The care figures for an English location on the day the tests describe. */
 export function tableCareRates(on = "2026-10-11"): CareRates {
   return resolveCareRates(readRateTable(), "england", on, null);
+}
+
+/** The DoLS figures for a location in England or Wales. */
+export function tableDolsRates(nation: DolsNation = "england", on = "2026-10-11"): DolsRates {
+  return resolveDolsRates(readRateTable(), nation, on, null);
 }
