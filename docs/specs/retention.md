@@ -48,6 +48,9 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | financial_record | 6 | years | created | HMRC and Companies Act accounting records; master prompt 5.1 | Invoices, credit notes, charge lines, funding arrangements, remittances, residents' ledger entries, petty cash. Counted from the end of the financial year the record relates to. |
 | water_hygiene_record | 5 | years | created | HSE ACoP L8 and HSG274; master prompt 13.4 | Legionella risk assessment actions, sentinel temperatures, flushing, descaling and TMV records. |
 | organisation_document | 0 | years | tenant_policy | Master prompt 9.1 (document store: retention class per document) | Policies, procedures, statement of purpose versions and templates. Kept while current; the tenant's records policy sets how long superseded versions are kept, so the engine never offers them for destruction automatically. |
+| downtime_pack | 1 | months | created | Harbour default for data minimisation (UK GDPR Art 5(1)(c) and (e)); master prompt 13.4 | Nightly downtime packs and their snapshots. Each is replaced the next night, so a copy is kept only long enough to answer "what did the pack say?". A pack in force during a declared outage is kept as downtime_record instead. Printed copies are shredded when replaced (deployer control). DPO to confirm (H-96). |
+| downtime_record | 8 | years | record_closed | NHS Records Management Code of Practice (as care_record); master prompt 13.4 | Outage windows, their reconciliation and the downtime packs in force during them: the evidence for every back-entry's late time. Counted from reconciliation, and never destroyed while a back-entry that cites the outage is kept (the engine checks the citing records first). |
+| evidence_pack | 6 | years | created | Limitation Act 1980 ss.2 and 5 (six-year period for claims, as the basis for keeping proof of a disclosure); master prompt 11.2 | The inspector evidence pack's manifest: recipient, purpose, items with record ids and versions, redactions with reasons, watermark, link issue, opens and revocation. The rendered PDF bundle is deleted when its link expires or is revoked; the manifest can rebuild it from the record versions. Harbour default for the DPO to confirm (H-96). |
 | cctv | 0 | months | tenant_policy | Master prompt 5.1 (CCTV per the tenant's policy); ICO CCTV guidance | No product default. The tenant sets the period in its CCTV policy and DPIA (starter template in 11.2) before any CCTV still or clip is attached to a record. |
 | audit_event | 8 | years | created | NHS Records Management Code of Practice (record-keeping evidence); master prompt 5.3, 5.5 | Default for every audit event (logins, permission changes, exports, views, sync). Chosen so the audit trail supports a care record for its full Records Code period, well above the 6-month security-log minimum in section 5.3. |
 | audit_event.care_record | 8 | years | care_ended | NHS Records Management Code of Practice; master prompt 5.5 | Audit events about a person's record are kept at least as long as that record (longest period wins), so the history view and signed exports for inspectors, coroners and courts stay complete. |
@@ -76,6 +79,12 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `document_signature` | the class of the signed document |
 | `legal_hold`, `destruction_certificate` | kept permanently (proof of records management); never destroyed by the engine |
 | `task`, `task_series`, `workflow_instance`, `workflow_transition` | the class of the record they concern (care_record for tasks about a person) |
+| `downtime_pack` ([operations.md](operations.md)) | downtime_pack, or downtime_record when in force during a declared outage |
+| `outage` | downtime_record |
+| Back-entered care events (the back-entry columns on `care_note`, `observation` and the others) | care_record, as the event |
+| `evidence_pack`, `evidence_pack_item`, `evidence_pack_link` ([quality.md](quality.md)) | evidence_pack; the rendered bundle is deleted when the link ends |
+| `statement_of_purpose_version`, `letter_template`, `letter_template_version` ([comms.md](comms.md)) | organisation_document |
+| `letter` | the class of the record it belongs to: care_record, or serious_incident for incident and duty of candour letters |
 
 ## Gaps to settle before the module that needs them ships
 
