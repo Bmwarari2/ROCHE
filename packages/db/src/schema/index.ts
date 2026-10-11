@@ -5,6 +5,7 @@ export * from "./integrations";
 export * from "./mca";
 export * from "./operator";
 export * from "./people";
+export * from "./people-lifecycle";
 export * from "./platform";
 export * from "./records";
 export * from "./safety";

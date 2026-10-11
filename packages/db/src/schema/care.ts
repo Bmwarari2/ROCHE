@@ -56,6 +56,11 @@ const entryColumns = () => ({
   lateEntry: boolean("late_entry").notNull().default(false),
   /** The device clock disagreed with the server by more than the tolerance (HZ-010). */
   clockDrift: boolean("clock_drift").notNull().default(false),
+  /**
+   * Accepted after the person left or died, for an event at or before then (people.md rule 3,
+   * HZ-006): for example observations a phone recorded offline before a death.
+   */
+  recordedAfterExit: boolean("recorded_after_exit").notNull().default(false),
   supersedesId: uuid("supersedes_id"),
   correctionReason: text("correction_reason"),
 });
