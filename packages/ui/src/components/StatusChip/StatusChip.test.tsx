@@ -73,7 +73,7 @@ describe("StatusChip", () => {
     expect(icon).toHaveAttribute("aria-hidden", "true");
   });
 
-  it("shows not recorded as a warning with a question mark, never the clock of a due task", () => {
+  it("hazard HZ-007 shows not recorded as a warning with a question mark, never the clock of a due task", () => {
     const { container } = render(<StatusChip status="notRecorded" />);
     const chip = container.firstElementChild as HTMLElement;
     expect(visibleText(chip)).toBe("Not recorded");
@@ -83,7 +83,7 @@ describe("StatusChip", () => {
     expect(clinicalStatus.notRecorded.colorRole).toBe(clinicalStatus.due.colorRole);
   });
 
-  it("links to the action that resolves it, with the words as the link text", () => {
+  it("hazard HZ-007 links not recorded to the action that records it, with the words as the link text", () => {
     render(<StatusChip status="notRecorded" label="Allergies not recorded" href="/record" />);
     const link = screen.getByRole("link", { name: "Allergies not recorded" });
     expect(link).toHaveAttribute("href", "/record");
