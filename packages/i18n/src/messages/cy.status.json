@@ -516,6 +516,7 @@
     "care.risk.form.hazard",
     "care.risk.form.hazardHint",
     "care.risk.form.likelihood",
+    "care.risk.form.limitHint",
     "care.risk.form.matrix",
     "care.risk.form.measurement",
     "care.risk.form.otherControls",
