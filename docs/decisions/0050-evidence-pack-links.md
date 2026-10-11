@@ -1,0 +1,98 @@
+---
+status: "accepted"
+date: 2026-10-11
+decision-makers: Claude Code (build), Brian (product owner, informed)
+consulted: security-reviewer agent; DPO to review the redaction rules and defaults (H-96)
+informed: Brian
+---
+
+# Evidence pack links: hashed random tokens bound to one recipient by an emailed code
+
+## Context and problem statement
+
+The inspector evidence pack (master prompt 11.2, "PDF bundle, watermarked, time-limited link";
+section 4, inspector role "read-only, time-boxed, watermarked exports") sends special category data
+outside the provider. The link must expire, be revocable at once, open only for the person it was
+sent to, and leave an audit trail of every open. How should the link be made and checked?
+
+## Decision drivers
+
+- Revocation takes effect on the next request, not when a signature happens to expire.
+- A forwarded or leaked link is useless to anyone but the recipient.
+- No personal data or long-lived secret in the URL; nothing an attacker can replay offline.
+- Every open is audited in the tenant's chain (section 5.5); the bundle never leaves through an
+  unaudited path.
+- The same pattern as the About Me share links already specified (people.md rule 13: token hash
+  only), so there is one way of doing it.
+
+## Considered options
+
+- An opaque random token stored only as a hash, checked against the database on every request,
+  with the recipient proving their address by a one-time code; the PDF streamed through the API.
+- A stateless signed token (HMAC or ES256, like the sync tokens) carrying the pack, recipient and
+  expiry.
+- A presigned S3 URL to the rendered PDF.
+
+## Decision outcome
+
+Chosen option: "opaque random token, hashed, with an emailed one-time code", because it is the only
+option where revocation and recipient binding hold on every request and every open is audited.
+
+1. **Token.** 256 bits from the platform's cryptographic random source, base64url in the link,
+   shown once at release and stored only as its SHA-256 hash (`evidence_pack_link.token_hash`),
+   compared in constant time.
+2. **Binding.** Opening the link asks for a one-time code sent to the recipient's bound work
+   address (never in the same message as the link). The code is short-lived and single-use; after
+   `EVIDENCE_LINK_MAX_CODE_ATTEMPTS` wrong codes the link locks and the sender issues a new one.
+   An inspector with a Harbour account may instead sign in, with MFA, as that recipient.
+3. **Expiry.** `evidence_pack.link_expiry_days.default` days unless the sender chooses, never more
+   than `.max` (tenant policy defaults in the rate table, marked to verify). Expiry and revocation
+   are checked on every request (`evidencePackLinkAccess`).
+4. **Delivery.** The watermarked PDF is streamed by the API with `no-store` and `attachment`
+   disposition; it is never served from a presigned bucket URL. The bundle is deleted when the
+   link expires or is revoked; the manifest stays.
+5. **Release.** Step-up and a second person (not the composer), checked by
+   `checkEvidencePackRelease`.
+
+### Consequences
+
+- Good, because revoking a link or locking it stops access at the next request.
+- Good, because a forwarded link fails at the code step, and every code, failure and open is in
+  the audit chain.
+- Bad, because the recipient needs access to their mailbox to open the pack, and the provider needs
+  working email (SES, H-08); a recipient without email gets the pack on paper.
+- Neutral, because one database read per request is negligible at evidence-pack volumes.
+
+### Confirmation
+
+`packages/domain/src/quality/evidence-pack.test.ts` (`hazard HZ-050 the link opens only for its
+recipient before expiry and revocation`; release checks). The API step adds tests that the token is
+stored hashed, the bundle route refuses without a verified code, and the bundle is deleted at link
+end; the security-reviewer agent reviews the public routes.
+
+## Pros and cons of the options
+
+### Opaque random token, hashed, with an emailed one-time code
+
+- Good, because revocation, expiry and lock-out are database state, effective immediately.
+- Good, because the URL carries no information and the database holds no usable token.
+- Bad, because it needs a code delivery step and a database lookup per request.
+
+### Stateless signed token
+
+- Good, because no lookup is needed to validate the signature.
+- Bad, because revocation needs a deny-list lookup anyway, so the statelessness buys nothing.
+- Bad, because the payload (pack, recipient, expiry) travels in the URL and key rotation
+  invalidates every live link.
+
+### Presigned S3 URL
+
+- Good, because it is simple and offloads delivery.
+- Bad, because it cannot be revoked before it expires (short of deleting the object or rotating
+  credentials), cannot be bound to a recipient, and opens are not in the tenant's audit chain.
+
+## More information
+
+Related: [quality.md](../specs/quality.md) rules 5 to 7, ADR-0030 (browser security), ADR-0031
+(document storage), hazard HZ-050. Revisit if CQC offers an evidence submission API, which would
+replace links for CQC recipients.
