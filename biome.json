@@ -17,7 +17,8 @@
       "!**/coverage",
       "!**/drizzle/meta",
       "!infra/**/.terraform",
-      "!docs/00-MASTER-PROMPT.md"
+      "!docs/00-MASTER-PROMPT.md",
+      "!apps/api/openapi.json"
     ]
   },
   "formatter": {

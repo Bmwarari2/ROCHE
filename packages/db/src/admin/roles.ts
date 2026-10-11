@@ -67,6 +67,8 @@ export async function createDatabase(client: Client, name: string): Promise<void
     throw new Error(`Refusing to create database with unsafe name: ${name}`);
   }
   await client.query(`CREATE DATABASE ${name} OWNER harbour_owner ENCODING 'UTF8'`);
+  // pg-boss keeps its job tables in its own schema, created and owned by the worker role.
+  await client.query(`GRANT CREATE ON DATABASE ${name} TO harbour_worker`);
 }
 
 export async function dropDatabase(client: Client, name: string): Promise<void> {
