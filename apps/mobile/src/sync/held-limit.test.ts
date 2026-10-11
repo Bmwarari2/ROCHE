@@ -34,7 +34,7 @@ describe("hazard HZ-040 a hold escalates to a manager and is never deleted (secu
     expect(heldTimeState(hold({ expiresAt: "not a date" }), HELD_AT)).toBe("escalated");
   });
 
-  it("does not act on a clock earlier than the hold's start or the last server time", () => {
+  it("hazard HZ-010 does not act on a clock earlier than the hold's start or the last server time", () => {
     expect(heldTimeState(hold(), at(HELD_AT.getTime() - 60_000))).toBe("clockBehind");
     // The server was last reached after the hold started on a wrong device clock.
     const serverLater = hold({ lastServerTime: "2026-10-12T09:00:00.000Z" });
@@ -43,7 +43,7 @@ describe("hazard HZ-040 a hold escalates to a manager and is never deleted (secu
     );
   });
 
-  it("treats a clock that jumped forward as a reason to escalate, nothing more", () => {
+  it("hazard HZ-010 treats a clock that jumped forward as a reason to escalate, nothing more", () => {
     const jumped = at(DEADLINE.getTime() + 365 * 86_400_000);
     expect(heldTimeState(hold(), jumped)).toBe("escalated");
   });

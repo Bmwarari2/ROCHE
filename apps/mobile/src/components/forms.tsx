@@ -9,6 +9,7 @@ import { CORRECTION_REASON_LIMITS, type FieldError } from "../care/entries";
 import {
   ambiguousTime,
   maxDaysBack,
+  parseClockTime,
   parseInstant,
   resolveOccurredAt,
   type UkZone,
@@ -156,6 +157,15 @@ interface WhenFieldProps {
   readonly toleranceMinutes: number;
   /** When correcting, the original entry's event time, offered first and chosen by default. */
   readonly original?: string | null;
+  /** The current time; the device clock unless a test fixes it. */
+  readonly now?: Date;
+}
+
+/** A typed time written the way it is shown everywhere else: two-digit hours ("01:30"). */
+export function normalisedTime(value: string): string {
+  const parsed = parseClockTime(value);
+  if (!parsed) return value.trim();
+  return `${String(parsed.hour).padStart(2, "0")}:${String(parsed.minute).padStart(2, "0")}`;
 }
 
 /**
@@ -173,9 +183,10 @@ export function WhenField({
   windowDays,
   toleranceMinutes,
   original,
+  now: fixedNow,
 }: WhenFieldProps) {
   const theme = useTheme();
-  const now = new Date();
+  const now = fixedNow ?? new Date();
   const originalAt = original ? parseInstant(original) : null;
   const daysBack = maxDaysBack(windowDays);
   const day = value.kind === "earlier" ? (value.daysAgo ?? 0) : 0;
@@ -183,6 +194,7 @@ export function WhenField({
   const resolved =
     value.kind === "earlier" ? resolveOccurredAt(value, now, windowDays, toleranceMinutes) : null;
   const twice = ambiguousTime(value, now, windowDays, toleranceMinutes);
+  const shownTime = value.kind === "earlier" ? normalisedTime(value.time) : "";
 
   const dayLabel = (daysAgo: number) => {
     const date = ukDateLabel(now, daysAgo);
@@ -246,9 +258,7 @@ export function WhenField({
           />
           {twice ? (
             <ChoiceGroup<UkZone>
-              label={t("mobile.when.zoneLabel", {
-                time: value.kind === "earlier" ? value.time : "",
-              })}
+              label={t("mobile.when.zoneLabel", { time: shownTime })}
               hint={t("mobile.when.zoneHint")}
               testID="when-zone"
               value={zone}
@@ -260,9 +270,10 @@ export function WhenField({
                   zone: next,
                 })
               }
+              // Each option names the time with its zone (clinical review round 4, low).
               options={[
-                { value: "BST", label: t("mobile.when.zoneBst") },
-                { value: "GMT", label: t("mobile.when.zoneGmt") },
+                { value: "BST", label: t("mobile.when.zoneBst", { time: shownTime }) },
+                { value: "GMT", label: t("mobile.when.zoneGmt", { time: shownTime }) },
               ]}
             />
           ) : null}
