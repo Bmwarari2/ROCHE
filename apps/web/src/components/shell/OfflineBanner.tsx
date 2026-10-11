@@ -2,6 +2,7 @@
 
 import { Banner } from "@harbour/ui";
 import { useSyncExternalStore } from "react";
+import { t } from "@/lib/i18n";
 
 function subscribe(onChange: () => void) {
   window.addEventListener("online", onChange);
@@ -28,7 +29,8 @@ export function OfflineBanner() {
     <Banner
       variant="offline"
       className="mb-6"
-      description="Harbour cannot reach the server. What you see may be out of date, and changes cannot be saved until you are back online."
+      title={t("shell.offline.title")}
+      description={t("shell.offline.body")}
     />
   );
 }

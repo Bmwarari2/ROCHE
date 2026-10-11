@@ -3,13 +3,19 @@
 import { revalidatePath } from "next/cache";
 import { problemCode, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
-import { BREAK_GLASS_MIN_LENGTH } from "@/lib/people";
+import { justificationProblem } from "@/lib/people";
 
 export type BreakGlassOutcome =
   | { readonly ok: true; readonly expiresAt: string }
   | {
       readonly ok: false;
-      readonly reason: "step-up" | "forbidden" | "not-found" | "too-short" | "unavailable";
+      readonly reason:
+        | "step-up"
+        | "forbidden"
+        | "not-found"
+        | "too-short"
+        | "too-long"
+        | "unavailable";
     };
 
 /**
@@ -23,7 +29,8 @@ export async function openBreakGlass(
 ): Promise<BreakGlassOutcome> {
   if (!isUuid(personId)) return { ok: false, reason: "not-found" };
   const reason = justification.trim();
-  if (reason.length < BREAK_GLASS_MIN_LENGTH) return { ok: false, reason: "too-short" };
+  const problem = justificationProblem(reason);
+  if (problem) return { ok: false, reason: problem };
 
   const api = await tenantApi();
   const { data, error } = await api.POST("/v1/people/break-glass", {

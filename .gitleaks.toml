@@ -1,9 +1,9 @@
-# Secret scanning (section 5.3). Extends the default rules; the allowlist covers documented local-only
-# defaults that are never used outside a developer's machine or CI.
+# Secret scanning (section 5.3). Extends the default rules; the allowlists cover documented local-only
+# defaults that are never used outside a developer's machine or CI, and names that are never secrets.
 [extend]
 useDefault = true
 
-[allowlist]
+[[allowlists]]
 description = "Local and CI-only defaults"
 paths = [
   '''pnpm-lock\.yaml''',
@@ -18,3 +18,14 @@ regexes = [
   '''harbour_admin_ci''',
   '''local-development-secret-change-me-[0-9]+''',
 ]
+
+[[allowlists]]
+# Message catalogue keys such as care.refusal.scale2Clinician are dotted camelCase names. The
+# generic-api-key rule fires when the previous message contains "api" (as in "therapist") and takes
+# the next key for a secret. Both conditions must hold: the file is a catalogue and the match is a
+# whole dotted name, so a token elsewhere, or a secret-shaped value inside a catalogue, is still
+# reported. (gitleaks 8.28 does not apply targetRules to the extended default rules.)
+description = "Message catalogue keys"
+condition = "AND"
+paths = ['''^packages/i18n/src/messages/[a-zA-Z.-]+\.json$''']
+regexes = ['''^[a-z][a-zA-Z0-9]*(\.[a-zA-Z0-9]+)+$''']

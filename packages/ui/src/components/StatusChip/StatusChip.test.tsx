@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import { PencilLine } from "lucide-react";
 import { describe, expect, it } from "vitest";
 import { clinicalStatus } from "../../tokens/tokens";
 import { StatusChip, type StatusChipStatus } from "./StatusChip";
@@ -58,5 +59,16 @@ describe("StatusChip", () => {
       expect(visibleText(container.firstElementChild as HTMLElement).length).toBeGreaterThan(0);
       unmount();
     }
+  });
+
+  it("takes its own icon for states with their own symbol, still beside the word", () => {
+    const { container } = render(
+      <StatusChip status="info" label="Draft, not in use" icon={PencilLine} />,
+    );
+    const chip = container.firstElementChild as HTMLElement;
+    expect(visibleText(chip)).toBe("Draft, not in use");
+    const icon = chip.querySelector("svg");
+    expect(icon).toHaveClass("lucide-pencil-line");
+    expect(icon).toHaveAttribute("aria-hidden", "true");
   });
 });
