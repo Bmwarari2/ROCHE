@@ -1,5 +1,9 @@
 import type { PersonStatus } from "../people/lifecycle";
-import { checkSectionVisibility, type SharingDecision } from "../people/sharing";
+import {
+  type CapacityForSharing,
+  checkSectionVisibility,
+  type SharingDecision,
+} from "../people/sharing";
 import { toUkWallClock } from "../shared/time";
 import { ukIsoDate } from "../shared/working-days";
 import type { IcsEvent } from "./notify-calendar";
@@ -10,10 +14,11 @@ import { minuteOfDayToHhMm } from "./notify-rates";
  * booking (Reg 9A)"). Regulation 9A of the Health and Social Care Act 2008 (Regulated Activities)
  * Regulations 2014 (in force from 6 April 2024) is about enabling visits, so online booking is a
  * convenience, never a gate: the location's booking hours limit what can be booked online, not
- * when people may visit, and every refusal offers the phone. Restrictions are decided and recorded
- * by staff in the care record with their reason (care.md, `visit_log`); this check only reads that
- * one applies. A refusal never tells the family why a restriction exists, whether the person is in
- * hospital or away, or anything else about their health: those refusals all read the same.
+ * when people may visit, and every refusal offers the phone. Restrictions, for one person or for
+ * the whole location (an outbreak), are decided and recorded by staff with their reason; this
+ * check only reads that one applies. A refusal never tells the family why a restriction exists,
+ * whether the person is in hospital or away, or anything else about their health: those refusals
+ * all read the same. The nominated visitor arrangements are the tenant's policy (H-111).
  */
 
 /** Hours the location takes bookings online, in minutes after midnight UK time; one day only. */
@@ -37,6 +42,14 @@ export interface VisitRestrictionView {
   readonly to: Date | null;
 }
 
+/** A restriction on visits to the whole location, for example during an outbreak. */
+export interface LocationVisitRestrictionView {
+  readonly id: string;
+  readonly kind: "outbreak" | "other";
+  readonly from: Date;
+  readonly to: Date | null;
+}
+
 export interface VisitBookingView {
   readonly id: string;
   readonly start: Date;
@@ -55,12 +68,15 @@ export interface VisitBookingRequest {
 export interface VisitBookingContext {
   readonly person: { readonly id: string; readonly status: PersonStatus };
   readonly decisions: readonly SharingDecision[];
+  /** The person's capacity for the sharing decision now (see people/sharing.ts). */
+  readonly capacityForSharingNow: CapacityForSharing;
   /** Null until the location sets its online booking hours (there is no product default). */
   readonly bookingHours: VisitBookingHours | null;
   /** Booked visits the location can host at the same time; null for no limit. */
   readonly maxVisitsAtOnce: number | null;
   readonly existingBookings: readonly VisitBookingView[];
   readonly restrictions: readonly VisitRestrictionView[];
+  readonly locationRestrictions: readonly LocationVisitRestrictionView[];
   readonly now: Date;
 }
 
@@ -68,28 +84,37 @@ export type VisitBookingRefusal =
   | "end_not_after_start"
   | "in_the_past"
   | "wrong_person"
-  | "person_not_at_home"
-  | "record_closed"
   | "no_sharing_decision"
+  | "record_closed"
+  | "person_not_at_home"
   | "restricted"
+  | "location_restricted"
   | "not_one_day"
   | "booking_hours_not_set"
   | "outside_booking_hours"
   | "fully_booked";
 
-/** The one message for every refusal that is about the person or a restriction. */
+/** The one message for every refusal that is about the person, a decision or a restriction. */
 export const VISIT_CALL_THE_HOME =
   "We cannot book this visit online. Please call the home to arrange it.";
+
+/** Shown against a booked visit that the re-check stopped: staff phone the family as well. */
+export const VISIT_BOOKING_NEEDS_A_CALL =
+  "The home needs to speak to you about this visit. Please call the home.";
+
+/** Never shown to the family: the refusal code and any restriction behind it, for staff and audit. */
+export interface VisitBookingStaffOnly {
+  readonly reason: VisitBookingRefusal;
+  readonly restrictionId: string | null;
+}
 
 export type VisitBookingCheck =
   | { readonly ok: true }
   | {
       readonly ok: false;
-      readonly reason: VisitBookingRefusal;
       /** What the family member reads. */
       readonly familyMessage: string;
-      /** For staff and the audit only: the restriction that applied. */
-      readonly restrictionId: string | null;
+      readonly staffOnly: VisitBookingStaffOnly;
     };
 
 function refuse(
@@ -97,7 +122,7 @@ function refuse(
   familyMessage: string,
   restrictionId: string | null = null,
 ): VisitBookingCheck {
-  return { ok: false, reason, familyMessage, restrictionId };
+  return { ok: false, familyMessage, staffOnly: { reason, restrictionId } };
 }
 
 function overlaps(aStart: Date, aEnd: Date | null, bStart: Date, bEnd: Date): boolean {
@@ -130,7 +155,46 @@ function hoursText(hours: VisitBookingHours): string {
   return `${minuteOfDayToHhMm(hours.startMinute)} and ${end}`;
 }
 
-/** Checks a family member's request to book a visit, in the order that reveals least. */
+/**
+ * The checks about the person, the decision and restrictions, in the order that reveals least:
+ * the decision before the person's status. Used for a new request and to re-check bookings.
+ */
+function personChecks(
+  request: VisitBookingRequest,
+  context: VisitBookingContext,
+): VisitBookingCheck | null {
+  if (request.personId !== context.person.id) return refuse("wrong_person", VISIT_CALL_THE_HOME);
+  const shared = checkSectionVisibility(context.decisions, {
+    personId: context.person.id,
+    personStatus: context.person.status,
+    recipient: { kind: "family", contactId: request.contactId },
+    section: "activities_and_visits",
+    capacityNow: context.capacityForSharingNow,
+    now: context.now,
+  });
+  if (!shared.visible) {
+    return refuse(
+      shared.reason === "person_record_closed" ? "record_closed" : "no_sharing_decision",
+      VISIT_CALL_THE_HOME,
+    );
+  }
+  if (context.person.status !== "active") return refuse("person_not_at_home", VISIT_CALL_THE_HOME);
+  const restriction = context.restrictions.find(
+    (r) =>
+      (r.appliesTo.kind === "all_visitors" || r.appliesTo.contactId === request.contactId) &&
+      overlaps(r.from, r.to, request.start, request.end),
+  );
+  if (restriction) return refuse("restricted", VISIT_CALL_THE_HOME, restriction.id);
+  const locationRestriction = context.locationRestrictions.find((r) =>
+    overlaps(r.from, r.to, request.start, request.end),
+  );
+  if (locationRestriction) {
+    return refuse("location_restricted", VISIT_CALL_THE_HOME, locationRestriction.id);
+  }
+  return null;
+}
+
+/** Checks a family member's request to book a visit. */
 export function checkVisitBooking(
   request: VisitBookingRequest,
   context: VisitBookingContext,
@@ -141,25 +205,8 @@ export function checkVisitBooking(
   if (request.start.getTime() <= context.now.getTime()) {
     return refuse("in_the_past", "Choose a time that has not passed.");
   }
-  if (request.personId !== context.person.id) return refuse("wrong_person", VISIT_CALL_THE_HOME);
-  if (context.person.status === "on_leave" || context.person.status === "in_hospital") {
-    return refuse("person_not_at_home", VISIT_CALL_THE_HOME);
-  }
-  if (context.person.status !== "active") return refuse("record_closed", VISIT_CALL_THE_HOME);
-  const shared = checkSectionVisibility(context.decisions, {
-    personId: context.person.id,
-    personStatus: context.person.status,
-    recipient: { kind: "family", contactId: request.contactId },
-    section: "activities_and_visits",
-    now: context.now,
-  });
-  if (!shared.visible) return refuse("no_sharing_decision", VISIT_CALL_THE_HOME);
-  const restriction = context.restrictions.find(
-    (r) =>
-      (r.appliesTo.kind === "all_visitors" || r.appliesTo.contactId === request.contactId) &&
-      overlaps(r.from, r.to, request.start, request.end),
-  );
-  if (restriction) return refuse("restricted", VISIT_CALL_THE_HOME, restriction.id);
+  const person = personChecks(request, context);
+  if (person) return person;
 
   const start = ukMinutes(request.start, false);
   const end = ukMinutes(request.end, true);
@@ -189,6 +236,46 @@ export function checkVisitBooking(
     }
   }
   return { ok: true };
+}
+
+export interface BookingToReview {
+  readonly bookingId: string;
+  readonly familyMessage: string;
+  readonly staffOnly: VisitBookingStaffOnly;
+}
+
+/**
+ * Confirmed visits still to come that no longer stand: re-run whenever the person's status
+ * changes (a hospital admission or leave as well as a discharge or death), a sharing decision
+ * changes, or a restriction is added for the person or the location. Staff phone the family about
+ * each one; the portal shows `VISIT_BOOKING_NEEDS_A_CALL`, never the reason. Booking hours and the
+ * visits-at-once limit are not re-applied to visits already booked.
+ */
+export function visitBookingsToReview(
+  bookings: readonly (VisitBookingView & { readonly contactId: string })[],
+  context: VisitBookingContext,
+): BookingToReview[] {
+  const review: BookingToReview[] = [];
+  for (const booking of bookings) {
+    if (booking.status !== "confirmed" || booking.end.getTime() <= context.now.getTime()) continue;
+    const check = personChecks(
+      {
+        personId: context.person.id,
+        contactId: booking.contactId,
+        start: booking.start,
+        end: booking.end,
+      },
+      context,
+    );
+    if (check && !check.ok) {
+      review.push({
+        bookingId: booking.id,
+        familyMessage: VISIT_BOOKING_NEEDS_A_CALL,
+        staffOnly: check.staffOnly,
+      });
+    }
+  }
+  return review;
 }
 
 /**

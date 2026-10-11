@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
 import type { PersonStatus } from "../people/lifecycle";
 import type { SharingDecision } from "../people/sharing";
-import { feedReadabilityLint, findClinicalTerms } from "./feed-text";
+import { feedReadabilityLint, findClinicalTerms, findConfirmationTerms } from "./feed-text";
 import { buildIcsCalendar } from "./notify-calendar";
 import {
   checkVisitBooking,
+  VISIT_BOOKING_NEEDS_A_CALL,
   VISIT_CALL_THE_HOME,
   type VisitBookingContext,
+  type VisitBookingRefusal,
   type VisitBookingRequest,
   visitBookingCalendarEvent,
+  visitBookingsToReview,
 } from "./visit-booking";
 
 /**
@@ -49,21 +52,37 @@ function context(overrides: Partial<VisitBookingContext> = {}): VisitBookingCont
   return {
     person: { id: ADA, status: "active" },
     decisions: [decision],
+    capacityForSharingNow: "presumed",
     bookingHours: { startMinute: 600, endMinute: 1200 },
     maxVisitsAtOnce: 2,
     existingBookings: [],
     restrictions: [],
+    locationRestrictions: [],
     now: NOW,
     ...overrides,
   };
 }
+
+const refused = (
+  reason: VisitBookingRefusal,
+  familyMessage: string,
+  restrictionId: string | null = null,
+) => ({ ok: false, familyMessage, staffOnly: { reason, restrictionId } });
 
 describe("booking a visit online", () => {
   it("books a visit inside the hours with a decision in force", () => {
     expect(checkVisitBooking(request(), context())).toEqual({ ok: true });
   });
 
-  it.each<[string, Partial<VisitBookingRequest>, Partial<VisitBookingContext>, string, string]>([
+  it.each<
+    [
+      string,
+      Partial<VisitBookingRequest>,
+      Partial<VisitBookingContext>,
+      VisitBookingRefusal,
+      string,
+    ]
+  >([
     [
       "an end before the start",
       { end: new Date("2026-10-12T13:00:00Z") },
@@ -136,12 +155,7 @@ describe("booking a visit online", () => {
       "This time is fully booked. Please choose another time or call the home.",
     ],
   ])("refuses %s", (_label, req, ctx, reason, message) => {
-    expect(checkVisitBooking(request(req), context(ctx))).toEqual({
-      ok: false,
-      reason,
-      familyMessage: message,
-      restrictionId: null,
-    });
+    expect(checkVisitBooking(request(req), context(ctx))).toEqual(refused(reason, message));
   });
 
   it("allows a visit that ends exactly when the hours end, and one ending at midnight when the hours run to midnight", () => {
@@ -155,11 +169,11 @@ describe("booking a visit online", () => {
         lateHours,
       ),
     ).toEqual({ ok: true });
-    const refused = checkVisitBooking(
+    const early = checkVisitBooking(
       request({ start: new Date("2026-10-12T07:00:00Z") }),
       lateHours,
     );
-    expect(refused).toMatchObject({
+    expect(early).toMatchObject({
       familyMessage: expect.stringContaining("between 10:00 and midnight"),
     });
   });
@@ -182,15 +196,15 @@ describe("booking a visit online", () => {
     expect(
       checkVisitBooking(request(), context({ maxVisitsAtOnce: 1, existingBookings: touching })),
     ).toEqual({ ok: true });
+    const overlapping = [{ ...touching[1], status: "confirmed" } as (typeof touching)[number]];
     expect(
       checkVisitBooking(
         request(),
-        context({
-          maxVisitsAtOnce: null,
-          existingBookings: [{ ...touching[1], status: "confirmed" } as (typeof touching)[number]],
-        }),
+        context({ maxVisitsAtOnce: null, existingBookings: overlapping }),
       ),
-    ).toEqual({ ok: true });
+    ).toEqual({
+      ok: true,
+    });
   });
 
   it.each<[string, string, boolean]>([
@@ -216,48 +230,64 @@ describe("booking a visit online", () => {
 });
 
 describe("hazard HZ-022 a refusal never says why when the reason is about the person", () => {
-  const generic = (reason: string, restrictionId: string | null = null) => ({
-    ok: false,
-    reason,
-    familyMessage: VISIT_CALL_THE_HOME,
-    restrictionId,
-  });
   const during = { from: new Date("2026-10-10T00:00:00Z"), to: new Date("2026-10-20T00:00:00Z") };
 
   it.each<
-    [string, Partial<VisitBookingRequest>, Partial<VisitBookingContext>, ReturnType<typeof generic>]
+    [
+      string,
+      Partial<VisitBookingRequest>,
+      Partial<VisitBookingContext>,
+      VisitBookingRefusal,
+      string | null,
+    ]
   >([
     [
       "the person is in hospital",
       {},
       { person: { id: ADA, status: "in_hospital" } },
-      generic("person_not_at_home"),
+      "person_not_at_home",
+      null,
     ],
     [
       "the person is away on leave",
       {},
       { person: { id: ADA, status: "on_leave" } },
-      generic("person_not_at_home"),
+      "person_not_at_home",
+      null,
     ],
-    ["no sharing decision", {}, { decisions: [] }, generic("no_sharing_decision")],
+    ["no sharing decision", {}, { decisions: [] }, "no_sharing_decision", null],
+    [
+      "no sharing decision while the person is in hospital (the decision is checked first)",
+      {},
+      { decisions: [], person: { id: ADA, status: "in_hospital" } },
+      "no_sharing_decision",
+      null,
+    ],
     [
       "sharing suspended (safeguarding)",
       {},
-      { decisions: [{ ...decision, suspendedAt: new Date("2026-10-10T00:00:00Z") }] },
-      generic("no_sharing_decision"),
+      {
+        decisions: [
+          { ...decision, suspensions: [{ from: new Date("2026-10-10T00:00:00Z"), to: null }] },
+        ],
+      },
+      "no_sharing_decision",
+      null,
     ],
     [
       "a decision that does not cover visits",
       {},
       { decisions: [{ ...decision, sections: ["photos"] }] },
-      generic("no_sharing_decision"),
+      "no_sharing_decision",
+      null,
     ],
-    ["a request about someone else", { personId: "person-dev" }, {}, generic("wrong_person")],
+    ["a request about someone else", { personId: "person-dev" }, {}, "wrong_person", null],
     [
       "a restriction for every visitor",
       {},
       { restrictions: [{ id: "r1", appliesTo: { kind: "all_visitors" }, ...during }] },
-      generic("restricted", "r1"),
+      "restricted",
+      "r1",
     ],
     [
       "a restriction on this visitor",
@@ -267,10 +297,22 @@ describe("hazard HZ-022 a refusal never says why when the reason is about the pe
           { id: "r2", appliesTo: { kind: "contact", contactId: BEN }, from: during.from, to: null },
         ],
       },
-      generic("restricted", "r2"),
+      "restricted",
+      "r2",
     ],
-  ])("when %s", (_label, req, ctx, expected) => {
-    expect(checkVisitBooking(request(req), context(ctx))).toEqual(expected);
+    [
+      "an outbreak at the location",
+      {},
+      {
+        locationRestrictions: [{ id: "outbreak-1", kind: "outbreak", from: during.from, to: null }],
+      },
+      "location_restricted",
+      "outbreak-1",
+    ],
+  ])("when %s", (_label, req, ctx, reason, restrictionId) => {
+    expect(checkVisitBooking(request(req), context(ctx))).toEqual(
+      refused(reason, VISIT_CALL_THE_HOME, restrictionId),
+    );
   });
 
   it.each<PersonStatus>([
@@ -282,7 +324,7 @@ describe("hazard HZ-022 a refusal never says why when the reason is about the pe
     "pre_admission",
   ])("when the person is %s", (status) => {
     expect(checkVisitBooking(request(), context({ person: { id: ADA, status } }))).toEqual(
-      generic("record_closed"),
+      refused("record_closed", VISIT_CALL_THE_HOME),
     );
   });
 
@@ -296,12 +338,23 @@ describe("hazard HZ-022 a refusal never says why when the reason is about the pe
         to: new Date("2026-10-12T14:00:00Z"),
       },
     ];
-    expect(checkVisitBooking(request(), context({ restrictions }))).toEqual({ ok: true });
+    const locationRestrictions = [
+      {
+        id: "old",
+        kind: "outbreak" as const,
+        from: new Date("2026-09-01T00:00:00Z"),
+        to: new Date("2026-09-15T00:00:00Z"),
+      },
+    ];
+    expect(checkVisitBooking(request(), context({ restrictions, locationRestrictions }))).toEqual({
+      ok: true,
+    });
   });
 
   it("writes every family message in plain words with nothing clinical", () => {
     const messages = [
       VISIT_CALL_THE_HOME,
+      VISIT_BOOKING_NEEDS_A_CALL,
       "The visit must end after it starts.",
       "Choose a time that has not passed.",
       "Book each day's visit separately.",
@@ -312,7 +365,79 @@ describe("hazard HZ-022 a refusal never says why when the reason is about the pe
     for (const message of messages) {
       expect(feedReadabilityLint(message)).toEqual([]);
       expect(findClinicalTerms(message)).toEqual([]);
+      expect(findConfirmationTerms(message)).toEqual([]);
     }
+  });
+});
+
+describe("hazard HZ-022 booked visits are checked again when something changes", () => {
+  const booked = (
+    id: string,
+    start: string,
+    contactId = BEN,
+    status: "confirmed" | "cancelled" = "confirmed",
+  ) => ({
+    id,
+    contactId,
+    status,
+    start: new Date(start),
+    end: new Date(new Date(start).getTime() + 60 * 60_000),
+  });
+  const bookings = [
+    booked("tomorrow", "2026-10-12T14:00:00Z"),
+    booked("next-week", "2026-10-19T14:00:00Z"),
+    booked("past", "2026-10-10T14:00:00Z"),
+    booked("cancelled", "2026-10-13T14:00:00Z", BEN, "cancelled"),
+    booked("cara", "2026-10-14T14:00:00Z", "contact-cara"),
+  ];
+
+  it("leaves bookings alone when nothing has changed", () => {
+    const withCara = context({
+      decisions: [
+        decision,
+        { ...decision, id: "d2", recipient: { kind: "family", contactId: "contact-cara" } },
+      ],
+    });
+    expect(visitBookingsToReview(bookings, withCara)).toEqual([]);
+  });
+
+  it("lists future bookings to review after a hospital admission", () => {
+    const review = visitBookingsToReview(
+      bookings,
+      context({ person: { id: ADA, status: "in_hospital" } }),
+    );
+    expect(review.map((r) => [r.bookingId, r.staffOnly.reason])).toEqual([
+      ["tomorrow", "person_not_at_home"],
+      ["next-week", "person_not_at_home"],
+      ["cara", "no_sharing_decision"],
+    ]);
+    expect(review.every((r) => r.familyMessage === VISIT_BOOKING_NEEDS_A_CALL)).toBe(true);
+  });
+
+  it("lists bookings that a new restriction or outbreak covers", () => {
+    const review = visitBookingsToReview(
+      bookings.slice(0, 2),
+      context({
+        locationRestrictions: [
+          { id: "outbreak-1", kind: "outbreak", from: new Date("2026-10-15T00:00:00Z"), to: null },
+        ],
+      }),
+    );
+    expect(review).toEqual([
+      {
+        bookingId: "next-week",
+        familyMessage: VISIT_BOOKING_NEEDS_A_CALL,
+        staffOnly: { reason: "location_restricted", restrictionId: "outbreak-1" },
+      },
+    ]);
+  });
+
+  it("lists every future booking after a death", () => {
+    const review = visitBookingsToReview(
+      bookings.slice(0, 2),
+      context({ person: { id: ADA, status: "deceased" } }),
+    );
+    expect(review.map((r) => r.staffOnly.reason)).toEqual(["record_closed", "record_closed"]);
   });
 });
 
