@@ -316,8 +316,9 @@ locally.
   after their transaction; device ids are kept only when opaque; the chip links only to this site
   and names its action.
 - Page 1: an ADRT held without a CPR form says so; a missing confirmer is said; the conflict is said
-  once in sentence case. Web: medicines conflict, catch-up and restored badges and the review
-  details view.
+  once in sentence case. Web: the medicines conflict badge on every entry view. The catch-up and
+  restored badges and the review details view are built and tested but on no screen yet (corrected
+  in round 5: they come with the task views, Phase 1 slice 9; HZ-006).
 
 **Human actions logged**: H-131 to H-136; H-90, H-92 and H-94 updated.
 
@@ -326,3 +327,35 @@ locally.
 **Tests**: `packages/domain` 3,695, `packages/db` 278, `packages/contracts` 16, `apps/api` 411,
 `apps/web` 304, `packages/ui` 342, `packages/ui-native` 134, `packages/i18n` 34, all passing
 locally.
+
+## 2026-10-11: #21 review round 5 (people lifecycle)
+
+**What changed**
+
+- Exits: the urgent review of a possible second dose (`care.entry_conflict_review`) stays open when
+  a death or discharge is recorded after it, like the other entry review (M1, HZ-004). No other
+  review or safety task kind had the gap.
+- Missed rounds: the review lists missed medicines rounds first and never drops them, then the
+  rest newest first, 50 in all with the rest counted; the look back starts at 00:00 UK time seven
+  days before, and when rounds before it were not made the review says from which date rounds are
+  not all listed (M2, HZ-003, H-137). The review details name a medicines round in words.
+- Page 1 of the transfer pack: with an advance decision to refuse treatment in force, every CPR
+  line adds "An advance decision to refuse treatment is also held (dd/mm/yyyy): read it before
+  acting." (M3, HZ-015, H-133).
+- Tasks: an assignee completes a task (by the task route, an entry or a return check) only while
+  they could still be given it, so an expired or revoked acting-up grant no longer lets them mark
+  it done or skipped; refusals are audited, an entry is kept and reviewed. A task or series about a
+  person created with an assignee is checked the same way. General tasks and investigation actions
+  are exempt (security S1 follow-on and low).
+- Docs: the on-screen display of review details and task badges is a planned control under HZ-006
+  (Phase 1 slice 9); the round 4 changelog line is corrected; H-135 notes its default awaits the
+  CSO.
+
+**Human actions logged**: H-137; H-90, H-94, H-133 and H-135 updated.
+
+**Follow-ups**: the task views that show review details and task badges (Phase 1 slice 9).
+
+**Tests**: `packages/domain` 3,710, `packages/db` 278, `packages/contracts` 16, `apps/api` 422,
+`apps/web` 306, `packages/ui` 342, `packages/ui-native` 134, `packages/i18n` 34, all passing
+locally (the fluid balance test in `apps/api` fails only in the half hour after midnight UK time,
+when its entries fall on two days).

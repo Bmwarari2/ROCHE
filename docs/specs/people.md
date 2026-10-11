@@ -131,13 +131,15 @@ one applies). Figures come from `rate_table` by key, resolved with `resolvePeopl
    or hold the bed, start the retention clock) and one outbox event. The tasks and series a move
    or exit stops carry a code and, for an exit, the exit that stopped them (`stopped_by_exit_id`),
    so a return or correction brings back only what that move or exit stopped (`planTaskRestore`):
-   the rounds that would have fallen due since a series stopped making tasks are made first (at
-   most seven days back), so a long stay loses none; only tasks whose window ends at or after the
+   the rounds that would have fallen due since a series stopped making tasks are made first (back
+   to 00:00 UK time seven days before, H-137; the review then gives the date before which rounds
+   are not all listed), so a long stay loses none; only tasks whose window ends at or after the
    return count; a task an entry answered while it was stopped is done, never due again (H-91);
    one still in its window reopens; of the rest, the latest occurrence of each series is caught
    up once, due now with a fresh window, unless a later occurrence is done or open again, and a
    missed medicines task is never made due again; the others are coded missed, all listed on one
-   review task for the nurse in charge (H-92, H-131). A correction undoes the latest exit of that
+   review task for the nurse in charge, missed medicines rounds first and never dropped, then the
+   rest newest first, 50 in all and the rest counted (H-92, H-131). A correction undoes the latest exit of that
    kind whatever its state, also one whose workflow has closed (H-135). Corrected back to on
    leave or in hospital, what the exit ended waits, paused, for the return (HZ-003, HZ-004,
    HZ-008).
@@ -203,8 +205,9 @@ one applies). Figures come from `rate_table` by key, resolved with `resolvePeopl
     missing (HZ-023). The pack routes allow 30 requests a user a minute. On return, the checks re-confirm
     medicines, allergies, resuscitation decisions and IDDSI levels (hospitals change them), skin,
     and belongings that went with the person. Each check is recorded only by someone holding the
-    permission its task requires (`care.plan.write` for the clinical checks) or its assignee, and a
-    check's task is only given to someone who holds that permission; checking belongings back in
+    permission its task requires (`care.plan.write` for the clinical checks) or its assignee while
+    they could still be given it, and a check's task is only given to someone who holds that
+    permission; checking belongings back in
     needs `people.movement.record`, with or without a task (HZ-005, HZ-015).
 11. **Exit workflows** (`exit.ts`). Discharge and transfer: `planned`, `left`, `awaiting_return`,
     `closed` (or `cancelled` before leaving). Death: `recorded`, `awaiting_return`, `closed` (or

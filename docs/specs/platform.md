@@ -107,12 +107,15 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   elapsed time (`packages/domain/src/platform/tasks.ts`). The worker materialises the next 48 hours
   every 15 minutes, idempotently; a worker outage never backfills more than an hour.
 - Rules: skip and cancel need a reason; tasks that ask for evidence cannot be completed without it;
-  finished tasks never change; two devices cannot overwrite each other (version check). The
-  assignee, or anyone holding the permission the task names, completes it; managers with
-  `platform.task.manage` create, assign and schedule. Because the assignee may complete it, a task
-  that names a permission other than `platform.task.manage` (a clinical check, a medicines round)
-  is given only to someone who holds that permission at the task's location, the person
-  assigning included; the refusal is audited (HZ-004, HZ-005).
+  finished tasks never change; two devices cannot overwrite each other (version check). Anyone
+  holding the permission the task names completes it, and so does its assignee while they could
+  still be given it; managers with `platform.task.manage` create, assign and schedule. Because the
+  assignee may complete it, a task that names a permission other than `platform.task.manage` (a
+  clinical check, a medicines round) is given, on creation, on scheduling or by assignment, only
+  to someone who holds that permission at the task's location, the person assigning included; and
+  once that grant or role has ended the assignee may no longer complete it (by the task route, an
+  entry or a return check). An investigation action is the exception: its owner completes it
+  without the permission. Every refusal is audited (HZ-004, HZ-005).
 - Overdue: once a task's window closes it is overdue; after `task.overdue_escalation_minutes` (rate
   table) the worker notifies the assignee and the clinical leads and team leaders at the location
   (the Registered Manager when there are none), once (HZ-008).

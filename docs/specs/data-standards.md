@@ -559,8 +559,11 @@ correction brings back only what that exit stopped); from migration 0026 `task.r
 (`caught_up`, `answered_while_stopped`: how a return or correction brought the task back) and
 `document.image_printable` (whether a JPEG or PNG prints on the transfer pack, decided once at
 upload). `task.details` is JSON a review task carries:
-`missedTasks` (task id, kind, due time and whether it was reopened) and `entries` (entry kind,
-client id, device id, user id and times; opaque ids only, never clinical text). Field-level
+`missedTasks` (task id, kind, due time and whether it was reopened; missed medicines rounds first
+and never dropped, then the rest newest first), `missedTasksOmitted` (how many more were not
+listed), `missedTasksNotListedBefore` (an ISO date, UK time: rounds due before it are not all
+listed) and `entries` (entry kind, client id, device id, user id and times; opaque ids only,
+never clinical text). Field-level
 detail is in `packages/db/src/schema/`; purposes and lawful bases are in
 [records of processing](../compliance/records-of-processing.md).
 

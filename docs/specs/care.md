@@ -204,7 +204,8 @@ applies). Figures come from `rate_table` by key.
     planned and written, so of two entries sent at once only one completes it, and a replayed
     upload returns the stored entry before anything is planned again. An open or in-progress task
     for the same person, whatever its window, is completed by an author who may complete it
-    (its assignee or a holder of its permission) (`completed`). A cancelled task with no evidence,
+    (a holder of its permission, or its assignee while they could still be given it)
+    (`completed`). A cancelled task with no evidence,
     whether the people lifecycle or a manager cancelled it, keeps the entry as late evidence,
     flagged, and stays cancelled (`task_cancelled`; a return or correction that brings back what
     the lifecycle stopped later restores it as done). A task already done or skipped, or a
