@@ -152,6 +152,19 @@ export async function dolsRates(
 // Statutory notification drafts
 // ------------------------------------------------------------------------------------------------
 
+/** JSON with object keys sorted: jsonb does not keep key order, so compare values this way. */
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (value !== null && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${stableJson(record[k])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value ?? null);
+}
+
 /** Dates as ISO strings, so domain results can be stored as JSON and compared. */
 export function toJson<T>(value: T): unknown {
   return JSON.parse(JSON.stringify(value));
@@ -243,9 +256,9 @@ export async function upsertDraft(
       existing.provisional !== spec.provisional ||
       existing.noLongerIndicated ||
       existing.classifierVersion !== spec.classifierVersion ||
-      JSON.stringify(existing.deadlines) !== JSON.stringify(values.deadlines) ||
-      JSON.stringify(existing.reasons) !== JSON.stringify(values.reasons) ||
-      JSON.stringify(existing.statement) !== JSON.stringify(values.statement);
+      stableJson(existing.deadlines) !== stableJson(values.deadlines) ||
+      stableJson(existing.reasons) !== stableJson(values.reasons) ||
+      stableJson(existing.statement) !== stableJson(values.statement);
     if (changed) {
       await tx
         .update(statutoryNotification)
@@ -1141,9 +1154,11 @@ export async function acknowledgeOverdueAlerts(
 // ------------------------------------------------------------------------------------------------
 
 /**
- * Outbreak detection across each location's infection cases (safety.md rule 7): the latest
- * infection incident at the location is classified again with the location's cases, which drafts
- * the UKHSA report once a threshold is met (one draft per threshold, by its source key).
+ * Outbreak detection across each location's infection cases (safety.md rule 7). Where the cases
+ * meet a threshold that has no draft yet, or need a linkage review nobody has been asked for, the
+ * latest infection incident at the location is classified again with them, which drafts the UKHSA
+ * report (one per threshold, by its source key) and raises the review task. Otherwise nothing is
+ * written, so an unchanged location never changes its incidents.
  */
 export async function detectLocationOutbreaks(
   tx: Transaction,
@@ -1157,8 +1172,38 @@ export async function detectLocationOutbreaks(
     .where(
       and(eq(incident.type, "ipc"), isNull(incident.deletedAt), eq(location.nation, "england")),
     );
+  if (locations.length === 0) return 0;
+  const rates = await safetyRates(tx, tenantId, ukIsoDate(now));
   let drafted = 0;
   for (const { id: locationId } of locations) {
+    const assessment = detectOutbreaks(await locationInfectionCases(tx, locationId), rates);
+    // The classifier drafts the earliest threshold met (classifier.ts, outbreak()).
+    const first = assessment.signals[0];
+    const [existing] = first
+      ? await tx
+          .select({ id: statutoryNotification.id })
+          .from(statutoryNotification)
+          .where(eq(statutoryNotification.sourceKey, outbreakKey(locationId, first)))
+          .limit(1)
+      : [];
+    const [reviewTask] =
+      assessment.casesToReviewForLinks.length > 0
+        ? await tx
+            .select({ id: task.id })
+            .from(task)
+            .where(
+              and(
+                eq(task.kind, "safety.outbreak_link_review"),
+                eq(task.locationId, locationId),
+                inArray(task.status, ["open", "in_progress"]),
+                isNull(task.deletedAt),
+              ),
+            )
+            .limit(1)
+        : [];
+    const needsDraft = first !== undefined && existing === undefined;
+    const needsReview = assessment.casesToReviewForLinks.length > 0 && reviewTask === undefined;
+    if (!needsDraft && !needsReview) continue;
     const [latest] = await tx
       .select({ id: incident.id })
       .from(incident)

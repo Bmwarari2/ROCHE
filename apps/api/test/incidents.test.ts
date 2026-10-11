@@ -879,8 +879,19 @@ describe("UKHSA outbreak detection", () => {
     const ukhsa = second.classifier?.notifications.filter((n) => n.kind === "ukhsa_outbreak") ?? [];
     expect(ukhsa).toHaveLength(1);
     expect(ukhsa[0]?.statutory).toBe(false);
-    // The worker's sweep finds the same threshold and drafts nothing new.
+    // The worker's sweep finds the same threshold, drafts nothing new and changes nothing.
+    const versions = () =>
+      asDemoTenant(async (c) => {
+        const { rows } = await c.query<{ incident: number; draft: number }>(
+          `SELECT i.version AS incident, n.version AS draft FROM incident i
+           JOIN statutory_notification n ON n.kind = 'ukhsa_outbreak' WHERE i.id = $1`,
+          [second.id],
+        );
+        return rows[0];
+      });
+    const before = await versions();
     expect(await detectOutbreaks(deps)).toBe(0);
+    expect(await versions()).toEqual(before);
     const count = await asDemoTenant(async (c) => {
       const { rows } = await c.query<{ n: number }>(
         "SELECT count(*)::int AS n FROM statutory_notification WHERE kind = 'ukhsa_outbreak'",
@@ -888,6 +899,22 @@ describe("UKHSA outbreak detection", () => {
       return rows[0]?.n;
     });
     expect(count).toBe(1);
+  });
+
+  it("hazard HZ-013 leaves a draft's version alone when a classification changes nothing in it", async () => {
+    const incident = await created("manager", {
+      people: [affected(6, { died: true })],
+      occurredAt: ago(HOUR),
+    });
+    const death = incident.classifier?.notifications.find((n) => n.kind === "cqc_reg16_death");
+    await as("manager", `/v1/incidents/${incident.id}/classifier`, {
+      method: "POST",
+      body: { answers: [{ key: "police.involved", value: "no" }] },
+    });
+    const after = await json<StatutoryNotificationDetail>(
+      await as("manager", `/v1/notifications/statutory/${death?.id}`),
+    );
+    expect(after.version).toBe(death?.version);
   });
 });
 
