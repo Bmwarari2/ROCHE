@@ -173,7 +173,7 @@ function IddsiChoice({
         <TextField
           name="overrideReason"
           label={t("care.charts.overrideReason")}
-          hint={`${t("care.charts.mismatchHint")} ${t("care.charts.overrideHint")}`}
+          hint={t("care.charts.mismatchHint")}
           maxLength={300}
         />
       ) : null}
