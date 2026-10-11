@@ -1,0 +1,24 @@
+{
+  "name": "@harbour/i18n",
+  "version": "0.0.0",
+  "private": true,
+  "description": "en-GB and cy (Welsh) message catalogues in ICU message format",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./messages/en-GB.json": "./src/messages/en-GB.json",
+    "./messages/cy.json": "./src/messages/cy.json"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "intl-messageformat": "^12.1.3"
+  },
+  "devDependencies": {
+    "@harbour/config": "workspace:*",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.11"
+  }
+}

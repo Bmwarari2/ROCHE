@@ -1,0 +1,23 @@
+{
+  "name": "@harbour/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@harbour/config": "workspace:*",
+    "@types/node": "^22.15.0",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.11"
+  },
+  "description": "Zod schemas shared by the Harbour API, web and mobile apps (OpenAPI 3.1 source)",
+  "dependencies": {
+    "zod": "^4.6.5"
+  }
+}
