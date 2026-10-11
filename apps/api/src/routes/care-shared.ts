@@ -1,7 +1,10 @@
-import type { PersonRecordKind } from "@harbour/domain";
+import type { CareTrigger, PersonRecordKind } from "@harbour/domain";
 import { z } from "@hono/zod-openapi";
-import type { TenantAccess } from "../http/context";
+import type { Context } from "hono";
+import { auditInTx } from "../http/audit";
+import { type AppEnv, type TenantAccess, withTenant } from "../http/context";
 import { problems } from "../http/problem";
+import { CareEventAfterExit, loadPerson, raiseLateEntryReview } from "../services/people";
 
 /**
  * Helpers shared by the point-of-care routes (care.ts, care-plans.ts and care-records.ts): the
@@ -107,4 +110,58 @@ export function requireOpenRecord(person: { closed: boolean }) {
   if (person.closed) {
     throw problems.invalid("This person's record is closed; only post-event notes can be added.");
   }
+}
+
+/**
+ * Runs a care write. A care event timed after the person left, died or went away (beyond the
+ * clock tolerance) is refused, so the device keeps it to resolve, and one review task goes to the
+ * nurse in charge in its own transaction, so it is not lost with the refusal (people.md rule 3;
+ * HZ-006).
+ */
+export async function withLateEntryReview<T>(
+  c: Context<AppEnv>,
+  write: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await write();
+  } catch (error) {
+    if (error instanceof CareEventAfterExit) {
+      const access = c.get("access");
+      await withTenant(c, async (tx) => {
+        const p = await loadPerson(tx, error.personId);
+        const taskId = await raiseLateEntryReview(tx, p, new Date());
+        await auditInTx(tx, access, {
+          action: "care.entry.after_exit",
+          outcome: "denied",
+          resourceType: "person",
+          resourceId: p.id,
+          reason: "occurred_after_status_change",
+          scope: { reviewTaskId: taskId },
+          requestId: c.get("requestId"),
+        });
+      });
+    }
+    throw error;
+  }
+}
+
+/** Follow-ups that stay relevant whoever is left to act: the incident and safeguarding prompts. */
+const SAFETY_TASKS = new Set(["incident_report", "safeguarding_decision_guide"]);
+
+/**
+ * The follow-ups an entry recorded after a status change still raises (people.md rule 3): before
+ * a move to hospital or on leave, the urgent alert to the nurse in charge (the result may matter
+ * to the hospital) and the safety prompts; after a discharge or death, the safety prompts only.
+ * Point-of-care follow-ups (repeat observations, rescreens) are not raised for someone not here.
+ */
+export function triggersAfterChange(
+  triggers: readonly CareTrigger[],
+  recordedAfterExit: boolean,
+  status: string,
+): CareTrigger[] {
+  if (!recordedAfterExit) return [...triggers];
+  const away = status === "on_leave" || status === "in_hospital";
+  return triggers.filter(
+    (t) => (t.kind === "urgent_alert" && away) || (t.kind === "task" && SAFETY_TASKS.has(t.task)),
+  );
 }

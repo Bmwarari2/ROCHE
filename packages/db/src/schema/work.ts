@@ -29,14 +29,17 @@ import { location, tenantUser } from "./platform";
 /**
  * Why the people lifecycle stopped a task or a series, as a code to match on (the wording in
  * `status_reason` is for people): rounds paused while the person is away, tasks and series ended
- * at a discharge or death, and the exit task of an exit recorded in error or a planned exit
- * cancelled. A correction reopens exactly what was stopped with its code (people.md rule 2).
+ * at a discharge or death, the exit task of an exit recorded in error or a planned exit
+ * cancelled, and rounds whose window passed before a late-recorded return or correction (kept
+ * cancelled and reviewed). A correction or return reopens exactly what was stopped with its code
+ * (people.md rule 2).
  */
 export const TASK_STOP_CODES = [
   "paused_while_away",
   "ended_at_exit",
   "exit_recorded_in_error",
   "planned_exit_cancelled",
+  "missed_before_return_recorded",
 ] as const;
 export type TaskStopCode = (typeof TASK_STOP_CODES)[number];
 const TASK_STOP_CODES_SQL = sql.raw(TASK_STOP_CODES.map((c) => `'${c}'`).join(", "));

@@ -5,8 +5,8 @@ ALTER TABLE "task" ADD COLUMN "cancel_code" text;--> statement-breakpoint
 ALTER TABLE "task" ADD COLUMN "evidence_after_close" boolean DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE "task_series" ADD COLUMN "inactive_code" text;--> statement-breakpoint
 ALTER TABLE "person" ADD CONSTRAINT "person_allergy_confirmed_by_fk" FOREIGN KEY ("tenant_id","allergy_status_confirmed_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "task" ADD CONSTRAINT "task_cancel_code" CHECK (cancel_code IS NULL OR (status = 'cancelled' AND cancel_code IN ('paused_while_away', 'ended_at_exit', 'exit_recorded_in_error', 'planned_exit_cancelled')));--> statement-breakpoint
-ALTER TABLE "task_series" ADD CONSTRAINT "task_series_inactive_code" CHECK (inactive_code IS NULL OR (NOT active AND inactive_code IN ('paused_while_away', 'ended_at_exit', 'exit_recorded_in_error', 'planned_exit_cancelled')));--> statement-breakpoint
+ALTER TABLE "task" ADD CONSTRAINT "task_cancel_code" CHECK (cancel_code IS NULL OR (status = 'cancelled' AND cancel_code IN ('paused_while_away', 'ended_at_exit', 'exit_recorded_in_error', 'planned_exit_cancelled', 'missed_before_return_recorded')));--> statement-breakpoint
+ALTER TABLE "task_series" ADD CONSTRAINT "task_series_inactive_code" CHECK (inactive_code IS NULL OR (NOT active AND inactive_code IN ('paused_while_away', 'ended_at_exit', 'exit_recorded_in_error', 'planned_exit_cancelled', 'missed_before_return_recorded')));--> statement-breakpoint
 
 -- Slice 8 review fixes (people.md sections 4 and 7).
 --

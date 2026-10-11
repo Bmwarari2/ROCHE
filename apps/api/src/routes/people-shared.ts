@@ -1,6 +1,7 @@
-import type { Transaction } from "@harbour/db";
+import { document, type Transaction } from "@harbour/db";
 import type { Permission } from "@harbour/domain";
 import { z } from "@hono/zod-openapi";
+import { eq } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx, writeAudit } from "../http/audit";
 import { type AppEnv, requirePermission, type TenantAccess } from "../http/context";
@@ -23,6 +24,18 @@ import { stepUpFresh } from "./workflow-shared";
  */
 
 export const PersonParam = z.object({ id: z.uuid() });
+
+/**
+ * Rooms and locations carry only the tenant policy in the database, so the API checks that the
+ * caller works there: tenant-wide scope, or one of the caller's locations (HZ-011). Anything else
+ * reads as not found.
+ */
+export function requireLocationInScope(access: TenantAccess, locationId: string): void {
+  const { scope, locationIds } = access.context;
+  if (scope === "tenant") return;
+  if (scope === "locations" && locationIds.includes(locationId)) return;
+  throw problems.notFound();
+}
 export const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
 
 export function actorOf(c: Context<AppEnv>): Actor {
@@ -55,6 +68,39 @@ export function audit(
 
 export function dbCode(error: unknown): string | undefined {
   return (error as { code?: string }).code ?? (error as { cause?: { code?: string } }).cause?.code;
+}
+
+/** A document a record cites must be in the same person's documents (never another's). */
+export async function requireOwnDocument(
+  tx: Transaction,
+  personId: string,
+  documentId: string | null | undefined,
+  what: string,
+): Promise<void> {
+  if (!documentId) return;
+  const [found] = await tx
+    .select({ personId: document.personId })
+    .from(document)
+    .where(eq(document.id, documentId));
+  if (found?.personId !== personId) {
+    throw problems.invalid(`The ${what} was not found in this person's documents.`);
+  }
+}
+
+/** Requires a fresh sign-in (step-up) for the action, auditing the refusal. */
+export async function requireStepUp(
+  c: Context<AppEnv>,
+  access: TenantAccess,
+  action: string,
+): Promise<void> {
+  if (stepUpFresh(c)) return;
+  await writeAudit(c.get("services").appPool, access, {
+    action,
+    outcome: "denied",
+    reason: "step_up_required",
+    requestId: c.get("requestId"),
+  });
+  throw problems.stepUp();
 }
 
 /** A foreign key that points nowhere (another person's contact or document) reads as invalid. */

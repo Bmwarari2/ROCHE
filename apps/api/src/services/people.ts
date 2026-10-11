@@ -21,6 +21,7 @@ import {
   roleAssignment,
   room,
   sharingDecision,
+  type TaskStopCode,
   type Transaction,
   task,
   taskSeries,
@@ -66,10 +67,11 @@ import {
   inArray,
   isNotNull,
   isNull,
+  like,
   notInArray,
   or,
 } from "drizzle-orm";
-import { problems } from "../http/problem";
+import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
 import { bringPlanReviewForward } from "./care-planning";
 import { bankHolidays, rateNumber } from "./rates";
@@ -200,20 +202,79 @@ export function exitTime(p: PersonRow): Date {
 }
 
 /**
+ * A care event timed after the person left, died or went away (people.md rule 3, HZ-006): refused,
+ * so the device keeps it under "needs attention", and a review task goes to the nurse in charge
+ * (`raiseLateEntryReview`) rather than the entry being lost.
+ */
+export class CareEventAfterExit extends HttpProblem {
+  constructor(
+    readonly personId: string,
+    message: string,
+  ) {
+    super(
+      422,
+      "care_event_after_exit",
+      "Some details need checking.",
+      `${message} The nurse in charge has a task to review it.`,
+    );
+    this.name = "CareEventAfterExit";
+  }
+}
+
+/**
  * What the person's status allows (people.md rules 1 and 3, care.md rule 12). Returns whether a
- * care event is being accepted after the person left or died.
+ * care event is being accepted after the person left, died or went away: at or before the change,
+ * or within `clockToleranceMinutes` after it (a fast phone clock; rate table
+ * `sync.clock_drift_flag_minutes`).
  */
 export function requireWrite(
   p: PersonRow,
   kind: PersonRecordKind,
   occurredAt: Date | null = null,
+  clockToleranceMinutes = 0,
 ): { readonly recordedAfterExit: boolean } {
   const check = checkPersonRecordWrite(
-    { status: p.status as PersonStatus, statusChangedAt: exitTime(p) },
+    { status: p.status as PersonStatus, statusChangedAt: exitTime(p), clockToleranceMinutes },
     { kind, occurredAt },
   );
-  if (!check.ok) throw problems.invalid(check.message);
+  if (!check.ok) {
+    if (check.careEventAfterChange) throw new CareEventAfterExit(p.id, check.message);
+    throw problems.invalid(check.message);
+  }
   return { recordedAfterExit: check.recordedAfterStatusChange };
+}
+
+/** One open review task for the nurse in charge per person (HZ-006; people.md rule 3). */
+export async function raiseLateEntryReview(tx: Transaction, p: PersonRow, now: Date) {
+  const [open] = await tx
+    .select({ id: task.id })
+    .from(task)
+    .where(
+      and(
+        eq(task.personId, p.id),
+        eq(task.kind, "people.late_entry_review"),
+        inArray(task.status, ["open", "in_progress"]),
+        isNull(task.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (open) return open.id;
+  const [created] = await tx
+    .insert(task)
+    .values({
+      kind: "people.late_entry_review",
+      title: "Review an entry made after the person left or went away",
+      requiredPermission: "care.plan.write",
+      personId: p.id,
+      locationId: p.locationId,
+      sourceType: "person",
+      sourceId: p.id,
+      assigneeRoleKey: "clinical_lead",
+      dueAt: now,
+      priority: "urgent",
+    })
+    .returning({ id: task.id });
+  return created?.id ?? null;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -369,6 +430,11 @@ export async function applyStatusChange(
   if (check.exitKind === "death" && req.exit?.deathExpected === undefined) {
     throw problems.invalid("Say whether the death was expected.");
   }
+  if (check.exitKind === "death" && req.exit?.learningDisabilityOrAutism === undefined) {
+    throw problems.invalid(
+      "Say whether the person had a learning disability or was autistic (for LeDeR).",
+    );
+  }
 
   await recordLifecycleMove(tx, actor, p, req);
   const [updated] = await tx
@@ -388,7 +454,11 @@ export async function applyStatusChange(
   const exitDate = ukIsoDate(req.effectiveAt);
   let exitRecordId: string | null = null;
   let roomLabel: string | null | undefined;
-  for (const effect of check.effects) {
+  // Tasks end before the exit workflow starts, so the exit checklist task is never cancelled.
+  const effects = [...check.effects].sort(
+    (a, b) => Number(b === "cancel_future_tasks") - Number(a === "cancel_future_tasks"),
+  );
+  for (const effect of effects) {
     if (ADMISSION_EFFECTS.has(effect)) continue;
     switch (effect) {
       case "start_pre_admission_assessment":
@@ -398,7 +468,15 @@ export async function applyStatusChange(
         await pauseRounds(tx, p.id, req.effectiveAt);
         break;
       case "resume_rounds":
-        await resumeRounds(tx, p.id, now);
+        // A correction brings back what the exit stopped; a return what the absence paused,
+        // from when the person actually came back.
+        await resumeRounds(
+          tx,
+          p,
+          check.correction ? exitTime(p) : req.effectiveAt,
+          now,
+          check.correction,
+        );
         break;
       case "cancel_future_tasks":
         await cancelFutureTasks(
@@ -429,7 +507,7 @@ export async function applyStatusChange(
         roomLabel = await reopenRecord(tx, p, from, now);
         break;
       case "start_return_from_hospital_checks":
-        await recordHospitalReturn(tx, p, req.effectiveAt);
+        await raiseReturnChecks(tx, p, req.effectiveAt, now);
         break;
       case "raise_care_plan_review_on_change":
         await raiseReviewOnReturn(tx, p, req.effectiveAt, now);
@@ -505,10 +583,17 @@ async function ensureAssessment(tx: Transaction, personId: string, req: StatusCh
 /** Rounds wait while the person is away; tasks cancelled here are reopened on return. */
 export const PAUSED_ROUNDS_REASON = "Paused while the person is away";
 
+export const MISSED_ROUNDS_REASON =
+  "Missed: its time had passed when the return or correction was recorded";
+
 async function pauseRounds(tx: Transaction, personId: string, from: Date) {
   await tx
     .update(task)
-    .set({ status: "cancelled", statusReason: PAUSED_ROUNDS_REASON })
+    .set({
+      status: "cancelled",
+      statusReason: PAUSED_ROUNDS_REASON,
+      cancelCode: "paused_while_away",
+    })
     .where(
       and(
         eq(task.personId, personId),
@@ -520,52 +605,154 @@ async function pauseRounds(tx: Transaction, personId: string, from: Date) {
     );
 }
 
-async function resumeRounds(tx: Transaction, personId: string, now: Date) {
-  await tx
-    .update(task)
-    .set({ status: "open", statusReason: null })
+/**
+ * Brings back the tasks the lifecycle stopped, by their code (people.md rules 1 and 2): after a
+ * return, the rounds paused while the person was away and due from when they came back; after a
+ * correction, also everything the exit ended, and the series start again. A task still in its
+ * window reopens. One whose window passed before the return or correction was recorded stays
+ * cancelled, coded as missed, and one review task goes to the nurse in charge (HZ-003, HZ-006).
+ */
+async function resumeRounds(
+  tx: Transaction,
+  p: PersonRow,
+  since: Date,
+  now: Date,
+  correction: boolean,
+) {
+  const codes: TaskStopCode[] = correction
+    ? ["paused_while_away", "ended_at_exit"]
+    : ["paused_while_away"];
+  const stopped = await tx
+    .select({ id: task.id, dueAt: task.dueAt, windowEnd: task.windowEnd })
+    .from(task)
     .where(
       and(
-        eq(task.personId, personId),
+        eq(task.personId, p.id),
         eq(task.status, "cancelled"),
-        eq(task.statusReason, PAUSED_ROUNDS_REASON),
-        gte(task.dueAt, now),
+        inArray(task.cancelCode, codes),
+        gte(task.dueAt, since),
+        isNull(task.deletedAt),
       ),
     );
+  const live = stopped.filter((t) => (t.windowEnd ?? t.dueAt).getTime() >= now.getTime());
+  const missed = stopped.filter((t) => !live.includes(t));
+  if (live.length > 0) {
+    await tx
+      .update(task)
+      .set({ status: "open", statusReason: null, cancelCode: null })
+      .where(
+        inArray(
+          task.id,
+          live.map((t) => t.id),
+        ),
+      );
+  }
+  if (missed.length > 0) {
+    await tx
+      .update(task)
+      .set({ statusReason: MISSED_ROUNDS_REASON, cancelCode: "missed_before_return_recorded" })
+      .where(
+        inArray(
+          task.id,
+          missed.map((t) => t.id),
+        ),
+      );
+    await raiseMissedRoundsReview(tx, p, now);
+  }
+  if (correction) {
+    await tx
+      .update(taskSeries)
+      .set({ active: true, inactiveCode: null })
+      .where(and(eq(taskSeries.personId, p.id), eq(taskSeries.inactiveCode, "ended_at_exit")));
+  }
   const series = await tx
     .select()
     .from(taskSeries)
     .where(
-      and(
-        eq(taskSeries.personId, personId),
-        eq(taskSeries.active, true),
-        isNull(taskSeries.deletedAt),
-      ),
+      and(eq(taskSeries.personId, p.id), eq(taskSeries.active, true), isNull(taskSeries.deletedAt)),
     );
   for (const s of series) await materialiseSeries(tx, s, now);
+  return { reopened: live.length, missed: missed.length };
+}
+
+/** One open review of missed rounds for the nurse in charge per person. */
+async function raiseMissedRoundsReview(tx: Transaction, p: PersonRow, now: Date) {
+  const [open] = await tx
+    .select({ id: task.id })
+    .from(task)
+    .where(
+      and(
+        eq(task.personId, p.id),
+        eq(task.kind, "people.missed_rounds_review"),
+        inArray(task.status, ["open", "in_progress"]),
+        isNull(task.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (open) return;
+  await tx.insert(task).values({
+    kind: "people.missed_rounds_review",
+    title: "Review rounds missed before a return or correction was recorded",
+    requiredPermission: "care.plan.write",
+    personId: p.id,
+    locationId: p.locationId,
+    sourceType: "person",
+    sourceId: p.id,
+    assigneeRoleKey: "clinical_lead",
+    dueAt: now,
+    priority: "urgent",
+  });
 }
 
 /**
- * After a discharge or death: tasks due after the exit are cancelled and the person's recurring
- * tasks end. Tasks due before stay open, so an entry recorded offline before the exit can still
- * complete its task when it uploads (HZ-006).
+ * Task kinds that stay open when the person leaves or dies: safety and legal follow-ups (an
+ * incident report, the safeguarding decision, DoLS) as well as every `safety.*`, `people.*` and
+ * manual task. Rounds (any series task) and point-of-care tasks (`care.*`, `medicines.*`) end.
+ */
+export const KEPT_AT_EXIT_TASK_KINDS = [
+  "care.incident_report",
+  "care.safeguarding_decision_guide",
+  "care.dols.expiring",
+] as const;
+
+const endsAtExit = () =>
+  or(
+    isNotNull(task.seriesId),
+    and(
+      or(like(task.kind, "care.%"), like(task.kind, "medicines.%")),
+      notInArray(task.kind, [...KEPT_AT_EXIT_TASK_KINDS]),
+    ),
+  );
+
+/**
+ * After a discharge or death: rounds and point-of-care tasks due after the exit are cancelled
+ * (coded `ended_at_exit`) and the person's series stop. Safety and legal tasks and the exit
+ * checklist task stay. Tasks due before stay open, so an entry recorded offline before the exit
+ * can still complete its task when it uploads (HZ-006).
  */
 async function cancelFutureTasks(tx: Transaction, personId: string, at: Date, reason: string) {
   await tx
     .update(task)
-    .set({ status: "cancelled", statusReason: reason })
+    .set({ status: "cancelled", statusReason: reason, cancelCode: "ended_at_exit" })
     .where(
       and(
         eq(task.personId, personId),
         inArray(task.status, ["open", "in_progress"]),
         gt(task.dueAt, at),
         isNull(task.deletedAt),
+        endsAtExit(),
       ),
     );
   await tx
     .update(taskSeries)
-    .set({ active: false, endsOn: ukIsoDate(at) })
-    .where(and(eq(taskSeries.personId, personId), eq(taskSeries.active, true)));
+    .set({ active: false, inactiveCode: "ended_at_exit" })
+    .where(
+      and(
+        eq(taskSeries.personId, personId),
+        eq(taskSeries.active, true),
+        notInArray(taskSeries.kind, [...KEPT_AT_EXIT_TASK_KINDS]),
+      ),
+    );
 }
 
 /**
@@ -682,16 +869,23 @@ async function reopenRecord(
   const today = ukIsoDate(now);
   const periods = await occupancyRows(tx, { personId: p.id });
   const latest = periods.at(-1);
-  if (from === "deceased") {
-    if (latest && latest.toDate === null) {
-      await tx
-        .update(room)
-        .set({ status: "available" })
-        .where(and(eq(room.id, latest.roomId), eq(room.status, "awaiting_clearance")));
-    }
+  if (from === "deceased" && latest && latest.toDate === null) {
+    await tx
+      .update(room)
+      .set({ status: "available" })
+      .where(and(eq(room.id, latest.roomId), eq(room.status, "awaiting_clearance")));
     return undefined;
   }
-  const exitDate = p.dischargedAt ? ukIsoDate(p.dischargedAt) : null;
+  // A discharge, or a death whose room was already cleared: the bed is offered back if nobody
+  // has it since; otherwise the header shows no room until a manager moves the person (HZ-001).
+  const exitDate =
+    from === "deceased"
+      ? p.deceasedAt
+        ? ukIsoDate(p.deceasedAt)
+        : null
+      : p.dischargedAt
+        ? ukIsoDate(p.dischargedAt)
+        : null;
   await tx
     .update(placement)
     .set({ endDate: null, endReason: null })
@@ -769,6 +963,8 @@ export async function exitContextFor(
           ...(details?.deathExpected !== undefined ? { deathExpected: details.deathExpected } : {}),
         }
       : {}),
+    // An explicit answer for a death (applyStatusChange refuses one without it); LeDeR is about
+    // deaths only, so a discharge or transfer that does not say records "no".
     learningDisabilityOrAutism: details?.learningDisabilityOrAutism ?? false,
     dolsInPlace: await dolsInForce(tx, p.id, now),
     homeIsDwpAppointee: details?.homeIsDwpAppointee ?? false,
@@ -1053,7 +1249,11 @@ async function cancelExit(
     .where(eq(exitRecord.id, open.id));
   await tx
     .update(task)
-    .set({ status: "cancelled", statusReason: "The exit was recorded in error" })
+    .set({
+      status: "cancelled",
+      statusReason: "The exit was recorded in error",
+      cancelCode: "exit_recorded_in_error",
+    })
     .where(
       and(
         eq(task.sourceId, open.id),
@@ -1070,8 +1270,17 @@ export { WorkflowMoveRefused };
 // Return from hospital (rule 10) and reviews on change (rule 8)
 // ------------------------------------------------------------------------------------------------
 
-/** Marks the open transfer returned and raises the return checks (hospitals change things). */
-async function recordHospitalReturn(tx: Transaction, p: PersonRow, at: Date) {
+/** The task kind that carries one check after a return from hospital. */
+export const returnCheckTaskKind = (key: string) => `people.return_check.${key}`;
+
+/**
+ * Raises the checks after a return from hospital (hospitals change medicines, allergies,
+ * resuscitation decisions and IDDSI levels), whether or not the person went with a transfer pack:
+ * one task per check for the nurse in charge, due `people.return_checks_due_hours` after the
+ * return and escalated by the task engine when overdue. With a transfer record, it is marked
+ * returned and carries the checks too.
+ */
+async function raiseReturnChecks(tx: Transaction, p: PersonRecord, at: Date, now: Date) {
   const [open] = await tx
     .select()
     .from(hospitalTransfer)
@@ -1082,7 +1291,6 @@ async function recordHospitalReturn(tx: Transaction, p: PersonRow, at: Date) {
         isNull(hospitalTransfer.deletedAt),
       ),
     );
-  if (!open) return null;
   const property = await tx
     .select({
       id: propertyItem.id,
@@ -1096,19 +1304,43 @@ async function recordHospitalReturn(tx: Transaction, p: PersonRow, at: Date) {
   const checks = returnFromHospitalChecks(
     property.map((i) => ({ ...i, status: i.status as "held" })),
   );
-  await tx
-    .update(hospitalTransfer)
-    .set({
-      returnedAt: at < open.leftAt ? open.leftAt : at,
-      returnChecks: Object.fromEntries(
-        checks.map((c) => [
-          c.key,
-          { title: c.title, hazardIds: c.hazardIds, doneBy: null, doneAt: null },
-        ]),
-      ),
-    })
-    .where(eq(hospitalTransfer.id, open.id));
-  return open.id;
+  if (open) {
+    await tx
+      .update(hospitalTransfer)
+      .set({
+        returnedAt: at < open.leftAt ? open.leftAt : at,
+        returnChecks: Object.fromEntries(
+          checks.map((c) => [
+            c.key,
+            { title: c.title, hazardIds: c.hazardIds, doneBy: null, doneAt: null },
+          ]),
+        ),
+      })
+      .where(eq(hospitalTransfer.id, open.id));
+  }
+  const dueHours = await rateNumber(
+    tx,
+    p.tenantId,
+    PEOPLE_RATE_KEYS.returnChecksDueHours,
+    p.nation,
+    ukIsoDate(at),
+  );
+  const dueAt = new Date(at.getTime() + dueHours * 3_600_000);
+  for (const check of checks) {
+    await tx.insert(task).values({
+      kind: returnCheckTaskKind(check.key),
+      title: check.title,
+      requiredPermission: "care.plan.write",
+      personId: p.id,
+      locationId: p.locationId,
+      sourceType: open ? "hospital_transfer" : "person",
+      sourceId: open?.id ?? p.id,
+      assigneeRoleKey: "clinical_lead",
+      dueAt: dueAt.getTime() < now.getTime() ? now : dueAt,
+      priority: check.hazardIds.length > 0 ? "urgent" : "routine",
+    });
+  }
+  return open?.id ?? null;
 }
 
 /** A return from hospital is a change that needs the care plan reviewed (rule 8, HZ-008). */
@@ -1297,6 +1529,7 @@ export async function raisePeopleReviews(
   tx: Transaction,
   tenantId: string,
   now: Date,
+  onUnavailable: (locationIds: readonly string[]) => void = () => {},
 ): Promise<number> {
   const people = await tx
     .select({ id: person.id })
@@ -1305,10 +1538,14 @@ export async function raisePeopleReviews(
       and(isNull(person.deletedAt), inArray(person.status, ["active", "on_leave", "in_hospital"])),
     );
   let raised = 0;
+  const unavailable = new Set<string>();
   for (const { id } of people) {
     const p = await loadPerson(tx, id);
     const { schedule, available } = await reviewScheduleFor(tx, tenantId, p, now);
-    if (!available) continue;
+    if (!available) {
+      unavailable.add(p.locationId);
+      continue;
+    }
     for (const item of schedule.items) {
       if (item.state !== "due" && item.state !== "overdue") continue;
       if (item.kind === "care_plan_review_on_change") {
@@ -1399,6 +1636,28 @@ export async function raisePeopleReviews(
       raised++;
     }
   }
+  // A nation with no review figures yet (people.md section 11) fails loudly: the Registered
+  // Manager is told once a day that reviews must be tracked by hand, and the job logs it.
+  for (const locationId of unavailable) {
+    for (const recipient of await registeredManagersAt(tx, locationId)) {
+      await tx
+        .insert(notification)
+        .values({
+          recipientTenantUserId: recipient,
+          kind: "people.review.unavailable",
+          severity: "warning",
+          title: "Reviews are not being scheduled for this home",
+          body: "The rate table has no review figures for this nation yet. Track reviews by hand until it does.",
+          link: "/settings/rates",
+          channels: ["in_app", "email"],
+          sourceType: "location",
+          sourceId: locationId,
+          dedupeKey: `people.review.unavailable:${locationId}:${ukIsoDate(now)}:${recipient}`,
+        })
+        .onConflictDoNothing();
+    }
+  }
+  if (unavailable.size > 0) onUnavailable([...unavailable]);
   return raised;
 }
 

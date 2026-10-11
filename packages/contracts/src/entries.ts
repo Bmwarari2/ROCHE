@@ -36,6 +36,15 @@ export const entryOutput = {
    * HZ-006); show it as recorded after the exit.
    */
   recordedAfterExit: z.boolean(),
+  /**
+   * On the response to an entry that named a `taskId`: whether it completed the task, or was
+   * kept and linked to a task that had already been cancelled (for example when the person went
+   * to hospital before the upload; the task stays cancelled), or already closed. The entry is
+   * never refused because of the task (HZ-006).
+   */
+  taskOutcome: z
+    .enum(["completed", "task_cancelled", "task_already_closed", "not_linked"])
+    .optional(),
   supersedesId: uuid.nullable(),
   correctionReason: z.string().nullable(),
   /** True when a later entry supersedes this one. */

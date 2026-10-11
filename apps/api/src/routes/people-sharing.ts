@@ -31,7 +31,7 @@ import {
   notFoundResponse,
   security,
 } from "./openapi";
-import { audit, invalidOnForeignKey, PersonParam } from "./people-shared";
+import { audit, invalidOnForeignKey, PersonParam, requireOwnDocument } from "./people-shared";
 
 /**
  * Sharing decisions (people.md rule 13; HZ-022; Caldicott principle 7). Every section of a
@@ -192,6 +192,12 @@ export const peopleSharingRouter = createRouter()
             [...new Set(check.problems.map((pr) => SHARING_MESSAGES[pr]))].join(" "),
           );
         }
+        await requireOwnDocument(
+          tx,
+          id,
+          body.authority?.evidenceDocumentId,
+          "evidence of the authority",
+        );
         const [row] = await tx
           .insert(sharingDecision)
           .values({

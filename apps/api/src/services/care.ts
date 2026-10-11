@@ -388,9 +388,15 @@ export async function raiseCareTriggers(
   return raised;
 }
 
+/** What happened to the task an entry named (care.md rule 7; HZ-006). */
+export type TaskOutcome = "completed" | "task_cancelled" | "task_already_closed" | "not_linked";
+
 /**
- * Completes the task an entry answers (for example the 02:00 turn) with the entry as evidence, in
- * the same transaction. The caller must be the assignee or hold the task's permission.
+ * Completes the task an entry answers, with the entry as evidence. The entry is never refused
+ * because of the task (HZ-006): an entry recorded offline before the task was cancelled (the
+ * person went to hospital, say) is linked to it and flagged, and the task stays cancelled; a task
+ * already done or skipped is left alone; a task the user may not complete is not linked. A task
+ * for another person is still refused: that is a wrong-person entry (HZ-001).
  */
 export async function completeTaskWithEvidence(
   tx: Transaction,
@@ -403,7 +409,7 @@ export async function completeTaskWithEvidence(
     evidenceId: string;
     now: Date;
   },
-): Promise<void> {
+): Promise<TaskOutcome> {
   const [row] = await tx
     .select()
     .from(task)
@@ -413,13 +419,26 @@ export async function completeTaskWithEvidence(
   const allowed =
     row.assigneeTenantUserId === input.actorTenantUserId ||
     (isPermission(row.requiredPermission) && input.actorPermissions.has(row.requiredPermission));
-  if (!allowed) throw problems.forbidden();
+  if (!allowed) return "not_linked";
+  if (row.status === "cancelled") {
+    if (row.evidenceId === null) {
+      await tx
+        .update(task)
+        .set({
+          evidenceType: input.evidenceType,
+          evidenceId: input.evidenceId,
+          evidenceAfterClose: true,
+        })
+        .where(and(eq(task.id, row.id), eq(task.version, row.version)));
+    }
+    return "task_cancelled";
+  }
   const check = checkTaskTransition(row.status as TaskStatus, {
     to: "done",
     evidenceId: input.evidenceId,
     evidenceRequired: row.evidenceRequired,
   });
-  if (!check.ok) throw problems.invalid(check.message);
+  if (!check.ok) return "task_already_closed";
   await tx
     .update(task)
     .set({
@@ -430,4 +449,5 @@ export async function completeTaskWithEvidence(
       evidenceId: input.evidenceId,
     })
     .where(and(eq(task.id, row.id), eq(task.version, row.version)));
+  return "completed";
 }

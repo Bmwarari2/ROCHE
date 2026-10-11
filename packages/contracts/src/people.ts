@@ -69,7 +69,8 @@ export const ExitDetails = z
     receivingProviderOdsCode: text(20).optional(),
     reason: text(1000).optional(),
     /** Flags the exit checklist needs that the record cannot tell (people.md rule 12). */
-    learningDisabilityOrAutism: z.boolean().default(false),
+    /** Needed for a death (LeDeR): an explicit answer, never assumed. */
+    learningDisabilityOrAutism: z.boolean().optional(),
     homeIsDwpAppointee: z.boolean().default(false),
     holdsResidentsMoney: z.boolean().default(false),
     holdsDeposit: z.boolean().default(false),
@@ -977,11 +978,43 @@ export const TransferPack = z
     /** Safety-critical sections not recorded: printed as "not recorded" on the first page. */
     missingCritical: z.array(z.string()),
     missingExpected: z.array(z.string()),
+    /**
+     * Recorded but needing a check, printed on the first page: resuscitation records that disagree
+     * (acknowledged at hand-over), an overdue resuscitation review, a medicines list from before
+     * admission, a photo that cannot be printed, no known allergies without a confirmer.
+     */
+    attention: z
+      .array(
+        z.object({
+          key: z.string(),
+          code: z.enum([
+            "resuscitation_conflict",
+            "resuscitation_review_overdue",
+            "medicines_need_checking",
+            "photo_not_printable",
+            "allergy_confirmation_not_recorded",
+          ]),
+          message: z.string(),
+          acknowledge: z.boolean(),
+          onDate: isoDate.nullable(),
+        }),
+      )
+      .optional(),
     itemsLeftBehind: z.array(z.record(z.string(), z.unknown())),
     complete: z.boolean(),
   })
   .meta({ id: "TransferPack" });
 export type TransferPack = z.infer<typeof TransferPack>;
+
+export const PreviewTransferPack = z
+  .object({
+    /** Why the person is going to hospital (clinical free text: in the body, never the URL). */
+    reason: text(2000).optional(),
+    /** Glasses, hearing aids, dentures and walking aids going with the person. */
+    sendItemIds: z.array(uuid).max(50).default([]),
+  })
+  .meta({ id: "PreviewTransferPack" });
+export type PreviewTransferPack = z.infer<typeof PreviewTransferPack>;
 
 export const CreateHospitalTransfer = z
   .object({
@@ -1023,6 +1056,9 @@ export const HospitalTransferOut = z
         hazardIds: z.array(z.string()),
         doneBy: uuid.nullable(),
         doneAt: isoDateTime.nullable(),
+        /** The task that carries the check (owner role, due time, escalation). */
+        taskId: uuid.nullable().optional(),
+        dueAt: isoDateTime.nullable().optional(),
       }),
     ),
     version: z.number().int(),

@@ -8,7 +8,7 @@ import { breakGlassReportWeek, previousBreakGlassReportWeek, ukDayBounds } from 
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, eq, isNull } from "drizzle-orm";
 import { requirePermission, withTenant } from "../http/context";
-import { problems } from "../http/problem";
+import { HttpProblem, problems } from "../http/problem";
 import {
   conflictResponse,
   createRouter,
@@ -64,10 +64,14 @@ export const breakGlassReportRouter = createRouter()
         ? breakGlassReportWeek(ukDayBounds(day).startsAt)
         : previousBreakGlassReportWeek(new Date());
       const items = await withTenant(c, async (tx) => {
-        const rows = await tx
-          .select()
-          .from(breakGlassWeeklyReport)
-          .where(eq(breakGlassWeeklyReport.weekStart, week.start));
+        // Row-level security limits the rows; the API checks the locations again (ADR-0002).
+        const { scope, locationIds } = access.context;
+        const rows = (
+          await tx
+            .select()
+            .from(breakGlassWeeklyReport)
+            .where(eq(breakGlassWeeklyReport.weekStart, week.start))
+        ).filter((r) => scope === "tenant" || locationIds.includes(r.locationId));
         await audit(c, tx, access, {
           action: "platform.break_glass_report.view",
           resourceType: "break_glass_weekly_report",
@@ -121,6 +125,22 @@ export const breakGlassReportRouter = createRouter()
             ),
           );
         if (!original) throw problems.notFound();
+        const { scope, locationIds } = access.context;
+        if (scope !== "tenant" && !locationIds.includes(original.locationId)) {
+          throw problems.notFound();
+        }
+        // Nobody reviews a report that flags their own use of break-glass.
+        const flagged = (
+          (original.summary as { flagged?: { tenantUserId: string | null }[] }).flagged ?? []
+        ).some((f) => f.tenantUserId === access.tenantUserId);
+        if (flagged) {
+          throw new HttpProblem(
+            403,
+            "separation_of_duties",
+            "Someone else must review this report.",
+            "This report flags your own use of break-glass access, so another reviewer records the review.",
+          );
+        }
         const [row] = await tx
           .insert(breakGlassWeeklyReport)
           .values({

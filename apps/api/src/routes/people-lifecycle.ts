@@ -92,6 +92,7 @@ import {
   iso,
   PersonParam,
   requireAnyPermission,
+  requireLocationInScope,
 } from "./people-shared";
 
 /**
@@ -567,14 +568,15 @@ export const peopleLifecycleRouter = createRouter()
         const p = await loadPerson(tx, id, true);
         requireVersion(p.version, body.version);
         requireWrite(p, "demographics");
-        const confirmed = body.status === "none_identified";
+        // Who recorded the needs, or confirmed there are none, and when (HZ-023; printed in the
+        // transfer pack): set on every change, never taken from the last edit of the person.
         const [updated] = await tx
           .update(person)
           .set({
             communicationNeeds: body.needs,
             communicationNeedsStatus: body.status,
-            communicationNeedsConfirmedBy: confirmed ? access.tenantUserId : null,
-            communicationNeedsConfirmedAt: confirmed ? now : null,
+            communicationNeedsConfirmedBy: access.tenantUserId,
+            communicationNeedsConfirmedAt: now,
           })
           .where(and(eq(person.id, id), eq(person.version, body.version)))
           .returning({ id: person.id });
@@ -1064,6 +1066,7 @@ export const peopleLifecycleRouter = createRouter()
           if (found.locationId !== svc.locationId) {
             throw problems.invalid("The room is not at the service's location.");
           }
+          requireLocationInScope(access, found.locationId);
           targetRoom = found;
           const periods = await occupancyRows(tx, { roomIds: [found.id] });
           const own = await occupancyRows(tx, { personId: id });
@@ -1241,6 +1244,12 @@ export const peopleLifecycleRouter = createRouter()
         requireWrite(p, "room_move");
         const [target] = await tx.select().from(room).where(eq(room.id, body.roomId));
         if (!target || target.deletedAt) throw problems.invalid("The room was not found.");
+        // The room must be at a location the caller works at (rooms have only the tenant policy).
+        try {
+          requireLocationInScope(access, target.locationId);
+        } catch {
+          throw problems.invalid("The room was not found.");
+        }
         const own = await occupancyRows(tx, { personId: id });
         const inRoom = await occupancyRows(tx, { roomIds: [target.id] });
         const periods = [...own, ...inRoom.filter((r) => !own.some((o) => o.id === r.id))];
@@ -1331,6 +1340,17 @@ export const peopleLifecycleRouter = createRouter()
           .from(location)
           .where(eq(location.id, id));
         if (!loc) throw problems.notFound();
+        // A care worker (assigned scope) sees the board of a home where they care for someone.
+        if (access.context.scope === "assigned") {
+          const [anyone] = await tx
+            .select({ id: person.id })
+            .from(person)
+            .where(and(eq(person.locationId, id), isNull(person.deletedAt)))
+            .limit(1);
+          if (!anyone) throw problems.notFound();
+        } else {
+          requireLocationInScope(access, id);
+        }
         const rooms = await tx
           .select()
           .from(room)
@@ -1420,6 +1440,7 @@ export const peopleLifecycleRouter = createRouter()
       const result = await withTenant(c, async (tx) => {
         const [target] = await tx.select().from(room).where(eq(room.id, roomId));
         if (!target) throw problems.notFound();
+        requireLocationInScope(access, target.locationId);
         requireVersion(target.version, body.version);
         if (target.status !== "awaiting_clearance") {
           throw problems.invalid("This room is not waiting to be cleared.");
@@ -1438,6 +1459,12 @@ export const peopleLifecycleRouter = createRouter()
                     open.map((p) => p.personId),
                   ),
                 );
+        // Someone the caller cannot see is still in the room: a manager who can see them clears it.
+        if (open.some((period) => !occupants.some((o) => o.id === period.personId))) {
+          throw problems.invalid(
+            "Someone outside your access still has a bed in this room. Ask a manager who can see them.",
+          );
+        }
         for (const period of open) {
           const occupant = occupants.find((o) => o.id === period.personId);
           if (occupant?.status !== "deceased" && occupant?.status !== "archived") continue;

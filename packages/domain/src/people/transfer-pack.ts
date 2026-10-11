@@ -147,7 +147,13 @@ export interface TransferCommunicationNeed {
 export type CommunicationStatement =
   | { readonly status: "not_recorded" }
   | { readonly status: "none_identified"; readonly confirmedBy: string; readonly confirmedAt: Date }
-  | { readonly status: "recorded"; readonly needs: readonly TransferCommunicationNeed[] };
+  | {
+      readonly status: "recorded";
+      readonly needs: readonly TransferCommunicationNeed[];
+      /** Who recorded the needs and when, printed with them (not the last edit of the person). */
+      readonly confirmedBy?: string | null;
+      readonly confirmedAt?: Date | null;
+    };
 
 export interface AdvanceCareSummary {
   readonly id: string;

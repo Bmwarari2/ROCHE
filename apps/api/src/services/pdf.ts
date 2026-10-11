@@ -1,9 +1,13 @@
+import { deflateSync, inflateSync } from "node:zlib";
+import { packFont, printable, type TrueTypeFont } from "./pdf-font";
+
 /**
- * A minimal PDF 1.4 writer for printed packs (ADR-0040): A4 pages of text in the standard
- * Helvetica fonts, with an optional JPEG image on the first page. No dependencies and no
- * JavaScript, forms or external references in the output. Text outside the Windows-1252 range is
- * replaced, so callers keep to plain British English. The tagged PDF/UA renderer of ADR-0001
- * (Typst) replaces it when the documents pipeline gains one.
+ * A small PDF 1.7 writer for printed packs (ADR-0040): A4 pages of text in Noto Sans, embedded
+ * as TrueType (Type 0, Identity-H, with a ToUnicode map so text can be copied and read aloud),
+ * and an optional JPEG or PNG photo on the first page. No JavaScript, forms or external
+ * references in the output, and no dependency beyond the font. Lines are wrapped by their
+ * measured width; a line break in the text starts a new line. A character the font lacks prints
+ * as "?" and callers name the affected sections on the first page (`unprintableCharacters`).
  */
 
 export interface PdfLine {
@@ -15,11 +19,10 @@ export interface PdfLine {
   readonly gapBefore?: number;
 }
 
+/** A photo as stored: JPEG or PNG bytes. */
 export interface PdfImage {
-  /** JPEG bytes (baseline or progressive). */
-  readonly jpeg: Uint8Array;
-  readonly width: number;
-  readonly height: number;
+  readonly bytes: Uint8Array;
+  readonly contentType: string;
 }
 
 const PAGE_WIDTH = 595;
@@ -27,60 +30,65 @@ const PAGE_HEIGHT = 842;
 const MARGIN = 50;
 const FOOTER_Y = 30;
 const LINE_FACTOR = 1.3;
-const WRAP_COLUMNS = 92;
 const IMAGE_BOX = { width: 110, height: 140 };
+const TEXT_WIDTH = PAGE_WIDTH - 2 * MARGIN;
 
-const REPLACEMENTS: Record<string, string> = {
-  "‘": "'",
-  "’": "'",
-  "“": '"',
-  "”": '"',
-  "–": "-",
-  "—": "-",
-  "…": "...",
-  " ": " ",
-};
+// ------------------------------------------------------------------------------------------------
+// Measuring and wrapping
+// ------------------------------------------------------------------------------------------------
 
-/** Escapes a string for a PDF literal, keeping to Latin-1 (WinAnsi) characters. */
-function pdfString(text: string): string {
-  let out = "";
-  for (const ch of text) {
-    const replaced = REPLACEMENTS[ch] ?? ch;
-    for (const c of replaced) {
-      const code = c.codePointAt(0) ?? 63;
-      if (c === "\\" || c === "(" || c === ")") out += `\\${c}`;
-      else if (code < 32 || code > 255) out += code === 9 ? " " : "?";
-      else out += c;
-    }
-  }
-  return out;
+function glyphOf(font: TrueTypeFont, ch: string): number {
+  const glyph = font.glyph(ch.codePointAt(0) ?? 0);
+  return glyph !== 0 ? glyph : font.glyph(63); // "?"
 }
 
-/** Splits a line into lines of at most `columns` characters at spaces (no regular expression). */
-export function wrap(text: string, columns = WRAP_COLUMNS): string[] {
-  const words = text.split(" ");
+/** The width of `text` in points at `size`. */
+export function measure(text: string, size: number, font: TrueTypeFont = packFont("regular")) {
+  let units = 0;
+  for (const ch of text) units += font.advance(glyphOf(font, ch));
+  return (units * size) / font.unitsPerEm;
+}
+
+/** Splits text into lines no wider than `width` points, at spaces and at line breaks. */
+export function wrap(
+  text: string,
+  width: number,
+  size = 10,
+  font: TrueTypeFont = packFont("regular"),
+): string[] {
   const lines: string[] = [];
-  let current = "";
-  for (const word of words) {
-    let rest = word;
-    while (rest.length > columns) {
-      if (current) {
-        lines.push(current);
-        current = "";
+  for (const paragraph of printable(text).split("\n")) {
+    let current = "";
+    for (const word of paragraph.split(" ")) {
+      let rest = word;
+      // A word wider than the line is broken by characters.
+      while (measure(rest, size, font) > width) {
+        if (current) {
+          lines.push(current);
+          current = "";
+        }
+        let cut = 1;
+        const chars = [...rest];
+        while (cut < chars.length && measure(chars.slice(0, cut + 1).join(""), size, font) <= width)
+          cut++;
+        lines.push(chars.slice(0, cut).join(""));
+        rest = chars.slice(cut).join("");
       }
-      lines.push(rest.slice(0, columns));
-      rest = rest.slice(columns);
+      const candidate = current ? `${current} ${rest}` : rest;
+      if (measure(candidate, size, font) <= width) current = candidate;
+      else {
+        lines.push(current);
+        current = rest;
+      }
     }
-    if (!current) current = rest;
-    else if (current.length + 1 + rest.length <= columns) current += ` ${rest}`;
-    else {
-      lines.push(current);
-      current = rest;
-    }
+    lines.push(current);
   }
-  lines.push(current);
   return lines;
 }
+
+// ------------------------------------------------------------------------------------------------
+// Images
+// ------------------------------------------------------------------------------------------------
 
 /** Reads a JPEG's pixel size from its start-of-frame marker, or null when it is not a JPEG. */
 export function jpegSize(bytes: Uint8Array): { width: number; height: number } | null {
@@ -101,6 +109,148 @@ export function jpegSize(bytes: Uint8Array): { width: number; height: number } |
   return null;
 }
 
+export interface ImageObject {
+  readonly width: number;
+  readonly height: number;
+  readonly dict: string;
+  readonly data: Uint8Array;
+  readonly mask?: { readonly dict: string; readonly data: Uint8Array };
+}
+
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
+function paeth(a: number, b: number, c: number): number {
+  const p = a + b - c;
+  const pa = Math.abs(p - a);
+  const pb = Math.abs(p - b);
+  const pc = Math.abs(p - c);
+  return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+}
+
+/** Undoes the PNG row filters (8-bit samples, `bpp` bytes per pixel). */
+function unfilter(data: Uint8Array, width: number, height: number, bpp: number): Uint8Array {
+  const stride = width * bpp;
+  const out = new Uint8Array(stride * height);
+  for (let y = 0; y < height; y++) {
+    const filter = data[y * (stride + 1)] ?? 0;
+    const row = y * (stride + 1) + 1;
+    for (let x = 0; x < stride; x++) {
+      const raw = data[row + x] ?? 0;
+      const left = x >= bpp ? (out[y * stride + x - bpp] ?? 0) : 0;
+      const up = y > 0 ? (out[(y - 1) * stride + x] ?? 0) : 0;
+      const upLeft = y > 0 && x >= bpp ? (out[(y - 1) * stride + x - bpp] ?? 0) : 0;
+      const predictor =
+        filter === 1
+          ? left
+          : filter === 2
+            ? up
+            : filter === 3
+              ? (left + up) >> 1
+              : filter === 4
+                ? paeth(left, up, upLeft)
+                : 0;
+      out[y * stride + x] = (raw + predictor) & 0xff;
+    }
+  }
+  return out;
+}
+
+/** A PNG as a PDF image (8-bit, not interlaced), or null when the pack cannot print it. */
+function pngImage(bytes: Uint8Array): ImageObject | null {
+  if (!PNG_SIGNATURE.every((b, i) => bytes[i] === b)) return null;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let width = 0;
+  let height = 0;
+  let depth = 0;
+  let colourType = 0;
+  let interlace = 0;
+  let palette: Uint8Array | null = null;
+  const idat: Uint8Array[] = [];
+  let at = 8;
+  while (at + 8 <= bytes.length) {
+    const length = view.getUint32(at);
+    const type = String.fromCharCode(...bytes.subarray(at + 4, at + 8));
+    const body = bytes.subarray(at + 8, at + 8 + length);
+    if (type === "IHDR") {
+      width = view.getUint32(at + 8);
+      height = view.getUint32(at + 12);
+      depth = body[8] ?? 0;
+      colourType = body[9] ?? 0;
+      interlace = body[12] ?? 0;
+    } else if (type === "PLTE") palette = body;
+    else if (type === "IDAT") idat.push(body);
+    else if (type === "IEND") break;
+    at += 12 + length;
+  }
+  if (width === 0 || height === 0 || depth !== 8 || interlace !== 0 || idat.length === 0) {
+    return null;
+  }
+  const compressed = Buffer.concat(idat.map((c) => Buffer.from(c)));
+  const params = (colours: number) =>
+    `/DecodeParms << /Predictor 15 /Colors ${colours} /BitsPerComponent 8 /Columns ${width} >>`;
+  const base = `/Type /XObject /Subtype /Image /Width ${width} /Height ${height} /BitsPerComponent 8`;
+  if (colourType === 0 || colourType === 2) {
+    const colours = colourType === 0 ? 1 : 3;
+    return {
+      width,
+      height,
+      dict: `<< ${base} /ColorSpace /${colours === 1 ? "DeviceGray" : "DeviceRGB"} /Filter /FlateDecode ${params(colours)}`,
+      data: compressed,
+    };
+  }
+  if (colourType === 3 && palette) {
+    const hex = Buffer.from(palette).toString("hex");
+    return {
+      width,
+      height,
+      dict: `<< ${base} /ColorSpace [/Indexed /DeviceRGB ${palette.length / 3 - 1} <${hex}>] /Filter /FlateDecode ${params(1)}`,
+      data: compressed,
+    };
+  }
+  if (colourType === 4 || colourType === 6) {
+    // Colour with alpha: the colour and the alpha go in separate images (a soft mask).
+    const colours = colourType === 4 ? 1 : 3;
+    const pixels = unfilter(inflateSync(compressed), width, height, colours + 1);
+    const colour = new Uint8Array(width * height * colours);
+    const alpha = new Uint8Array(width * height);
+    for (let p = 0; p < width * height; p++) {
+      for (let k = 0; k < colours; k++)
+        colour[p * colours + k] = pixels[p * (colours + 1) + k] ?? 0;
+      alpha[p] = pixels[p * (colours + 1) + colours] ?? 255;
+    }
+    return {
+      width,
+      height,
+      dict: `<< ${base} /ColorSpace /${colours === 1 ? "DeviceGray" : "DeviceRGB"} /Filter /FlateDecode`,
+      data: deflateSync(colour),
+      mask: {
+        dict: `<< /Type /XObject /Subtype /Image /Width ${width} /Height ${height} /BitsPerComponent 8 /ColorSpace /DeviceGray /Filter /FlateDecode`,
+        data: deflateSync(alpha),
+      },
+    };
+  }
+  return null;
+}
+
+/** The photo as a PDF image, or null when it is not a JPEG or PNG the pack can print. */
+export function pdfImage(image: PdfImage): ImageObject | null {
+  if (image.contentType === "image/jpeg") {
+    const size = jpegSize(image.bytes);
+    if (!size) return null;
+    return {
+      ...size,
+      dict: `<< /Type /XObject /Subtype /Image /Width ${size.width} /Height ${size.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode`,
+      data: image.bytes,
+    };
+  }
+  if (image.contentType === "image/png") return pngImage(image.bytes);
+  return null;
+}
+
+// ------------------------------------------------------------------------------------------------
+// Layout
+// ------------------------------------------------------------------------------------------------
+
 interface Placed {
   readonly line: PdfLine;
   readonly y: number;
@@ -112,10 +262,11 @@ function paginate(lines: readonly PdfLine[], withImage: boolean): Placed[][] {
   const imageBottom = PAGE_HEIGHT - MARGIN - IMAGE_BOX.height - 10;
   for (const line of lines) {
     const size = line.size ?? 10;
-    // Beside the photo on the first page, lines are kept short enough not to run under it.
+    const font = packFont(line.bold ? "bold" : "regular");
+    // Beside the photo on the first page, lines stop short of it.
     const besideImage = withImage && pages.length === 1 && y > imageBottom;
-    const columns = Math.floor(((besideImage ? 70 : WRAP_COLUMNS) * 10) / size);
-    for (const [n, piece] of wrap(line.text, columns).entries()) {
+    const width = besideImage ? TEXT_WIDTH - IMAGE_BOX.width - 15 : TEXT_WIDTH;
+    for (const [n, piece] of wrap(line.text, width, size, font).entries()) {
       const step = size * LINE_FACTOR + (n === 0 ? (line.gapBefore ?? 0) : 0);
       if (y - step < FOOTER_Y + 20) {
         pages.push([]);
@@ -128,67 +279,150 @@ function paginate(lines: readonly PdfLine[], withImage: boolean): Placed[][] {
   return pages;
 }
 
+/** Glyphs used per font, for the widths and the ToUnicode map. */
+class Usage {
+  readonly glyphs = new Map<number, string>();
+  encode(font: TrueTypeFont, text: string): string {
+    let hex = "";
+    for (const ch of text) {
+      const glyph = glyphOf(font, ch);
+      if (!this.glyphs.has(glyph))
+        this.glyphs.set(glyph, font.glyph(ch.codePointAt(0) ?? 0) === 0 ? "?" : ch);
+      hex += glyph.toString(16).padStart(4, "0");
+    }
+    return hex;
+  }
+}
+
+function utf16Hex(text: string): string {
+  let hex = "";
+  for (let i = 0; i < text.length; i++) hex += text.charCodeAt(i).toString(16).padStart(4, "0");
+  return hex;
+}
+
+function toUnicodeCMap(usage: Usage): string {
+  const entries = [...usage.glyphs.entries()].sort((a, b) => a[0] - b[0]);
+  let body = "";
+  for (let i = 0; i < entries.length; i += 100) {
+    const chunk = entries.slice(i, i + 100);
+    body += `${chunk.length} beginbfchar\n`;
+    for (const [glyph, ch] of chunk) {
+      body += `<${glyph.toString(16).padStart(4, "0")}> <${utf16Hex(ch)}>\n`;
+    }
+    body += "endbfchar\n";
+  }
+  return (
+    "/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n" +
+    "/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n" +
+    "/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n" +
+    "1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n" +
+    body +
+    "endcmap\nCMapName currentdict /CMap defineresource pop\nend\nend\n"
+  );
+}
+
+/** A literal string for the document information dictionary (UTF-16 with a byte order mark). */
+function infoString(text: string): string {
+  return `<feff${utf16Hex(text)}>`;
+}
+
 /** Builds the PDF bytes: every page carries the footer (for example the person's identity). */
 export function renderPdf(input: {
   readonly title: string;
   readonly lines: readonly PdfLine[];
   readonly footer: (page: number, pages: number) => string;
-  readonly image?: PdfImage | null;
+  readonly image?: ImageObject | null;
 }): Uint8Array {
-  const pages = paginate(input.lines, Boolean(input.image));
-  const objects: string[] = [];
-  const binary = new Map<number, Uint8Array>();
-  const add = (body: string) => {
-    objects.push(body);
+  const image = input.image ?? null;
+  const pages = paginate(input.lines, image !== null);
+  const fonts = { F1: packFont("regular"), F2: packFont("bold") } as const;
+  const usage = { F1: new Usage(), F2: new Usage() };
+
+  const objects: { dict: string; stream?: Uint8Array }[] = [];
+  const add = (dict: string, stream?: Uint8Array) => {
+    objects.push(stream ? { dict, stream } : { dict });
     return objects.length;
   };
-  const catalog = add("");
-  const pagesId = add("");
-  const regular = add(
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
-  );
-  const bold = add(
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
-  );
-  const info = add(`<< /Title (${pdfString(input.title)}) /Producer (Harbour) >>`);
+  const reserve = () => add("");
+  const catalog = reserve();
+  const pagesId = reserve();
+  const fontIds = { F1: reserve(), F2: reserve() };
+  const info = add(`<< /Title ${infoString(input.title)} /Producer (Harbour) >>`);
   let imageId: number | null = null;
-  if (input.image) {
+  if (image) {
+    const maskId = image.mask
+      ? add(`${image.mask.dict} /Length ${image.mask.data.length} >>`, image.mask.data)
+      : null;
     imageId = add(
-      `<< /Type /XObject /Subtype /Image /Width ${input.image.width} /Height ${input.image.height} ` +
-        `/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${input.image.jpeg.length} >>`,
+      `${image.dict}${maskId ? ` /SMask ${maskId} 0 R` : ""} /Length ${image.data.length} >>`,
+      image.data,
     );
-    binary.set(imageId, input.image.jpeg);
   }
+
   const pageIds: number[] = [];
   for (const [index, placed] of pages.entries()) {
     let content = "";
     for (const { line, y } of placed) {
-      content += `BT /${line.bold ? "F2" : "F1"} ${line.size ?? 10} Tf ${MARGIN} ${y.toFixed(1)} Td (${pdfString(line.text)}) Tj ET\n`;
+      const key = line.bold ? "F2" : "F1";
+      const hex = usage[key].encode(fonts[key], line.text);
+      content += `BT /${key} ${line.size ?? 10} Tf ${MARGIN} ${y.toFixed(1)} Td <${hex}> Tj ET\n`;
     }
-    content += `BT /F1 8 Tf ${MARGIN} ${FOOTER_Y} Td (${pdfString(input.footer(index + 1, pages.length))}) Tj ET\n`;
-    if (index === 0 && input.image && imageId !== null) {
-      const scale = Math.min(
-        IMAGE_BOX.width / input.image.width,
-        IMAGE_BOX.height / input.image.height,
-      );
-      const w = input.image.width * scale;
-      const h = input.image.height * scale;
+    for (const [n, piece] of wrap(input.footer(index + 1, pages.length), TEXT_WIDTH, 8).entries()) {
+      const hex = usage.F1.encode(fonts.F1, piece);
+      content += `BT /F1 8 Tf ${MARGIN} ${FOOTER_Y - n * 10} Td <${hex}> Tj ET\n`;
+    }
+    if (index === 0 && image && imageId !== null) {
+      const scale = Math.min(IMAGE_BOX.width / image.width, IMAGE_BOX.height / image.height);
+      const w = image.width * scale;
+      const h = image.height * scale;
       content += `q ${w.toFixed(1)} 0 0 ${h.toFixed(1)} ${(PAGE_WIDTH - MARGIN - w).toFixed(1)} ${(PAGE_HEIGHT - MARGIN - h).toFixed(1)} cm /Im1 Do Q\n`;
     }
-    const contentId = add(
-      `<< /Length ${Buffer.byteLength(content, "latin1")} >>\nstream\n${content}endstream`,
-    );
+    const data = deflateSync(Buffer.from(content, "latin1"));
+    const contentId = add(`<< /Length ${data.length} /Filter /FlateDecode >>`, data);
     const xobject = index === 0 && imageId !== null ? ` /XObject << /Im1 ${imageId} 0 R >>` : "";
     pageIds.push(
       add(
         `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] ` +
-          `/Resources << /Font << /F1 ${regular} 0 R /F2 ${bold} 0 R >>${xobject} >> /Contents ${contentId} 0 R >>`,
+          `/Resources << /Font << /F1 ${fontIds.F1} 0 R /F2 ${fontIds.F2} 0 R >>${xobject} >> /Contents ${contentId} 0 R >>`,
       ),
     );
   }
-  objects[catalog - 1] = `<< /Type /Catalog /Pages ${pagesId} 0 R /Lang (en-GB) >>`;
-  objects[pagesId - 1] =
-    `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pageIds.length} >>`;
+
+  for (const key of ["F1", "F2"] as const) {
+    const font = fonts[key];
+    const scale = 1000 / font.unitsPerEm;
+    const file = deflateSync(font.bytes);
+    const fileId = add(
+      `<< /Length ${file.length} /Length1 ${font.bytes.length} /Filter /FlateDecode >>`,
+      file,
+    );
+    const [x1, y1, x2, y2] = font.bbox.map((v) => Math.round(v * scale));
+    const descriptor = add(
+      `<< /Type /FontDescriptor /FontName /${font.name} /Flags 32 /FontBBox [${x1} ${y1} ${x2} ${y2}] ` +
+        `/ItalicAngle 0 /Ascent ${Math.round(font.ascent * scale)} /Descent ${Math.round(font.descent * scale)} ` +
+        `/CapHeight ${Math.round(font.capHeight * scale)} /StemV 80 /FontFile2 ${fileId} 0 R >>`,
+    );
+    const widths = [...usage[key].glyphs.keys()]
+      .sort((a, b) => a - b)
+      .map((g) => `${g} [${Math.round(font.advance(g) * scale)}]`)
+      .join(" ");
+    const cid = add(
+      `<< /Type /Font /Subtype /CIDFontType2 /BaseFont /${font.name} ` +
+        "/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> " +
+        `/FontDescriptor ${descriptor} 0 R /CIDToGIDMap /Identity /DW 500 /W [${widths}] >>`,
+    );
+    const cmap = deflateSync(Buffer.from(toUnicodeCMap(usage[key]), "latin1"));
+    const toUnicode = add(`<< /Length ${cmap.length} /Filter /FlateDecode >>`, cmap);
+    objects[fontIds[key] - 1] = {
+      dict:
+        `<< /Type /Font /Subtype /Type0 /BaseFont /${font.name} /Encoding /Identity-H ` +
+        `/DescendantFonts [${cid} 0 R] /ToUnicode ${toUnicode} 0 R >>`,
+    };
+  }
+  objects[catalog - 1] = { dict: `<< /Type /Catalog /Pages ${pagesId} 0 R /Lang (en-GB) >>` };
+  objects[pagesId - 1] = {
+    dict: `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pageIds.length} >>`,
+  };
 
   const chunks: Buffer[] = [];
   let length = 0;
@@ -196,18 +430,17 @@ export function renderPdf(input: {
     chunks.push(chunk);
     length += chunk.length;
   };
-  push(Buffer.from("%PDF-1.4\n%âãÏÓ\n", "latin1"));
+  push(Buffer.from("%PDF-1.7\n%âãÏÓ\n", "latin1"));
   const offsets: number[] = [];
-  for (const [index, body] of objects.entries()) {
+  for (const [index, object] of objects.entries()) {
     offsets.push(length);
     const id = index + 1;
-    const image = binary.get(id);
-    if (image) {
-      push(Buffer.from(`${id} 0 obj\n${body}\nstream\n`, "latin1"));
-      push(Buffer.from(image));
+    if (object.stream) {
+      push(Buffer.from(`${id} 0 obj\n${object.dict}\nstream\n`, "latin1"));
+      push(Buffer.from(object.stream));
       push(Buffer.from("\nendstream\nendobj\n", "latin1"));
     } else {
-      push(Buffer.from(`${id} 0 obj\n${body}\nendobj\n`, "latin1"));
+      push(Buffer.from(`${id} 0 obj\n${object.dict}\nendobj\n`, "latin1"));
     }
   }
   const xref = length;

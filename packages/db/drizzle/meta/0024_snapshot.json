@@ -17406,7 +17406,7 @@
       "checkConstraints": {
         "task_cancel_code": {
           "name": "task_cancel_code",
-          "value": "cancel_code IS NULL OR (status = 'cancelled' AND cancel_code IN ('paused_while_away', 'ended_at_exit', 'exit_recorded_in_error', 'planned_exit_cancelled'))"
+          "value": "cancel_code IS NULL OR (status = 'cancelled' AND cancel_code IN ('paused_while_away', 'ended_at_exit', 'exit_recorded_in_error', 'planned_exit_cancelled', 'missed_before_return_recorded'))"
         }
       },
       "isRLSEnabled": false
@@ -17675,7 +17675,7 @@
       "checkConstraints": {
         "task_series_inactive_code": {
           "name": "task_series_inactive_code",
-          "value": "inactive_code IS NULL OR (NOT active AND inactive_code IN ('paused_while_away', 'ended_at_exit', 'exit_recorded_in_error', 'planned_exit_cancelled'))"
+          "value": "inactive_code IS NULL OR (NOT active AND inactive_code IN ('paused_while_away', 'ended_at_exit', 'exit_recorded_in_error', 'planned_exit_cancelled', 'missed_before_return_recorded'))"
         }
       },
       "isRLSEnabled": false

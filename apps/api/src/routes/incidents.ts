@@ -53,7 +53,8 @@ import { type AppEnv, requirePermission, type TenantAccess, withTenant } from ".
 import { problems } from "../http/problem";
 import { publish } from "../outbox";
 import { careRates, entryTimes, personContext } from "../services/care";
-import { bankHolidays } from "../services/rates";
+import { CLOCK_DRIFT_RATE_KEY, loadPerson, requireWrite } from "../services/people";
+import { bankHolidays, rateNumber } from "../services/rates";
 import {
   classifyAndStore,
   safetyRates,
@@ -61,7 +62,7 @@ import {
   withTenantWideScope,
 } from "../services/safety";
 import { startWorkflow } from "../services/workflow";
-import { iso, range, SENT_AT_HEADER } from "./care-shared";
+import { iso, range, SENT_AT_HEADER, withLateEntryReview } from "./care-shared";
 import {
   conflictResponse,
   createRouter,
@@ -133,10 +134,25 @@ function checkAnswers(
 }
 
 /** A person on an incident: someone the reporter can see, with marks from their own body map. */
-async function checkPerson(tx: Transaction, p: IncidentPersonInput) {
+/**
+ * A person on an incident. A person using the service follows people.md rule 3 like any care
+ * event (HZ-006): an incident at or before their discharge, death or move away (within the clock
+ * tolerance) is accepted; a later one is refused with a review task for the nurse in charge.
+ */
+async function checkPerson(
+  tx: Transaction,
+  p: IncidentPersonInput,
+  when: { readonly occurredAt: Date; readonly toleranceMinutes: number },
+) {
   if (p.kind === "service_user") {
     if (!p.personId) throw problems.invalid("Choose the person using the service.");
     await personContext(tx, p.personId);
+    requireWrite(
+      await loadPerson(tx, p.personId),
+      "incident",
+      when.occurredAt,
+      when.toleranceMinutes,
+    );
   } else if (p.personId) {
     throw problems.invalid("Only a person using the service is chosen from the records.");
   }
@@ -312,109 +328,112 @@ export const incidentsRouter = createRouter()
       const now = new Date();
       requireMfaForPeople(access, body.people.filter((p) => p.kind === "service_user").length);
       checkAnswers(access, body.answers);
-      const detail = await withTenant(c, async (tx) => {
-        if (body.id) {
-          const [replayed] = await tx
-            .select({ id: incident.id })
-            .from(incident)
-            .where(eq(incident.id, body.id));
-          if (replayed) return incidentDetail(tx, replayed.id, now);
-        }
-        const nation = await nationOf(tx, body.locationId);
-        const times = entryTimes(
-          body,
-          c.req.header(SENT_AT_HEADER),
-          now,
-          await careRates(tx, access.tenantId, nation),
-        );
-        if (body.foundAt && new Date(body.foundAt) < times.occurredAt) {
-          throw problems.invalid("The person cannot be found before the incident happened.");
-        }
-        for (const p of body.people) await checkPerson(tx, p);
-        const personIds = body.people.flatMap((p) =>
-          p.kind === "service_user" && p.personId ? [p.personId] : [],
-        );
-        if (new Set(personIds).size !== personIds.length) {
-          throw problems.invalid("Each person is added to an incident once.");
-        }
-        const [row] = await tx
-          .insert(incident)
-          .values({
-            ...(body.id ? { id: body.id } : {}),
-            locationId: body.locationId,
-            type: body.type,
-            occurredAt: times.occurredAt,
-            deviceTime: times.deviceTime,
-            deviceId: access.deviceId,
-            lateEntry: times.lateEntry,
-            clockDrift: times.clockDrift,
-            foundAt: body.foundAt ? new Date(body.foundAt) : null,
-            severity: body.severity ?? null,
-            harmGrade: body.harmGrade ?? null,
-            description: body.description,
-            immediateActions: body.immediateActions ?? null,
-            emergencyServicesCalled: body.emergencyServicesCalled,
-            gpContacted: body.gpContacted,
-            contactNotes: body.contactNotes ?? null,
-            familyInformedWho: body.familyInformed?.who ?? null,
-            familyInformedAt: body.familyInformed ? new Date(body.familyInformed.at) : null,
-            raisedBy: access.tenantUserId,
-            personIds,
-          })
-          .onConflictDoNothing()
-          .returning();
-        if (!row) throw problems.invalid("That id is already used.");
-        for (const p of body.people) {
-          await tx
-            .insert(incidentPerson)
-            .values({ incidentId: row.id, ...personValues(p) })
-            .catch(onForeignKey("member of staff"));
-        }
-        for (const answer of body.answers) {
-          await tx.insert(classifierAnswer).values({
+      const detail = await withLateEntryReview(c, () =>
+        withTenant(c, async (tx) => {
+          if (body.id) {
+            const [replayed] = await tx
+              .select({ id: incident.id })
+              .from(incident)
+              .where(eq(incident.id, body.id));
+            if (replayed) return incidentDetail(tx, replayed.id, now);
+          }
+          const nation = await nationOf(tx, body.locationId);
+          const rates = await careRates(tx, access.tenantId, nation);
+          const times = entryTimes(body, c.req.header(SENT_AT_HEADER), now, rates);
+          if (body.foundAt && new Date(body.foundAt) < times.occurredAt) {
+            throw problems.invalid("The person cannot be found before the incident happened.");
+          }
+          for (const p of body.people) {
+            await checkPerson(tx, p, {
+              occurredAt: times.occurredAt,
+              toleranceMinutes: rates.clockDriftMinutes,
+            });
+          }
+          const personIds = body.people.flatMap((p) =>
+            p.kind === "service_user" && p.personId ? [p.personId] : [],
+          );
+          if (new Set(personIds).size !== personIds.length) {
+            throw problems.invalid("Each person is added to an incident once.");
+          }
+          const [row] = await tx
+            .insert(incident)
+            .values({
+              ...(body.id ? { id: body.id } : {}),
+              locationId: body.locationId,
+              type: body.type,
+              occurredAt: times.occurredAt,
+              deviceTime: times.deviceTime,
+              deviceId: access.deviceId,
+              lateEntry: times.lateEntry,
+              clockDrift: times.clockDrift,
+              foundAt: body.foundAt ? new Date(body.foundAt) : null,
+              severity: body.severity ?? null,
+              harmGrade: body.harmGrade ?? null,
+              description: body.description,
+              immediateActions: body.immediateActions ?? null,
+              emergencyServicesCalled: body.emergencyServicesCalled,
+              gpContacted: body.gpContacted,
+              contactNotes: body.contactNotes ?? null,
+              familyInformedWho: body.familyInformed?.who ?? null,
+              familyInformedAt: body.familyInformed ? new Date(body.familyInformed.at) : null,
+              raisedBy: access.tenantUserId,
+              personIds,
+            })
+            .onConflictDoNothing()
+            .returning();
+          if (!row) throw problems.invalid("That id is already used.");
+          for (const p of body.people) {
+            await tx
+              .insert(incidentPerson)
+              .values({ incidentId: row.id, ...personValues(p) })
+              .catch(onForeignKey("member of staff"));
+          }
+          for (const answer of body.answers) {
+            await tx.insert(classifierAnswer).values({
+              incidentId: row.id,
+              questionKey: answer.key,
+              value: answer.value,
+              answeredAt: now,
+              answeredBy: access.tenantUserId,
+              deviceId: access.deviceId,
+            });
+          }
+          await startWorkflow(
+            tx,
+            access.tenantId,
+            INCIDENT_WORKFLOW,
+            { subjectType: "incident", subjectId: row.id, personId: null },
+            now,
+          );
+          const outcome = await classifyAndStore(tx, {
+            tenantId: access.tenantId,
             incidentId: row.id,
-            questionKey: answer.key,
-            value: answer.value,
-            answeredAt: now,
-            answeredBy: access.tenantUserId,
-            deviceId: access.deviceId,
+            actorTenantUserId: access.tenantUserId,
+            now,
           });
-        }
-        await startWorkflow(
-          tx,
-          access.tenantId,
-          INCIDENT_WORKFLOW,
-          { subjectType: "incident", subjectId: row.id, personId: null },
-          now,
-        );
-        const outcome = await classifyAndStore(tx, {
-          tenantId: access.tenantId,
-          incidentId: row.id,
-          actorTenantUserId: access.tenantUserId,
-          now,
-        });
-        await publish(tx, {
-          context: "safety",
-          aggregateType: "incident",
-          aggregateId: row.id,
-          type: "safety.incident.recorded",
-          payload: {
-            incidentId: row.id,
-            type: row.type,
-            locationId: row.locationId,
-            occurredAt: row.occurredAt.toISOString(),
-            lateEntry: row.lateEntry,
-            notificationsDrafted: outcome.notificationsCreated,
-          },
-        });
-        await audit(c, tx, access, {
-          action: "safety.incident.create",
-          resourceType: "incident",
-          resourceId: row.id,
-          scope: { type: row.type, people: personIds.length },
-        });
-        return incidentDetail(tx, row.id, now);
-      });
+          await publish(tx, {
+            context: "safety",
+            aggregateType: "incident",
+            aggregateId: row.id,
+            type: "safety.incident.recorded",
+            payload: {
+              incidentId: row.id,
+              type: row.type,
+              locationId: row.locationId,
+              occurredAt: row.occurredAt.toISOString(),
+              lateEntry: row.lateEntry,
+              notificationsDrafted: outcome.notificationsCreated,
+            },
+          });
+          await audit(c, tx, access, {
+            action: "safety.incident.create",
+            resourceType: "incident",
+            resourceId: row.id,
+            scope: { type: row.type, people: personIds.length },
+          });
+          return incidentDetail(tx, row.id, now);
+        }),
+      );
       return c.json(detail, 201);
     },
   )
@@ -521,93 +540,99 @@ export const incidentsRouter = createRouter()
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const now = new Date();
-      const detail = await withTenant(c, async (tx) => {
-        const { row, people } = await loadForChange(c, tx, id);
-        if (row.version !== body.version) throw problems.conflict();
-        if (row.status === "closed") throw problems.invalid("A closed incident cannot be changed.");
-        if (body.foundAt && new Date(body.foundAt) < row.occurredAt) {
-          throw problems.invalid("The person cannot be found before the incident happened.");
-        }
-        const changes = body.people ?? [];
-        for (const p of changes.filter((p) => !p.removed)) await checkPerson(tx, p);
-        const removed = new Set(changes.filter((p) => p.removed && p.id).map((p) => p.id));
-        const kept = people.filter((p) => !removed.has(p.id));
-        const personIds = [
-          ...new Set([
-            ...kept.flatMap((p) => {
-              const change = changes.find((x) => x.id === p.id);
-              const personId = change ? change.personId : p.personId;
-              return personId && (change ? change.kind : p.kind) === "service_user"
-                ? [personId]
-                : [];
-            }),
-            ...changes
-              .filter((p) => !p.id && !p.removed && p.kind === "service_user" && p.personId)
-              .map((p) => p.personId as string),
-          ]),
-        ];
-        const [updated] = await tx
-          .update(incident)
-          .set({
-            ...(body.severity !== undefined ? { severity: body.severity } : {}),
-            ...(body.harmGrade !== undefined ? { harmGrade: body.harmGrade } : {}),
-            ...(body.description !== undefined ? { description: body.description } : {}),
-            ...(body.immediateActions !== undefined
-              ? { immediateActions: body.immediateActions }
-              : {}),
-            ...(body.foundAt !== undefined
-              ? { foundAt: body.foundAt ? new Date(body.foundAt) : null }
-              : {}),
-            ...(body.emergencyServicesCalled !== undefined
-              ? { emergencyServicesCalled: body.emergencyServicesCalled }
-              : {}),
-            ...(body.gpContacted !== undefined ? { gpContacted: body.gpContacted } : {}),
-            ...(body.contactNotes !== undefined ? { contactNotes: body.contactNotes } : {}),
-            ...(body.familyInformed !== undefined
-              ? {
-                  familyInformedWho: body.familyInformed?.who ?? null,
-                  familyInformedAt: body.familyInformed ? new Date(body.familyInformed.at) : null,
-                }
-              : {}),
-            // People are listed before their rows are written (the listing trigger checks this).
-            personIds: [...new Set([...row.personIds, ...personIds])],
-          })
-          .where(and(eq(incident.id, id), eq(incident.version, body.version)))
-          .returning();
-        if (!updated) throw problems.conflict();
-        for (const change of changes) {
-          if (change.id) {
-            const existing = people.find((p) => p.id === change.id);
-            if (!existing) throw problems.invalid("That person is not on this incident.");
-            await tx
-              .update(incidentPerson)
-              .set(change.removed ? { deletedAt: now } : personValues(change))
-              .where(eq(incidentPerson.id, change.id))
-              .catch(onForeignKey("member of staff"));
-          } else if (!change.removed) {
-            await tx
-              .insert(incidentPerson)
-              .values({ incidentId: id, ...personValues(change) })
-              .catch(onForeignKey("member of staff"));
+      const detail = await withLateEntryReview(c, () =>
+        withTenant(c, async (tx) => {
+          const { row, people } = await loadForChange(c, tx, id);
+          if (row.version !== body.version) throw problems.conflict();
+          if (row.status === "closed")
+            throw problems.invalid("A closed incident cannot be changed.");
+          if (body.foundAt && new Date(body.foundAt) < row.occurredAt) {
+            throw problems.invalid("The person cannot be found before the incident happened.");
           }
-        }
-        if (personIds.length !== updated.personIds.length) {
-          await tx.update(incident).set({ personIds }).where(eq(incident.id, id));
-        }
-        await classifyAndStore(tx, {
-          tenantId: access.tenantId,
-          incidentId: id,
-          actorTenantUserId: access.tenantUserId,
-          now,
-        });
-        await audit(c, tx, access, {
-          action: "safety.incident.update",
-          resourceType: "incident",
-          resourceId: id,
-          scope: { peopleChanged: changes.length },
-        });
-        return incidentDetail(tx, id, now);
-      });
+          const changes = body.people ?? [];
+          const toleranceMinutes = await rateNumber(tx, access.tenantId, CLOCK_DRIFT_RATE_KEY);
+          for (const p of changes.filter((p) => !p.removed)) {
+            await checkPerson(tx, p, { occurredAt: row.occurredAt, toleranceMinutes });
+          }
+          const removed = new Set(changes.filter((p) => p.removed && p.id).map((p) => p.id));
+          const kept = people.filter((p) => !removed.has(p.id));
+          const personIds = [
+            ...new Set([
+              ...kept.flatMap((p) => {
+                const change = changes.find((x) => x.id === p.id);
+                const personId = change ? change.personId : p.personId;
+                return personId && (change ? change.kind : p.kind) === "service_user"
+                  ? [personId]
+                  : [];
+              }),
+              ...changes
+                .filter((p) => !p.id && !p.removed && p.kind === "service_user" && p.personId)
+                .map((p) => p.personId as string),
+            ]),
+          ];
+          const [updated] = await tx
+            .update(incident)
+            .set({
+              ...(body.severity !== undefined ? { severity: body.severity } : {}),
+              ...(body.harmGrade !== undefined ? { harmGrade: body.harmGrade } : {}),
+              ...(body.description !== undefined ? { description: body.description } : {}),
+              ...(body.immediateActions !== undefined
+                ? { immediateActions: body.immediateActions }
+                : {}),
+              ...(body.foundAt !== undefined
+                ? { foundAt: body.foundAt ? new Date(body.foundAt) : null }
+                : {}),
+              ...(body.emergencyServicesCalled !== undefined
+                ? { emergencyServicesCalled: body.emergencyServicesCalled }
+                : {}),
+              ...(body.gpContacted !== undefined ? { gpContacted: body.gpContacted } : {}),
+              ...(body.contactNotes !== undefined ? { contactNotes: body.contactNotes } : {}),
+              ...(body.familyInformed !== undefined
+                ? {
+                    familyInformedWho: body.familyInformed?.who ?? null,
+                    familyInformedAt: body.familyInformed ? new Date(body.familyInformed.at) : null,
+                  }
+                : {}),
+              // People are listed before their rows are written (the listing trigger checks this).
+              personIds: [...new Set([...row.personIds, ...personIds])],
+            })
+            .where(and(eq(incident.id, id), eq(incident.version, body.version)))
+            .returning();
+          if (!updated) throw problems.conflict();
+          for (const change of changes) {
+            if (change.id) {
+              const existing = people.find((p) => p.id === change.id);
+              if (!existing) throw problems.invalid("That person is not on this incident.");
+              await tx
+                .update(incidentPerson)
+                .set(change.removed ? { deletedAt: now } : personValues(change))
+                .where(eq(incidentPerson.id, change.id))
+                .catch(onForeignKey("member of staff"));
+            } else if (!change.removed) {
+              await tx
+                .insert(incidentPerson)
+                .values({ incidentId: id, ...personValues(change) })
+                .catch(onForeignKey("member of staff"));
+            }
+          }
+          if (personIds.length !== updated.personIds.length) {
+            await tx.update(incident).set({ personIds }).where(eq(incident.id, id));
+          }
+          await classifyAndStore(tx, {
+            tenantId: access.tenantId,
+            incidentId: id,
+            actorTenantUserId: access.tenantUserId,
+            now,
+          });
+          await audit(c, tx, access, {
+            action: "safety.incident.update",
+            resourceType: "incident",
+            resourceId: id,
+            scope: { peopleChanged: changes.length },
+          });
+          return incidentDetail(tx, id, now);
+        }),
+      );
       return c.json(detail, 200);
     },
   )

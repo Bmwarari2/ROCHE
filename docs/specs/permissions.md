@@ -65,7 +65,7 @@ people only (plus break-glass), `none` no person records.
 | `people.movement.record` |  | yes | yes |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `people.property.manage` |  | yes | yes |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `people.assignment.manage` |  |  | yes |  | yes | yes |  | yes |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| `people.sharing.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| `people.sharing.manage` |  | yes | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `people.demographics.read` |  |  | yes |  | yes | yes |  |  |  |  | yes | yes |  |  | yes | yes |  |  |  |  |  |  |  |
 | `care.plan.read` |  | yes | yes | yes | yes | yes | yes | yes | yes | yes |  |  |  |  |  |  |  | yes | yes |  |  | yes |  |
 | `care.plan.write` |  | yes | yes |  | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
