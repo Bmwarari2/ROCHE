@@ -77,7 +77,7 @@ export function initials(person: Pick<PersonSummary, "givenName" | "familyName">
   return `${first}${last}`.toLocaleUpperCase("en-GB");
 }
 
-export function roomLabel(person: PersonRow): string | null {
+export function roomLabel(person: Pick<PersonSummary, "roomLabel">): string | null {
   return person.roomLabel?.trim() || null;
 }
 

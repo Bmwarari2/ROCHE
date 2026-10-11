@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { BodyMapRecorder } from "@/components/care/BodyMapRecorder";
 import { EntryBadges } from "@/components/care/EntryBadges";
 import { NoAccess } from "@/components/care/NoAccess";
+import { RecordFrame } from "@/components/care/RecordFrame";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { can, tabHref } from "@/lib/care-record";
 import { formatDateTime } from "@/lib/format";
@@ -32,7 +33,7 @@ export async function generateMetadata(): Promise<Metadata> {
  * drawing or from the list with the side confirmed in words, and see the marks that have not
  * healed, on the drawing and in a table.
  */
-export default async function BodyMapPage({ params }: { readonly params: Params }) {
+async function BodyMapTab({ params }: { readonly params: Params }) {
   const { id } = await params;
   const { person } = await getPerson(id);
   if (!person) return null;
@@ -139,5 +140,15 @@ export default async function BodyMapPage({ params }: { readonly params: Params 
         )}
       </section>
     </>
+  );
+}
+
+/** The tab inside the record's frame: the point-of-care header, read again on every tab, and the tabs. */
+export default async function BodyMapPage(props: { readonly params: Params }) {
+  const { id } = await props.params;
+  return (
+    <RecordFrame personId={id} tab="body-map">
+      <BodyMapTab {...props} />
+    </RecordFrame>
   );
 }

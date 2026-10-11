@@ -2,9 +2,8 @@
 
 import { TabNav } from "@harbour/ui";
 import Link from "next/link";
-import { useSelectedLayoutSegment } from "next/navigation";
 import { useEffect, useRef } from "react";
-import { type RecordTab, tabForSegment } from "@/lib/care-record";
+import type { RecordTab } from "@/lib/care-record";
 
 export interface RecordTabItem {
   readonly tab: RecordTab;
@@ -20,17 +19,17 @@ export interface RecordTabItem {
 export function RecordTabs({
   label,
   items,
+  current,
 }: {
   readonly label: string;
   readonly items: readonly RecordTabItem[];
+  readonly current: RecordTab;
 }) {
-  const segment = useSelectedLayoutSegment();
-  const current = tabForSegment(segment);
   const wrapper = useRef<HTMLDivElement>(null);
 
-  // Scroll the row sideways only, never the page, so the current tab is visible on a phone.
+  // Each tab draws its own frame, so this runs once per tab: scroll the row sideways only, never
+  // the page, so the current tab is visible on a phone.
   useEffect(() => {
-    if (!current) return;
     const list = wrapper.current?.querySelector<HTMLElement>(".hb-tabnav__list");
     const link = list?.querySelector<HTMLElement>('[aria-current="page"]');
     if (!list || !link) return;
@@ -39,7 +38,7 @@ export function RecordTabs({
     if (start < list.scrollLeft || end > list.scrollLeft + list.clientWidth) {
       list.scrollLeft = Math.max(0, start - 16);
     }
-  }, [current]);
+  }, []);
 
   return (
     <div ref={wrapper}>

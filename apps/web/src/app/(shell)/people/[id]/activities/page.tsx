@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { ActivityForm } from "@/components/care/ActivityForm";
 import { EntryBadges } from "@/components/care/EntryBadges";
 import { NoAccess } from "@/components/care/NoAccess";
+import { RecordFrame } from "@/components/care/RecordFrame";
 import { VisitForm } from "@/components/care/VisitForm";
 import { WindowNote } from "@/components/care/WindowNote";
 import { getShellContext, tenantApi } from "@/lib/api";
@@ -26,7 +27,7 @@ export async function generateMetadata(): Promise<Metadata> {
  * The activities and visits tab (register row CARE-014): what the person took part in and how,
  * and the Regulation 9A visiting log, with forms for staff who write the daily record.
  */
-export default async function ActivitiesPage({
+async function ActivitiesTab({
   params,
   searchParams,
 }: {
@@ -185,5 +186,18 @@ export default async function ActivitiesPage({
         </section>
       </div>
     </>
+  );
+}
+
+/** The tab inside the record's frame: the point-of-care header, read again on every tab, and the tabs. */
+export default async function ActivitiesPage(props: {
+  readonly params: Params;
+  readonly searchParams: SearchParams;
+}) {
+  const { id } = await props.params;
+  return (
+    <RecordFrame personId={id} tab="activities">
+      <ActivitiesTab {...props} />
+    </RecordFrame>
   );
 }

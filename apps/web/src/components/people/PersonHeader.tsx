@@ -1,11 +1,14 @@
-import type { PersonCareProfile, PersonSummary } from "@harbour/contracts";
-import { Card } from "@harbour/ui";
+import type { PersonSummary } from "@harbour/contracts";
+import { Card, StatusChip } from "@harbour/ui";
+import { Lock, TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
+import { HeaderFreshness } from "@/components/care/HeaderFreshness";
 import { ResuscitationStatus } from "@/components/care/ResuscitationStatus";
 import { iddsiLabel } from "@/lib/care-record";
 import { formatDate, formatNhsNumber } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { allergySummary, initials, personNames, roomLabel } from "@/lib/people";
+import type { CareProfileLoad, PersonRecord } from "@/lib/record-data";
 import { AllergyChip } from "./AllergyChip";
 import { CommunicationFlag } from "./CommunicationFlag";
 import { PersonAvatar } from "./PersonAvatar";
@@ -27,21 +30,55 @@ function allergyDetail(allergy: PersonSummary["allergies"][number]): string {
     : severity;
 }
 
+/** An IDDSI level, or why it cannot be shown: never left out without saying so (HZ-016). */
+function IddsiDetail({
+  kind,
+  careProfile,
+}: {
+  readonly kind: "food" | "drink";
+  readonly careProfile: CareProfileLoad;
+}) {
+  switch (careProfile.kind) {
+    case "ok":
+      return iddsiLabel(
+        kind,
+        kind === "food" ? careProfile.profile.iddsiFoodLevel : careProfile.profile.iddsiDrinkLevel,
+        t,
+      );
+    case "no_access":
+      return <StatusChip status="neutral" label={t("care.header.iddsiNoAccess")} icon={Lock} />;
+    case "unreadable":
+      return (
+        <StatusChip
+          status="overdue"
+          label={t("care.header.iddsiUnreadable")}
+          icon={TriangleAlert}
+        />
+      );
+  }
+}
+
 /**
- * The point-of-care header (section 9, hazards HZ-001, HZ-007, HZ-015 and HZ-016): photo,
+ * The point-of-care header (section 9, hazards HZ-001, HZ-002, HZ-007, HZ-015 and HZ-016): photo,
  * preferred and full name, NHS number, date of birth, allergies, the resuscitation decision in
  * force, the prescribed IDDSI levels and communication needs, so the right person and what keeps
- * them safe are always in view. It sits above every tab of the record.
+ * them safe are always in view. Every tab of the record reads it again; it says when it was read
+ * and can be read again at once.
  */
 export function PersonHeader({
   person,
   locationName,
-  careProfile = null,
+  careProfile,
+  checkedAt,
+  checkedLabel,
 }: {
-  readonly person: PersonSummary;
+  readonly person: PersonRecord;
   readonly locationName: string | null;
-  /** IDDSI levels; null when the person viewing may not read the care profile. */
-  readonly careProfile?: PersonCareProfile | null;
+  /** IDDSI levels, or why they cannot be shown. */
+  readonly careProfile: CareProfileLoad;
+  /** When the header was read (ISO), and the time in UK words ("14:05"). */
+  readonly checkedAt: string;
+  readonly checkedLabel: string;
 }) {
   const names = personNames(person);
   const allergy = allergySummary(person, t);
@@ -54,7 +91,7 @@ export function PersonHeader({
   return (
     <Card as="section" aria-label={t("people.header.label")}>
       <div className="flex flex-col gap-6">
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           <PersonAvatar
             personId={person.id}
             initials={initials(person)}
@@ -74,6 +111,9 @@ export function PersonHeader({
             {names.hasPreferred ? (
               <p className="m-0 text-body text-text-secondary">{names.full}</p>
             ) : null}
+          </div>
+          <div className="ms-auto">
+            <HeaderFreshness checkedAt={checkedAt} checkedLabel={checkedLabel} />
           </div>
         </div>
 
@@ -100,16 +140,12 @@ export function PersonHeader({
           <Detail term={t("care.header.resuscitation")}>
             <ResuscitationStatus status={person.resuscitation} />
           </Detail>
-          {careProfile ? (
-            <>
-              <Detail term={t("care.header.iddsiFood")}>
-                {iddsiLabel("food", careProfile.iddsiFoodLevel, t)}
-              </Detail>
-              <Detail term={t("care.header.iddsiDrink")}>
-                {iddsiLabel("drink", careProfile.iddsiDrinkLevel, t)}
-              </Detail>
-            </>
-          ) : null}
+          <Detail term={t("care.header.iddsiFood")}>
+            <IddsiDetail kind="food" careProfile={careProfile} />
+          </Detail>
+          <Detail term={t("care.header.iddsiDrink")}>
+            <IddsiDetail kind="drink" careProfile={careProfile} />
+          </Detail>
         </dl>
 
         {person.allergies.length > 0 ? (

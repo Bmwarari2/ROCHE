@@ -63,14 +63,6 @@ export function visibleTabs(
   }));
 }
 
-/** Which tab a layout segment belongs to (`useSelectedLayoutSegment`); null is the overview. */
-export function tabForSegment(segment: string | null): RecordTab | null {
-  if (segment === null) return "overview";
-  return RECORD_TABS.some((definition) => definition.tab === segment)
-    ? (segment as RecordTab)
-    : null;
-}
-
 // ------------------------------------------------------------------------------------------------
 // Append-only entries and corrections
 // ------------------------------------------------------------------------------------------------
@@ -187,12 +179,23 @@ export interface ResuscitationSummary {
 /**
  * The resuscitation status as the header shows it: a word and an icon, never blank. "Not
  * recorded" is a warning, never a calm or empty state; records in force that disagree are the
- * strongest warning and say to check the documents.
+ * strongest warning and say to check the documents. A status that could not be read (null), or
+ * one this version of the web app does not know, is a warning too: it is never shown as
+ * "Attempt CPR".
  */
 export function resuscitationSummary(
-  status: ResuscitationStatus,
+  status: ResuscitationStatus | null,
   t: Translator,
 ): ResuscitationSummary {
+  const unreadable: ResuscitationSummary = {
+    tone: "danger",
+    icon: "triangle-alert",
+    label: t("care.resus.unreadable"),
+    detail: t("care.resus.unreadableDetail"),
+    reviewOverdue: false,
+    reviewText: null,
+  };
+  if (status === null) return unreadable;
   const review = status.reviewDueOn ? formatDate(status.reviewDueOn) : null;
   const reviewText = review
     ? status.reviewOverdue
@@ -233,16 +236,18 @@ export function resuscitationSummary(
           : status.clinicianName,
       })
     : t("care.resus.source", { kind, date: completed });
-  return status.status === "do_not_attempt_cpr"
-    ? {
+  switch (status.status) {
+    case "do_not_attempt_cpr":
+      return {
         tone: "info",
         icon: "heart-off",
         label: t("care.resus.doNotAttempt"),
         detail,
         reviewOverdue: status.reviewOverdue,
         reviewText,
-      }
-    : {
+      };
+    case "attempt_cpr":
+      return {
         tone: "neutral",
         icon: "heart-pulse",
         label: t("care.resus.attempt"),
@@ -250,7 +255,22 @@ export function resuscitationSummary(
         reviewOverdue: status.reviewOverdue,
         reviewText,
       };
+    default:
+      return unreadable;
+  }
 }
+
+/**
+ * How often an open record reads the point-of-care header again (hazards HZ-002 and HZ-015), so a
+ * change a colleague makes (a withdrawn DNACPR, a new allergy) shows within this time even when
+ * nobody moves between tabs. Moving between tabs, coming back to the window and "Check again"
+ * read it at once. Every read is an audited view of the record, so it is not more often than this.
+ * A product setting, not a statutory figure, so it is not in the rate table.
+ */
+export const HEADER_REFRESH_INTERVAL_MS = 2 * 60_000;
+
+/** Coming back to the window reads the header again when it is older than this. */
+export const HEADER_FOCUS_REFRESH_AFTER_MS = 30_000;
 
 // ------------------------------------------------------------------------------------------------
 // IDDSI levels (HZ-016): always number, name and colour in words

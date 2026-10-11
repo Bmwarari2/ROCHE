@@ -1,17 +1,24 @@
 import "server-only";
-import type { PersonCareProfile, PersonSummary } from "@harbour/contracts";
 import { cache } from "react";
 import { failWith, problemCode, tenantApi } from "./api";
 import { isUuid } from "./context-cookies";
+import {
+  type CareProfileLoad,
+  type PersonRecord,
+  readCareProfile,
+  readPersonSummary,
+} from "./record-data";
 
 /**
- * Loads what every tab of a person's record needs. Cached per request, so the layout (header and
- * tabs) and the tab's page share one call each. The web tier holds no data of its own: every
- * value comes from the API, which checks scope and audits the read.
+ * Loads what every tab of a person's record needs. Cached per request, so the header and the
+ * tab's page share one call each; every tab renders the header itself, so moving between tabs
+ * reads it again (HZ-002, HZ-015). The web tier holds no data of its own: every value comes from
+ * the API, which checks scope and audits the read, and is checked against the API's schema here.
  */
 
 export type PersonLoad =
-  | { readonly person: PersonSummary; readonly code: null }
+  | { readonly person: PersonRecord; readonly code: null }
+  /** "not_found", "missing_permission" or "unreadable" (the answer did not match the schema). */
   | { readonly person: null; readonly code: string };
 
 export const getPerson = cache(async (id: string): Promise<PersonLoad> => {
@@ -20,7 +27,10 @@ export const getPerson = cache(async (id: string): Promise<PersonLoad> => {
   const { data, error, response } = await api.GET("/v1/people/{id}", {
     params: { path: { id } },
   });
-  if (data) return { person: data, code: null };
+  if (data) {
+    const person = readPersonSummary(data);
+    return person ? { person, code: null } : { person: null, code: "unreadable" };
+  }
   const code = problemCode(error);
   if (code === "not_found" || code === "missing_permission" || response.status === 404) {
     return { person: null, code: code ?? "not_found" };
@@ -28,14 +38,14 @@ export const getPerson = cache(async (id: string): Promise<PersonLoad> => {
   return failWith(error, response, `/people/${id}`);
 });
 
-/** IDDSI levels, fluid target, SpO2 scale and skin risk; null when the person may not read them. */
-export const getCareProfile = cache(async (id: string): Promise<PersonCareProfile | null> => {
+/** IDDSI levels, fluid target, SpO2 scale and skin risk, or why they cannot be shown. */
+export const getCareProfile = cache(async (id: string): Promise<CareProfileLoad> => {
   const api = await tenantApi();
   const { data, error, response } = await api.GET("/v1/people/{id}/care-profile", {
     params: { path: { id } },
   });
-  if (data) return data;
-  if (problemCode(error) === "missing_permission") return null;
+  if (data) return readCareProfile(data);
+  if (problemCode(error) === "missing_permission") return { kind: "no_access" };
   return failWith(error, response, `/people/${id}`);
 });
 

@@ -5,6 +5,7 @@ import { ChartEntryForm } from "@/components/care/ChartEntryForm";
 import { ChartSettingsForm } from "@/components/care/ChartSettingsForm";
 import { NoAccess } from "@/components/care/NoAccess";
 import { ObservationList } from "@/components/care/ObservationList";
+import { RecordFrame } from "@/components/care/RecordFrame";
 import { WindowNote } from "@/components/care/WindowNote";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { can, readingWindow, tabHref, windowStart } from "@/lib/care-record";
@@ -13,6 +14,7 @@ import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
 import { getCareProfile, getPerson, readOrFail } from "@/lib/person-record";
+import { type CareProfileLoad, profileOf } from "@/lib/record-data";
 import { firstParam, recordMetadata } from "@/lib/record-metadata";
 import { addDays, isIsoDate, ukDateTimeInput, ukToday } from "@/lib/uk-time";
 
@@ -38,7 +40,7 @@ export async function generateMetadata({
  * entries of the chart chosen. Vital signs show the NEWS2 result and the RCP's response wording
  * as the API returns them (HZ-014); food and drink show the prescribed IDDSI level (HZ-016).
  */
-export default async function ChartsPage({
+async function ChartsTab({
   params,
   searchParams,
 }: {
@@ -67,7 +69,7 @@ export default async function ChartsPage({
   };
 
   const api = await tenantApi();
-  const [fluid, entries, profile] = await Promise.all([
+  const [fluid, entries, profileLoad] = await Promise.all([
     api
       .GET("/v1/people/{id}/charts/fluid", { params: { path: { id }, query: { date } } })
       .then((r) => readOrFail(r, path)),
@@ -76,8 +78,11 @@ export default async function ChartsPage({
         params: { path: { id }, query: { chart, from: windowStart(days) } },
       })
       .then((r) => readOrFail(r, path)),
-    can(me.permissions, "care.plan.read") ? getCareProfile(id) : Promise.resolve(null),
+    can(me.permissions, "care.plan.read")
+      ? getCareProfile(id)
+      : Promise.resolve<CareProfileLoad>({ kind: "no_access" }),
   ]);
+  const profile = profileOf(profileLoad);
   if (!fluid || !entries) return <NoAccess />;
   const names = personNames(person);
   const fluidView = fluidDayView(fluid, t);
@@ -193,5 +198,18 @@ export default async function ChartsPage({
         </Card>
       ) : null}
     </>
+  );
+}
+
+/** The tab inside the record's frame: the point-of-care header, read again on every tab, and the tabs. */
+export default async function ChartsPage(props: {
+  readonly params: Params;
+  readonly searchParams: SearchParams;
+}) {
+  const { id } = await props.params;
+  return (
+    <RecordFrame personId={id} tab="charts">
+      <ChartsTab {...props} />
+    </RecordFrame>
   );
 }

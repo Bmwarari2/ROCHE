@@ -2,6 +2,7 @@ import { Card } from "@harbour/ui";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PlanStatus } from "@/components/care/PlanStatus";
+import { RecordFrame } from "@/components/care/RecordFrame";
 import { VersionList } from "@/components/care/VersionList";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { can, tabHref } from "@/lib/care-record";
@@ -23,7 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
  * care plan version, risk assessment and advance care record. Notes, chart entries and marks keep
  * their corrections in their own tabs.
  */
-export default async function HistoryPage({ params }: { readonly params: Params }) {
+async function HistoryTab({ params }: { readonly params: Params }) {
   const { id } = await params;
   const { person } = await getPerson(id);
   if (!person) return null;
@@ -153,5 +154,15 @@ export default async function HistoryPage({ params }: { readonly params: Params 
         </section>
       ) : null}
     </>
+  );
+}
+
+/** The tab inside the record's frame: the point-of-care header, read again on every tab, and the tabs. */
+export default async function HistoryPage(props: { readonly params: Params }) {
+  const { id } = await props.params;
+  return (
+    <RecordFrame personId={id} tab="history">
+      <HistoryTab {...props} />
+    </RecordFrame>
   );
 }

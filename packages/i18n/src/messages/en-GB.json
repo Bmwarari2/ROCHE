@@ -799,5 +799,14 @@
   "care.assessments.source": "{tool, select, news2 {Source: Royal College of Physicians, National Early Warning Score 2 (NEWS2), 2017} must {Source: BAPEN, Malnutrition Universal Screening Tool (MUST), 2003, reviewed August 2011} waterlow {Source: Judy Waterlow, Waterlow score, 1985, revised 2005} braden {Source: Barbara Braden and Nancy Bergstrom, Braden Scale for Predicting Pressure Sore Risk, 1988} other {Source: NICE guideline NG249, Falls: assessment and prevention}}",
   "care.title.tab": "{tab} | {people}",
   "care.title.section": "{section} | {title}",
-  "care.title.planVersion": "Care plan version"
+  "care.title.planVersion": "Care plan version",
+  "care.resus.unreadable": "CPR decision could not be read",
+  "care.resus.unreadableDetail": "Check the paper record and tell the nurse in charge.",
+  "care.header.iddsiNoAccess": "Not available to you",
+  "care.header.iddsiUnreadable": "Could not be read: check the paper record",
+  "care.header.checked": "Checked at {time}",
+  "care.header.checkAgain": "Check again",
+  "care.header.checking": "Checking",
+  "care.header.unreadable.title": "This record could not be read safely",
+  "care.header.unreadable.body": "Some details came back in a form Harbour could not check, so they are not shown. Use the paper record and tell the person in charge. Trying again later may help."
 }

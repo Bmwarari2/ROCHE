@@ -1,6 +1,7 @@
 import { Button, Card, SelectField } from "@harbour/ui";
 import type { Metadata } from "next";
 import { NoAccess } from "@/components/care/NoAccess";
+import { RecordFrame } from "@/components/care/RecordFrame";
 import { RiskCard } from "@/components/care/RiskCard";
 import { RiskForm } from "@/components/care/RiskForm";
 import { getShellContext, tenantApi } from "@/lib/api";
@@ -25,7 +26,7 @@ export async function generateMetadata(): Promise<Metadata> {
  * The risk assessments tab (register row CARE-002; hazards HZ-024 and HZ-025): the templates, a
  * form for a new assessment or a review, and the assessments in use and closed.
  */
-export default async function RiskAssessmentsPage({
+async function RiskAssessmentsTab({
   params,
   searchParams,
 }: {
@@ -154,5 +155,18 @@ export default async function RiskAssessmentsPage({
         </section>
       ) : null}
     </>
+  );
+}
+
+/** The tab inside the record's frame: the point-of-care header, read again on every tab, and the tabs. */
+export default async function RiskAssessmentsPage(props: {
+  readonly params: Params;
+  readonly searchParams: SearchParams;
+}) {
+  const { id } = await props.params;
+  return (
+    <RecordFrame personId={id} tab="risk-assessments">
+      <RiskAssessmentsTab {...props} />
+    </RecordFrame>
   );
 }

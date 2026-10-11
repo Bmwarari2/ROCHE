@@ -10,11 +10,11 @@ import {
   RECORD_TABS,
   readingWindow,
   resuscitationSummary,
-  tabForSegment,
   tabHref,
   visibleTabs,
   windowStart,
 } from "./care-record";
+import { profileOf, readCareProfile, readPersonSummary, readResuscitation } from "./record-data";
 
 describe("reading windows", () => {
   it("reads 3, 7, 14 or 30 days from the address and nothing else", () => {
@@ -62,10 +62,7 @@ describe("record tabs", () => {
     expect(visibleTabs(PERSON, []).length).toBe(0);
   });
 
-  it("maps layout segments to tabs", () => {
-    expect(tabForSegment(null)).toBe("overview");
-    expect(tabForSegment("notes")).toBe("notes");
-    expect(tabForSegment("photo")).toBeNull();
+  it("checks permissions by name", () => {
     expect(can(["care.note.write"], "care.note.write")).toBe(true);
     expect(can(["care.note.read"], "care.note.write")).toBe(false);
   });
@@ -189,6 +186,78 @@ describe("resuscitationSummary (hazard HZ-015)", () => {
     expect(summary.tone).toBe("danger");
     expect(summary.label).toBe("CPR records disagree");
     expect(summary.detail).toMatch(/Check the signed documents/);
+  });
+
+  it("hazard HZ-015 a status that could not be read, or is unknown, is a warning, never 'Attempt CPR'", () => {
+    for (const summary of [
+      resuscitationSummary(null, t),
+      resuscitationSummary(
+        { ...base, status: "full_escalation" as ResuscitationStatus["status"], kind: "respect" },
+        t,
+      ),
+    ]) {
+      expect(summary.tone).toBe("danger");
+      expect(summary.icon).toBe("triangle-alert");
+      expect(summary.label).toBe("CPR decision could not be read");
+      expect(summary.detail).toMatch(/Check the paper record/);
+    }
+  });
+});
+
+describe("reading the header data with the API's schemas (hazards HZ-001 and HZ-015)", () => {
+  const person = {
+    id: "0194d000-0000-7000-8600-000000000001",
+    locationId: "0194d000-0000-7000-8000-000000000101",
+    status: "active",
+    givenName: "Ada",
+    familyName: "Example",
+    preferredName: "Addie",
+    dateOfBirth: "1938-04-02",
+    nhsNumber: "9990000018",
+    roomLabel: "12",
+    photoUrl: null,
+    allergyStatus: "has_allergies",
+    allergies: [{ substance: "Penicillin", severity: "severe", reaction: null }],
+    communicationNeeds: [],
+    resuscitation: {
+      status: "do_not_attempt_cpr",
+      conflicting: false,
+      recordId: "0194d000-0000-7000-8000-000000000999",
+      kind: "dnacpr",
+      completedOn: "2026-09-30",
+      clinicianName: "Dr Ivy Example",
+      clinicianRole: "GP",
+      reviewDueOn: null,
+      reviewOverdue: false,
+    },
+    version: 3,
+  };
+
+  it("reads a person the API returned", () => {
+    const read = readPersonSummary(person);
+    expect(read?.givenName).toBe("Ada");
+    expect(read?.resuscitation?.status).toBe("do_not_attempt_cpr");
+  });
+
+  it("hazard HZ-015 keeps the person but marks a resuscitation status it cannot read", () => {
+    const read = readPersonSummary({
+      ...person,
+      resuscitation: { ...person.resuscitation, status: "full_escalation" },
+    });
+    expect(read?.givenName).toBe("Ada");
+    expect(read?.resuscitation).toBeNull();
+    expect(readResuscitation(undefined)).toBeNull();
+  });
+
+  it("hazard HZ-001 refuses a person whose identity or allergies cannot be read", () => {
+    expect(readPersonSummary({ ...person, allergies: "none" })).toBeNull();
+    expect(readPersonSummary({ ...person, givenName: undefined })).toBeNull();
+    expect(readPersonSummary(null)).toBeNull();
+  });
+
+  it("hazard HZ-016 marks a care profile it cannot read", () => {
+    expect(readCareProfile({ iddsiFoodLevel: "11" }).kind).toBe("unreadable");
+    expect(profileOf({ kind: "no_access" })).toBeNull();
   });
 });
 

@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { AssessmentForm } from "@/components/care/AssessmentForm";
 import { AssessmentResult } from "@/components/care/AssessmentResult";
 import { NoAccess } from "@/components/care/NoAccess";
+import { RecordFrame } from "@/components/care/RecordFrame";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { availableTools, bandChip, bandLabel, isToolKey, TOOL_KEYS } from "@/lib/assessments";
 import { can, tabHref } from "@/lib/care-record";
@@ -35,7 +36,7 @@ export async function generateMetadata({
  * NG249 falls questions, and Waterlow or Braden when the organisation has them switched on. The
  * current result of each tool and every result are shown as the API calculated them.
  */
-export default async function AssessmentsPage({
+async function AssessmentsTab({
   params,
   searchParams,
 }: {
@@ -185,5 +186,18 @@ export default async function AssessmentsPage({
         )}
       </section>
     </>
+  );
+}
+
+/** The tab inside the record's frame: the point-of-care header, read again on every tab, and the tabs. */
+export default async function AssessmentsPage(props: {
+  readonly params: Params;
+  readonly searchParams: SearchParams;
+}) {
+  const { id } = await props.params;
+  return (
+    <RecordFrame personId={id} tab="assessments">
+      <AssessmentsTab {...props} />
+    </RecordFrame>
   );
 }

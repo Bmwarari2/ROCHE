@@ -8,6 +8,7 @@ import { NoAccess } from "@/components/care/NoAccess";
 import { Notice } from "@/components/care/Notice";
 import { PlanStatus } from "@/components/care/PlanStatus";
 import { PublishPlan } from "@/components/care/PublishPlan";
+import { RecordFrame } from "@/components/care/RecordFrame";
 import { SectionEditor } from "@/components/care/SectionEditor";
 import { getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { PCSP_DOMAINS, planVersions } from "@/lib/care-plan";
@@ -31,7 +32,7 @@ export async function generateMetadata(): Promise<Metadata> {
  * away, and can be edited and published by staff who write care plans; a superseded version is
  * labelled as no longer in use (HZ-024).
  */
-export default async function CarePlanVersionPage({ params }: { readonly params: Params }) {
+async function CarePlanVersionTab({ params }: { readonly params: Params }) {
   const { id, planId } = await params;
   const { person } = await getPerson(id);
   if (!person) return null;
@@ -139,5 +140,15 @@ export default async function CarePlanVersionPage({ params }: { readonly params:
         </Card>
       )}
     </>
+  );
+}
+
+/** The tab inside the record's frame: the point-of-care header, read again on every tab, and the tabs. */
+export default async function CarePlanVersionPage(props: { readonly params: Params }) {
+  const { id } = await props.params;
+  return (
+    <RecordFrame personId={id} tab="care-plan">
+      <CarePlanVersionTab {...props} />
+    </RecordFrame>
   );
 }

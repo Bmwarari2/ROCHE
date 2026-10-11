@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { NoAccess } from "@/components/care/NoAccess";
+import { RecordFrame } from "@/components/care/RecordFrame";
 import { VersionList } from "@/components/care/VersionList";
 import { getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { can, tabHref } from "@/lib/care-record";
@@ -25,7 +26,7 @@ export async function generateMetadata({ params }: { readonly params: Params }):
 }
 
 /** Every earlier version of one care plan, section, action, risk assessment or advance care record. */
-export default async function RecordHistoryPage({ params }: { readonly params: Params }) {
+async function RecordHistoryTab({ params }: { readonly params: Params }) {
   const { id, table, recordId } = await params;
   const { person } = await getPerson(id);
   if (!person) return null;
@@ -54,5 +55,15 @@ export default async function RecordHistoryPage({ params }: { readonly params: P
         label={t("care.history.versions.title", { record })}
       />
     </>
+  );
+}
+
+/** The tab inside the record's frame: the point-of-care header, read again on every tab, and the tabs. */
+export default async function RecordHistoryPage(props: { readonly params: Params }) {
+  const { id } = await props.params;
+  return (
+    <RecordFrame personId={id} tab="history">
+      <RecordHistoryTab {...props} />
+    </RecordFrame>
   );
 }

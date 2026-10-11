@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { RecordFrame } from "@/components/care/RecordFrame";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { bandChip, bandLabel } from "@/lib/assessments";
 import { planStatusChip, planVersions } from "@/lib/care-plan";
@@ -37,7 +38,7 @@ const planIcons = { "circle-check": CircleCheck, "pencil-line": PencilLine, hist
  * The overview tab: what is in use and what was recorded lately, each a link into its section.
  * Every figure is the API's; nothing is calculated here.
  */
-export default async function PersonOverviewPage({ params }: { readonly params: Params }) {
+async function PersonOverviewTab({ params }: { readonly params: Params }) {
   const { id } = await params;
   const { person } = await getPerson(id);
   if (!person) return null;
@@ -263,5 +264,15 @@ export default async function PersonOverviewPage({ params }: { readonly params: 
         ) : null}
       </div>
     </>
+  );
+}
+
+/** The tab inside the record's frame: the point-of-care header, read again on every tab, and the tabs. */
+export default async function PersonOverviewPage(props: { readonly params: Params }) {
+  const { id } = await props.params;
+  return (
+    <RecordFrame personId={id} tab="overview">
+      <PersonOverviewTab {...props} />
+    </RecordFrame>
   );
 }

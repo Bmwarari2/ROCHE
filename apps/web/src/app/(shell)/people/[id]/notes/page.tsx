@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { NoAccess } from "@/components/care/NoAccess";
 import { NoteForm } from "@/components/care/NoteForm";
 import { NoteList } from "@/components/care/NoteList";
+import { RecordFrame } from "@/components/care/RecordFrame";
 import { WindowNote } from "@/components/care/WindowNote";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { can, readingWindow, tabHref, windowStart } from "@/lib/care-record";
@@ -22,7 +23,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /** Daily notes (care.md rules 3 and 4; register row CARE-009). */
-export default async function NotesPage({
+async function NotesTab({
   params,
   searchParams,
 }: {
@@ -79,5 +80,18 @@ export default async function NotesPage({
         )}
       </section>
     </>
+  );
+}
+
+/** The tab inside the record's frame: the point-of-care header, read again on every tab, and the tabs. */
+export default async function NotesPage(props: {
+  readonly params: Params;
+  readonly searchParams: SearchParams;
+}) {
+  const { id } = await props.params;
+  return (
+    <RecordFrame personId={id} tab="notes">
+      <NotesTab {...props} />
+    </RecordFrame>
   );
 }

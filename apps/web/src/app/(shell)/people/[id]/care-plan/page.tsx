@@ -6,6 +6,7 @@ import { CarePlanView } from "@/components/care/CarePlanView";
 import { NoAccess } from "@/components/care/NoAccess";
 import { Notice } from "@/components/care/Notice";
 import { PlanStatus } from "@/components/care/PlanStatus";
+import { RecordFrame } from "@/components/care/RecordFrame";
 import { StartDraftButton } from "@/components/care/StartDraftButton";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { planVersions } from "@/lib/care-plan";
@@ -29,7 +30,7 @@ export async function generateMetadata(): Promise<Metadata> {
  * by need domain, what is due, and every version with its status in word and icon. A draft is
  * never shown as the plan in use.
  */
-export default async function CarePlanPage({
+async function CarePlanTab({
   params,
   searchParams,
 }: {
@@ -176,5 +177,18 @@ export default async function CarePlanPage({
         </section>
       ) : null}
     </>
+  );
+}
+
+/** The tab inside the record's frame: the point-of-care header, read again on every tab, and the tabs. */
+export default async function CarePlanPage(props: {
+  readonly params: Params;
+  readonly searchParams: SearchParams;
+}) {
+  const { id } = await props.params;
+  return (
+    <RecordFrame personId={id} tab="care-plan">
+      <CarePlanTab {...props} />
+    </RecordFrame>
   );
 }
