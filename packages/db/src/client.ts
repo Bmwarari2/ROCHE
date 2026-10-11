@@ -44,8 +44,20 @@ export function assertValidContext(ctx: RequestContext): void {
   }
 }
 
-export function createPool(connectionString: string, options: pg.PoolConfig = {}): pg.Pool {
-  return new pg.Pool({
+/** An error on a connection waiting in the pool, with the Postgres code when there is one. */
+export type IdleConnectionError = Error & { readonly code?: string };
+
+/**
+ * A connection pool. An idle connection can fail between queries (a failover, a restart, an
+ * administrator ending sessions); the pool then discards it and opens a new one when needed, and
+ * reports the error here. Without a listener Node would treat it as unhandled and stop the process.
+ */
+export function createPool(
+  connectionString: string,
+  options: pg.PoolConfig = {},
+  onIdleError: (error: IdleConnectionError) => void = () => {},
+): pg.Pool {
+  const pool = new pg.Pool({
     connectionString,
     max: 10,
     idleTimeoutMillis: 30_000,
@@ -53,6 +65,8 @@ export function createPool(connectionString: string, options: pg.PoolConfig = {}
     application_name: "harbour",
     ...options,
   });
+  pool.on("error", (error: IdleConnectionError) => onIdleError(error));
+  return pool;
 }
 
 export function createDatabase(pool: pg.Pool): Database {

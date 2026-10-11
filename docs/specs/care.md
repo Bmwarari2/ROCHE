@@ -114,7 +114,30 @@ applies). Figures come from `rate_table` by key.
    safeguarding decision guide (see [safety.md](safety.md)).
 8. **Handover.** Compiled from the shift's late tasks, NEWS2 of 5 or more, incidents, new body-map
    marks, refusals, falls, and alerts; nothing safety-critical can be removed, only added to. Each
-   incoming member of staff acknowledges it.
+   incoming member of staff acknowledges it. As built (`packages/domain/src/care/handover.ts`):
+   - **Shifts** follow the location's pattern in UK local time, to the minute and with two or more
+     shifts (default day 08:00 and night 20:00 from `handover.day_shift_start_minute` and
+     `handover.night_shift_start_minute`), so a shift over a clock change is an hour shorter or longer.
+   - **Items**: falls (incidents, and notes tagged `fall`); NEWS2 in any band above "low", which is an
+     aggregate of 5 or more or a single parameter scoring 3 (the RCP's urgent-response trigger), so
+     wider than "5 or more"; incidents, with or without a person; urgent alerts raised in the shift
+     or still unacknowledged at its end; new body-map marks; tasks overdue at the end of the shift;
+     urgent or evidence-bearing tasks skipped or cancelled in it (with the reason); tasks due by the
+     end of the shift that are not done though their window is still open; MUST follow-ups raised in
+     it; refusals (food or drink refused, repositioning declined, notes tagged `refusal`).
+     Medicines refusals join from the eMAR in Phase 2 (HZ-003).
+   - **Tags** are a fixed vocabulary (`HANDOVER_NOTE_TAGS`) that the note form offers as choices;
+     free-text tags are never matched.
+   - **Late syncs**: an entry belongs to the shift it happened in and to the shift that received it;
+     the API refreshes both handovers, locked ones included, appending late additions. A late
+     addition reaches the incoming staff while their shift runs, otherwise the nurse in charge on
+     duty.
+   - **Acknowledgement** records how many items the person saw (server time alongside); a late
+     addition makes them pending again and shows them only the new items.
+   - **Round view** (`rounds.ts`): open tasks due before the round ends (unfinished ones from
+     earlier rounds included) and later tasks whose window is already open, by floor, then room in
+     natural order, then due time. Each stop shows the point-of-care header (photo, name,
+     allergies; HZ-001), and offline views show the last sync time (HZ-002).
 9. **Capacity.** Assume capacity; a capacity assessment is decision-specific and time-specific, and
    records the practicable steps taken to support the person to decide. An outcome of "lacks
    capacity" is accepted only when stage 1 is met and at least one stage 2 element is not.
@@ -143,7 +166,10 @@ the 02:00 turn), which completes that task with the entry as evidence. A NEWS2 r
 the nurse in charge and creates the response and repeat-observation tasks; a score of 0 schedules
 nothing outside the care plan (HZ-008). Body marks that prompt an incident or the safeguarding guide
 create those tasks for the manager. Charts and marks are refused for discharged, deceased and
-archived people; post-event notes are allowed.
+archived people; post-event notes are allowed. Slice 4a refuses them whatever the event time; the
+people lifecycle step changes this to [people.md](people.md#4-rules-that-are-easy-to-get-wrong)
+rule 3: an entry for an event at or before the exit (for example observations a phone recorded
+offline before a death) is accepted and flagged as recorded after the exit (HZ-006).
 
 Built in slice 4b: `GET` and `POST /v1/people/{id}/care-plans` (a draft, usually copied from the
 active plan; one draft and one active plan per person), `GET /v1/people/{id}/care-plans/{planId}`,

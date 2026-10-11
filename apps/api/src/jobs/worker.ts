@@ -2,7 +2,7 @@ import { createDatabase, createPool } from "@harbour/db";
 import { PgBoss } from "pg-boss";
 import { loadConfig } from "../config";
 import { createAdapterResolver } from "../integrations/registry";
-import { createLogger } from "../logger";
+import { createLogger, idleErrorLogger } from "../logger";
 import {
   endExpiredAssignments,
   escalateTasks,
@@ -20,8 +20,12 @@ import {
  */
 const config = loadConfig();
 const logger = createLogger(config.LOG_LEVEL);
-const workerPool = createPool(config.DATABASE_WORKER_URL, { max: 4 });
-const appPool = createPool(config.DATABASE_APP_URL, { max: 4 });
+const workerPool = createPool(
+  config.DATABASE_WORKER_URL,
+  { max: 4 },
+  idleErrorLogger(logger, "worker"),
+);
+const appPool = createPool(config.DATABASE_APP_URL, { max: 4 }, idleErrorLogger(logger, "app"));
 const deps = { workerPool, appDb: createDatabase(appPool), logger };
 
 /** Module handlers subscribe to outbox events here as modules land (Phase 1 onwards). */

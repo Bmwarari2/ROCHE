@@ -28,3 +28,15 @@ export function createLogger(level: string) {
 }
 
 export type Logger = ReturnType<typeof createLogger>;
+
+/**
+ * Logs an idle database connection that failed (the pool replaces it). Only the pool name and the
+ * Postgres error code are logged, never the message or any query (section 5.3).
+ */
+export function idleErrorLogger(logger: Logger, pool: string) {
+  return (error: Error & { readonly code?: string }) =>
+    logger.warn(
+      { pool, code: error.code ?? null },
+      "database connection lost; the pool will open a new one",
+    );
+}
