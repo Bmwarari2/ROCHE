@@ -559,26 +559,30 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   (`claimedOwnerTenantUserId`) and changes nothing: routing uses the reporter's assignments alone,
   the claim gives no right to close, and the owner taken for the hold stays the device's last bound
   owner (security review round 7, M1). The server takes the report's times as no later than it
-  received them, and a hold's start as no earlier than the device's last report for that hold (same
-  owner, still waiting) said, nor than the server first heard from the device.
+  received them, and a hold's start as no earlier than the device's last report for that hold (still
+  waiting, whoever is named as owner) said, nor than the server first heard from the device.
   While held, unsent or blocked entries wait, the server keeps the device's task (source
   `device_hold`) for a Registered Manager, due at the hold's start plus
   `mobile.held_entries_max_days`. It is raised at each location the report names where the reporter,
-  or the owner when bound, has a live or most recent role assignment (any of the organisation's for
-  someone assigned across it), one task per location, closed together; with none left, at the
+  or the owner when bound, has a live or most recent role assignment (any of the organisation's when
+  the reporter is assigned across it), one task per location, closed together; with none left, at the
   reporter's live locations, then at their most recent one (including one just removed); with no
   location at all, one for each Registered Manager, assigned to them. A later report can bring the
   due time earlier, never later. Overdue, the task escalates only to holders of
-  `safety.incident.manage` at its location; with no one there (a vacant post), to the Registered
-  Managers anywhere in the organisation, then the holders anywhere; with no one at all it is not
-  marked escalated and the gap is audited once a day (`sync.escalation_unrouted`; clinical review
-  round 7, M5). A report with nothing waiting, or recording "deleted" for the device's whole hold,
+  `safety.incident.manage` at its location; with no one there (a vacant post), it is assigned to the
+  longest-serving live Registered Manager anywhere in the organisation (else holder of the
+  permission anywhere), who alone is told and, as its assignee, can see and complete it; with no one
+  at all it is not marked escalated, the gap is audited once a day (`sync.escalation_unrouted`) and
+  the task waits a day before it is tried again (clinical reviews round 7 M5 and round 8 M1). A
+  report with nothing waiting, or recording "deleted" for the device's whole hold,
   closes every copy when it comes from the hold's owner (as recorded when the task was raised or
   reopened), from whoever raised it, or from a holder of `safety.incident.manage` at one of its
   locations; anyone else's close is refused and audited. A task closed less than a day ago is
-  reopened instead of a new one being raised. A new hold after a refused close, and a reopen, reset
-  the escalation under one check, at most once a day (`DEVICE_HOLD_RESET_HOURS`) and with the due
-  time never later, so a new hold always signals (clinical review round 7, M1). Each reporter raises
+  reopened instead of a new one being raised. A new hold after a refused close, and a reopen of a
+  task that had escalated, reset the escalation under one check, at most once a day
+  (`DEVICE_HOLD_RESET_HOURS`) and with the due time never later; a reopen that finds the day's reset
+  used is reset by a later report once it is due, once, so a new hold always signals (clinical
+  reviews round 7 M1 and round 8 M2). Each reporter raises
   tasks for at most 3 devices in a rolling day, whatever became of them, counted under a
   per-reporter lock; past that, each further hold joins the reporter's one capped-holds task (source
   `device_hold_capped`, its source id the reporter), raised at the hold's locations when none is
