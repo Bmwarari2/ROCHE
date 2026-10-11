@@ -1,0 +1,22 @@
+{
+  "name": "@harbour/domain",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@harbour/config": "workspace:*",
+    "@types/node": "^22.15.0",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.11",
+    "@vitest/coverage-v8": "^4.1.11"
+  },
+  "description": "Harbour domain rules: the 14 bounded contexts' entities, rules and events, with no I/O"
+}

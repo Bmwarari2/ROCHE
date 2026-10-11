@@ -1,0 +1,322 @@
+import { ALL_PERMISSIONS, type Permission } from "./permissions";
+
+/**
+ * Built-in roles (master prompt section 4). Tenants may rename or clone them; clones are stored
+ * per tenant and versioned. The Thapsus operator is not a tenant role: it lives in the operator
+ * console with its own database role and approval-ticket impersonation.
+ */
+
+export type ScopeKind = "tenant" | "location" | "assigned" | "self" | "none";
+
+export interface BuiltinRole {
+  readonly key: string;
+  readonly name: string;
+  readonly description: string;
+  readonly scopeKind: ScopeKind;
+  readonly permissions: readonly Permission[];
+  /** Agency and visiting roles must carry an expiry on every assignment. */
+  readonly requiresExpiry?: boolean;
+}
+
+const readCare: Permission[] = ["people.person.read", "care.plan.read", "care.note.read"];
+const pointOfCare: Permission[] = [
+  ...readCare,
+  "care.note.write",
+  "care.assessment.write",
+  "care.handover.manage",
+  "medicines.emar.administer",
+  "safety.incident.report",
+  "scheduling.rota.read",
+  "scheduling.timesheet.self",
+  "workforce.self.read",
+  "comms.message.send",
+  "insights.dashboard.read",
+];
+
+const registeredManager: Permission[] = ALL_PERMISSIONS.filter(
+  (p) =>
+    !p.startsWith("platform.") &&
+    !p.startsWith("ai.copilot.manage") &&
+    p !== "insights.group.read" &&
+    p !== "comms.portal.family" &&
+    p !== "comms.portal.self" &&
+    p !== "finance.ledger.record",
+).concat([
+  "platform.user.manage",
+  "platform.audit.read",
+  "platform.location.manage",
+  "platform.grant.manage",
+]);
+
+export const BUILTIN_ROLES: readonly BuiltinRole[] = [
+  {
+    key: "owner",
+    name: "Owner",
+    description: "Founder, director or Nominated Individual. Everything, including billing.",
+    scopeKind: "tenant",
+    permissions: ALL_PERMISSIONS.filter(
+      (p) => p !== "comms.portal.family" && p !== "comms.portal.self",
+    ),
+  },
+  {
+    key: "group_executive",
+    name: "Group executive",
+    description: "Cross-location dashboards, finance, workforce and audits; no clinical edits.",
+    scopeKind: "tenant",
+    permissions: [
+      "people.person.read",
+      "care.plan.read",
+      "care.note.read",
+      "finance.reporting.read",
+      "finance.billing.manage",
+      "workforce.training.manage",
+      "workforce.supervision.manage",
+      "quality.audit.manage",
+      "quality.evidence.read",
+      "insights.dashboard.read",
+      "insights.report.manage",
+      "insights.group.read",
+      "platform.audit.read",
+      "scheduling.rota.read",
+      "comms.message.send",
+    ],
+  },
+  {
+    key: "registered_manager",
+    name: "Registered Manager",
+    description: "Full operational control of a location, including CQC notifications.",
+    scopeKind: "location",
+    permissions: registeredManager,
+  },
+  {
+    key: "deputy_manager",
+    name: "Deputy manager",
+    description:
+      "As Registered Manager minus tenant settings; submits notifications only under an acting-up grant.",
+    scopeKind: "location",
+    permissions: registeredManager.filter(
+      (p) => p !== "safety.notification.submit" && p !== "platform.grant.manage",
+    ),
+  },
+  {
+    key: "clinical_lead",
+    name: "Clinical lead or nurse",
+    description: "Clinical assessments, controlled drugs, delegated-healthcare sign-off, ReSPECT.",
+    scopeKind: "location",
+    permissions: [
+      ...pointOfCare,
+      "care.plan.write",
+      "care.capacity.write",
+      "care.dols.manage",
+      "care.respect.record",
+      "care.delegated.signoff",
+      "medicines.record.manage",
+      "medicines.cd.administer",
+      "medicines.cd.witness",
+      "medicines.stock.manage",
+      "safety.incident.manage",
+      "workforce.competence.observe",
+    ],
+  },
+  {
+    key: "team_leader",
+    name: "Team leader or senior carer",
+    description: "Handover, task allocation, eMAR, incidents, spot checks, competency observation.",
+    scopeKind: "location",
+    permissions: [
+      ...pointOfCare,
+      "medicines.cd.witness",
+      "medicines.cd.administer",
+      "workforce.competence.observe",
+      "people.assignment.manage",
+    ],
+  },
+  {
+    key: "care_worker",
+    name: "Care or support worker",
+    description: "Daily notes, charts, eMAR within competence, incidents, own rota and timesheets.",
+    scopeKind: "assigned",
+    permissions: [...pointOfCare, "medicines.cd.witness"],
+  },
+  {
+    key: "care_coordinator",
+    name: "Care coordinator",
+    description: "Scheduling, visit monitoring, package changes and on-call escalation.",
+    scopeKind: "location",
+    permissions: [
+      "people.person.read",
+      "care.plan.read",
+      "scheduling.rota.read",
+      "scheduling.rota.manage",
+      "scheduling.visit.manage",
+      "people.assignment.manage",
+      "safety.incident.report",
+      "comms.message.send",
+      "insights.dashboard.read",
+    ],
+  },
+  {
+    key: "activities",
+    name: "Activities",
+    description: "Activity records only; no care notes.",
+    scopeKind: "none",
+    permissions: [
+      "operations.activities.manage",
+      "people.demographics.read",
+      "safety.incident.report",
+      "scheduling.rota.read",
+      "scheduling.timesheet.self",
+      "workforce.self.read",
+    ],
+  },
+  {
+    key: "catering",
+    name: "Catering",
+    description: "Menus, allergen flags and food safety logs; no care notes.",
+    scopeKind: "none",
+    permissions: [
+      "operations.catering.manage",
+      "people.demographics.read",
+      "safety.incident.report",
+      "scheduling.rota.read",
+      "scheduling.timesheet.self",
+      "workforce.self.read",
+    ],
+  },
+  {
+    key: "housekeeping",
+    name: "Housekeeping",
+    description: "Cleaning and laundry logs; no care notes.",
+    scopeKind: "none",
+    permissions: [
+      "operations.housekeeping.manage",
+      "safety.incident.report",
+      "scheduling.rota.read",
+      "scheduling.timesheet.self",
+      "workforce.self.read",
+    ],
+  },
+  {
+    key: "maintenance",
+    name: "Maintenance",
+    description: "Assets, statutory checks and maintenance logs; no care notes.",
+    scopeKind: "none",
+    permissions: [
+      "operations.premises.manage",
+      "safety.incident.report",
+      "scheduling.rota.read",
+      "scheduling.timesheet.self",
+      "workforce.self.read",
+    ],
+  },
+  {
+    key: "administrator",
+    name: "Administrator or receptionist",
+    description: "Enquiries, visitors, documents and appointments; read-only demographics.",
+    scopeKind: "location",
+    permissions: [
+      "people.enquiry.manage",
+      "people.demographics.read",
+      "operations.visitors.manage",
+      "operations.occupancy.manage",
+      "safety.incident.report",
+      "comms.message.send",
+      "comms.letter.manage",
+    ],
+  },
+  {
+    key: "finance",
+    name: "Finance",
+    description:
+      "Fees, invoicing, residents' money oversight, payroll export, budgets; no care notes.",
+    scopeKind: "none",
+    permissions: [
+      "people.demographics.read",
+      "finance.billing.manage",
+      "finance.ledger.record",
+      "finance.ledger.approve",
+      "finance.reporting.read",
+      "finance.payroll.export",
+      "insights.dashboard.read",
+    ],
+  },
+  {
+    key: "hr",
+    name: "HR, recruitment or training lead",
+    description: "Recruitment, compliance files, training matrix, supervision; no care notes.",
+    scopeKind: "none",
+    permissions: [
+      "workforce.recruitment.manage",
+      "workforce.training.manage",
+      "workforce.supervision.manage",
+      "workforce.casework.manage",
+      "workforce.competence.observe",
+      "insights.dashboard.read",
+    ],
+  },
+  {
+    key: "quality_lead",
+    name: "Quality and compliance lead",
+    description:
+      "Audits, policies, evidence, DSAR and breach registers, whistleblowing (anonymised).",
+    scopeKind: "tenant",
+    permissions: [
+      "people.person.read",
+      "care.plan.read",
+      "care.note.read",
+      "quality.audit.manage",
+      "quality.policy.manage",
+      "quality.evidence.manage",
+      "quality.evidence.read",
+      "quality.dsar.manage",
+      "safety.whistleblowing.read",
+      "safety.complaint.manage",
+      "platform.audit.read",
+      "insights.dashboard.read",
+      "insights.report.manage",
+    ],
+  },
+  {
+    key: "external_professional",
+    name: "External professional",
+    description: "GP, district nurse, pharmacist, social worker: named people, time-limited.",
+    scopeKind: "assigned",
+    requiresExpiry: true,
+    permissions: ["people.person.read", "care.plan.read", "care.note.read", "care.note.write"],
+  },
+  {
+    key: "family_representative",
+    name: "Family or representative",
+    description:
+      "Portal for one person: updates, consented care plan sections, invoices, messages.",
+    scopeKind: "assigned",
+    permissions: ["comms.portal.family"],
+  },
+  {
+    key: "person_receiving_care",
+    name: "Person receiving care",
+    description: "Own portal: About Me, notes feed, preferences, feedback.",
+    scopeKind: "self",
+    permissions: ["comms.portal.self"],
+  },
+  {
+    key: "agency_worker",
+    name: "Agency or bank worker",
+    description: "As care worker, auto-expiring at shift end plus 2 hours.",
+    scopeKind: "assigned",
+    requiresExpiry: true,
+    permissions: pointOfCare,
+  },
+  {
+    key: "inspector",
+    name: "Inspector or auditor",
+    description: "Read-only, time-boxed, watermarked evidence packs.",
+    scopeKind: "none",
+    requiresExpiry: true,
+    permissions: ["quality.evidence.read"],
+  },
+];
+
+export function builtinRole(key: string): BuiltinRole | undefined {
+  return BUILTIN_ROLES.find((role) => role.key === key);
+}
