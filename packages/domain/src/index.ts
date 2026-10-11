@@ -1,3 +1,4 @@
+export * from "./care/activities";
 export * from "./care/advance-care";
 export * from "./care/assessment";
 export * from "./care/body-map";
