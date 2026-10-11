@@ -5,7 +5,7 @@ import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
 import { type AppEnv, type TenantAccess, withTenant } from "../http/context";
 import { problems } from "../http/problem";
-import { type PlannedTaskLink, planTaskLink } from "../services/care";
+import { applyTaskLink, type PlannedTaskLink, planTaskLink } from "../services/care";
 import { CareEventAfterExit, loadPerson, raiseLateEntryReview } from "../services/people";
 
 /**
@@ -87,26 +87,41 @@ export function permissionsOf(access: TenantAccess): ReadonlySet<string> {
 }
 
 /**
- * What an entry will do to the task it names (`planTaskLink`), or null when it names none. An
- * assignee who may no longer complete the task has the completion refused and audited; the entry
- * is still kept, flagged and reviewed (S1 follow-on; HZ-004, HZ-006).
+ * What an entry will do to the task it names (`planTaskLink`), or null when it names none. The
+ * author's permission is judged when the care was recorded (`occurredAt`; HZ-004, HZ-006).
  */
 export async function planLink(
   tx: Transaction,
   access: TenantAccess,
   taskId: string | undefined,
   personId: string,
-  requestId?: string,
+  occurredAt: Date,
 ): Promise<PlannedTaskLink | null> {
   if (!taskId) return null;
-  const link = await planTaskLink(tx, {
+  return planTaskLink(tx, {
     taskId,
     personId,
     actorTenantUserId: access.tenantUserId,
     actorPermissions: permissionsOf(access),
+    occurredAt,
   });
+}
+
+/**
+ * Carries out a planned link once this request has inserted the entry (`applyTaskLink`). An
+ * assignee who may not complete the task has the completion refused and audited with the entry,
+ * which is kept, flagged and reviewed (S1 follow-on; HZ-004, HZ-006); a duplicate upload that lost
+ * the race to insert writes nothing, so no refusal is recorded for an entry it did not create.
+ */
+export async function applyLink(
+  tx: Transaction,
+  access: TenantAccess,
+  requestId: string | undefined,
+  link: PlannedTaskLink,
+  entry: Parameters<typeof applyTaskLink>[2],
+): Promise<void> {
+  await applyTaskLink(tx, link, entry);
   if (link.assigneeRefused) {
-    // The entry is written in this transaction, so the refusal is kept with it.
     await auditInTx(tx, access, {
       action: "platform.task.done",
       outcome: "denied",
@@ -116,7 +131,6 @@ export async function planLink(
       requestId,
     });
   }
-  return link;
 }
 
 /**

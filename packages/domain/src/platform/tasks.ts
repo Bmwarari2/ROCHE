@@ -148,6 +148,20 @@ export const MEDICINES_CONFLICT_MESSAGE =
 export const isMedicinesTask = (kind: string) => kind.startsWith("medicines.");
 
 /**
+ * When the author's permission to complete a task with an entry is judged (HZ-004, HZ-006): when
+ * the care was recorded, so a carer acting up under a grant that ended before the device uploaded
+ * still completes the round they did, and the round is not left open, inviting a repeat. Never
+ * before the task existed, since a device can only name a task it already holds, so an entry
+ * backdated to an earlier grant cannot complete a later task; and never after the server's clock.
+ * A revoked grant never counts, whenever the care was recorded (`resolveAccess`). The CSO
+ * confirms the rule (H-138, with H-132).
+ */
+export function entryPermissionTime(occurredAt: Date, taskCreatedAt: Date, now: Date): Date {
+  const recorded = Math.max(occurredAt.getTime(), taskCreatedAt.getTime());
+  return new Date(Math.min(recorded, now.getTime()));
+}
+
+/**
  * What an entry does to the task it names. The entry is always kept (an entry recorded offline is
  * never lost, HZ-006), except for a task about another person (HZ-001). It completes an open task
  * the author may complete. A task cancelled by the lifecycle with no evidence keeps the entry as
