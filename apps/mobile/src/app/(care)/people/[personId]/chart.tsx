@@ -464,6 +464,7 @@ export default function ChartScreen() {
         onChange={setWhen}
         error={errors.when}
         windowDays={context.windowDays ?? null}
+        toleranceMinutes={context.clockToleranceMinutes ?? 0}
         original={correctId ? (originals[0]?.occurred_at ?? null) : null}
       />
       <Card title={t("mobile.chart.recentEntries")}>

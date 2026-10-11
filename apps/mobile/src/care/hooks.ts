@@ -75,10 +75,20 @@ export function useEntryContext(personId: string): EntryContext {
   const { data } = useQuery<PersonContextRow>(PERSON_CONTEXT_SQL, params);
   const locationId = data[0]?.location_id ?? null;
   const userId = me?.user.id ?? null;
-  const windowDays = useVault().offlineWindowDays;
+  const vault = useVault();
+  const windowDays = vault.offlineWindowDays;
+  const clockToleranceMinutes = vault.clockToleranceMinutes;
   return useMemo(
-    () => ({ tenantId, personId, locationId, userId, windowDays, newId: newEntryId }),
-    [tenantId, personId, locationId, userId, windowDays],
+    () => ({
+      tenantId,
+      personId,
+      locationId,
+      userId,
+      windowDays,
+      clockToleranceMinutes,
+      newId: newEntryId,
+    }),
+    [tenantId, personId, locationId, userId, windowDays, clockToleranceMinutes],
   );
 }
 

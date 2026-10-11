@@ -72,6 +72,7 @@ import {
 } from "../security/db-key";
 import { type DeviceIntegrityResult, stubIntegrityChecker } from "../security/device-integrity";
 import { IdleTimer } from "../security/idle-timer";
+import { FAIL_SAFE_TOLERANCE_MINUTES, resolveClockTolerance } from "../sync/clock-tolerance";
 import { HarbourConnector } from "../sync/connector";
 import {
   databaseFileGone,
@@ -148,6 +149,11 @@ interface VaultValue {
   readonly autoLockMs: number;
   /** Days of entries kept on the device (`mobile.offline_window_days`), once known. */
   readonly offlineWindowDays: number | null;
+  /**
+   * Minutes a typed event time may be ahead of the device clock (`sync.clock_drift_flag_minutes`);
+   * none until the tenant's figure is known (HZ-010).
+   */
+  readonly clockToleranceMinutes: number;
   /** Shown once after the data on the device had to be reset. */
   readonly resetNotice: string | null;
   unlock(): Promise<void>;
@@ -296,6 +302,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
   const [integrity, setIntegrity] = useState<DeviceIntegrityResult | null>(null);
   const [resetNotice, setResetNotice] = useState<string | null>(null);
   const [offlineWindowDays, setOfflineWindowDays] = useState<number | null>(null);
+  const [clockToleranceMinutes, setClockToleranceMinutes] = useState(FAIL_SAFE_TOLERANCE_MINUTES);
   /** When the window the device connected with stops being current (the next UTC midnight). */
   const windowValidUntilRef = useRef<Date | null>(null);
   /** The tenant's `mobile.held_entries_max_days`, once read (S2). */
@@ -377,6 +384,11 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       const window = await resolveOfflineWindow(database, fetchOptions);
       setOfflineWindowDays(window.days);
       windowValidUntilRef.current = nextWindowChange(now);
+      setClockToleranceMinutes(
+        await resolveClockTolerance(database, fetchOptions).catch(
+          () => FAIL_SAFE_TOLERANCE_MINUTES,
+        ),
+      );
       heldMaxDaysRef.current = await resolveHeldMaxDays(database, fetchOptions).catch(
         () => heldMaxDaysRef.current,
       );
@@ -878,6 +890,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       integrity,
       autoLockMs,
       offlineWindowDays,
+      clockToleranceMinutes,
       resetNotice,
       unlock,
       lock,
@@ -899,6 +912,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       integrity,
       autoLockMs,
       offlineWindowDays,
+      clockToleranceMinutes,
       resetNotice,
       unlock,
       lock,

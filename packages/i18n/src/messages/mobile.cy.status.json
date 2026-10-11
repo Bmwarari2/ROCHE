@@ -281,7 +281,6 @@
     "mobile.vitals.systolic",
     "mobile.vitals.temperature",
     "mobile.when.day",
-    "mobile.when.dayAuto",
     "mobile.when.dayOn",
     "mobile.when.dayToday",
     "mobile.when.dayYesterday",
@@ -295,6 +294,11 @@
     "mobile.when.resolved",
     "mobile.when.skipped",
     "mobile.when.time",
-    "mobile.when.timeHint"
+    "mobile.when.timeHint",
+    "mobile.when.zoneBst",
+    "mobile.when.zoneGmt",
+    "mobile.when.zoneHint",
+    "mobile.when.zoneLabel",
+    "mobile.when.zoneRequired"
   ]
 }

@@ -156,6 +156,7 @@ export default function NoteScreen() {
         onChange={setWhen}
         error={errors.when}
         windowDays={context.windowDays ?? null}
+        toleranceMinutes={context.clockToleranceMinutes ?? 0}
         original={original?.occurred_at ?? null}
       />
     </FormScreen>

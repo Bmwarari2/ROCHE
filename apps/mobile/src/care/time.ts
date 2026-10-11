@@ -1,28 +1,48 @@
 /**
- * Times on care entries (care.md section 4 rule 3; hazards HZ-010 and HZ-017; clinical review C4).
+ * Times on care entries (care.md section 4 rule 3; hazards HZ-009, HZ-010 and HZ-017; clinical
+ * reviews C4 and round 3 H1).
  *
- * - `occurred_at` is when the care happened: now, a time on an earlier day within the offline
- *   window, or (for a correction) the original entry's time, which a correction keeps by default.
- *   It is never later than the device clock, so a future event cannot be recorded.
- * - A time typed without a day means the most recent time the clock showed it: at 00:30, "23:45"
- *   is yesterday, not tonight.
+ * - `occurred_at` is when the care happened: now, a time typed for a day the carer chooses within
+ *   the offline window (today unless they choose another), or, for a correction, the original
+ *   entry's instant, kept exactly as it was.
+ * - A typed time goes through the one shared rule, `resolveRecordedUkTime` in `@harbour/domain`, as
+ *   on the web. A time later than the device clock by more than the tenant's clock-drift tolerance
+ *   (`sync.clock_drift_flag_minutes`) is refused; it is never rolled back to yesterday. Earlier
+ *   days come only from the explicit day choice.
  * - Wall-clock times are UK time. On the spring change a time that did not happen (01:00 to 01:59
- *   on the last Sunday in March) is refused; on the autumn change a time that happened twice is
- *   the latest one not in the future.
+ *   on the last Sunday in March) is refused. On the autumn change, a time in the repeated hour
+ *   whose two occurrences have both passed needs the carer to choose "BST, before the clocks went
+ *   back" or "GMT, after"; there is no default, because either guess can put events in the wrong
+ *   order. On a clock-change day, times show BST or GMT beside them.
  * - `device_time` is the device clock when the entry was written. The server measures lateness
  *   from it, so an entry written on time and uploaded hours later is not flagged late.
  * - Display is UK time, dd/mm/yyyy and 24-hour, whatever the device's own time zone.
  */
-import { formatUkDate, formatUkTime, toUkWallClock } from "@harbour/domain";
+import {
+  formatUkDate,
+  formatUkTime,
+  isUkClockChangeDay,
+  resolveRecordedUkTime,
+  toUkWallClock,
+  ukZoneAbbreviation,
+} from "@harbour/domain";
 import type { MessageKey } from "../i18n/t";
+
+/** Which side of the autumn change a time in the repeated hour was. */
+export type UkZone = "BST" | "GMT";
 
 export type WhenChoice =
   | { readonly kind: "now" }
   /**
-   * A time on an earlier day: `daysAgo` counts UK calendar days back from today (0 is today);
-   * null means the most recent time the clock showed it (today, or yesterday if that is later).
+   * A time on a day the carer chose: `daysAgo` counts UK calendar days back from today (0, the
+   * default, is today). `zone` answers which of the two the time was when it happened twice.
    */
-  | { readonly kind: "earlier"; readonly time: string; readonly daysAgo?: number | null }
+  | {
+      readonly kind: "earlier";
+      readonly time: string;
+      readonly daysAgo?: number;
+      readonly zone?: UkZone | null;
+    }
   /** A correction keeps the original entry's event time unless the carer changes it. */
   | { readonly kind: "original"; readonly at: string };
 
@@ -53,69 +73,83 @@ export function ukDateDaysAgo(
   return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1, day: date.getUTCDate() };
 }
 
-/**
- * Every instant at which a UK wall-clock time occurs on a date: none in the spring gap, two in the
- * autumn overlap, otherwise one. UK time is GMT or GMT plus one hour.
- */
-export function ukInstantsAt(
-  date: { readonly year: number; readonly month: number; readonly day: number },
-  hour: number,
-  minute: number,
-): Date[] {
-  const naive = Date.UTC(date.year, date.month - 1, date.day, hour, minute);
-  return [60, 0]
-    .map((offsetMinutes) => new Date(naive - offsetMinutes * 60_000))
-    .filter((instant) => {
-      const wall = toUkWallClock(instant);
-      return (
-        wall.year === date.year &&
-        wall.month === date.month &&
-        wall.day === date.day &&
-        wall.hour === hour &&
-        wall.minute === minute
-      );
-    });
-}
-
 /** How many days back the carer may choose: the offline window less today, and at least one. */
 export function maxDaysBack(windowDays: number | null | undefined): number {
   return Math.max(1, (windowDays ?? 1) - 1);
 }
 
-/** When the event happened, from the carer's choice, checked against the device clock. */
+type Earlier = Extract<WhenChoice, { kind: "earlier" }>;
+
+/** Reads a typed time through the shared rule; a string is the error to show. */
+function readTyped(
+  choice: Earlier,
+  now: Date,
+  windowDays: number | null | undefined,
+  toleranceMinutes: number,
+): ReturnType<typeof resolveRecordedUkTime> | MessageKey {
+  const time = parseClockTime(choice.time);
+  if (!time) return "mobile.when.invalid";
+  const daysAgo = choice.daysAgo ?? 0;
+  if (!Number.isInteger(daysAgo) || daysAgo < 0) return "mobile.when.invalid";
+  if (daysAgo > maxDaysBack(windowDays)) return "mobile.when.outsideWindow";
+  const date = ukDateDaysAgo(now, daysAgo);
+  return resolveRecordedUkTime(
+    { ...date, hour: time.hour, minute: time.minute },
+    { now, futureToleranceMinutes: Math.max(0, toleranceMinutes) },
+  );
+}
+
+/**
+ * When the event happened, from the carer's choice, checked against the device clock with the
+ * tenant's tolerance (`toleranceMinutes`, none until the figure is known).
+ */
 export function resolveOccurredAt(
   choice: WhenChoice,
   now: Date,
   windowDays?: number | null,
+  toleranceMinutes = 0,
 ): OccurredAt {
   if (choice.kind === "now") return { ok: true, occurredAt: now };
   if (choice.kind === "original") {
     const at = parseInstant(choice.at);
     if (!at) return { ok: false, error: "mobile.when.invalid" };
-    if (at.getTime() > now.getTime()) return { ok: false, error: "mobile.when.future" };
+    if (at.getTime() > now.getTime() + Math.max(0, toleranceMinutes) * 60_000) {
+      return { ok: false, error: "mobile.when.future" };
+    }
+    // The original instant, exactly: never turned back into a wall-clock time and re-read.
     return { ok: true, occurredAt: at };
   }
-  const time = parseClockTime(choice.time);
-  if (!time) return { ok: false, error: "mobile.when.invalid" };
-  const daysAgo = choice.daysAgo ?? null;
-  if (daysAgo !== null && (!Number.isInteger(daysAgo) || daysAgo < 0)) {
-    return { ok: false, error: "mobile.when.invalid" };
+  const read = readTyped(choice, now, windowDays, toleranceMinutes);
+  if (typeof read === "string") return { ok: false, error: read };
+  switch (read.kind) {
+    case "exact":
+      return { ok: true, occurredAt: read.instant };
+    case "skipped":
+      return { ok: false, error: "mobile.when.skipped" };
+    case "future":
+      return { ok: false, error: "mobile.when.future" };
+    case "ambiguous":
+      if (choice.zone === "BST") return { ok: true, occurredAt: read.earlier };
+      if (choice.zone === "GMT") return { ok: true, occurredAt: read.later };
+      return { ok: false, error: "mobile.when.zoneRequired" };
   }
-  if (daysAgo !== null && daysAgo > maxDaysBack(windowDays)) {
-    return { ok: false, error: "mobile.when.outsideWindow" };
-  }
-  const days = daysAgo === null ? [0, 1] : [daysAgo];
-  const onDays = days.map((d) => ukInstantsAt(ukDateDaysAgo(now, d), time.hour, time.minute));
-  const candidates = onDays.flat().filter((instant) => instant.getTime() <= now.getTime());
-  if (candidates.length > 0) {
-    // The latest occurrence not in the future: the most recent day, and in the autumn overlap the
-    // second of the two.
-    const latest = candidates.reduce((a, b) => (b.getTime() > a.getTime() ? b : a));
-    return { ok: true, occurredAt: latest };
-  }
-  // On the chosen day the time either did not happen (spring change) or is still to come.
-  if (onDays.every((list) => list.length === 0)) return { ok: false, error: "mobile.when.skipped" };
-  return { ok: false, error: "mobile.when.future" };
+}
+
+/**
+ * The two readings of a time typed in the repeated autumn hour when both have passed, so the form
+ * can ask which it was; null for any other time.
+ */
+export function ambiguousTime(
+  choice: WhenChoice,
+  now: Date,
+  windowDays?: number | null,
+  toleranceMinutes = 0,
+): { readonly earlier: Date; readonly later: Date } | null {
+  if (choice.kind !== "earlier") return null;
+  const read = readTyped(choice, now, windowDays, toleranceMinutes);
+  return typeof read !== "string" && read.kind === "ambiguous"
+    ? { earlier: read.earlier, later: read.later }
+    : null;
 }
 
 // Synced timestamps arrive as "2026-10-11T09:00:00.000000Z" (microseconds); entries written on the
@@ -134,9 +168,19 @@ export function parseInstant(value: string | null | undefined): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-/** "11/10/2026" and "14:30" in UK time. */
+/**
+ * "11/10/2026" and "14:30" in UK time. On the two days a year the clocks change, the time carries
+ * BST or GMT ("01:30 BST"), so the two 01:30s of an autumn change day never look the same.
+ */
 export function ukDateTimeParts(instant: Date): { readonly date: string; readonly time: string } {
-  return { date: formatUkDate(instant), time: formatUkTime(instant) };
+  const wall = toUkWallClock(instant);
+  const time = formatUkTime(instant);
+  return {
+    date: formatUkDate(instant),
+    time: isUkClockChangeDay(wall.year, wall.month, wall.day)
+      ? `${time} ${ukZoneAbbreviation(instant)}`
+      : time,
+  };
 }
 
 /** "11/10/2026" from an ISO calendar date (no time zone shift for a date-only value). */

@@ -351,7 +351,12 @@ export function checkChart(
   now: Date,
 ): ChartCheck {
   const errors: ChartErrors = {};
-  const when = resolveOccurredAt(draft.when, now, context.windowDays);
+  const when = resolveOccurredAt(
+    draft.when,
+    now,
+    context.windowDays,
+    context.clockToleranceMinutes ?? 0,
+  );
   if (!when.ok) errors.when = { key: when.error };
   if (draft.correction) {
     const reason = checkCorrectionReason(draft.correction.reason);

@@ -253,7 +253,6 @@
   "mobile.vault.resetFailed": "Harbour could not set up this device for you. Close the app, open it again and sign in.",
   "mobile.when.original": "Same time as the original entry, {date} at {time}",
   "mobile.when.day": "Which day?",
-  "mobile.when.dayAuto": "The most recent time the clock showed it",
   "mobile.when.dayToday": "Today, {date}",
   "mobile.when.dayYesterday": "Yesterday, {date}",
   "mobile.when.dayOn": "{date}",
@@ -294,5 +293,10 @@
   "mobile.discard.code.entered_in_error": "Entered in error",
   "mobile.discard.code.staff_left": "The member of staff who wrote them has left",
   "mobile.discard.code.nurse_in_charge_informed": "The nurse in charge knows and will make sure the care is recorded",
-  "mobile.discard.code.other": "Other"
+  "mobile.discard.code.other": "Other",
+  "mobile.when.zoneRequired": "That time happened twice on that day, because the clocks went back. Choose whether it was BST or GMT.",
+  "mobile.when.zoneLabel": "Which {time} was it? The clocks went back, so it happened twice.",
+  "mobile.when.zoneHint": "Choose from what you know, for example another record made at the time. There is no default.",
+  "mobile.when.zoneBst": "BST, before the clocks went back",
+  "mobile.when.zoneGmt": "GMT, after the clocks went back"
 }

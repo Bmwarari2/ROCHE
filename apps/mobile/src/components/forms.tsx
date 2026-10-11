@@ -7,9 +7,11 @@ import { Text, useTheme } from "@harbour/ui-native";
 import { Pressable, View } from "react-native";
 import { CORRECTION_REASON_LIMITS, type FieldError } from "../care/entries";
 import {
+  ambiguousTime,
   maxDaysBack,
   parseInstant,
   resolveOccurredAt,
+  type UkZone,
   ukDateLabel,
   ukDateTimeParts,
   type WhenChoice,
@@ -150,23 +152,37 @@ interface WhenFieldProps {
   readonly error?: FieldError | null;
   /** Days of entries the device keeps (`mobile.offline_window_days`): how far back a day goes. */
   readonly windowDays: number | null;
+  /** Minutes ahead of the device clock still accepted (`sync.clock_drift_flag_minutes`). */
+  readonly toleranceMinutes: number;
   /** When correcting, the original entry's event time, offered first and chosen by default. */
   readonly original?: string | null;
 }
 
 /**
- * When the care happened (HZ-017, clinical review C4): now, a time on an earlier day within the
- * offline window, or, for a correction, the original entry's time. A time typed without a day
- * means the most recent time the clock showed it, and the field says which date and time will be
- * recorded, so 23:45 typed at 00:30 reads as yesterday.
+ * When the care happened (HZ-009, HZ-010, HZ-017; clinical reviews C4 and round 3 H1): now, a time
+ * on a day the carer chooses within the offline window (today unless they choose another), or, for
+ * a correction, the original entry's time. A time later than now is refused, never moved to
+ * yesterday. In the repeated autumn hour, once both have passed, the carer chooses BST or GMT, with
+ * no default. The field says which date and time will be recorded, with BST or GMT on a
+ * clock-change day.
  */
-export function WhenField({ value, onChange, error, windowDays, original }: WhenFieldProps) {
+export function WhenField({
+  value,
+  onChange,
+  error,
+  windowDays,
+  toleranceMinutes,
+  original,
+}: WhenFieldProps) {
   const theme = useTheme();
   const now = new Date();
   const originalAt = original ? parseInstant(original) : null;
   const daysBack = maxDaysBack(windowDays);
-  const day = value.kind === "earlier" ? (value.daysAgo ?? null) : null;
-  const resolved = value.kind === "earlier" ? resolveOccurredAt(value, now, windowDays) : null;
+  const day = value.kind === "earlier" ? (value.daysAgo ?? 0) : 0;
+  const zone = value.kind === "earlier" ? (value.zone ?? null) : null;
+  const resolved =
+    value.kind === "earlier" ? resolveOccurredAt(value, now, windowDays, toleranceMinutes) : null;
+  const twice = ambiguousTime(value, now, windowDays, toleranceMinutes);
 
   const dayLabel = (daysAgo: number) => {
     const date = ukDateLabel(now, daysAgo);
@@ -184,7 +200,12 @@ export function WhenField({ value, onChange, error, windowDays, original }: When
         onChange={(kind) => {
           if (kind === "now") onChange({ kind });
           else if (kind === "original" && original) onChange({ kind, at: original });
-          else onChange({ kind: "earlier", time: value.kind === "earlier" ? value.time : "" });
+          else
+            onChange({
+              kind: "earlier",
+              time: value.kind === "earlier" ? value.time : "",
+              daysAgo: 0,
+            });
         }}
         options={[
           ...(originalAt && original
@@ -204,32 +225,47 @@ export function WhenField({ value, onChange, error, windowDays, original }: When
           <ChoiceGroup
             label={t("mobile.when.day")}
             testID="when-day"
-            value={day === null ? "auto" : String(day)}
+            value={String(day)}
             onChange={(choice) =>
-              onChange({
-                kind: "earlier",
-                time: value.time,
-                daysAgo: choice === "auto" ? null : Number(choice),
-              })
+              onChange({ kind: "earlier", time: value.time, daysAgo: Number(choice), zone: null })
             }
-            options={[
-              { value: "auto", label: t("mobile.when.dayAuto") },
-              ...Array.from({ length: daysBack + 1 }, (_, daysAgo) => ({
-                value: String(daysAgo),
-                label: dayLabel(daysAgo),
-              })),
-            ]}
+            options={Array.from({ length: daysBack + 1 }, (_, daysAgo) => ({
+              value: String(daysAgo),
+              label: dayLabel(daysAgo),
+            }))}
           />
           <TextField
             label={t("mobile.when.time")}
             hint={t("mobile.when.timeHint")}
             value={value.time}
-            onChangeText={(time) => onChange({ kind: "earlier", time, daysAgo: day })}
+            onChangeText={(time) => onChange({ kind: "earlier", time, daysAgo: day, zone: null })}
             keyboardType="numbers-and-punctuation"
             maxLength={5}
             errorText={errorText(error)}
             testID="when-time"
           />
+          {twice ? (
+            <ChoiceGroup<UkZone>
+              label={t("mobile.when.zoneLabel", {
+                time: value.kind === "earlier" ? value.time : "",
+              })}
+              hint={t("mobile.when.zoneHint")}
+              testID="when-zone"
+              value={zone}
+              onChange={(next) =>
+                onChange({
+                  kind: "earlier",
+                  time: value.kind === "earlier" ? value.time : "",
+                  daysAgo: day,
+                  zone: next,
+                })
+              }
+              options={[
+                { value: "BST", label: t("mobile.when.zoneBst") },
+                { value: "GMT", label: t("mobile.when.zoneGmt") },
+              ]}
+            />
+          ) : null}
           {resolved?.ok ? (
             <Text variant="bodyDense" emphasis testID="when-resolved">
               {t("mobile.when.resolved", ukDateTimeParts(resolved.occurredAt))}

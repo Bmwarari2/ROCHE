@@ -30,6 +30,8 @@ export interface EntryContext {
   readonly userId: string | null;
   /** Days of entries the device keeps: how far back an event may be dated (C4). */
   readonly windowDays?: number | null;
+  /** Minutes a typed time may be ahead of the device clock (`sync.clock_drift_flag_minutes`). */
+  readonly clockToleranceMinutes?: number | null;
   readonly newId: () => string;
 }
 

@@ -68,9 +68,26 @@ describe("writing a note offline", () => {
     });
   });
 
-  it("hazard HZ-017 dates a note yesterday when the time typed is still to come today (C4)", () => {
+  it("hazard HZ-010 refuses a time still to come today rather than dating it yesterday", () => {
     const result = checkNote(draft({ when: { kind: "earlier", time: "23:45" } }), context, NOW);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.when?.key).toBe("mobile.when.future");
+  });
+
+  it("hazard HZ-017 dates a note yesterday only when the carer chooses yesterday (C4)", () => {
+    const result = checkNote(
+      draft({ when: { kind: "earlier", time: "23:45", daysAgo: 1 } }),
+      context,
+      NOW,
+    );
     expect(result.ok && result.row.occurred_at).toBe("2026-10-10T22:45:00.000Z");
+  });
+
+  it("hazard HZ-010 takes the tenant's clock tolerance from the entry context", () => {
+    // NOW is 11/10/2026 at 10:00 UTC (11:00 BST); 11:03 is within a 5-minute tolerance only.
+    const typed = draft({ when: { kind: "earlier", time: "11:03" } });
+    expect(checkNote(typed, context, NOW).ok).toBe(false);
+    expect(checkNote(typed, { ...context, clockToleranceMinutes: 5 }, NOW).ok).toBe(true);
   });
 
   it("keeps only tags from the handover vocabulary", () => {

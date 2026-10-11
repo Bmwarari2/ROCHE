@@ -42,6 +42,15 @@ export async function fetchRateDays(
   options: FetchWindowOptions,
   key: string,
 ): Promise<number | null> {
+  const rate = await fetchRate(options, key);
+  return rate && isValidWindowDays(rate.value) ? rate.value : null;
+}
+
+/** A figure from the rate table (`GET /v1/rates/{key}`) with its unit, or null. Never throws. */
+export async function fetchRate(
+  options: FetchWindowOptions,
+  key: string,
+): Promise<{ readonly value: unknown; readonly unit: unknown } | null> {
   try {
     const response = await options.fetch(`${options.apiUrl}/v1/rates/${encodeURIComponent(key)}`, {
       method: "GET",
@@ -54,9 +63,9 @@ export async function fetchRateDays(
     });
     if (!response.ok) return null;
     const body: unknown = await response.json();
-    const value =
-      typeof body === "object" && body !== null ? (body as { value?: unknown }).value : null;
-    return isValidWindowDays(value) ? value : null;
+    if (typeof body !== "object" || body === null) return null;
+    const { value, unit } = body as { value?: unknown; unit?: unknown };
+    return { value, unit };
   } catch {
     return null;
   }
