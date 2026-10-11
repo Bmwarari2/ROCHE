@@ -338,14 +338,14 @@ export const REPRESENTATIVE_AUTHORITIES = [
   "other",
 ] as const;
 
-export type RepresentativeAuthority = (typeof REPRESENTATIVE_AUTHORITIES)[number];
+export type SignOffAuthority = (typeof REPRESENTATIVE_AUTHORITIES)[number];
 
 export type SignOff =
   | { readonly agreedBy: "person" }
   | {
       readonly agreedBy: "representative";
       readonly representativeName?: string | null;
-      readonly authority?: RepresentativeAuthority | null;
+      readonly authority?: SignOffAuthority | null;
     }
   | { readonly agreedBy: "unable"; readonly reason?: string | null };
 
