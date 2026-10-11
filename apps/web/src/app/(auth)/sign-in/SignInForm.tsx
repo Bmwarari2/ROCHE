@@ -8,11 +8,16 @@ import { authMessages, signInErrorMessage } from "@/lib/auth-messages";
 
 export interface SignInLabels {
   readonly email: string;
+  readonly emailRequired: string;
   readonly password: string;
+  readonly passwordRequired: string;
   readonly submit: string;
+  /** Between the password form and the passkey button. */
+  readonly or: string;
   readonly passkey: string;
   readonly totpTitle: string;
   readonly totpHint: string;
+  readonly codeRequired: string;
 }
 
 type Step = "credentials" | "totp";
@@ -48,8 +53,8 @@ export function SignInForm({
     const email = String(form.get("email") ?? "").trim();
     const password = String(form.get("password") ?? "");
     const errors: typeof fieldErrors = {};
-    if (!email) errors.email = "Enter your email address";
-    if (!password) errors.password = "Enter your password";
+    if (!email) errors.email = labels.emailRequired;
+    if (!password) errors.password = labels.passwordRequired;
     setFieldErrors(errors);
     setError(null);
     if (errors.email || errors.password) return;
@@ -80,7 +85,7 @@ export function SignInForm({
     const form = new FormData(event.currentTarget);
     const code = String(form.get("code") ?? "").replace(/\s+/g, "");
     if (!/^\d{6}$/.test(code)) {
-      setFieldErrors({ code: "Enter the 6 digits from your authenticator app" });
+      setFieldErrors({ code: labels.codeRequired });
       return;
     }
     setFieldErrors({});
@@ -90,7 +95,7 @@ export function SignInForm({
       const result = await authClient().twoFactor.verifyTotp({ code });
       if (result.error) {
         setError(
-          result.error.status === 429 ? authMessages.tooManyAttempts : authMessages.totpFailed,
+          result.error.status === 429 ? authMessages.tooManyAttempts : authMessages.codeMismatch,
         );
         return;
       }
@@ -184,7 +189,7 @@ export function SignInForm({
       </form>
       <div className="flex items-center gap-3 text-callout text-text-secondary">
         <span className="h-px flex-1 bg-border" aria-hidden="true" />
-        <span>or</span>
+        <span>{labels.or}</span>
         <span className="h-px flex-1 bg-border" aria-hidden="true" />
       </div>
       <Button

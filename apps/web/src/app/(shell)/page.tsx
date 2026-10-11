@@ -1,3 +1,4 @@
+import type { MessageKey } from "@harbour/i18n";
 import { Card, EmptyState, PageHeader, StatusChip, Tile } from "@harbour/ui";
 import {
   Activity,
@@ -16,32 +17,32 @@ import Link from "next/link";
 import { getShellContext } from "@/lib/api";
 import { peopleLabel, t } from "@/lib/i18n";
 
-export const metadata: Metadata = { title: "Home" };
+export const metadata: Metadata = { title: t("shell.nav.home") };
 
 interface DashboardTile {
   readonly id: string;
-  readonly title: string;
-  readonly description: string;
+  readonly title: MessageKey;
+  readonly description: MessageKey;
   readonly Icon: LucideIcon;
 }
 
 const MANAGER_TILES: readonly DashboardTile[] = [
   {
     id: "incidents",
-    title: "Incidents to review",
-    description: "Incidents reported by your team will appear here for review and sign-off.",
+    title: "dashboard.tiles.incidents.title",
+    description: "dashboard.tiles.incidents.description",
     Icon: TriangleAlert,
   },
   {
     id: "compliance",
-    title: "Compliance",
-    description: "Training, supervision and audit due dates will appear here.",
+    title: "dashboard.tiles.compliance.title",
+    description: "dashboard.tiles.compliance.description",
     Icon: ClipboardCheck,
   },
   {
     id: "staffing",
-    title: "Staffing today",
-    description: "Who is on shift, and any gaps in the rota, will appear here.",
+    title: "dashboard.tiles.staffing.title",
+    description: "dashboard.tiles.staffing.description",
     Icon: CalendarDays,
   },
 ];
@@ -49,14 +50,14 @@ const MANAGER_TILES: readonly DashboardTile[] = [
 const CLINICAL_TILES: readonly DashboardTile[] = [
   {
     id: "medicines",
-    title: "Medicines due",
-    description: "Medicines due on the current round will appear here.",
+    title: "dashboard.tiles.medicines.title",
+    description: "dashboard.tiles.medicines.description",
     Icon: Pill,
   },
   {
     id: "observations",
-    title: "Observations",
-    description: "Observations to take and any that need escalation will appear here.",
+    title: "dashboard.tiles.observations.title",
+    description: "dashboard.tiles.observations.description",
     Icon: Activity,
   },
 ];
@@ -64,20 +65,20 @@ const CLINICAL_TILES: readonly DashboardTile[] = [
 const CARE_TILES: readonly DashboardTile[] = [
   {
     id: "shift",
-    title: "Your shift",
-    description: "Your shift times and the people you support today will appear here.",
+    title: "dashboard.tiles.shift.title",
+    description: "dashboard.tiles.shift.description",
     Icon: Clock,
   },
   {
     id: "notes",
-    title: "Care notes due",
-    description: "Notes and charts to complete on this shift will appear here.",
+    title: "dashboard.tiles.notes.title",
+    description: "dashboard.tiles.notes.description",
     Icon: NotebookPen,
   },
   {
     id: "handover",
-    title: "Handover",
-    description: "The handover from the last shift will appear here.",
+    title: "dashboard.tiles.handover.title",
+    description: "dashboard.tiles.handover.description",
     Icon: Repeat,
   },
 ];
@@ -111,38 +112,45 @@ export default async function HomePage() {
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-8">
       <PageHeader
-        eyebrow={location ? `${me.tenant.name}, ${location.name}` : me.tenant.name}
-        title={`Welcome, ${me.user.name}`}
+        eyebrow={
+          location
+            ? t("dashboard.eyebrow", { organisation: me.tenant.name, location: location.name })
+            : me.tenant.name
+        }
+        title={t("dashboard.welcome", { name: me.user.name })}
         description={t("dashboard.empty.body")}
       />
       <Card>
         <EmptyState
           headingLevel={2}
           title={t("dashboard.empty.title")}
-          description="Today's tasks, alerts and messages for your team will show here as Harbour is set up."
+          description={t("dashboard.empty.detail")}
         />
       </Card>
       <section aria-labelledby="your-work" className="flex flex-col gap-4">
         <h2 id="your-work" className="m-0 text-eyebrow">
-          Your work
+          {t("dashboard.yourWork")}
         </h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
           <Tile
             headingLevel={3}
             title={people}
             icon={<Users size={24} strokeWidth={1.5} aria-hidden="true" />}
-            description="The people in your care, with their allergies and communication needs."
-            link={{ href: "/people", label: `View ${people.toLocaleLowerCase("en-GB")}` }}
+            description={t("dashboard.tiles.people.description")}
+            link={{
+              href: "/people",
+              label: t("dashboard.tiles.people.link", { terminology: me.tenant.terminology }),
+            }}
             linkComponent={Link}
           />
           {tiles.map(({ id, title, description, Icon }) => (
             <Tile
               key={id}
               headingLevel={3}
-              title={title}
+              title={t(title)}
               icon={<Icon size={24} strokeWidth={1.5} aria-hidden="true" />}
               status={<StatusChip status="neutral" label={t("dashboard.empty.title")} />}
-              description={description}
+              description={t(description)}
               data-tile={id}
             />
           ))}
