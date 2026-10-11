@@ -11,7 +11,7 @@ import {
 
 const permissionsOf = (role: string) => new Set(builtinRole(role)?.permissions ?? []);
 
-describe("unlocking the cached pack", () => {
+describe("hazard HZ-021 the kiosk opens its cached pack only in a PIN session of a downtime reader", () => {
   it.each<[string, Parameters<typeof kioskDowntimePackUnlock>[0], boolean, string | null]>([
     [
       "a team leader signed in with their PIN",
@@ -44,7 +44,7 @@ describe("unlocking the cached pack", () => {
   });
 });
 
-describe("keeping or evicting the cached pack", () => {
+describe("hazard HZ-021 the kiosk evicts its cached pack on revocation and at the end of retention", () => {
   const retention = tableRetentionRule("downtime_pack");
   const generatedAt = new Date("2026-10-11T00:05:00Z");
 
@@ -63,7 +63,7 @@ describe("keeping or evicting the cached pack", () => {
   });
 });
 
-describe("queued print audits", () => {
+describe("hazard HZ-021 the kiosk queues an audit event for every print and open", () => {
   it.each([
     ["printed", "operations.downtime_pack.printed"],
     ["opened", "operations.downtime_pack.opened"],
