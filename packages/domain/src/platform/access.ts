@@ -150,6 +150,25 @@ export function resolveAccess(
   };
 }
 
+/**
+ * The staff permissions a user holds at one location now: roles assigned there or tenant-wide, and
+ * grants for there or tenant-wide. Used to check that someone a task is given to may complete it
+ * (a task's assignee may complete it, so assigning is itself a grant of that one task).
+ */
+export function permissionsAtLocation(
+  assignments: readonly RoleAssignmentInput[],
+  grants: readonly AccessGrantInput[],
+  locationId: string | null,
+  at: Date,
+): ReadonlySet<Permission> {
+  const here = (where: string | null) => where === null || where === locationId;
+  return resolveAccess(
+    assignments.filter((a) => here(a.locationId)),
+    grants.filter((g) => here(g.locationId)),
+    at,
+  ).permissions;
+}
+
 export function can(access: EffectiveAccess, permission: Permission): boolean {
   return access.permissions.has(permission);
 }

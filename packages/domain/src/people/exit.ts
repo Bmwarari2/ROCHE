@@ -71,9 +71,9 @@ export const DEATH_WORKFLOW = defineWorkflow<DeathExitState>({
     { from: "recorded", to: "awaiting_return", permission: "people.admission.manage" },
     { from: ["recorded", "awaiting_return"], to: "closed", permission: "people.admission.manage" },
     // A death recorded in error (HZ-001): cancelled with a reason and a fresh sign-in, alongside
-    // the lifecycle correction.
+    // the lifecycle correction, also while money and property are being returned.
     {
-      from: "recorded",
+      from: ["recorded", "awaiting_return"],
       to: "cancelled",
       permission: "people.admission.manage",
       requiresReason: true,

@@ -127,6 +127,21 @@ describe("exit workflows", () => {
     ).toBe(true);
   });
 
+  it("hazards HZ-001 and HZ-003 cancel a death recorded in error while returns are awaited, never once closed", () => {
+    const move = { to: "cancelled" as const, actorId: "manager-1", permissions: manager };
+    const request = { ...move, reason: "Wrong person", stepUpFresh: true };
+    expect(
+      checkWorkflowTransition(
+        DEATH_WORKFLOW,
+        { state: "awaiting_return", createdBy: "nurse-1" },
+        request,
+      ).ok,
+    ).toBe(true);
+    expect(
+      checkWorkflowTransition(DEATH_WORKFLOW, { state: "closed", createdBy: "nurse-1" }, request),
+    ).toMatchObject({ ok: false, problem: "terminal" });
+  });
+
   it("escalates returns not made within the rate-table service level", () => {
     const due = slaDueAt(
       DEATH_WORKFLOW,
