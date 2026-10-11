@@ -1,6 +1,7 @@
 import { isValidNhsNumber } from "@harbour/ui-native/logic";
 import { beforeAll, describe, expect, it } from "vitest";
-import { DEMO_TENANT_ID, demoAllergies, demoPeople, demoSeedStatements } from "../demo/demo-data";
+import { DEMO_TENANT_ID, demoAllergies, demoPeople } from "../demo/demo-data";
+import { openLocalDatabase, type SqliteDatabase } from "../test-support/local-db";
 import { toPersonView } from "./person-view";
 import {
   isActiveAllergyStatus,
@@ -13,40 +14,11 @@ import {
   personParams,
 } from "./queries";
 
-/** Just enough of node:sqlite to run the app's SQL against a real SQLite engine. */
-interface SqliteStatement {
-  all(...params: unknown[]): unknown[];
-  run(...params: unknown[]): unknown;
-}
-interface SqliteDatabase {
-  exec(sql: string): void;
-  prepare(sql: string): SqliteStatement;
-}
-interface SqliteModule {
-  DatabaseSync: new (path: string) => SqliteDatabase;
-}
-
 let db: SqliteDatabase;
 
 beforeAll(async () => {
-  const moduleName = "node:sqlite";
-  const sqlite = (await import(/* @vite-ignore */ moduleName)) as SqliteModule;
-  db = new sqlite.DatabaseSync(":memory:");
-  // Same columns as the PowerSync views in @harbour/sync (PowerSync adds the id column).
-  db.exec(`
-    CREATE TABLE person (id TEXT PRIMARY KEY, tenant_id TEXT, location_id TEXT, status TEXT,
-      given_name TEXT, family_name TEXT, preferred_name TEXT, date_of_birth TEXT, nhs_number TEXT,
-      room_label TEXT, photo_document_id TEXT, communication_needs TEXT, allergy_status TEXT,
-      updated_at TEXT, version INTEGER);
-    CREATE TABLE allergy (id TEXT PRIMARY KEY, tenant_id TEXT, person_id TEXT, substance TEXT,
-      reaction TEXT, severity TEXT, status TEXT, recorded_at TEXT);
-    CREATE TABLE location (id TEXT PRIMARY KEY, tenant_id TEXT, name TEXT, cqc_location_id TEXT,
-      nation TEXT);
-    CREATE TABLE sync_meta (id TEXT PRIMARY KEY, key TEXT, value TEXT);
-  `);
-  for (const statement of demoSeedStatements(new Date("2026-10-09T13:00:00Z"))) {
-    db.prepare(statement.sql).run(...statement.params);
-  }
+  // The device's tables from the shared schema, seeded with the demo people.
+  db = await openLocalDatabase({ seedDemo: new Date("2026-10-09T13:00:00Z") });
   // Another tenant's row must never appear, even if it somehow reached the device.
   db.prepare(
     "INSERT INTO person (id, tenant_id, given_name, family_name, allergy_status) VALUES (?, ?, ?, ?, ?)",

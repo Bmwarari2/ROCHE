@@ -151,9 +151,250 @@ export function demoSeedStatements(seededAt: Date): SqlStatement[] {
       ],
     });
   }
+  statements.push(...demoCareStatements(seededAt));
   statements.push({
     sql: "INSERT INTO sync_meta (id, key, value) VALUES (?, ?, ?)",
     params: ["00000000-0000-4000-8000-00000000d501", DEMO_SEEDED_AT_KEY, now],
   });
   return statements;
+}
+
+// ------------------------------------------------------------------------------------------------
+// Care mode demo records, all invented. Ada has a DNACPR decision whose review date has passed (so
+// the header shows the decision and the overdue review), IDDSI levels and a care plan; Bea has a
+// ReSPECT plan and SpO2 scale 2 recorded by a clinician; Cal has no resuscitation record, so the
+// header reads "not recorded".
+// ------------------------------------------------------------------------------------------------
+
+const [ADA, BEA] = [demoPeople[0]?.id ?? "", demoPeople[1]?.id ?? ""];
+const DEMO_PLAN_ID = "00000000-0000-4000-8000-00000000d601";
+
+function insert(table: string, row: Record<string, string | number | null>): SqlStatement {
+  const columns = Object.keys(row);
+  return {
+    sql: `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`,
+    params: columns.map((c) => row[c] ?? null),
+  };
+}
+
+/** Care records for the demo people; entries are timed relative to when the demo was seeded. */
+export function demoCareStatements(seededAt: Date): SqlStatement[] {
+  const now = seededAt.toISOString();
+  const hoursAgo = (hours: number) =>
+    new Date(seededAt.getTime() - hours * 3_600_000).toISOString();
+  const tenant = { tenant_id: DEMO_TENANT_ID };
+  const entry = (id: string, person: string, hours: number) => ({
+    id,
+    ...tenant,
+    person_id: person,
+    location_id: DEMO_LOCATION_ID,
+    occurred_at: hoursAgo(hours),
+    recorded_at: hoursAgo(hours - 0.1),
+    device_time: hoursAgo(hours - 0.05),
+    late_entry: 0,
+    clock_drift: 0,
+    supersedes_id: null,
+    correction_reason: null,
+    created_by: demoMe.user.id,
+  });
+  return [
+    insert("person_care_profile", {
+      id: "00000000-0000-4000-8000-00000000d701",
+      ...tenant,
+      person_id: ADA,
+      iddsi_food_level: "5",
+      iddsi_drink_level: "2",
+      iddsi_advised_by: "Speech and language therapist (invented)",
+      fluid_target_ml: 1500,
+      spo2_scale2: 0,
+      skin_risk: "at_risk",
+      updated_at: now,
+      version: 1,
+    }),
+    insert("person_care_profile", {
+      id: "00000000-0000-4000-8000-00000000d702",
+      ...tenant,
+      person_id: BEA,
+      iddsi_food_level: "7",
+      iddsi_drink_level: "0",
+      fluid_target_ml: null,
+      spo2_scale2: 1,
+      skin_risk: "not_at_risk",
+      updated_at: now,
+      version: 1,
+    }),
+    insert("advance_care_record", {
+      id: "00000000-0000-4000-8000-00000000d801",
+      ...tenant,
+      person_id: ADA,
+      kind: "dnacpr",
+      status: "active",
+      cpr_decision: "do_not_attempt_cpr",
+      clinician_name: "Dr Ivy Example",
+      clinician_role: "GP",
+      completed_on: "2026-03-02",
+      review_due_on: "2026-09-01",
+      details: null,
+      updated_at: now,
+      version: 1,
+    }),
+    insert("advance_care_record", {
+      id: "00000000-0000-4000-8000-00000000d802",
+      ...tenant,
+      person_id: BEA,
+      kind: "respect",
+      status: "active",
+      cpr_decision: "attempt_cpr",
+      clinician_name: "Dr Ivy Example",
+      clinician_role: "GP",
+      completed_on: "2026-05-14",
+      review_due_on: "2027-05-14",
+      details: "Invented example: hospital admission if needed.",
+      updated_at: now,
+      version: 1,
+    }),
+    insert("care_plan", {
+      id: DEMO_PLAN_ID,
+      ...tenant,
+      person_id: ADA,
+      location_id: DEMO_LOCATION_ID,
+      status: "active",
+      published_version: 2,
+      summary: "Ada likes her mornings slow, with tea before anything else.",
+      review_due_on: "2027-01-31",
+      published_at: "2026-08-01T10:00:00.000Z",
+      sign_off_kind: "person",
+      signed_off_at: "2026-08-01T11:00:00.000Z",
+      updated_at: now,
+      version: 1,
+    }),
+    insert("care_plan_section", {
+      id: "00000000-0000-4000-8000-00000000d611",
+      ...tenant,
+      person_id: ADA,
+      plan_id: DEMO_PLAN_ID,
+      domain: "mobility",
+      need: "Walks short distances with a frame; unsteady when tired.",
+      outcome: "I want to walk to the lounge for lunch myself.",
+      strengths: "Remembers to use her frame.",
+      contingency: "If she is too tired, offer the wheelchair and record why.",
+      updated_at: now,
+      version: 1,
+    }),
+    insert("care_plan_section", {
+      id: "00000000-0000-4000-8000-00000000d612",
+      ...tenant,
+      person_id: ADA,
+      plan_id: DEMO_PLAN_ID,
+      domain: "nutrition_and_hydration",
+      need: "Minced and moist food and mildly thick drinks, as advised.",
+      outcome: "I like a cup of tea with every meal.",
+      strengths: "Feeds herself with a large-handled spoon.",
+      contingency: null,
+      updated_at: now,
+      version: 1,
+    }),
+    insert("care_plan_action", {
+      id: "00000000-0000-4000-8000-00000000d621",
+      ...tenant,
+      person_id: ADA,
+      plan_id: DEMO_PLAN_ID,
+      section_id: "00000000-0000-4000-8000-00000000d611",
+      action: "Walk with Ada to the lounge, frame within reach",
+      role_key: "care_worker",
+      when_text: "Before lunch",
+      recurrence: null,
+      risk_assessment_id: null,
+      updated_at: now,
+      version: 1,
+    }),
+    insert("care_plan_action", {
+      id: "00000000-0000-4000-8000-00000000d622",
+      ...tenant,
+      person_id: ADA,
+      plan_id: DEMO_PLAN_ID,
+      section_id: "00000000-0000-4000-8000-00000000d612",
+      action: "Offer a mildly thick drink",
+      role_key: "care_worker",
+      when_text: "Every 2 hours while awake",
+      recurrence: null,
+      risk_assessment_id: null,
+      updated_at: now,
+      version: 1,
+    }),
+    insert("risk_assessment", {
+      id: "00000000-0000-4000-8000-00000000d901",
+      ...tenant,
+      person_id: ADA,
+      template_key: "falls",
+      template_version: "1",
+      hazard: "Falls when walking to the lounge",
+      who_at_risk: "Ada",
+      risk_rating: null,
+      risk_band: null,
+      residual_rating: null,
+      residual_band: null,
+      controls: JSON.stringify(["Frame within reach", "Sensor mat at night"]),
+      positive_risk_statement: "Ada chooses to walk; staff walk with her.",
+      person_views: "I would rather walk than be pushed.",
+      assessed_on: "2026-08-01",
+      review_due_on: "2027-01-31",
+      status: "active",
+      updated_at: now,
+      version: 1,
+    }),
+    insert("risk_assessment", {
+      id: "00000000-0000-4000-8000-00000000d902",
+      ...tenant,
+      person_id: ADA,
+      template_key: "choking",
+      template_version: "1",
+      hazard: "Choking on food of the wrong texture",
+      who_at_risk: "Ada",
+      risk_rating: 8,
+      risk_band: "high",
+      residual_rating: 4,
+      residual_band: "moderate",
+      controls: JSON.stringify(["Minced and moist diet", "Sit upright to eat"]),
+      positive_risk_statement: null,
+      person_views: null,
+      assessed_on: "2026-08-01",
+      review_due_on: "2026-10-01",
+      status: "active",
+      updated_at: now,
+      version: 1,
+    }),
+    insert("assessment", {
+      id: "00000000-0000-4000-8000-00000000da01",
+      ...tenant,
+      person_id: ADA,
+      location_id: DEMO_LOCATION_ID,
+      tool_key: "must",
+      tool_version: "bapen-2011",
+      score: 1,
+      band: "medium",
+      occurred_at: "2026-10-01T10:00:00.000Z",
+      next_due_on: "2026-11-01",
+      supersedes_id: null,
+      correction_reason: null,
+      late_entry: 0,
+    }),
+    insert("care_note", {
+      ...entry("00000000-0000-4000-8000-00000000db01", ADA, 20),
+      category: "personal_care",
+      body: "Ada had a wash and chose her blue cardigan. Skin on heels checked and intact.",
+      tags: "[]",
+    }),
+    insert("observation", {
+      ...entry("00000000-0000-4000-8000-00000000db02", ADA, 19),
+      chart: "fluid_intake",
+      chart_values: JSON.stringify({
+        chart: "fluid_intake",
+        ml: 200,
+        iddsiLevel: "2",
+        refused: false,
+      }),
+      flags: JSON.stringify({ iddsi: { outcome: "match" }, iddsiAlert: false }),
+    }),
+  ];
 }

@@ -1,0 +1,56 @@
+import { describe, expect, it } from "vitest";
+import { type SyncSummaryInput, syncSummary } from "./sync-summary";
+
+const NOW = new Date("2026-10-11T13:00:00Z");
+const FIFTEEN_MINUTES = 15 * 60_000;
+
+const input = (overrides: Partial<SyncSummaryInput> = {}): SyncSummaryInput => ({
+  lastSyncedAt: new Date("2026-10-11T12:55:00Z"),
+  queued: 0,
+  issues: 0,
+  demo: false,
+  windowDays: 7,
+  now: NOW,
+  staleAfterMs: FIFTEEN_MINUTES,
+  ...overrides,
+});
+
+describe("hazard HZ-002 the sync status on Today", () => {
+  it("gives the exact time of the last successful sync in UK time and the queued changes", () => {
+    const summary = syncSummary(input({ queued: 2 }));
+    expect(summary.lines).toEqual([
+      "Last successful sync 11/10/2026 at 13:55",
+      "2 changes waiting to upload",
+      "Entries from the last 7 days are kept on this device.",
+    ]);
+    expect(summary).toMatchObject({ tone: "info", icon: "cloud-upload", stale: false });
+  });
+
+  it("warns once the data is older than the threshold", () => {
+    const summary = syncSummary(input({ lastSyncedAt: new Date("2026-10-11T09:00:00Z") }));
+    expect(summary).toMatchObject({ tone: "warning", icon: "triangle-alert", stale: true });
+  });
+
+  it("says when the device has never synced", () => {
+    const summary = syncSummary(input({ lastSyncedAt: null, windowDays: null }));
+    expect(summary.lines).toEqual([
+      "Not synced yet. Connect to the internet to download your people.",
+      "No changes waiting to upload",
+    ]);
+    expect(summary.stale).toBe(true);
+  });
+
+  it("hazard HZ-006 puts refused entries first in importance", () => {
+    const summary = syncSummary(input({ issues: 1, queued: 3 }));
+    expect(summary.lines).toContain("1 entry was not saved and needs attention");
+    expect(summary).toMatchObject({ tone: "danger", icon: "cloud-alert", needsAttention: true });
+  });
+
+  it("says plainly that demo entries never upload", () => {
+    const summary = syncSummary(input({ demo: true, lastSyncedAt: null }));
+    expect(summary.lines).toEqual([
+      "Demo mode: entries stay on this device and are never uploaded.",
+    ]);
+    expect(summary.stale).toBe(false);
+  });
+});
