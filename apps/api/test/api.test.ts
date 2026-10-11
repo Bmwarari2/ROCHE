@@ -512,13 +512,14 @@ describe("offline sync", () => {
   });
 
   describe("hazard HZ-040 device discards (POST /v1/sync/discards)", () => {
+    const DEVICE = "0199d000-0000-4000-8000-00000000de01";
     const discard = (
       overrides: Record<string, unknown> = {},
     ): { id: string } & Record<string, unknown> => ({
       id: crypto.randomUUID(),
       kind: "refused_removed",
+      stage: "requested",
       reasonCode: "recorded_elsewhere",
-      reason: "Recorded again on paper",
       ownerTenantUserId: DEMO.users.carer.id,
       deletedByTenantUserId: DEMO.users.carer.id,
       entryIds: [crypto.randomUUID()],
@@ -541,9 +542,10 @@ describe("offline sync", () => {
           [TENANT_HEADER]: tenant,
           ...(device ? { [DEVICE_HEADER]: device } : {}),
         },
-        body: JSON.stringify(body),
+        body: typeof body === "string" ? body : JSON.stringify(body),
       });
     type AuditRow = {
+      id: string;
       tenant_id: string;
       action: string;
       actor_tenant_user_id: string;
@@ -554,26 +556,27 @@ describe("offline sync", () => {
     const auditRows = (id: string, tenantId: string = DEMO.tenantId) =>
       asTenant<AuditRow>(
         tenantId,
-        "SELECT tenant_id, action, actor_tenant_user_id, reason, device_id, scope FROM audit_event WHERE resource_id = $1",
+        "SELECT id, tenant_id, action, actor_tenant_user_id, reason, device_id, scope FROM audit_event WHERE resource_id = $1 ORDER BY seq",
         [id],
       );
 
-    it("records who deleted what, whose, why, how many and from which device", async () => {
+    it("records who deleted what, whose, the coded reason, how many and from which device", async () => {
       const body = discard();
-      const response = await post(h.tokens.carer, body, DEMO.tenantId, "device-fixture-1");
+      const response = await post(h.tokens.carer, body, DEMO.tenantId, DEVICE);
       expect(response.status).toBe(200);
       expect(await response.json()).toEqual({ id: body.id, recorded: true, replay: false });
       const [row, ...more] = await auditRows(body.id);
       expect(more).toEqual([]);
       expect(row).toMatchObject({
         tenant_id: DEMO.tenantId,
-        action: "sync.entries.discarded",
+        action: "sync.entries.discard_requested",
         actor_tenant_user_id: DEMO.users.carer.id,
-        reason: "Recorded again on paper",
-        device_id: "device-fixture-1",
+        reason: "recorded_elsewhere",
+        device_id: DEVICE,
       });
       expect(row?.scope).toMatchObject({
         kind: "refused_removed",
+        stage: "requested",
         reasonCode: "recorded_elsewhere",
         ownerTenantUserId: DEMO.users.carer.id,
         deletedByTenantUserId: DEMO.users.carer.id,
@@ -583,11 +586,41 @@ describe("offline sync", () => {
       });
     });
 
-    it("records a replay once", async () => {
-      const body = discard();
+    it("keeps the person's words out of the hash-chained audit trail (round 4, M3)", async () => {
+      const body = discard({ reasonCode: "other", reason: "Recorded on paper for Ada Example" });
       expect((await post(h.tokens.carer, body)).status).toBe(200);
-      const again = await post(h.tokens.carer, body);
-      expect(await again.json()).toEqual({ id: body.id, recorded: true, replay: true });
+      const [row] = await auditRows(body.id);
+      expect(row?.reason).toBe("other");
+      expect(JSON.stringify(row)).not.toContain("Ada");
+    });
+
+    it("records each stage of a deletion once, and a failure supersedes the request (round 4, H1)", async () => {
+      const requested = discard({ kind: "held_deleted" });
+      expect((await post(h.tokens.carer, requested)).status).toBe(200);
+      const again = await post(h.tokens.carer, requested);
+      expect(await again.json()).toEqual({ id: requested.id, recorded: true, replay: true });
+      const failed = { ...requested, stage: "failed" };
+      expect((await post(h.tokens.carer, failed)).status).toBe(200);
+      expect((await post(h.tokens.carer, failed)).status).toBe(200);
+      const rows = await auditRows(requested.id);
+      expect(rows.map((r) => r.action)).toEqual([
+        "sync.entries.discard_requested",
+        "sync.entries.discard_failed",
+      ]);
+      expect(rows[1]?.scope).toMatchObject({ supersedesAuditEventId: rows[0]?.id });
+      const deleted = discard({ kind: "held_deleted" });
+      await post(h.tokens.carer, deleted);
+      await post(h.tokens.carer, { ...deleted, stage: "deleted" });
+      expect((await auditRows(deleted.id)).map((r) => r.action)).toEqual([
+        "sync.entries.discard_requested",
+        "sync.entries.discarded",
+      ]);
+    });
+
+    it("records two racing copies of the same stage once", async () => {
+      const body = discard();
+      const results = await Promise.all([post(h.tokens.carer, body), post(h.tokens.carer, body)]);
+      expect(results.map((r) => r.status)).toEqual([200, 200]);
       expect(await auditRows(body.id)).toHaveLength(1);
     });
 
@@ -603,8 +636,30 @@ describe("offline sync", () => {
       expect(byManager.status).toBe(200);
       const [row] = await auditRows(someoneElse.id);
       expect(row?.actor_tenant_user_id).toBe(DEMO.users.manager.id);
-      // Who deleted them on the device is kept as the device recorded it (M2).
       expect(row?.scope).toMatchObject({ deletedByTenantUserId: DEMO.users.manager.id });
+    });
+
+    it.each([
+      [
+        "a deleter who is not the caller (forged)",
+        { deletedByTenantUserId: DEMO.users.manager.id },
+      ],
+      ["an unknown owner", { ownerTenantUserId: null }],
+    ])("needs a manager for %s (round 4, M1)", async (_case, change) => {
+      const body = discard({ kind: "held_deleted", ...change });
+      expect((await post(h.tokens.carer, body)).status).toBe(403);
+      expect(await auditRows(body.id)).toEqual([]);
+      // A manager holds the permission (as do the deputy and the nurse in charge, by role).
+      expect((await post(h.tokens.manager, body)).status).toBe(200);
+    });
+
+    it("refuses an owner or deleter who is not staff of this organisation (round 4, M1)", async () => {
+      const stranger = crypto.randomUUID();
+      for (const change of [{ ownerTenantUserId: stranger }, { deletedByTenantUserId: stranger }]) {
+        const body = discard({ kind: "held_deleted", ...change });
+        expect((await post(h.tokens.manager, body)).status).toBe(422);
+        expect(await auditRows(body.id)).toEqual([]);
+      }
     });
 
     it("keeps the event in the caller's tenant only (HZ-011)", async () => {
@@ -626,43 +681,119 @@ describe("offline sync", () => {
       expect(theirs.items).toEqual([]);
     });
 
-    it("refuses an unknown reason code, and other without words", async () => {
+    it("refuses an unknown reason code, more ids than entries, and a body over 64 KB (round 4, M4)", async () => {
       expect((await post(h.tokens.carer, discard({ reasonCode: "because" }))).status).toBe(422);
-      expect(
-        (await post(h.tokens.carer, discard({ reasonCode: "other", reason: undefined }))).status,
-      ).toBe(422);
+      const twoIds = [crypto.randomUUID(), crypto.randomUUID()];
+      expect((await post(h.tokens.carer, discard({ entryIds: twoIds, count: 1 }))).status).toBe(
+        422,
+      );
+      const huge = JSON.stringify({ ...discard(), padding: "x".repeat(70 * 1024) });
+      expect((await post(h.tokens.carer, huge)).status).toBe(413);
+    });
+
+    it("takes no device id that is not a UUID into the audit trail", async () => {
+      const body = discard();
+      expect((await post(h.tokens.carer, body, DEMO.tenantId, "device-fixture-1")).status).toBe(
+        200,
+      );
+      const [row] = await auditRows(body.id);
+      expect(row?.device_id).toBeNull();
     });
   });
 
-  it("hazard HZ-006 records a device's unsent counts without personal data", async () => {
-    const response = await h.handle.app.request("/v1/sync/device-report", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${h.tokens.carer}`,
-        [TENANT_HEADER]: DEMO.tenantId,
-        [DEVICE_HEADER]: "device-fixture-2",
-      },
-      body: JSON.stringify({
+  describe("hazard HZ-006 device reports (POST /v1/sync/device-report)", () => {
+    const DEVICE = "0199d000-0000-4000-8000-00000000de02";
+    const report = (token: string | undefined, body: Record<string, unknown>, device?: string) =>
+      h.handle.app.request("/v1/sync/device-report", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+          [TENANT_HEADER]: DEMO.tenantId,
+          ...(device ? { [DEVICE_HEADER]: device } : {}),
+        },
+        body: JSON.stringify({
+          unsent: 0,
+          refused: 0,
+          held: 0,
+          oldestAgeSeconds: null,
+          reportedAt: new Date().toISOString(),
+          ...body,
+        }),
+      });
+    type TaskRow = {
+      status: string;
+      due_at: Date;
+      assignee_role_key: string | null;
+      required_permission: string;
+      title: string;
+      person_id: string | null;
+    };
+    const deviceTasks = (device: string) =>
+      asTenant<TaskRow>(
+        DEMO.tenantId,
+        "SELECT status, due_at, assignee_role_key, required_permission, title, person_id FROM task WHERE source_type = 'device_hold' AND source_id = $1 ORDER BY created_at",
+        [device],
+      );
+
+    it("hazard HZ-006 records a device's unsent counts without personal data", async () => {
+      const response = await report(
+        h.tokens.carer,
+        { unsent: 3, refused: 1, held: 0, oldestAgeSeconds: 5400 },
+        "0199d000-0000-4000-8000-00000000de03",
+      );
+      expect(response.status).toBe(204);
+      const rows = await asTenant<{ scope: Record<string, unknown> }>(
+        DEMO.tenantId,
+        "SELECT scope FROM audit_event WHERE action = 'sync.device.report' AND device_id = '0199d000-0000-4000-8000-00000000de03'",
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.scope).toEqual({
         unsent: 3,
         refused: 1,
         held: 0,
         oldestAgeSeconds: 5400,
-        reportedAt: new Date().toISOString(),
-      }),
+        heldSince: null,
+        reportedAt: expect.any(String),
+      });
     });
-    expect(response.status).toBe(204);
-    const rows = await asTenant<{ scope: Record<string, unknown>; device_id: string }>(
-      DEMO.tenantId,
-      "SELECT scope, device_id FROM audit_event WHERE action = 'sync.device.report' AND device_id = 'device-fixture-2'",
-    );
-    expect(rows).toHaveLength(1);
-    expect(rows[0]?.scope).toEqual({
-      unsent: 3,
-      refused: 1,
-      held: 0,
-      oldestAgeSeconds: 5400,
-      reportedAt: expect.any(String),
+
+    it("hazard HZ-040 raises one task for the Registered Manager while entries are held, due when the hold escalates, and closes it at zero (round 4, H2)", async () => {
+      const heldSince = new Date(Date.now() - 2 * 86_400_000);
+      expect(
+        (await report(h.tokens.carer, { held: 2, heldSince: heldSince.toISOString() }, DEVICE))
+          .status,
+      ).toBe(204);
+      let tasks = await deviceTasks(DEVICE);
+      expect(tasks).toHaveLength(1);
+      expect(tasks[0]).toMatchObject({
+        status: "open",
+        assignee_role_key: "registered_manager",
+        required_permission: "safety.incident.manage",
+        title: "Unsent care entries are waiting on a device",
+        person_id: null,
+      });
+      // Due at the hold's start plus mobile.held_entries_max_days (7 by default).
+      expect(new Date(tasks[0]?.due_at ?? 0).getTime()).toBe(heldSince.getTime() + 7 * 86_400_000);
+      // A later report while the hold lasts moves the same task, never a second one.
+      const later = new Date(heldSince.getTime() + 3_600_000);
+      await report(h.tokens.carer, { held: 3, heldSince: later.toISOString() }, DEVICE);
+      tasks = await deviceTasks(DEVICE);
+      expect(tasks).toHaveLength(1);
+      expect(new Date(tasks[0]?.due_at ?? 0).getTime()).toBe(later.getTime() + 7 * 86_400_000);
+      // Nothing waiting: the task closes.
+      await report(h.tokens.carer, {}, DEVICE);
+      tasks = await deviceTasks(DEVICE);
+      expect(tasks.map((t) => t.status)).toEqual(["done"]);
+    });
+
+    it("limits each person's reports per hour (round 4, M4)", async () => {
+      let last: Response | null = null;
+      for (let i = 0; i < 121; i += 1) last = await report(h.tokens.owner, {});
+      expect(last?.status).toBe(429);
+      expect(Number(last?.headers.get("retry-after"))).toBeGreaterThan(0);
+      // Someone else is not affected.
+      expect((await report(h.tokens.manager, {})).status).toBe(204);
     });
   });
 

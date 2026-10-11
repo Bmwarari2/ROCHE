@@ -7319,7 +7319,7 @@ export interface paths {
     put?: never;
     /**
      * Record that a device deleted entries that never reached the server
-     * @description Writes an append-only audit event with who deleted them, whose they were, why, how many and from which device (HZ-040). Deleting another member of staff's entries needs a manager's permission. A replay of the same id is recorded once.
+     * @description Writes an append-only audit event for one stage of a deletion (requested, deleted or failed): who deleted them, whose they were, the coded reason, how many and from which device (HZ-040). Anyone but the caller's own entries, deleted by the caller, needs a manager's permission. Each stage of an id is recorded once.
      */
     post: {
       parameters: {
@@ -7389,7 +7389,7 @@ export interface paths {
     put?: never;
     /**
      * A device's unsent work: counts and the oldest age, no personal data
-     * @description Writes an audit event with the device's queued, refused and held counts and the age of the oldest, so the server knows what a lost or wiped device held (HZ-006).
+     * @description Writes an audit event with the device's queued, refused and held counts and the age of the oldest, so the server knows what a lost or wiped device held (HZ-006). While anything waits, the device has one task for the Registered Manager, due when its hold escalates; a report with nothing waiting closes it.
      */
     post: {
       parameters: {
@@ -10924,12 +10924,14 @@ export interface components {
       recorded: boolean;
       replay: boolean;
     };
-    /** @description A device deleted entries that never reached the server; recorded as an audit event */
+    /** @description A device deleted, or is about to delete, entries that never reached the server; recorded as an audit event */
     SyncDiscard: {
       /** Format: uuid */
       id: string;
       /** @enum {string} */
       kind: "held_deleted" | "signed_out_with_unsent" | "refused_removed";
+      /** @enum {string} */
+      stage: "requested" | "deleted" | "failed";
       /** @enum {string} */
       reasonCode:
         | "recorded_elsewhere"
@@ -10937,7 +10939,6 @@ export interface components {
         | "staff_left"
         | "nurse_in_charge_informed"
         | "other";
-      reason?: string;
       /** Format: uuid */
       ownerTenantUserId: string | null;
       /** Format: uuid */
@@ -10953,6 +10954,8 @@ export interface components {
       refused: number;
       held: number;
       oldestAgeSeconds: number | null;
+      /** Format: date-time */
+      heldSince?: string | null;
       /** Format: date-time */
       reportedAt: string;
     };

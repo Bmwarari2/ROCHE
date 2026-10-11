@@ -211,7 +211,10 @@ export const SYNC_DISCARD_KINDS = [
   "refused_removed",
 ] as const;
 
-/** Why: a coded reason, kept on the device; free text travels only in the request. */
+/**
+ * Why: a coded reason. The person's own words never reach the server's audit trail, which is
+ * hash-chained and kept for years (security review round 4, M3); they stay on the device.
+ */
 export const SYNC_DISCARD_REASON_CODES = [
   "recorded_elsewhere",
   "entered_in_error",
@@ -220,36 +223,45 @@ export const SYNC_DISCARD_REASON_CODES = [
   "other",
 ] as const;
 
+/**
+ * Where a deletion stands (clinical review round 4, H1): `requested` is recorded before anything is
+ * deleted; `deleted` only once the device has checked the entries are gone; `failed` when they
+ * survived, superseding the request.
+ */
+export const SYNC_DISCARD_STAGES = ["requested", "deleted", "failed"] as const;
+
+/** Most entry ids one record carries; a larger hold sends a sample and its count. */
+export const SYNC_DISCARD_MAX_ENTRY_IDS = 500;
+
 export const SyncDiscard = z
   .object({
-    /** The device's tombstone id: a replay of the same discard is recorded once. */
+    /** The device's tombstone id: each stage of the same deletion is recorded once. */
     id: uuid,
     kind: z.enum(SYNC_DISCARD_KINDS),
+    stage: z.enum(SYNC_DISCARD_STAGES),
     reasonCode: z.enum(SYNC_DISCARD_REASON_CODES),
-    /** The person's own words; required when the coded reason is "other". */
-    reason: z.string().trim().min(3).max(500).optional(),
     /** Who wrote the entries (tenant_user id), when the device knows. */
     ownerTenantUserId: uuid.nullable(),
     /**
      * Who deleted them (tenant_user id), as the device recorded it at the time: the owner, a
-     * manager, or the person signing out. The audit event's actor is whoever sends the request,
-     * which differs when a discard is sent again later.
+     * manager, or the person signing out. Anyone but the caller needs a manager's permission.
      */
     deletedByTenantUserId: uuid.nullable().optional(),
-    entryIds: z.array(uuid).max(500),
+    /** Ids of the entries, or a sample of them for a large hold (never more than `count`). */
+    entryIds: z.array(uuid).max(SYNC_DISCARD_MAX_ENTRY_IDS),
     personIds: z.array(uuid).max(200),
     /** How many entries were deleted; null when the device could not count them. */
     count: z.number().int().min(0).max(100_000).nullable(),
     discardedAt: isoDateTime,
   })
-  .refine((d) => d.reasonCode !== "other" || d.reason !== undefined, {
-    message: "Give the reason in words when the reason is other.",
-    path: ["reason"],
+  .refine((d) => d.count === null || d.entryIds.length <= d.count, {
+    message: "There are more entry ids than entries.",
+    path: ["entryIds"],
   })
   .meta({
     id: "SyncDiscard",
     description:
-      "A device deleted entries that never reached the server; recorded as an audit event",
+      "A device deleted, or is about to delete, entries that never reached the server; recorded as an audit event",
   });
 export type SyncDiscard = z.infer<typeof SyncDiscard>;
 
@@ -274,6 +286,8 @@ export const SyncDeviceReport = z
       .min(0)
       .max(10 * 365 * 24 * 3600)
       .nullable(),
+    /** When the current hold started, if entries are held; the manager's task falls due from it. */
+    heldSince: isoDateTime.nullable().optional(),
     reportedAt: isoDateTime,
   })
   .meta({ id: "SyncDeviceReport" });

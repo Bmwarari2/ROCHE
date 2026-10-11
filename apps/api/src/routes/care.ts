@@ -52,6 +52,7 @@ import {
   raiseCareTriggers,
 } from "../services/care";
 import { latestMustBand } from "../services/care-planning";
+import { flagIfReportedDeleted } from "../services/device-holds";
 import {
   entryOut,
   PersonParam,
@@ -179,6 +180,14 @@ export const careRouter = createRouter()
           )[0];
         if (!row || row.personId !== personId) throw problems.invalid("That id is already used.");
         if (inserted) {
+          // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
+          await flagIfReportedDeleted(tx, access, {
+            resourceType: "care_note",
+            id: row.id,
+            personId,
+            locationId: person.locationId,
+            requestId: c.get("requestId"),
+          });
           if (body.taskId) {
             await completeTaskWithEvidence(tx, {
               taskId: body.taskId,
@@ -329,6 +338,14 @@ export const careRouter = createRouter()
           )[0];
         if (!row || row.personId !== personId) throw problems.invalid("That id is already used.");
         if (inserted) {
+          // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
+          await flagIfReportedDeleted(tx, access, {
+            resourceType: "observation",
+            id: row.id,
+            personId,
+            locationId: person.locationId,
+            requestId: c.get("requestId"),
+          });
           await raiseCareTriggers(
             tx,
             {
@@ -636,6 +653,14 @@ export const careRouter = createRouter()
           );
         }
         if (inserted) {
+          // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
+          await flagIfReportedDeleted(tx, access, {
+            resourceType: "body_map_mark",
+            id: row.id,
+            personId,
+            locationId: person.locationId,
+            requestId: c.get("requestId"),
+          });
           await auditInTx(tx, access, {
             action: body.supersedesId ? "care.body_map.correct" : "care.body_map.create",
             resourceType: "body_map_mark",

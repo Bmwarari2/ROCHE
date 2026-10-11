@@ -140,6 +140,61 @@ describe("daily notes", () => {
   });
 });
 
+describe("hazard HZ-040 an entry a device reported deleted, uploaded later (round 4, H1)", () => {
+  const discard = (entryId: string, stage: string, id: string) =>
+    as("carer", "/v1/sync/discards", {
+      method: "POST",
+      body: {
+        id,
+        kind: "held_deleted",
+        stage,
+        reasonCode: "recorded_elsewhere",
+        ownerTenantUserId: DEMO.users.carer.id,
+        deletedByTenantUserId: DEMO.users.carer.id,
+        entryIds: [entryId],
+        personIds: [resident(1)],
+        count: 1,
+        discardedAt: new Date().toISOString(),
+      },
+    });
+  const flags = (entryId: string) =>
+    asDemoTenant(async (c) => {
+      const audit = await c.query(
+        "SELECT 1 FROM audit_event WHERE action = 'sync.entry.after_discard' AND resource_id = $1",
+        [entryId],
+      );
+      const tasks = await c.query<{ assignee_role_key: string; required_permission: string }>(
+        "SELECT assignee_role_key, required_permission FROM task WHERE kind = 'sync.entry_reported_deleted' AND source_id = $1",
+        [entryId],
+      );
+      return { audit: audit.rowCount, tasks: tasks.rows };
+    });
+
+  it("keeps the entry and flags it for the manager, so care recorded again is not counted twice unseen", async () => {
+    const entryId = newId();
+    expect((await discard(entryId, "requested", crypto.randomUUID())).status).toBe(200);
+    expect((await note(1, { id: entryId })).status).toBe(201);
+    expect(await flags(entryId)).toEqual({
+      audit: 1,
+      tasks: [
+        { assignee_role_key: "registered_manager", required_permission: "safety.incident.manage" },
+      ],
+    });
+    // A replay of the same upload flags nothing more.
+    expect((await note(1, { id: entryId })).status).toBe(201);
+    expect((await flags(entryId)).tasks).toHaveLength(1);
+  });
+
+  it("does not flag an entry whose deletion the device reported as failed", async () => {
+    const entryId = newId();
+    const record = crypto.randomUUID();
+    await discard(entryId, "requested", record);
+    await discard(entryId, "failed", record);
+    expect((await note(1, { id: entryId })).status).toBe(201);
+    expect(await flags(entryId)).toEqual({ audit: 0, tasks: [] });
+  });
+});
+
 describe("hazard HZ-012 and HZ-014 NEWS2 vital signs", () => {
   const normal = {
     chart: "vitals",

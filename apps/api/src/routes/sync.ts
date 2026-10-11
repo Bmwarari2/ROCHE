@@ -6,7 +6,7 @@ import {
   SyncUpload,
   SyncUploadResult,
 } from "@harbour/contracts";
-import { auditEvent, location, roleAssignment } from "@harbour/db";
+import { auditEvent, location, roleAssignment, tenantUser } from "@harbour/db";
 import { hasClockDrift } from "@harbour/domain";
 import {
   isValidWindowDays,
@@ -14,9 +14,16 @@ import {
   offlineWindowDays,
 } from "@harbour/sync/streams";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { auditInTx } from "../http/audit";
 import { requirePermission, withTenant } from "../http/context";
+import { problems } from "../http/problem";
+import { PerUserQuota } from "../http/quota";
+import {
+  DISCARD_ACTIONS,
+  DISCARD_OTHERS_PERMISSION,
+  recordDeviceHold,
+} from "../services/device-holds";
 import { rateNumber } from "../services/rates";
 import type { SyncTokenSigner } from "../sync/token";
 
@@ -26,8 +33,13 @@ import type { SyncTokenSigner } from "../sync/token";
  */
 const FAIL_SAFE_WINDOW_DAYS = 1;
 
-/** Who may delete another member of staff's unsent entries from a device (HZ-040). */
-const DISCARD_OTHERS_PERMISSION = "safety.incident.manage" as const;
+/**
+ * Per-user quotas on what a device sends on its own (security review round 4, M4). A device sends
+ * a deletion's stages and its reports a few times an hour at most; a full window is a 429.
+ */
+const DISCARDS_PER_HOUR = 240;
+const REPORTS_PER_HOUR = 120;
+const HOUR_MS = 3_600_000;
 
 import { createRouter, errorResponses, jsonBody, security } from "./openapi";
 
@@ -40,6 +52,8 @@ import { createRouter, errorResponses, jsonBody, security } from "./openapi";
 const WRITABLE_TABLES = new Set<string>();
 
 export function createSyncRouter(signer: SyncTokenSigner) {
+  const discardQuota = new PerUserQuota(DISCARDS_PER_HOUR, HOUR_MS);
+  const reportQuota = new PerUserQuota(REPORTS_PER_HOUR, HOUR_MS);
   return createRouter()
     .openapi(
       createRoute({
@@ -173,45 +187,78 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         tags: ["sync"],
         summary: "Record that a device deleted entries that never reached the server",
         description:
-          "Writes an append-only audit event with who deleted them, whose they were, why, how many and from which device (HZ-040). Deleting another member of staff's entries needs a manager's permission. A replay of the same id is recorded once.",
+          "Writes an append-only audit event for one stage of a deletion (requested, deleted or failed): who deleted them, whose they were, the coded reason, how many and from which device (HZ-040). Anyone but the caller's own entries, deleted by the caller, needs a manager's permission. Each stage of an id is recorded once.",
         security,
         request: { body: { content: { "application/json": { schema: SyncDiscard } } } },
         responses: { 200: jsonBody(SyncDiscardResult, "Recorded"), ...errorResponses },
       }),
       async (c) => {
         const access = await requirePermission(c, "care.note.write");
+        discardQuota.take(access.tenantUserId);
         const body = c.req.valid("json");
-        if (body.ownerTenantUserId && body.ownerTenantUserId !== access.tenantUserId) {
+        const deleter = body.deletedByTenantUserId ?? access.tenantUserId;
+        // Anyone's but the caller's own entries, deleted by the caller, need a manager: an unknown
+        // owner, another member of staff's entries, or a deletion the device says someone else made
+        // (security review round 4, M1). Registered Managers, deputies and nurses hold it.
+        if (
+          !body.ownerTenantUserId ||
+          body.ownerTenantUserId !== access.tenantUserId ||
+          deleter !== access.tenantUserId
+        ) {
           await requirePermission(c, DISCARD_OTHERS_PERMISSION);
         }
+        const action = DISCARD_ACTIONS[body.stage];
         const replay = await withTenant(c, async (tx) => {
-          const existing = await tx
-            .select({ id: auditEvent.id })
+          // The owner and the deleter must be staff of this organisation (row-level security keeps
+          // the lookup inside the tenant).
+          const staffIds = [
+            ...new Set([body.ownerTenantUserId, deleter].filter((v) => v !== null)),
+          ];
+          if (staffIds.length > 0) {
+            const staff = await tx
+              .select({ id: tenantUser.id })
+              .from(tenantUser)
+              .where(inArray(tenantUser.id, staffIds));
+            if (staff.length !== staffIds.length) {
+              throw problems.invalid("The member of staff is not in this organisation.");
+            }
+          }
+          // One record per stage of a deletion, even when two requests race (no index needed).
+          await tx.execute(
+            sql`SELECT pg_advisory_xact_lock(hashtext(${`device_discard:${action}:${body.id}`}))`,
+          );
+          const recorded = await tx
+            .select({ id: auditEvent.id, action: auditEvent.action })
             .from(auditEvent)
             .where(
               and(
-                eq(auditEvent.action, "sync.entries.discarded"),
                 eq(auditEvent.resourceType, "device_discard"),
                 eq(auditEvent.resourceId, body.id),
               ),
-            )
-            .limit(1);
-          if (existing.length > 0) return true;
+            );
+          if (recorded.some((r) => r.action === action)) return true;
+          // A failure supersedes the request it follows (clinical review round 4, H1).
+          const requested = recorded.find((r) => r.action === DISCARD_ACTIONS.requested);
           await auditInTx(tx, access, {
-            action: "sync.entries.discarded",
+            action,
             resourceType: "device_discard",
             resourceId: body.id,
-            reason: body.reason ?? body.reasonCode,
+            // The coded reason only: the person's words never enter the hash-chained trail (M3).
+            reason: body.reasonCode,
             scope: {
               kind: body.kind,
+              stage: body.stage,
               reasonCode: body.reasonCode,
               ownerTenantUserId: body.ownerTenantUserId,
               // As the device recorded it; the event's actor is whoever sent this request.
-              deletedByTenantUserId: body.deletedByTenantUserId ?? null,
+              deletedByTenantUserId: deleter,
               entryIds: body.entryIds,
               personIds: body.personIds,
               count: body.count,
               discardedAt: body.discardedAt,
+              ...(body.stage === "failed" && requested
+                ? { supersedesAuditEventId: requested.id }
+                : {}),
             },
             requestId: c.get("requestId"),
           });
@@ -227,13 +274,14 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         tags: ["sync"],
         summary: "A device's unsent work: counts and the oldest age, no personal data",
         description:
-          "Writes an audit event with the device's queued, refused and held counts and the age of the oldest, so the server knows what a lost or wiped device held (HZ-006).",
+          "Writes an audit event with the device's queued, refused and held counts and the age of the oldest, so the server knows what a lost or wiped device held (HZ-006). While anything waits, the device has one task for the Registered Manager, due when its hold escalates; a report with nothing waiting closes it.",
         security,
         request: { body: { content: { "application/json": { schema: SyncDeviceReport } } } },
         responses: { 204: { description: "Recorded" }, ...errorResponses },
       }),
       async (c) => {
         const access = await requirePermission(c, "people.person.read");
+        reportQuota.take(access.tenantUserId);
         const report = c.req.valid("json");
         await withTenant(c, (tx) =>
           auditInTx(tx, access, {
@@ -243,11 +291,14 @@ export function createSyncRouter(signer: SyncTokenSigner) {
               refused: report.refused,
               held: report.held,
               oldestAgeSeconds: report.oldestAgeSeconds,
+              heldSince: report.heldSince ?? null,
               reportedAt: report.reportedAt,
             },
             requestId: c.get("requestId"),
           }),
         );
+        // The Registered Manager's task for this device (clinical review round 4, H2).
+        await recordDeviceHold(c.get("services").db, access, access.deviceId, report, new Date());
         return c.body(null, 204);
       },
     );

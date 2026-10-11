@@ -152,6 +152,7 @@ describe("hazard HZ-040 device discards and reports", () => {
   const discard = {
     id: "0199d000-0000-7000-8000-0000000000d1",
     kind: "held_deleted",
+    stage: "requested",
     reasonCode: "recorded_elsewhere",
     ownerTenantUserId: "00000000-0000-4000-8000-0000000000c1",
     entryIds: ["0199d000-0000-7000-8000-0000000000e1"],
@@ -160,17 +161,22 @@ describe("hazard HZ-040 device discards and reports", () => {
     discardedAt: "2026-10-11T07:30:00.000Z",
   };
 
-  it("accepts a coded reason, with free text only as an option", () => {
+  it("takes a coded reason and never the person's words (round 4, M3)", () => {
     expect(SyncDiscard.safeParse(discard).success).toBe(true);
-    expect(SyncDiscard.safeParse({ ...discard, reason: "On paper" }).success).toBe(true);
+    expect(SyncDiscard.safeParse({ ...discard, reasonCode: "other" }).success).toBe(true);
+    const parsed = SyncDiscard.parse({ ...discard, reason: "Recorded on paper for Ada" });
+    expect(Object.keys(parsed)).not.toContain("reason");
   });
 
-  it("needs the reason in words when the code is other", () => {
-    expect(SyncDiscard.safeParse({ ...discard, reasonCode: "other" }).success).toBe(false);
-    expect(
-      SyncDiscard.safeParse({ ...discard, reasonCode: "other", reason: "Duplicate device" })
-        .success,
-    ).toBe(true);
+  it.each(["requested", "deleted", "failed"])("takes the %s stage (round 4, H1)", (stage) => {
+    expect(SyncDiscard.safeParse({ ...discard, stage }).success).toBe(true);
+  });
+
+  it("never carries more entry ids than entries (round 4, M4)", () => {
+    const ids = ["0199d000-0000-7000-8000-0000000000e1", "0199d000-0000-7000-8000-0000000000e2"];
+    expect(SyncDiscard.safeParse({ ...discard, entryIds: ids, count: 1 }).success).toBe(false);
+    expect(SyncDiscard.safeParse({ ...discard, entryIds: ids, count: 900 }).success).toBe(true);
+    expect(SyncDiscard.safeParse({ ...discard, entryIds: ids, count: null }).success).toBe(true);
   });
 
   it.each([
@@ -178,7 +184,8 @@ describe("hazard HZ-040 device discards and reports", () => {
     ["an unknown reason code", { reasonCode: "because" }],
     ["entry ids that are not ids", { entryIds: ["Ada's note"] }],
     ["a deleter that is not an id", { deletedByTenantUserId: "Mo Manager" }],
-    ["a reason over 500 characters", { reason: "x".repeat(501) }],
+    ["an unknown stage", { stage: "maybe" }],
+    ["no stage", { stage: undefined }],
   ])("refuses %s", (_case, change) => {
     expect(SyncDiscard.safeParse({ ...discard, ...change }).success).toBe(false);
   });
@@ -194,5 +201,9 @@ describe("hazard HZ-040 device discards and reports", () => {
     expect(SyncDeviceReport.safeParse(report).success).toBe(true);
     expect(SyncDeviceReport.safeParse({ ...report, unsent: -1 }).success).toBe(false);
     expect(Object.keys(SyncDeviceReport.parse({ ...report, name: "Ada" }))).not.toContain("name");
+    expect(
+      SyncDeviceReport.safeParse({ ...report, held: 2, heldSince: "2026-10-11T07:00:00.000Z" })
+        .success,
+    ).toBe(true);
   });
 });
