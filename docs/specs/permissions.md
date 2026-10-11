@@ -94,7 +94,7 @@ people only (plus break-glass), `none` no person records.
 | `quality.policy.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
 | `quality.evidence.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
 | `quality.dsar.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
-| `quality.evidence.read` |  |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  | yes |
+| `quality.evidence.read` |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | yes |
 | `quality.evidence_pack.compose` |  | yes | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
 | `quality.evidence_pack.release` | yes | yes | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
 | `quality.statement_of_purpose.write` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |

@@ -138,7 +138,10 @@ export const PERMISSIONS = {
     description: "Manage the evidence library (tag records against quality statements)",
   },
   "quality.dsar.manage": { description: "Run the DSAR workbench and breach register" },
-  "quality.evidence.read": { description: "Open evidence packs released to you (inspectors)" },
+  "quality.evidence.read": {
+    description: "Open evidence packs released to you (inspectors only)",
+    careRecord: true,
+  },
   "quality.evidence_pack.compose": {
     description:
       "Compose inspector evidence packs (evidence, people in scope, redactions) and revoke their links",

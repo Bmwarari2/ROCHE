@@ -40,7 +40,8 @@ const registeredManager: Permission[] = ALL_PERMISSIONS.filter(
     p !== "insights.group.read" &&
     p !== "comms.portal.family" &&
     p !== "comms.portal.self" &&
-    p !== "finance.ledger.record",
+    p !== "finance.ledger.record" &&
+    p !== "quality.evidence.read",
 ).concat([
   "platform.user.manage",
   "platform.audit.read",
@@ -56,8 +57,11 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
     name: "Owner",
     description: "Founder, director or Nominated Individual. Everything, including billing.",
     scopeKind: "tenant",
+    // Least privilege: opening a released evidence pack by its link is for the inspector it was
+    // sent to; providers see their packs through `quality.evidence_pack.compose`.
     permissions: ALL_PERMISSIONS.filter(
-      (p) => p !== "comms.portal.family" && p !== "comms.portal.self",
+      (p) =>
+        p !== "comms.portal.family" && p !== "comms.portal.self" && p !== "quality.evidence.read",
     ),
   },
   {
@@ -74,7 +78,6 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "workforce.training.manage",
       "workforce.supervision.manage",
       "quality.audit.manage",
-      "quality.evidence.read",
       "insights.dashboard.read",
       "insights.report.manage",
       "insights.group.read",
@@ -286,7 +289,6 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "quality.audit.manage",
       "quality.policy.manage",
       "quality.evidence.manage",
-      "quality.evidence.read",
       "quality.evidence_pack.compose",
       "quality.evidence_pack.release",
       "quality.statement_of_purpose.write",
