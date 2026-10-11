@@ -20,6 +20,7 @@ import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import type pg from "pg";
 import type { Logger } from "../logger";
 import { raiseOverdueCareReviews } from "../services/care-planning";
+import { raiseDolsReminders } from "../services/mca";
 import { detectLocationOutbreaks, escalateOverdueNotifications } from "../services/safety";
 import { escalateOverdueTasks, materialiseSeries } from "../services/tasks";
 
@@ -277,6 +278,16 @@ async function eachTenant(
     );
   }
   return total;
+}
+
+/**
+ * DoLS expiry reminders at the rate table's days before each authorisation ends (care.md rule 11,
+ * HZ-020): one task, one alert and one `care.dols.expiring` event per reminder, never twice.
+ */
+export async function remindDolsExpiry(deps: TaskDeps, now = new Date()): Promise<number> {
+  const raised = await eachTenant(deps, (tx, tenantId) => raiseDolsReminders(tx, tenantId, now));
+  if (raised > 0) deps.logger.info({ raised }, "DoLS expiry reminders raised");
+  return raised;
 }
 
 /**

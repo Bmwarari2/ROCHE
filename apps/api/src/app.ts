@@ -16,6 +16,7 @@ import { careRecordsRouter } from "./routes/care-records";
 import { documentsRouter } from "./routes/documents";
 import { incidentsRouter } from "./routes/incidents";
 import { integrationsRouter, supportAccessRouter } from "./routes/integrations";
+import { mcaRouter } from "./routes/mca";
 import { membershipsRouter, meRouter } from "./routes/me";
 import { createRouter } from "./routes/openapi";
 import { operatorMiddleware, operatorRouter } from "./routes/operator";
@@ -144,6 +145,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", careRouter);
   app.route("/", carePlansRouter);
   app.route("/", careRecordsRouter);
+  app.route("/", mcaRouter);
   app.route("/", incidentsRouter);
   app.route("/", statutoryNotificationsRouter);
   app.route("/", ratesRouter);

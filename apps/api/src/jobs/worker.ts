@@ -13,6 +13,7 @@ import {
   processDeliveries,
   raiseCareReviews,
   relayOutbox,
+  remindDolsExpiry,
   runEscalations,
 } from "./tasks";
 
@@ -45,6 +46,7 @@ const QUEUES = {
   taskSeries: "task-series-materialise",
   taskEscalations: "task-escalations",
   careReviews: "care-reviews",
+  dolsExpiry: "dols-expiry-reminders",
   statutoryNotifications: "statutory-notification-escalations",
   outbreaks: "outbreak-detection",
 } as const;
@@ -76,6 +78,9 @@ await boss.work(QUEUES.taskEscalations, async () => {
 await boss.work(QUEUES.careReviews, async () => {
   await raiseCareReviews(deps);
 });
+await boss.work(QUEUES.dolsExpiry, async () => {
+  await remindDolsExpiry(deps);
+});
 await boss.work(QUEUES.statutoryNotifications, async () => {
   await escalateStatutoryNotifications(deps);
 });
@@ -94,8 +99,9 @@ await boss.schedule(QUEUES.taskEscalations, "* * * * *");
 await boss.schedule(QUEUES.careReviews, "7 * * * *");
 // Every minute: a without-delay notification is overdue at once, so its alert must not wait.
 await boss.schedule(QUEUES.statutoryNotifications, "* * * * *");
-// Hourly: outbreak detection is a safety net behind the classification that runs whenever an
-// infection incident is recorded.
+// Hourly: DoLS reminders fall due by the day; outbreak detection is a safety net behind the
+// classification that runs whenever an infection incident is recorded.
+await boss.schedule(QUEUES.dolsExpiry, "13 * * * *");
 await boss.schedule(QUEUES.outbreaks, "19 * * * *");
 
 logger.info("Harbour worker started");
