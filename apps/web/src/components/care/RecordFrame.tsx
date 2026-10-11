@@ -121,11 +121,15 @@ export async function RecordFrame({
     label: t(`care.tabs.${item.tab}`),
   }));
 
-  // The breadcrumb's last item is plain text: the tabs mark the current page.
+  // The breadcrumb's last item is plain text: the tabs mark the current page. The link is
+  // underlined, so it stands out from the name beside it without relying on colour (in the dark
+  // theme the two colours are too close to tell apart).
   return (
     <div className="flex w-full min-w-0 flex-col gap-6">
       <nav aria-label={t("common.breadcrumb")} className="text-body-dense">
-        <Link href="/people">{people}</Link>
+        <Link href="/people" className="underline">
+          {people}
+        </Link>
         <span aria-hidden="true" className="px-2 text-text-secondary">
           ›
         </span>
