@@ -11,6 +11,12 @@ import { type DolsNation, type DolsRates, resolveDolsRates } from "../src/care/m
 import { type CareRates, resolveCareRates } from "../src/care/rates";
 import { type OperationsRates, resolveOperationsRates } from "../src/operations/rates";
 import type { RateRow } from "../src/platform/rates";
+import {
+  type EvidencePackPolicy,
+  resolveEvidencePackPolicy,
+  resolveStatementOfPurposeRates,
+  type StatementOfPurposeRates,
+} from "../src/quality/rates";
 import { resolveSafetyRates, type SafetyRates } from "../src/safety/rates";
 
 const RATES_PATH = fileURLToPath(new URL("../../../docs/specs/rates.md", import.meta.url));
@@ -84,4 +90,14 @@ export function tableDolsRates(nation: DolsNation = "england", on = "2026-10-11"
 /** The downtime pack and back-entry figures for an English location. */
 export function tableOperationsRates(on = "2026-10-11"): OperationsRates {
   return resolveOperationsRates(readRateTable(), "england", on, null);
+}
+
+/** The evidence pack link policy (tenant defaults) for an English location. */
+export function tableEvidencePackPolicy(on = "2026-10-11"): EvidencePackPolicy {
+  return resolveEvidencePackPolicy(readRateTable(), "england", on, null);
+}
+
+/** The statement of purpose figures (England). */
+export function tableStatementOfPurposeRates(on = "2026-10-11"): StatementOfPurposeRates {
+  return resolveStatementOfPurposeRates(readRateTable(), "england", on, null);
 }
