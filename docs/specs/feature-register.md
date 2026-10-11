@@ -14,18 +14,18 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 | Care planning and delivery | `CARE` | 10.1, 10.4 | 22 | 9 | 13 | 0 |
 | Medicines | `MEDS` | 10.2-10.3 | 14 | 14 | 0 | 0 |
 | Safety and notifications | `SAFE` | 11.1 | 16 | 9 | 7 | 0 |
-| Quality and governance | `QUAL` | 11.2 | 13 | 13 | 0 | 0 |
+| Quality and governance | `QUAL` | 11.2 | 13 | 11 | 2 | 0 |
 | Workforce | `WORK` | 12.1, 12.2, 12.4 | 13 | 13 | 0 | 0 |
 | Rostering, time and pay | `SCHED` | 12.3 | 12 | 12 | 0 | 0 |
-| Operations | `OPS` | 13 | 28 | 28 | 0 | 0 |
+| Operations | `OPS` | 13 | 28 | 27 | 1 | 0 |
 | Finance | `FIN` | 14 | 21 | 21 | 0 | 0 |
-| Communication and portals | `COMMS` | 15.1 | 8 | 7 | 1 | 0 |
+| Communication and portals | `COMMS` | 15.1 | 8 | 6 | 2 | 0 |
 | Reporting and analytics | `INSI` | 15.2 | 6 | 6 | 0 | 0 |
 | Integrations | `INTG` | 15.3 | 13 | 12 | 1 | 0 |
 | AI Management Copilot | `AI` | 16 | 11 | 11 | 0 | 0 |
 | Mobile apps | `MOB` | 17 | 13 | 11 | 2 | 0 |
 | Expansion (Phase 7) | `EXP` | 19 | 7 | 7 | 0 | 0 |
-| **Total** | | | **233** | **187** | **46** | **0** |
+| **Total** | | | **233** | **183** | **50** | **0** |
 
 | Phase | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -147,13 +147,13 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | SAFE-016 | Statutory review and disclosure requests: coroner, SAR and DHR packs, police and solicitor disclosure, Access to Health Records requests, disclosure log | 11.1 | 2 | todo | - | - | - | - |
 | QUAL-001 | Data-driven compliance framework model (CQC 34 quality statements now, KLOE version when published) | 11.2 | 2 | todo | - | - | - | - |
 | QUAL-002 | Evidence library tagging against quality statements or KLOEs | 11.2 | 2 | todo | - | - | - | - |
-| QUAL-003 | Inspector evidence pack export (PDF bundle, watermarked, time-limited link) | 11.2 | 1 | todo | - | - | - | - |
+| QUAL-003 | Inspector evidence pack export (PDF bundle, watermarked, time-limited link) | 11.2 | 1 | partial | [quality](quality.md#inspector-evidence-pack-qual-003-hz-050) | `packages/domain/src/quality/evidence-pack.ts`, `packages/domain/src/quality/rates.ts`, `packages/domain/src/shared/email.ts` | `packages/domain/src/quality/evidence-pack.test.ts`, `packages/domain/src/shared/email.test.ts` | - |
 | QUAL-004 | Scored audit programme and mock inspections | 11.2 | 2 | todo | - | - | - | - |
 | QUAL-005 | Quality dashboard with care KPIs and RAG against tenant targets | 11.2 | 2 | todo | - | - | - | - |
 | QUAL-006 | Provider Information Return prefill | 11.2 | 2 | todo | - | - | - | - |
 | QUAL-007 | Capacity Tracker and ASC-WDS returns prefill | 11.2, 12.3 | 3 | todo | - | - | - | - |
 | QUAL-008 | Policy library with versioning, read-and-sign, vendor import and starter templates | 11.2 | 2 | todo | - | - | - | - |
-| QUAL-009 | Statement of purpose with change tracking | 11.2 | 1 | todo | - | - | - | - |
+| QUAL-009 | Statement of purpose with change tracking | 11.2 | 1 | partial | [quality](quality.md#statement-of-purpose-qual-009) | `packages/domain/src/quality/statement-of-purpose.ts`, `packages/domain/src/quality/rates.ts` | `packages/domain/src/quality/statement-of-purpose.test.ts` | - |
 | QUAL-010 | Registration and governance records: RM and NI details, fit and proper persons, Reg 14 absence notifications, Reg 15 changes, certificates, minutes, risk register, business continuity plan | 11.2 | 3 | todo | - | - | - | - |
 | QUAL-011 | Resident, family and staff surveys | 11.2 | 3 | todo | - | - | - | - |
 | QUAL-012 | DSPT and Cyber Essentials evidence tracker with ICO registration records | 11.2 | 2 | todo | - | - | - | - |
@@ -210,7 +210,7 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | OPS-025 | Appointments and transport | 13.6 | 3 | todo | - | - | - | - |
 | OPS-026 | Residents' and relatives' meetings | 13.6 | 3 | todo | - | - | - | - |
 | OPS-027 | Day-service sessions, attendance and session charging | 13.7 | 3 | todo | - | - | - | - |
-| OPS-028 | Nightly downtime pack with back-entry workflow | 13.4 | 1 | todo | - | - | - | - |
+| OPS-028 | Nightly downtime pack with back-entry workflow | 13.4 | 1 | partial | [operations](operations.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/operations/downtime-pack.ts`, `outage.ts`, `rates.ts` | `packages/domain/src/operations/downtime-pack.test.ts`, `outage.test.ts` | - |
 | FIN-001 | Per-person funding mix (LA, FNC, CHC, s.117, self, top-ups, DP, ISF, PHB) with versioned rates | 14.1 | 3 | todo | - | - | - | - |
 | FIN-002 | Regulated top-up agreements | 14.1 | 3 | todo | - | - | - | - |
 | FIN-003 | Commissioner contracts (block, spot, framework) | 14.1 | 3 | todo | - | - | - | - |
@@ -238,7 +238,7 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | COMMS-004 | Time-limited professional access | 15.1 | 4 | todo | - | - | - | - |
 | COMMS-005 | Internal messaging and announcements | 15.1 | 4 | todo | - | - | - | - |
 | COMMS-006 | Handover acknowledgement | 15.1 | 1 | partial | [care](care.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/care/handover.ts` | `packages/domain/src/care/handover.test.ts` | - |
-| COMMS-007 | Letter and email templates with approval | 15.1 | 1 | todo | - | - | - | - |
+| COMMS-007 | Letter and email templates with approval | 15.1 | 1 | partial | [comms](comms.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/comms/templates.ts`, `template-style.ts` | `packages/domain/src/comms/templates.test.ts`, `template-style.test.ts` | - |
 | COMMS-008 | Optional public website module with vacancies, fees, rating widget and enquiry form | 15.1 | 4 | todo | - | - | - | - |
 | INSI-001 | Role dashboards | 15.2 | 1 | todo | - | - | - | - |
 | INSI-002 | Governed report builder | 15.2 | 6 | todo | - | - | - | - |
