@@ -16,6 +16,7 @@ export * from "./care/mca/consent";
 export * from "./care/mca/dols";
 export * from "./care/must";
 export * from "./care/news2";
+export * from "./care/news2-vectors";
 export * from "./care/rates";
 export * from "./care/repositioning";
 export * from "./care/risk-assessment";

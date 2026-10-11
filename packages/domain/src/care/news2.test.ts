@@ -1,5 +1,30 @@
 import { describe, expect, it } from "vitest";
 import { calculateNews2, NEWS2_TOOL_VERSION, type News2Input, type News2Result } from "./news2";
+import { NEWS2_REFERENCE_VECTORS } from "./news2-vectors";
+
+describe("hazard HZ-012 NEWS2 matches the reference vectors worked by hand from RCP chart 1", () => {
+  it.each(NEWS2_REFERENCE_VECTORS.map((v) => [v.name, v] as const))("%s", (_name, vector) => {
+    const outcome = calculateNews2(vector.input);
+    if (!outcome.ok) throw new Error(outcome.message);
+    expect({
+      score: outcome.result.score,
+      band: outcome.result.band,
+      threshold: outcome.result.threshold,
+      redScore: outcome.result.redScore,
+    }).toEqual(vector.expected);
+  });
+
+  it("covers every band and every chart 4 threshold", () => {
+    const thresholds = new Set(NEWS2_REFERENCE_VECTORS.map((v) => v.expected.threshold));
+    expect([...thresholds].sort()).toEqual([
+      "score_0",
+      "score_1_to_4",
+      "score_5_or_more",
+      "score_7_or_more",
+      "single_parameter_3",
+    ]);
+  });
+});
 
 /**
  * NEWS2 against RCP 2017 charts 1, 2 and 4 (hazards HZ-012 and HZ-014). Every band boundary is
