@@ -12,6 +12,7 @@ type LookupNation = Exclude<RateNation, "uk" | "all">;
 export const EVIDENCE_PACK_RATE_KEYS = {
   defaultLinkDays: "evidence_pack.link_expiry_days.default",
   maxLinkDays: "evidence_pack.link_expiry_days.max",
+  codeValidMinutes: "evidence_pack.code_valid_minutes",
 } as const;
 
 export type EvidencePackPolicy = {

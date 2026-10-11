@@ -5,29 +5,41 @@ import { builtinRole } from "../platform/roles";
 import { checkWorkflowTransition } from "../platform/workflow";
 import { addUkDays } from "../shared/time";
 import {
+  checkEvidencePackCode,
+  checkEvidencePackLinkReissue,
   checkEvidencePackRelease,
   checkEvidencePackRequest,
   composeEvidencePack,
   defaultEvidencePackLinkExpiry,
+  EVIDENCE_FIELD_KIND_MAP,
+  EVIDENCE_LINK_CODE_DIGITS,
   EVIDENCE_LINK_MAX_CODE_ATTEMPTS,
   EVIDENCE_PACK_LINK_MESSAGES,
   EVIDENCE_PACK_RELEASE_MESSAGES,
   EVIDENCE_PACK_REQUEST_MESSAGES,
   EVIDENCE_PACK_WORKFLOW,
+  EVIDENCE_RECORD_TYPES,
   EVIDENCE_REDACTION_TEXT,
   type EvidenceExclusionReason,
   type EvidenceField,
+  type EvidenceFieldKind,
   type EvidenceItem,
   type EvidencePack,
+  type EvidencePackCodeView,
   type EvidencePackLinkView,
   type EvidencePackReleaseRequest,
   type EvidencePackRequest,
   type EvidencePackState,
+  evidenceFieldKind,
   evidenceItemExclusion,
   evidencePackBundleDeletable,
+  evidencePackContributors,
   evidencePackLinkAccess,
   evidencePackWatermark,
+  failedCodeAttemptsAfter,
+  isWellFormedEvidenceCode,
   minimiseEvidenceField,
+  redactionLeaks,
 } from "./evidence-pack";
 import { EVIDENCE_PACK_RATE_KEYS, resolveEvidencePackPolicy } from "./rates";
 
@@ -35,6 +47,7 @@ import { EVIDENCE_PACK_RATE_KEYS, resolveEvidencePackPolicy } from "./rates";
 
 const policy = tableEvidencePackPolicy();
 const DAY = 86_400_000;
+const MINUTE = 60_000;
 const ADA = "person-ada";
 const BEN = "person-ben";
 const LOCATION = "location-harbour-house";
@@ -42,9 +55,8 @@ const COMPOSED = new Date("2026-10-11T13:05:00Z");
 
 const permissionsOf = (role: string) => new Set(builtinRole(role)?.permissions ?? []);
 
-function field(o: Partial<EvidenceField> & Pick<EvidenceField, "kind">): EvidenceField {
+function field(o: Partial<EvidenceField> & Pick<EvidenceField, "key">): EvidenceField {
   return {
-    key: o.key ?? o.kind,
     label: o.label ?? "Field",
     value: "value",
     aboutPersonId: null,
@@ -65,11 +77,12 @@ function item(id: string, o: Partial<EvidenceItem> = {}): EvidenceItem {
     title: "Fall incident",
     qualityStatementIds: ["safe.learning_culture"],
     aboutPersonIds: [ADA],
+    namedPeople: [{ personId: ADA, names: ["Ada Example", "Ada", "Example", "Addie"] }],
     restricted: false,
     fields: [
-      field({ kind: "organisational", key: "type", value: "Fall" }),
-      field({ kind: "care_content", key: "injury", value: "Bruised left hip", aboutPersonId: ADA }),
-      field({ kind: "third_party", key: "witness", value: "Cara Visitor", role: "visitor" }),
+      field({ key: "type", value: "Fall" }),
+      field({ key: "injury", value: "Bruised left hip", aboutPersonId: ADA }),
+      field({ key: "witness_other", value: "Cara Visitor", role: "visitor" }),
     ],
     ...o,
   };
@@ -103,9 +116,11 @@ function compose(items: EvidenceItem[], o: Partial<EvidencePackRequest> = {}): E
 }
 
 describe("evidence pack link figures come from the rate table as tenant defaults", () => {
-  it("has a default no longer than the maximum", () => {
+  it("has a default no longer than the maximum, and a short code lifetime", () => {
     expect(policy.defaultLinkDays).toBeGreaterThan(0);
     expect(policy.defaultLinkDays).toBeLessThanOrEqual(policy.maxLinkDays);
+    expect(policy.codeValidMinutes).toBeGreaterThan(0);
+    expect(policy.codeValidMinutes).toBeLessThanOrEqual(10);
   });
 
   it("fails loudly when a figure is missing", () => {
@@ -129,14 +144,23 @@ describe("evidence pack permissions", () => {
     ["care_worker", false, false],
     ["inspector", false, false],
     ["group_executive", false, false],
-  ] as const)("%s composes: %s, releases: %s", (role, compose_, release) => {
+  ] as const)("%s composes: %s, releases: %s", (role, canCompose, canRelease) => {
     const permissions = permissionsOf(role);
-    expect(permissions.has("quality.evidence_pack.compose")).toBe(compose_);
-    expect(permissions.has("quality.evidence_pack.release")).toBe(release);
+    expect(permissions.has("quality.evidence_pack.compose")).toBe(canCompose);
+    expect(permissions.has("quality.evidence_pack.release")).toBe(canRelease);
   });
 
-  it("keeps the inspector to opening packs released to them", () => {
+  it("gives opening a released pack to the inspector role alone (least privilege)", () => {
     expect([...permissionsOf("inspector")]).toEqual(["quality.evidence.read"]);
+    for (const role of [
+      "owner",
+      "registered_manager",
+      "deputy_manager",
+      "quality_lead",
+      "group_executive",
+    ]) {
+      expect(permissionsOf(role).has("quality.evidence.read"), role).toBe(false);
+    }
   });
 });
 
@@ -175,91 +199,149 @@ describe("the pack request", () => {
   });
 });
 
+describe("hazard HZ-050 the field-to-kind map decides how every field is treated", () => {
+  it("covers every evidence record type", () => {
+    expect(Object.keys(EVIDENCE_FIELD_KIND_MAP).sort()).toEqual([...EVIDENCE_RECORD_TYPES].sort());
+  });
+
+  it.each<[(typeof EVIDENCE_RECORD_TYPES)[number], string, EvidenceFieldKind]>([
+    ["incident", "description", "free_text"],
+    ["incident", "immediate_actions", "free_text"],
+    ["incident", "witness_other", "third_party"],
+    ["care_note", "text", "free_text"],
+    ["care_note", "author", "staff_name"],
+    ["visit_log", "visitor_name", "third_party"],
+    ["visit_log", "visitor_relationship", "free_text"],
+    ["visit_log", "restriction_reason", "free_text"],
+    ["care_plan_section", "need", "free_text"],
+    ["risk_assessment", "controls", "free_text"],
+    ["advance_care_record", "clinician_name", "third_party"],
+    ["observation", "nhs_number", "direct_identifier"],
+    ["observation", "values", "care_content"],
+    ["incident", "a_column_nobody_mapped", "free_text"],
+  ])("%s.%s is %s", (recordType, key, kind) => {
+    expect(evidenceFieldKind(recordType, key)).toBe(kind);
+  });
+
+  it("treats every field a person types as free text", () => {
+    const typedFields = ["description", "text", "notes", "note", "need", "outcome", "details"];
+    for (const fields of Object.values(EVIDENCE_FIELD_KIND_MAP)) {
+      for (const [key, kind] of Object.entries(fields)) {
+        if (typedFields.includes(key)) expect(kind, key).toBe("free_text");
+      }
+    }
+  });
+
+  it("ignores any kind the caller tries to give a field", () => {
+    const sneaky = {
+      ...field({ key: "description", value: "Ben hit Ada" }),
+      kind: "organisational",
+    };
+    const pack = compose([item("a", { fields: [sneaky] })]);
+    expect(pack.items[0]?.fields[0]).toMatchObject({
+      kind: "free_text",
+      outcome: "withheld",
+      reason: "free_text_not_reviewed",
+    });
+  });
+});
+
 describe("hazard HZ-050 fields are minimised and redacted by rule", () => {
   const scope = { peopleInScope: new Set([ADA]), staffNames: "role_only" as const };
-  const reviewed = { text: " Fell near [another resident]'s room ", by: "staff-ql", at: COMPOSED };
+  const reviewed = { text: " Fell near the lounge ", by: "staff-ql", at: COMPOSED };
+  const typed = (kind: EvidenceFieldKind, o: Partial<EvidenceField> = {}) => ({
+    ...field({ key: kind, ...o }),
+    kind,
+  });
 
-  it.each<[string, EvidenceField, string, string | null, string | null]>([
+  it.each<[string, ReturnType<typeof typed>, string, string | null, string | null]>([
     [
       "organisational detail is kept",
-      field({ kind: "organisational", value: "Fall" }),
+      typed("organisational", { value: "Fall" }),
       "included",
       "Fall",
       null,
     ],
     [
       "care content about a person in scope is kept",
-      field({ kind: "care_content", value: "Bruised hip", aboutPersonId: ADA }),
+      typed("care_content", { value: "Bruised hip", aboutPersonId: ADA }),
       "included",
       "Bruised hip",
       null,
     ],
     [
       "hazard HZ-050 care content about a person outside the pack is withheld",
-      field({ kind: "care_content", value: "Ben's diagnosis", aboutPersonId: BEN }),
+      typed("care_content", { value: "Ben's diagnosis", aboutPersonId: BEN }),
       "withheld",
       null,
       "person_not_in_scope",
     ],
     [
       "care content about nobody known is withheld",
-      field({ kind: "care_content", value: "Something", aboutPersonId: null }),
+      typed("care_content", { value: "Something", aboutPersonId: null }),
       "withheld",
       null,
       "person_unknown",
     ],
     [
       "identifiers are left out",
-      field({ kind: "direct_identifier", value: "9990000018", aboutPersonId: ADA }),
+      typed("direct_identifier", { value: "9990000018", aboutPersonId: ADA }),
       "withheld",
       null,
       "identifier_not_needed",
     ],
     [
       "hazard HZ-050 third parties' names are removed",
-      field({ kind: "third_party", value: "Cara Visitor", role: " relative " }),
+      typed("third_party", { value: "Cara Visitor", role: "relative" }),
       "redacted",
       "[relative]",
       "third_party",
     ],
     [
       "a third party with no role recorded",
-      field({ kind: "third_party", value: "Cara Visitor" }),
+      typed("third_party", { value: "Cara Visitor" }),
+      "redacted",
+      "[another person]",
+      "third_party",
+    ],
+    [
+      "a role outside the closed list is never printed",
+      typed("third_party", { value: "Cara Visitor", role: "Cara's daughter" as never }),
       "redacted",
       "[another person]",
       "third_party",
     ],
     [
       "staff names become roles",
-      field({ kind: "staff_name", value: "Dan Carer", role: "senior carer" }),
+      typed("staff_name", { value: "Dan Carer", role: "senior carer" }),
       "redacted",
       "[senior carer]",
       "staff_role_only",
     ],
     [
       "a staff name with no role recorded",
-      field({ kind: "staff_name", value: "Dan Carer" }),
+      typed("staff_name", { value: "Dan Carer" }),
       "redacted",
       "[member of staff]",
       "staff_role_only",
     ],
     [
       "hazard HZ-050 free text is withheld until a person has redacted it",
-      field({ kind: "free_text", value: "Ada fell near Ben's room" }),
+      typed("free_text", { value: "Ada fell near Ben's room" }),
       "withheld",
       null,
       "free_text_not_reviewed",
     ],
     [
       "free text redacted by hand is shown as redacted",
-      field({ kind: "free_text", value: "Ada fell near Ben's room", redacted: reviewed }),
+      typed("free_text", { value: "Ada fell near Ben's room", redacted: reviewed }),
       "redacted",
-      "Fell near [another resident]'s room",
+      "Fell near the lounge",
       "free_text_redacted_by_hand",
     ],
     [
       "a redaction with no reviewer does not count",
-      field({ kind: "free_text", value: "x", redacted: { ...reviewed, by: " " } }),
+      typed("free_text", { value: "x", redacted: { ...reviewed, by: " " } }),
       "withheld",
       null,
       "free_text_not_reviewed",
@@ -268,8 +350,15 @@ describe("hazard HZ-050 fields are minimised and redacted by rule", () => {
     expect(minimiseEvidenceField(input, scope)).toMatchObject({ outcome, value, reason });
   });
 
+  it("records who redacted free text by hand", () => {
+    expect(
+      minimiseEvidenceField(typed("free_text", { value: "x", redacted: reviewed }), scope)
+        .redactedBy,
+    ).toBe("staff-ql");
+  });
+
   it("includes staff names only when the request asks for them", () => {
-    const named = minimiseEvidenceField(field({ kind: "staff_name", value: "Dan Carer" }), {
+    const named = minimiseEvidenceField(typed("staff_name", { value: "Dan Carer" }), {
       peopleInScope: new Set(),
       staffNames: "include",
     });
@@ -280,6 +369,61 @@ describe("hazard HZ-050 fields are minimised and redacted by rule", () => {
     for (const text of Object.values(EVIDENCE_REDACTION_TEXT)) {
       expect(text.length).toBeGreaterThan(15);
     }
+  });
+});
+
+describe("hazard HZ-050 hand-redacted text that still names someone is withheld", () => {
+  const redactedBy = { by: "staff-ql", at: COMPOSED };
+  function withNote(
+    text: string,
+    o: Partial<EvidenceItem> = {},
+    staffNames: "role_only" | "include" = "role_only",
+  ) {
+    const pack = compose(
+      [
+        item("a", {
+          aboutPersonIds: [ADA, BEN],
+          namedPeople: [
+            { personId: ADA, names: ["Ada Example"] },
+            { personId: BEN, names: ["Ben Other", "Benjamin"] },
+          ],
+          fields: [
+            field({ key: "witness_other", value: "Cara Visitor", role: "visitor" }),
+            field({ key: "raised_by", value: "Dan Carer", role: "senior carer" }),
+            field({ key: "description", value: "original", redacted: { text, ...redactedBy } }),
+          ],
+          ...o,
+        }),
+      ],
+      { staffNames },
+    );
+    return pack.items[0]?.fields.find((f) => f.key === "description");
+  }
+
+  it.each<[string, string, "role_only" | "include", string]>([
+    ["text with no names left", "Ada fell near the lounge door", "role_only", "redacted"],
+    ["a third party's full name", "Cara Visitor saw the fall", "role_only", "withheld"],
+    ["part of a third party's name, in any case", "seen by CARA", "role_only", "withheld"],
+    ["a staff name while only roles are shown", "Dan helped Ada up", "role_only", "withheld"],
+    ["a staff name when staff names are included", "Dan helped Ada up", "include", "redacted"],
+    [
+      "the name of an out-of-scope person on the record",
+      "Benjamin was nearby",
+      "role_only",
+      "withheld",
+    ],
+    ["an NHS number with spaces", "Reference 999 000 0018", "role_only", "withheld"],
+    ["a telephone number", "Called 01632 960000", "role_only", "withheld"],
+    ["a short number", "Room 12, bed 2", "role_only", "redacted"],
+  ])("%s", (_label, text, staffNames, outcome) => {
+    const description = withNote(text, {}, staffNames);
+    expect(description?.outcome).toBe(outcome);
+    if (outcome === "withheld") expect(description?.reason).toBe("redaction_incomplete");
+  });
+
+  it("ignores very short name parts that would match ordinary words", () => {
+    expect(redactionLeaks("Jo went to the shop", ["Al Jo"])).toBe(false);
+    expect(redactionLeaks("al jo was there", ["Al Jo"])).toBe(true);
   });
 });
 
@@ -356,7 +500,7 @@ describe("composing a pack", () => {
     expect(pack.redactedFields).toBe(2);
     expect(pack.withheldFields).toBe(0);
     expect(pack.recipient.email).toBe("ida.inspector@example.invalid");
-    expect(pack.items[0]?.fields.find((f) => f.key === "witness")).toMatchObject({
+    expect(pack.items[0]?.fields.find((f) => f.key === "witness_other")).toMatchObject({
       outcome: "redacted",
       value: "[visitor]",
     });
@@ -371,7 +515,10 @@ describe("composing a pack", () => {
   });
 
   it("keeps the record version so the manifest can rebuild the pack", () => {
-    expect(compose(items).items[0]).toMatchObject({ recordId: "record-earlier", recordVersion: 2 });
+    expect(compose(items).items[0]).toMatchObject({
+      recordId: "record-earlier",
+      recordVersion: 2,
+    });
   });
 });
 
@@ -405,11 +552,12 @@ describe("the watermark", () => {
   });
 });
 
-describe("releasing a pack", () => {
+describe("hazard HZ-050 releasing a pack: nobody who shaped it may release it", () => {
   const released = new Date("2026-10-12T09:00:00Z");
   const pack = {
     state: "draft" as EvidencePackState,
     composedBy: "staff-quality-lead",
+    contributorIds: ["staff-quality-lead", "staff-redactor", "staff-editor"],
     itemCount: 2,
     recipientEmail: "ida.inspector@example.invalid",
   };
@@ -423,6 +571,25 @@ describe("releasing a pack", () => {
       ...o,
     };
   }
+
+  it("works out every contributor: the composer, each hand redactor and each editor", () => {
+    const composed = compose([
+      item("a", {
+        fields: [
+          field({
+            key: "description",
+            value: "x",
+            redacted: { text: "Fell in the lounge", by: "staff-redactor", at: COMPOSED },
+          }),
+        ],
+      }),
+    ]);
+    expect([...evidencePackContributors(composed, ["staff-editor"])].sort()).toEqual([
+      "staff-editor",
+      "staff-quality-lead",
+      "staff-redactor",
+    ]);
+  });
 
   it("issues the link with the default expiry when none is chosen", () => {
     expect(checkEvidencePackRelease(pack, release(), policy)).toEqual({
@@ -447,7 +614,19 @@ describe("releasing a pack", () => {
       "by the person who composed it",
       {},
       { actorId: "staff-quality-lead", permissions: permissionsOf("quality_lead") },
-      ["composer_cannot_release"],
+      ["contributor_cannot_release"],
+    ],
+    [
+      "hazard HZ-050 by someone who redacted free text in it",
+      {},
+      { actorId: "staff-redactor" },
+      ["contributor_cannot_release"],
+    ],
+    [
+      "hazard HZ-050 by someone who edited it",
+      {},
+      { actorId: "staff-editor" },
+      ["contributor_cannot_release"],
     ],
     ["without a recent sign-in", {}, { stepUpFresh: false }, ["step_up_required"]],
     [
@@ -510,11 +689,147 @@ describe("releasing a pack", () => {
   });
 });
 
-describe("hazard HZ-050 the link opens only for its recipient before expiry and revocation", () => {
+describe("hazard HZ-050 issuing a new link is a release", () => {
+  const now = new Date("2026-10-15T09:00:00Z");
+  const pack = {
+    state: "released" as EvidencePackState,
+    contributorIds: ["staff-quality-lead", "staff-redactor"],
+    recipientEmail: "ida.inspector@example.invalid",
+  };
+  const reissue = (o: Partial<Parameters<typeof checkEvidencePackLinkReissue>[2]> = {}) =>
+    checkEvidencePackLinkReissue(
+      pack,
+      { linkId: "link-1" },
+      {
+        actorId: "staff-manager",
+        permissions: permissionsOf("registered_manager"),
+        stepUpFresh: true,
+        releasedAt: now,
+        expiresAt: null,
+        recipientEmail: " IDA.Inspector@example.invalid",
+        ...o,
+      },
+      policy,
+    );
+
+  it("revokes the old link when a new one goes to the same recipient", () => {
+    expect(reissue()).toEqual({
+      ok: true,
+      expiresAt: defaultEvidencePackLinkExpiry(now, policy),
+      revokeLinkId: "link-1",
+    });
+  });
+
+  it.each<[string, Partial<Parameters<typeof checkEvidencePackLinkReissue>[2]>, string[]]>([
+    [
+      "to a different recipient",
+      { recipientEmail: "ben@example.invalid" },
+      ["different_recipient"],
+    ],
+    ["by a contributor", { actorId: "staff-redactor" }, ["contributor_cannot_release"]],
+    ["without step-up", { stepUpFresh: false }, ["step_up_required"]],
+    [
+      "by a role without the permission",
+      { permissions: permissionsOf("care_worker") },
+      ["missing_permission"],
+    ],
+    [
+      "beyond the maximum expiry",
+      { expiresAt: new Date(addUkDays(now, policy.maxLinkDays).getTime() + DAY) },
+      ["expiry_beyond_maximum"],
+    ],
+  ])("refuses a new link %s", (_label, o, problems) => {
+    const check = reissue(o);
+    expect(check.ok ? null : check.problems).toEqual(problems);
+  });
+
+  it("refuses a new link for a pack that is not released", () => {
+    const check = checkEvidencePackLinkReissue(
+      { ...pack, state: "revoked" },
+      { linkId: "link-1" },
+      {
+        actorId: "staff-manager",
+        permissions: permissionsOf("registered_manager"),
+        stepUpFresh: true,
+        releasedAt: now,
+        expiresAt: null,
+        recipientEmail: pack.recipientEmail,
+      },
+      policy,
+    );
+    expect(check.ok ? null : check.problems).toEqual(["not_released"]);
+  });
+});
+
+describe("hazard HZ-050 one-time codes", () => {
+  const issuedAt = new Date("2026-10-13T10:00:00Z");
+  const code: EvidencePackCodeView = { linkId: "link-1", issuedAt, usedAt: null };
+
+  it("issues six-digit codes only", () => {
+    expect(EVIDENCE_LINK_CODE_DIGITS).toBeGreaterThanOrEqual(6);
+    expect(isWellFormedEvidenceCode("123456")).toBe(true);
+    for (const bad of ["12345", "1234567", "12345a", "١٢٣٤٥٦", " 12345"]) {
+      expect(isWellFormedEvidenceCode(bad), bad).toBe(false);
+    }
+  });
+
+  it.each<
+    [
+      string,
+      Partial<typeof code>,
+      { linkId?: string; entered?: string; matches?: boolean; at?: Date },
+      string,
+    ]
+  >([
+    ["the right code in time", {}, {}, "accepted"],
+    ["a wrong code", {}, { matches: false }, "wrong_code"],
+    ["a code for another link", {}, { linkId: "link-2" }, "wrong_link"],
+    ["a code that is not six digits", {}, { entered: "12345" }, "malformed"],
+    ["a code already used", { usedAt: issuedAt }, {}, "already_used"],
+    [
+      "a code at the end of its life",
+      {},
+      { at: new Date(issuedAt.getTime() + policy.codeValidMinutes * MINUTE) },
+      "expired",
+    ],
+    [
+      "a code a minute before the end of its life",
+      {},
+      { at: new Date(issuedAt.getTime() + (policy.codeValidMinutes - 1) * MINUTE) },
+      "accepted",
+    ],
+  ])("%s", (_label, codeOverrides, attempt, expected) => {
+    expect(
+      checkEvidencePackCode(
+        { ...code, ...codeOverrides },
+        {
+          linkId: "link-1",
+          entered: "123456",
+          matches: true,
+          at: new Date(issuedAt.getTime() + MINUTE),
+          ...attempt,
+        },
+        policy,
+      ),
+    ).toBe(expected);
+  });
+
+  it("never resets the failed-attempt count, even after a correct code", () => {
+    let count = 0;
+    for (const outcome of ["wrong", "wrong", "correct", "wrong"] as const) {
+      count = failedCodeAttemptsAfter(count, outcome);
+    }
+    expect(count).toBe(3);
+  });
+});
+
+describe("hazard HZ-050 the link opens only for its recipient's own session, before expiry and revocation", () => {
   const expiresAt = new Date("2026-10-19T09:00:00Z");
   const at = new Date("2026-10-13T10:00:00Z");
+  const session = { linkId: "link-1", verifiedEmail: "IDA.Inspector@example.invalid " };
   function link(o: Partial<EvidencePackLinkView> = {}): EvidencePackLinkView {
     return {
+      id: "link-1",
       packState: "released",
       recipientEmail: "ida.inspector@example.invalid",
       expiresAt,
@@ -524,62 +839,58 @@ describe("hazard HZ-050 the link opens only for its recipient before expiry and 
     };
   }
 
-  it.each<[string, Partial<EvidencePackLinkView>, Date, string | null, string | null]>([
-    ["the recipient, after the code", {}, at, "IDA.Inspector@example.invalid ", null],
+  it.each<[string, Partial<EvidencePackLinkView>, Date, typeof session | null, string | null]>([
+    ["the recipient, in the session their code opened", {}, at, session, null],
     ["before the code is entered", {}, at, null, "code_required"],
+    [
+      "a session opened for a different link",
+      {},
+      at,
+      { ...session, linkId: "link-old" },
+      "code_required",
+    ],
     [
       "someone else who received a forwarded link",
       {},
       at,
-      "ben@example.invalid",
+      { linkId: "link-1", verifiedEmail: "ben@example.invalid" },
       "wrong_recipient",
     ],
-    ["at the moment it expires", {}, expiresAt, "ida.inspector@example.invalid", "expired"],
-    [
-      "after the provider revoked it",
-      { revokedAt: at },
-      at,
-      "ida.inspector@example.invalid",
-      "revoked",
-    ],
-    ["a revoked pack", { packState: "revoked" }, at, "ida.inspector@example.invalid", "revoked"],
+    ["at the moment it expires", {}, expiresAt, session, "expired"],
+    ["after the provider revoked it", { revokedAt: at }, at, session, "revoked"],
+    ["a revoked pack", { packState: "revoked" }, at, session, "revoked"],
     [
       "a revocation scheduled for later",
       { revokedAt: new Date(at.getTime() + DAY) },
       at,
-      "ida.inspector@example.invalid",
+      session,
       null,
     ],
     [
       "after too many wrong codes",
       { failedCodeAttempts: EVIDENCE_LINK_MAX_CODE_ATTEMPTS },
       at,
-      "ida.inspector@example.invalid",
+      session,
       "locked",
     ],
     [
       "one wrong code short of the limit",
       { failedCodeAttempts: EVIDENCE_LINK_MAX_CODE_ATTEMPTS - 1 },
       at,
-      "ida.inspector@example.invalid",
+      session,
       null,
     ],
-    ["a draft", { packState: "draft" }, at, "ida.inspector@example.invalid", "not_released"],
-    [
-      "a discarded pack",
-      { packState: "discarded" },
-      at,
-      "ida.inspector@example.invalid",
-      "not_released",
-    ],
-  ])("%s", (_label, o, when, verifiedEmail, refusal) => {
-    const access = evidencePackLinkAccess(link(o), { at: when, verifiedEmail });
+    ["a draft", { packState: "draft" }, at, session, "not_released"],
+    ["a discarded pack", { packState: "discarded" }, at, session, "not_released"],
+  ])("%s", (_label, o, when, s, refusal) => {
+    const access = evidencePackLinkAccess(link(o), { at: when, session: s });
     expect(access.allowed ? null : access.reason).toBe(refusal);
   });
 
   it("explains every refusal", () => {
-    for (const m of Object.values(EVIDENCE_PACK_LINK_MESSAGES))
+    for (const m of Object.values(EVIDENCE_PACK_LINK_MESSAGES)) {
       expect(m.length).toBeGreaterThan(10);
+    }
   });
 
   it.each<[string, Partial<EvidencePackLinkView>, Date, boolean]>([
