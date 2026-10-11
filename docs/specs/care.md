@@ -38,7 +38,7 @@ Append-only tables have no UPDATE or DELETE grant for the app; a correction is a
 | `activity_record` | append-only | person or group, activity, attendance, engagement rating, notes | `care_record` |
 | `visit_log` | append-only | person, visitor (contact or free text), kind (Reg 9A: facilitated visit, visit out, accompaniment), times, restrictions applied and why | `care_record` |
 | `advance_care_record` | mutable, versioned | person, kind (`respect`, `dnacpr`, `adrt`, `advance_care_plan`), clinician name and role, date completed, review date, document, status | `care_record` |
-| `consent_record` | mutable, versioned | person, decision (care plan, photos, sharing, AI processing, bed rails, covert medicines), given by (person or representative with authority), capacity status, evidence, expiry, withdrawn at | `care_record` |
+| `consent_record` | mutable, versioned | person, decision (`CONSENT_DECISION_KINDS`: care plan, photos, social media, sharing, marketing, AI processing, bed rails, covert medicines), outcome (given or refused), given by (person or representative with authority: health and welfare or property and financial LPA with OPG reference and registration, deputy with order scope, decisions and end date, appointee, IMCA, advocate, family or friend), capacity status (assumed, or the capacity assessment), evidence, restraint conditions (bed rails), best-interests decision (covert medicines), expiry, withdrawn at | `care_record` |
 | `capacity_assessment` | append-only | person, decision, time specific, stage 1 (impairment or disturbance), stage 2 (understand, retain, use or weigh, communicate), practicable steps taken, outcome, assessor, review date | `care_record` |
 | `best_interests_decision` | append-only | capacity assessment, section 4 checklist answers, people consulted, less restrictive options considered, decision, review date | `care_record` |
 | `dols_authorisation` | mutable, versioned | person, type (`urgent`, `standard`, `court_order`), request date, granted from and to, extension, conditions, RPR, supervisory body, outcome, CQC notification link, objection evidence, legal-change review status | `care_record` |
@@ -115,23 +115,73 @@ applies). Figures come from `rate_table` by key.
 8. **Handover.** Compiled from the shift's late tasks, NEWS2 of 5 or more, incidents, new body-map
    marks, refusals, falls, and alerts; nothing safety-critical can be removed, only added to. Each
    incoming member of staff acknowledges it.
-9. **Capacity.** Assume capacity; a capacity assessment is decision-specific and time-specific, and
-   records the practicable steps taken to support the person to decide. An outcome of "lacks
-   capacity" is accepted only when stage 1 is met and at least one stage 2 element is not.
-10. **Best interests.** The section 4 checklist is complete only when every item is answered
-    (including "not applicable" with a reason) and at least one consultation is recorded or its
-    absence explained; an IMCA prompt appears when nobody appropriate can be consulted for serious
-    medical treatment or a change of accommodation.
-11. **DoLS.** An urgent authorisation lasts `dols.urgent.days` days with one extension of
-    `dols.urgent.extension_days` days; a standard authorisation lasts at most
-    `dols.standard.max_months` months. Expiry tasks fire 28 days and 7 days before the end (tenant
-    configurable). When the outcome is known, the CQC notification draft is created in
-    [safety](safety.md). The legal-change switch (Supreme Court, 2 June 2026; DHSC interim guidance
-    updated 22 September 2026) is a tenant setting that turns on the review-of-existing-authorisations
-    workflow (multifactorial test, decision, date, local authority referral) and shows the current
-    guidance link; England and Wales only.
+9. **Capacity and consent.** Assume capacity (Mental Capacity Act 2005 s.1(2)); a capacity
+   assessment is decision-specific and time-specific, and records the practicable steps taken to
+   support the person to decide (s.1(3)). An outcome of "lacks capacity" is accepted only when
+   stage 1 is met ("an impairment of, or a disturbance in the functioning of, the mind or brain",
+   s.2(1)), at least one stage 2 element is not (understand, retain, use or weigh, communicate,
+   s.3(1)) and the inability is because of the impairment (s.2(1) "because of"); every element found
+   unable carries its evidence. Consent is per decision: from the person while capacity is assumed
+   or assessed; from a representative only when an assessment shows the person lacks capacity for
+   that decision and the representative's authority covers it. A registered health and welfare
+   attorney covers care decisions (s.9(1)(a), s.11(7)) unless the instrument excludes them; a
+   property and financial attorney does not; a deputy acts within the decisions in their order
+   while it lasts (s.16, s.20); appointees, IMCAs, advocates and family have no power to consent,
+   and their views go into a best-interests decision. Bed rails restrict movement, so an attorney
+   needs the s.11(1) to (5) conditions and a deputy express authority (s.20(8)). Covert medicines
+   apply only to a person who lacks capacity and need a best-interests decision (NICE SC1 1.15.1
+   and 1.15.3). Only the person can agree to marketing or to AI processing (H-34). A later
+   refusal or withdrawal replaces an earlier consent; expired consent is not valid; a
+   representative's consent stops applying once the person has capacity for the decision.
+10. **Best interests.** The section 4 checklist (s.4(1), (2), (3), (4), (5), (6)(a), (b), (c), (7)
+    and the less restrictive option in s.1(6), in the Act's words, citing legislation.gov.uk) is
+    complete only when every item is answered (including "not applicable" with a reason) and at
+    least one consultation is recorded or its absence explained. It follows an assessment that
+    found a lack of capacity (s.1(5)). An IMCA prompt appears when nobody other than paid carers or
+    professionals can be consulted about serious medical treatment (s.37) or a change of
+    accommodation (s.38, s.39); the NHS body or local authority instructs the IMCA.
+11. **DoLS.** An urgent authorisation lasts at most `dols.urgent.days` days (Schedule A1 para
+    78(2)) with one request (`dols.urgent.max_extension_requests`, para 77(4)) to extend it by at
+    most `dols.urgent.extension_days` days (para 85(3)); a standard authorisation lasts at most
+    `dols.standard.max_months` months (para 42(2)(b), para 51(2)). Expiry tasks fire
+    `dols.expiry_reminder_days.first` and `.second` days before the end (28 and 7 by default,
+    tenant settings, H-64); a reminder that would fall before an urgent authorisation starts fires
+    when it starts. When the outcome of a request for a standard authorisation or a court
+    application is known, or it is withdrawn, the CQC notification draft is created in
+    [safety](safety.md) with the regulation 18(4B) statement (date and nature, whether an urgent
+    authorisation preceded it, outcome or reason for withdrawal, date); an urgent authorisation is
+    not notified on its own, and Welsh locations wait for the Wales pack. The legal-change switch is
+    the tenant flag `dols.post_2026_review_workflow` (on by default, England and Wales only). The
+    Supreme Court decided *A Reference by the Attorney General for Northern Ireland* [2026] UKSC 16
+    on 2 June 2026; the DHSC interim guidance
+    ([UK Supreme Court 2026 judgment on what constitutes a deprivation of liberty](https://www.gov.uk/government/publications/changes-to-the-definition-of-deprivation-of-liberty/uk-supreme-court-2026-judgment-on-what-constitutes-a-deprivation-of-liberty),
+    published 15 June 2026, updated 22 September 2026) says existing authorisations where the person
+    may no longer be deprived of liberty "should be reviewed as soon as is practicable", that leaving
+    one in place meanwhile "does not mean the person is being unlawfully deprived of their liberty",
+    and that DoLS still applies in hospitals and care homes. The review workflow (awaiting review,
+    reviewed, referred, closed) records the guidance's multifactorial assessment in its words (type,
+    duration, effects and manner of the restrictions, how far removed from a prison cell, relative
+    normality, purpose), whether the person objects and how, the guidance's signs of valid consent
+    and serious doubt, the decision (still deprived, no longer deprived, in doubt), its date and who
+    made it, and the request to the local authority. That request is required for "no longer
+    deprived" (the managing authority must request a review when a qualifying requirement appears
+    reviewable, Schedule A1 para 103(2); only the supervisory body ends it, para 117) and where
+    there is doubt or the objection fluctuates (the guidance). Authorisations granted before the
+    judgment and still in force are listed for review, soonest ending first. Further DHSC guidance
+    is expected; a legal review of this content is H-62.
 12. **Deceased or discharged people** are read-only except for post-event records (after-death care,
     property return, medical examiner pack).
+
+### Domain modules for consent, capacity and DoLS (slice 6)
+
+`packages/domain/src/care/mca/`, exported from `@harbour/domain`; pure functions with no I/O:
+
+| Module | Main exports | For |
+| --- | --- | --- |
+| `consent.ts` | `CONSENT_DECISION_KINDS`, `CONSENT_DECISIONS`, `checkConsentRecord(record, at)`, `consentStatus(records, decision, at, capacityNow)` | Refusing a record without authority; whether a valid consent exists at a time, and why not |
+| `capacity.ts` | `checkCapacityAssessment(input, now)`, `capacityFinding(assessments, decision, at, today)`, `FUNCTIONAL_ELEMENT_WORDING` | The two-stage test, decision- and time-specific; assumed capacity |
+| `best-interests.ts` | `BEST_INTERESTS_CHECKLIST`, `checkBestInterests(input)`, `imcaPrompt(input)` | Section 4 completeness, consultation, IMCA |
+| `dols.ts` | `resolveDolsRates`, `checkDolsAuthorisation`, `dolsEndsAt`, `dolsStatus`, `dolsReminders`, `dolsCqcNotification`, `DOLS_LEGAL_CHANGE`, `legalChangeReviewEnabled`, `checkLegalChangeReview`, `DOLS_LEGAL_CHANGE_REVIEW_WORKFLOW`, `legalChangeStepProblems`, `authorisationsAwaitingLegalChangeReview` | Register clocks and status, reminders, the Reg 18(4A) decision, the legal-change review |
 
 ## 5. API and events
 
@@ -169,7 +219,8 @@ every list), HZ-007 (allergies), HZ-008 (task and alert volume), HZ-010 (device 
 HZ-012 (validated tools), and the Phase 1 hazards added with this spec: HZ-014 (deterioration or
 screening trigger not acted on), HZ-015 (resuscitation decision not visible), HZ-016 (IDDSI level),
 HZ-017 (late entries), HZ-018 (handover omissions), HZ-019 (body-map side) and HZ-020 (DoLS
-lapses). Medical-device boundary: tools are calculated exactly as published and show the published
+lapses), and, with the consent and capacity rules, HZ-026 (restrictive or covert care under consent
+or authority that is not valid). Medical-device boundary: tools are calculated exactly as published and show the published
 responses; no prediction or tenant-authored scoring (see
 [medical-device-boundary.md](../compliance/medical-device-boundary.md)).
 
@@ -183,8 +234,11 @@ through recorded sharing decisions ([people.md](people.md)).
 ## 9. Acceptance criteria and tests (written before code)
 
 - Domain: `packages/domain/src/care/*.test.ts` table-driven tests for every rule above, NEWS2, MUST,
-  Waterlow and Braden against the published worked examples, late entries, chart rules, capacity
-  and best-interests completeness, DoLS clocks.
+  Waterlow and Braden against the published worked examples, late entries, chart rules. Built in
+  slice 6: `packages/domain/src/care/mca/consent.test.ts` (consent authority by representative
+  type, validity over time; HZ-026), `capacity.test.ts` (capacity and best-interests completeness,
+  the IMCA prompt; HZ-026) and `dols.test.ts` (Schedule A1 limits, status, expiry reminders, the
+  CQC outcome notification and the legal-change review; HZ-020).
 - Database: RLS coverage and HZ-011 isolation for every new table; append-only grants; supersedes
   chains.
 - API: contract tests and audit events for every route; idempotent replays of offline writes.
