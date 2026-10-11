@@ -84,7 +84,19 @@ export function ukDate(value: string | Date | null | undefined): string {
 
 type Names = ReadonlyMap<string, string>;
 const who = (names: Names, id: unknown) =>
-  typeof id === "string" ? (names.get(id) ?? "a member of staff") : null;
+  typeof id === "string" ? (names.get(id) ?? "a member of staff whose name was not found") : null;
+
+/**
+ * Who confirmed a positive "none" and when, in words. A confirmation with nobody recorded says so,
+ * never "a member of staff", so a missing confirmer is never hidden (round 4).
+ */
+function confirmation(names: Names, by: unknown, at: unknown): string {
+  const when = typeof at === "string" || at instanceof Date ? ` on ${ukDateTime(String(at))}` : "";
+  const person = who(names, by);
+  return person
+    ? `confirmed by ${person}${when}`
+    : `who confirmed it is not recorded${when ? `; recorded${when}` : ""}`;
+}
 
 const NOT_RECORDED = "Not recorded.";
 
@@ -149,9 +161,7 @@ function sectionLines(key: string, content: Record<string, unknown>, names: Name
         return ["Medicines not recorded since admission. Check the MAR."];
       }
       if (c.status === "none") {
-        return [
-          `No current medicines (confirmed by ${who(names, c.confirmedBy) ?? "a member of staff"} on ${ukDateTime(String(c.confirmedAt))}).`,
-        ];
+        return [`No current medicines (${confirmation(names, c.confirmedBy, c.confirmedAt)}).`];
       }
       const items =
         (c.items as {
@@ -186,10 +196,10 @@ function sectionLines(key: string, content: Record<string, unknown>, names: Name
     case "resuscitation": {
       if (!c) return [NOT_RECORDED];
       const others = ((c.otherRecords as AdvanceRecord[] | undefined) ?? []).map(advanceLine);
-      if (c.status === "not_recorded") return ["CPR decision: not recorded.", ...others];
+      if (c.status === "not_recorded") return [cprDecisionLine(content, names), ...others];
       if (c.status === "no_decision_in_place") {
         return [
-          `No resuscitation decision in place (confirmed by ${who(names, c.confirmedBy) ?? "a member of staff"} on ${ukDateTime(String(c.confirmedAt))}).`,
+          `No resuscitation decision in place (${confirmation(names, c.confirmedBy, c.confirmedAt)}).`,
         ];
       }
       if (Array.isArray(c.cprRecords)) {
@@ -199,9 +209,8 @@ function sectionLines(key: string, content: Record<string, unknown>, names: Name
             ? "Not for cardiopulmonary resuscitation"
             : "For cardiopulmonary resuscitation";
         return [
-          c.conflicting
-            ? "CPR decision: THE RECORDS DISAGREE. Check the original documents. Both are listed."
-            : `CPR decision: ${decision}.`,
+          // Records that disagree are said once, on page 1 (cprDecisionLine); here they are listed.
+          ...(c.conflicting ? [] : [`CPR decision: ${decision}.`]),
           ...(c.reviewOverdue ? [`Review was due on ${ukDate(String(c.reviewDueOn))}.`] : []),
           ...cpr,
           ...others,
@@ -289,12 +298,20 @@ function toContentKey(key: string): string {
  */
 export function cprDecisionLine(content: Record<string, unknown>, names: Names): string {
   const c = content.resuscitation as Record<string, unknown> | null | undefined;
-  if (!c || c.status === "not_recorded") return "CPR decision: not recorded.";
+  if (!c || c.status === "not_recorded") {
+    // An advance decision to refuse treatment is not a CPR decision, but nobody acts without it.
+    const adrt = ((c?.otherRecords as AdvanceRecord[] | undefined) ?? []).find(
+      (r) => r.kind === "adrt",
+    );
+    return adrt
+      ? `CPR decision: not recorded on a ReSPECT or DNACPR form. An advance decision to refuse treatment is held (${ukDate(adrt.completedOn)}): read it before acting.`
+      : "CPR decision: not recorded.";
+  }
   if (c.status === "no_decision_in_place") {
-    return `CPR decision: no decision in place (confirmed by ${who(names, c.confirmedBy) ?? "a member of staff"} on ${ukDateTime(String(c.confirmedAt))}).`;
+    return `CPR decision: no decision in place (${confirmation(names, c.confirmedBy, c.confirmedAt)}).`;
   }
   if (c.conflicting) {
-    return "CPR decision: THE RECORDS DISAGREE. Check the original documents before acting.";
+    return "CPR decision: the records disagree. Check the original documents before acting.";
   }
   if (c.decision === "do_not_attempt_cpr" || c.decision === "attempt_cpr") {
     const current = ((c.cprRecords as AdvanceRecord[] | undefined) ?? [])[0];
