@@ -31,6 +31,7 @@ export * from "./comms/feed-visibility";
 export * from "./comms/notify-calendar";
 export * from "./comms/notify-plan";
 export * from "./comms/notify-rates";
+export * from "./comms/visit-booking";
 export * from "./integrations/ports";
 export * from "./people/about-me";
 export * from "./people/admission";
