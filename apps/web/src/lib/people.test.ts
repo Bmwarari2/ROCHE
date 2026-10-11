@@ -29,6 +29,10 @@ const ada: PersonSummary = {
   allergyStatus: "has_allergies",
   allergies: [penicillin],
   communicationNeeds: [{ code: "demo:large-print", display: "Needs information in large print" }],
+  communicationNeedsStatus: "recorded",
+  communicationNeedsConfirmedBy: null,
+  communicationNeedsConfirmedAt: null,
+  statusChangedAt: "2026-09-01T00:00:00.000Z",
   resuscitation: {
     status: "not_recorded",
     conflicting: false,
