@@ -386,4 +386,232 @@ export const NEWS2_REFERENCE_VECTORS: readonly News2ReferenceVector[] = [
       redScore: true,
     },
   },
+  {
+    // Scale 2: 83 or less scores 3. (Clinical review round 4 boundary.)
+    name: "SpO2 83 on air, scale 2",
+    input: { ...normal, spo2: 83, spo2Scale2Decision: true },
+    expected: {
+      points: points({ spo2: 3 }),
+      score: 3,
+      band: "low_medium",
+      threshold: "single_parameter_3",
+      redScore: true,
+    },
+  },
+  {
+    // Scale 2: 84 to 85 scores 2. (Clinical review round 4 boundary.)
+    name: "SpO2 84 on air, scale 2",
+    input: { ...normal, spo2: 84, spo2Scale2Decision: true },
+    expected: {
+      points: points({ spo2: 2 }),
+      score: 2,
+      band: "low",
+      threshold: "score_1_to_4",
+      redScore: false,
+    },
+  },
+  {
+    // Scale 2: 84 to 85 scores 2. (Clinical review round 4 boundary.)
+    name: "SpO2 85 on air, scale 2",
+    input: { ...normal, spo2: 85, spo2Scale2Decision: true },
+    expected: {
+      points: points({ spo2: 2 }),
+      score: 2,
+      band: "low",
+      threshold: "score_1_to_4",
+      redScore: false,
+    },
+  },
+  {
+    // Scale 2: 86 to 87 scores 1. (Clinical review round 4 boundary.)
+    name: "SpO2 86 on air, scale 2",
+    input: { ...normal, spo2: 86, spo2Scale2Decision: true },
+    expected: {
+      points: points({ spo2: 1 }),
+      score: 1,
+      band: "low",
+      threshold: "score_1_to_4",
+      redScore: false,
+    },
+  },
+  {
+    // Scale 2: 86 to 87 scores 1. (Clinical review round 4 boundary.)
+    name: "SpO2 87 on air, scale 2",
+    input: { ...normal, spo2: 87, spo2Scale2Decision: true },
+    expected: {
+      points: points({ spo2: 1 }),
+      score: 1,
+      band: "low",
+      threshold: "score_1_to_4",
+      redScore: false,
+    },
+  },
+  {
+    // RR 9 to 11 scores 1. (Clinical review round 4 boundary.)
+    name: "respiration rate 9 alone",
+    input: { ...normal, respirationRate: 9 },
+    expected: {
+      points: points({ respirationRate: 1 }),
+      score: 1,
+      band: "low",
+      threshold: "score_1_to_4",
+      redScore: false,
+    },
+  },
+  {
+    // RR 9 to 11 scores 1. (Clinical review round 4 boundary.)
+    name: "respiration rate 11 alone",
+    input: { ...normal, respirationRate: 11 },
+    expected: {
+      points: points({ respirationRate: 1 }),
+      score: 1,
+      band: "low",
+      threshold: "score_1_to_4",
+      redScore: false,
+    },
+  },
+  {
+    // RR 12 to 20 scores 0. (Clinical review round 4 boundary.)
+    name: "respiration rate 12 alone",
+    input: { ...normal, respirationRate: 12 },
+    expected: {
+      points: ZERO,
+      score: 0,
+      band: "low",
+      threshold: "score_0",
+      redScore: false,
+    },
+  },
+  {
+    // RR 12 to 20 scores 0. (Clinical review round 4 boundary.)
+    name: "respiration rate 20 alone",
+    input: { ...normal, respirationRate: 20 },
+    expected: {
+      points: ZERO,
+      score: 0,
+      band: "low",
+      threshold: "score_0",
+      redScore: false,
+    },
+  },
+  {
+    // Pulse 51 to 90 scores 0. (Clinical review round 4 boundary.)
+    name: "pulse 51 alone",
+    input: { ...normal, pulse: 51 },
+    expected: {
+      points: ZERO,
+      score: 0,
+      band: "low",
+      threshold: "score_0",
+      redScore: false,
+    },
+  },
+  {
+    // Pulse 51 to 90 scores 0. (Clinical review round 4 boundary.)
+    name: "pulse 90 alone",
+    input: { ...normal, pulse: 90 },
+    expected: {
+      points: ZERO,
+      score: 0,
+      band: "low",
+      threshold: "score_0",
+      redScore: false,
+    },
+  },
+  {
+    // Pulse 91 to 110 scores 1. (Clinical review round 4 boundary.)
+    name: "pulse 110 alone",
+    input: { ...normal, pulse: 110 },
+    expected: {
+      points: points({ pulse: 1 }),
+      score: 1,
+      band: "low",
+      threshold: "score_1_to_4",
+      redScore: false,
+    },
+  },
+  {
+    // Pulse 111 to 130 scores 2. (Clinical review round 4 boundary.)
+    name: "pulse 111 alone",
+    input: { ...normal, pulse: 111 },
+    expected: {
+      points: points({ pulse: 2 }),
+      score: 2,
+      band: "low",
+      threshold: "score_1_to_4",
+      redScore: false,
+    },
+  },
+  {
+    // Pulse 111 to 130 scores 2. (Clinical review round 4 boundary.)
+    name: "pulse 130 alone",
+    input: { ...normal, pulse: 130 },
+    expected: {
+      points: points({ pulse: 2 }),
+      score: 2,
+      band: "low",
+      threshold: "score_1_to_4",
+      redScore: false,
+    },
+  },
+  {
+    // Temperature 35.1 to 36.0 scores 1. (Clinical review round 4 boundary.)
+    name: "temperature 36.0 alone",
+    input: { ...normal, temperature: 36.0 },
+    expected: {
+      points: points({ temperature: 1 }),
+      score: 1,
+      band: "low",
+      threshold: "score_1_to_4",
+      redScore: false,
+    },
+  },
+  {
+    // Temperature 36.1 to 38.0 scores 0. (Clinical review round 4 boundary.)
+    name: "temperature 36.1 alone",
+    input: { ...normal, temperature: 36.1 },
+    expected: {
+      points: ZERO,
+      score: 0,
+      band: "low",
+      threshold: "score_0",
+      redScore: false,
+    },
+  },
+  {
+    // Temperature 36.1 to 38.0 scores 0. (Clinical review round 4 boundary.)
+    name: "temperature 38.0 alone",
+    input: { ...normal, temperature: 38.0 },
+    expected: {
+      points: ZERO,
+      score: 0,
+      band: "low",
+      threshold: "score_0",
+      redScore: false,
+    },
+  },
+  {
+    // Temperature 38.1 to 39.0 scores 1. (Clinical review round 4 boundary.)
+    name: "temperature 38.1 alone",
+    input: { ...normal, temperature: 38.1 },
+    expected: {
+      points: points({ temperature: 1 }),
+      score: 1,
+      band: "low",
+      threshold: "score_1_to_4",
+      redScore: false,
+    },
+  },
+  {
+    // Temperature 38.1 to 39.0 scores 1. (Clinical review round 4 boundary.)
+    name: "temperature 39.0 alone",
+    input: { ...normal, temperature: 39.0 },
+    expected: {
+      points: points({ temperature: 1 }),
+      score: 1,
+      band: "low",
+      threshold: "score_1_to_4",
+      redScore: false,
+    },
+  },
 ];
