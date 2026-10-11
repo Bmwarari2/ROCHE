@@ -40,6 +40,7 @@ locals {
     BETTER_AUTH_URL         = "https://${local.hosts.api}"
     WEB_ORIGINS             = "https://${local.hosts.web}"
     PASSKEY_RP_ID           = var.domain_name
+    TRUSTED_PROXY_CIDRS     = var.vpc_cidr_block
     POWERSYNC_URL           = "https://${local.hosts.sync}"
     SYNC_JWT_AUDIENCE       = var.sync_jwt_audience
     S3_DOCUMENTS_BUCKET     = module.bucket_documents.bucket_id
@@ -53,12 +54,13 @@ locals {
   # a ready-made url (sslmode=verify-full) written by infra/scripts/seed-secrets.sh.
   app_secrets = merge(
     {
-      DATABASE_APP_URL     = "${local.secret_arns["db/harbour_app"]}:url::"
-      DATABASE_AUTH_URL    = "${local.secret_arns["db/harbour_auth"]}:url::"
-      DATABASE_WORKER_URL  = "${local.secret_arns["db/harbour_worker"]}:url::"
-      BETTER_AUTH_SECRET   = "${local.secret_arns["api"]}:auth_secret::"
-      SYNC_SIGNING_KEY_PEM = "${local.secret_arns["api"]}:sync_signing_key_pem::"
-      SYNC_SIGNING_KEY_ID  = "${local.secret_arns["api"]}:sync_signing_key_id::"
+      DATABASE_APP_URL      = "${local.secret_arns["db/harbour_app"]}:url::"
+      DATABASE_AUTH_URL     = "${local.secret_arns["db/harbour_auth"]}:url::"
+      DATABASE_OPERATOR_URL = "${local.secret_arns["db/harbour_operator"]}:url::"
+      DATABASE_WORKER_URL   = "${local.secret_arns["db/harbour_worker"]}:url::"
+      BETTER_AUTH_SECRET    = "${local.secret_arns["api"]}:auth_secret::"
+      SYNC_SIGNING_KEY_PEM  = "${local.secret_arns["api"]}:sync_signing_key_pem::"
+      SYNC_SIGNING_KEY_ID   = "${local.secret_arns["api"]}:sync_signing_key_id::"
     },
     { for r in ["harbour_app", "harbour_auth", "harbour_worker"] : "HARBOUR_DB_PASSWORD_${upper(r)}" => "${local.secret_arns["db/${r}"]}:password::" },
   )

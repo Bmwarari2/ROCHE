@@ -205,10 +205,13 @@ cannot roll an application back. `image_tags` overrides a pointer for one apply.
 | CA bundle | AWS RDS global bundle at `/app/certs/rds-global-bundle.pem` (set as `NODE_EXTRA_CA_CERTS`) | none |
 
 API and worker environment: `NODE_ENV`, `HARBOUR_ENV`, `APP_VERSION`, `AWS_REGION`,
-`BETTER_AUTH_URL`, `WEB_ORIGINS`, `PASSKEY_RP_ID`, `POWERSYNC_URL`, `SYNC_JWT_AUDIENCE`
-(`harbour-powersync`), `S3_DOCUMENTS_BUCKET`, `S3_EXPORTS_BUCKET`, `S3_AUDIT_ARCHIVE_BUCKET`,
-`SES_CONFIGURATION_SET`, `EMAIL_FROM_DOMAIN`. Secrets: `DATABASE_APP_URL`, `DATABASE_AUTH_URL`,
-`DATABASE_WORKER_URL`, `BETTER_AUTH_SECRET`, `SYNC_SIGNING_KEY_PEM`, `SYNC_SIGNING_KEY_ID`,
+`BETTER_AUTH_URL`, `WEB_ORIGINS`, `PASSKEY_RP_ID`, `TRUSTED_PROXY_CIDRS` (the VPC range, so
+sign-in throttling counts each client address rather than one shared bucket), `POWERSYNC_URL`,
+`SYNC_JWT_AUDIENCE` (`harbour-powersync`), `S3_DOCUMENTS_BUCKET`, `S3_EXPORTS_BUCKET`,
+`S3_AUDIT_ARCHIVE_BUCKET`, `SES_CONFIGURATION_SET`, `EMAIL_FROM_DOMAIN`. Secrets:
+`DATABASE_APP_URL`, `DATABASE_AUTH_URL`, `DATABASE_OPERATOR_URL`, `DATABASE_WORKER_URL` (the API
+refuses to start in production without any of the four), `BETTER_AUTH_SECRET`,
+`SYNC_SIGNING_KEY_PEM`, `SYNC_SIGNING_KEY_ID`,
 `HARBOUR_DB_PASSWORD_HARBOUR_APP`, `HARBOUR_DB_PASSWORD_HARBOUR_AUTH`,
 `HARBOUR_DB_PASSWORD_HARBOUR_WORKER`.
 
