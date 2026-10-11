@@ -257,7 +257,7 @@ describe("hazard HZ-026 consent and capacity", () => {
     expect(await detail(response)).toMatch(message);
   });
 
-  it("lets a registered welfare attorney agree to bed rails, with the restraint conditions, once the person lacks capacity", async () => {
+  it("hazard HZ-026 lets a registered welfare attorney agree to bed rails, with the restraint conditions, once the person lacks capacity", async () => {
     const assessment = await assess(2, "bed_rails");
     expect(assessment.reason).toMatch(/^Lacks capacity for this decision/);
     const consent = (representative: unknown, restraint?: unknown) =>
@@ -300,7 +300,7 @@ describe("hazard HZ-026 consent and capacity", () => {
     expect(await detail(own)).toMatch(/lacking capacity/);
   });
 
-  it("needs a complete best-interests decision before covert medicines", async () => {
+  it("hazard HZ-026 needs a complete best-interests decision before covert medicines", async () => {
     const assessment = await assess(3, "covert_medicines");
     const consent = (bestInterestsDecisionId?: string) =>
       as("manager", consents(3), {
@@ -352,7 +352,7 @@ describe("hazard HZ-026 consent and capacity", () => {
     expect((await consent(decision.id)).status).toBe(201);
   });
 
-  it("prompts for an IMCA when nobody appropriate can be consulted about a move", async () => {
+  it("hazard HZ-026 prompts for an IMCA when nobody appropriate can be consulted about a move", async () => {
     const assessment = await assess(1, "care_plan");
     const response = await as("manager", `/v1/people/${resident(1)}/best-interests`, {
       method: "POST",
@@ -378,7 +378,7 @@ describe("hazard HZ-026 consent and capacity", () => {
     );
   });
 
-  it("records a withdrawal, keeps the record, and answers a stale version with 409", async () => {
+  it("hazard HZ-026 records a withdrawal, keeps the record, and answers a stale version with 409", async () => {
     const path = `${consents(1)}/${photosConsent.id}/withdraw`;
     const body = { reason: "Changed her mind about photos.", version: photosConsent.version };
     const response = await as("manager", path, { method: "POST", body });
@@ -436,7 +436,7 @@ describe("hazard HZ-026 consent and capacity", () => {
 describe("hazard HZ-020 the DoLS register", () => {
   const dols = (n: number) => `/v1/people/${resident(n)}/dols`;
 
-  it("checks the dates against Schedule A1", async () => {
+  it("hazard HZ-020 checks the dates against Schedule A1", async () => {
     const response = await as("manager", dols(4), {
       method: "POST",
       body: {
@@ -452,7 +452,7 @@ describe("hazard HZ-020 the DoLS register", () => {
     expect(await detail(response)).toMatch(/Schedule A1 para 78\(2\)/);
   });
 
-  it("a DoLS outcome creates the CQC regulation 18(4A) draft", async () => {
+  it("hazard HZ-020 a DoLS outcome creates the CQC regulation 18(4A) draft", async () => {
     const requested = await json<DolsItem>(
       await as("manager", dols(4), {
         method: "POST",
@@ -500,7 +500,7 @@ describe("hazard HZ-020 the DoLS register", () => {
     expect(events).toHaveLength(1);
   });
 
-  it("does not notify an urgent authorisation on its own", async () => {
+  it("hazard HZ-020 does not notify an urgent authorisation on its own", async () => {
     const response = await as("manager", dols(5), {
       method: "POST",
       body: {
@@ -520,7 +520,7 @@ describe("hazard HZ-020 the DoLS register", () => {
 
   let expiring: DolsItem;
 
-  it("expiry reminders fire once", async () => {
+  it("hazard HZ-020 expiry reminders fire once", async () => {
     const response = await as("manager", dols(6), {
       method: "POST",
       body: {
@@ -561,7 +561,7 @@ describe("hazard HZ-020 the DoLS register", () => {
     expect(raised).toEqual({ tasks: ["routine", "urgent"], events: 2, alerts: 2 });
   });
 
-  it("lists authorisations from before the judgment and records their review", async () => {
+  it("hazard HZ-020 lists authorisations from before the judgment and records their review", async () => {
     const list = await json<LegalChangeReviewList>(
       await as("manager", "/v1/dols/legal-change-review"),
     );

@@ -239,6 +239,32 @@ describe("permissions on every incident route", () => {
     expect(response.status).toBe(403);
   });
 
+  it("lets the quality lead read incidents but not manage them, and needs MFA for every read", async () => {
+    const incident = await created("manager", { people: [affected(1)] });
+    const reads = [
+      `/v1/incidents/${incident.id}`,
+      `/v1/incidents/${incident.id}/classifier`,
+      `/v1/incidents/${incident.id}/candour`,
+      `/v1/incidents/${incident.id}/investigation`,
+    ];
+    for (const path of reads) {
+      expect({ path, status: (await as("quality", path)).status }).toEqual({ path, status: 200 });
+      const nurse = await as("nurse", path);
+      expect({ path, code: (await json<ProblemDetails>(nurse)).code }).toEqual({
+        path,
+        code: "mfa_enrolment_required",
+      });
+    }
+    for (const path of ["/v1/notifications/statutory", "/v1/dols/legal-change-review"]) {
+      expect({ path, status: (await as("quality", path)).status }).toEqual({ path, status: 403 });
+    }
+    const write = await as("quality", `/v1/incidents/${incident.id}/candour`, {
+      method: "PUT",
+      body: { version: 0 },
+    });
+    expect(write.status).toBe(403);
+  });
+
   it("refuses a care worker answering the manager's questions, but takes the falls answers", async () => {
     const incident = await created("carer", { people: [affected(1)] });
     const managers = await as("carer", `/v1/incidents/${incident.id}/classifier`, {
@@ -332,7 +358,7 @@ describe("hazard HZ-013 the classifier runs on the server", () => {
     ).toMatchObject({ status: "draft", noLongerIndicated: true });
   });
 
-  it("an incident recorded offline that syncs late runs its clocks from occurred_at", async () => {
+  it("hazard HZ-013 an incident recorded offline that syncs late runs its clocks from occurred_at", async () => {
     const occurredAt = ago(6 * HOUR);
     const incident = await created("carer", {
       occurredAt,
@@ -351,7 +377,7 @@ describe("hazard HZ-013 the classifier runs on the server", () => {
     expect(await outboxEvents("safety.notification.due", death?.id ?? "")).toHaveLength(1);
   });
 
-  it("ignores an offline incident replayed with the same device id", async () => {
+  it("hazard HZ-013 ignores an offline incident replayed with the same device id", async () => {
     const id = newId();
     const first = await created("carer", { id, people: [affected(1)] });
     const again = await created("carer", { id, people: [affected(1)], type: "skin" });
@@ -368,7 +394,7 @@ describe("hazard HZ-013 the classifier runs on the server", () => {
     expect(count).toBe(1);
   });
 
-  it("returns nationSupported false outside England and does not guess", async () => {
+  it("hazard HZ-013 returns nationSupported false outside England and does not guess", async () => {
     const wales = "0194d000-0000-7000-8000-000000000177";
     await asDemoTenant((c) =>
       c.query(
@@ -389,7 +415,7 @@ describe("hazard HZ-013 the classifier runs on the server", () => {
 });
 
 describe("hazard HZ-027 the post-fall checklist", () => {
-  it("a fall with a head injury creates the shortened observation tasks", async () => {
+  it("hazard HZ-027 a fall creates the post-fall tasks with the observation schedule, shortened for a head injury", async () => {
     const occurredAt = ago(10 * MIN);
     const incident = await created("carer", {
       occurredAt,
@@ -423,7 +449,7 @@ describe("hazard HZ-027 the post-fall checklist", () => {
     expect(tasks.map((t) => t.kind)).not.toContain("safety.post_fall_monitoring");
   });
 
-  it("ruling out both risks replaces the timed observations with general monitoring", async () => {
+  it("hazard HZ-027 ruling out both risks replaces the timed observations with general monitoring", async () => {
     const incident = await created("carer", { people: [affected(2)] });
     // Unanswered counts as a head injury, so the timed schedule starts straight away.
     expect(
@@ -448,7 +474,7 @@ describe("hazard HZ-027 the post-fall checklist", () => {
     expect(tasks.find((t) => t.kind === "safety.urgent_medical_advice")?.status).toBe("cancelled");
   });
 
-  it("counts the observations from when an unwitnessed fall was found", async () => {
+  it("hazard HZ-027 counts the observations from when an unwitnessed fall was found", async () => {
     const occurredAt = ago(3 * HOUR);
     const foundAt = ago(1 * HOUR);
     const incident = await created("carer", {
@@ -473,7 +499,7 @@ describe("hazard HZ-027 the post-fall checklist", () => {
 });
 
 describe("hazard HZ-011 incident scope across people (ADR-0033)", () => {
-  it("shows a care worker the header and their own person only", async () => {
+  it("hazard HZ-011 shows a care worker the header and their own person only", async () => {
     const incident = await created("owner", {
       type: "behaviour",
       description: "Disagreement in the lounge.",
@@ -526,7 +552,7 @@ describe("hazard HZ-019 body-map marks on an incident", () => {
     incidentId,
   });
 
-  it("links a mark recorded for the incident and refuses one for someone not on it", async () => {
+  it("hazard HZ-019 links a mark recorded for the incident and refuses one for someone not on it", async () => {
     const incident = await created("carer", { people: [affected(1)] });
     const ok = await as("carer", `/v1/people/${resident(1)}/body-map`, {
       method: "POST",
@@ -770,7 +796,7 @@ describe("closing an incident", () => {
 });
 
 describe("duty of candour and investigations", () => {
-  it("records the threshold decision, which the classifier follows, and the candour steps", async () => {
+  it("hazard HZ-013 records the candour threshold decision, which the classifier follows, and the candour steps", async () => {
     const incident = await created("manager", {
       type: "medication",
       people: [affected(4)],
@@ -847,7 +873,7 @@ describe("UKHSA outbreak detection", () => {
       },
     });
 
-  it("drafts the UKHSA report once two linked respiratory cases start within the window", async () => {
+  it("hazard HZ-013 drafts the UKHSA report once two linked respiratory cases start within the window", async () => {
     await created("manager", { type: "ipc", people: [ari(1, 48)] });
     const second = await created("manager", { type: "ipc", people: [ari(2, 24)] });
     const ukhsa = second.classifier?.notifications.filter((n) => n.kind === "ukhsa_outbreak") ?? [];
