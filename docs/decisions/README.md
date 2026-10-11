@@ -50,6 +50,7 @@ for an answer.
 | [0028](0028-certificate-pinning.md) | Certificate pinning in the mobile app | proposed | 2026-10-11 | Phase 1 |
 | [0029](0029-mobile-offline-stack.md) | Mobile offline stack and app identity | accepted | 2026-10-11 | Phase 0 |
 | [0030](0030-web-session-and-browser-security.md) | Web sessions, token exposure and the browser security policy | accepted | 2026-10-11 | Phase 0 |
+| [0031](0031-document-storage-scanning-and-destruction.md) | Document storage, malware scanning and destruction past retention | accepted | 2026-10-11 | Phase 1 |
 
 ## Open items carried by these ADRs
 

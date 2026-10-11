@@ -47,6 +47,7 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | working_time_opt_out | 2 | years | record_closed | Working Time Regulations 1998; master prompt 5.1 | Opt-out agreements, kept while in force and for 2 years after withdrawal or the end of employment. |
 | financial_record | 6 | years | created | HMRC and Companies Act accounting records; master prompt 5.1 | Invoices, credit notes, charge lines, funding arrangements, remittances, residents' ledger entries, petty cash. Counted from the end of the financial year the record relates to. |
 | water_hygiene_record | 5 | years | created | HSE ACoP L8 and HSG274; master prompt 13.4 | Legionella risk assessment actions, sentinel temperatures, flushing, descaling and TMV records. |
+| organisation_document | 0 | years | tenant_policy | Master prompt 9.1 (document store: retention class per document) | Policies, procedures, statement of purpose versions and templates. Kept while current; the tenant's records policy sets how long superseded versions are kept, so the engine never offers them for destruction automatically. |
 | cctv | 0 | months | tenant_policy | Master prompt 5.1 (CCTV per the tenant's policy); ICO CCTV guidance | No product default. The tenant sets the period in its CCTV policy and DPIA (starter template in 11.2) before any CCTV still or clip is attached to a record. |
 | audit_event | 8 | years | created | NHS Records Management Code of Practice (record-keeping evidence); master prompt 5.3, 5.5 | Default for every audit event (logins, permission changes, exports, views, sync). Chosen so the audit trail supports a care record for its full Records Code period, well above the 6-month security-log minimum in section 5.3. |
 | audit_event.care_record | 8 | years | care_ended | NHS Records Management Code of Practice; master prompt 5.5 | Audit events about a person's record are kept at least as long as that record (longest period wins), so the history view and signed exports for inspectors, coroners and courts stay complete. |
@@ -69,7 +70,10 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `ledger_entry`, `invoice`, `charge_line`, `funding_arrangement` | financial_record |
 | `compliance_check` for water systems | water_hygiene_record |
 | `audit_event` | audit_event, extended by audit_event.care_record |
-| `document` | the class of the record it is attached to, or the class chosen at upload |
+| `document` | by category: photos, care attachments and documents about a person follow `care_record`; organisation documents `organisation_document` |
+| `document_signature` | the class of the signed document |
+| `legal_hold`, `destruction_certificate` | kept permanently (proof of records management); never destroyed by the engine |
+| `task`, `task_series`, `workflow_instance`, `workflow_transition` | the class of the record they concern (care_record for tasks about a person) |
 
 ## Gaps to settle before the module that needs them ships
 

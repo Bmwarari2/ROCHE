@@ -26,6 +26,7 @@ Owners: **Brian** (Thapsus Cargo Ltd), **CSO** (Clinical Safety Officer, to be a
 | H-13 | Decide Flagsmith hosting (self-hosted module ready, off by default) | Brian | Flagsmith task definition behind a variable | Remote flag management | open |
 | H-14 | Sign in on dev with a passkey and see the empty demo home (Phase 0 human follow-up) | Brian | Web shell, `HARBOUR_DEMO_OWNER_EMAIL` option in `seed:users` | Phase 0 acceptance | open |
 | H-15 | Create the first Thapsus operator: insert an `operator_user` row (role `admin`) for Brian's identity, with TOTP or a passkey enrolled | Brian | Operator console API | Tenant provisioning | open |
+| H-16 | Mirror a ClamAV image into ECR and add it as a sidecar to the API task (the `ecs_service` module needs sidecar support first, an engineering follow-up); keep its signatures updated (freshclam) | Brian, Engineering | `ClamdScanner` adapter (INSTREAM on 127.0.0.1:3310), `MALWARE_SCANNER=clamd` in Terraform, ADR-0031 | Document uploads in AWS (until then they are stored quarantined and never served) | open |
 
 ## Clinical safety
 
