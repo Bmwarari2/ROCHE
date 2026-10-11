@@ -77,6 +77,12 @@ export async function createTestDatabase(): Promise<TestDatabase> {
     let existing = pools.get(role);
     if (!existing) {
       existing = new pg.Pool({ connectionString: urlFor(role, name), max: 4 });
+      // pool.end() resolves before its clients' sockets close, so dropping the database WITH
+      // (FORCE) can terminate a connection that is still closing (57P01). That is expected at
+      // teardown; any other error on an idle connection is not.
+      existing.on("error", (error: Error & { code?: string }) => {
+        if (error.code !== "57P01") throw error;
+      });
       pools.set(role, existing);
     }
     return existing;
