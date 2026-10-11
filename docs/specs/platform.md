@@ -146,7 +146,7 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
 
 ## Statutory figures (PLAT-021)
 
-- `rate_table` seeded from [rates.md](rates.md) (169 rows), `retention_class` from
+- `rate_table` seeded from [rates.md](rates.md), `retention_class` from
   [retention.md](retention.md). Overlapping periods are refused by an exclusion constraint.
 - Lookup: tenant override, then nation, then `uk`, then `all` (`resolveRate`); unverified figures
   are flagged. `GET /v1/rates/{key}?nation&on`.
@@ -200,6 +200,14 @@ last year the calendar covers, no holiday is skipped, so a deadline can only fal
   `location_ids`, `people_location_ids`; 15-minute ES256 tokens from `POST /v1/sync/token`, JWKS
   at `GET /v1/sync/jwks`. Uploads (`POST /v1/sync/upload`) reject every table until modules add
   writable tables (Phase 1).
+
+## Search, export, onboarding and DPIA (PLAT-013, PLAT-015, PLAT-018, PLAT-023)
+
+Specified in [platform-completions.md](platform-completions.md): permission-aware search with
+break-glass search and query-free audit ([ADR-0070](../decisions/0070-search-on-postgres-full-text.md)),
+the free full tenant export with its manifest and documented schema, the onboarding checklist and
+sample data mode, and the DPIA prefill and sign-off with the records-of-processing and
+sub-processor registers. Domain rules are built; schema and API follow.
 
 ## Permission matrix
 
