@@ -1,0 +1,134 @@
+# Platform core (`platform`) - specification
+
+Master prompt section 9.1, with sections 4, 5 and 6. This spec covers what Phase 0 built and what
+each later phase adds. Status per feature lives in [the feature register](feature-register.md).
+
+## Purpose
+
+The shared services every module depends on: tenancy, identity and access, audit, notifications,
+forms, statutory figures, feature flags, integrations framework and the Thapsus operator console.
+
+## Tenancy (PLAT-001)
+
+- Hierarchy: `tenant_group` (optional) > `tenant` (one CQC provider) > `location` (CQC location ID,
+  ODS code, regulator, nation, time zone) > `service` (service type). Schema:
+  `packages/db/src/schema/platform.ts`.
+- Isolation: forced row-level security on every table, request context set per transaction,
+  composite tenant foreign keys, per-purpose database roles. Decision and details:
+  [ADR-0002](../decisions/0002-tenancy-and-row-level-security.md).
+- Provisioning: `app.provision_tenant` creates the tenant, the built-in roles and an invited owner
+  in one step; only the operator role may call it (`POST /operator/tenants`).
+
+Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
+`apps/api/test/api.test.ts` (hazard HZ-011 groups).
+
+## Identity, roles and scope (PLAT-004, PLAT-006)
+
+- Identity: Better Auth in the `auth` schema (email and NCSC-compliant password, TOTP, passkeys,
+  bearer tokens for mobile). Sessions last 12 hours; a sign-in counts as fresh for 10 minutes.
+- Membership: `tenant_user` per tenant; one identity can belong to several tenants. The active tenant
+  travels in `x-harbour-tenant`.
+- Roles: per-tenant copies of the 21 built-in roles in `packages/domain/src/platform/roles.ts`;
+  permission matrix: [permissions.md](permissions.md) (generated).
+- Effective access: `resolveAccess` unions active role assignments and time-boxed grants; the widest
+  scope wins (`tenant` > `locations` > `assigned` > `none`).
+- MFA: required for every permission that touches care records (`mfa_enrolment_required` otherwise).
+- Step-up: controlled drugs, residents' money approval, data export, break-glass, statutory
+  notifications and support-access approval need a sign-in within 10 minutes.
+- Break-glass: `POST /v1/people/break-glass` with a justification of at least 20 characters; access
+  lapses after 60 minutes; the Registered Manager for the location and quality leads are notified;
+  the reason is audited. Weekly break-glass report: Phase 1.
+- Later: invitations and enrolment UI (Phase 1), device and session management (Phase 1), SSO
+  (PLAT-005, Phase 2).
+
+## Audit trail and history (PLAT-007)
+
+- `audit_event`: append-only (no UPDATE or DELETE for the app; triggers refuse anyone else),
+  SHA-256 hash chain per tenant maintained by a trigger, `app.verify_audit_chain()` for checking.
+- Written for: person list, view and history; break-glass; refusals (missing permission, step-up,
+  not a member); notification acknowledgement; sync token issue and uploads; integration settings
+  and quarantine decisions; operator requests and tenant decisions.
+- `record_version`: every update of a mutable aggregate stores the previous row; `GET
+  /v1/people/{id}/history`.
+- `GET /v1/audit` (platform.audit.read) lists events with chain verification.
+- Later: signed PDF export of a record's history for inspectors and coroners (Phase 1); pgAudit is
+  configured at the database level in RDS (infra).
+
+## Notification centre (PLAT-008)
+
+- `notification` (in-app), `notification_delivery` (one row per other channel, queued by trigger),
+  `escalation_chain` (ordered steps by role or user), `notification_preference` (quiet hours).
+- Rules (`packages/domain/src/platform/notifications.ts`): urgent notifications ignore quiet hours;
+  escalation steps fire until someone acknowledges.
+- Worker jobs (pg-boss, every minute): escalations, deliveries (email through the tenant's adapter;
+  SMS and push skipped until phone numbers and device registration exist), outbox relay.
+- Outbound titles are generic and checked by `outboundTitleProblem` before any send.
+- API: `GET /v1/notifications`, `POST /v1/notifications/{id}/read`, `.../acknowledge`.
+- Later: preferences UI and device push registration (Phase 1), SMS gateway choice (human action).
+
+## Forms and assessment engine (PLAT-010, skeleton)
+
+- `form_template` (global locked templates or tenant templates, versioned) and `form_submission`
+  (pins the template version, stores the result and its workings).
+- Domain: `validateDefinition`, `validateAnswers` (types, required, ranges, options, conditional
+  fields), `scoreAnswers` (additive scores with bands and workings) in
+  `packages/domain/src/platform/forms.ts`. Validated clinical tools are coded calculators added in
+  Phase 1, never tenant formulas (medical-device boundary).
+- API: `GET /v1/forms/templates`. Authoring UI and submissions: Phase 1.
+
+## Statutory figures (PLAT-021)
+
+- `rate_table` seeded from [rates.md](rates.md) (169 rows), `retention_class` from
+  [retention.md](retention.md). Overlapping periods are refused by an exclusion constraint.
+- Lookup: tenant override, then nation, then `uk`, then `all` (`resolveRate`); unverified figures
+  are flagged. `GET /v1/rates/{key}?nation&on`.
+
+## Feature flags and licensing (PLAT-003)
+
+- Catalogue and defaults in `packages/domain/src/platform/feature-flags.ts` (AI off by default);
+  `feature_flag` rows per tenant or location override the default; `/v1/me` returns evaluated flags.
+- Later: OpenFeature provider with Flagsmith (optional, infra ready), billing visibility (Phase 6).
+
+## Localisation (PLAT-017)
+
+- `packages/i18n`: ICU catalogues for en-GB and cy with key parity, British spelling and no-emoji
+  tests; Welsh falls back to English until professionally translated (Phase 7). Per-tenant
+  terminology (resident, client, person we support) drives navigation labels.
+
+## Integrations framework (INTG-001)
+
+- Ports (`comms.email`, `comms.sms`, `comms.push`) in `packages/domain/src/integrations/ports.ts`;
+  adapters in `apps/api/src/integrations/adapters.ts` (mock, SES London, Expo push). Every adapter
+  is wrapped by a guard (personal-data check, idempotency) and must pass the port contract tests
+  (`apps/api/test/adapters.test.ts`).
+- `integration_connection` chooses a provider per tenant (credentials stay in Secrets Manager);
+  production without a provider fails clearly, never silently.
+- Inbound data is validated with Zod and quarantined with its problems
+  (`apps/api/src/integrations/inbound.ts`); `GET /v1/integrations/quarantine` and resolve.
+
+## Operator console (PLAT-019)
+
+- Operators are Better Auth identities in `operator_user` (support or admin), always with MFA.
+- `GET /operator/tenants` (no people data), `POST /operator/tenants` (admins), `POST
+  /operator/tenants/{id}/support-access`, `GET /operator/health`.
+- Support access: the tenant's owners are notified; an owner approves for 1 to 24 hours with step-up
+  (`POST /v1/support-access/{id}/decision`). Requests and decisions are in the tenant's audit chain.
+- Later: read-only impersonation session using an approved request, operator web UI (Phase 1);
+  metering and invoices (PLAT-020, Phase 6).
+
+## Offline sync
+
+- Streams: `packages/sync/src/streams/sync-config.yaml`; claims: `sub`, `tenant_id`,
+  `location_ids`, `people_location_ids`; 15-minute ES256 tokens from `POST /v1/sync/token`, JWKS
+  at `GET /v1/sync/jwks`. Uploads (`POST /v1/sync/upload`) reject every table until modules add
+  writable tables (Phase 1).
+
+## Permission matrix
+
+Generated: [permissions.md](permissions.md).
+
+## Retention classes
+
+Audit events, record versions and break-glass records keep the `audit_event` class (see
+[retention.md](retention.md)); deliveries and inbound data are operational and follow the class of
+the record they relate to (retention engine, Phase 1).

@@ -1,0 +1,292 @@
+# Feature register
+
+One row per feature in Part A section 1 of `docs/00-MASTER-PROMPT.md`, cross-checked against the
+feature tables in sections 9 to 17 and the Phase 7 scope in section 19. This register is the measure of
+the definition of complete (section 19, item 1): the build is finished only when every row is `done`.
+Every session starts by reading it with `docs/plans/STATUS.md` and picking the next incomplete item.
+
+## Summary
+
+| Module | Prefix | Sections | Rows | todo | partial | done |
+| --- | --- | --- | --- | --- | --- | --- |
+| Platform core | `PLAT` | 9.1 | 23 | 13 | 10 | 0 |
+| Service-user lifecycle | `PEOP` | 9.2 | 13 | 11 | 2 | 0 |
+| Care planning and delivery | `CARE` | 10.1, 10.4 | 22 | 22 | 0 | 0 |
+| Medicines | `MEDS` | 10.2-10.3 | 14 | 14 | 0 | 0 |
+| Safety and notifications | `SAFE` | 11.1 | 16 | 16 | 0 | 0 |
+| Quality and governance | `QUAL` | 11.2 | 13 | 13 | 0 | 0 |
+| Workforce | `WORK` | 12.1, 12.2, 12.4 | 13 | 13 | 0 | 0 |
+| Rostering, time and pay | `SCHED` | 12.3 | 12 | 12 | 0 | 0 |
+| Operations | `OPS` | 13 | 28 | 28 | 0 | 0 |
+| Finance | `FIN` | 14 | 21 | 21 | 0 | 0 |
+| Communication and portals | `COMMS` | 15.1 | 8 | 8 | 0 | 0 |
+| Reporting and analytics | `INSI` | 15.2 | 6 | 6 | 0 | 0 |
+| Integrations | `INTG` | 15.3 | 13 | 12 | 1 | 0 |
+| AI Management Copilot | `AI` | 16 | 11 | 11 | 0 | 0 |
+| Mobile apps | `MOB` | 17 | 13 | 11 | 2 | 0 |
+| Expansion (Phase 7) | `EXP` | 19 | 7 | 7 | 0 | 0 |
+| **Total** | | | **233** | **218** | **15** | **0** |
+
+| Phase | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Rows | 12 | 54 | 59 | 45 | 23 | 17 | 16 | 7 |
+
+Part A estimates "about 190 features". This register has more rows because it separates items that
+ship in different phases (for example the Phase 1 core charts and the Phase 5 further charts), and adds
+features that appear only in sections 5.1, 9 to 17 or 19 (data-protection tooling, the rate table,
+supported living 13.3, day services 13.7, employee relations 12.4, disclosure requests 11.1, Kiosk
+mode, the nation packs and the children's homes module). Where Part A lists an item twice (for
+example key safe access under both 9.2 and 13), it has one row that cites both sections.
+
+## How to update this file
+
+- Status values are `todo`, `partial` and `done`. Use `partial` as soon as any of spec, code, tests or
+  user docs exists for the row.
+- A row is `done` only when it links its spec (`docs/specs/...`), code (package or app path), tests
+  (test file or suite) and user documentation, and the feature meets the definition of done for every
+  feature in section 19. `-` means not yet linked. No row may be `done` with a `-` in any link column.
+- Update the summary counts in the same PR as the rows. Keep IDs stable: never renumber or reuse an
+  ID. A feature that is split later keeps its ID on the larger part and the new part takes the next free
+  number in its module. A feature dropped by an ADR stays in the table with the ADR cited in the
+  Feature column.
+- Phase is the section 19 phase in which the row is due to be complete. A change of phase needs an ADR
+  (see `docs/decisions/`, for example ADR-0004 and ADR-0022).
+- Keep the table format exactly as below (one header row, one separator row) so scripts can parse it.
+
+## Register
+
+| ID | Feature | Section | Phase | Status | Spec | Code | Tests | User docs |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| PLAT-001 | Tenant, location and service set-up (CQC and ODS identifiers, regulator, nation, service types) with the optional group layer | 4, 9.1 | 0 | partial | [platform](platform.md#tenancy-plat-001) | `packages/db/src/schema/platform.ts`, `app.provision_tenant` | `packages/db/test/isolation.test.ts` | - |
+| PLAT-002 | White-label branding per tenant (name, logo, accent auto-adjusted to 4.5:1 contrast) | 9.1 | 1 | todo | - | - | - | - |
+| PLAT-003 | Feature flags and module licensing per tenant and location, visible to Thapsus billing | 6, 9.1 | 0 | partial | [platform](platform.md#feature-flags-and-licensing-plat-003) | `packages/domain/src/platform/feature-flags.ts` | `packages/domain/src/platform/rules.test.ts` | - |
+| PLAT-004 | Users, roles and scopes (RBAC with attribute scoping, versioned roles, time-boxed grants), invitations, passkey and TOTP MFA with step-up, device and session management | 4, 5.3, 9.1 | 0 | partial | [platform](platform.md#identity-roles-and-scope-plat-004-plat-006) | `apps/api/src/auth`, `apps/api/src/http/context.ts`, `packages/domain/src/platform/access.ts` | `apps/api/test/api.test.ts`, `packages/domain/src/platform/access.test.ts` | - |
+| PLAT-005 | Single sign-on (SAML and OIDC) for enterprise tenants | 6, 9.1 | 2 | todo | - | - | - | - |
+| PLAT-006 | Break-glass access with typed justification, alerts and weekly report | 4, 9.1 | 1 | partial | [platform](platform.md#identity-roles-and-scope-plat-004-plat-006) | `apps/api/src/routes/people.ts`, `break_glass_event` | `apps/api/test/api.test.ts`, `packages/db/test/scope.test.ts` | - |
+| PLAT-007 | Immutable audit log (`audit_event`, pgAudit) and per-record history view with signed PDF export | 5.5, 9.1 | 0 | partial | [platform](platform.md#audit-trail-and-history-plat-007) | `audit_event`, `record_version`, `apps/api/src/http/audit.ts` | `packages/db/test/audit-and-history.test.ts` | - |
+| PLAT-008 | Notification centre (in-app, push, email, SMS, quiet hours) with escalation chains | 9.1 | 0 | partial | [platform](platform.md#notification-centre-plat-008) | `apps/api/src/jobs/tasks.ts`, `packages/domain/src/platform/notifications.ts` | `apps/api/test/jobs.test.ts` | - |
+| PLAT-009 | Versioned document store with categories, retention class, e-signature and merge-field templates | 9.1 | 1 | todo | - | - | - | - |
+| PLAT-010 | Configurable forms and assessment engine (field types, scoring, branching, review cadence, locked validated templates) | 9.1 | 0 | partial | [platform](platform.md#forms-and-assessment-engine-plat-010-skeleton) | `packages/domain/src/platform/forms.ts`, `form_template` | `packages/domain/src/platform/forms-notifications.test.ts` | - |
+| PLAT-011 | Task and workflow engine (owner, due date, recurrence, evidence, states, approvals, SLAs) | 9.1 | 1 | todo | - | - | - | - |
+| PLAT-012 | Retention schedule engine with legal hold, soft delete, crypto-shredding and destruction certificates | 5.1, 9.1 | 1 | todo | - | - | - | - |
+| PLAT-013 | Permission-aware, tenant-scoped full-text search across people, staff, documents and notes | 9.1 | 1 | todo | - | - | - | - |
+| PLAT-014 | Migration import wizard (CSV and JSON mapping, dry run, validation report) | 9.1 | 2 | todo | - | - | - | - |
+| PLAT-015 | Free full tenant export (CSV and JSON with documents, documented schema) | 5.1, 9.1 | 1 | todo | - | - | - | - |
+| PLAT-016 | Public API and signed webhooks (OpenAPI 3.1, OAuth2 client credentials, scoped tokens, sandbox tenant) | 9.1, 15.3 | 6 | todo | - | - | - | - |
+| PLAT-017 | Localisation framework (ICU messages, en-GB, Welsh-ready catalogues, per-tenant terminology) | 5.4, 9.1 | 0 | partial | [platform](platform.md#localisation-plat-017) | `packages/i18n` | `packages/i18n/src/i18n.test.ts` | - |
+| PLAT-018 | In-app help and onboarding (guides, tenant onboarding checklist, sample data mode, status page link) | 9.1 | 1 | todo | - | - | - | - |
+| PLAT-019 | Thapsus operator console: tenant provisioning, support impersonation with approval, platform and integration health | 9.1, 15.3 | 0 | partial | [platform](platform.md#operator-console-plat-019) | `apps/api/src/routes/operator.ts` | `apps/api/test/operator-and-integrations.test.ts` | - |
+| PLAT-020 | Thapsus operator console: plan and seat metering, invoices to tenants | 9.1 | 6 | todo | - | - | - | - |
+| PLAT-021 | Statutory rate table with valid-from and valid-to dates, seeded from `docs/specs/rates.md` | 18 | 0 | partial | [platform](platform.md#statutory-figures-plat-021), [rates](rates.md) | `rate_table`, `packages/domain/src/platform/rates.ts`, `GET /v1/rates/{key}` | `packages/db/src/seed/reference-data.test.ts`, `apps/api/test/api.test.ts` | - |
+| PLAT-022 | Data-subject rights and breach tooling: DSAR workbench, breach register with 72-hour clock, data-protection complaints | 5.1 | 2 | todo | - | - | - | - |
+| PLAT-023 | DPIA template prefill and in-app sign-off; records-of-processing and sub-processor registers | 5.1 | 1 | todo | - | - | - | - |
+| PEOP-001 | MODS-aligned person record with validated NHS number, demographics, lifestyle and preferences, key contacts and legal representatives with evidence and expiry, national data opt-out flag | 9.2, 10.4, 18 | 1 | partial | [people](people.md) | `packages/db/src/schema/people.ts`, `packages/domain/src/people/nhs-number.ts` | `packages/domain/src/people/nhs-number.test.ts`, `packages/db/test/scope.test.ts` | - |
+| PEOP-002 | Accessible Information Standard communication needs, flagged on every screen and print | 5.4, 9.2 | 1 | partial | [people](people.md) | `person.communication_needs`, `GET /v1/people` | `apps/api/test/api.test.ts` | - |
+| PEOP-003 | PRSB About Me, authored by the person or carer and shareable with consent | 9.2 | 1 | todo | - | - | - | - |
+| PEOP-004 | Enquiry and referral pipeline (sources, stages, follow-ups, conversion and time-to-admission, brochure and fee sending) | 9.2 | 3 | todo | - | - | - | - |
+| PEOP-005 | Pre-admission assessment and decision to admit with reasons | 9.2 | 1 | todo | - | - | - | - |
+| PEOP-006 | CMA-compliant contracts and fee transparency (indicative fees, fee review notice, deposits, fees after death, notice and trial periods) | 9.2, 13.1 | 3 | todo | - | - | - | - |
+| PEOP-007 | Admission, rooms and beds with move history, personal property inventory, keys and welcome checklist | 9.2 | 1 | todo | - | - | - | - |
+| PEOP-008 | Review scheduling (care plan reviews, LA review tracker, family involvement) | 9.2 | 1 | todo | - | - | - | - |
+| PEOP-009 | Hospital transfer pack (red bag summary generated in one click) | 9.2 | 1 | todo | - | - | - | - |
+| PEOP-010 | Discharge, transfer and death workflows (checklists, notifications, money and property return, archive state) | 9.2 | 1 | todo | - | - | - | - |
+| PEOP-011 | Domiciliary client variant (address, access, environment and lone-working risk assessment, package, visit plan, preferred carers) | 9.2 | 4 | todo | - | - | - | - |
+| PEOP-012 | Supported-living tenancy separation (tenancy and care and support records signed separately) | 9.2, 13.3 | 4 | todo | - | - | - | - |
+| PEOP-013 | Family and professional sharing rules (per section, consent or legal basis, access expiry) | 9.2, 15.1 | 1 | todo | - | - | - | - |
+| CARE-001 | PRSB personalised care and support plan (needs by domain, outcomes in the person's words, actions, contingency, versioned sign-off) | 10.1 | 1 | todo | - | - | - | - |
+| CARE-002 | Positive risk assessments with templates (moving and handling, falls, choking, skin, bed rails and others) | 10.1 | 1 | todo | - | - | - | - |
+| CARE-003 | Locked validated tools: Waterlow, Braden and MUST | 10.1 | 1 | todo | - | - | - | - |
+| CARE-004 | Dependency tool (tenant-editable categories with care hours per category) | 10.1, 12.3 | 2 | todo | - | - | - | - |
+| CARE-005 | Locked validated tools: OHAT with NG48 plan, Abbey, PAINAD, Cornell, Barthel, continence | 10.1 | 5 | todo | - | - | - | - |
+| CARE-006 | NG249 multifactorial falls assessment (no falls prediction scores) | 10.1 | 1 | todo | - | - | - | - |
+| CARE-007 | NEWS2 calculator with escalation log | 10.1 | 1 | todo | - | - | - | - |
+| CARE-008 | RESTORE2 soft-signs checklist and SBARD escalation | 10.1 | 5 | todo | - | - | - | - |
+| CARE-009 | Append-only daily notes with on-device voice-to-text and late-entry flag | 10.1 | 1 | todo | - | - | - | - |
+| CARE-010 | Core charts: fluid balance, food intake with IDDSI levels, repositioning, bowel, weight, vital signs | 10.1 | 1 | todo | - | - | - | - |
+| CARE-011 | Further charts: blood glucose, oxygen, seizure, sleep, behaviour ABC, pain, continence, wound, bath and oral care | 10.1 | 5 | todo | - | - | - | - |
+| CARE-012 | Body maps with pressure-ulcer categories and photos | 10.1 | 1 | todo | - | - | - | - |
+| CARE-013 | Scheduled tasks, rounds and auto-compiled shift handover | 10.1 | 1 | todo | - | - | - | - |
+| CARE-014 | Activities and wellbeing record, life story and Reg 9A visiting log | 10.1 | 1 | todo | - | - | - | - |
+| CARE-015 | ReSPECT and DNACPR record (clinician, date, review) | 10.1 | 1 | todo | - | - | - | - |
+| CARE-016 | End of life: advance care plan, ADRT, preferred place of care, anticipatory medicines, NG31 last-days care, GSF coding, after-death care | 10.1 | 5 | todo | - | - | - | - |
+| CARE-017 | Dementia and learning disability tools: This is me, communication and hospital passports, health action plan, annual health checks, STOMP/STAMP, RSRCRC checklist | 10.1 | 5 | todo | - | - | - | - |
+| CARE-018 | Positive behaviour support plans and restrictive-practice register | 10.1 | 5 | todo | - | - | - | - |
+| CARE-019 | Delegated healthcare and complex care task plans tied to competencies, with equipment register | 10.1, 12.2 | 5 | todo | - | - | - | - |
+| CARE-020 | CHC checklist and Decision Support Tool evidence with Fast Track flag | 10.1 | 5 | todo | - | - | - | - |
+| CARE-021 | Consent, MCA capacity assessment and best-interests records | 10.4 | 1 | todo | - | - | - | - |
+| CARE-022 | DoLS register with CQC notification and the June 2026 legal change switch (review of existing authorisations) | 10.4 | 1 | todo | - | - | - | - |
+| MEDS-001 | dm+d-coded medicines record and reconciliation (admission, transfer, change, return from hospital) | 9.2, 10.2 | 2 | todo | - | - | - | - |
+| MEDS-002 | Offline administration rounds with barcode and person confirmation, time-critical rules and the 10.3 safety rules | 10.2, 10.3 | 2 | todo | - | - | - | - |
+| MEDS-003 | PRN protocols with outcomes and psychotropic PRN report | 10.2 | 2 | todo | - | - | - | - |
+| MEDS-004 | Covert administration records with best-interests evidence | 10.2 | 2 | todo | - | - | - | - |
+| MEDS-005 | Electronic controlled-drugs register with two signatures and running balances | 10.2 | 2 | todo | - | - | - | - |
+| MEDS-006 | Self-administration risk assessment and review | 10.2 | 2 | todo | - | - | - | - |
+| MEDS-007 | Homely remedies protocols | 10.2 | 2 | todo | - | - | - | - |
+| MEDS-008 | Stock, 28-day cycle ordering and disposal records, with fridge and room temperature logs | 10.2 | 2 | todo | - | - | - | - |
+| MEDS-009 | GP proxy ordering workflow | 10.2 | 5 | todo | - | - | - | - |
+| MEDS-010 | Pharmacy interface (order, MAR import, label data) | 10.2, 15.3 | 5 | todo | - | - | - | - |
+| MEDS-011 | Home-care levels of support (prompt, assist, administer; family-administered arrangements) | 10.2 | 4 | todo | - | - | - | - |
+| MEDS-012 | Medication errors and near misses with notification rules | 10.2 | 2 | todo | - | - | - | - |
+| MEDS-013 | Annual medication review tracker and competence gating with logged override | 10.2, 12.2 | 2 | todo | - | - | - | - |
+| MEDS-014 | Printable MAR chart and CD register exports | 10.2 | 2 | todo | - | - | - | - |
+| SAFE-001 | Incident and accident capture with body map, photos, severity and harm grading | 11.1 | 1 | todo | - | - | - | - |
+| SAFE-002 | Notification classifier with deadline clocks and step-up submission | 11.1 | 1 | todo | - | - | - | - |
+| SAFE-003 | CQC notifications (Reg 18 events, Reg 16 deaths) pre-filled from the record | 11.1 | 1 | todo | - | - | - | - |
+| SAFE-004 | RIDDOR reporting (work-activity test, 10-day and 15-day clocks) | 11.1 | 1 | todo | - | - | - | - |
+| SAFE-005 | Care Act s.42 safeguarding referral drafts | 11.1 | 1 | todo | - | - | - | - |
+| SAFE-006 | Safeguarding log (concerns, LA enquiry outcomes, Making Safeguarding Personal, DBS referral decisions) | 11.1 | 2 | todo | - | - | - | - |
+| SAFE-007 | Duty of candour workflow (threshold, verbal and written notification, enquiries, correspondence) | 11.1 | 1 | todo | - | - | - | - |
+| SAFE-008 | Medical examiner information pack and LeDeR notification prompt | 11.1 | 1 | todo | - | - | - | - |
+| SAFE-009 | Falls and pressure-ulcer protocols | 11.1 | 1 | todo | - | - | - | - |
+| SAFE-010 | Investigations, root cause, lessons-learned bulletins and trend analysis | 11.1 | 1 | todo | - | - | - | - |
+| SAFE-011 | Complaints and compliments (Reg 16 workflow, LGSCO signposting) | 11.1 | 2 | todo | - | - | - | - |
+| SAFE-012 | Whistleblowing and speak-up silo | 11.1 | 2 | todo | - | - | - | - |
+| SAFE-013 | Outbreak management with UKHSA report and IPC audits | 11.1 | 2 | todo | - | - | - | - |
+| SAFE-014 | Death workflow (expected and unexpected) and mortality review | 11.1 | 2 | todo | - | - | - | - |
+| SAFE-015 | Missing-person workflow with Herbert Protocol profile | 11.1 | 2 | todo | - | - | - | - |
+| SAFE-016 | Statutory review and disclosure requests: coroner, SAR and DHR packs, police and solicitor disclosure, Access to Health Records requests, disclosure log | 11.1 | 2 | todo | - | - | - | - |
+| QUAL-001 | Data-driven compliance framework model (CQC 34 quality statements now, KLOE version when published) | 11.2 | 2 | todo | - | - | - | - |
+| QUAL-002 | Evidence library tagging against quality statements or KLOEs | 11.2 | 2 | todo | - | - | - | - |
+| QUAL-003 | Inspector evidence pack export (PDF bundle, watermarked, time-limited link) | 11.2 | 1 | todo | - | - | - | - |
+| QUAL-004 | Scored audit programme and mock inspections | 11.2 | 2 | todo | - | - | - | - |
+| QUAL-005 | Quality dashboard with care KPIs and RAG against tenant targets | 11.2 | 2 | todo | - | - | - | - |
+| QUAL-006 | Provider Information Return prefill | 11.2 | 2 | todo | - | - | - | - |
+| QUAL-007 | Capacity Tracker and ASC-WDS returns prefill | 11.2, 12.3 | 3 | todo | - | - | - | - |
+| QUAL-008 | Policy library with versioning, read-and-sign, vendor import and starter templates | 11.2 | 2 | todo | - | - | - | - |
+| QUAL-009 | Statement of purpose with change tracking | 11.2 | 1 | todo | - | - | - | - |
+| QUAL-010 | Registration and governance records: RM and NI details, fit and proper persons, Reg 14 absence notifications, Reg 15 changes, certificates, minutes, risk register, business continuity plan | 11.2 | 3 | todo | - | - | - | - |
+| QUAL-011 | Resident, family and staff surveys | 11.2 | 3 | todo | - | - | - | - |
+| QUAL-012 | DSPT and Cyber Essentials evidence tracker with ICO registration records | 11.2 | 2 | todo | - | - | - | - |
+| QUAL-013 | Delegated-healthcare and restrictive-practice governance (oversight and STOMP reports) | 11.2 | 5 | todo | - | - | - | - |
+| WORK-001 | Applicant tracking (Care Workforce Pathway job templates, shortlisting, values-based interviews, offers, talent pool) | 12.1 | 2 | todo | - | - | - | - |
+| WORK-002 | Reg 19 Schedule 3 pre-employment file (ID, right to work with re-checks, DBS and Update Service, history and gaps, references, conduct, health, qualifications, NMC PIN) | 12.1 | 2 | todo | - | - | - | - |
+| WORK-003 | Sponsor-licence compliance (Appendix D records, salary floor check, 10-working-day reporting) | 12.1 | 2 | todo | - | - | - | - |
+| WORK-004 | Onboarding and Care Certificate (16 standards) induction | 12.1 | 2 | todo | - | - | - | - |
+| WORK-005 | Training matrix with Skills for Care topics and Oliver McGowan tiers | 12.2 | 2 | todo | - | - | - | - |
+| WORK-006 | SCORM and xAPI e-learning player and LMS integration | 12.2, 15.3 | 2 | todo | - | - | - | - |
+| WORK-007 | LDSS claim tracking | 12.2 | 2 | todo | - | - | - | - |
+| WORK-008 | Observed competence sign-offs that gate actions | 12.2 | 2 | todo | - | - | - | - |
+| WORK-009 | Supervision and appraisal scheduler with spot checks | 12.2 | 2 | todo | - | - | - | - |
+| WORK-010 | Employee relations casework (disciplinary, grievance, capability, appeals) with DBS and NMC referrals | 12.4 | 2 | todo | - | - | - | - |
+| WORK-011 | Staff data protection (privacy notice, staff DSARs, HR-only immigration documents, monitoring DPIA) | 12.4 | 2 | todo | - | - | - | - |
+| WORK-012 | Qualifications and NMC revalidation planner | 12.2 | 2 | todo | - | - | - | - |
+| WORK-013 | Transfers and leavers (TUPE import, leaver checklist, references) | 12.4 | 2 | todo | - | - | - | - |
+| SCHED-001 | Dependency-based safe staffing planner | 12.3 | 2 | todo | - | - | - | - |
+| SCHED-002 | Rota builder with skills, continuity, swaps, bank and agency | 12.3 | 2 | todo | - | - | - | - |
+| SCHED-003 | Working Time compliance (48-hour average, rest, breaks, night work, under-18 rules, sleep-ins, travel time) | 12.3 | 2 | todo | - | - | - | - |
+| SCHED-004 | Time and attendance (clock in and out, exceptions, timesheet approval, mileage) | 12.3 | 2 | todo | - | - | - | - |
+| SCHED-005 | Pay rules engine with enhancements and NMW checks per pay reference period | 12.3 | 2 | todo | - | - | - | - |
+| SCHED-006 | Holiday accrual at 12.07% and rolled-up holiday pay | 12.3 | 2 | todo | - | - | - | - |
+| SCHED-007 | SSP 2026 and guaranteed-hours readiness | 12.3 | 2 | todo | - | - | - | - |
+| SCHED-008 | Payroll and pension exports (Xero Payroll first, Staffology, Sage, BrightPay; auto-enrolment flags) | 12.3, 15.3 | 2 | todo | - | - | - | - |
+| SCHED-009 | Agency workers and AWR 12-week tracking | 12.3 | 2 | todo | - | - | - | - |
+| SCHED-010 | Absence and leave (Bradford factor, return to work, fit notes, statutory family leave) | 12.3 | 2 | todo | - | - | - | - |
+| SCHED-011 | Staff wellbeing and voice surveys | 12.3 | 2 | todo | - | - | - | - |
+| SCHED-012 | Lone-worker check-ins, overdue alarm and panic button | 12.3 | 2 | todo | - | - | - | - |
+| OPS-001 | Bed board and occupancy | 13.1 | 3 | todo | - | - | - | - |
+| OPS-002 | Enquiry response SLA, tours, lost reasons and conversion by source | 13.1 | 3 | todo | - | - | - | - |
+| OPS-003 | Vacancy publishing to Capacity Tracker prefill and directory feeds | 13.1 | 3 | todo | - | - | - | - |
+| OPS-004 | Domiciliary care packages (commissioned hours, 2:1 visits, visit tasks, handback, short-visit flag) | 13.2 | 4 | todo | - | - | - | - |
+| OPS-005 | Run planning and optimisation with continuity score | 13.2 | 4 | todo | - | - | - | - |
+| OPS-006 | ECM visit verification (NFC, QR, GPS) with tolerance windows, missed-visit alarms and visit records | 13.2 | 4 | todo | - | - | - | - |
+| OPS-007 | Live-in care | 13.2 | 4 | todo | - | - | - | - |
+| OPS-008 | Key-safe vault and access (encrypted, revealed on arrival in the geofence, rotation log) | 9.2, 13.2 | 4 | todo | - | - | - | - |
+| OPS-009 | Client and carer communications (visit reminders, changes, running late) | 13.2 | 4 | todo | - | - | - | - |
+| OPS-010 | Supported living tenancy and housing (landlord, rent, housing benefit, exempt accommodation, repairs, sustainment risks) | 13.3 | 4 | todo | - | - | - | - |
+| OPS-011 | Supported living support hours (1:1, 2:1 and core hours, delivered-hours reconciliation, voids) | 13.3 | 4 | todo | - | - | - | - |
+| OPS-012 | Supported living welfare benefits, community outcomes and shared-house safety records | 13.3 | 4 | todo | - | - | - | - |
+| OPS-013 | Asset register | 13.4 | 3 | todo | - | - | - | - |
+| OPS-014 | Statutory compliance calendar (LOLER, gas, electrical, legionella, fire, window restrictors, bed rails, call bells) | 13.4 | 3 | todo | - | - | - | - |
+| OPS-015 | Fire safety actions, PEEPs and power-cut evacuation lists | 13.4 | 3 | todo | - | - | - | - |
+| OPS-016 | Maintenance (reactive requests, contractors, planned preventive schedules) | 13.4 | 3 | todo | - | - | - | - |
+| OPS-017 | Housekeeping and IPC cleaning schedules | 13.4 | 3 | todo | - | - | - | - |
+| OPS-018 | Vehicles | 13.4 | 3 | todo | - | - | - | - |
+| OPS-019 | Dietary profiles and dining experience | 13.5 | 3 | todo | - | - | - | - |
+| OPS-020 | Menus with allergen matrix, IDDSI variants and production sheets | 13.5 | 3 | todo | - | - | - | - |
+| OPS-021 | Natasha's Law labels | 13.5 | 3 | todo | - | - | - | - |
+| OPS-022 | Food safety logs | 13.5 | 3 | todo | - | - | - | - |
+| OPS-023 | Activities programme | 13.6 | 3 | todo | - | - | - | - |
+| OPS-024 | Visitor kiosk and visitor management | 13.6 | 3 | todo | - | - | - | - |
+| OPS-025 | Appointments and transport | 13.6 | 3 | todo | - | - | - | - |
+| OPS-026 | Residents' and relatives' meetings | 13.6 | 3 | todo | - | - | - | - |
+| OPS-027 | Day-service sessions, attendance and session charging | 13.7 | 3 | todo | - | - | - | - |
+| OPS-028 | Nightly downtime pack with back-entry workflow | 13.4 | 1 | todo | - | - | - | - |
+| FIN-001 | Per-person funding mix (LA, FNC, CHC, s.117, self, top-ups, DP, ISF, PHB) with versioned rates | 14.1 | 3 | todo | - | - | - | - |
+| FIN-002 | Regulated top-up agreements | 14.1 | 3 | todo | - | - | - | - |
+| FIN-003 | Commissioner contracts (block, spot, framework) | 14.1 | 3 | todo | - | - | - | - |
+| FIN-004 | CMA-aligned self-funder terms | 14.1 | 3 | todo | - | - | - | - |
+| FIN-005 | DWP 28-day flags and personal expenses allowance tracking | 14.1 | 3 | todo | - | - | - | - |
+| FIN-006 | Deferred payment agreement records | 14.1 | 3 | todo | - | - | - | - |
+| FIN-007 | Charge generation and pro-rata | 14.2 | 3 | todo | - | - | - | - |
+| FIN-008 | Invoices, credit notes and Direct Debit | 14.2 | 3 | todo | - | - | - | - |
+| FIN-009 | Council portal export and three-way reconciliation | 14.2, 15.3 | 3 | todo | - | - | - | - |
+| FIN-010 | FNC and CHC claims | 14.2 | 3 | todo | - | - | - | - |
+| FIN-011 | Debtors | 14.2 | 3 | todo | - | - | - | - |
+| FIN-012 | Accounting sync with VAT exemption handling (Xero, Sage, QuickBooks) | 14.2, 15.3 | 3 | todo | - | - | - | - |
+| FIN-013 | Residents' personal ledgers with two-signature controls | 14.3 | 3 | todo | - | - | - | - |
+| FIN-014 | Appointee and deputy reporting | 14.3 | 3 | todo | - | - | - | - |
+| FIN-015 | Valuables and property log | 14.3 | 3 | todo | - | - | - | - |
+| FIN-016 | Petty cash and floats | 14.3 | 3 | todo | - | - | - | - |
+| FIN-017 | Location P&L | 14.4 | 3 | todo | - | - | - | - |
+| FIN-018 | Occupancy and fee analytics | 14.4 | 3 | todo | - | - | - | - |
+| FIN-019 | Home-care unit economics | 14.4 | 4 | todo | - | - | - | - |
+| FIN-020 | Purchasing | 14.4 | 3 | todo | - | - | - | - |
+| FIN-021 | Payroll costing | 14.4 | 3 | todo | - | - | - | - |
+| COMMS-001 | Family portal and app mode: updates feed and consented care plan sections | 15.1 | 1 | todo | - | - | - | - |
+| COMMS-002 | Family portal and app mode: visit booking, messaging, invoices and statements, surveys, complaints, documents to sign | 15.1 | 4 | todo | - | - | - | - |
+| COMMS-003 | Person's own portal (About Me, notes feed, preferences, feedback) | 15.1 | 4 | todo | - | - | - | - |
+| COMMS-004 | Time-limited professional access | 15.1 | 4 | todo | - | - | - | - |
+| COMMS-005 | Internal messaging and announcements | 15.1 | 4 | todo | - | - | - | - |
+| COMMS-006 | Handover acknowledgement | 15.1 | 1 | todo | - | - | - | - |
+| COMMS-007 | Letter and email templates with approval | 15.1 | 1 | todo | - | - | - | - |
+| COMMS-008 | Optional public website module with vacancies, fees, rating widget and enquiry form | 15.1 | 4 | todo | - | - | - | - |
+| INSI-001 | Role dashboards | 15.2 | 1 | todo | - | - | - | - |
+| INSI-002 | Governed report builder | 15.2 | 6 | todo | - | - | - | - |
+| INSI-003 | Opt-in benchmarks with small-number suppression | 15.2 | 6 | todo | - | - | - | - |
+| INSI-004 | Statutory outputs and contract-monitoring returns | 15.2 | 4 | todo | - | - | - | - |
+| INSI-005 | Data warehouse export | 15.2 | 6 | todo | - | - | - | - |
+| INSI-006 | Group consolidated reporting | 4, 19 | 3 | todo | - | - | - | - |
+| INTG-001 | Integration framework: adapter interfaces, mocks, contract tests, inbound quarantine queue | 15.3 | 0 | partial | [platform](platform.md#integrations-framework-intg-001) | `apps/api/src/integrations`, `packages/domain/src/integrations/ports.ts` | `apps/api/test/adapters.test.ts` | - |
+| INTG-002 | GP Connect Access Record HTML (gated per tenant on DSPT Standards Met) | 15.3 | 5 | todo | - | - | - | - |
+| INTG-003 | PDS NHS number lookup | 9.2, 15.3 | 5 | todo | - | - | - | - |
+| INTG-004 | NHS CIS2 staff authentication | 6, 15.3 | 5 | todo | - | - | - | - |
+| INTG-005 | NHSmail and National Data Sharing Arrangement | 15.3 | 5 | todo | - | - | - | - |
+| INTG-006 | dm+d dataset sync and GTIN barcode lookup | 15.3 | 2 | todo | - | - | - | - |
+| INTG-007 | Identity and vetting: right-to-work IDSP, DBS e-bulk and Update Service, NMC register lookup | 15.3 | 2 | todo | - | - | - | - |
+| INTG-008 | Nurse call and acoustic monitoring webhooks | 15.3 | 5 | todo | - | - | - | - |
+| INTG-009 | Lone-worker devices (BS 8484) | 12.3, 15.3 | 4 | todo | - | - | - | - |
+| INTG-010 | Bluetooth vitals (SpO2, blood pressure, thermometer) | 15.3 | 5 | todo | - | - | - | - |
+| INTG-011 | Communications (SES, SMS gateway, Expo push, ICS calendar, click-to-call) | 15.3 | 1 | todo | - | - | - | - |
+| INTG-012 | Directories and lead sources (carehome.co.uk, Autumna, Lottie) | 15.3 | 3 | todo | - | - | - | - |
+| INTG-013 | E-signature and OCR adapters (optional DocuSign, camera scanning with OCR for paper MARs) | 15.3 | 2 | todo | - | - | - | - |
+| AI-001 | AI gateway with per-tenant enablement (off by default) and provider choice | 16, 16.3 | 6 | todo | - | - | - | - |
+| AI-002 | Ask Harbour over governed data | 16.1 | 6 | todo | - | - | - | - |
+| AI-003 | Summaries and drafting (handovers, reports, letters, policies, notification wording) | 16.1 | 6 | todo | - | - | - | - |
+| AI-004 | Deterministic compliance monitor with plain-English explanations | 16.1 | 6 | todo | - | - | - | - |
+| AI-005 | Inspection preparation | 16.1 | 6 | todo | - | - | - | - |
+| AI-006 | Rota suggestions | 16.1 | 6 | todo | - | - | - | - |
+| AI-007 | Finance commentary | 16.1 | 6 | todo | - | - | - | - |
+| AI-008 | Voice-to-text structuring | 16.1 | 6 | todo | - | - | - | - |
+| AI-009 | Guardrails: clinical scope lock and no automated decisions | 16.2 | 6 | todo | - | - | - | - |
+| AI-010 | Guardrails: pseudonymisation, UK or EU-geo inference and full audit | 16.2 | 6 | todo | - | - | - | - |
+| AI-011 | Guardrails: evaluation and red-team suite, fairness checks, kill switch and token budgets | 16.2 | 6 | todo | - | - | - | - |
+| MOB-001 | One Expo codebase for iOS and Android (expo-router, sign-in, assigned people available offline) | 17, 17.2 | 0 | partial | `apps/mobile/README.md` | `apps/mobile` | `apps/mobile` (208 unit tests), `.maestro/` | - |
+| MOB-002 | Care mode | 17 | 1 | todo | - | - | - | - |
+| MOB-003 | Manage mode | 17 | 4 | todo | - | - | - | - |
+| MOB-004 | Family mode | 17 | 4 | todo | - | - | - | - |
+| MOB-005 | Kiosk mode (shared tablets, PIN plus photo, fast user switching, auto sign-out) | 17, 17.2 | 1 | todo | - | - | - | - |
+| MOB-006 | Offline care record: notes, charts, body-map marks, incidents and tasks, with sync banner and conflict review | 17.1 | 1 | todo | - | - | - | - |
+| MOB-007 | Offline eMAR, rota and timesheets, and training | 17.1 | 2 | todo | - | - | - | - |
+| MOB-008 | Offline domiciliary visits and messaging | 17.1 | 4 | todo | - | - | - | - |
+| MOB-009 | Encrypted SQLCipher store with biometric lock and auto-lock | 5.3, 17.2 | 0 | partial | [ADR-0029](../decisions/0029-mobile-offline-stack.md) | `apps/mobile/src` | `apps/mobile` unit tests | - |
+| MOB-010 | Device protection: remote wipe, root and jailbreak detection, screenshot blocking | 5.3, 17.2 | 1 | todo | - | - | - | - |
+| MOB-011 | Store compliance (privacy labels, data safety, health declarations, account deletion, iOS 26 SDK, API 36) | 17.3 | 1 | todo | - | - | - | - |
+| MOB-012 | Public or private distribution and phased rollouts | 17.3 | 1 | todo | - | - | - | - |
+| MOB-013 | Tablet split views and responsive web down to 360 px | 17.4 | 2 | todo | - | - | - | - |
+| EXP-001 | Wales nation pack (CIW framework and returns, Social Care Wales registration, charging rules, safeguarding and capacity statutes) | 4, 11.2, 19 | 7 | todo | - | - | - | - |
+| EXP-002 | Scotland nation pack (Care Inspectorate framework and annual return, SSSC registration, Adults with Incapacity Act 2000, charging rules) | 4, 11.2, 19 | 7 | todo | - | - | - | - |
+| EXP-003 | Northern Ireland nation pack (RQIA framework, NISCC registration, Mental Capacity Act (NI) 2016, charging rules) | 4, 11.2, 19 | 7 | todo | - | - | - | - |
+| EXP-004 | Welsh UI and Welsh Active Offer | 5.4, 19 | 7 | todo | - | - | - | - |
+| EXP-005 | Children's homes: Ofsted quality standards framework and records | 19 | 7 | todo | - | - | - | - |
+| EXP-006 | Children's homes: Reg 44 monthly independent visits and Reg 45 six-monthly reviews | 19 | 7 | todo | - | - | - | - |
+| EXP-007 | Children's homes: placing-authority reporting | 19 | 7 | todo | - | - | - | - |
