@@ -44,6 +44,18 @@ export {
   type SortValue,
   type TableDensity,
 } from "./components/DataTable/DataTable";
+export {
+  DateInput,
+  type DateInputProps,
+  type DatePartLabels,
+  defaultDatePartLabels,
+} from "./components/DateInput/DateInput";
+export {
+  DateTimeInput,
+  type DateTimeInputProps,
+  type DateTimeLabels,
+  defaultDateTimeLabels,
+} from "./components/DateInput/DateTimeInput";
 export { EmptyState, type EmptyStateProps } from "./components/EmptyState/EmptyState";
 export {
   InspectorPanel,
@@ -111,4 +123,27 @@ export { Toggle, type ToggleProps } from "./components/Toggle/Toggle";
 export { Heading, type HeadingLevel, type HeadingProps } from "./lib/heading";
 export type { LinkComponent } from "./lib/link";
 export { VisuallyHidden } from "./lib/VisuallyHidden";
+export {
+  checkDateParts,
+  checkDateTimeParts,
+  type DateCheck,
+  type DatePart,
+  type DateProblem,
+  type DateTimeCheck,
+  type DateTimePart,
+  type DateTimeProblem,
+  datePartName,
+  datePartsOf,
+  dateTimePartsAt,
+  type Fold,
+  resolveWallClock,
+  type TimePart,
+  UK_TIME_ZONE,
+  type WallClock,
+  type WallClockResolution,
+  wallClockAt,
+  type ZonedInstant,
+  zoneName,
+  zoneOffsetMinutes,
+} from "./lib/zoned-time";
 export * from "./tokens";
