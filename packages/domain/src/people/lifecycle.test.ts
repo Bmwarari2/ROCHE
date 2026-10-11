@@ -413,6 +413,98 @@ describe("status changes", () => {
     });
   });
 
+  it.each<
+    [string, PersonStatus, PersonStatus | null | undefined, PersonStatus, string | null, string[]]
+  >([
+    [
+      "a death recorded while active, back to active",
+      "deceased",
+      "active",
+      "active",
+      null,
+      ["cancel_exit_workflow", "reopen_record", "resume_rounds"],
+    ],
+    [
+      "a death recorded while in hospital, back to in hospital",
+      "deceased",
+      "in_hospital",
+      "in_hospital",
+      null,
+      ["cancel_exit_workflow", "reopen_record", "restore_paused_rounds"],
+    ],
+    [
+      "a death recorded while on leave, back to on leave",
+      "deceased",
+      "on_leave",
+      "on_leave",
+      null,
+      ["cancel_exit_workflow", "reopen_record", "restore_paused_rounds"],
+    ],
+    [
+      "a discharge recorded while in hospital, back to in hospital",
+      "discharged",
+      "in_hospital",
+      "in_hospital",
+      null,
+      ["cancel_exit_workflow", "reopen_record", "restore_paused_rounds"],
+    ],
+    [
+      "a death recorded while in hospital is not corrected to active",
+      "deceased",
+      "in_hospital",
+      "active",
+      "correction_to_other_status",
+      [],
+    ],
+    [
+      "a death recorded while active is not corrected to in hospital",
+      "deceased",
+      "active",
+      "in_hospital",
+      "correction_to_other_status",
+      [],
+    ],
+    [
+      "an exit recorded before the status was kept goes back to active",
+      "deceased",
+      null,
+      "active",
+      null,
+      ["cancel_exit_workflow", "reopen_record", "resume_rounds"],
+    ],
+    [
+      "an exit recorded before the status was kept is not corrected to in hospital",
+      "discharged",
+      undefined,
+      "in_hospital",
+      "correction_to_other_status",
+      [],
+    ],
+  ])("hazards HZ-003 and HZ-008 correct %s", (_label, from, before, to, problem, effects) => {
+    const result = checkPersonStatusChange(
+      person(from, {
+        deceasedAt: from === "deceased" ? EARLIER : null,
+        statusChangedAt: EARLIER,
+        statusBeforeExit: before,
+      }),
+      change(to, {
+        effectiveAt: NOW,
+        reason: "Recorded against the wrong person",
+        stepUpFresh: true,
+      }),
+    );
+    if (problem) {
+      expect(result).toMatchObject({ ok: false, problem });
+    } else {
+      expect(result).toMatchObject({
+        ok: true,
+        correction: true,
+        event: "people.person.status_corrected",
+        effects,
+      });
+    }
+  });
+
   it("never re-admits a person who has died", () => {
     const archived = person("archived", { deceasedAt: EARLIER });
     expect(
