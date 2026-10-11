@@ -1,0 +1,230 @@
+# Quality gates (master prompt section 7). Every job must pass before a pull request merges.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CI: "true"
+  TURBO_TELEMETRY_DISABLED: "1"
+  NEXT_TELEMETRY_DISABLED: "1"
+  # Disposable CI database; the superuser creates the Harbour roles, which are never superusers.
+  HARBOUR_TEST_ADMIN_URL: postgres://harbour_admin:harbour_admin_ci@localhost:5432/postgres
+  DATABASE_ADMIN_URL: postgres://harbour_admin:harbour_admin_ci@localhost:5432/postgres
+
+jobs:
+  lint:
+    name: Lint, format and conventions
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Biome
+        run: pnpm exec biome ci .
+      - name: Commit messages follow Conventional Commits
+        if: github.event_name == 'pull_request'
+        run: pnpm exec commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }}
+      - name: Dependency licences are on the allowlist
+        run: node scripts/check-licences.mjs
+      - name: Clinical and data-protection labels update their documents
+        if: github.event_name == 'pull_request'
+        run: node scripts/check-docs-gate.mjs
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      - name: Medicines changes come with tests
+        if: github.event_name == 'pull_request'
+        run: node scripts/check-medicines-tests.mjs
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      - name: Markdown links resolve
+        run: node scripts/check-markdown-links.mjs
+
+  typecheck:
+    name: Types
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo run typecheck
+
+  test:
+    name: Unit, domain and RLS isolation tests
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: harbour_admin
+          POSTGRES_PASSWORD: harbour_admin_ci
+          POSTGRES_DB: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U harbour_admin"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: All package tests (database tests use disposable databases)
+        run: pnpm turbo run test --concurrency=2
+      - name: Domain rules keep 90% line coverage
+        run: pnpm --filter @harbour/domain test:coverage
+
+  api-contract:
+    name: API contract
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Committed OpenAPI document matches the code
+        run: |
+          pnpm --filter @harbour/api openapi
+          pnpm --filter @harbour/contracts generate:client
+          git diff --exit-code -- apps/api/openapi.json packages/contracts/src/client/api-types.ts
+      - name: No breaking changes against main without a major version
+        if: github.event_name == 'pull_request'
+        run: |
+          if git cat-file -e "${{ github.event.pull_request.base.sha }}:apps/api/openapi.json" 2>/dev/null; then
+            git show "${{ github.event.pull_request.base.sha }}:apps/api/openapi.json" > /tmp/base-openapi.json
+            docker run --rm -v /tmp:/base -v "$PWD/apps/api:/head" tufin/oasdiff:v1.11.7 \
+              breaking /base/base-openapi.json /head/openapi.json --fail-on ERR
+          else
+            echo "No OpenAPI document on the base branch yet."
+          fi
+
+  storybook:
+    name: Design system (Storybook build)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @harbour/ui build-storybook
+
+  build:
+    name: Build API and web
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo run build --filter=@harbour/api --filter=@harbour/web
+
+  e2e-web:
+    name: Web journeys and accessibility (Playwright and axe)
+    runs-on: ubuntu-24.04
+    needs: [build]
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: harbour_admin
+          POSTGRES_PASSWORD: harbour_admin_ci
+          POSTGRES_DB: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U harbour_admin"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Database with the demo tenant
+        run: |
+          pnpm --filter @harbour/db bootstrap
+          pnpm --filter @harbour/db migrate
+          pnpm --filter @harbour/db seed
+          HARBOUR_DEMO_MFA=off pnpm --filter @harbour/api seed:users
+      - run: pnpm --filter @harbour/web exec playwright install --with-deps chromium
+      - run: pnpm turbo run build --filter=@harbour/api --filter=@harbour/web
+      - run: pnpm --filter @harbour/web test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+          retention-days: 7
+
+  security:
+    name: Security (secrets, vulnerabilities, SBOM)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Secrets (gitleaks)
+        run: |
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.28.0 \
+            git /repo --config /repo/.gitleaks.toml --redact --verbose
+      - name: Vulnerabilities in dependencies and config (Trivy)
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Software bill of materials (Syft)
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: spdx-json
+          artifact-name: harbour-sbom.spdx.json
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: pnpm audit (production dependencies, high and critical)
+        run: pnpm audit --prod --audit-level high

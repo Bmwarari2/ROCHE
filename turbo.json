@@ -6,7 +6,8 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "storybook-static/**"]
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "storybook-static/**"],
+      "passThroughEnv": ["API_URL", "NEXT_PUBLIC_*", "EXPO_PUBLIC_*"]
     },
     "typecheck": {
       "dependsOn": ["^typecheck"],
@@ -14,15 +15,15 @@
     },
     "test": {
       "outputs": [],
-      "env": ["DATABASE_URL", "DATABASE_OWNER_URL", "HARBOUR_TEST_DB"]
+      "passThroughEnv": ["HARBOUR_TEST_ADMIN_URL", "DATABASE_*", "PLAYWRIGHT_*"]
     },
     "test:coverage": {
       "outputs": ["coverage/**"],
-      "env": ["DATABASE_URL", "DATABASE_OWNER_URL", "HARBOUR_TEST_DB"]
+      "passThroughEnv": ["HARBOUR_TEST_ADMIN_URL", "DATABASE_*", "PLAYWRIGHT_*"]
     },
     "test:db": {
       "cache": false,
-      "env": ["DATABASE_URL", "DATABASE_OWNER_URL", "HARBOUR_TEST_DB"]
+      "passThroughEnv": ["HARBOUR_TEST_ADMIN_URL", "DATABASE_*", "PLAYWRIGHT_*"]
     },
     "dev": {
       "cache": false,

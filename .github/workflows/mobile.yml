@@ -1,0 +1,96 @@
+# Mobile E2E (Maestro on an Android emulator) and store builds through EAS when credentials exist.
+# iOS simulator flows run on macOS runners; both are expensive, so they run on demand, nightly and
+# on release candidates rather than on every pull request.
+name: mobile
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 2 * * *"
+  push:
+    tags: ["v*-rc*"]
+
+permissions:
+  contents: read
+
+jobs:
+  maestro-android:
+    name: Maestro flows (Android emulator, demo mode)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - run: pnpm install --frozen-lockfile
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Build a debug APK (development client, demo mode)
+        working-directory: apps/mobile
+        env:
+          EXPO_PUBLIC_DEMO_MODE: "1"
+        run: |
+          npx expo prebuild --platform android --no-install
+          cd android && ./gradlew assembleDebug --no-daemon
+      - name: Install Maestro
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      - name: Run flows on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          arch: x86_64
+          script: |
+            adb install apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+            maestro test apps/mobile/.maestro --format junit --output maestro-report.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: maestro-report
+          path: maestro-report.xml
+
+  eas-build:
+    name: EAS build (store-ready binaries)
+    runs-on: ubuntu-24.04
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v5
+      - name: Skip without Expo credentials
+        id: creds
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "EXPO_TOKEN is not set; see docs/plans/human-actions.md (Expo account)."
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: pnpm/action-setup@v4
+        if: steps.creds.outputs.available == 'true'
+      - uses: actions/setup-node@v5
+        if: steps.creds.outputs.available == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: expo/expo-github-action@v8
+        if: steps.creds.outputs.available == 'true'
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - if: steps.creds.outputs.available == 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Build for both stores and submit to internal testing
+        if: steps.creds.outputs.available == 'true'
+        working-directory: apps/mobile
+        run: eas build --platform all --profile production --non-interactive --auto-submit

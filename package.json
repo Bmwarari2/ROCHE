@@ -24,7 +24,9 @@
     "check:docs-gate": "node scripts/check-docs-gate.mjs",
     "check:medicines-tests": "node scripts/check-medicines-tests.mjs",
     "changeset": "changeset",
-    "prepare": "husky"
+    "prepare": "husky",
+    "db:bootstrap": "pnpm --filter @harbour/db bootstrap",
+    "check:links": "node scripts/check-markdown-links.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",

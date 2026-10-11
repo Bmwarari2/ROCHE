@@ -1,0 +1,16 @@
+# Secret scanning (section 5.3). Extends the default rules; the allowlist covers documented local-only
+# defaults that are never used outside a developer's machine or CI.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Local and CI-only defaults"
+paths = [
+  '''pnpm-lock\.yaml''',
+  '''apps/api/openapi\.json''',
+]
+regexes = [
+  '''harbour_[a-z]+_local''',
+  '''harbour_admin_ci''',
+  '''local-development-secret-change-me-[0-9]+''',
+]
