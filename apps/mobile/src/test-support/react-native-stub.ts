@@ -9,6 +9,33 @@ export const Text = "Text";
 export const Image = "Image";
 export const Pressable = "Pressable";
 export const ScrollView = "ScrollView";
+export const KeyboardAvoidingView = "KeyboardAvoidingView";
+export const ActivityIndicator = "ActivityIndicator";
+export const TextInput = "TextInput";
+
+/** Links are recorded rather than opened. */
+export const Linking = {
+  opened: [] as string[],
+  async openURL(url: string) {
+    Linking.opened.push(url);
+  },
+};
+
+/** Alerts are recorded rather than shown, so a render test can read and answer them. */
+export const Alert = {
+  calls: [] as Array<{
+    title: string;
+    message?: string;
+    buttons?: Array<{ text?: string; style?: string; onPress?: () => void }>;
+  }>,
+  alert(
+    title: string,
+    message?: string,
+    buttons?: Array<{ text?: string; style?: string; onPress?: () => void }>,
+  ) {
+    Alert.calls.push({ title, message, buttons });
+  },
+};
 
 export const StyleSheet = {
   create: <T>(styles: T): T => styles,
