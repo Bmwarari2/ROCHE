@@ -16,7 +16,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
   decimals (12.71). Percentages are numbers (12.07 means 12.07%).
 - **unit**: `GBP_per_hour`, `GBP_per_day`, `GBP_per_week`, `GBP_per_year`, `GBP`, `percent`, `days`,
   `working_days`, `working_hours`, `hours`, `minutes`, `seconds`, `weeks`, `months`, `years`, `celsius`,
-  `mm`, `count`, `day_of_month`, `month_of_year`.
+  `mm`, `count`, `day_of_month`, `month_of_year`, `hour_of_day` (0 to 23, UK local time).
 - **valid_from / valid_to**: ISO dates, inclusive. `valid_to` is `-` while the figure is current; when a
   new figure is added, the previous row's `valid_to` is set to the day before. Where a figure has no
   commencement date that matters to Harbour (a product default, or a long-standing rule whose exact start
@@ -169,6 +169,8 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | repositioning.interval_hours.at_risk | 6 | hours | 2000-01-01 | - | all | master prompt 10.1 (4- or 6-hourly defaults; NICE CG179); tenant default | master-prompt |
 | repositioning.interval_hours.high_risk | 4 | hours | 2000-01-01 | - | all | master prompt 10.1 (4- or 6-hourly defaults; NICE CG179); tenant default | master-prompt |
 | bowel.no_movement_prompt_days | 3 | days | 2026-10-01 | - | all | tenant default | to-verify |
+| handover.day_shift_start_hour | 8 | hour_of_day | 2026-10-01 | - | all | Harbour default (12-hour day and night shifts); tenant setting for the shift handover (care.md rule 8) | to-verify |
+| handover.night_shift_start_hour | 20 | hour_of_day | 2026-10-01 | - | all | Harbour default (12-hour day and night shifts); tenant setting for the shift handover (care.md rule 8) | to-verify |
 | ld.annual_health_check.min_age_years | 14 | years | 2000-01-01 | - | england | master prompt 10.1 (annual health check from 14) | master-prompt |
 | medicines.paracetamol.min_interval_hours | 4 | hours | 2000-01-01 | - | all | master prompt 10.2 (time-critical rules) | master-prompt |
 | medicines.bisphosphonate.before_food_minutes | 30 | minutes | 2000-01-01 | - | all | master prompt 10.2 (time-critical rules) | master-prompt |
@@ -231,6 +233,9 @@ literals, and tests assert against the table, not a literal (section 7, section 
   the bowel chart prompts staff (care.md section 4 rule 6 calls it the 3-day prompt). It is a tenant
   default, not a clinical threshold from a published source; the tenant's clinical lead confirms it
   or sets a different value.
+- `handover.day_shift_start_hour` (8) and `handover.night_shift_start_hour` (20): when the day and
+  night shifts start, which sets the window each handover compiles from. A common care home pattern,
+  not a published figure; each tenant sets its own until rotas (Phase 2) define shifts per location.
 
 ## Other notes
 
