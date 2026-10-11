@@ -11,6 +11,7 @@ import { type RateNation, type RateRow, resolveRate } from "../platform/rates";
 export const OPERATIONS_RATE_KEYS = {
   downtimePackValidHours: "downtime_pack.valid_hours",
   backEntryDueHours: "downtime.back_entry_due_hours",
+  duplicateMatchMinutes: "downtime.duplicate_match_minutes",
   lateEntryHours: "care_note.late_entry_hours",
   clockDriftMinutes: "sync.clock_drift_flag_minutes",
 } as const;
