@@ -1,0 +1,15 @@
+# Copy to backend.hcl (git-ignored) and run:
+#   terraform init -backend-config=backend.hcl
+# The bucket and KMS key are created once per account by the bootstrap step in infra/README.md.
+
+bucket     = "harbour-tfstate-<prod-account-id>"
+key        = "prod/terraform.tfstate"
+region     = "eu-west-2"
+encrypt    = true
+kms_key_id = "arn:aws:kms:eu-west-2:<prod-account-id>:key/<state-key-id>"
+
+# S3-native state locking (Terraform 1.10+, OpenTofu 1.10+). Preferred.
+use_lockfile = true
+
+# Legacy alternative: a DynamoDB lock table (then also set state_lock_table_name).
+# dynamodb_table = "harbour-tfstate-locks"

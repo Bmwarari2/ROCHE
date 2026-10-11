@@ -1,0 +1,15 @@
+# Local, account-specific Terraform inputs. Only the *.example files are committed.
+envs/*/backend.hcl
+envs/*/terraform.tfvars
+envs/*/*.auto.tfvars
+
+# Working directories, plans and local state
+.terraform/
+*.tfplan
+*.tfstate
+*.tfstate.*
+.terraform.tfstate.lock.info
+crash.log
+
+# Module directories are initialised only to run `terraform test`; their lock files are not kept.
+modules/**/.terraform.lock.hcl
