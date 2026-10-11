@@ -82,6 +82,12 @@ export interface Tombstone {
   readonly idsMissing?: IdsMissing;
   /** On "deleted": what was left on the device though the entries can no longer be read. */
   readonly leftover?: readonly Leftover[];
+  /**
+   * The device the entries were held on (its opaque id when the deletion began): a stage sent
+   * later, from the device's next database, still closes that device's task (clinical review
+   * round 6, M1).
+   */
+  readonly deviceId?: string;
 }
 
 export interface TombstoneStore {
@@ -150,6 +156,7 @@ export function cleanTombstone(value: unknown): Tombstone | null {
   const leftover = Array.isArray(value.leftover)
     ? DISCARD_LEFTOVERS.filter((l) => (value.leftover as unknown[]).includes(l))
     : [];
+  const deviceId = opaqueOrNull(value.deviceId);
   return {
     id: value.id.toLowerCase(),
     kind,
@@ -165,6 +172,7 @@ export function cleanTombstone(value: unknown): Tombstone | null {
     at: value.at,
     ...(idsMissing ? { idsMissing } : {}),
     ...(leftover.length > 0 ? { leftover } : {}),
+    ...(deviceId ? { deviceId: deviceId.toLowerCase() } : {}),
   };
 }
 

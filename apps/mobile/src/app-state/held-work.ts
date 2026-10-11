@@ -38,7 +38,7 @@ import type { Me } from "../auth/auth-client";
 import type { FieldError } from "../care/entries";
 import { type MessageKey, t } from "../i18n/t";
 import { type DatabaseKey, databaseFilename } from "../security/db-key";
-import { buildDeviceReport } from "../sync/device-report";
+import { buildDeviceReport, reportLocationIds } from "../sync/device-report";
 import { HELD_FAIL_SAFE_DAYS, heldDeadline } from "../sync/held-limit";
 import {
   type DiscardOutcome,
@@ -74,6 +74,22 @@ export interface HeldWork {
    * H1): they are never uploaded. When their owner signs in they move to "needs attention".
    */
   readonly uploadBlocked?: boolean;
+  /**
+   * The locations of the owner's sync scope (opaque ids), which the hold's report names so the
+   * manager's task goes where the owner works (clinical review round 6, M2).
+   */
+  readonly locationIds?: readonly string[];
+}
+
+/** The opaque ids of the locations in a person's sync scope, as a report carries them. */
+export function locationIdsOf(me: Pick<Me, "locations"> | null): string[] {
+  return reportLocationIds(me?.locations.map((l) => l.id) ?? []);
+}
+
+/** A list of location ids in a marker or owner record, or nothing when there are none. */
+function storedLocations(value: unknown): { readonly locationIds?: readonly string[] } {
+  const ids = reportLocationIds(value);
+  return ids.length > 0 ? { locationIds: ids } : {};
 }
 
 /** Held, with nobody able to resume: a damaged marker or a keystore that could not be read. */
@@ -120,6 +136,7 @@ export function parseHeldWork(raw: string | null | undefined): HeldWork | null {
       expiresAt: text(value.expiresAt),
       lastServerTime: text(value.lastServerTime),
       ...(value.uploadBlocked === true ? { uploadBlocked: true } : {}),
+      ...storedLocations(value.locationIds),
     };
   } catch {
     // Never let a damaged marker release entries to whoever signs in next.
@@ -277,15 +294,26 @@ export interface DeviceOwner {
   readonly tenantUserId: string | null;
   readonly userId: string;
   readonly name: string | null;
+  /** The locations of the owner's sync scope when last opened (clinical review round 6, M2). */
+  readonly locationIds?: readonly string[];
 }
 
 export function ownerOf(me: Me): DeviceOwner {
+  const locations = locationIdsOf(me);
   return {
     tenantId: me.tenant.id,
     tenantUserId: me.tenantUserId,
     userId: me.user.id,
     name: me.user.name || null,
+    ...(locations.length > 0 ? { locationIds: locations } : {}),
   };
+}
+
+/** True when the stored owner record names the same locations as the person's scope now. */
+function sameLocations(stored: DeviceOwner, me: Me): boolean {
+  const now = locationIdsOf(me);
+  const before = stored.locationIds ?? [];
+  return now.length === before.length && now.every((id, i) => id === before[i]);
 }
 
 type MetaDb = {
@@ -317,6 +345,7 @@ export async function readDeviceOwner(db: MetaDb): Promise<DeviceOwner | null | 
       tenantUserId: text(value.tenantUserId),
       userId: value.userId,
       name: text(value.name),
+      ...storedLocations(value.locationIds),
     };
   } catch {
     return "unreadable";
@@ -691,10 +720,16 @@ export async function admitToDatabase(deps: OpenCheckDeps): Promise<OpenOutcome>
         expiresAt: heldDeadline(deps.now, days).toISOString(),
         lastServerTime: null,
         ...(deps.uploadBlocked ? { uploadBlocked: true } : {}),
+        ...storedLocations(owner?.locationIds),
       },
     };
   }
   if (check === "claim") await writeDeviceOwner(deps.db, ownerOf(deps.me));
+  // The owner's locations as they are now, for a hold's report later (clinical review round 6,
+  // M2). Best effort: the owner check above does not depend on them.
+  if (check === "owner" && stored && stored !== "unreadable" && !sameLocations(stored, deps.me)) {
+    await writeDeviceOwner(deps.db, ownerOf(deps.me)).catch(() => undefined);
+  }
   if (deps.uploadBlocked) {
     // Anything still in the upload queue is held first, so that nothing of it is sent either.
     const held = await holdUnsentWork(deps.db, deps.now).then(
@@ -783,6 +818,7 @@ export async function handleSessionEnded(deps: SessionEndedDeps): Promise<"wiped
     heldAt: deps.now.toISOString(),
     expiresAt: (deps.expiresAt ?? heldDeadline(deps.now, HELD_FAIL_SAFE_DAYS)).toISOString(),
     lastServerTime: deps.lastServerTime ? deps.lastServerTime.toISOString() : null,
+    ...storedLocations(locationIdsOf(deps.owner)),
   });
   return "held";
 }

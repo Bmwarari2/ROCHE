@@ -94,6 +94,7 @@ import {
   reportSent,
   sendDeviceReport,
   shouldSendReport,
+  withOwner,
 } from "../sync/device-report";
 import {
   type ApiOptions,
@@ -130,6 +131,7 @@ import {
   handleSessionEnded,
   heldEntriesInTenant,
   holdUnsentWork,
+  locationIdsOf,
   RestoreFailedError,
   readHeldIds,
   readUnsentIds,
@@ -145,6 +147,7 @@ import {
   type DiscardKind,
   type DiscardReasonCode,
   type IdsMissing,
+  isOpaqueId,
   purgeLegacyTombstones,
   type Tombstone,
 } from "./tombstones";
@@ -232,15 +235,20 @@ function requireReason(choice: DiscardReason, withWords = false): DiscardReasonC
   return choice.reasonCode;
 }
 
-/** A new deletion at its "requested" stage, with every id (the keystore keeps a sample). */
-function newTombstone(
+/**
+ * A new deletion at its "requested" stage, with every id (the keystore keeps a sample), naming the
+ * device that holds the entries now: a stage sent once the device has a new database still closes
+ * that device's task (clinical review round 6, M1).
+ */
+async function newTombstone(
   kind: DiscardKind,
   reasonCode: DiscardReasonCode,
   fields: Pick<
     Tombstone,
     "tenantId" | "ownerTenantUserId" | "deletedByTenantUserId" | "entryIds" | "personIds" | "count"
   > & { readonly idsMissing?: IdsMissing },
-): Tombstone {
+): Promise<Tombstone> {
+  const deviceId = await readPlain(DEVICE_ID_ITEM);
   return requested({
     id: Crypto.randomUUID(),
     kind,
@@ -249,6 +257,7 @@ function newTombstone(
     ...fields,
     // Never fewer entries than ids, so the record is never refused for that.
     count: fields.count === null ? null : Math.max(fields.count, fields.entryIds.length),
+    ...(isOpaqueId(deviceId) ? { deviceId: deviceId.toLowerCase() } : {}),
   });
 }
 
@@ -327,7 +336,14 @@ async function reportHold(
   if (!held.tenantId) return false;
   const built = report ?? fallbackHoldReport(held.entries, new Date());
   const options = token ? await apiFor(token, held.tenantId) : null;
-  const pending = { tenantId: held.tenantId, report: holdReport(built, held.heldAt) };
+  // Whose entries and where, so the owner can close the task and it goes where they work, and the
+  // device that holds them (clinical review round 6, M1 and M2).
+  const deviceId = await readPlain(DEVICE_ID_ITEM);
+  const pending = {
+    tenantId: held.tenantId,
+    report: withOwner(holdReport(built, held.heldAt), held.tenantUserId, held.locationIds ?? []),
+    ...(isOpaqueId(deviceId) ? { deviceId: deviceId.toLowerCase() } : {}),
+  };
   const result = await reportOrKeep(tombstoneStore, pending, options).catch(() => "kept" as const);
   return result === "sent";
 }
@@ -421,7 +437,11 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       await forgetDiscardNotes(current as unknown as HoldDb, tombstoneStore).catch(() => undefined);
       await flushPendingReport(tombstoneStore, options).catch(() => undefined);
       const now = new Date();
-      const report = await buildDeviceReport(current as unknown as ReportDb, now).catch(() => null);
+      const me = meRef.current;
+      const report = await buildDeviceReport(current as unknown as ReportDb, now).then(
+        (built) => withOwner(built, me?.tenantUserId ?? null, locationIdsOf(me)),
+        () => null,
+      );
       if (report && shouldSendReport(lastReportRef.current, report, now)) {
         if (await sendDeviceReport(options, report))
           lastReportRef.current = reportSent(report, now);
@@ -866,7 +886,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       const openedHere = handle !== null && handle !== dbRef.current;
       const counted =
         count ?? (handle ? await countPendingWork(handle).then(totalPending, () => null) : null);
-      const tombstone = newTombstone("signed_out_with_unsent", reasonCode, {
+      const tombstone = await newTombstone("signed_out_with_unsent", reasonCode, {
         tenantId: me.tenant.id,
         ownerTenantUserId: me.tenantUserId,
         deletedByTenantUserId: me.tenantUserId,
@@ -889,6 +909,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
         expiresAt: heldDeadline(now, heldMaxDaysRef.current ?? HELD_FAIL_SAFE_DAYS).toISOString(),
         lastServerTime: null,
         uploadBlocked: true,
+        locationIds: locationIdsOf(me),
       };
       try {
         await discardHeldWork({
@@ -964,7 +985,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
         const options = await apiFor(signerToken, signer.tenant.id);
         // The hold's own report goes first, so the server sees what was held and for how long.
         await flushPendingReport(tombstoneStore, options).catch(() => undefined);
-        const tombstone = newTombstone("held_deleted", reasonCode, {
+        const tombstone = await newTombstone("held_deleted", reasonCode, {
           tenantId: held.tenantId || signer.tenant.id,
           ownerTenantUserId: held.tenantUserId,
           deletedByTenantUserId: signer.tenantUserId,
@@ -1015,7 +1036,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
         "SELECT person_id FROM upload_issue WHERE id = ?",
         [id],
       );
-      const tombstone = newTombstone("refused_removed", reasonCode, {
+      const tombstone = await newTombstone("refused_removed", reasonCode, {
         tenantId: me.tenant.id,
         ownerTenantUserId: me.tenantUserId,
         deletedByTenantUserId: me.tenantUserId,

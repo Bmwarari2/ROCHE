@@ -79,6 +79,14 @@ describe("hazard HZ-040 tombstones hold no personal data (security review M1)", 
     expect(odd).not.toHaveProperty("leftover");
   });
 
+  it("keeps the opaque id of the device the entries were held on, and nothing else in its place (round 6, M1)", () => {
+    const heldOn = "0199d000-0000-4000-8000-00000000DE01";
+    expect(cleanTombstone({ ...stone(1), deviceId: heldOn })).toMatchObject({
+      deviceId: heldOn.toLowerCase(),
+    });
+    expect(cleanTombstone({ ...stone(1), deviceId: "Cat's phone" })).not.toHaveProperty("deviceId");
+  });
+
   it("keeps only codes, opaque ids, a count and a time", async () => {
     const { store, items } = memoryStore();
     const withExtras = {

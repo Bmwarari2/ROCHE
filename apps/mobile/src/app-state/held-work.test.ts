@@ -60,6 +60,7 @@ import {
   isHeldWorkOwner,
   KeyNotReadError,
   loadHeldMarker,
+  locationIdsOf,
   type OpenCheckDeps,
   OWNER_META_ID,
   ownerOf,
@@ -1446,3 +1447,64 @@ function memoryTombstones(options: { failWrites?: boolean } = {}) {
     dump: () => [...items.values()].join("\n"),
   };
 }
+
+describe("hazard HZ-040 a hold names where its owner works, so the manager's task goes there (clinical review round 6, M2)", () => {
+  const HOME = "0194d000-0000-7000-8000-000000000101";
+  const LODGE = "0194d000-0000-7000-8000-000000000102";
+  const samAtHome: Me = { ...sam, locations: [{ id: HOME, name: "Example House" }] };
+
+  it("takes the opaque ids of the owner's sync scope, and nothing that is not an id", () => {
+    expect(locationIdsOf(samAtHome)).toEqual([HOME]);
+    expect(locationIdsOf(sam)).toEqual([]);
+    expect(locationIdsOf(null)).toEqual([]);
+    const marker: HeldWork = { ...withDeadline(UNKNOWN_OWNER, NOW), locationIds: [HOME, LODGE] };
+    expect(parseHeldWork(serialiseHeldWork(marker))?.locationIds).toEqual([HOME, LODGE]);
+    expect(
+      parseHeldWork(JSON.stringify({ ...marker, locationIds: ["Example House"] })),
+    ).not.toHaveProperty("locationIds");
+  });
+
+  it("holds the owner's locations when the session ends", async () => {
+    let held: HeldWork | null = null;
+    await handleSessionEnded({
+      countPending: async () => ({ queued: 1, refused: 0, held: 0 }),
+      owner: samAtHome,
+      now: NOW,
+      expiresAt: null,
+      lastServerTime: null,
+      wipe: async () => undefined,
+      hold: async (next) => {
+        held = next;
+      },
+    });
+    expect(held).toMatchObject({ tenantUserId: sam.tenantUserId, locationIds: [HOME] });
+  });
+
+  it("holds the database owner's locations when someone else's sign-in is refused, and keeps them current for the owner", async () => {
+    const dev = await device({ queued: 1 });
+    await writeDeviceOwner(dev.db, ownerOf(samAtHome));
+    const deps = (me: Me): OpenCheckDeps => ({
+      db: dev.holdDb,
+      me,
+      created: false,
+      afterReset: false,
+      now: NOW,
+      cachedHeldMaxDays: async () => null,
+      reset: async () => undefined,
+      closeKeeping: async () => undefined,
+    });
+    const refused = await admitToDatabase(deps(kit));
+    if (refused.kind !== "refused") throw new Error("expected a refusal");
+    expect(refused.held).toMatchObject({ tenantUserId: sam.tenantUserId, locationIds: [HOME] });
+    // The owner now works at the Lodge too: the record follows.
+    const moved: Me = {
+      ...sam,
+      locations: [
+        { id: HOME, name: "Example House" },
+        { id: LODGE, name: "Example Lodge" },
+      ],
+    };
+    await admitToDatabase(deps(moved));
+    expect(await readDeviceOwner(dev.db)).toMatchObject({ locationIds: [HOME, LODGE] });
+  });
+});

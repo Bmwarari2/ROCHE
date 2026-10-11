@@ -131,6 +131,24 @@ describe("hazard HZ-040 deletions go to the API as audit events, one per stage",
     expect(SyncDiscard.safeParse({ ...deletedBody, reason: "words" }).success).toBe(false);
   });
 
+  it("names the device the entries were held on, at every stage, so a stage sent from the device's next database closes that device's task (round 6, M1)", async () => {
+    const heldOn = "0199d000-0000-4000-8000-00000000de02";
+    const tombstone = others(1, { deviceId: heldOn });
+    for (const stage of ["requested", "deleted", "failed"] as const) {
+      const body = discardBody(tombstone, stage);
+      expect(body).toMatchObject({ deviceId: heldOn });
+      expect(SyncDiscard.safeParse(body).success).toBe(true);
+    }
+    expect(discardBody(others(2), "deleted")).not.toHaveProperty("deviceId");
+    // Sent with the session's device header, which is now the next database's id.
+    const { fetch, calls, bodies } = server([200]);
+    await sendDiscard(options(fetch), tombstone, "deleted");
+    expect(new Headers(calls[0]?.init?.headers as Record<string, string>).get(DEVICE_HEADER)).toBe(
+      "0199d000-0000-4000-8000-00000000de01",
+    );
+    expect(bodies()[0]).toMatchObject({ deviceId: heldOn });
+  });
+
   it.each([
     [200, "acknowledged"],
     [400, "rejected"],

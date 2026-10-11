@@ -1,4 +1,4 @@
-import { SyncDeviceReport } from "@harbour/contracts";
+import { SYNC_DEVICE_REPORT_MAX_LOCATIONS, SyncDeviceReport } from "@harbour/contracts";
 import { describe, expect, it } from "vitest";
 import type { FetchLike } from "../auth/http";
 import { DEMO_TENANT_ID, demoPeople } from "../demo/demo-data";
@@ -8,6 +8,7 @@ import {
   fallbackHoldReport,
   flushPendingReport,
   holdReport,
+  MAX_REPORT_LOCATIONS,
   oldestAgeSeconds,
   PENDING_REPORT_ITEM,
   parsePendingReport,
@@ -17,6 +18,7 @@ import {
   reportSent,
   sendDeviceReport,
   shouldSendReport,
+  withOwner,
 } from "./device-report";
 import type { ApiOptions } from "./discards";
 
@@ -219,5 +221,63 @@ describe("hazard HZ-006 the device tells the server what it has not sent (queue 
     ],
   ])("ignores a waiting report that is %s", (_case, raw) => {
     expect(parsePendingReport(raw)).toBeNull();
+  });
+});
+
+describe("hazard HZ-040 a hold's report names its owner, their locations and the device that held it (clinical review round 6, M1 and M2)", () => {
+  const OWNER = "0194d000-0000-7000-8000-000000000304";
+  const HOME = "0194d000-0000-7000-8000-000000000101";
+  const LODGE = "0194d000-0000-7000-8000-000000000102";
+  const HELD_ON = "0199d000-0000-4000-8000-00000000de01";
+
+  it("adds the owner and the locations of their sync scope, opaque ids only, as the API takes them", () => {
+    expect(MAX_REPORT_LOCATIONS).toBe(SYNC_DEVICE_REPORT_MAX_LOCATIONS);
+    const named = withOwner(report(), OWNER, [HOME, "Harbour Lodge", HOME.toUpperCase(), LODGE]);
+    expect(named).toEqual({ ...report(), ownerTenantUserId: OWNER, locationIds: [HOME, LODGE] });
+    expect(SyncDeviceReport.safeParse(named).success).toBe(true);
+    // Nothing known: nothing added.
+    expect(withOwner(report(), null, [])).toEqual(report());
+    const many = Array.from(
+      { length: 60 },
+      (_, i) => `0194d000-0000-7000-8000-${i.toString(16).padStart(12, "0")}`,
+    );
+    expect(withOwner(report(), OWNER, many).locationIds).toHaveLength(MAX_REPORT_LOCATIONS);
+  });
+
+  it("keeps them while the report waits, and sends it under the id of the device that held the entries", async () => {
+    const { store, items } = memoryStore();
+    const pending = {
+      tenantId: DEMO_TENANT_ID,
+      report: withOwner(
+        report({ unsent: 0, held: 2, heldSince: "2026-10-11T06:30:00.000Z" }),
+        OWNER,
+        [HOME],
+      ),
+      deviceId: HELD_ON,
+    };
+    expect(await reportOrKeep(store, pending, null)).toBe("kept");
+    expect(parsePendingReport(items.get(PENDING_REPORT_ITEM) ?? null)).toEqual(pending);
+    // The next session on the device has a new database, so a new device id; the report still
+    // names the device that held the entries.
+    const sent: Array<{ device: string | null; body: unknown }> = [];
+    const fetch: FetchLike = async (_url, init) => {
+      const headers = new Headers(init?.headers as Record<string, string>);
+      sent.push({ device: headers.get("x-harbour-device"), body: JSON.parse(String(init?.body)) });
+      return new Response(null, { status: 204 });
+    };
+    expect(await flushPendingReport(store, options(fetch))).toBe("sent");
+    expect(sent).toEqual([{ device: HELD_ON, body: pending.report }]);
+  });
+
+  it("drops what is not an opaque id from a waiting report", () => {
+    const raw = JSON.stringify({
+      tenantId: DEMO_TENANT_ID,
+      deviceId: "client-1",
+      report: { ...report(), ownerTenantUserId: "Cat Carer", locationIds: ["Harbour Lodge", HOME] },
+    });
+    expect(parsePendingReport(raw)).toEqual({
+      tenantId: DEMO_TENANT_ID,
+      report: { ...report(), heldSince: null, locationIds: [HOME] },
+    });
   });
 });

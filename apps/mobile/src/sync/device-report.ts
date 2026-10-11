@@ -12,11 +12,46 @@
  * starts because the session ended; the device tries with that session at once (it still works
  * when only the access Care mode needs was withdrawn) and again whenever the app comes back to the
  * foreground or every few minutes while it runs. Until then the report waits in the keystore
- * (counts and times only) and goes with the next session on the device in the same tenant,
- * including one that is refused because the entries are someone else's.
+ * (counts, times and opaque ids only) and goes with the next session on the device in the same
+ * tenant, including one that is refused because the entries are someone else's, under the id of the
+ * device that held them. Every report names whose entries they are (opaque ids), so the owner's own
+ * sign-in can close the manager's task even when someone else's sign-in raised it, and the
+ * locations of the owner's sync scope, where the task goes (clinical review round 6, M1 and M2).
  */
 import type { SyncDeviceReport } from "@harbour/contracts";
 import { type ApiOptions, apiHeaders } from "./discards";
+
+/** Mirrors `SYNC_DEVICE_REPORT_MAX_LOCATIONS` in `@harbour/contracts`; a test keeps them equal. */
+export const MAX_REPORT_LOCATIONS = 50;
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isUuid = (value: unknown): value is string => typeof value === "string" && UUID.test(value);
+
+/** Opaque location ids as a report carries them: UUIDs only, each once, at most 50. */
+export function reportLocationIds(ids: unknown): string[] {
+  if (!Array.isArray(ids)) return [];
+  return [...new Set(ids.filter(isUuid).map((id) => id.toLowerCase()))].slice(
+    0,
+    MAX_REPORT_LOCATIONS,
+  );
+}
+
+/**
+ * The report with whose entries they are and where (clinical review round 6, M1 and M2): the hold's
+ * owner, and the locations of their sync scope. Unknown values are left out.
+ */
+export function withOwner(
+  report: SyncDeviceReport,
+  ownerTenantUserId: string | null,
+  locationIds: readonly string[],
+): SyncDeviceReport {
+  const locations = reportLocationIds(locationIds);
+  return {
+    ...report,
+    ...(isUuid(ownerTenantUserId) ? { ownerTenantUserId: ownerTenantUserId.toLowerCase() } : {}),
+    ...(locations.length > 0 ? { locationIds: locations } : {}),
+  };
+}
 
 export interface ReportDb {
   getUploadQueueStats(): Promise<{ count: number }>;
@@ -159,6 +194,11 @@ export const PENDING_REPORT_ITEM = "harbour.device-report.v1";
 export interface PendingReport {
   readonly tenantId: string;
   readonly report: SyncDeviceReport;
+  /**
+   * The device that held the entries (its id when the hold began), so a report sent once the
+   * device has a new database still names the right device (clinical review round 6, M1).
+   */
+  readonly deviceId?: string;
 }
 
 export interface PlainStore {
@@ -167,14 +207,17 @@ export interface PlainStore {
   remove(key: string): Promise<void>;
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const whole = (value: unknown): value is number =>
   typeof value === "number" && Number.isInteger(value) && value >= 0;
 
 export function parsePendingReport(raw: string | null): PendingReport | null {
   if (!raw) return null;
   try {
-    const value = JSON.parse(raw) as { tenantId?: unknown; report?: Record<string, unknown> };
+    const value = JSON.parse(raw) as {
+      tenantId?: unknown;
+      deviceId?: unknown;
+      report?: Record<string, unknown>;
+    };
     const r = value.report ?? {};
     if (typeof value.tenantId !== "string" || !UUID.test(value.tenantId)) return null;
     if (!whole(r.unsent) || !whole(r.refused) || !whole(r.held)) return null;
@@ -182,22 +225,32 @@ export function parsePendingReport(raw: string | null): PendingReport | null {
     if (r.oldestAgeSeconds !== null && !whole(r.oldestAgeSeconds)) return null;
     if (typeof r.reportedAt !== "string" || instant(r.reportedAt) === null) return null;
     const heldSince = instant(r.heldSince);
+    const report: SyncDeviceReport = {
+      unsent: r.unsent,
+      refused: r.refused,
+      held: r.held,
+      blocked: whole(r.blocked) ? r.blocked : 0,
+      oldestAgeSeconds: r.oldestAgeSeconds as number | null,
+      heldSince: heldSince === null ? null : new Date(heldSince).toISOString(),
+      reportedAt: r.reportedAt,
+    };
     return {
       tenantId: value.tenantId,
-      report: {
-        unsent: r.unsent,
-        refused: r.refused,
-        held: r.held,
-        blocked: whole(r.blocked) ? r.blocked : 0,
-        oldestAgeSeconds: r.oldestAgeSeconds as number | null,
-        heldSince: heldSince === null ? null : new Date(heldSince).toISOString(),
-        reportedAt: r.reportedAt,
-      },
+      report: withOwner(
+        report,
+        isUuid(r.ownerTenantUserId) ? r.ownerTenantUserId : null,
+        reportLocationIds(r.locationIds),
+      ),
+      ...(isUuid(value.deviceId) ? { deviceId: value.deviceId.toLowerCase() } : {}),
     };
   } catch {
     return null;
   }
 }
+
+/** The session's options, under the id of the device that held the entries when it is known. */
+const asHoldingDevice = (options: ApiOptions, pending: PendingReport): ApiOptions =>
+  pending.deviceId ? { ...options, deviceId: pending.deviceId } : options;
 
 /** Sends the report now when it can, otherwise keeps it (counts only) for the next session. */
 export async function reportOrKeep(
@@ -206,7 +259,7 @@ export async function reportOrKeep(
   options: ApiOptions | null,
 ): Promise<"sent" | "kept"> {
   if (options && options.tenantId === pending.tenantId) {
-    if (await sendDeviceReport(options, pending.report)) {
+    if (await sendDeviceReport(asHoldingDevice(options, pending), pending.report)) {
       await store.remove(PENDING_REPORT_ITEM).catch(() => undefined);
       return "sent";
     }
@@ -223,7 +276,7 @@ export async function flushPendingReport(
   const pending = parsePendingReport(await store.read(PENDING_REPORT_ITEM).catch(() => null));
   if (!pending) return "none";
   if (pending.tenantId !== options.tenantId) return "kept";
-  if (!(await sendDeviceReport(options, pending.report))) return "kept";
+  if (!(await sendDeviceReport(asHoldingDevice(options, pending), pending.report))) return "kept";
   await store.remove(PENDING_REPORT_ITEM).catch(() => undefined);
   return "sent";
 }

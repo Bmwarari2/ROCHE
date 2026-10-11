@@ -82,6 +82,8 @@ export function discardBody(tombstone: Tombstone, stage: DiscardStage) {
     ...(stage === "deleted" && tombstone.leftover && tombstone.leftover.length > 0
       ? { leftover: [...tombstone.leftover] }
       : {}),
+    // The device the entries were held on, which may no longer be this one (round 6, M1).
+    ...(tombstone.deviceId ? { deviceId: tombstone.deviceId } : {}),
   };
 }
 
