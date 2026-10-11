@@ -917,7 +917,7 @@
   .hb-tile__description {
     margin: 0;
     color: var(--text-secondary);
-    font-size: var(--type-callout-size);
+    font-size: var(--type-body-dense-size);
   }
 
   .hb-tile__link {
@@ -1483,7 +1483,7 @@
     gap: 2px 8px;
     margin: 0;
     color: var(--text-secondary);
-    font-size: var(--type-callout-size);
+    font-size: var(--type-body-dense-size);
     font-variant-numeric: tabular-nums;
   }
 
@@ -1530,7 +1530,7 @@
     align-items: center;
     gap: 6px;
     margin: 0;
-    font-size: var(--type-callout-size);
+    font-size: var(--type-body-dense-size);
     font-weight: 600;
   }
 
@@ -1538,7 +1538,7 @@
   .hb-timeline__correction-reason {
     margin: 0;
     color: var(--text-secondary);
-    font-size: var(--type-callout-size);
+    font-size: var(--type-body-dense-size);
     font-variant-numeric: tabular-nums;
   }
 
@@ -1552,10 +1552,10 @@
     padding: 2px 8px;
     border-radius: var(--corner-chip);
     color: var(--status-on-fill);
-    font-size: var(--type-callout-size);
+    font-size: var(--type-body-dense-size);
     font-weight: 600;
     line-height: 20px;
-    letter-spacing: var(--type-callout-tracking);
+    letter-spacing: var(--type-body-dense-tracking);
     white-space: nowrap;
     vertical-align: middle;
   }
@@ -1823,7 +1823,7 @@
   .hb-banner__detail {
     margin: 0;
     color: var(--text-secondary);
-    font-size: var(--type-callout-size);
+    font-size: var(--type-body-dense-size);
   }
 
   .hb-banner__actions {
@@ -1851,7 +1851,7 @@
   .hb-field__hint {
     margin: 0;
     color: var(--text-secondary);
-    font-size: var(--type-callout-size);
+    font-size: var(--type-body-dense-size);
   }
 
   .hb-field__error {
@@ -1859,7 +1859,7 @@
     padding-inline-start: 8px;
     border-inline-start: 3px solid var(--danger);
     color: var(--text);
-    font-size: var(--type-callout-size);
+    font-size: var(--type-body-dense-size);
     font-weight: 600;
   }
 
@@ -1935,7 +1935,10 @@
     border-bottom: var(--hairline) solid var(--border);
   }
 
+  /* When tabs are out of view, a soft shadow shows at that edge (the "scroll shadow" pattern: the
+     page-coloured covers move with the tabs and hide each shadow once its end is reached). */
   .hb-tabnav__list {
+    --hb-tabnav-shadow: color-mix(in srgb, var(--text) 28%, transparent);
     display: flex;
     gap: 4px;
     margin: 0;
@@ -1943,6 +1946,13 @@
     overflow-x: auto;
     list-style: none;
     scrollbar-width: thin;
+    background:
+      linear-gradient(to right, var(--bg) 30%, transparent) left center / 40px 100% no-repeat local,
+      linear-gradient(to left, var(--bg) 30%, transparent) right center / 40px 100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%, var(--hb-tabnav-shadow), transparent) left center /
+      16px 100% no-repeat scroll,
+      radial-gradient(farthest-side at 100% 50%, var(--hb-tabnav-shadow), transparent) right center
+      / 16px 100% no-repeat scroll;
   }
 
   .hb-tabnav__item {
@@ -1972,7 +1982,7 @@
   }
 
   /* The current tab: a bar, bold text and darker text together, never colour alone. */
-  .hb-tabnav__link[aria-current="page"] {
+  .hb-tabnav__link:is([aria-current="page"], [aria-current="true"]) {
     border-bottom-color: var(--accent);
     color: var(--text);
     font-weight: 600;
@@ -2084,7 +2094,7 @@
 
   .hb-choice__description {
     color: var(--text-secondary);
-    font-size: var(--type-callout-size);
+    font-size: var(--type-body-dense-size);
   }
 
   .hb-choice--invalid .hb-choice__option {
@@ -2095,10 +2105,18 @@
 
   .hb-check {
     display: flex;
-    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  /* The box and its words are one label: the whole row, at least 44 px tall, ticks the box. */
+  .hb-check__target {
+    display: flex;
+    align-items: center;
     gap: 12px;
     min-height: var(--touch-target);
-    padding: 10px 0;
+    padding: 6px 0;
+    cursor: pointer;
   }
 
   .hb-check__input {
@@ -2107,24 +2125,26 @@
     height: 22px;
     margin: 0;
     accent-color: var(--accent);
-  }
-
-  .hb-check__text {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    min-width: 0;
-  }
-
-  .hb-check__label {
-    color: var(--text);
-    font-size: var(--type-body-dense-size);
     cursor: pointer;
   }
 
+  .hb-check__label {
+    min-width: 0;
+    color: var(--text);
+    font-size: var(--type-body-dense-size);
+  }
+
+  /* The hint and error line up with the words, past the box. */
+  .hb-check__detail {
+    padding-inline-start: 34px;
+  }
+
+  /* An error draws a ring in the danger colour as a shadow, so the focus ring (an outline) still
+     shows when the box has focus. The error message says what to do; the ring is not the only cue. */
   .hb-check--invalid .hb-check__input {
-    outline: 2px solid var(--danger);
-    outline-offset: 2px;
+    box-shadow:
+      0 0 0 2px var(--bg),
+      0 0 0 4px var(--danger);
   }
 
   /* Select field: the text field with the browser's own arrow */
@@ -2179,6 +2199,6 @@
 
   .hb-meter__description {
     color: var(--text-secondary);
-    font-size: var(--type-callout-size);
+    font-size: var(--type-body-dense-size);
   }
 }

@@ -21,6 +21,11 @@ export interface RadioGroupProps<Value extends string> {
   error?: string;
   /** Form field name; one name per group. */
   name: string;
+  /**
+   * The id of the first choice's radio, so an error summary can link to the question and move
+   * focus to it.
+   */
+  id?: string;
   options: readonly RadioOption<Value>[];
   /** Controlled value; null for nothing chosen yet. */
   value?: Value | null;
@@ -37,7 +42,8 @@ export interface RadioGroupProps<Value extends string> {
  * A question with one answer from a few choices, as native radio buttons in a fieldset. Each
  * choice is a card at least 44 px tall whose whole area selects it; arrow keys move between
  * choices as the browser provides. The chosen card shows a filled dot, a thicker border and bold
- * text, never colour alone.
+ * text, never colour alone. With an error, the fieldset is described by it and every radio is
+ * marked invalid, so the error is announced whichever choice has focus.
  */
 export function RadioGroup<Value extends string>({
   legend,
@@ -45,6 +51,7 @@ export function RadioGroup<Value extends string>({
   hint,
   error,
   name,
+  id: firstId,
   options,
   value,
   defaultValue,
@@ -92,8 +99,10 @@ export function RadioGroup<Value extends string>({
                 className="hb-choice__input"
                 name={name}
                 value={option.value}
+                id={index === 0 ? firstId : undefined}
                 aria-labelledby={labelId}
                 aria-describedby={descriptionId ?? undefined}
+                aria-invalid={error ? true : undefined}
                 disabled={option.disabled}
                 required={required}
                 {...(controlled

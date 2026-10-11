@@ -31,6 +31,11 @@ describe("TabNav", () => {
     );
   });
 
+  it("announces a choice within a page as current, not as the current page", () => {
+    render(<TabNav label="Chart to record" items={items} currentAs="true" />);
+    expect(screen.getByRole("link", { name: "Notes" })).toHaveAttribute("aria-current", "true");
+  });
+
   it("renders links through the app's link component", () => {
     function AppLink(props: AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) {
       return <a data-app-link="yes" {...props} />;

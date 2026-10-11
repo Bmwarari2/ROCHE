@@ -115,7 +115,10 @@ export const typeScale = {
   caption: { size: 12, lineHeight: 1.33, weight: 400, letterSpacingEm: -0.01 },
 } as const satisfies Record<string, TypeStyle>;
 
-/** Responsive overrides for the marketing scale at the two Apple breakpoints. */
+/**
+ * Responsive overrides at the two Apple breakpoints: the marketing scale shrinks, and on a phone
+ * the small sizes grow, so nothing a carer reads is under 15 px (callout) or 13 px (caption).
+ */
 export const typeScaleResponsive = {
   medium: {
     display: { size: 64, lineHeight: 1.0625 },
@@ -124,6 +127,8 @@ export const typeScaleResponsive = {
   small: {
     display: { size: 48, lineHeight: 1.08 },
     headline: { size: 32, lineHeight: 1.08 },
+    callout: { size: 15, lineHeight: 1.47 },
+    caption: { size: 13, lineHeight: 1.38 },
   },
 } as const;
 

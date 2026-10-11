@@ -35,6 +35,21 @@ describe("RadioGroup", () => {
     expect(screen.getByRole("group", { name: "Which side?" })).toHaveAccessibleDescription(
       "Choose in words. Choose the side in words",
     );
+    for (const radio of screen.getAllByRole("radio")) {
+      expect(radio).toHaveAttribute("aria-invalid", "true");
+    }
+  });
+
+  it("gives the first choice the id an error summary links to", () => {
+    const { rerender } = render(
+      <RadioGroup legend="Which side?" name="side" options={options} id="side-field" />,
+    );
+    expect(screen.getByRole("radio", { name: "Left" })).toHaveAttribute("id", "side-field");
+    expect(screen.getByRole("radio", { name: "Right" })).not.toHaveAttribute("id");
+    rerender(<RadioGroup legend="Which side?" name="side" options={options} />);
+    for (const radio of screen.getAllByRole("radio")) {
+      expect(radio).not.toHaveAttribute("aria-invalid");
+    }
   });
 
   it("selects by clicking anywhere on the card and reports the value", async () => {

@@ -38,7 +38,23 @@ export const WithIcons: Story = {
   },
 };
 
-/** On a phone the row scrolls sideways on its own; the page never does. */
+/** A choice within a page, such as the chart to record: announced as current, not as the page. */
+export const ChoiceWithinPage: Story = {
+  args: {
+    label: "Chart to record",
+    currentAs: "true",
+    items: [
+      { href: "#fluid", label: "Fluid intake", current: true },
+      { href: "#food", label: "Food" },
+      { href: "#vitals", label: "Vital signs" },
+    ],
+  },
+};
+
+/**
+ * On a phone the row scrolls sideways on its own; the page never does. A shadow at the edge shows
+ * that more tabs are out of view.
+ */
 export const NarrowScreen: Story = {
   decorators: [
     (Story) => (

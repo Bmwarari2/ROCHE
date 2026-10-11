@@ -13,6 +13,18 @@ describe("Checkbox", () => {
     expect(box).toBeChecked();
   });
 
+  it("makes the whole row one label, with the hint and error outside the name", async () => {
+    const user = userEvent.setup();
+    render(<Checkbox label="Refused" hint="Shown at handover." name="refused" />);
+    const box = screen.getByRole("checkbox", { name: "Refused" });
+    const row = box.closest("label");
+    expect(row).toHaveClass("hb-check__target");
+    expect(row).toContainElement(screen.getByText("Refused"));
+    expect(row).not.toContainElement(screen.getByText("Shown at handover."));
+    if (row) await user.click(row);
+    expect(box).toBeChecked();
+  });
+
   it("is described by its hint and error", () => {
     render(<Checkbox label="Refused" hint="Shown at handover." error="Tick the box to confirm" />);
     const box = screen.getByRole("checkbox", { name: "Refused" });
