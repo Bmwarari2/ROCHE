@@ -7,7 +7,11 @@
  * Source: Bergstrom N, Braden BJ, Laguzza A, Holman V. The Braden Scale for predicting pressure
  * sore risk. Nursing Research 1987;36(4):205–210. Braden Scale form, © Barbara Braden and Nancy
  * Bergstrom 1988. Six subscales: five scored 1 to 4 and friction and shear scored 1 to 3; total 6
- * to 23, where a lower total means a higher risk.
+ * to 23, where a lower total means a higher risk. Band wording follows the publisher: 9 or less
+ * severe risk, 10 to 12 high risk, 13 to 14 moderate risk, and 15 to 18 at risk (the publisher's
+ * cut-off is 18: Bergstrom N and others, Nursing Research 1998;47(5):261–269, cited in the
+ * bradenscale.com FAQs; the 1988 form prints "mild risk" for 15 to 18). A total of 19 or more has
+ * no risk band on the form and is shown as below the at-risk threshold, never as "no risk".
  */
 
 import { InputCheck, type ScoreWorking, type ToolOutcome, type ToolResult } from "./assessment";
@@ -51,25 +55,30 @@ const SUBSCALES: Readonly<Record<BradenSubscale, { name: string; levels: readonl
 };
 
 export type BradenBand =
-  | "very_high_risk"
+  | "severe_risk"
   | "high_risk"
   | "moderate_risk"
-  | "mild_risk"
-  | "not_at_risk";
+  | "at_risk"
+  | "below_at_risk_threshold";
 
-// Bands: 9 or less very high risk; 10-12 high; 13-14 moderate; 15-18 mild (at risk); 19 or more
-// not at risk.
-const BANDS: readonly { readonly upTo: number; readonly band: BradenBand }[] = [
-  { upTo: 9, band: "very_high_risk" },
-  { upTo: 12, band: "high_risk" },
-  { upTo: 14, band: "moderate_risk" },
-  { upTo: 18, band: "mild_risk" },
-  { upTo: 23, band: "not_at_risk" },
+const BANDS: readonly {
+  readonly upTo: number;
+  readonly band: BradenBand;
+  readonly label: string;
+}[] = [
+  { upTo: 9, band: "severe_risk", label: "Severe risk" },
+  { upTo: 12, band: "high_risk", label: "High risk" },
+  { upTo: 14, band: "moderate_risk", label: "Moderate risk" },
+  { upTo: 18, band: "at_risk", label: "At risk" },
+  { upTo: 23, band: "below_at_risk_threshold", label: "Below the at-risk threshold" },
 ];
 
 export type BradenInput = { readonly [K in BradenSubscale]?: number | null };
 
-export type BradenResult = ToolResult<"braden", BradenBand>;
+export interface BradenResult extends ToolResult<"braden", BradenBand> {
+  /** The publisher's wording for the band, shown beside the total. */
+  readonly bandLabel: string;
+}
 
 export function calculateBraden(input: BradenInput): ToolOutcome<BradenResult> {
   const check = new InputCheck();
@@ -83,7 +92,7 @@ export function calculateBraden(input: BradenInput): ToolOutcome<BradenResult> {
   }
   if (check.failed) return check.failure();
   const score = workings.reduce((sum, w) => sum + w.points, 0);
-  const band = (BANDS.find((b) => score <= b.upTo) as (typeof BANDS)[number]).band;
+  const { band, label } = BANDS.find((b) => score <= b.upTo) as (typeof BANDS)[number];
   return {
     ok: true,
     result: {
@@ -91,6 +100,7 @@ export function calculateBraden(input: BradenInput): ToolOutcome<BradenResult> {
       toolVersion: BRADEN_TOOL_VERSION,
       score,
       band,
+      bandLabel: label,
       workings,
       triggers: [],
     },

@@ -16,22 +16,37 @@ function input([
 }
 
 describe("hazard HZ-012 Braden totals and risk bands match the published form", () => {
+  // Publisher's wording: 9 or less severe risk; 10 to 12 high risk; 13 to 14 moderate risk; 15 to 18
+  // at risk (cut-off 18, Bergstrom 1998); 19 or more has no risk band on the form.
   it.each([
-    ["6, the minimum", [1, 1, 1, 1, 1, 1], 6, "very_high_risk"],
-    ["9", [4, 1, 1, 1, 1, 1], 9, "very_high_risk"],
-    ["10", [4, 2, 1, 1, 1, 1], 10, "high_risk"],
-    ["12", [4, 4, 1, 1, 1, 1], 12, "high_risk"],
-    ["13", [4, 4, 2, 1, 1, 1], 13, "moderate_risk"],
-    ["14", [4, 4, 3, 1, 1, 1], 14, "moderate_risk"],
-    ["15", [4, 4, 4, 1, 1, 1], 15, "mild_risk"],
-    ["18", [4, 4, 4, 4, 1, 1], 18, "mild_risk"],
-    ["19", [4, 4, 4, 4, 2, 1], 19, "not_at_risk"],
-    ["23, the maximum", [4, 4, 4, 4, 4, 3], 23, "not_at_risk"],
-  ] as const)("total %s", (_name, scores, score, band) => {
+    ["6, the minimum", [1, 1, 1, 1, 1, 1], 6, "severe_risk", "Severe risk"],
+    ["9", [4, 1, 1, 1, 1, 1], 9, "severe_risk", "Severe risk"],
+    ["10", [4, 2, 1, 1, 1, 1], 10, "high_risk", "High risk"],
+    ["12", [4, 4, 1, 1, 1, 1], 12, "high_risk", "High risk"],
+    ["13", [4, 4, 2, 1, 1, 1], 13, "moderate_risk", "Moderate risk"],
+    ["14", [4, 4, 3, 1, 1, 1], 14, "moderate_risk", "Moderate risk"],
+    ["15", [4, 4, 4, 1, 1, 1], 15, "at_risk", "At risk"],
+    ["18", [4, 4, 4, 4, 1, 1], 18, "at_risk", "At risk"],
+    ["19", [4, 4, 4, 4, 2, 1], 19, "below_at_risk_threshold", "Below the at-risk threshold"],
+    [
+      "23, the maximum",
+      [4, 4, 4, 4, 4, 3],
+      23,
+      "below_at_risk_threshold",
+      "Below the at-risk threshold",
+    ],
+  ] as const)("total %s", (_name, scores, score, band, bandLabel) => {
     const outcome = calculateBraden(input(scores));
     expect(outcome).toMatchObject({
       ok: true,
-      result: { toolKey: "braden", toolVersion: BRADEN_TOOL_VERSION, score, band, triggers: [] },
+      result: {
+        toolKey: "braden",
+        toolVersion: BRADEN_TOOL_VERSION,
+        score,
+        band,
+        bandLabel,
+        triggers: [],
+      },
     });
   });
 
