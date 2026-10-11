@@ -33,13 +33,26 @@ const pointOfCare: Permission[] = [
   "insights.dashboard.read",
 ];
 
+/**
+ * Permissions only the portal roles hold: a family member's or the person's own access, never a
+ * member of staff's (comms.md section 3).
+ */
+export const PORTAL_ONLY_PERMISSIONS: readonly Permission[] = [
+  "comms.portal.family",
+  "comms.portal.self",
+  "comms.feed.read",
+  "comms.notification.subscribe",
+  "comms.visit_booking.request",
+];
+
+const staffPermission = (p: Permission) => !PORTAL_ONLY_PERMISSIONS.includes(p);
+
 const registeredManager: Permission[] = ALL_PERMISSIONS.filter(
   (p) =>
     !p.startsWith("platform.") &&
     !p.startsWith("ai.copilot.manage") &&
     p !== "insights.group.read" &&
-    p !== "comms.portal.family" &&
-    p !== "comms.portal.self" &&
+    staffPermission(p) &&
     p !== "finance.ledger.record",
 ).concat([
   "platform.user.manage",
@@ -56,9 +69,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
     name: "Owner",
     description: "Founder, director or Nominated Individual. Everything, including billing.",
     scopeKind: "tenant",
-    permissions: ALL_PERMISSIONS.filter(
-      (p) => p !== "comms.portal.family" && p !== "comms.portal.self",
-    ),
+    permissions: ALL_PERMISSIONS.filter(staffPermission),
   },
   {
     key: "group_executive",
@@ -121,6 +132,8 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "platform.task.manage",
       "people.movement.record",
       "people.property.manage",
+      "comms.feed.publish",
+      "comms.feed.withdraw",
     ],
   },
   {
@@ -137,6 +150,8 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "platform.task.manage",
       "people.movement.record",
       "people.property.manage",
+      "comms.feed.publish",
+      "comms.feed.withdraw",
     ],
   },
   {
@@ -230,6 +245,8 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "safety.incident.report",
       "comms.message.send",
       "comms.letter.manage",
+      "comms.notification.manage",
+      "comms.visit_booking.manage",
       "platform.document.manage",
     ],
   },
@@ -301,7 +318,12 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
     description:
       "Portal for one person: updates, consented care plan sections, invoices, messages.",
     scopeKind: "assigned",
-    permissions: ["comms.portal.family"],
+    permissions: [
+      "comms.portal.family",
+      "comms.feed.read",
+      "comms.notification.subscribe",
+      "comms.visit_booking.request",
+    ],
   },
   {
     key: "person_receiving_care",
