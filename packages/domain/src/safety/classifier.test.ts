@@ -652,7 +652,7 @@ describe("hazard HZ-013 harm thresholds come from the rate table", () => {
   });
 });
 
-describe("hazard HZ-013 deadline clocks", () => {
+describe("hazard HZ-013 deadline clocks read their periods from the rate table", () => {
   it("makes without-delay kinds due at the event, so they are overdue at once until submitted", () => {
     const r = run(S.financialAbuse);
     const abuse = output(r, "cqc_reg18_abuse");
@@ -663,7 +663,7 @@ describe("hazard HZ-013 deadline clocks", () => {
     expect(output(r, "safeguarding_s42")?.deadlines[0]?.wording).toMatch(/Harbour sets this/);
   });
 
-  it("starts an offline incident's clock at the recorded event time, not when it synced", () => {
+  it("hazard HZ-013 an incident recorded offline starts its clock at the recorded event time", () => {
     const offline = input(S.expectedDeathLd);
     const lateAnswers = offline.answers.map((a) => ({ ...a, answeredAt: addUkDays(OCCURRED, 3) }));
     const r = classifyIncident({ ...offline, answers: lateAnswers });
