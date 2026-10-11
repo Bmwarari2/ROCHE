@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 // The API mints the offline window into the token, so it needs the same day list as the streams.
-export { OFFLINE_WINDOW_RATE_KEY, offlineWindowDays } from "../client/window";
+export { isValidWindowDays, OFFLINE_WINDOW_RATE_KEY, offlineWindowDays } from "../client/window";
 
 /** Absolute path of the sync streams definition mounted into the PowerSync service. */
 export const SYNC_CONFIG_PATH = fileURLToPath(new URL("./sync-config.yaml", import.meta.url));

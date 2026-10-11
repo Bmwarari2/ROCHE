@@ -9,6 +9,7 @@ import type {
   SyncToken,
   SyncUploadResult,
 } from "@harbour/contracts";
+import { DEVICE_HEADER, TENANT_HEADER } from "@harbour/contracts";
 import { DEMO } from "@harbour/db/seed";
 import { offlineWindowDays, SYNC_TOKEN_AUDIENCE, SYNC_TOKEN_ISSUER } from "@harbour/sync/streams";
 import { jwtVerify } from "jose";
@@ -27,6 +28,30 @@ afterAll(async () => {
 });
 
 const json = async <T>(response: Response) => (await response.json()) as T;
+
+/** A query as the table owner inside one tenant: row-level security is forced for the owner too. */
+async function asTenant<T extends Record<string, unknown>>(
+  tenantId: string,
+  sql: string,
+  params: unknown[] = [],
+): Promise<T[]> {
+  const client = await h.db.pool("harbour_owner").connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+      [tenantId],
+    );
+    const result = await client.query<T>(sql, params);
+    await client.query("COMMIT");
+    return result.rows;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
 const demo = (
   token: keyof Harness["tokens"],
   path: string,
@@ -466,6 +491,171 @@ describe("offline sync", () => {
     );
     const { payload } = await jwtVerify(token, h.handle.signer.verificationKey);
     expect(payload.people_location_ids).toEqual([DEMO.locationId]);
+  });
+
+  it("hazard HZ-028 issues the fail-safe window when the tenant's rate is out of range (L3)", async () => {
+    await asTenant(
+      OTHER.tenantId,
+      `INSERT INTO rate_table (tenant_id, key, value, unit, nation, valid_from, source, verification_status)
+       VALUES ($1, 'mobile.offline_window_days', 99, 'days', 'all', '2000-01-01', 'test', 'verified')`,
+      [OTHER.tenantId],
+    );
+    const response = await h.request("/v1/sync/token", {
+      token: h.tokens.rae,
+      tenant: OTHER.tenantId,
+      method: "POST",
+    });
+    expect(response.status).toBe(200);
+    const { token } = await json<SyncToken>(response);
+    const { payload } = await jwtVerify(token, h.handle.signer.verificationKey);
+    expect(payload.offline_days).toEqual(offlineWindowDays(new Date(), 1));
+  });
+
+  describe("hazard HZ-040 device discards (POST /v1/sync/discards)", () => {
+    const discard = (
+      overrides: Record<string, unknown> = {},
+    ): { id: string } & Record<string, unknown> => ({
+      id: crypto.randomUUID(),
+      kind: "refused_removed",
+      reasonCode: "recorded_elsewhere",
+      reason: "Recorded again on paper",
+      ownerTenantUserId: DEMO.users.carer.id,
+      entryIds: [crypto.randomUUID()],
+      personIds: [crypto.randomUUID()],
+      count: 1,
+      discardedAt: new Date().toISOString(),
+      ...overrides,
+    });
+    const post = (
+      token: string | undefined,
+      body: unknown,
+      tenant: string = DEMO.tenantId,
+      device?: string,
+    ) =>
+      h.handle.app.request("/v1/sync/discards", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+          [TENANT_HEADER]: tenant,
+          ...(device ? { [DEVICE_HEADER]: device } : {}),
+        },
+        body: JSON.stringify(body),
+      });
+    type AuditRow = {
+      tenant_id: string;
+      action: string;
+      actor_tenant_user_id: string;
+      reason: string | null;
+      device_id: string | null;
+      scope: Record<string, unknown>;
+    };
+    const auditRows = (id: string, tenantId: string = DEMO.tenantId) =>
+      asTenant<AuditRow>(
+        tenantId,
+        "SELECT tenant_id, action, actor_tenant_user_id, reason, device_id, scope FROM audit_event WHERE resource_id = $1",
+        [id],
+      );
+
+    it("records who deleted what, whose, why, how many and from which device", async () => {
+      const body = discard();
+      const response = await post(h.tokens.carer, body, DEMO.tenantId, "device-fixture-1");
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ id: body.id, recorded: true, replay: false });
+      const [row, ...more] = await auditRows(body.id);
+      expect(more).toEqual([]);
+      expect(row).toMatchObject({
+        tenant_id: DEMO.tenantId,
+        action: "sync.entries.discarded",
+        actor_tenant_user_id: DEMO.users.carer.id,
+        reason: "Recorded again on paper",
+        device_id: "device-fixture-1",
+      });
+      expect(row?.scope).toMatchObject({
+        kind: "refused_removed",
+        reasonCode: "recorded_elsewhere",
+        ownerTenantUserId: DEMO.users.carer.id,
+        entryIds: body.entryIds,
+        personIds: body.personIds,
+        count: 1,
+      });
+    });
+
+    it("records a replay once", async () => {
+      const body = discard();
+      expect((await post(h.tokens.carer, body)).status).toBe(200);
+      const again = await post(h.tokens.carer, body);
+      expect(await again.json()).toEqual({ id: body.id, recorded: true, replay: true });
+      expect(await auditRows(body.id)).toHaveLength(1);
+    });
+
+    it("needs a manager to delete another member of staff's entries", async () => {
+      const someoneElse = discard({ kind: "held_deleted", ownerTenantUserId: DEMO.users.nurse.id });
+      expect((await post(h.tokens.carer, someoneElse)).status).toBe(403);
+      expect(await auditRows(someoneElse.id)).toEqual([]);
+      const byManager = await post(h.tokens.manager, someoneElse);
+      expect(byManager.status).toBe(200);
+      const [row] = await auditRows(someoneElse.id);
+      expect(row?.actor_tenant_user_id).toBe(DEMO.users.manager.id);
+    });
+
+    it("keeps the event in the caller's tenant only (HZ-011)", async () => {
+      const body = discard();
+      // The carer is not a member of the other tenant.
+      expect((await post(h.tokens.carer, body, OTHER.tenantId)).status).toBe(403);
+      expect(await auditRows(body.id)).toEqual([]);
+      expect((await post(h.tokens.carer, body)).status).toBe(200);
+      const rows = await auditRows(body.id);
+      expect(rows.map((r) => r.tenant_id)).toEqual([DEMO.tenantId]);
+      expect(await auditRows(body.id, OTHER.tenantId)).toEqual([]);
+      // The other tenant's manager does not see it in their audit trail.
+      const theirs = await json<AuditList>(
+        await h.request(`/v1/audit?resourceType=device_discard&resourceId=${body.id}`, {
+          token: h.tokens.rae,
+          tenant: OTHER.tenantId,
+        }),
+      );
+      expect(theirs.items).toEqual([]);
+    });
+
+    it("refuses an unknown reason code, and other without words", async () => {
+      expect((await post(h.tokens.carer, discard({ reasonCode: "because" }))).status).toBe(422);
+      expect(
+        (await post(h.tokens.carer, discard({ reasonCode: "other", reason: undefined }))).status,
+      ).toBe(422);
+    });
+  });
+
+  it("hazard HZ-006 records a device's unsent counts without personal data", async () => {
+    const response = await h.handle.app.request("/v1/sync/device-report", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${h.tokens.carer}`,
+        [TENANT_HEADER]: DEMO.tenantId,
+        [DEVICE_HEADER]: "device-fixture-2",
+      },
+      body: JSON.stringify({
+        unsent: 3,
+        refused: 1,
+        held: 0,
+        oldestAgeSeconds: 5400,
+        reportedAt: new Date().toISOString(),
+      }),
+    });
+    expect(response.status).toBe(204);
+    const rows = await asTenant<{ scope: Record<string, unknown>; device_id: string }>(
+      DEMO.tenantId,
+      "SELECT scope, device_id FROM audit_event WHERE action = 'sync.device.report' AND device_id = 'device-fixture-2'",
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.scope).toEqual({
+      unsent: 3,
+      refused: 1,
+      held: 0,
+      oldestAgeSeconds: 5400,
+      reportedAt: expect.any(String),
+    });
   });
 
   it("publishes the verification key", async () => {

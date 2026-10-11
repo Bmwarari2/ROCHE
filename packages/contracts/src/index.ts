@@ -204,6 +204,75 @@ export const SyncUploadResult = z
   .meta({ id: "SyncUploadResult" });
 export type SyncUploadResult = z.infer<typeof SyncUploadResult>;
 
+/** What a device deleted that never reached the server (HZ-006, HZ-040). */
+export const SYNC_DISCARD_KINDS = [
+  "held_deleted",
+  "signed_out_with_unsent",
+  "refused_removed",
+] as const;
+
+/** Why: a coded reason, kept on the device; free text travels only in the request. */
+export const SYNC_DISCARD_REASON_CODES = [
+  "recorded_elsewhere",
+  "entered_in_error",
+  "staff_left",
+  "nurse_in_charge_informed",
+  "other",
+] as const;
+
+export const SyncDiscard = z
+  .object({
+    /** The device's tombstone id: a replay of the same discard is recorded once. */
+    id: uuid,
+    kind: z.enum(SYNC_DISCARD_KINDS),
+    reasonCode: z.enum(SYNC_DISCARD_REASON_CODES),
+    /** The person's own words; required when the coded reason is "other". */
+    reason: z.string().trim().min(3).max(500).optional(),
+    /** Who wrote the entries (tenant_user id), when the device knows. */
+    ownerTenantUserId: uuid.nullable(),
+    entryIds: z.array(uuid).max(500),
+    personIds: z.array(uuid).max(200),
+    /** How many entries were deleted; null when the device could not count them. */
+    count: z.number().int().min(0).max(100_000).nullable(),
+    discardedAt: isoDateTime,
+  })
+  .refine((d) => d.reasonCode !== "other" || d.reason !== undefined, {
+    message: "Give the reason in words when the reason is other.",
+    path: ["reason"],
+  })
+  .meta({
+    id: "SyncDiscard",
+    description:
+      "A device deleted entries that never reached the server; recorded as an audit event",
+  });
+export type SyncDiscard = z.infer<typeof SyncDiscard>;
+
+export const SyncDiscardResult = z
+  .object({ id: uuid, recorded: z.boolean(), replay: z.boolean() })
+  .meta({ id: "SyncDiscardResult" });
+export type SyncDiscardResult = z.infer<typeof SyncDiscardResult>;
+
+/** A device's unsent work, without personal data (HZ-006: queue depth seen by the server). */
+export const SyncDeviceReport = z
+  .object({
+    /** Entries waiting in the upload queue. */
+    unsent: z.number().int().min(0).max(1_000_000),
+    /** Entries the server refused, kept on the device. */
+    refused: z.number().int().min(0).max(1_000_000),
+    /** Entries held after a session ended. */
+    held: z.number().int().min(0).max(1_000_000),
+    /** Age of the oldest unsent, refused or held entry in seconds; null when there is none. */
+    oldestAgeSeconds: z
+      .number()
+      .int()
+      .min(0)
+      .max(10 * 365 * 24 * 3600)
+      .nullable(),
+    reportedAt: isoDateTime,
+  })
+  .meta({ id: "SyncDeviceReport" });
+export type SyncDeviceReport = z.infer<typeof SyncDeviceReport>;
+
 export const AuditEntry = z
   .object({
     id: uuid,

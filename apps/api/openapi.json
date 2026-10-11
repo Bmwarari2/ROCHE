@@ -5943,6 +5943,143 @@
           "id"
         ]
       },
+      "SyncDiscardResult": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "recorded": {
+            "type": "boolean"
+          },
+          "replay": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "recorded",
+          "replay"
+        ]
+      },
+      "SyncDiscard": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "held_deleted",
+              "signed_out_with_unsent",
+              "refused_removed"
+            ]
+          },
+          "reasonCode": {
+            "type": "string",
+            "enum": [
+              "recorded_elsewhere",
+              "entered_in_error",
+              "staff_left",
+              "nurse_in_charge_informed",
+              "other"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          },
+          "ownerTenantUserId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "entryIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 500
+          },
+          "personIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 200
+          },
+          "count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "discardedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "reasonCode",
+          "ownerTenantUserId",
+          "entryIds",
+          "personIds",
+          "count",
+          "discardedAt"
+        ],
+        "description": "A device deleted entries that never reached the server; recorded as an audit event"
+      },
+      "SyncDeviceReport": {
+        "type": "object",
+        "properties": {
+          "unsent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "refused": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "held": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "oldestAgeSeconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 315360000
+          },
+          "reportedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "unsent",
+          "refused",
+          "held",
+          "oldestAgeSeconds",
+          "reportedAt"
+        ]
+      },
       "IntegrationConnection": {
         "type": "object",
         "properties": {
@@ -12176,6 +12313,135 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sync/discards": {
+      "post": {
+        "tags": [
+          "sync"
+        ],
+        "summary": "Record that a device deleted entries that never reached the server",
+        "description": "Writes an append-only audit event with who deleted them, whose they were, why, how many and from which device (HZ-040). Deleting another member of staff's entries needs a manager's permission. A replay of the same id is recorded once.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncDiscard"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncDiscardResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sync/device-report": {
+      "post": {
+        "tags": [
+          "sync"
+        ],
+        "summary": "A device's unsent work: counts and the oldest age, no personal data",
+        "description": "Writes an audit event with the device's queued, refused and held counts and the age of the oldest, so the server knows what a lost or wiped device held (HZ-006).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncDeviceReport"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Recorded"
           },
           "401": {
             "description": "Not signed in",

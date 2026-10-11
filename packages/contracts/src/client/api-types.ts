@@ -5029,6 +5029,144 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/sync/discards": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record that a device deleted entries that never reached the server
+     * @description Writes an append-only audit event with who deleted them, whose they were, why, how many and from which device (HZ-040). Deleting another member of staff's entries needs a manager's permission. A replay of the same id is recorded once.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SyncDiscard"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SyncDiscardResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/sync/device-report": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * A device's unsent work: counts and the oldest age, no personal data
+     * @description Writes an audit event with the device's queued, refused and held counts and the age of the oldest, so the server knows what a lost or wiped device held (HZ-006).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SyncDeviceReport"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/integrations": {
     parameters: {
       query?: never;
@@ -7359,6 +7497,42 @@ export interface components {
       };
       /** Format: date-time */
       deviceSentAt?: string;
+    };
+    SyncDiscardResult: {
+      /** Format: uuid */
+      id: string;
+      recorded: boolean;
+      replay: boolean;
+    };
+    /** @description A device deleted entries that never reached the server; recorded as an audit event */
+    SyncDiscard: {
+      /** Format: uuid */
+      id: string;
+      /** @enum {string} */
+      kind: "held_deleted" | "signed_out_with_unsent" | "refused_removed";
+      /** @enum {string} */
+      reasonCode:
+        | "recorded_elsewhere"
+        | "entered_in_error"
+        | "staff_left"
+        | "nurse_in_charge_informed"
+        | "other";
+      reason?: string;
+      /** Format: uuid */
+      ownerTenantUserId: string | null;
+      entryIds: string[];
+      personIds: string[];
+      count: number | null;
+      /** Format: date-time */
+      discardedAt: string;
+    };
+    SyncDeviceReport: {
+      unsent: number;
+      refused: number;
+      held: number;
+      oldestAgeSeconds: number | null;
+      /** Format: date-time */
+      reportedAt: string;
     };
     IntegrationConnection: {
       port: string;

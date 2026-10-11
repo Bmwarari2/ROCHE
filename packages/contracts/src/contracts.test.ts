@@ -6,6 +6,8 @@ import {
   ProblemDetails,
   PublishCarePlan,
   ResuscitationStatus,
+  SyncDeviceReport,
+  SyncDiscard,
   SyncUpload,
   UpdateCarePlanSection,
 } from "./index";
@@ -101,5 +103,53 @@ describe("contracts", () => {
     expect(
       ProblemDetails.parse({ title: "Forbidden", status: 403, code: "missing_permission" }).type,
     ).toBe("about:blank");
+  });
+});
+
+describe("hazard HZ-040 device discards and reports", () => {
+  const discard = {
+    id: "0199d000-0000-7000-8000-0000000000d1",
+    kind: "held_deleted",
+    reasonCode: "recorded_elsewhere",
+    ownerTenantUserId: "00000000-0000-4000-8000-0000000000c1",
+    entryIds: ["0199d000-0000-7000-8000-0000000000e1"],
+    personIds: ["00000000-0000-4000-8000-0000000000b1"],
+    count: 1,
+    discardedAt: "2026-10-11T07:30:00.000Z",
+  };
+
+  it("accepts a coded reason, with free text only as an option", () => {
+    expect(SyncDiscard.safeParse(discard).success).toBe(true);
+    expect(SyncDiscard.safeParse({ ...discard, reason: "On paper" }).success).toBe(true);
+  });
+
+  it("needs the reason in words when the code is other", () => {
+    expect(SyncDiscard.safeParse({ ...discard, reasonCode: "other" }).success).toBe(false);
+    expect(
+      SyncDiscard.safeParse({ ...discard, reasonCode: "other", reason: "Duplicate device" })
+        .success,
+    ).toBe(true);
+  });
+
+  it.each([
+    ["an unknown kind", { kind: "anything" }],
+    ["an unknown reason code", { reasonCode: "because" }],
+    ["entry ids that are not ids", { entryIds: ["Ada's note"] }],
+    ["a reason over 500 characters", { reason: "x".repeat(501) }],
+  ])("refuses %s", (_case, change) => {
+    expect(SyncDiscard.safeParse({ ...discard, ...change }).success).toBe(false);
+  });
+
+  it("carries counts and an age only in a device report", () => {
+    const report = {
+      unsent: 3,
+      refused: 1,
+      held: 0,
+      oldestAgeSeconds: 3600,
+      reportedAt: "2026-10-11T07:30:00.000Z",
+    };
+    expect(SyncDeviceReport.safeParse(report).success).toBe(true);
+    expect(SyncDeviceReport.safeParse({ ...report, unsent: -1 }).success).toBe(false);
+    expect(Object.keys(SyncDeviceReport.parse({ ...report, name: "Ada" }))).not.toContain("name");
   });
 });
