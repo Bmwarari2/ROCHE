@@ -9,11 +9,13 @@ import {
   escalateStatutoryNotifications,
   escalateTasks,
   materialiseTaskSeries,
-  type OutboxHandler,
+  outboxHandlers,
   processDeliveries,
   raiseCareReviews,
+  raiseReviews,
   relayOutbox,
   remindDolsExpiry,
+  reportBreakGlass,
   runEscalations,
 } from "./tasks";
 
@@ -32,7 +34,7 @@ const appPool = createPool(config.DATABASE_APP_URL, { max: 4 }, idleErrorLogger(
 const deps = { workerPool, appDb: createDatabase(appPool), logger };
 
 /** Module handlers subscribe to outbox events here as modules land (Phase 1 onwards). */
-const handlers = new Map<string, OutboxHandler>();
+const handlers = outboxHandlers(deps);
 
 const boss = new PgBoss({ connectionString: config.DATABASE_WORKER_URL, schema: "pgboss" });
 boss.on("error", (error) => logger.error({ err: { name: error.name } }, "pg-boss error"));
@@ -49,6 +51,8 @@ const QUEUES = {
   dolsExpiry: "dols-expiry-reminders",
   statutoryNotifications: "statutory-notification-escalations",
   outbreaks: "outbreak-detection",
+  peopleReviews: "people-reviews",
+  breakGlassReport: "break-glass-weekly-report",
 } as const;
 
 for (const name of Object.values(QUEUES)) await boss.createQueue(name);
@@ -87,6 +91,12 @@ await boss.work(QUEUES.statutoryNotifications, async () => {
 await boss.work(QUEUES.outbreaks, async () => {
   await detectOutbreaks(deps);
 });
+await boss.work(QUEUES.peopleReviews, async () => {
+  await raiseReviews(deps);
+});
+await boss.work(QUEUES.breakGlassReport, async () => {
+  await reportBreakGlass(deps);
+});
 
 // Every minute: escalations are measured in minutes (section 9.1, e.g. on-call after 10 minutes).
 await boss.schedule(QUEUES.outbox, "* * * * *");
@@ -103,6 +113,11 @@ await boss.schedule(QUEUES.statutoryNotifications, "* * * * *");
 // classification that runs whenever an infection incident is recorded.
 await boss.schedule(QUEUES.dolsExpiry, "13 * * * *");
 await boss.schedule(QUEUES.outbreaks, "19 * * * *");
+// Hourly: people reviews fall due by the day; each raises one task, once.
+await boss.schedule(QUEUES.peopleReviews, "29 * * * *");
+// Daily in the small hours: the week before is reported once it has ended (Monday), and a missed
+// Monday is caught up the next day.
+await boss.schedule(QUEUES.breakGlassReport, "37 2 * * *");
 
 logger.info("Harbour worker started");
 
