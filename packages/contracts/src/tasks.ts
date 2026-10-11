@@ -59,8 +59,13 @@ export const TaskDetails = z
       .optional(),
     /** Entries beyond the 50 listed. */
     entriesOmitted: z.number().int().optional(),
-    /** Missed rounds beyond the 50 listed. */
+    /** Missed rounds beyond the 50 listed (never a medicines round: those are all listed). */
     missedTasksOmitted: z.number().int().optional(),
+    /**
+     * A late return or correction lists rounds from 00:00 UK time on this date: rounds due before
+     * it are not all listed, so the reviewer checks the record (HZ-003).
+     */
+    missedTasksNotListedBefore: isoDate.optional(),
   })
   .meta({ id: "TaskDetails" });
 export type TaskDetails = z.infer<typeof TaskDetails>;

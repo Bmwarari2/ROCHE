@@ -31,7 +31,7 @@ import {
 } from "@harbour/domain";
 import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import { HttpProblem, problems } from "../http/problem";
-import { OVERDUE_FIRST_RESPONDERS } from "./tasks";
+import { assigneeMayComplete, OVERDUE_FIRST_RESPONDERS } from "./tasks";
 
 /**
  * Shared rules for the point-of-care record (docs/specs/care.md): rate-table figures, the person's
@@ -407,6 +407,11 @@ export interface PlannedTaskLink {
   readonly outcome: TaskLinkOutcome;
   /** Who reviews it: nobody, the nurse in charge, or the nurse in charge now (a medicines conflict). */
   readonly review: TaskLinkReview;
+  /**
+   * The author is the task's assignee but may no longer complete it (an acting-up grant that has
+   * ended): the entry is kept and reviewed, and the refusal is audited (S1 follow-on).
+   */
+  readonly assigneeRefused: boolean;
 }
 
 /**
@@ -431,9 +436,18 @@ export async function planTaskLink(
     .where(and(eq(task.id, input.taskId), isNull(task.deletedAt)))
     .for("update");
   if (!row) throw problems.invalid("That task is not for this person.");
-  const mayComplete =
-    row.assigneeTenantUserId === input.actorTenantUserId ||
-    (isPermission(row.requiredPermission) && input.actorPermissions.has(row.requiredPermission));
+  // The permission the task names, or being its assignee while they could still be given it, so
+  // an assignee whose acting-up grant has ended cannot complete an urgent task with an entry and
+  // silence its escalation (S1 follow-on; HZ-004, HZ-005).
+  const holds =
+    isPermission(row.requiredPermission) && input.actorPermissions.has(row.requiredPermission);
+  const asAssignee =
+    !holds && (await assigneeMayComplete(tx, input.actorTenantUserId, row, new Date()));
+  const mayComplete = holds || asAssignee;
+  const assigneeRefused =
+    !mayComplete &&
+    row.assigneeTenantUserId === input.actorTenantUserId &&
+    (row.status === "open" || row.status === "in_progress");
   const check = checkTaskLink(
     {
       personId: row.personId,
@@ -455,6 +469,7 @@ export async function planTaskLink(
     evidenceId: row.evidenceId,
     outcome: check.outcome,
     review: check.review,
+    assigneeRefused,
   };
 }
 
@@ -462,7 +477,10 @@ export async function planTaskLink(
 export const ENTRY_REVIEW_TASK_KIND = "care.entry_review";
 /** The urgent review of a medicines entry that could not complete its task (a dose may be doubled). */
 export const ENTRY_CONFLICT_REVIEW_TASK_KIND = "care.entry_conflict_review";
-/** At most this many items are listed in one review task's details; the rest are counted. */
+/**
+ * At most this many items are listed in one review task's details; the rest are counted. Missed
+ * medicines rounds are the exception: they are never dropped (`listMissedRounds`).
+ */
 export const MAX_TASK_DETAIL_ITEMS = 50;
 
 /**
@@ -473,7 +491,7 @@ export const MAX_TASK_DETAIL_ITEMS = 50;
 export async function appendTaskDetail(
   tx: Transaction,
   taskId: string,
-  list: "entries" | "missedTasks",
+  list: "entries",
   items: readonly Record<string, string | boolean | null>[],
 ): Promise<void> {
   const [row] = await tx

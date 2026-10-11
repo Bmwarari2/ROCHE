@@ -445,6 +445,77 @@ describe("hazard HZ-023 the printed transfer pack", () => {
     expect(text).toContain("Advance decision to refuse treatment: Refuses artificial ventilation.");
   });
 
+  const ADRT = {
+    kind: "adrt",
+    summary: "Refuses artificial ventilation",
+    clinician: "Not recorded",
+    completedOn: "2025-02-01",
+    reviewOn: null,
+  };
+  const DNACPR_IN_FORCE = {
+    status: "recorded",
+    decision: "do_not_attempt_cpr",
+    conflicting: false,
+    reviewDueOn: null,
+    reviewOverdue: false,
+    cprRecords: [
+      {
+        kind: "dnacpr",
+        summary: "Not for cardiopulmonary resuscitation",
+        clinician: "Dr Example, GP",
+        completedOn: "2026-05-01",
+        reviewOn: null,
+      },
+    ],
+  };
+  it.each([
+    [
+      "a DNACPR form in force",
+      DNACPR_IN_FORCE,
+      "CPR decision: Not for cardiopulmonary resuscitation (DNACPR, 01/05/2026).",
+    ],
+    [
+      "records that disagree",
+      PACK.content.resuscitation,
+      "CPR decision: the records disagree. Check the original documents before acting.",
+    ],
+    [
+      "no decision in place",
+      {
+        status: "no_decision_in_place",
+        confirmedBy: null,
+        confirmedAt: "2026-10-01T09:00:00.000Z",
+      },
+      "CPR decision: no decision in place (who confirmed it is not recorded; recorded on 01/10/2026 10:00).",
+    ],
+    [
+      "a pack stored before the decision in force was kept",
+      { status: "recorded" },
+      "CPR decision: see the resuscitation section.",
+    ],
+  ])(
+    "hazard HZ-015 says on page 1 that an ADRT is also held when the CPR line is from %s (M3)",
+    (_label, held, line) => {
+      const resuscitation = held as Record<string, unknown>;
+      const adrtHeld = { ...resuscitation, otherRecords: [ADRT] };
+      const first = (
+        print({ ...PACK, content: { ...PACK.content, resuscitation: adrtHeld } })[0] ?? []
+      ).join(" ");
+      expect(first).toContain(
+        `${line} An advance decision to refuse treatment is also held (01/02/2025): read it before acting.`,
+      );
+      // Without an ADRT the line says nothing of one.
+      const without = (
+        print({
+          ...PACK,
+          content: { ...PACK.content, resuscitation: { ...resuscitation, otherRecords: [] } },
+        })[0] ?? []
+      ).join(" ");
+      expect(without).toContain(line);
+      expect(without).not.toContain("An advance decision to refuse treatment is also held");
+    },
+  );
+
   it("hazard HZ-016 prints the IDDSI levels with their names", () => {
     const text = print(PACK).flat().join("\n");
     expect(text).toContain("Food: IDDSI Level 7EC Easy to chew (black).");

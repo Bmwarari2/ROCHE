@@ -294,19 +294,28 @@ function toContentKey(key: string): string {
 
 /**
  * The CPR decision in force, for the identity block on page 1, so it is never pushed to a later
- * page by a long medicines list (HZ-015). Copied from the stored pack, never resolved.
+ * page by a long medicines list (HZ-015). Copied from the stored pack, never resolved. An advance
+ * decision to refuse treatment in force is named on every variant: it is not a CPR decision, but
+ * nobody acts without reading it, whatever the CPR form says.
  */
 export function cprDecisionLine(content: Record<string, unknown>, names: Names): string {
   const c = content.resuscitation as Record<string, unknown> | null | undefined;
+  const adrt = ((c?.otherRecords as AdvanceRecord[] | undefined) ?? [])
+    .filter((r) => r.kind === "adrt")
+    .sort((a, b) => String(b.completedOn).localeCompare(String(a.completedOn)))[0];
   if (!c || c.status === "not_recorded") {
-    // An advance decision to refuse treatment is not a CPR decision, but nobody acts without it.
-    const adrt = ((c?.otherRecords as AdvanceRecord[] | undefined) ?? []).find(
-      (r) => r.kind === "adrt",
-    );
     return adrt
       ? `CPR decision: not recorded on a ReSPECT or DNACPR form. An advance decision to refuse treatment is held (${ukDate(adrt.completedOn)}): read it before acting.`
       : "CPR decision: not recorded.";
   }
+  const also = adrt
+    ? ` An advance decision to refuse treatment is also held (${ukDate(adrt.completedOn)}): read it before acting.`
+    : "";
+  return `${cprFormLine(c, names)}${also}`;
+}
+
+/** The CPR decision line from a ReSPECT or DNACPR form, or its confirmed absence. */
+function cprFormLine(c: Record<string, unknown>, names: Names): string {
   if (c.status === "no_decision_in_place") {
     return `CPR decision: no decision in place (${confirmation(names, c.confirmedBy, c.confirmedAt)}).`;
   }

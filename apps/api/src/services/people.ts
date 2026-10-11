@@ -37,7 +37,10 @@ import {
   exitChecklist,
   exitReturnDeadlines,
   type FamilyInvolvementKind,
+  hasOccurrence,
   LIVE_PERSON_STATUSES,
+  listMissedRounds,
+  type MissedRound,
   occurrences,
   PEOPLE_RATE_KEYS,
   PERSON_LIFECYCLE,
@@ -54,6 +57,7 @@ import {
   type ReviewSchedule,
   type RoomView,
   resolvePeopleRates,
+  restoreLookbackStart,
   returnFromHospitalChecks,
   roomLabelOn,
   scheduleReviews,
@@ -76,7 +80,12 @@ import {
 } from "drizzle-orm";
 import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
-import { appendTaskDetail } from "./care";
+import {
+  appendTaskDetail,
+  ENTRY_CONFLICT_REVIEW_TASK_KIND,
+  ENTRY_REVIEW_TASK_KIND,
+  MAX_TASK_DETAIL_ITEMS,
+} from "./care";
 import { bringPlanReviewForward } from "./care-planning";
 import { bankHolidays, rateNumber } from "./rates";
 import { withTenantWideScope } from "./safety";
@@ -685,14 +694,19 @@ export const RESTORED_DONE_REASON =
   "Done before the exit was recorded: an entry answered it, so it is not due again";
 export const CATCH_UP_REASON =
   "Reopened to catch up: its time passed before the return or correction was recorded";
-/** How far back a late return or correction lists the rounds it missed, one by one. */
-export const RESTORE_LOOKBACK_HOURS = 7 * 24;
+/**
+ * How far back a late return or correction makes and lists the rounds it missed, one by one: from
+ * 00:00 UK time this many days ago (`restoreLookbackStart`). The CSO decides the limit (H-137).
+ */
+export const RESTORE_LOOKBACK_DAYS = 7;
 
 /**
  * The rounds that would have fallen due between where a series stopped making tasks and now, made
  * as stopped tasks so the restore plans them like the rest (C5): a stay longer than the
  * materialisation horizon, or a correction long after the exit, loses no round and never adds an
- * extra one. Goes back at most `RESTORE_LOOKBACK_HOURS`.
+ * extra one. Goes back at most `RESTORE_LOOKBACK_DAYS`; when a series had rounds before that, it
+ * returns where the look back started, so the review says the rounds before it are not all
+ * listed (HZ-003). Otherwise null.
  */
 async function fillStoppedGap(
   tx: Transaction,
@@ -700,16 +714,20 @@ async function fillStoppedGap(
   since: Date,
   now: Date,
   stop: { cancelCode: "paused_while_away" | "ended_at_exit"; exitRecordId: string | null },
-) {
-  const earliest = Math.max(since.getTime(), now.getTime() - RESTORE_LOOKBACK_HOURS * 3_600_000);
+): Promise<Date | null> {
+  const lookback = restoreLookbackStart(now, RESTORE_LOOKBACK_DAYS);
+  let notListedBefore: Date | null = null;
   for (const s of series) {
-    const from = new Date(Math.max(earliest, s.materialisedUntil?.getTime() ?? earliest));
-    if (from.getTime() >= now.getTime()) continue;
-    const due = occurrences(
-      { rule: s.recurrence as Recurrence, startsOn: s.startsOn, endsOn: s.endsOn },
-      from,
-      now,
+    const rule = { rule: s.recurrence as Recurrence, startsOn: s.startsOn, endsOn: s.endsOn };
+    const stoppedFrom = new Date(
+      Math.max(since.getTime(), s.materialisedUntil?.getTime() ?? since.getTime()),
     );
+    if (stoppedFrom.getTime() < lookback.getTime() && hasOccurrence(rule, stoppedFrom, lookback)) {
+      notListedBefore = lookback;
+    }
+    const from = new Date(Math.max(stoppedFrom.getTime(), lookback.getTime()));
+    if (from.getTime() >= now.getTime()) continue;
+    const due = occurrences(rule, from, now);
     for (const dueAt of due) {
       await tx
         .insert(task)
@@ -741,6 +759,7 @@ async function fillStoppedGap(
     }
     await tx.update(taskSeries).set({ materialisedUntil: now }).where(eq(taskSeries.id, s.id));
   }
+  return notListedBefore;
 }
 
 /**
@@ -776,7 +795,7 @@ async function resumeRounds(
           : eq(taskSeries.active, true),
       ),
     );
-  await fillStoppedGap(tx, stoppedSeries, since, now, {
+  const notListedBefore = await fillStoppedGap(tx, stoppedSeries, since, now, {
     cancelCode: correctedExitId ? "ended_at_exit" : "paused_while_away",
     exitRecordId: correctedExitId,
   });
@@ -860,20 +879,20 @@ async function resumeRounds(
       .where(inArray(task.id, [...plan.missed]));
   }
   const listed = [...plan.reopenOverdue, ...plan.missed];
-  if (listed.length > 0) {
+  if (listed.length > 0 || notListedBefore) {
     await raiseMissedRoundsReview(
       tx,
       p,
       now,
       stopped
         .filter((t) => listed.includes(t.id))
-        .sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime())
         .map((t) => ({
           taskId: t.id,
           kind: t.kind,
           dueAt: t.dueAt.toISOString(),
           reopened: plan.reopenOverdue.includes(t.id),
         })),
+      notListedBefore,
     );
   }
   if (correctedExitId) {
@@ -950,12 +969,18 @@ async function restorePausedRounds(
 
 export const MISSED_ROUNDS_REVIEW_KIND = "people.missed_rounds_review";
 
-/** One open review of missed rounds for the nurse in charge per person, listing each round. */
+/**
+ * One open review of missed rounds for the nurse in charge per person, listing each round
+ * (`listMissedRounds`: medicines rounds first and never dropped, then the rest newest first) and,
+ * when the look back did not reach back to where the rounds stopped, the UK date before which
+ * rounds are not all listed (the latest such date, HZ-003).
+ */
 async function raiseMissedRoundsReview(
   tx: Transaction,
   p: PersonRow,
   now: Date,
-  missed: readonly { taskId: string; kind: string; dueAt: string; reopened: boolean }[],
+  missed: readonly MissedRound[],
+  notListedBefore: Date | null,
 ) {
   const [open] = await tx
     .select({ id: task.id })
@@ -988,20 +1013,42 @@ async function raiseMissedRoundsReview(
         })
         .returning({ id: task.id })
     )[0]?.id;
-  if (id) await appendTaskDetail(tx, id, "missedTasks", missed);
+  if (!id) return;
+  const [row] = await tx
+    .select({ details: task.details })
+    .from(task)
+    .where(eq(task.id, id))
+    .for("update");
+  const details = { ...((row?.details ?? {}) as Record<string, unknown>) };
+  const already = Array.isArray(details.missedTasks) ? (details.missedTasks as MissedRound[]) : [];
+  const { items, omitted } = listMissedRounds(already, missed, MAX_TASK_DETAIL_ITEMS);
+  details.missedTasks = items;
+  const before = typeof details.missedTasksOmitted === "number" ? details.missedTasksOmitted : 0;
+  if (before + omitted > 0) details.missedTasksOmitted = before + omitted;
+  if (notListedBefore) {
+    const date = ukIsoDate(notListedBefore);
+    const stored = details.missedTasksNotListedBefore;
+    // The latest date: rounds before it may be missing from any return or correction listed.
+    if (typeof stored !== "string" || stored < date) details.missedTasksNotListedBefore = date;
+  }
+  await tx.update(task).set({ details }).where(eq(task.id, id));
 }
 
 /**
  * Task kinds that stay open when the person leaves or dies: safety and legal follow-ups (an
- * incident report, the safeguarding decision, DoLS) as well as every `safety.*`, `people.*` and
- * manual task. Rounds (any series task) and point-of-care tasks (`care.*`, `medicines.*`) end.
+ * incident report, the safeguarding decision, DoLS), the reviews of entries already recorded, as
+ * well as every `safety.*`, `people.*` and manual task. Rounds (any series task) and the
+ * point-of-care tasks still to be done for the person (`care.*`, `medicines.*`) end.
  */
 export const KEPT_AT_EXIT_TASK_KINDS = [
   "care.incident_report",
   "care.safeguarding_decision_guide",
   "care.dols.expiring",
-  // The review of an entry that did not complete its task (services/care.ts).
-  "care.entry_review",
+  // The reviews of an entry that did not complete its task, including the urgent review of a
+  // possible second dose (services/care.ts, hazard HZ-004): they look back at what was recorded,
+  // so an exit recorded after the entry must not cancel them.
+  ENTRY_REVIEW_TASK_KIND,
+  ENTRY_CONFLICT_REVIEW_TASK_KIND,
 ] as const;
 
 const endsAtExit = () =>

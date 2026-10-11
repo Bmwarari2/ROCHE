@@ -5788,6 +5788,10 @@
           },
           "missedTasksOmitted": {
             "type": "integer"
+          },
+          "missedTasksNotListedBefore": {
+            "type": "string",
+            "format": "date"
           }
         }
       },

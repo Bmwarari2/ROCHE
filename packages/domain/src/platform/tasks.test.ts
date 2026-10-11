@@ -4,10 +4,14 @@ import {
   catchUpTiming,
   checkTaskLink,
   checkTaskTransition,
+  hasOccurrence,
+  listMissedRounds,
+  type MissedRound,
   occurrences,
   planTaskRestore,
   RecurrenceError,
   type RecurrenceSeries,
+  restoreLookbackStart,
   type StoppedTask,
   type TaskLinkCheck,
   type TaskLinkOutcome,
@@ -512,5 +516,114 @@ describe("hazards HZ-003 and HZ-004 tasks brought back after a return or a corre
       windowStart: now,
       windowEnd: now,
     });
+  });
+});
+
+describe("hazards HZ-003 and HZ-008 the rounds a missed-rounds review lists", () => {
+  const round = (taskId: string, kind: string, hhmm: string, reopened = false): MissedRound => ({
+    taskId,
+    kind,
+    dueAt: `2026-10-11T${hhmm}:00.000Z`,
+    reopened,
+  });
+  const turn = (id: string, hhmm: string) => round(id, "care.reposition", hhmm);
+  const dose = (id: string, hhmm: string) => round(id, "medicines.round", hhmm);
+
+  it.each<[string, MissedRound[], MissedRound[], number, string[], number]>([
+    [
+      "lists medicines rounds first, then the rest, each newest first",
+      [],
+      [turn("t1", "08:00"), dose("m1", "07:00"), turn("t2", "10:00"), dose("m2", "09:00")],
+      50,
+      ["m2", "m1", "t2", "t1"],
+      0,
+    ],
+    [
+      "keeps the newest of the rest and counts the older ones it cannot list",
+      [],
+      [turn("t1", "08:00"), turn("t2", "09:00"), turn("t3", "10:00"), dose("m1", "07:00")],
+      3,
+      ["m1", "t3", "t2"],
+      1,
+    ],
+    [
+      "never drops a missed dose, even beyond the limit, and counts only the rest",
+      [],
+      [dose("m1", "07:00"), dose("m2", "08:00"), dose("m3", "09:00"), turn("t1", "10:00")],
+      2,
+      ["m3", "m2", "m1"],
+      1,
+    ],
+    [
+      "merges with the rounds already listed, keeping the newest",
+      [turn("t1", "08:00"), turn("t2", "09:00")],
+      [turn("t3", "10:00"), dose("m1", "07:00")],
+      3,
+      ["m1", "t3", "t2"],
+      1,
+    ],
+    [
+      "lists a round found twice once, as last found",
+      [turn("t1", "08:00")],
+      [round("t1", "care.reposition", "08:00", true)],
+      50,
+      ["t1"],
+      0,
+    ],
+  ])("%s", (_label, listed, found, limit, expected, omitted) => {
+    const result = listMissedRounds(listed, found, limit);
+    expect(result.items.map((r) => r.taskId)).toEqual(expected);
+    expect(result.omitted).toBe(omitted);
+  });
+
+  it("keeps the last state of a round found twice", () => {
+    const { items } = listMissedRounds(
+      [turn("t1", "08:00")],
+      [round("t1", "care.reposition", "08:00", true)],
+      50,
+    );
+    expect(items[0]?.reopened).toBe(true);
+  });
+
+  it.each([
+    ["in summer time", "2026-10-11T12:00:00Z", "2026-10-03T23:00:00.000Z"],
+    ["just after midnight UK time", "2026-10-11T23:30:00Z", "2026-10-04T23:00:00.000Z"],
+    ["across the change to winter time", "2026-10-28T10:00:00Z", "2026-10-20T23:00:00.000Z"],
+    ["in winter time", "2026-12-15T09:00:00Z", "2026-12-08T00:00:00.000Z"],
+  ])("hazard HZ-003 starts the seven-day look back at 00:00 UK time %s", (_label, now, start) => {
+    expect(restoreLookbackStart(new Date(now), 7).toISOString()).toBe(start);
+  });
+});
+
+describe("hazard HZ-003 whether a stopped series had rounds before the look back", () => {
+  const hourly: RecurrenceSeries = {
+    rule: { freq: "every_hours", hours: 1, anchorTime: "00:00" },
+    startsOn: "2026-01-01",
+  };
+  const weekly: RecurrenceSeries = {
+    rule: { freq: "weekly", weekdays: ["mon"], times: ["09:00"] },
+    startsOn: "2026-01-01",
+  };
+
+  it.each<[string, RecurrenceSeries, string, string, boolean]>([
+    [
+      "an hourly round over months, past the occurrence limit",
+      hourly,
+      "2026-03-01",
+      "2026-09-01",
+      true,
+    ],
+    ["a weekly round over a long window", weekly, "2026-06-01T10:00:00Z", "2026-09-01", true],
+    ["a weekly round with no Monday in the window", weekly, "2026-09-01", "2026-09-07", false],
+    ["an empty window", hourly, "2026-09-01", "2026-09-01", false],
+    [
+      "a series that starts after the window",
+      { ...hourly, startsOn: "2026-10-01" },
+      "2026-03-01",
+      "2026-09-01",
+      false,
+    ],
+  ])("%s", (_label, series, from, to, expected) => {
+    expect(hasOccurrence(series, new Date(from), new Date(to))).toBe(expected);
   });
 });

@@ -313,7 +313,7 @@ export const careRecordsRouter = createRouter()
               .orderBy(desc(assessment.occurredAt))
               .limit(50);
             const [previous] = currentResults(history);
-            const link = await planLink(tx, access, body.taskId, personId);
+            const link = await planLink(tx, access, body.taskId, personId, c.get("requestId"));
             const [inserted] = await tx
               .insert(assessment)
               .values({
@@ -550,7 +550,7 @@ export const careRecordsRouter = createRouter()
                 throw problems.invalid("The entry being corrected was not found.");
               }
             }
-            const link = await planLink(tx, access, body.taskId, personId);
+            const link = await planLink(tx, access, body.taskId, personId, c.get("requestId"));
             const [inserted] = await tx
               .insert(activityRecord)
               .values({
@@ -741,7 +741,7 @@ export const careRecordsRouter = createRouter()
                 throw problems.invalid("The entry being corrected was not found.");
               }
             }
-            const link = await planLink(tx, access, body.taskId, personId);
+            const link = await planLink(tx, access, body.taskId, personId, c.get("requestId"));
             const [inserted] = await tx
               .insert(visitLog)
               .values({

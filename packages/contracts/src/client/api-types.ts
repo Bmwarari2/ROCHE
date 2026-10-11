@@ -13977,6 +13977,8 @@ export interface components {
       }[];
       entriesOmitted?: number;
       missedTasksOmitted?: number;
+      /** Format: date */
+      missedTasksNotListedBefore?: string;
     } | null;
     CreateTask: {
       title: string;

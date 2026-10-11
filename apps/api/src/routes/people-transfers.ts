@@ -24,6 +24,7 @@ import {
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, desc, eq, inArray, isNull, like } from "drizzle-orm";
 import type { Context } from "hono";
+import { AuditedRefusal, withAuditedRefusal } from "../http/audit";
 import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { requireWithinLimit } from "../http/rate-limit";
@@ -39,6 +40,7 @@ import {
 } from "../services/people";
 import { rateNumber } from "../services/rates";
 import { toJson } from "../services/safety";
+import { assigneeMayComplete } from "../services/tasks";
 import { assemblePackFor, decidePhotoPrintable } from "../services/transfer-pack";
 import { renderTransferPackPdf, type StoredPack } from "../services/transfer-pack-pdf";
 import {
@@ -49,15 +51,7 @@ import {
   notFoundResponse,
   security,
 } from "./openapi";
-import {
-  AuditedRefusal,
-  audit,
-  changeStatus,
-  iso,
-  PersonParam,
-  requireAnyPermission,
-  withAuditedRefusal,
-} from "./people-shared";
+import { audit, changeStatus, iso, PersonParam, requireAnyPermission } from "./people-shared";
 
 /**
  * The hospital transfer pack and the transfer itself (people.md rule 10; HZ-001, HZ-007, HZ-015,
@@ -161,17 +155,27 @@ function transferOut(row: TransferRow, tasks: readonly CheckTask[] = []): Hospit
 /** Checking belongings back in is a movement, not a clinical check. */
 const MOVEMENT_RETURN_CHECKS = new Set(["belongings_returned"]);
 
-/** Whether the caller may record a return check: its task's permission, or being its assignee. */
-async function mayDoReturnCheck(
+/**
+ * Why the caller may not record a return check, or null when they may: they hold its task's
+ * permission, or are its assignee while they could still be given it (S1 follow-on;
+ * `assigneeMayComplete`).
+ */
+async function returnCheckRefusal(
   tx: Transaction,
   access: TenantAccess,
   transferId: string,
   checkKey: string,
-): Promise<boolean> {
+  now: Date,
+): Promise<string | null> {
   const held: ReadonlySet<string> = new Set(access.effective.permissions);
-  if (MOVEMENT_RETURN_CHECKS.has(checkKey) && held.has("people.movement.record")) return true;
+  if (MOVEMENT_RETURN_CHECKS.has(checkKey) && held.has("people.movement.record")) return null;
   const [carried] = await tx
-    .select({ permission: task.requiredPermission, assignee: task.assigneeTenantUserId })
+    .select({
+      kind: task.kind,
+      requiredPermission: task.requiredPermission,
+      assigneeTenantUserId: task.assigneeTenantUserId,
+      locationId: task.locationId,
+    })
     .from(task)
     .where(
       and(
@@ -186,9 +190,15 @@ async function mayDoReturnCheck(
   if (!carried) {
     return held.has(
       MOVEMENT_RETURN_CHECKS.has(checkKey) ? "people.movement.record" : "care.plan.write",
-    );
+    )
+      ? null
+      : "missing_permission";
   }
-  return carried.assignee === access.tenantUserId || held.has(carried.permission);
+  if (held.has(carried.requiredPermission)) return null;
+  if (await assigneeMayComplete(tx, access.tenantUserId, carried, now)) return null;
+  return carried.assigneeTenantUserId === access.tenantUserId
+    ? "assignee_lacks_permission"
+    : "missing_permission";
 }
 
 /** A refused pack: 422 with the domain's words and the sections that belong to someone else. */
@@ -768,13 +778,14 @@ export const peopleTransfersRouter = createRouter()
           // Each check is done only by someone who may complete its task (a clinical check needs
           // care.plan.write, or being its assignee); checking belongings back in stays with
           // whoever records movements (HZ-005, HZ-015, HZ-016).
-          if (!(await mayDoReturnCheck(tx, access, transferId, checkKey))) {
+          const refused = await returnCheckRefusal(tx, access, transferId, checkKey, now);
+          if (refused) {
             throw new AuditedRefusal(problems.forbidden(), {
               action: "people.hospital_transfer.return_check",
               outcome: "denied",
               resourceType: "hospital_transfer",
               resourceId: transferId,
-              reason: "missing_permission",
+              reason: refused,
             });
           }
           checks[checkKey] = { ...check, doneBy: access.tenantUserId, doneAt: now.toISOString() };

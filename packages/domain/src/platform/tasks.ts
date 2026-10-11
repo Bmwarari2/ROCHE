@@ -271,6 +271,54 @@ export function catchUpTiming(
   return { dueAt: now, windowStart: now, windowEnd: new Date(now.getTime() + length) };
 }
 
+/**
+ * Where a late return or a correction starts making the rounds a stopped series would have had
+ * (people.md rules 1 and 2): 00:00 UK time on the calendar day `days` before today, so a whole
+ * day is either listed or not. Rounds that would have fallen due before it are not made, and the
+ * review says from which date rounds are not all listed (HZ-003); the CSO decides the limit (H-137).
+ */
+export function restoreLookbackStart(now: Date, days: number): Date {
+  const w = toUkWallClock(now);
+  const day = new Date(Date.UTC(w.year, w.month - 1, w.day - days));
+  return fromUkWallClock(day.getUTCFullYear(), day.getUTCMonth() + 1, day.getUTCDate(), 0, 0);
+}
+
+/** One round a missed-rounds review lists: opaque references only, never clinical text. */
+export interface MissedRound {
+  readonly taskId: string;
+  readonly kind: string;
+  /** ISO 8601 instant. */
+  readonly dueAt: string;
+  /** Reopened as a catch-up; otherwise missed. */
+  readonly reopened: boolean;
+}
+
+/**
+ * The rounds a missed-rounds review lists, from those it already lists and those just found
+ * (HZ-003, HZ-008). Medicines rounds come first and are never dropped: a missed dose is the
+ * round the nurse in charge must see. The rest follow newest first, so the latest rounds (the
+ * ones that matter now) are kept; those beyond `limit` items in all are counted in `omitted`,
+ * never silently lost. A round listed twice is listed once.
+ */
+export function listMissedRounds<T extends MissedRound>(
+  listed: readonly T[],
+  found: readonly T[],
+  limit: number,
+): { readonly items: readonly T[]; readonly omitted: number } {
+  const byTask = new Map<string, T>();
+  for (const round of [...listed, ...found]) byTask.set(round.taskId, round);
+  const newestFirst = (a: T, b: T) =>
+    Date.parse(b.dueAt) - Date.parse(a.dueAt) || a.taskId.localeCompare(b.taskId);
+  const all = [...byTask.values()];
+  const medicines = all.filter((r) => isMedicinesTask(r.kind)).sort(newestFirst);
+  const others = all.filter((r) => !isMedicinesTask(r.kind)).sort(newestFirst);
+  const room = Math.max(0, limit - medicines.length);
+  return {
+    items: [...medicines, ...others.slice(0, room)],
+    omitted: Math.max(0, others.length - room),
+  };
+}
+
 // ------------------------------------------------------------------------------------------------
 // Recurrence
 // ------------------------------------------------------------------------------------------------
@@ -464,4 +512,17 @@ export function occurrences(series: RecurrenceSeries, from: Date, to: Date): Dat
     for (const t of times) push(fromUkWallClock(d.year, d.month, d.day, t.hour, t.minute));
   }
   return out;
+}
+
+/**
+ * Whether a series falls due at least once in [from, to), however long the window: it is looked
+ * at a week at a time from the end, so a long window never exceeds `MAX_OCCURRENCES`.
+ */
+export function hasOccurrence(series: RecurrenceSeries, from: Date, to: Date): boolean {
+  const week = 7 * 24 * 3_600_000;
+  for (let end = to.getTime(); end > from.getTime(); end -= week) {
+    const start = Math.max(from.getTime(), end - week);
+    if (occurrences(series, new Date(start), new Date(end)).length > 0) return true;
+  }
+  return false;
 }

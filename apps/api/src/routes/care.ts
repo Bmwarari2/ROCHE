@@ -186,7 +186,7 @@ export const careRouter = createRouter()
               rates.clockDriftMinutes,
             );
             await checkSuperseded(tx, careNote, body.supersedesId, personId);
-            const link = await planLink(tx, access, body.taskId, personId);
+            const link = await planLink(tx, access, body.taskId, personId, c.get("requestId"));
             const [inserted] = await tx
               .insert(careNote)
               .values({
@@ -366,7 +366,7 @@ export const careRouter = createRouter()
             await checkSuperseded(tx, observation, body.supersedesId, personId);
             const profile = await careProfile(tx, personId);
             const { flags, triggers } = chartRules(body.values, profile, times.occurredAt);
-            const link = await planLink(tx, access, body.taskId, personId);
+            const link = await planLink(tx, access, body.taskId, personId, c.get("requestId"));
             const [inserted] = await tx
               .insert(observation)
               .values({
@@ -668,7 +668,7 @@ export const careRouter = createRouter()
             );
             await checkSuperseded(tx, bodyMapMark, body.supersedesId, personId);
             await checkMarkIncident(tx, body.incidentId, personId);
-            const link = await planLink(tx, access, body.taskId, personId);
+            const link = await planLink(tx, access, body.taskId, personId, c.get("requestId"));
             const [inserted] = await tx
               .insert(bodyMapMark)
               .values({

@@ -931,5 +931,7 @@
   "care.taskDetails.kind.assessment": "Assessment",
   "care.taskDetails.kind.activity": "Activity",
   "care.taskDetails.kind.visit": "Visit",
-  "care.taskDetails.kind.incident": "Incident"
+  "care.taskDetails.kind.incident": "Incident",
+  "care.taskDetails.round.medicines": "Medicines round",
+  "care.taskDetails.notListedBefore": "Rounds before {date} are not all listed: check the record."
 }

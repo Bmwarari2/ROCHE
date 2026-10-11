@@ -932,6 +932,8 @@
     "care.taskDetails.kind.assessment",
     "care.taskDetails.kind.activity",
     "care.taskDetails.kind.visit",
-    "care.taskDetails.kind.incident"
+    "care.taskDetails.kind.incident",
+    "care.taskDetails.round.medicines",
+    "care.taskDetails.notListedBefore"
   ]
 }

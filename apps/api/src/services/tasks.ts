@@ -212,6 +212,50 @@ export async function escalateOverdueTasks(
 }
 
 /**
+ * The permission a general task names (a manual task about no person): it is allocated to anyone,
+ * so its assignee completes it without holding anything more.
+ */
+export const GENERAL_TASK_PERMISSION = "platform.task.manage";
+
+/**
+ * Task kinds given to an owner who deliberately does not hold the permission they name: an
+ * investigation action is done by whoever the investigation names (safety.incident.manage only
+ * lets others close it).
+ */
+export const OWNER_TASK_KINDS: readonly string[] = ["safety.investigation_action"];
+
+/** Whether a task goes to anyone, whatever they hold (a general task or an owner's action). */
+export function anyoneMayBeGiven(row: {
+  readonly kind: string;
+  readonly requiredPermission: string;
+}): boolean {
+  return row.requiredPermission === GENERAL_TASK_PERMISSION || OWNER_TASK_KINDS.includes(row.kind);
+}
+
+/**
+ * Whether being a task's assignee still lets this member of staff complete it, now (S1 follow-on;
+ * HZ-004, HZ-005): only while they could still be given it (`mayBeAssigned`), so an acting-up
+ * grant that has expired or been revoked, or a role that has ended, no longer lets them mark an
+ * urgent task done or skipped, or complete it with an entry, and silence its escalation. General
+ * tasks and an owner's investigation actions are exempt (`anyoneMayBeGiven`).
+ */
+export async function assigneeMayComplete(
+  tx: Transaction,
+  tenantUserId: string,
+  row: {
+    readonly kind: string;
+    readonly assigneeTenantUserId: string | null;
+    readonly requiredPermission: string;
+    readonly locationId: string | null;
+  },
+  now: Date,
+): Promise<boolean> {
+  if (row.assigneeTenantUserId !== tenantUserId) return false;
+  if (anyoneMayBeGiven(row)) return true;
+  return mayBeAssigned(tx, tenantUserId, row, now);
+}
+
+/**
  * Whether a member of staff may complete a task at its location: they hold its required
  * permission there (a role assigned there or tenant-wide, or a grant). Being a task's assignee lets
  * them complete it, so a task is only ever given to someone who could complete it anyway (S1;

@@ -28,6 +28,7 @@ import {
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { AuditedRefusal, withAuditedRefusal } from "../http/audit";
 import { requirePermission, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { draftedKinds, notificationsForExit } from "../services/death-notifications";
@@ -52,7 +53,6 @@ import {
   security,
 } from "./openapi";
 import {
-  AuditedRefusal,
   actorOf,
   audit,
   invalidOnForeignKey,
@@ -60,7 +60,6 @@ import {
   PersonParam,
   refusal,
   requireAnyPermission,
-  withAuditedRefusal,
 } from "./people-shared";
 
 /**

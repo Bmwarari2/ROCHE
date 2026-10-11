@@ -86,20 +86,37 @@ export function permissionsOf(access: TenantAccess): ReadonlySet<string> {
   return new Set(access.effective.permissions);
 }
 
-/** What an entry will do to the task it names (`planTaskLink`), or null when it names none. */
+/**
+ * What an entry will do to the task it names (`planTaskLink`), or null when it names none. An
+ * assignee who may no longer complete the task has the completion refused and audited; the entry
+ * is still kept, flagged and reviewed (S1 follow-on; HZ-004, HZ-006).
+ */
 export async function planLink(
   tx: Transaction,
   access: TenantAccess,
   taskId: string | undefined,
   personId: string,
+  requestId?: string,
 ): Promise<PlannedTaskLink | null> {
   if (!taskId) return null;
-  return planTaskLink(tx, {
+  const link = await planTaskLink(tx, {
     taskId,
     personId,
     actorTenantUserId: access.tenantUserId,
     actorPermissions: permissionsOf(access),
   });
+  if (link.assigneeRefused) {
+    // The entry is written in this transaction, so the refusal is kept with it.
+    await auditInTx(tx, access, {
+      action: "platform.task.done",
+      outcome: "denied",
+      resourceType: "task",
+      resourceId: link.taskId,
+      reason: "assignee_lacks_permission",
+      requestId,
+    });
+  }
+  return link;
 }
 
 /**

@@ -46,6 +46,31 @@ describe("TaskDetails: what a review task lists (C8)", () => {
     expect(text).toContain("And 3 more not listed.");
   });
 
+  it("hazard HZ-003 names a missed medicines round in words and says which rounds are not all listed", () => {
+    const text = words(
+      render({
+        missedTasks: [
+          {
+            taskId: "0193a000-0000-7000-8000-00000000b003",
+            kind: "medicines.round",
+            dueAt: "2026-10-11T07:00:00.000Z",
+            reopened: false,
+          },
+        ],
+        missedTasksNotListedBefore: "2026-10-04",
+      }),
+    );
+    expect(text).toContain("Medicines round, due 11/10/2026 08:00: missed");
+    expect(text).not.toContain("Round, due");
+    expect(text).toContain("Rounds before 04/10/2026 are not all listed: check the record.");
+  });
+
+  it("hazard HZ-003 says which rounds are not all listed even when none could be listed", () => {
+    const text = words(render({ missedTasksNotListedBefore: "2026-10-04" }));
+    expect(text).toContain("Rounds missed while the return or correction was not recorded");
+    expect(text).toContain("Rounds before 04/10/2026 are not all listed: check the record.");
+  });
+
   it("hazards HZ-004 and HZ-006 lists the entries to review by kind, time and outcome, with opaque ids only", () => {
     const text = words(
       render({
