@@ -1,4 +1,5 @@
 import { Button, Card, Meter, StatusChip, TabNav, TextField } from "@harbour/ui";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ChartEntryForm } from "@/components/care/ChartEntryForm";
 import { ChartSettingsForm } from "@/components/care/ChartSettingsForm";
@@ -12,12 +13,24 @@ import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
 import { getCareProfile, getPerson, readOrFail } from "@/lib/person-record";
+import { firstParam, recordMetadata } from "@/lib/record-metadata";
 import { addDays, isIsoDate, ukDateTimeInput, ukToday } from "@/lib/uk-time";
 
 type Params = Promise<{ id: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
+/** The page title names the tab and the chart chosen, so changing chart is announced. */
+export async function generateMetadata({
+  searchParams,
+}: {
+  readonly searchParams: SearchParams;
+}): Promise<Metadata> {
+  const chart = firstParam((await searchParams).record);
+  return recordMetadata(
+    "charts",
+    t("care.charts.kind", { chart: isChart(chart) ? chart : "fluid_intake" }),
+  );
+}
 
 /**
  * The charts tab (care.md rule 6; register rows CARE-007 and CARE-010): the fluid balance day in
@@ -40,10 +53,10 @@ export default async function ChartsPage({
 
   const query = await searchParams;
   const today = ukToday();
-  const requestedDate = first(query.date);
+  const requestedDate = firstParam(query.date);
   const date =
     requestedDate && isIsoDate(requestedDate) && requestedDate <= today ? requestedDate : today;
-  const recordParam = first(query.record);
+  const recordParam = firstParam(query.record);
   const chart: ChartKind = isChart(recordParam) ? recordParam : "fluid_intake";
   const days = readingWindow(query.days);
   const path = tabHref(id, "charts");

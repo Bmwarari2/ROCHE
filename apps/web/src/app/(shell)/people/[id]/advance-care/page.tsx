@@ -1,6 +1,7 @@
 import type { AdvanceCareItem } from "@harbour/contracts";
 import { Card, StatusChip } from "@harbour/ui";
 import { CircleCheck, Clock, HeartOff, HeartPulse, History } from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { AdvanceCareForm } from "@/components/care/AdvanceCareForm";
 import { NoAccess } from "@/components/care/NoAccess";
@@ -12,6 +13,7 @@ import { formatDate, formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
 import { getPerson, readOrFail } from "@/lib/person-record";
+import { recordMetadata } from "@/lib/record-metadata";
 import { ukToday } from "@/lib/uk-time";
 
 type Params = Promise<{ id: string }>;
@@ -84,6 +86,11 @@ function RecordCard({
       </div>
     </Card>
   );
+}
+
+/** The page title names the tab, never the person. */
+export async function generateMetadata(): Promise<Metadata> {
+  return recordMetadata("advance-care");
 }
 
 /**

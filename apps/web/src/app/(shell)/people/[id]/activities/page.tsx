@@ -1,4 +1,5 @@
 import { Card } from "@harbour/ui";
+import type { Metadata } from "next";
 import { ActivityForm } from "@/components/care/ActivityForm";
 import { EntryBadges } from "@/components/care/EntryBadges";
 import { NoAccess } from "@/components/care/NoAccess";
@@ -10,10 +11,16 @@ import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
 import { getPerson, readOrFail } from "@/lib/person-record";
+import { recordMetadata } from "@/lib/record-metadata";
 import { formatUkTime, ukDateTimeInput } from "@/lib/uk-time";
 
 type Params = Promise<{ id: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+/** The page title names the tab, never the person. */
+export async function generateMetadata(): Promise<Metadata> {
+  return recordMetadata("activities");
+}
 
 /**
  * The activities and visits tab (register row CARE-014): what the person took part in and how,

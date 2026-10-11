@@ -18,18 +18,17 @@ import { planStatusChip, planVersions } from "@/lib/care-plan";
 import { can, entryChains, tabHref, windowStart } from "@/lib/care-record";
 import { fluidDayView, news2Chip, news2FromFlags } from "@/lib/charts";
 import { formatDate, formatDateTime } from "@/lib/format";
-import { peopleLabel, t } from "@/lib/i18n";
+import { t } from "@/lib/i18n";
 import { getPerson, readOrFail } from "@/lib/person-record";
+import { recordMetadata } from "@/lib/record-metadata";
 import { ukToday } from "@/lib/uk-time";
 
 type Params = Promise<{ id: string }>;
 
-export async function generateMetadata({ params }: { readonly params: Params }): Promise<Metadata> {
-  // The title names the module, not the person: browser history and tab titles are visible to
+export async function generateMetadata(): Promise<Metadata> {
+  // The title names the tab, not the person: browser history and tab titles are visible to
   // anyone who uses the computer next.
-  const { me } = await getShellContext();
-  await params;
-  return { title: peopleLabel(me.tenant.terminology) };
+  return recordMetadata("overview");
 }
 
 const planIcons = { "circle-check": CircleCheck, "pencil-line": PencilLine, history: History };

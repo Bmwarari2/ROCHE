@@ -1,5 +1,6 @@
 import { ButtonLink, Card, StatusChip } from "@harbour/ui";
 import { History } from "lucide-react";
+import type { Metadata } from "next";
 import { AssessmentForm } from "@/components/care/AssessmentForm";
 import { AssessmentResult } from "@/components/care/AssessmentResult";
 import { NoAccess } from "@/components/care/NoAccess";
@@ -10,10 +11,24 @@ import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
 import { getPerson, readOrFail } from "@/lib/person-record";
+import { firstParam, recordMetadata } from "@/lib/record-metadata";
 import { ukDateTimeInput } from "@/lib/uk-time";
 
 type Params = Promise<{ id: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+/** The page title names the tab, and the tool when one is being run, never the person. */
+export async function generateMetadata({
+  searchParams,
+}: {
+  readonly searchParams: SearchParams;
+}): Promise<Metadata> {
+  const tool = firstParam((await searchParams).run);
+  return recordMetadata(
+    "assessments",
+    isToolKey(tool) ? t("care.assessments.form.title", { tool }) : undefined,
+  );
+}
 
 /**
  * The assessments tab (care.md rule 5; register rows CARE-003 and CARE-006): run MUST or the NICE

@@ -1,4 +1,5 @@
 import { Button, Card, SelectField } from "@harbour/ui";
+import type { Metadata } from "next";
 import { NoAccess } from "@/components/care/NoAccess";
 import { RiskCard } from "@/components/care/RiskCard";
 import { RiskForm } from "@/components/care/RiskForm";
@@ -7,12 +8,18 @@ import { can, tabHref } from "@/lib/care-record";
 import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
 import { getPerson, readOrFail } from "@/lib/person-record";
+import { recordMetadata } from "@/lib/record-metadata";
 import { ukToday } from "@/lib/uk-time";
 
 type Params = Promise<{ id: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
+
+/** The page title names the tab, never the person. */
+export async function generateMetadata(): Promise<Metadata> {
+  return recordMetadata("risk-assessments");
+}
 
 /**
  * The risk assessments tab (register row CARE-002; hazards HZ-024 and HZ-025): the templates, a

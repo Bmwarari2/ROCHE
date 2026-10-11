@@ -1,5 +1,6 @@
 import { Card, EmptyState } from "@harbour/ui";
 import { ClipboardList } from "lucide-react";
+import type { Metadata } from "next";
 import { NoAccess } from "@/components/care/NoAccess";
 import { NoteForm } from "@/components/care/NoteForm";
 import { NoteList } from "@/components/care/NoteList";
@@ -9,10 +10,16 @@ import { can, readingWindow, tabHref, windowStart } from "@/lib/care-record";
 import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
 import { getPerson, readOrFail } from "@/lib/person-record";
+import { recordMetadata } from "@/lib/record-metadata";
 import { ukDateTimeInput } from "@/lib/uk-time";
 
 type Params = Promise<{ id: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+/** The page title names the tab, never the person. */
+export async function generateMetadata(): Promise<Metadata> {
+  return recordMetadata("notes");
+}
 
 /** Daily notes (care.md rules 3 and 4; register row CARE-009). */
 export default async function NotesPage({

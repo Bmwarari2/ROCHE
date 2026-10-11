@@ -1,5 +1,6 @@
 import { ButtonLink, Card } from "@harbour/ui";
 import { History, PencilLine } from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CarePlanView } from "@/components/care/CarePlanView";
@@ -16,8 +17,14 @@ import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
 import { getPerson, readOrFail } from "@/lib/person-record";
+import { recordMetadata } from "@/lib/record-metadata";
 
 type Params = Promise<{ id: string; planId: string }>;
+
+/** The page title names the tab and that this is one version of the plan, never the person. */
+export async function generateMetadata(): Promise<Metadata> {
+  return recordMetadata("care-plan", t("care.title.planVersion"));
+}
 
 /**
  * One version of a care plan. A draft is labelled as not in use, with the plan in use one tap

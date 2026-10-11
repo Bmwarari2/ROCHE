@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { NoAccess } from "@/components/care/NoAccess";
@@ -8,8 +9,20 @@ import { isUuid } from "@/lib/context-cookies";
 import { isHistoryTable } from "@/lib/history";
 import { t } from "@/lib/i18n";
 import { getPerson, readOrFail } from "@/lib/person-record";
+import { recordMetadata } from "@/lib/record-metadata";
 
 type Params = Promise<{ id: string; table: string; recordId: string }>;
+
+/** The page title names the tab and the kind of record, never the person. */
+export async function generateMetadata({ params }: { readonly params: Params }): Promise<Metadata> {
+  const { table } = await params;
+  return recordMetadata(
+    "history",
+    t("care.history.versions.title", {
+      record: t("care.history.recordName", { table: isHistoryTable(table) ? table : "other" }),
+    }),
+  );
+}
 
 /** Every earlier version of one care plan, section, action, risk assessment or advance care record. */
 export default async function RecordHistoryPage({ params }: { readonly params: Params }) {
