@@ -794,7 +794,7 @@ Six hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014) have a target resid
 | Design | Every validated result stores the published response band; bands that call for action raise a task and an urgent notification to the nurse in charge on shift, escalating through the location's chain until acknowledged | Phase 1 |
 | Design | Follow-ups are generated from the band: repeat observation frequency for NEWS2, a food record for MUST medium risk, a dietitian referral task for MUST high risk; intervals come from the rate table where they are defaults | Phase 1 |
 | Design | Results entered offline raise the task on the device immediately and the alert on sync, with the original time | Phase 1 |
-| Design | Handover always includes NEWS2 of 5 or more and open MUST follow-ups from the shift (HZ-018) | Phase 1 |
+| Design | Handover always includes NEWS2 above the low band (an aggregate of 5 or more, or a single parameter scoring 3) and MUST follow-ups raised in the shift (HZ-018) | Phase 1 |
 | Training and user documentation | User guide: the score supports clinical judgement and the published response, never replaces it; deployer control: escalation policy and on-shift nurse in charge set per location | Phase 1 |
 
 **Target residual risk**: severity Major, likelihood Low, **risk 3**.
@@ -945,7 +945,7 @@ Six hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014) have a target resid
 
 **Description**: the incoming shift is not told about a fall, a raised NEWS2, a refusal, a new wound, an open incident or an overdue task from the outgoing shift.
 
-**Causes**: handover written from memory; compiled list editable so items are removed; items recorded offline sync after the handover is compiled; nobody acknowledges it.
+**Causes**: handover written from memory; compiled list editable so items are removed; items recorded offline sync after the handover is compiled; nobody acknowledges it; the configured shift pattern does not match the real rota (an event just before the configured start belongs to the wrong shift); a fall or refusal recorded only in free text or in a chart field the compiler does not read; an urgent alert or a skipped task outlives the shift it was raised in; a late addition arrives after the receiving shift has gone home.
 
 **Effects**: missed observation or treatment; repeated harm; delayed escalation.
 
@@ -955,9 +955,10 @@ Six hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014) have a target resid
 
 | Type | Control | When |
 | --- | --- | --- |
-| Design | Handover compiles automatically from the shift's records by rule (late tasks, NEWS2 of 5 or more, incidents, new body-map marks, refusals, falls, alerts); compiled items cannot be removed, only annotated | Phase 1 |
-| Design | Items that sync after compilation are appended and marked as late additions, and the incoming staff are notified | Phase 1 |
-| Design | Each incoming member of staff acknowledges the handover; unacknowledged handovers show on the nurse-in-charge view | Phase 1 |
+| Design | Handover compiles automatically from the shift's records by rule (falls, NEWS2 above the low band, incidents, urgent alerts raised in the shift or still unacknowledged, new body-map marks, overdue, skipped and unfinished tasks, MUST follow-ups, refusals from every chart that records one and from fixed note tags); compiled items cannot be removed, only annotated | Phase 1 |
+| Design | Shift patterns are set per location to the minute with two or more shifts; the defaults are flagged for confirmation before go-live | Phase 1 |
+| Design | Items that sync after compilation are appended to both affected handovers and marked as late additions; the incoming staff are notified while on shift, otherwise the nurse in charge on duty | Phase 1 |
+| Design | Each incoming member of staff acknowledges the handover; an acknowledgement records the items seen, so a late addition makes it pending again and shows only the new items; unacknowledged handovers show on the nurse-in-charge view | Phase 1 |
 
 **Target residual risk**: severity Major, likelihood Very low, **risk 2**.
 
@@ -965,8 +966,9 @@ Six hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014) have a target resid
 
 | Test | Status |
 | --- | --- |
-| `packages/domain/src/care/handover.test.ts`: `hazard HZ-018 handover includes every safety-critical item from the shift` (falls, NEWS2 above low including a single parameter of 3, incidents, urgent alerts, new body-map marks, overdue tasks, MUST follow-ups, refusals; entries synced late count for the shift that received them) | Passing (domain) |
-| `packages/domain/src/care/handover.test.ts`: `hazard HZ-018 items synced after compilation are appended as late additions` (items are never removed; an acknowledgement made before a late addition no longer counts) | Passing (domain) |
+| `packages/domain/src/care/handover.test.ts`: `hazard HZ-018 handover includes every safety-critical item from the shift` (falls, NEWS2 above low including a single parameter of 3, incidents, urgent alerts including unacknowledged ones from earlier shifts, new body-map marks, overdue, skipped and unfinished tasks, MUST follow-ups, refusals; entries synced late count for the shift that received them; a 13-hour night at the clock change) | Passing (domain) |
+| `packages/domain/src/care/handover.test.ts`: `hazard HZ-018 items synced after compilation are appended as late additions` (items are never removed; an acknowledgement covers the items seen, including one made in the same instant as a late addition; late additions reach the nurse in charge once the receiving shift has ended) | Passing (domain) |
+| `packages/domain/src/care/handover.test.ts`: `hazard HZ-018 refusals are read from every chart that records one`; shifts to the minute, two or three per day, with no gap or overlap across both clock changes | Passing (domain) |
 | `apps/api` (care): handover compiled, refreshed and acknowledged through the API | Planned, Phase 1 slice 5 |
 
 ---
