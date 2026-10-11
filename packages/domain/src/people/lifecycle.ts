@@ -201,6 +201,18 @@ const CARE_EVENT_KINDS: readonly PersonRecordKind[] = [
   "incident",
 ];
 
+/**
+ * Statuses a person enters from receiving care. A care event that happened before the change is
+ * still accepted when it uploads, flagged as recorded after it: observations a phone recorded just
+ * before the person went to hospital or on leave, or before they left or died (HZ-006).
+ */
+const EVENTS_BEFORE_CHANGE_STATUSES: readonly PersonStatus[] = [
+  "on_leave",
+  "in_hospital",
+  "discharged",
+  "deceased",
+];
+
 export interface PersonRecordContext {
   readonly status: PersonStatus;
   /** When the person entered their current status (for discharged or deceased: when they left or died). */
@@ -252,13 +264,17 @@ export function checkPersonRecordWrite(
   if (personStatusAllows(status, PERSON_RECORD_KINDS[write.kind])) {
     return { ok: true, recordedAfterStatusChange: false };
   }
-  if ((status === "discharged" || status === "deceased") && CARE_EVENT_KINDS.includes(write.kind)) {
+  if (EVENTS_BEFORE_CHANGE_STATUSES.includes(status) && CARE_EVENT_KINDS.includes(write.kind)) {
     const occurredAt = write.occurredAt ?? null;
     const changedAt = person.statusChangedAt;
     if (occurredAt && changedAt && occurredAt.getTime() <= changedAt.getTime()) {
       return { ok: true, recordedAfterStatusChange: true };
     }
-    return recordProblem("occurred_after_status_change");
+    return recordProblem(
+      status === "discharged" || status === "deceased"
+        ? "occurred_after_status_change"
+        : "not_allowed_in_status",
+    );
   }
   return recordProblem("not_allowed_in_status");
 }

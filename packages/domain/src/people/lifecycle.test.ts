@@ -180,6 +180,24 @@ describe("rule 12: discharged and deceased people are read-only except post-even
     }
   });
 
+  it.each<["on_leave" | "in_hospital", PersonRecordKind, string, boolean]>([
+    ["in_hospital", "observation", "2026-09-30T23:00:00Z", true],
+    ["in_hospital", "body_map_mark", "2026-10-01T00:00:00Z", true],
+    ["on_leave", "assessment", "2026-09-30T08:00:00Z", true],
+    ["in_hospital", "observation", "2026-10-01T00:30:00Z", false],
+    ["on_leave", "body_map_mark", "2026-10-02T10:00:00Z", false],
+  ])(
+    "hazard HZ-006 a person who went %s: an offline %s at %s is accepted: %s",
+    (status, kind, occurredAt, accepted) => {
+      const result = checkPersonRecordWrite(
+        { status, statusChangedAt: new Date("2026-10-01T00:00:00Z") },
+        { kind, occurredAt: new Date(occurredAt) },
+      );
+      if (accepted) expect(result).toEqual({ ok: true, recordedAfterStatusChange: true });
+      else expect(result).toMatchObject({ ok: false, problem: "not_allowed_in_status" });
+    },
+  );
+
   it("lets live records take care events at any time", () => {
     expect(
       checkPersonRecordWrite(
