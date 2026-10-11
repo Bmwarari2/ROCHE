@@ -1,0 +1,32 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "ui": "stream",
+  "globalDependencies": [".env.example", "tsconfig.json"],
+  "globalEnv": ["NODE_ENV", "CI"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "storybook-static/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^typecheck"],
+      "outputs": []
+    },
+    "test": {
+      "outputs": [],
+      "env": ["DATABASE_URL", "DATABASE_OWNER_URL", "HARBOUR_TEST_DB"]
+    },
+    "test:coverage": {
+      "outputs": ["coverage/**"],
+      "env": ["DATABASE_URL", "DATABASE_OWNER_URL", "HARBOUR_TEST_DB"]
+    },
+    "test:db": {
+      "cache": false,
+      "env": ["DATABASE_URL", "DATABASE_OWNER_URL", "HARBOUR_TEST_DB"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}
