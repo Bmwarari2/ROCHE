@@ -210,6 +210,7 @@ const statusTone: Record<ClinicalStatus, Tone> = {
   due: "warning",
   done: "success",
   notApplicable: "neutral",
+  notRecorded: "warning",
 };
 
 /** Clinical status chip appearance: always an icon and a word, never colour alone. */

@@ -63,6 +63,11 @@ export const clinicalStatus = {
   due: { colorRole: "warning", icon: "clock", label: "Due" },
   done: { colorRole: "success", icon: "circle-check", label: "Done" },
   notApplicable: { colorRole: "textSecondary", icon: "circle-minus", label: "Not applicable" },
+  /**
+   * Something that must be recorded and is not (allergies, communication needs): a warning with a
+   * question mark, never the clock of a task that is due, and never blank or "none".
+   */
+  notRecorded: { colorRole: "warning", icon: "circle-help", label: "Not recorded" },
 } as const satisfies Record<string, { colorRole: keyof ColorScheme; icon: string; label: string }>;
 
 export type ClinicalStatus = keyof typeof clinicalStatus;

@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import { PencilLine } from "lucide-react";
 import { describe, expect, it } from "vitest";
 import { clinicalStatus } from "../../tokens/tokens";
 import { StatusChip, type StatusChipStatus } from "./StatusChip";
@@ -17,6 +18,7 @@ const cases: Array<[StatusChipStatus, string | undefined, string]> = [
   ["due", undefined, clinicalStatus.due.label],
   ["done", undefined, clinicalStatus.done.label],
   ["notApplicable", undefined, clinicalStatus.notApplicable.label],
+  ["notRecorded", undefined, "Not recorded"],
   ["due", "Due at 14:00", "Due at 14:00"],
   ["info", "New", "New"],
   ["neutral", "Draft", "Draft"],
@@ -45,7 +47,7 @@ describe("StatusChip", () => {
   });
 
   it("never renders without text, whatever the status", () => {
-    const statuses: StatusChipStatus[] = ["overdue", "due", "done", "notApplicable"];
+    const statuses: StatusChipStatus[] = ["overdue", "due", "done", "notApplicable", "notRecorded"];
     for (const status of statuses) {
       const { container, unmount } = render(
         <StatusChip status={status as keyof typeof clinicalStatus} />,
@@ -58,5 +60,33 @@ describe("StatusChip", () => {
       expect(visibleText(container.firstElementChild as HTMLElement).length).toBeGreaterThan(0);
       unmount();
     }
+  });
+
+  it("takes its own icon for states with their own symbol, still beside the word", () => {
+    const { container } = render(
+      <StatusChip status="info" label="Draft, not in use" icon={PencilLine} />,
+    );
+    const chip = container.firstElementChild as HTMLElement;
+    expect(visibleText(chip)).toBe("Draft, not in use");
+    const icon = chip.querySelector("svg");
+    expect(icon).toHaveClass("lucide-pencil-line");
+    expect(icon).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("shows not recorded as a warning with a question mark, never the clock of a due task", () => {
+    const { container } = render(<StatusChip status="notRecorded" />);
+    const chip = container.firstElementChild as HTMLElement;
+    expect(visibleText(chip)).toBe("Not recorded");
+    expect(chip).toHaveClass("hb-status-chip--notRecorded");
+    expect(chip.querySelector("svg")).toHaveClass("lucide-circle-question-mark");
+    expect(chip.querySelector("svg")).not.toHaveClass("lucide-clock");
+    expect(clinicalStatus.notRecorded.colorRole).toBe(clinicalStatus.due.colorRole);
+  });
+
+  it("links to the action that resolves it, with the words as the link text", () => {
+    render(<StatusChip status="notRecorded" label="Allergies not recorded" href="/record" />);
+    const link = screen.getByRole("link", { name: "Allergies not recorded" });
+    expect(link).toHaveAttribute("href", "/record");
+    expect(link.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
   });
 });

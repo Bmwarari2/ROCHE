@@ -2,6 +2,7 @@ import {
   Circle,
   CircleAlert,
   CircleCheck,
+  CircleHelp,
   CircleMinus,
   Clock,
   Info,
@@ -19,6 +20,7 @@ const clinicalIcons: Record<ClinicalIconName, LucideIcon> = {
   "circle-alert": CircleAlert,
   clock: Clock,
   "circle-check": CircleCheck,
+  "circle-help": CircleHelp,
   "circle-minus": CircleMinus,
 };
 
@@ -26,10 +28,24 @@ export type StatusChipStatus = ClinicalStatus | "neutral" | "info";
 
 interface StatusChipBaseProps extends Omit<HTMLAttributes<HTMLSpanElement>, "children"> {
   className?: string;
+  /**
+   * A Lucide icon that replaces the default one, for states that need their own symbol, such as
+   * a care plan "Draft" (a pencil) or "Superseded" (a clock turned back). Always shown beside the
+   * word.
+   */
+  icon?: LucideIcon;
+  /**
+   * Makes the chip a link to the action that resolves it, for example "Not recorded" linking to
+   * where the allergies are recorded. The words stay the link text.
+   */
+  href?: string;
 }
 
 interface ClinicalStatusChipProps extends StatusChipBaseProps {
-  /** overdue, due, done or notApplicable: fixed colours, icon and default word from the tokens. */
+  /**
+   * overdue, due, done, notApplicable or notRecorded: fixed colours, icon and default word from
+   * the tokens.
+   */
   status: ClinicalStatus;
   /** Replaces the default word, for example "Due 14:00". */
   label?: string;
@@ -62,16 +78,27 @@ function chipContent(status: StatusChipStatus, label: string | undefined) {
  * Status shown as an icon plus a word, never colour alone. Clinical statuses are filled with their
  * fixed colour and white text in both themes.
  */
-export function StatusChip({ status, label, className, ...rest }: StatusChipProps) {
-  const { Icon, text } = chipContent(status, label);
-  return (
-    <span
-      className={cx("hb-status-chip", `hb-status-chip--${status}`, className)}
-      data-status={status}
-      {...rest}
-    >
+export function StatusChip({ status, label, icon, href, className, ...rest }: StatusChipProps) {
+  const content = chipContent(status, label);
+  const Icon = icon ?? content.Icon;
+  const { text } = content;
+  const children = (
+    <>
       <Icon {...iconProps} className="hb-status-chip__icon" size={14} />
       <span className="hb-status-chip__label">{text}</span>
+    </>
+  );
+  const classes = cx("hb-status-chip", `hb-status-chip--${status}`, className);
+  if (href) {
+    return (
+      <a href={href} className={classes} data-status={status}>
+        {children}
+      </a>
+    );
+  }
+  return (
+    <span className={classes} data-status={status} {...rest}>
+      {children}
     </span>
   );
 }
