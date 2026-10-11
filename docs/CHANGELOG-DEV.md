@@ -170,3 +170,37 @@ density, "None selected") before Welsh tenants; then Phase 1 as in STATUS.md.
 **Tests**: `packages/i18n` 34, `packages/ui` 233 (160 axe runs), `apps/web` 142 unit and 8
 Playwright journeys with axe, all passing locally; Biome, typecheck, Storybook build and the web
 production build clean.
+
+## 2026-10-11: The pull request stack merged to main
+
+**What changed**
+
+- Merged in order with merge commits: Phase 0 (#1, #7) and Phase 1 #2 to #6, #8 to #14, #16 to
+  #20. Each later branch took `main` in first, with CI green on the result before it merged.
+- Overlaps resolved in the merges:
+  - `comms.md` is now one spec for letter templates (slice 11) and the family feed (slice 12). The
+    feed keeps rules 1 to 17; the template rules are 18 to 26, and every reference moved with them.
+  - The family channels use slice 11's printable-ASCII email check instead of their own, so a
+    lookalike letter in a family member's address is refused as it is for letters.
+  - Built-in roles keep both slices' exclusions: portal-only permissions, the evidence pack link
+    (`quality.evidence.read`), and for the deputy, preparing a DPIA and approving the statement of
+    purpose.
+  - The export catalogue (slice 13) now classifies the consent, capacity, best-interests, DoLS,
+    incident, classifier, statutory notification, candour and investigation tables from #14, with
+    every column described and the stored codes explained (hazard HZ-071).
+  - Hazard log, human actions, records of processing, data standards, retention and the decision
+    index keep both sides in id order; the register is recounted and `permissions.md` regenerated.
+- The shared UK wall-clock rule for typed event times (`resolveRecordedUkTime`, #16) is on `main`.
+- gitleaks reads message catalogue keys as names, not secrets.
+- Dependabot's seven alerts reviewed: the two high ones are recorded exceptions (build tooling
+  with no fixed version); one moderate ships in the app and waits for the next Expo SDK.
+
+**Next**: #21 (people lifecycle schema and API, round 3 fixes) and #15 (offline Care mode, round 4),
+then the API follow-ups from the #15 reviews and slice 5's API (STATUS.md).
+
+**Human actions logged**: none new in the merges. The project owner has moved the accounts and
+the named roles to after the build and is choosing the SMS provider (H-09).
+
+**Tests**: `packages/domain` 3,627, `packages/db` 190, `apps/api` 228, `apps/web` 282,
+`packages/ui` 330, `apps/mobile` 208, `packages/ui-native` 133, `packages/i18n` 34,
+`packages/contracts` 11, `packages/sync` 10, all passing locally on `main` plus #20.
