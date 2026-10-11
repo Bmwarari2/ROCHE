@@ -9,11 +9,16 @@ import { formatUkDateTime } from "../shared/time";
  * audit"; comms.md section 4; hazard HZ-051; ADR-0051).
  *
  * - Merge fields are typed and catalogued; a template that names an unknown field is refused.
- * - Each field carries a data class: email subjects take no personal data, and special category
- *   (health and care) details never go in an email body: they go by letter (ADR-0051).
+ * - Each field carries a data class: email subjects take no personal data and no multi-line field,
+ *   and refuse control, line-separator and bidirectional characters (header injection); special
+ *   category (health and care) details, NHS numbers and dates of birth never go in an email body,
+ *   and incident follow-up and duty of candour templates are letters only (ADR-0051).
  * - Rendering escapes every value (and the template's own text) for HTML email, refuses a missing
  *   value rather than leaving a blank, refuses a value that belongs to another person (HZ-051),
- *   and lists the personal-data fields it used for the audit trail.
+ *   checks a duty of candour letter goes to the relevant person under regulation 20(7), and lists
+ *   the personal-data fields it used for the audit trail.
+ * - A letter's text is passed to the PDF renderer (Typst) as data, never as markup: nothing in a
+ *   template or a value is interpreted as formatting.
  * - Only an approved version is used. The author cannot approve it; an approved version never
  *   changes, so any change is a new version that needs approval again.
  *
@@ -30,6 +35,9 @@ export const TEMPLATE_KINDS = [
 ] as const;
 
 export type TemplateKind = (typeof TEMPLATE_KINDS)[number];
+
+/** Kinds that carry health and care details by their nature: letters only, never email. */
+export const LETTER_ONLY_KINDS: readonly TemplateKind[] = ["incident_follow_up", "duty_of_candour"];
 
 export const TEMPLATE_CHANNELS = ["letter", "email"] as const;
 export type TemplateChannel = (typeof TEMPLATE_CHANNELS)[number];
@@ -50,152 +58,105 @@ export interface MergeFieldDefinition {
    * must belong to the person the letter is about (HZ-051).
    */
   readonly personBound: boolean;
+  /** The value may hold line breaks (an address, a written account): never in a subject. */
+  readonly multiLine: boolean;
+  /** Identifiers kept out of email bodies even though they are not special category data. */
+  readonly notInEmail: boolean;
+  /** The first written candour notification may say the results are still to follow. */
+  readonly allowsResultsToFollow: boolean;
 }
+
+function mergeField(
+  label: string,
+  type: MergeFieldType,
+  dataClass: MergeDataClass,
+  personBound: boolean,
+  options: {
+    readonly multiLine?: boolean;
+    readonly notInEmail?: boolean;
+    readonly allowsResultsToFollow?: boolean;
+  } = {},
+): MergeFieldDefinition {
+  return {
+    label,
+    type,
+    dataClass,
+    personBound,
+    multiLine: options.multiLine ?? false,
+    notInEmail: options.notInEmail ?? false,
+    allowsResultsToFollow: options.allowsResultsToFollow ?? false,
+  };
+}
+
+const MULTI_LINE = { multiLine: true } as const;
 
 /** The catalogue. Money is in whole pence; dates are yyyy-mm-dd; date-times are ISO instants. */
 export const MERGE_FIELDS = {
-  "tenant.name": { label: "Provider name", type: "text", dataClass: "none", personBound: false },
-  "location.name": { label: "Home name", type: "text", dataClass: "none", personBound: false },
-  "location.address": {
-    label: "Home address",
-    type: "text",
-    dataClass: "none",
-    personBound: false,
-  },
-  "location.phone": {
-    label: "Home telephone number",
-    type: "text",
-    dataClass: "none",
-    personBound: false,
-  },
-  "letter.date": {
-    label: "Date of the letter",
-    type: "date",
-    dataClass: "none",
-    personBound: false,
-  },
-  "sender.name": {
-    label: "Sender's name",
-    type: "text",
-    dataClass: "personal",
-    personBound: false,
-  },
-  "sender.role": { label: "Sender's role", type: "text", dataClass: "none", personBound: false },
-  "person.full_name": {
-    label: "Person's full name",
-    type: "text",
-    dataClass: "personal",
-    personBound: true,
-  },
-  "person.preferred_name": {
-    label: "Person's preferred name",
-    type: "text",
-    dataClass: "personal",
-    personBound: true,
-  },
-  "person.room": { label: "Person's room", type: "text", dataClass: "personal", personBound: true },
-  "person.date_of_birth": {
-    label: "Person's date of birth",
-    type: "date",
-    dataClass: "personal",
-    personBound: true,
-  },
-  "person.nhs_number": {
-    label: "Person's NHS number",
-    type: "text",
-    dataClass: "personal",
-    personBound: true,
-  },
-  "recipient.full_name": {
-    label: "Recipient's name",
-    type: "text",
-    dataClass: "personal",
-    personBound: true,
-  },
-  "recipient.address": {
-    label: "Recipient's address",
-    type: "text",
-    dataClass: "personal",
-    personBound: true,
-  },
-  "recipient.relationship": {
-    label: "Recipient's relationship to the person",
-    type: "text",
-    dataClass: "personal",
-    personBound: true,
-  },
-  "admission.date": {
-    label: "Admission date",
-    type: "date",
-    dataClass: "personal",
-    personBound: true,
-  },
-  "fee.current_weekly": {
-    label: "Current weekly fee",
-    type: "money",
-    dataClass: "personal",
-    personBound: true,
-  },
-  "fee.new_weekly": {
-    label: "New weekly fee",
-    type: "money",
-    dataClass: "personal",
-    personBound: true,
-  },
-  "fee.effective_date": {
-    label: "Date the new fee starts",
-    type: "date",
-    dataClass: "personal",
-    personBound: true,
-  },
-  "fee.notice_days": {
-    label: "Days' notice of a fee change (from the rate table)",
-    type: "number",
-    dataClass: "none",
-    personBound: false,
-  },
-  "incident.date": {
-    label: "Date of the incident",
-    type: "date",
-    dataClass: "special_category",
-    personBound: true,
-  },
-  "incident.summary": {
-    label: "What happened",
-    type: "text",
-    dataClass: "special_category",
-    personBound: true,
-  },
-  "candour.account": {
-    label: "Account of the facts known",
-    type: "text",
-    dataClass: "special_category",
-    personBound: true,
-  },
-  "candour.enquiries": {
-    label: "Further enquiries to be made",
-    type: "text",
-    dataClass: "special_category",
-    personBound: true,
-  },
-  "candour.results": {
-    label: "Results of further enquiries",
-    type: "text",
-    dataClass: "special_category",
-    personBound: true,
-  },
-  "candour.apology": {
-    label: "Apology",
-    type: "text",
-    dataClass: "special_category",
-    personBound: true,
-  },
+  "tenant.name": mergeField("Provider name", "text", "none", false),
+  "location.name": mergeField("Home name", "text", "none", false),
+  "location.address": mergeField("Home address", "text", "none", false, MULTI_LINE),
+  "location.phone": mergeField("Home telephone number", "text", "none", false),
+  "letter.date": mergeField("Date of the letter", "date", "none", false),
+  "sender.name": mergeField("Sender's name", "text", "personal", false),
+  "sender.role": mergeField("Sender's role", "text", "none", false),
+  "person.full_name": mergeField("Person's full name", "text", "personal", true),
+  "person.preferred_name": mergeField("Person's preferred name", "text", "personal", true),
+  "person.room": mergeField("Person's room", "text", "personal", true),
+  "person.date_of_birth": mergeField("Person's date of birth", "date", "personal", true, {
+    notInEmail: true,
+  }),
+  "person.nhs_number": mergeField("Person's NHS number", "text", "personal", true, {
+    notInEmail: true,
+  }),
+  "recipient.full_name": mergeField("Recipient's name", "text", "personal", true),
+  "recipient.address": mergeField("Recipient's address", "text", "personal", true, MULTI_LINE),
+  "recipient.relationship": mergeField(
+    "Recipient's relationship to the person",
+    "text",
+    "personal",
+    true,
+  ),
+  "admission.date": mergeField("Admission date", "date", "personal", true),
+  "fee.current_weekly": mergeField("Current weekly fee", "money", "personal", true),
+  "fee.new_weekly": mergeField("New weekly fee", "money", "personal", true),
+  "fee.effective_date": mergeField("Date the new fee starts", "date", "personal", true),
+  "fee.notice_days": mergeField(
+    "Days' notice of a fee change (from the rate table)",
+    "number",
+    "none",
+    false,
+  ),
+  "incident.date": mergeField("Date of the incident", "date", "special_category", true),
+  "incident.summary": mergeField("What happened", "text", "special_category", true, MULTI_LINE),
+  "candour.account": mergeField(
+    "Account of the facts known",
+    "text",
+    "special_category",
+    true,
+    MULTI_LINE,
+  ),
+  "candour.enquiries": mergeField(
+    "Further enquiries to be made",
+    "text",
+    "special_category",
+    true,
+    MULTI_LINE,
+  ),
+  "candour.results": mergeField("Results of further enquiries", "text", "special_category", true, {
+    multiLine: true,
+    allowsResultsToFollow: true,
+  }),
+  "candour.apology": mergeField("Apology", "text", "special_category", true, MULTI_LINE),
 } as const satisfies Readonly<Record<string, MergeFieldDefinition>>;
 
 export type MergeFieldKey = keyof typeof MERGE_FIELDS;
 
 export function isMergeFieldKey(value: string): value is MergeFieldKey {
   return Object.hasOwn(MERGE_FIELDS, value);
+}
+
+function definitionOf(key: MergeFieldKey): MergeFieldDefinition {
+  return MERGE_FIELDS[key];
 }
 
 const CANDOUR_REG_20 = "https://www.legislation.gov.uk/uksi/2014/2936/regulation/20";
@@ -288,6 +249,22 @@ export function parseTemplateText(text: string): ParsedTemplate {
   return { parts, fields, problems };
 }
 
+/**
+ * True when text holds a character that can break or disguise an email header: C0 and C1 control
+ * characters (CR and LF among them), DEL, the Unicode line and paragraph separators, and the
+ * bidirectional controls that can reorder what a reader sees.
+ */
+export function hasUnsafeHeaderCharacter(text: string): boolean {
+  for (const ch of text) {
+    const c = ch.codePointAt(0) ?? 0;
+    if (c <= 0x1f || c === 0x7f || (c >= 0x80 && c <= 0x9f)) return true;
+    if (c === 0x2028 || c === 0x2029) return true;
+    if (c === 0x061c || c === 0x200e || c === 0x200f) return true;
+    if ((c >= 0x202a && c <= 0x202e) || (c >= 0x2066 && c <= 0x2069)) return true;
+  }
+  return false;
+}
+
 // ------------------------------------------------------------------------------------------------
 // Checking a template definition
 // ------------------------------------------------------------------------------------------------
@@ -305,10 +282,14 @@ export type TemplateProblem =
   | "body_too_long"
   | "subject_required"
   | "subject_too_long"
+  | "subject_unsafe_characters"
   | TemplateSyntaxProblem
   | "unknown_field"
   | "subject_personal_data"
+  | "subject_multiline_field"
+  | "letter_only_kind"
   | "special_category_in_email"
+  | "identifier_in_email"
   | "required_field_missing";
 
 export interface TemplateIssue {
@@ -334,12 +315,18 @@ function issue(problem: TemplateProblem, subjectText: string | null): TemplateIs
     body_too_long: "This template is too long. Split it into shorter letters.",
     subject_required: "An email needs a subject.",
     subject_too_long: "Keep the email subject to 80 characters or fewer.",
+    subject_unsafe_characters:
+      "The email subject has a hidden or line-break character in it. Retype the subject.",
     unterminated_field: "A merge field is not closed. Close it with }}.",
     invalid_field_name: `'${name}' is not a merge field name. Use lower case, for example {{person.preferred_name}}.`,
     stray_closing_braces: "There is a }} without a {{ before it.",
     unknown_field: `{{${name}}} is not a merge field Harbour knows. Choose one from the list.`,
     subject_personal_data: `Email subjects cannot include personal details. Remove {{${name}}} from the subject.`,
+    subject_multiline_field: `{{${name}}} can run over several lines, so it cannot go in a subject.`,
+    letter_only_kind:
+      "Incident follow-up and duty of candour letters carry health details, so they are letters only.",
     special_category_in_email: `Health and care details cannot go in an email. Send this as a letter, or remove {{${name}}}.`,
+    identifier_in_email: `{{${name}}} identifies the person and cannot go in an email. Send this as a letter, or remove it.`,
     required_field_missing: `This kind of letter must include {{${name}}}.`,
   };
   return { problem, subjectText, message: messages[problem] };
@@ -352,10 +339,16 @@ export function checkTemplateDefinition(definition: TemplateDefinition): Templat
   if (body.length === 0) issues.push(issue("body_empty", null));
   if (definition.body.length > MAX_TEMPLATE_BODY_LENGTH) issues.push(issue("body_too_long", null));
   const isEmail = definition.channel === "email";
+  if (isEmail && LETTER_ONLY_KINDS.includes(definition.kind)) {
+    issues.push(issue("letter_only_kind", null));
+  }
   const subjectText = isEmail ? (definition.subject ?? "").trim() : "";
   if (isEmail && subjectText.length === 0) issues.push(issue("subject_required", null));
   if (subjectText.length > MAX_TEMPLATE_SUBJECT_LENGTH) {
     issues.push(issue("subject_too_long", null));
+  }
+  if (isEmail && hasUnsafeHeaderCharacter(definition.subject ?? "")) {
+    issues.push(issue("subject_unsafe_characters", null));
   }
 
   const parsedBody = parseTemplateText(
@@ -374,14 +367,19 @@ export function checkTemplateDefinition(definition: TemplateDefinition): Templat
     }
   }
   for (const name of parsedSubject.fields) {
-    if (isMergeFieldKey(name) && MERGE_FIELDS[name].dataClass !== "none") {
-      issues.push(issue("subject_personal_data", name));
-    }
+    if (!isMergeFieldKey(name)) continue;
+    const field = definitionOf(name);
+    if (field.dataClass !== "none") issues.push(issue("subject_personal_data", name));
+    if (field.multiLine) issues.push(issue("subject_multiline_field", name));
   }
   if (isEmail) {
     for (const name of parsedBody.fields) {
-      if (isMergeFieldKey(name) && MERGE_FIELDS[name].dataClass === "special_category") {
+      if (!isMergeFieldKey(name)) continue;
+      const field = definitionOf(name);
+      if (field.dataClass === "special_category") {
         issues.push(issue("special_category_in_email", name));
+      } else if (field.notInEmail) {
+        issues.push(issue("identifier_in_email", name));
       }
     }
   }
@@ -394,7 +392,7 @@ export function checkTemplateDefinition(definition: TemplateDefinition): Templat
     ok: issues.length === 0,
     issues,
     fields: known,
-    personalDataFields: known.filter((f) => MERGE_FIELDS[f].dataClass !== "none"),
+    personalDataFields: known.filter((f) => definitionOf(f).dataClass !== "none"),
   };
 }
 
@@ -533,11 +531,85 @@ export function currentApprovedTemplate(
 }
 
 // ------------------------------------------------------------------------------------------------
+// The duty of candour's relevant person (regulation 20(7))
+// ------------------------------------------------------------------------------------------------
+
+/** The circumstances in regulation 20(7) in which a representative is the relevant person. */
+export const CANDOUR_REPRESENTATIVE_BASES = [
+  "death",
+  "under_16_not_competent",
+  "lacks_capacity",
+] as const;
+
+export type CandourRepresentativeBasis = (typeof CANDOUR_REPRESENTATIVE_BASES)[number];
+
+/** The relevant person recorded on the candour record (safety module). */
+export type CandourRelevantPerson =
+  | { readonly kind: "service_user"; readonly personId: string }
+  | {
+      readonly kind: "representative";
+      readonly personId: string;
+      readonly contactId: string;
+      readonly basis: CandourRepresentativeBasis;
+    };
+
+export type CandourRelevantPersonProblem =
+  | "representative_basis_not_met"
+  | "representative_required";
+
+/**
+ * Regulation 20(7): "relevant person" means the service user or, on their death, where they are
+ * under 16 and not competent, or where they are 16 or over and lack capacity in relation to the
+ * matter, a person lawfully acting on their behalf. Checks the candour record's choice against the
+ * facts recorded for the person (wording to confirm with the CSO and a solicitor, H-103).
+ */
+export function checkCandourRelevantPerson(
+  relevantPerson: CandourRelevantPerson,
+  facts: {
+    readonly died: boolean;
+    readonly under16NotCompetent: boolean;
+    readonly lacksCapacityForMatter: boolean;
+  },
+): readonly CandourRelevantPersonProblem[] {
+  const applies: Record<CandourRepresentativeBasis, boolean> = {
+    death: facts.died,
+    under_16_not_competent: facts.under16NotCompetent,
+    lacks_capacity: facts.lacksCapacityForMatter,
+  };
+  if (relevantPerson.kind === "representative") {
+    return applies[relevantPerson.basis] ? [] : ["representative_basis_not_met"];
+  }
+  return Object.values(applies).some(Boolean) ? ["representative_required"] : [];
+}
+
+export type LetterRecipient =
+  | { readonly kind: "person"; readonly personId: string }
+  | { readonly kind: "contact"; readonly personId: string; readonly contactId: string };
+
+function sameRecipient(relevantPerson: CandourRelevantPerson, recipient: LetterRecipient): boolean {
+  if (relevantPerson.kind === "service_user") {
+    return recipient.kind === "person" && recipient.personId === relevantPerson.personId;
+  }
+  return (
+    recipient.kind === "contact" &&
+    recipient.personId === relevantPerson.personId &&
+    recipient.contactId === relevantPerson.contactId
+  );
+}
+
+// ------------------------------------------------------------------------------------------------
 // Rendering
 // ------------------------------------------------------------------------------------------------
 
+/** The first written candour notification may say the results of enquiries are still to come. */
+export interface ResultsToFollow {
+  readonly kind: "results_to_follow";
+  /** yyyy-mm-dd when the provider expects to write with the results, or null if not known. */
+  readonly expectedBy: string | null;
+}
+
 export interface MergeValue {
-  readonly value: string | number;
+  readonly value: string | number | ResultsToFollow;
   /**
    * For person-bound fields, the person receiving care the value belongs to (for recipient
    * fields, the person whose contact the recipient is). Null for other fields.
@@ -549,12 +621,18 @@ export interface TemplateRenderRequest {
   /** The person the letter is about; required when any person-bound field is used. */
   readonly subjectPersonId: string | null;
   readonly values: Readonly<Record<string, MergeValue>>;
+  /** Required for a duty of candour letter: the candour record's relevant person and the recipient. */
+  readonly candour?: {
+    readonly relevantPerson: CandourRelevantPerson;
+    readonly recipient: LetterRecipient;
+  } | null;
 }
 
 export interface RenderedTemplate {
   readonly templateVersionId: string;
   readonly channel: TemplateChannel;
   readonly subject: string | null;
+  /** Plain text; for a letter, passed to the PDF renderer as data, never as markup. */
   readonly text: string;
   /** Email only: every value and every piece of template text HTML-escaped. */
   readonly html: string | null;
@@ -562,6 +640,8 @@ export interface RenderedTemplate {
   /** For the audit trail and the "check before sending" screen. */
   readonly personalDataFields: readonly MergeFieldKey[];
   readonly containsSpecialCategory: boolean;
+  /** A candour letter whose results are still to come: the candour workflow keeps a letter due. */
+  readonly resultsToFollow: boolean;
   readonly subjectPersonId: string | null;
 }
 
@@ -572,7 +652,10 @@ export type TemplateRenderProblem =
   | "missing_value"
   | "wrong_type"
   | "wrong_person"
-  | "subject_not_generic";
+  | "candour_recipient_required"
+  | "candour_wrong_recipient"
+  | "subject_not_generic"
+  | "subject_unsafe_characters";
 
 export const TEMPLATE_RENDER_MESSAGES: Readonly<Record<TemplateRenderProblem, string>> = {
   not_approved: "This template version is not approved for use.",
@@ -582,7 +665,12 @@ export const TEMPLATE_RENDER_MESSAGES: Readonly<Record<TemplateRenderProblem, st
   wrong_type: "Some details are in the wrong format.",
   wrong_person:
     "Some details belong to a different person. The letter was not made. Check who it is for.",
+  candour_recipient_required:
+    "Choose who the duty of candour letter goes to, from the candour record.",
+  candour_wrong_recipient:
+    "A duty of candour letter goes to the relevant person named on the candour record.",
   subject_not_generic: "The email subject must not contain personal details.",
+  subject_unsafe_characters: "The email subject has a hidden or line-break character in it.",
 };
 
 export type TemplateRenderResult =
@@ -619,6 +707,10 @@ function isIsoDate(value: string): boolean {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
+function ukDateText(isoDate: string): string {
+  return `${isoDate.slice(8, 10)}/${isoDate.slice(5, 7)}/${isoDate.slice(0, 4)}`;
+}
+
 /** Formats a value for its field type, or null when the value is not of that type. */
 export function formatMergeValue(type: MergeFieldType, value: string | number): string | null {
   switch (type) {
@@ -631,15 +723,25 @@ export function formatMergeValue(type: MergeFieldType, value: string | number): 
         ? moneyFormatter.format(value / 100)
         : null;
     case "date":
-      return typeof value === "string" && isIsoDate(value)
-        ? `${value.slice(8, 10)}/${value.slice(5, 7)}/${value.slice(0, 4)}`
-        : null;
+      return typeof value === "string" && isIsoDate(value) ? ukDateText(value) : null;
     case "datetime": {
       if (typeof value !== "string") return null;
       const instant = new Date(value);
       return Number.isNaN(instant.getTime()) ? null : formatUkDateTime(instant);
     }
   }
+}
+
+/** The standard words for results still to come (regulation 20(4)(c) once they are known). */
+export function resultsToFollowText(marker: ResultsToFollow): string | null {
+  if (marker.expectedBy !== null && !isIsoDate(marker.expectedBy)) return null;
+  return marker.expectedBy === null
+    ? "The results of our further enquiries are not available yet. We will write to you with them as soon as they are."
+    : `The results of our further enquiries are not available yet. We will write to you with them by ${ukDateText(marker.expectedBy)}.`;
+}
+
+function isResultsToFollow(value: MergeValue["value"]): value is ResultsToFollow {
+  return typeof value === "object" && value !== null && value.kind === "results_to_follow";
 }
 
 function toHtml(parts: readonly TemplatePart[], values: ReadonlyMap<string, string>): string {
@@ -676,25 +778,43 @@ export function renderTemplate(
     return { ok: false, problems };
   }
   const used = definition.fields;
-  const personBound = used.filter((f) => MERGE_FIELDS[f].personBound);
+  const personBound = used.filter((f) => definitionOf(f).personBound);
   if (personBound.length > 0 && request.subjectPersonId === null) {
     fail("subject_person_required", personBound);
+  }
+  if (version.kind === "duty_of_candour") {
+    const candour = request.candour ?? null;
+    if (candour === null) fail("candour_recipient_required");
+    else if (
+      !sameRecipient(candour.relevantPerson, candour.recipient) ||
+      candour.relevantPerson.personId !== request.subjectPersonId
+    ) {
+      fail("candour_wrong_recipient");
+    }
   }
   const missing: string[] = [];
   const wrongType: string[] = [];
   const wrongPerson: string[] = [];
   const formatted = new Map<string, string>();
+  let resultsToFollow = false;
   for (const field of used) {
     const supplied = request.values[field];
     if (!supplied || (typeof supplied.value === "string" && supplied.value.trim() === "")) {
       missing.push(field);
       continue;
     }
-    const text = formatMergeValue(MERGE_FIELDS[field].type, supplied.value);
+    const fieldDefinition = definitionOf(field);
+    let text: string | null;
+    if (isResultsToFollow(supplied.value)) {
+      text = fieldDefinition.allowsResultsToFollow ? resultsToFollowText(supplied.value) : null;
+      if (text !== null) resultsToFollow = true;
+    } else {
+      text = formatMergeValue(fieldDefinition.type, supplied.value);
+    }
     if (text === null) wrongType.push(field);
     else formatted.set(field, text);
     if (
-      MERGE_FIELDS[field].personBound &&
+      fieldDefinition.personBound &&
       request.subjectPersonId !== null &&
       supplied.personId !== request.subjectPersonId
     ) {
@@ -707,7 +827,9 @@ export function renderTemplate(
   let subject: string | null = null;
   if (version.channel === "email") {
     subject = toText(parseTemplateText((version.subject ?? "").trim()).parts, formatted).trim();
-    if (problems.length === 0 && outboundTitleProblem(subject) !== null) {
+    if (problems.length === 0 && hasUnsafeHeaderCharacter(subject)) {
+      fail("subject_unsafe_characters");
+    } else if (problems.length === 0 && outboundTitleProblem(subject) !== null) {
       fail("subject_not_generic");
     }
   }
@@ -723,8 +845,27 @@ export function renderTemplate(
       html: version.channel === "email" ? toHtml(body.parts, formatted) : null,
       fieldsUsed: used,
       personalDataFields: definition.personalDataFields,
-      containsSpecialCategory: used.some((f) => MERGE_FIELDS[f].dataClass === "special_category"),
+      containsSpecialCategory: used.some((f) => definitionOf(f).dataClass === "special_category"),
+      resultsToFollow,
       subjectPersonId: request.subjectPersonId,
     },
   };
+}
+
+// ------------------------------------------------------------------------------------------------
+// Retention of a letter
+// ------------------------------------------------------------------------------------------------
+
+/**
+ * A letter is kept with the record it belongs to: incident follow-up and candour letters follow
+ * the incident's grade (`serious_incident` only when the incident is graded serious), every other
+ * letter the person's `care_record` (retention.md).
+ */
+export function letterRetentionClass(letter: {
+  readonly kind: TemplateKind;
+  readonly incidentSerious: boolean | null;
+}): "care_record" | "serious_incident" {
+  return LETTER_ONLY_KINDS.includes(letter.kind) && letter.incidentSerious === true
+    ? "serious_incident"
+    : "care_record";
 }

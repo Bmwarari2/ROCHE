@@ -3,12 +3,17 @@ import { builtinRole } from "../platform/roles";
 import { checkWorkflowTransition } from "../platform/workflow";
 import { citationText } from "../shared/citation";
 import {
+  type CandourRelevantPerson,
+  checkCandourRelevantPerson,
   checkTemplateApproval,
   checkTemplateDefinition,
   checkTemplateEdit,
   currentApprovedTemplate,
   escapeHtml,
   formatMergeValue,
+  hasUnsafeHeaderCharacter,
+  type LetterRecipient,
+  letterRetentionClass,
   MERGE_DATA_CLASSES,
   MERGE_FIELD_TYPES,
   MERGE_FIELDS,
@@ -16,6 +21,7 @@ import {
   type MergeValue,
   parseTemplateText,
   renderTemplate,
+  resultsToFollowText,
   startTemplateRevision,
   TEMPLATE_APPROVAL_MESSAGES,
   TEMPLATE_REQUIRED_FIELDS,
@@ -539,5 +545,292 @@ describe("formatting values", () => {
     expect(escapeHtml(`<a href="x">Tom & Jerry's</a>`)).toBe(
       "&lt;a href=&quot;x&quot;&gt;Tom &amp; Jerry&#39;s&lt;/a&gt;",
     );
+  });
+});
+
+describe("hazard HZ-051 email subjects cannot carry hidden characters or several lines", () => {
+  it.each<[string, string, boolean]>([
+    ["plain text", "A message from Harbour House", false],
+    ["a carriage return and line feed", "Hello\r\nBcc: someone@example.invalid", true],
+    ["a lone line feed", "Hello\nthere", true],
+    ["a tab", "Hello\tthere", true],
+    ["a null character", "Hello\u0000", true],
+    ["DEL", "Hello\u007F", true],
+    ["a C1 control (next line)", "Hello\u0085there", true],
+    ["the Unicode line separator", "Hello there", true],
+    ["the Unicode paragraph separator", "Hello there", true],
+    ["a right-to-left override", "Invoice ‮fdp.exe", true],
+    ["a right-to-left isolate", "Hello ⁧there⁩", true],
+    ["a right-to-left mark", "Hello‏", true],
+    ["an Arabic letter mark", "Hello؜", true],
+    ["an accented letter", "Café update", false],
+  ])("%s: %s", (_label, text, unsafe) => {
+    expect(hasUnsafeHeaderCharacter(text)).toBe(unsafe);
+  });
+
+  const email = (subject: string) =>
+    checkTemplateDefinition({
+      kind: "general",
+      channel: "email",
+      subject,
+      body: "Hello",
+    }).issues.map((i) => i.problem);
+
+  it.each<[string, string, string[]]>([
+    [
+      "a subject with a line break",
+      "News\r\nBcc: x@example.invalid",
+      ["subject_unsafe_characters"],
+    ],
+    ["a subject with a bidi override", "News ‮", ["subject_unsafe_characters"]],
+    [
+      "a multi-line field in the subject",
+      "News from {{location.address}}",
+      ["subject_multiline_field"],
+    ],
+    ["a single-line field in the subject", "News from {{location.name}}", []],
+  ])("refuses %s", (_label, subject, problems) => {
+    expect(email(subject)).toEqual(problems);
+  });
+
+  it("refuses a rendered subject whose value smuggles in a line break", () => {
+    const template = version({
+      kind: "general",
+      channel: "email",
+      subject: "News from {{location.name}}",
+      body: "Hello",
+    });
+    const result = renderTemplate(template, {
+      subjectPersonId: null,
+      values: { "location.name": { value: "Harbour\r\nBcc: x@example.invalid", personId: null } },
+    });
+    expect(result.ok ? null : result.problems.map((p) => p.problem)).toEqual([
+      "subject_unsafe_characters",
+    ]);
+  });
+});
+
+describe("hazard HZ-051 health details and identifiers stay out of email", () => {
+  const check = (o: Partial<TemplateDefinition>) =>
+    checkTemplateDefinition({
+      kind: "general",
+      channel: "email",
+      subject: "A message from {{location.name}}",
+      body: "Hello",
+      ...o,
+    }).issues.map((i) => i.problem);
+
+  it.each<[string, Partial<TemplateDefinition>, string[]]>([
+    ["an incident follow-up by email", { kind: "incident_follow_up" }, ["letter_only_kind"]],
+    [
+      "a duty of candour letter by email",
+      {
+        kind: "duty_of_candour",
+        body: "{{candour.account}} {{candour.enquiries}} {{candour.results}} {{candour.apology}}",
+      },
+      [
+        "letter_only_kind",
+        "special_category_in_email",
+        "special_category_in_email",
+        "special_category_in_email",
+        "special_category_in_email",
+      ],
+    ],
+    [
+      "an NHS number in an email body",
+      { body: "Ref {{person.nhs_number}}" },
+      ["identifier_in_email"],
+    ],
+    [
+      "a date of birth in an email body",
+      { body: "Born {{person.date_of_birth}}" },
+      ["identifier_in_email"],
+    ],
+    ["a preferred name in an email body", { body: "About {{person.preferred_name}}" }, []],
+    [
+      "an NHS number in a letter",
+      { channel: "letter", subject: null, body: "Ref {{person.nhs_number}}" },
+      [],
+    ],
+  ])("%s", (_label, o, problems) => {
+    expect(check(o)).toEqual(problems);
+  });
+});
+
+describe("hazard HZ-051 duty of candour letters", () => {
+  const candourLetter = version({
+    kind: "duty_of_candour",
+    channel: "letter",
+    subject: null,
+    body: "Dear {{recipient.full_name}},\n\n{{candour.account}}\n\n{{candour.enquiries}}\n\n{{candour.results}}\n\n{{candour.apology}}",
+  });
+  const serviceUser: CandourRelevantPerson = { kind: "service_user", personId: ADA };
+  const daughter: CandourRelevantPerson = {
+    kind: "representative",
+    personId: ADA,
+    contactId: "contact-daughter",
+    basis: "lacks_capacity",
+  };
+  function candourValues(
+    results: MergeValue["value"],
+    o: Partial<TemplateRenderRequest> = {},
+  ): TemplateRenderRequest {
+    return {
+      subjectPersonId: ADA,
+      values: {
+        "recipient.full_name": { value: "Ada Example", personId: ADA },
+        "candour.account": { value: "Ada fell at 07:30 and broke her hip.", personId: ADA },
+        "candour.enquiries": { value: "We are reviewing the night checks.", personId: ADA },
+        "candour.results": { value: results, personId: ADA },
+        "candour.apology": { value: "We are sorry this happened.", personId: ADA },
+      },
+      candour: { relevantPerson: serviceUser, recipient: { kind: "person", personId: ADA } },
+      ...o,
+    };
+  }
+
+  it("lets the first written notification say the results will follow, with the date", () => {
+    const result = renderTemplate(
+      candourLetter,
+      candourValues({ kind: "results_to_follow", expectedBy: "2026-11-30" }),
+    );
+    expect(result.ok && result.rendered.resultsToFollow).toBe(true);
+    expect(result.ok && result.rendered.text).toContain(
+      "The results of our further enquiries are not available yet. We will write to you with them by 30/11/2026.",
+    );
+  });
+
+  it("says the results will follow as soon as they are available when no date is known", () => {
+    expect(resultsToFollowText({ kind: "results_to_follow", expectedBy: null })).toBe(
+      "The results of our further enquiries are not available yet. We will write to you with them as soon as they are.",
+    );
+    expect(resultsToFollowText({ kind: "results_to_follow", expectedBy: "2026-02-30" })).toBeNull();
+  });
+
+  it("marks a letter with the results as complete", () => {
+    const result = renderTemplate(candourLetter, candourValues("No further failings were found."));
+    expect(result.ok && result.rendered.resultsToFollow).toBe(false);
+  });
+
+  it("refuses 'results to follow' in any other field", () => {
+    const base = candourValues("Found.");
+    const result = renderTemplate(candourLetter, {
+      ...base,
+      values: {
+        ...base.values,
+        "candour.apology": {
+          value: { kind: "results_to_follow", expectedBy: null },
+          personId: ADA,
+        },
+      },
+    });
+    expect(result.ok ? null : result.problems.map((p) => [p.problem, p.fields])).toEqual([
+      ["wrong_type", ["candour.apology"]],
+    ]);
+  });
+
+  it.each<[string, Partial<TemplateRenderRequest>, string | null]>([
+    ["to the person themself", {}, null],
+    [
+      "to a representative the candour record names",
+      {
+        candour: {
+          relevantPerson: daughter,
+          recipient: { kind: "contact", personId: ADA, contactId: "contact-daughter" },
+        },
+      },
+      null,
+    ],
+    ["with no relevant person", { candour: null }, "candour_recipient_required"],
+    [
+      "to a different contact",
+      {
+        candour: {
+          relevantPerson: daughter,
+          recipient: { kind: "contact", personId: ADA, contactId: "contact-son" },
+        },
+      },
+      "candour_wrong_recipient",
+    ],
+    [
+      "to a contact when the relevant person is the person themself",
+      {
+        candour: {
+          relevantPerson: serviceUser,
+          recipient: { kind: "contact", personId: ADA, contactId: "contact-daughter" },
+        },
+      },
+      "candour_wrong_recipient",
+    ],
+    [
+      "about another person's candour record",
+      {
+        candour: {
+          relevantPerson: { kind: "service_user", personId: BEN },
+          recipient: { kind: "person", personId: BEN } satisfies LetterRecipient,
+        },
+      },
+      "candour_wrong_recipient",
+    ],
+  ])("hazard HZ-051 sends a candour letter %s", (_label, o, problem) => {
+    const result = renderTemplate(candourLetter, candourValues("Found.", o));
+    expect(result.ok ? null : result.problems.map((p) => p.problem)).toEqual(
+      problem === null ? null : [problem],
+    );
+  });
+
+  const facts = (died: boolean, under16NotCompetent: boolean, lacksCapacityForMatter: boolean) => ({
+    died,
+    under16NotCompetent,
+    lacksCapacityForMatter,
+  });
+
+  it.each<[string, CandourRelevantPerson, ReturnType<typeof facts>, string[]]>([
+    ["the person, who has capacity", serviceUser, facts(false, false, false), []],
+    [
+      "the person, who has died",
+      serviceUser,
+      facts(true, false, false),
+      ["representative_required"],
+    ],
+    [
+      "the person, who lacks capacity for the matter",
+      serviceUser,
+      facts(false, false, true),
+      ["representative_required"],
+    ],
+    ["a representative, the person lacking capacity", daughter, facts(false, false, true), []],
+    [
+      "a representative, the person having capacity",
+      daughter,
+      facts(false, false, false),
+      ["representative_basis_not_met"],
+    ],
+    [
+      "a representative after a death",
+      { ...daughter, basis: "death" },
+      facts(true, false, false),
+      [],
+    ],
+    [
+      "a representative for a child under 16 who is not competent",
+      { ...daughter, basis: "under_16_not_competent" },
+      facts(false, true, false),
+      [],
+    ],
+  ])("regulation 20(7): %s", (_label, relevantPerson, circumstances, problems) => {
+    expect(checkCandourRelevantPerson(relevantPerson, circumstances)).toEqual(problems);
+  });
+});
+
+describe("letter retention follows the incident's grade", () => {
+  it.each<[Parameters<typeof letterRetentionClass>[0], string]>([
+    [{ kind: "duty_of_candour", incidentSerious: true }, "serious_incident"],
+    [{ kind: "incident_follow_up", incidentSerious: true }, "serious_incident"],
+    [{ kind: "incident_follow_up", incidentSerious: false }, "care_record"],
+    [{ kind: "duty_of_candour", incidentSerious: null }, "care_record"],
+    [{ kind: "fee_review", incidentSerious: null }, "care_record"],
+  ])("%o is kept as %s", (letter, retentionClass) => {
+    expect(letterRetentionClass(letter)).toBe(retentionClass);
   });
 });
