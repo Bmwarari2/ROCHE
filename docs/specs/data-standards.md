@@ -443,19 +443,31 @@ these differences, defined in `packages/sync/src/client/schema.ts`:
   until the owner signs in again and they go back into their tables, or the owner or a manager
   deletes them with a recorded reason (nothing is deleted automatically; at
   `mobile.held_entries_max_days` the hold escalates to a manager). `sync_meta` keeps the database's
-  owner (`tenant_user` id, sign-in id, tenant and name, as JSON) under the id `meta:owner`, and the
-  cached rate figures (offline window, hold limit, clock tolerance).
+  owner (`tenant_user` id, sign-in id, tenant and name, as JSON) under the id `meta:owner`, the
+  cached rate figures (offline window, hold limit, clock tolerance), and the person's own words for
+  removing a refused entry under `discard-note:<tombstone id>` (JSON: the coded reason, the words,
+  the entry id and the time), which never leave the device and go when it is wiped (security
+  review round 4, M3). An entry left by a deletion that did not finish moves to `upload_issue` with
+  the code `held_discard_failed` and is never uploaded.
 - The held marker in the device keystore (outside the database) holds the owner's ids and name, the
-  count, when the hold started, when it escalates and the last server time.
+  count, when the hold started, when it escalates, the last server time, and `uploadBlocked` when a
+  deletion of the entries did not finish.
 - Tombstones of deleted unsent entries are kept in the device keystore, outside the database, as
   JSON with no free text: an id, the kind (`held_deleted`, `signed_out_with_unsent`,
   `refused_removed`), a coded reason (`recorded_elsewhere`, `entered_in_error`, `staff_left`,
-  `nurse_in_charge_informed`, `other`), the tenant, owner and deleter `tenant_user` ids, up to 20
-  entry ids and 10 person ids, the count and the time. Each is sent to `POST /v1/sync/discards`
-  (contract `SyncDiscard`, with the person's own words only in that request) and deleted once the
-  server has it; the audit event (`sync.entries.discarded`, resource type `device_discard`) keeps
-  the reason in words or the code. A hold's device report (counts and the oldest age, contract
-  `SyncDeviceReport`) may wait in the keystore the same way. The keystore also keeps the device's
+  `nurse_in_charge_informed`, `other`), the stage reached (`requested`, `deleted`, `failed`) and
+  the stages not yet acknowledged, the tenant, owner and deleter `tenant_user` ids, up to 20 entry
+  ids and 10 person ids, the count and the time. Each stage is sent to `POST /v1/sync/discards`
+  (contract `SyncDiscard`: the coded reason and no words; up to 500 entry ids, never more than the
+  count) and the tombstone is deleted once the server has every stage of a finished deletion. The
+  audit events (`sync.entries.discard_requested`, `sync.entries.discarded`,
+  `sync.entries.discard_failed`, resource type `device_discard`, the failure naming the request it
+  supersedes) keep the coded reason only (security review round 4, M3; clinical review round 4,
+  H1). An entry uploaded later whose id a device reported deleted gets a `sync.entry.after_discard`
+  audit event and a task (`sync.entry_reported_deleted`). A hold's device report (counts, the oldest
+  age and when the hold started, contract `SyncDeviceReport`) may wait in the keystore the same way;
+  while anything waits, the server keeps a task (`sync.device_hold`, source `device_hold`, the
+  device id) for the Registered Manager. The keystore also keeps the device's
   opaque id (the PowerSync client id).
 
 Timestamps arrive on the device as ISO 8601 in UTC with microseconds (`2026-10-11T09:30:00.000000Z`);

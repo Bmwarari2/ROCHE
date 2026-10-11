@@ -342,19 +342,25 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   `x-harbour-device` (the PowerSync client id), `Idempotency-Key` (the entry id) and
   `x-harbour-sent-at` stamped as each request leaves, so the API flags late entries from the time
   written and clock drift from the time sent (HZ-010, HZ-017). A replay returns the saved copy and
-  is treated as success. Network failures, 408, 425, 429 and 5xx retry with backoff and stay queued.
-  A 403 ends the session only when its RFC 9457 problem body carries one of the API's session
-  codes (`not_a_member`, `mfa_enrolment_required`, `step_up_required`). Any other 403, with no JSON
-  body, an HTML page from the edge or a code the build does not know, asks `GET /v1/me` first: if
-  the session stands, a care entry moves to "needs attention" and the sync token and batch uploads
-  back off and try again; if `/v1/me` cannot be reached the entry stays queued. It never wipes or
-  holds (security reviews S6 and round 3 H1). The web application firewall answers its blocks in
-  the same shape: 403 with code `edge_blocked`, and 429 with code `rate_limited` and Retry-After.
+  is treated as success. Network failures, 408, 425, 429 and 5xx retry with backoff and stay queued;
+  a Retry-After is honoured up to 10 minutes, above the firewall's 300 seconds. A 403 is read from
+  its RFC 9457 problem body (security reviews S6, round 3 H1 and round 4 H1). A session code
+  (`not_a_member`, `mfa_enrolment_required`, `step_up_required`) ends the session. Any other code
+  from the API (`missing_permission`, `feature_disabled`, or one the build does not know) on the
+  sync token or a batch upload means the access Care mode needs was withdrawn, so the session ends
+  for Care mode; on a single care entry it moves that entry to "needs attention". Only a 403 with
+  no JSON body, an HTML page or the edge's `edge_blocked` asks `GET /v1/me` first, sending
+  `x-harbour-tenant`: a 401, a session code or an answer without `people.person.read` ends the
+  session; otherwise a care entry moves to "needs attention" and the sync token and batch uploads
+  back off and try again, and if `/v1/me` cannot be reached the entry stays queued. Every request
+  names the session's organisation. The web application firewall answers its blocks in the same
+  shape: 403 with code `edge_blocked`, and 429 with code `rate_limited` and Retry-After.
   A typed event time goes through `resolveRecordedUkTime` from `@harbour/domain`, the rule the web
   uses, with the tenant's `sync.clock_drift_flag_minutes` as the tolerance (read and cached like
   the window; none until known): see Screens below.
-- **When the session ends** (`apps/mobile/src/app-state/held-work.ts`; HZ-006, HZ-040). A 401, or a
-  403 with a session code, from the sync token, an upload or `/v1/me` ends the session. A session lasts 12
+- **When the session ends** (`apps/mobile/src/app-state/held-work.ts`; HZ-006, HZ-040). A 401, a
+  403 with a session code, an API 403 on the sync token or a batch upload, or `/v1/me` answering
+  without `people.person.read` ends the session. A session lasts 12
   hours while a device may work offline for the whole window, and the API answers an expired
   session with the same 401 as a revoked one, so the device first counts its unsent work:
   PowerSync's upload queue, `upload_issue` rows and `held_entry` rows.
@@ -377,9 +383,11 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
     or than the last time the server was reached changes nothing, and a clock that jumped forward
     only brings the escalation sooner. A marker without a usable deadline gets now plus the
     fail-safe day and is saved, never after a keystore error (L2).
-  - When a hold starts the device reports its counts (below); a report that cannot go with the
-    ended session waits in the keystore, counts only, for the next session in the tenant, even one
-    refused because the entries are someone else's.
+  - When a hold starts the device reports its counts and the hold's start (below) at once, with the
+    session that is ending, and again whenever the app comes back to the foreground or every few
+    minutes for an hour; a report that cannot go waits in the keystore, counts and times only, for
+    the next session in the tenant, even one refused because the entries are someone else's
+    (clinical review round 4, H2).
   - Ownership fails closed (security review S3). The owner (`tenant_user` id, sign-in id, tenant
     and name) is written into `sync_meta` inside the encrypted database when the database is made,
     and checked before the device connects. Only the owner resumes: their held entries go back into
@@ -387,42 +395,65 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
     queue drains under the new session. One that cannot go back moves to "needs attention" with
     its content; one that cannot even be moved stays held and is counted on the banner and Today.
     The held marker stays until every entry is back, so the next unlock tries again (clinical review
-    round 3, M2). The check before connecting is `admitToDatabase`, tested on its own (L4). Anyone else is refused ("Entries from another member of staff are waiting. They need
+    round 3, M2). A restore that failed, or left entries held, is said in words on every screen until
+    the next unlock puts them back, and a held count that cannot be read shows as needing attention
+    (clinical review round 4, M4). The check before connecting is `admitToDatabase`, tested on its
+    own (L4). Anyone else is refused ("Entries from another member of staff are waiting. They need
     to sign in to send them.") and their new session is ended. A keystore that cannot be read means
     "held, owner unknown". A database whose owner is someone else, unreadable or not recorded is
     never opened for the next person: its unsent work is held for its owner, or it is wiped when
     there is none.
-  - Deleting unsent work (security reviews S4, S5 and round 3 M1, M2 and L4; clinical review C2).
-    Held entries are deleted from the sign-in screen: "Delete N unsent entries" asks for a coded
-    reason, then the owner or a manager (`safety.incident.manage` in the same tenant; only a manager
-    when the owner is unknown) signs in on the device for this alone, the confirmation names the
-    count, and device authentication follows; the device passcode alone is never enough, and the
-    signer's session ends straight after. Sign-out from Settings or the lock screen with entries
+  - Deleting unsent work (security reviews S4, S5, round 3 M1, M2 and L4 and round 4 M2 and M3;
+    clinical reviews C2 and round 4 H1 and M3). Held entries are deleted from the sign-in screen:
+    "Delete N unsent entries" asks for a coded reason, then the owner or a manager
+    (`safety.incident.manage` in the same tenant; only a manager when the owner is unknown, and then
+    only when the entries name the manager's organisation and no other) signs in on the device for
+    this alone, the confirmation names the count, and device authentication follows; the device
+    passcode alone is never enough, and the signer's session ends straight after. When the key can
+    be read but the entries cannot, nothing is deleted. Sign-out from Settings or the lock screen with entries
     unsent (counted with `vault.countUnsent`, which includes refused and held entries; the count is
     unknown while the database is closed after a cold start, and the screen says so), and removing
     one refused entry, need a coded reason, a confirmation naming the count and device
     authentication.
-  - Every deletion is put on record before anything is deleted. A tombstone goes into the
-    keystore with only a coded reason (`recorded_elsewhere`, `entered_in_error`, `staff_left`,
-    `nurse_in_charge_informed`, `other`) and opaque ids (tenant, owner, who deleted, entry and person
-    ids, kind), a count and the time; a tombstone that cannot be written refuses the deletion. The
-    device then sends `POST /v1/sync/discards` with the person's own words when they gave any, and
-    deletes the tombstone when the server has it; otherwise the tombstone, without the words, is
-    sent again at each sync until it is acknowledged, and items that fall off the end of the list are
-    deleted. The words are never kept on the device, so a deletion whose reason is "other" needs the
-    server to take it at once. A held deletion then refuses if the database id cannot be read,
-    deletes the file and checks it is gone (otherwise the device's record is withdrawn and the
-    entries stay held), destroys the key and checks that too, and only then clears the marker. A
-    deletion acknowledged by the server whose file then could not be removed leaves an audit event
-    for entries still held; a retry is recorded again (HZ-040).
+  - Every deletion is put on record as requested before anything is deleted, and its outcome
+    after. A tombstone goes into the keystore with only a coded reason (`recorded_elsewhere`,
+    `entered_in_error`, `staff_left`, `nurse_in_charge_informed`, `other`), its stage, the stages
+    not yet acknowledged, opaque ids (tenant, owner, who deleted, up to 20 entry and 10 person ids,
+    kind), a count and the time; a tombstone that cannot be written refuses the deletion, and so
+    does a full list (40) of tombstones the server does not have yet: one is never dropped before
+    the server has it. The device sends `POST /v1/sync/discards` for each stage, with the coded
+    reason and no words, and the ids it has (up to 500, never more than the count). A member of
+    staff's own entries may be deleted while the request waits to be sent; anyone else's, or entries
+    whose owner is unknown, only once the server has acknowledged it, and a 403 or a refusal deletes
+    nothing. Stages still waiting go again at each sync, in order; a record the session may not send
+    (403), or that the server will not take, is skipped for that session and kept.
+  - Only the coded reason leaves the device (security review round 4, M3). Deleting held entries
+    and signing out offer the listed codes without "Other" and without words, because the database
+    the words would be kept in is deleted. Removing one refused entry also offers "Other" with the
+    person's own words, kept in `sync_meta` inside the encrypted database (`discard-note:<id>`) until
+    the device is wiped; a tenant table for them is listed for the next migration (task 29 list).
+  - A held deletion refuses if the database id cannot be read, deletes the file and checks it is
+    gone, destroys the key and checks that too, and only then records "deleted" and clears the
+    marker. If the file or the key remains, it records "failed", which supersedes the request at
+    the server, keeps the entries held and marks them never to be uploaded: when their owner signs
+    in, they move to "needs attention" (code `held_discard_failed`) and the device does not connect
+    until they have. Signing out with unsent entries follows the same stages (clinical review round
+    4, H1; HZ-040). The API keeps an entry uploaded after its deletion was reported (and not
+    reported failed), and flags it with an audit event and a task for the Registered Manager.
   - Until the API can signal a revocation apart from an expiry, a revoked device that still holds
     unsent entries keeps them, encrypted, until the owner or a manager deals with them; that
     signal, and the manager hand-over upload (a manager sending another member of staff's held
     entries to the server, task #29), are go-live blockers (human action H-68).
 - **What the device tells the server** (security review round 3, queue depth; HZ-006).
-  `POST /v1/sync/device-report` takes the device's unsent, refused and held counts and the age of
-  the oldest, with no personal data or ids, as an audit event. The device sends it after each sync
-  when the counts have changed, every half hour while anything waits, and when a hold starts.
+  `POST /v1/sync/device-report` takes the device's unsent, refused and held counts, the age of the
+  oldest and when the hold started, with no personal data or ids, as an audit event; any member of
+  the organisation may send it. The device sends it after each sync when the counts have changed,
+  every half hour while anything waits, and as soon as a hold starts. While anything waits the
+  server keeps one task per device (source `device_hold`) for the Registered Manager at the
+  reporter's location, due at the hold's start plus `mobile.held_entries_max_days` and escalated by
+  the task engine when overdue; a report with nothing waiting closes it (clinical review round 4,
+  H2). Discards and reports each have a per-person hourly limit, and `/v1/sync/*` bodies are
+  limited to 64 KB (security review round 4, M4).
   The PowerSync client id is kept in the keystore so a deletion recorded from the sign-in screen,
   with no database open, still names the device.
 - **Refused entries.** Any refusal of an entry moves it, with its content, to the local-only

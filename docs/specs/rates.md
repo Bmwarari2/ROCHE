@@ -292,8 +292,10 @@ literals, and tests assert against the table, not a literal (section 7, section 
   session ended, encrypted and with nothing else from the care record, for their owner to sign in
   again and send them, before the hold escalates to a manager (HZ-006, HZ-040; [care.md](care.md)
   section 6). The device shows a final warning naming the count during the last day, then says a
-  manager must resolve the entries, with a local notification at each step. Nothing is deleted when
-  it runs out (security review round 3, M3): the entries stay until their owner sends them or the
+  manager must resolve the entries, with a local notification at each step. The server uses the
+  same figure: the Registered Manager's task for a held device falls due at the hold's start plus
+  this many days, and the task engine escalates it when overdue (clinical review round 4, H2).
+  Nothing is deleted when it runs out (security review round 3, M3): the entries stay until their owner sends them or the
   owner or a manager deletes them with a recorded reason. One day until the device has read the
   figure; the seed refuses a value outside 1 to 31 days. No statute sets it: it balances losing
   care records against keeping personal data on a device whose session has ended. The default
