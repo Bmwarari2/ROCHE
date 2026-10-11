@@ -11,6 +11,7 @@ export * from "./care/must";
 export * from "./care/news2";
 export * from "./care/rates";
 export * from "./care/repositioning";
+export * from "./care/risk-assessment";
 export * from "./care/tools";
 export * from "./care/waterlow";
 export * from "./care/weight";
