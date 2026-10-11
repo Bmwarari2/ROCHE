@@ -8,10 +8,14 @@ import {
   formatUkTime,
   fromUkWallClock,
   hasClockDrift,
+  isUkClockChangeDay,
+  resolveRecordedUkTime,
   toUkWallClock,
   ukEndOfDay,
   ukOffsetMinutes,
   ukStartOfDay,
+  ukWallClockOccurrences,
+  ukZoneAbbreviation,
 } from "./time";
 
 /** Hazard HZ-009: time-zone and daylight-saving errors. 2026 clocks change on 29 March and 25 October. */
@@ -135,5 +139,186 @@ describe("hazard HZ-010 clock drift", () => {
 
   it("accepts a custom tolerance", () => {
     expect(hasClockDrift(new Date("2026-10-11T10:02:00Z"), server, 1)).toBe(true);
+  });
+});
+
+describe("hazard HZ-009 ukWallClockOccurrences on every minute of the clock-change days", () => {
+  // Spring forward: 01:00-01:59 does not happen. Autumn back: 01:00-01:59 happens twice.
+  it.each([
+    [2026, 3, 29, "spring"],
+    [2026, 10, 25, "autumn"],
+    [2027, 3, 28, "spring"],
+    [2027, 10, 31, "autumn"],
+  ] as const)("%i-%i-%i (%s)", (year, month, day, change) => {
+    for (let hour = 0; hour < 24; hour++) {
+      for (let minute = 0; minute < 60; minute++) {
+        const occurrences = ukWallClockOccurrences(year, month, day, hour, minute);
+        const expected = hour !== 1 ? 1 : change === "spring" ? 0 : 2;
+        expect(occurrences, `${hour}:${minute}`).toHaveLength(expected);
+        for (const instant of occurrences) {
+          expect(toUkWallClock(instant)).toMatchObject({ year, month, day, hour, minute });
+        }
+        if (expected === 2) {
+          const [first, second] = occurrences as [Date, Date];
+          expect(second.getTime() - first.getTime()).toBe(60 * 60_000);
+          expect(ukZoneAbbreviation(first)).toBe("BST");
+          expect(ukZoneAbbreviation(second)).toBe("GMT");
+        }
+      }
+    }
+  });
+
+  it("keeps fromUkWallClock's rule for computed times: first occurrence, gap moves forward", () => {
+    expect(fromUkWallClock(2026, 10, 25, 1, 30).toISOString()).toBe("2026-10-25T00:30:00.000Z");
+    expect(fromUkWallClock(2026, 3, 29, 1, 30).toISOString()).toBe("2026-03-29T01:30:00.000Z");
+  });
+});
+
+describe("hazards HZ-009, HZ-010 and HZ-017 resolveRecordedUkTime", () => {
+  const at = (iso: string) => new Date(iso);
+  const tolerance = 5;
+  it.each([
+    // [what, typed wall clock, now, expected]
+    [
+      "an ordinary past time",
+      [2026, 7, 1, 14, 0],
+      "2026-07-01T15:00:00Z",
+      { kind: "exact", instant: "2026-07-01T13:00:00.000Z" },
+    ],
+    [
+      "a winter past time",
+      [2026, 1, 15, 9, 30],
+      "2026-01-15T12:00:00Z",
+      { kind: "exact", instant: "2026-01-15T09:30:00.000Z" },
+    ],
+    [
+      "within the clock tolerance ahead",
+      [2026, 7, 1, 11, 2],
+      "2026-07-01T10:00:00Z",
+      { kind: "exact", instant: "2026-07-01T10:02:00.000Z" },
+    ],
+    [
+      "just beyond the tolerance ahead",
+      [2026, 7, 1, 11, 6],
+      "2026-07-01T10:00:00Z",
+      { kind: "future", instant: "2026-07-01T10:06:00.000Z" },
+    ],
+    [
+      "rounded up within the tolerance, kept today, not rolled back to yesterday",
+      [2026, 10, 11, 14, 0],
+      "2026-10-11T12:58:00Z",
+      { kind: "exact", instant: "2026-10-11T13:00:00.000Z" },
+    ],
+    [
+      "later today, refused, never rolled back to yesterday",
+      [2026, 10, 11, 14, 0],
+      "2026-10-11T12:50:00Z",
+      { kind: "future", instant: "2026-10-11T13:00:00.000Z" },
+    ],
+    ["a spring gap time", [2026, 3, 29, 1, 30], "2026-03-29T12:00:00Z", { kind: "skipped" }],
+    [
+      "the first minute of the spring gap",
+      [2027, 3, 28, 1, 0],
+      "2027-03-28T12:00:00Z",
+      { kind: "skipped" },
+    ],
+    [
+      "02:00 after the spring change",
+      [2026, 3, 29, 2, 0],
+      "2026-03-29T12:00:00Z",
+      { kind: "exact", instant: "2026-03-29T01:00:00.000Z" },
+    ],
+    [
+      "an autumn repeat with both past",
+      [2026, 10, 25, 1, 30],
+      "2026-10-25T03:00:00Z",
+      { kind: "ambiguous", earlier: "2026-10-25T00:30:00.000Z", later: "2026-10-25T01:30:00.000Z" },
+    ],
+    [
+      "an autumn repeat with only BST past",
+      [2026, 10, 25, 1, 30],
+      "2026-10-25T01:00:00Z",
+      { kind: "exact", instant: "2026-10-25T00:30:00.000Z" },
+    ],
+    [
+      "an autumn repeat with neither past",
+      [2026, 10, 25, 1, 30],
+      "2026-10-25T00:10:00Z",
+      { kind: "future", instant: "2026-10-25T00:30:00.000Z" },
+    ],
+    [
+      "the 2027 autumn repeat",
+      [2027, 10, 31, 1, 0],
+      "2027-10-31T09:00:00Z",
+      { kind: "ambiguous", earlier: "2027-10-31T00:00:00.000Z", later: "2027-10-31T01:00:00.000Z" },
+    ],
+    [
+      "02:00 after the autumn change",
+      [2026, 10, 25, 2, 0],
+      "2026-10-25T09:00:00Z",
+      { kind: "exact", instant: "2026-10-25T02:00:00.000Z" },
+    ],
+  ] as const)("%s", (_what, [year, month, day, hour, minute], now, expected) => {
+    const result = resolveRecordedUkTime(
+      { year, month, day, hour, minute },
+      { now: at(now), futureToleranceMinutes: tolerance },
+    );
+    const plain = Object.fromEntries(
+      Object.entries(result).map(([k, v]) => [k, v instanceof Date ? v.toISOString() : v]),
+    );
+    expect(plain).toEqual(expected);
+  });
+
+  it.each([
+    [{ year: 2026, month: 13, day: 1, hour: 0, minute: 0 }],
+    [{ year: 2026, month: 2, day: 29, hour: 0, minute: 0 }],
+    [{ year: 2026, month: 4, day: 31, hour: 0, minute: 0 }],
+    [{ year: 2026, month: 1, day: 0, hour: 0, minute: 0 }],
+    [{ year: 2026, month: 1, day: 1, hour: 24, minute: 0 }],
+    [{ year: 2026, month: 1, day: 1, hour: 0, minute: 60 }],
+    [{ year: 2026, month: 1, day: 1, hour: 1.5, minute: 0 }],
+  ])("refuses an impossible date or time %o", (time) => {
+    expect(() =>
+      resolveRecordedUkTime(time, { now: at("2026-06-01T00:00:00Z"), futureToleranceMinutes: 5 }),
+    ).toThrow(RangeError);
+  });
+
+  it("accepts 29 February in a leap year", () => {
+    expect(
+      resolveRecordedUkTime(
+        { year: 2028, month: 2, day: 29, hour: 8, minute: 0 },
+        { now: at("2028-03-01T00:00:00Z"), futureToleranceMinutes: 5 },
+      ),
+    ).toEqual({ kind: "exact", instant: at("2028-02-29T08:00:00Z") });
+  });
+
+  it.each([-1, Number.NaN, Number.POSITIVE_INFINITY])("refuses a tolerance of %s", (bad) => {
+    expect(() =>
+      resolveRecordedUkTime(
+        { year: 2026, month: 7, day: 1, hour: 9, minute: 0 },
+        { now: at("2026-07-01T12:00:00Z"), futureToleranceMinutes: bad },
+      ),
+    ).toThrow(RangeError);
+  });
+});
+
+describe("hazard HZ-009 clock-change days", () => {
+  it.each([
+    [2026, 3, 29, true],
+    [2026, 3, 28, false],
+    [2026, 10, 25, true],
+    [2026, 10, 26, false],
+    [2027, 3, 28, true],
+    [2027, 10, 31, true],
+    [2026, 7, 1, false],
+  ] as const)("%i-%i-%i -> %s", (year, month, day, expected) => {
+    expect(isUkClockChangeDay(year, month, day)).toBe(expected);
+  });
+
+  it.each([
+    ["2026-01-15T12:00:00Z", "GMT"],
+    ["2026-07-15T12:00:00Z", "BST"],
+  ] as const)("%s is %s", (iso, abbreviation) => {
+    expect(ukZoneAbbreviation(new Date(iso))).toBe(abbreviation);
   });
 });
