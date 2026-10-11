@@ -56,6 +56,12 @@ describe("health and contract", () => {
     );
   });
 
+  it("uses no exclusive bounds, which the breaking-change check (oasdiff) cannot read", async () => {
+    const text = await (await h.request("/openapi.json")).text();
+    // OpenAPI 3.1 writes them as numbers; use `.min(1)` rather than `.positive()` on whole numbers.
+    expect(text).not.toMatch(/"exclusive(Minimum|Maximum)"/);
+  });
+
   it("answers unknown routes with problem details", async () => {
     const response = await h.request("/nope");
     expect(response.status).toBe(404);
