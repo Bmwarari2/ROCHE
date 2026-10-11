@@ -76,6 +76,22 @@ describe("roundView", () => {
     expect(unplaced.map((s) => s.personId)).toContain("p-gone");
   });
 
+  it("shows a task whose window is already open even though it falls due after the round", () => {
+    const open = task("open-window", "p2", "2026-10-11T20:00:00Z", {
+      windowStart: t("2026-10-11T09:00:00Z"),
+    });
+    const view = roundView([open], people, window, now, 30);
+    expect(view[0]?.stops[0]?.tasks.map((x) => [x.id, x.state])).toEqual([["open-window", "due"]]);
+  });
+
+  it("keeps an earlier task that is still upcoming when the round is viewed before it starts", () => {
+    const early = task("before-round", "p1", "2026-10-11T06:45:00Z");
+    const view = roundView([early], people, window, t("2026-10-11T06:30:00Z"), 30);
+    expect(view[0]?.stops[0]?.tasks.map((x) => [x.id, x.state])).toEqual([
+      ["before-round", "upcoming"],
+    ]);
+  });
+
   it("is empty when nothing is due", () => {
     expect(roundView([], people, window, now, 30)).toEqual([]);
   });

@@ -1,37 +1,45 @@
+import type { Severity } from "../platform/notifications";
 import type { TaskStatus } from "../platform/tasks";
 import { TERMINAL_TASK_STATUSES } from "../platform/tasks";
 import { fromUkWallClock, toUkWallClock } from "../shared/time";
+import type { CareTaskKind } from "./assessment";
 import type { News2Band } from "./news2";
 
 /**
  * Shift handover (care.md rule 8, hazard HZ-018). The handover compiles itself from the shift's
  * records by rule, so it never depends on memory: falls, NEWS2 results that ask for more than
- * routine monitoring, incidents, new body-map marks, refusals, tasks still overdue at the end of
- * the shift, open MUST follow-ups and urgent alerts. Compiled items can be annotated but never
- * removed; items that sync after compilation are appended as late additions, and anyone who
- * acknowledged before them must acknowledge again.
+ * routine monitoring, incidents, urgent alerts nobody has acknowledged, new body-map marks, tasks
+ * overdue, skipped or unfinished at the end of the shift, MUST follow-ups and refusals. Compiled
+ * items can be annotated but never removed; items that sync after compilation are appended as late
+ * additions, and anyone who acknowledged before them must acknowledge the new items too.
  */
 
 // ------------------------------------------------------------------------------------------------
 // Shifts
 // ------------------------------------------------------------------------------------------------
 
-/** Rate-table keys for the shift pattern (tenant defaults until rotas define shifts). */
+/** Rate-table keys for the default two-shift pattern (until rotas define shifts per location). */
 export const HANDOVER_RATE_KEYS = {
-  dayShiftStartHour: "handover.day_shift_start_hour",
-  nightShiftStartHour: "handover.night_shift_start_hour",
+  dayShiftStartMinute: "handover.day_shift_start_minute",
+  nightShiftStartMinute: "handover.night_shift_start_minute",
 } as const;
 
-/** Start hours in UK local time, from the rate table (`HANDOVER_RATE_KEYS`). */
+export interface ShiftStart {
+  /** For example "day" and "night", or "early", "late" and "night". */
+  readonly name: string;
+  /** Minutes after midnight, UK local time (07:30 is 450). */
+  readonly minuteOfDay: number;
+}
+
+/** The shifts of a location's day, in order; the last runs into the next morning. */
 export interface ShiftPattern {
-  readonly dayStartHour: number;
-  readonly nightStartHour: number;
+  readonly starts: readonly ShiftStart[];
 }
 
 export interface ShiftWindow {
-  readonly kind: "day" | "night";
+  readonly name: string;
   readonly start: Date;
-  /** Exclusive. A night shift over a clock change is an hour shorter or longer. */
+  /** Exclusive. A shift over a clock change is an hour shorter or longer. */
   readonly end: Date;
 }
 
@@ -42,37 +50,65 @@ export class ShiftPatternError extends Error {
   }
 }
 
+const MINUTES_IN_DAY = 24 * 60;
+
+/** The default day and night pattern from the two rate-table start times. */
+export function twoShiftPattern(dayStartMinute: number, nightStartMinute: number): ShiftPattern {
+  return {
+    starts: [
+      { name: "day", minuteOfDay: dayStartMinute },
+      { name: "night", minuteOfDay: nightStartMinute },
+    ],
+  };
+}
+
 function checkPattern(pattern: ShiftPattern): void {
-  const { dayStartHour: day, nightStartHour: night } = pattern;
-  if (!Number.isInteger(day) || !Number.isInteger(night) || day < 0 || night > 23 || day >= night) {
+  const minutes = pattern.starts.map((s) => s.minuteOfDay);
+  const valid =
+    minutes.length >= 2 &&
+    minutes.every((m) => Number.isInteger(m) && m >= 0 && m < MINUTES_IN_DAY) &&
+    minutes.every((m, i) => i === 0 || m > (minutes[i - 1] ?? -1)) &&
+    pattern.starts.every((s) => s.name.trim().length > 0);
+  if (!valid) {
     throw new ShiftPatternError(
-      "The day shift must start on the hour before the night shift, both between 00:00 and 23:00.",
+      "A shift pattern needs at least two named shifts with start times in order, between 00:00 and 23:59.",
     );
   }
 }
 
-function ukDayStart(year: number, month: number, day: number, hour: number): Date {
+function startOn(year: number, month: number, day: number, minuteOfDay: number): Date {
   const d = new Date(Date.UTC(year, month - 1, day));
-  return fromUkWallClock(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), hour, 0);
+  return fromUkWallClock(
+    d.getUTCFullYear(),
+    d.getUTCMonth() + 1,
+    d.getUTCDate(),
+    Math.floor(minuteOfDay / 60),
+    minuteOfDay % 60,
+  );
 }
 
 /** The shift running at an instant, in UK local time. */
 export function shiftAt(instant: Date, pattern: ShiftPattern): ShiftWindow {
   checkPattern(pattern);
+  const starts = pattern.starts;
   const w = toUkWallClock(instant);
-  const at = (dayOffset: number, hour: number) =>
-    ukDayStart(w.year, w.month, w.day + dayOffset, hour);
-  if (w.hour >= pattern.dayStartHour && w.hour < pattern.nightStartHour) {
-    return { kind: "day", start: at(0, pattern.dayStartHour), end: at(0, pattern.nightStartHour) };
+  const minute = w.hour * 60 + w.minute;
+  const on = (dayOffset: number, start: ShiftStart) =>
+    startOn(w.year, w.month, w.day + dayOffset, start.minuteOfDay);
+  const index = starts.findLastIndex((s) => s.minuteOfDay <= minute);
+  const first = starts[0] as ShiftStart;
+  const last = starts.at(-1) as ShiftStart;
+  if (index === -1) {
+    // Before the first start of the day: the last shift of yesterday.
+    return { name: last.name, start: on(-1, last), end: on(0, first) };
   }
-  if (w.hour >= pattern.nightStartHour) {
-    return {
-      kind: "night",
-      start: at(0, pattern.nightStartHour),
-      end: at(1, pattern.dayStartHour),
-    };
-  }
-  return { kind: "night", start: at(-1, pattern.nightStartHour), end: at(0, pattern.dayStartHour) };
+  const current = starts[index] as ShiftStart;
+  const next = starts[index + 1];
+  return {
+    name: current.name,
+    start: on(0, current),
+    end: next ? on(0, next) : on(1, first),
+  };
 }
 
 /** The shift after this one: the people who receive the handover. */
@@ -92,20 +128,50 @@ export const HANDOVER_ITEM_KINDS = [
   "alert",
   "body_map_mark",
   "overdue_task",
+  "skipped_task",
+  "unfinished_task",
   "must_follow_up",
   "refusal",
 ] as const;
 export type HandoverItemKind = (typeof HANDOVER_ITEM_KINDS)[number];
 
-/** Note tags that put a note on the handover. */
+/**
+ * The note tags the handover reads. They are a fixed vocabulary that the note form offers as
+ * choices; free-text tags are never matched, so a typed "fell" or "declined" cannot slip through.
+ */
 export const HANDOVER_NOTE_TAGS = { fall: "fall", refusal: "refusal" } as const;
 
+const MUST_FOLLOW_UPS = [
+  "food_and_fluid_record",
+  "dietitian_referral",
+  "nutrition_assessment",
+] as const satisfies readonly CareTaskKind[];
+
 /** Task kinds raised by a MUST result (see raiseCareTriggers and the MUST calculator). */
-export const MUST_FOLLOW_UP_TASK_KINDS: readonly string[] = [
-  "care.food_and_fluid_record",
-  "care.dietitian_referral",
-  "care.nutrition_assessment",
-];
+export const MUST_FOLLOW_UP_TASK_KINDS: readonly `care.${CareTaskKind}`[] = MUST_FOLLOW_UPS.map(
+  (kind) => `care.${kind}` as const,
+);
+
+/**
+ * Whether a chart entry records a refusal: a drink or food refused, or repositioning declined.
+ * Mirrors the chart values in `packages/contracts` (`ObservationValues`); other charts have no
+ * refusal field. Medicines refusals join from the eMAR in Phase 2 (HZ-003).
+ */
+export function observationIsRefusal(values: {
+  readonly chart: string;
+  readonly refused?: boolean;
+  readonly declined?: boolean;
+}): boolean {
+  switch (values.chart) {
+    case "fluid_intake":
+    case "food":
+      return values.refused === true;
+    case "repositioning":
+      return values.declined === true;
+    default:
+      return false;
+  }
+}
 
 /** Entries count for the shift they happened in, and for the shift that received them late. */
 interface Timed {
@@ -119,16 +185,20 @@ export interface HandoverTaskSource {
   readonly personId: string | null;
   readonly kind: string;
   readonly status: TaskStatus;
+  readonly priority: "routine" | "urgent";
+  readonly evidenceRequired: boolean;
   readonly dueAt: Date;
   readonly windowEnd: Date | null;
   readonly createdAt: Date;
+  /** When it was done, skipped or cancelled; null while open. */
+  readonly closedAt: Date | null;
 }
 
 export interface HandoverObservationSource extends Timed {
   readonly personId: string;
   /** The NEWS2 band for vital signs, null for other charts. */
   readonly news2Band: News2Band | null;
-  /** Food or drink refused, or repositioning declined. */
+  /** From `observationIsRefusal`. */
   readonly refused: boolean;
 }
 
@@ -149,8 +219,10 @@ export interface HandoverNoteSource extends Timed {
 export interface HandoverAlertSource {
   readonly id: string;
   readonly personId: string | null;
-  readonly severity: string;
+  readonly severity: Severity;
   readonly createdAt: Date;
+  /** When someone acknowledged it; null while nobody has. */
+  readonly acknowledgedAt: Date | null;
 }
 
 export interface HandoverSources {
@@ -171,7 +243,7 @@ export type HandoverSourceType =
   | "notification";
 
 export interface HandoverItem {
-  /** Stable identity: the same record never appears twice. */
+  /** Stable identity: the same record never appears twice under the same kind. */
   readonly key: string;
   readonly kind: HandoverItemKind;
   readonly personId: string | null;
@@ -201,6 +273,7 @@ export function compileHandover(
   compiledAt: Date,
 ): HandoverItem[] {
   const items: HandoverItem[] = [];
+  const keys = new Set<string>();
   const add = (
     kind: HandoverItemKind,
     sourceType: HandoverSourceType,
@@ -209,7 +282,8 @@ export function compileHandover(
     at: Date,
   ) => {
     const key = `${kind}:${sourceType}:${sourceId}:${personId ?? "-"}`;
-    if (items.some((i) => i.key === key)) return;
+    if (keys.has(key)) return;
+    keys.add(key);
     items.push({
       key,
       kind,
@@ -221,11 +295,12 @@ export function compileHandover(
       addedAt: compiledAt,
     });
   };
+  const end = shift.end.getTime();
 
   for (const o of sources.observations) {
     if (!belongs(o, shift)) continue;
-    // Anything above "low" asks for more than routine monitoring, including a single parameter
-    // scoring 3 (RCP NEWS2, 2017).
+    // Anything above "low" asks for more than routine monitoring: an aggregate of 5 or more, or a
+    // single parameter scoring 3 (RCP NEWS2, 2017).
     if (o.news2Band && o.news2Band !== "low")
       add("news2", "observation", o.id, o.personId, o.occurredAt);
     if (o.refused) add("refusal", "observation", o.id, o.personId, o.occurredAt);
@@ -250,16 +325,39 @@ export function compileHandover(
     }
   }
   for (const alert of sources.alerts) {
-    if (alert.severity === "urgent" && inShift(alert.createdAt, shift)) {
+    if (alert.severity !== "urgent" || alert.createdAt.getTime() >= end) continue;
+    // Raised this shift, or raised earlier and still unacknowledged when the shift ended.
+    const unacknowledged = alert.acknowledgedAt === null || alert.acknowledgedAt.getTime() >= end;
+    if (inShift(alert.createdAt, shift) || unacknowledged) {
       add("alert", "notification", alert.id, alert.personId, alert.createdAt);
     }
   }
   for (const t of sources.tasks) {
-    if (TERMINAL.has(t.status)) continue;
-    const end = t.windowEnd ?? t.dueAt;
-    if (end.getTime() < shift.end.getTime()) add("overdue_task", "task", t.id, t.personId, end);
+    if (TERMINAL.has(t.status)) {
+      // An urgent or evidence-bearing task skipped or cancelled this shift (with its reason).
+      const notDone = t.status === "skipped" || t.status === "cancelled";
+      if (
+        notDone &&
+        t.closedAt &&
+        inShift(t.closedAt, shift) &&
+        (t.priority === "urgent" || t.evidenceRequired)
+      ) {
+        add("skipped_task", "task", t.id, t.personId, t.closedAt);
+      }
+      continue;
+    }
+    const windowEnd = (t.windowEnd ?? t.dueAt).getTime();
+    if (windowEnd < end) {
+      add("overdue_task", "task", t.id, t.personId, t.windowEnd ?? t.dueAt);
+    } else if (t.dueAt.getTime() < end) {
+      // Due by the end of the shift and not done, though its window is still open.
+      add("unfinished_task", "task", t.id, t.personId, t.dueAt);
+    }
     // Raised this shift; an older one still open shows as overdue once its window closes.
-    if (MUST_FOLLOW_UP_TASK_KINDS.includes(t.kind) && inShift(t.createdAt, shift)) {
+    if (
+      (MUST_FOLLOW_UP_TASK_KINDS as readonly string[]).includes(t.kind) &&
+      inShift(t.createdAt, shift)
+    ) {
       add("must_follow_up", "task", t.id, t.personId, t.createdAt);
     }
   }
@@ -270,7 +368,8 @@ export function compileHandover(
 
 /**
  * Recompiles after late syncs: every existing item stays, whatever has happened to its source
- * since, and new items are appended as late additions.
+ * since, and new items are appended as late additions. The API refreshes both the handover of the
+ * shift an entry happened in and the one of the shift that received it, including locked ones.
  */
 export function refreshHandover(
   existing: readonly HandoverItem[],
@@ -303,30 +402,63 @@ export function checkHandoverKeepsItems(
       };
 }
 
+/**
+ * Who hears about a late addition: the incoming staff while their shift runs, otherwise the nurse
+ * in charge on duty now, never staff who have gone home.
+ */
+export function lateAdditionRecipients(
+  receivingShift: ShiftWindow,
+  now: Date,
+  incomingStaff: readonly string[],
+  nurseInChargeOnDuty: readonly string[],
+): { readonly to: "incoming_staff" | "nurse_in_charge"; readonly recipients: readonly string[] } {
+  return now.getTime() < receivingShift.end.getTime()
+    ? { to: "incoming_staff", recipients: [...new Set(incomingStaff)] }
+    : { to: "nurse_in_charge", recipients: [...new Set(nurseInChargeOnDuty)] };
+}
+
 // ------------------------------------------------------------------------------------------------
 // Acknowledgement (COMMS-006)
 // ------------------------------------------------------------------------------------------------
 
 export interface HandoverAcknowledgement {
   readonly tenantUserId: string;
+  /** Server time. */
   readonly at: Date;
+  /**
+   * How many items the handover held when this person acknowledged it. Items are only ever
+   * appended, so the count is the version they saw; no clock comparison is involved.
+   */
+  readonly itemsSeen: number;
 }
 
 /**
- * Who has acknowledged the handover as it stands. An acknowledgement made before the latest late
- * addition no longer counts: that person has not seen everything yet.
+ * Who has acknowledged the handover as it stands, and for everyone else the items they have not
+ * yet seen: all of them, or only the late additions since their last acknowledgement, so a
+ * second acknowledgement is about the new items rather than a click through the whole list.
  */
 export function acknowledgementState(
   items: readonly HandoverItem[],
   incomingStaff: readonly string[],
   acknowledgements: readonly HandoverAcknowledgement[],
-): { readonly acknowledged: string[]; readonly pending: string[]; readonly complete: boolean } {
-  const latest = Math.max(0, ...items.map((i) => i.addedAt.getTime()));
-  const current = new Set(
-    acknowledgements.filter((a) => a.at.getTime() >= latest).map((a) => a.tenantUserId),
-  );
+): {
+  readonly acknowledged: string[];
+  readonly pending: string[];
+  readonly complete: boolean;
+  readonly unseen: ReadonlyMap<string, readonly HandoverItem[]>;
+} {
+  const seen = new Map<string, number>();
+  for (const a of acknowledgements) {
+    seen.set(a.tenantUserId, Math.max(seen.get(a.tenantUserId) ?? 0, a.itemsSeen));
+  }
   const staff = [...new Set(incomingStaff)];
-  const acknowledged = staff.filter((id) => current.has(id));
-  const pending = staff.filter((id) => !current.has(id));
-  return { acknowledged, pending, complete: staff.length > 0 && pending.length === 0 };
+  const unseen = new Map<string, readonly HandoverItem[]>();
+  for (const id of staff) {
+    const count = seen.get(id);
+    const outstanding = count === undefined ? items : items.slice(count);
+    if (count === undefined || outstanding.length > 0) unseen.set(id, outstanding);
+  }
+  const pending = staff.filter((id) => unseen.has(id));
+  const acknowledged = staff.filter((id) => !unseen.has(id));
+  return { acknowledged, pending, complete: staff.length > 0 && pending.length === 0, unseen };
 }

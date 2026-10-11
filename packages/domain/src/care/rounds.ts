@@ -51,8 +51,8 @@ function compareNullable(a: string | null, b: string | null): number {
 }
 
 /**
- * Open tasks due in [from, to), plus unfinished tasks due before `from`, grouped
- * by area and room. Rooms sort naturally (Room 2 before Room 10). Tasks not tied to a person (for
+ * Open tasks due before `to` (this round's and unfinished ones from earlier), plus later tasks
+ * whose window is already open, grouped by area and room. Rooms sort naturally (Room 2 before Room 10). Tasks not tied to a person (for
  * example a fridge temperature check) form their own stop at the end of the area-less group.
  */
 export function roundView(
@@ -74,11 +74,11 @@ export function roundView(
   for (const t of tasks) {
     const state = taskTimeState(t, now, escalateAfterMinutes);
     if (state === "closed") continue;
-    const inWindow =
-      t.dueAt.getTime() >= window.from.getTime() && t.dueAt.getTime() < window.to.getTime();
-    // Due before the round but not finished: still in its window, overdue or escalated.
-    const carriedOver = t.dueAt.getTime() < window.from.getTime() && state !== "upcoming";
-    if (!inWindow && !carriedOver) continue;
+    // Due before the round ends (including unfinished tasks from earlier rounds, whatever their
+    // state), or due later but already inside its window: nothing open and actionable is hidden.
+    const dueBeforeEnd = t.dueAt.getTime() < window.to.getTime();
+    const windowOpen = (t.windowStart ?? t.dueAt).getTime() <= now.getTime();
+    if (!dueBeforeEnd && !windowOpen) continue;
     const person = t.personId ? byPerson.get(t.personId) : undefined;
     const key = t.personId ?? "-";
     const entry = stops.get(key) ?? {
