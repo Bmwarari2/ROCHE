@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { formatUkDateTime } from "../shared/time";
 import {
+  catchUpTiming,
   checkTaskLink,
   checkTaskTransition,
   occurrences,
@@ -8,6 +9,9 @@ import {
   RecurrenceError,
   type RecurrenceSeries,
   type StoppedTask,
+  type TaskLinkCheck,
+  type TaskLinkOutcome,
+  type TaskLinkReview,
   type TaskRestorePlan,
   type TaskStatus,
   taskTimeState,
@@ -245,77 +249,90 @@ describe("recurrence rules", () => {
 });
 
 describe("hazards HZ-004 and HZ-006 what an entry does to the task it names", () => {
-  const task = (kind: string, status: TaskStatus, personId: string | null = "p1") => ({
-    personId,
-    kind,
-    status,
+  const task = (
+    kind: string,
+    status: TaskStatus,
+    personId: string | null = "p1",
+    evidenceId: string | null = null,
+  ) => ({ personId, kind, status, evidenceId });
+  const kept = (outcome: TaskLinkOutcome, review: TaskLinkReview): TaskLinkCheck => ({
+    ok: true,
+    outcome,
+    review,
+    completes: false,
   });
   it.each<[string, ReturnType<typeof task>, boolean, ReturnType<typeof checkTaskLink>]>([
     [
       "completes an open round",
       task("care.reposition", "open"),
       true,
-      { ok: true, outcome: "completed", review: false },
+      { ok: true, outcome: "completed", review: "none", completes: true },
     ],
     [
       "completes a round in progress",
       task("care.reposition", "in_progress"),
       true,
-      { ok: true, outcome: "completed", review: false },
+      { ok: true, outcome: "completed", review: "none", completes: true },
     ],
     [
       "keeps the entry as late evidence for a cancelled round",
       task("care.reposition", "cancelled"),
       true,
-      { ok: true, outcome: "task_cancelled", review: false },
+      kept("task_cancelled", "none"),
+    ],
+    [
+      "keeps a second entry for a cancelled round that already has evidence, for review (C4)",
+      task("care.reposition", "cancelled", "p1", "e1"),
+      true,
+      kept("task_already_closed", "review"),
     ],
     [
       "keeps an entry for a round already done, flagged for review",
       task("care.reposition", "done"),
       true,
-      { ok: true, outcome: "task_already_closed", review: true },
+      kept("task_already_closed", "review"),
     ],
     [
       "keeps an entry for a round already skipped, flagged for review",
       task("care.reposition", "skipped"),
       true,
-      { ok: true, outcome: "task_already_closed", review: true },
+      kept("task_already_closed", "review"),
     ],
     [
       "keeps an entry for a round the user may not complete, unlinked and flagged",
       task("care.reposition", "open"),
       false,
-      { ok: true, outcome: "not_linked", review: true },
+      kept("not_linked", "review"),
     ],
     [
-      "refuses a medicines task the user may not complete",
+      "keeps a medicines entry by someone who may not complete the task, with an urgent conflict review",
       task("medicines.round", "open"),
       false,
-      {
-        ok: false,
-        problem: "medicines_not_yours",
-        message: expect.stringContaining("right permission") as unknown as string,
-      },
+      kept("medicines_conflict", "urgent"),
     ],
     [
-      "refuses a medicines task already done (a second dose)",
+      "keeps a medicines entry for a task already done (a second dose?), with an urgent conflict review",
       task("medicines.round", "done"),
       true,
-      {
-        ok: false,
-        problem: "medicines_already_closed",
-        message: expect.stringContaining("already been recorded") as unknown as string,
-      },
+      kept("medicines_conflict", "urgent"),
     ],
     [
-      "refuses a medicines task already skipped",
+      "keeps a medicines entry for a task already skipped, with an urgent conflict review",
       task("medicines.round", "skipped"),
       true,
-      {
-        ok: false,
-        problem: "medicines_already_closed",
-        message: expect.any(String) as unknown as string,
-      },
+      kept("medicines_conflict", "urgent"),
+    ],
+    [
+      "keeps a second medicines entry for a cancelled task that already has evidence, urgently (C4)",
+      task("medicines.round", "cancelled", "p1", "e1"),
+      true,
+      kept("medicines_conflict", "urgent"),
+    ],
+    [
+      "keeps a medicines entry for a task the move cancelled as late evidence",
+      task("medicines.round", "cancelled"),
+      true,
+      kept("task_cancelled", "none"),
     ],
     [
       "refuses a task for another person (HZ-001)",
@@ -323,8 +340,20 @@ describe("hazards HZ-004 and HZ-006 what an entry does to the task it names", ()
       true,
       { ok: false, problem: "wrong_person", message: "That task is not for this person." },
     ],
-  ])("%s", (_label, t, mayComplete, expected) => {
+  ])("hazard HZ-004 %s", (_label, t, mayComplete, expected) => {
     expect(checkTaskLink(t, { personId: "p1", mayComplete })).toEqual(expected);
+  });
+
+  it("never completes a task except with the outcome completed", () => {
+    for (const status of ["open", "done", "skipped", "cancelled"] as const) {
+      for (const mayComplete of [true, false]) {
+        const check = checkTaskLink(task("medicines.round", status), {
+          personId: "p1",
+          mayComplete,
+        });
+        if (check.ok) expect(check.completes).toBe(check.outcome === "completed");
+      }
+    }
   });
 });
 
@@ -333,10 +362,16 @@ describe("hazards HZ-003 and HZ-004 tasks brought back after a return or a corre
   const stopped = (
     id: string,
     due: string,
-    options: { series?: string | null; windowEnd?: string; evidence?: boolean } = {},
+    options: {
+      series?: string | null;
+      windowEnd?: string;
+      evidence?: boolean;
+      kind?: string;
+    } = {},
   ): StoppedTask => ({
     id,
     seriesId: options.series === undefined ? "turns" : options.series,
+    kind: options.kind ?? "care.reposition",
     dueAt: at(due),
     windowEnd: options.windowEnd ? at(options.windowEnd) : null,
     hasEvidence: options.evidence ?? false,
@@ -404,7 +439,78 @@ describe("hazards HZ-003 and HZ-004 tasks brought back after a return or a corre
       "12:00",
       { done: ["t1100"], reopenOverdue: [], missed: ["t1000"] },
     ],
-  ])("%s", (_label, tasks, since, now, expected) => {
+    [
+      "does not catch up a series whose later occurrence is open again (turns at 08:00 and 12:00, corrected at 12:10; C1)",
+      [
+        stopped("t0800", "08:00", { windowEnd: "09:00" }),
+        stopped("t1200", "12:00", { windowEnd: "13:00" }),
+      ],
+      "07:30",
+      "12:10",
+      { reopen: ["t1200"], reopenOverdue: [], missed: ["t0800"] },
+    ],
+    [
+      "makes only the dose still in its window due (paracetamol at 08:00 and 12:00, corrected at 12:10; C1)",
+      [
+        stopped("p0800", "08:00", {
+          series: "paracetamol",
+          windowEnd: "09:00",
+          kind: "medicines.round",
+        }),
+        stopped("p1200", "12:00", {
+          series: "paracetamol",
+          windowEnd: "13:00",
+          kind: "medicines.round",
+        }),
+      ],
+      "07:30",
+      "12:10",
+      { reopen: ["p1200"], reopenOverdue: [], missed: ["p0800"] },
+    ],
+    [
+      "never makes a missed medicines dose due again: it is listed for the nurse in charge (C1)",
+      [
+        stopped("m0800", "08:00", {
+          series: "insulin",
+          windowEnd: "08:30",
+          kind: "medicines.round",
+        }),
+        stopped("m1200", "12:00", {
+          series: "insulin",
+          windowEnd: "12:30",
+          kind: "medicines.round",
+        }),
+      ],
+      "07:30",
+      "13:00",
+      { reopen: [], reopenOverdue: [], missed: ["m0800", "m1200"] },
+    ],
+    [
+      "still reopens a medicines dose in its window",
+      [
+        stopped("m1200", "12:00", {
+          series: "insulin",
+          windowEnd: "12:30",
+          kind: "medicines.round",
+        }),
+      ],
+      "11:00",
+      "12:10",
+      { reopen: ["m1200"], reopenOverdue: [], missed: [] },
+    ],
+  ])("hazard HZ-003 %s", (_label, tasks, since, now, expected) => {
     expect(planTaskRestore(tasks, at(since), at(now))).toMatchObject(expected);
+  });
+
+  it("hazard HZ-008 gives a caught-up round a fresh window as long as its own, so it does not escalate at once", () => {
+    const now = at("12:30");
+    expect(
+      catchUpTiming({ dueAt: at("10:00"), windowStart: at("09:45"), windowEnd: at("10:30") }, now),
+    ).toEqual({ dueAt: now, windowStart: now, windowEnd: at("13:15") });
+    expect(catchUpTiming({ dueAt: at("10:00"), windowStart: null, windowEnd: null }, now)).toEqual({
+      dueAt: now,
+      windowStart: now,
+      windowEnd: now,
+    });
   });
 });
