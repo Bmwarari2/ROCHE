@@ -76,6 +76,11 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `document_signature` | the class of the signed document |
 | `legal_hold`, `destruction_certificate` | kept permanently (proof of records management); never destroyed by the engine |
 | `task`, `task_series`, `workflow_instance`, `workflow_transition` | the class of the record they concern (care_record for tasks about a person) |
+| `feed_item`, `feed_item_withdrawal`, `care_note_share`, `visit_booking` ([comms.md](comms.md)) | care_record |
+| `feed_view` (what a family member saw, under which decision) | audit_event.care_record |
+| `family_channel`, `family_notification_setting` | care_record, with the contact; push tokens are deleted when the device signs out, not retained |
+| `family_notification` and its deliveries | the class of the record they relate to (care_record) until the DPO sets a shorter period (H-106) |
+| `visit_booking_setting` | tenant configuration, kept while current |
 
 ## Gaps to settle before the module that needs them ships
 
@@ -86,6 +91,10 @@ of the record they attach to.
 - Enquiries and pre-admission assessments of people who are never admitted (Phase 1 people lifecycle;
   human action H-39). Until a period is set they follow care_record, counted from the date the
   enquiry closed.
+- Family notification delivery logs and channel opt-out and bounce records (Phase 1 family feed;
+  human action H-106). They hold an address, a template id and a status, never update content;
+  until a period is set they follow care_record with the contact. An opt-out must be remembered for
+  as long as the address is held, so it is never sent to again.
 - Unsuccessful job applicants' data (Phase 2 recruitment).
 - DBS certificate information: the DBS code of practice limits how long certificate details may be kept;
   confirm the period before the Phase 2 pre-employment file stores them.
