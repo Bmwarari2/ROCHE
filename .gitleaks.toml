@@ -10,6 +10,9 @@ paths = [
   '''apps/api/openapi\.json''',
 ]
 regexes = [
+  # Dotted lowercase identifiers (rate-table keys, permission names) such as nmw.hourly.21_plus
+  # trip the generic-api-key rule by entropy; they are names, never secrets.
+  '''^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$''',
   '''harbour_[a-z]+_local''',
   '''harbour_admin_ci''',
   '''local-development-secret-change-me-[0-9]+''',
