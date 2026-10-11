@@ -1,6 +1,8 @@
-import type { PersonSummary } from "@harbour/contracts";
+import type { PersonCareProfile, PersonSummary } from "@harbour/contracts";
 import { Card } from "@harbour/ui";
 import type { ReactNode } from "react";
+import { ResuscitationStatus } from "@/components/care/ResuscitationStatus";
+import { iddsiLabel } from "@/lib/care-record";
 import { formatDate, formatNhsNumber } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { allergySummary, initials, personNames, roomLabel } from "@/lib/people";
@@ -26,15 +28,20 @@ function allergyDetail(allergy: PersonSummary["allergies"][number]): string {
 }
 
 /**
- * The point-of-care header (section 9): photo, preferred and full name, NHS number, date of birth,
- * allergies and communication needs, so the right person is always in view.
+ * The point-of-care header (section 9, hazards HZ-001, HZ-007, HZ-015 and HZ-016): photo,
+ * preferred and full name, NHS number, date of birth, allergies, the resuscitation decision in
+ * force, the prescribed IDDSI levels and communication needs, so the right person and what keeps
+ * them safe are always in view. It sits above every tab of the record.
  */
 export function PersonHeader({
   person,
   locationName,
+  careProfile = null,
 }: {
   readonly person: PersonSummary;
   readonly locationName: string | null;
+  /** IDDSI levels; null when the person viewing may not read the care profile. */
+  readonly careProfile?: PersonCareProfile | null;
 }) {
   const names = personNames(person);
   const allergy = allergySummary(person, t);
@@ -90,6 +97,19 @@ export function PersonHeader({
           <Detail term={t("people.header.allergiesTitle")}>
             <AllergyChip summary={allergy} />
           </Detail>
+          <Detail term={t("care.header.resuscitation")}>
+            <ResuscitationStatus status={person.resuscitation} />
+          </Detail>
+          {careProfile ? (
+            <>
+              <Detail term={t("care.header.iddsiFood")}>
+                {iddsiLabel("food", careProfile.iddsiFoodLevel, t)}
+              </Detail>
+              <Detail term={t("care.header.iddsiDrink")}>
+                {iddsiLabel("drink", careProfile.iddsiDrinkLevel, t)}
+              </Detail>
+            </>
+          ) : null}
         </dl>
 
         {person.allergies.length > 0 ? (
