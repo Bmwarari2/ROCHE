@@ -48,6 +48,7 @@ export * from "./platform/permissions";
 export * from "./platform/rates";
 export * from "./platform/retention";
 export * from "./platform/roles";
+export * from "./platform/search";
 export * from "./platform/separation-of-duties";
 export * from "./platform/tasks";
 export * from "./platform/workflow";
