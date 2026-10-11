@@ -12,6 +12,7 @@ describe("contracts", () => {
       preferredName: null,
       dateOfBirth: "1938-02-01",
       nhsNumber: "9990000018",
+      roomLabel: "4",
       photoUrl: null,
       allergyStatus: "has_allergies",
       allergies: [{ substance: "Penicillin", severity: "severe", reaction: null }],
