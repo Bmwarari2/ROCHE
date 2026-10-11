@@ -41,6 +41,7 @@ export * from "./people/transfer-pack";
 export * from "./platform/access";
 export * from "./platform/branding";
 export * from "./platform/documents";
+export * from "./platform/export";
 export * from "./platform/feature-flags";
 export * from "./platform/forms";
 export * from "./platform/notifications";
