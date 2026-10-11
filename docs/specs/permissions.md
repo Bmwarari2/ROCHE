@@ -52,6 +52,7 @@ people only (plus break-glass), `none` no person records.
 | `platform.billing.read` |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `platform.dpia.sign` |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `platform.grant.manage` |  |  | yes |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| `platform.task.manage` |  |  | yes |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `platform.support.approve` | yes |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `people.person.read` |  | yes | yes | yes | yes | yes | yes | yes | yes | yes |  |  |  |  |  |  |  | yes | yes |  |  | yes |  |
 | `people.person.create` |  | yes | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
