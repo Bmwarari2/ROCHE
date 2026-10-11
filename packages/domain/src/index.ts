@@ -1,3 +1,4 @@
+export * from "./integrations/ports";
 export * from "./people/nhs-number";
 export * from "./platform/access";
 export * from "./platform/branding";
