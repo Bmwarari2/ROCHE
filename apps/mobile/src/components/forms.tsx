@@ -6,7 +6,14 @@
 import { Text, useTheme } from "@harbour/ui-native";
 import { Pressable, View } from "react-native";
 import { CORRECTION_REASON_LIMITS, type FieldError } from "../care/entries";
-import type { WhenChoice } from "../care/time";
+import {
+  maxDaysBack,
+  parseInstant,
+  resolveOccurredAt,
+  ukDateLabel,
+  ukDateTimeParts,
+  type WhenChoice,
+} from "../care/time";
 import { t } from "../i18n/t";
 import { TextField } from "./TextField";
 
@@ -141,38 +148,94 @@ interface WhenFieldProps {
   readonly value: WhenChoice;
   readonly onChange: (value: WhenChoice) => void;
   readonly error?: FieldError | null;
+  /** Days of entries the device keeps (`mobile.offline_window_days`): how far back a day goes. */
+  readonly windowDays: number | null;
+  /** When correcting, the original entry's event time, offered first and chosen by default. */
+  readonly original?: string | null;
 }
 
-/** When the care happened: now, or a time earlier today (HZ-017). */
-export function WhenField({ value, onChange, error }: WhenFieldProps) {
+/**
+ * When the care happened (HZ-017, clinical review C4): now, a time on an earlier day within the
+ * offline window, or, for a correction, the original entry's time. A time typed without a day
+ * means the most recent time the clock showed it, and the field says which date and time will be
+ * recorded, so 23:45 typed at 00:30 reads as yesterday.
+ */
+export function WhenField({ value, onChange, error, windowDays, original }: WhenFieldProps) {
   const theme = useTheme();
+  const now = new Date();
+  const originalAt = original ? parseInstant(original) : null;
+  const daysBack = maxDaysBack(windowDays);
+  const day = value.kind === "earlier" ? (value.daysAgo ?? null) : null;
+  const resolved = value.kind === "earlier" ? resolveOccurredAt(value, now, windowDays) : null;
+
+  const dayLabel = (daysAgo: number) => {
+    const date = ukDateLabel(now, daysAgo);
+    if (daysAgo === 0) return t("mobile.when.dayToday", { date });
+    if (daysAgo === 1) return t("mobile.when.dayYesterday", { date });
+    return t("mobile.when.dayOn", { date });
+  };
+
   return (
     <View style={{ gap: theme.space[1] }}>
       <ChoiceGroup
         label={t("mobile.when.label")}
         testID="when"
         value={value.kind}
-        onChange={(kind) =>
-          onChange(
-            kind === "now" ? { kind } : { kind, time: value.kind === "earlier" ? value.time : "" },
-          )
-        }
+        onChange={(kind) => {
+          if (kind === "now") onChange({ kind });
+          else if (kind === "original" && original) onChange({ kind, at: original });
+          else onChange({ kind: "earlier", time: value.kind === "earlier" ? value.time : "" });
+        }}
         options={[
-          { value: "now", label: t("mobile.when.now") },
-          { value: "earlier", label: t("mobile.when.earlier") },
+          ...(originalAt && original
+            ? [
+                {
+                  value: "original" as const,
+                  label: t("mobile.when.original", ukDateTimeParts(originalAt)),
+                },
+              ]
+            : []),
+          { value: "now" as const, label: t("mobile.when.now") },
+          { value: "earlier" as const, label: t("mobile.when.earlier") },
         ]}
       />
       {value.kind === "earlier" ? (
-        <TextField
-          label={t("mobile.when.time")}
-          hint={t("mobile.when.timeHint")}
-          value={value.time}
-          onChangeText={(time) => onChange({ kind: "earlier", time })}
-          keyboardType="numbers-and-punctuation"
-          maxLength={5}
-          errorText={errorText(error)}
-          testID="when-time"
-        />
+        <>
+          <ChoiceGroup
+            label={t("mobile.when.day")}
+            testID="when-day"
+            value={day === null ? "auto" : String(day)}
+            onChange={(choice) =>
+              onChange({
+                kind: "earlier",
+                time: value.time,
+                daysAgo: choice === "auto" ? null : Number(choice),
+              })
+            }
+            options={[
+              { value: "auto", label: t("mobile.when.dayAuto") },
+              ...Array.from({ length: daysBack + 1 }, (_, daysAgo) => ({
+                value: String(daysAgo),
+                label: dayLabel(daysAgo),
+              })),
+            ]}
+          />
+          <TextField
+            label={t("mobile.when.time")}
+            hint={t("mobile.when.timeHint")}
+            value={value.time}
+            onChangeText={(time) => onChange({ kind: "earlier", time, daysAgo: day })}
+            keyboardType="numbers-and-punctuation"
+            maxLength={5}
+            errorText={errorText(error)}
+            testID="when-time"
+          />
+          {resolved?.ok ? (
+            <Text variant="bodyDense" emphasis testID="when-resolved">
+              {t("mobile.when.resolved", ukDateTimeParts(resolved.occurredAt))}
+            </Text>
+          ) : null}
+        </>
       ) : (
         <FieldMessage error={error} />
       )}

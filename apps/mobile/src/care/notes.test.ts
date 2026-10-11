@@ -52,6 +52,27 @@ describe("writing a note offline", () => {
     expect(CreateCareNote.safeParse(uploadBody(result.row)).success).toBe(true);
   });
 
+  it("hazard HZ-017 a correction keeps the original's event time by default (C4)", () => {
+    const correction = {
+      supersedesId: "0199d000-0000-7000-8000-0000000000aa",
+      reason: "Wrong room",
+    };
+    const result = checkNote(
+      draft({ correction, when: { kind: "original", at: "2026-10-10T21:05:00.000000Z" } }),
+      context,
+      NOW,
+    );
+    expect(result.ok && result.row).toMatchObject({
+      occurred_at: "2026-10-10T21:05:00.000Z",
+      device_time: "2026-10-11T10:00:00.000Z",
+    });
+  });
+
+  it("hazard HZ-017 dates a note yesterday when the time typed is still to come today (C4)", () => {
+    const result = checkNote(draft({ when: { kind: "earlier", time: "23:45" } }), context, NOW);
+    expect(result.ok && result.row.occurred_at).toBe("2026-10-10T22:45:00.000Z");
+  });
+
   it("keeps only tags from the handover vocabulary", () => {
     const result = checkNote(draft({ tags: ["fall", "made_up"] }), context, NOW);
     expect(result.ok && result.row.tags).toBe('["fall"]');
@@ -61,7 +82,12 @@ describe("writing a note offline", () => {
     [{ category: null }, "category", "mobile.form.choose"],
     [{ body: "   " }, "body", "mobile.note.bodyRequired"],
     [{ body: "x".repeat(NOTE_BODY_MAX + 1) }, "body", "mobile.note.bodyTooLong"],
-    [{ when: { kind: "earlier", time: "12:00" } }, "when", "mobile.when.future"],
+    [{ when: { kind: "earlier", time: "12:00", daysAgo: 0 } }, "when", "mobile.when.future"],
+    [
+      { when: { kind: "earlier", time: "12:00", daysAgo: 30 } },
+      "when",
+      "mobile.when.outsideWindow",
+    ],
     [{ when: { kind: "earlier", time: "noon" } }, "when", "mobile.when.invalid"],
   ] as const)("refuses %j with a message for %s", (change, field, key) => {
     const result = checkNote(draft(change as Partial<NoteDraft>), context, NOW);

@@ -23,9 +23,8 @@ import {
 } from "../../../../care/body-map";
 import type { FieldError } from "../../../../care/entries";
 import { markSummary } from "../../../../care/entry-view";
-import { useEntryContext, useTenantId } from "../../../../care/hooks";
+import { useEntryContext, useTenantId, useWhenChoice } from "../../../../care/hooks";
 import { MARK_BY_ID_SQL, type MarkRow } from "../../../../care/queries";
-import type { WhenChoice } from "../../../../care/time";
 import { useSaveAndReturn } from "../../../../care/use-save";
 import { BodyMapDrawing } from "../../../../components/BodyMapDrawing";
 import { FormScreen } from "../../../../components/FormScreen";
@@ -61,13 +60,13 @@ export default function BodyMapScreen() {
   const [deviceRelated, setDeviceRelated] = useState<boolean | null>(null);
   const [bruiseExplained, setBruiseExplained] = useState<boolean | null>(null);
   const [description, setDescription] = useState("");
-  const [when, setWhen] = useState<WhenChoice>({ kind: "now" });
   const [reason, setReason] = useState("");
   const [errors, setErrors] = useState<Partial<Record<MarkField, FieldError>>>({});
 
   const originalParams = useMemo(() => [tenantId, id, correctId ?? ""], [tenantId, id, correctId]);
   const { data: originals } = useQuery<MarkRow>(MARK_BY_ID_SQL, originalParams);
   const original = correctId ? (originals[0] ?? null) : null;
+  const [when, setWhen] = useWhenChoice(original?.occurred_at);
 
   const regions = regionsFor(view);
   const chosenRegion = region ? findBodyRegion(view, region) : undefined;
@@ -224,7 +223,13 @@ export default function BodyMapScreen() {
         minHeight={88}
         testID="mark-description"
       />
-      <WhenField value={when} onChange={setWhen} error={errors.when} />
+      <WhenField
+        value={when}
+        onChange={setWhen}
+        error={errors.when}
+        windowDays={context.windowDays ?? null}
+        original={original?.occurred_at ?? null}
+      />
     </FormScreen>
   );
 }

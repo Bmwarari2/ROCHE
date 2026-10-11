@@ -60,7 +60,7 @@ export function checkNote(draft: NoteDraft, context: EntryContext, now: Date): N
   else if (body.length > NOTE_BODY_MAX) {
     errors.body = { key: "mobile.note.bodyTooLong", values: { max: NOTE_BODY_MAX } };
   }
-  const when = resolveOccurredAt(draft.when, now);
+  const when = resolveOccurredAt(draft.when, now, context.windowDays);
   if (!when.ok) errors.when = { key: when.error };
   if (draft.correction) {
     const reason = checkCorrectionReason(draft.correction.reason);

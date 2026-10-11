@@ -4,7 +4,7 @@ import { Stack, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, View } from "react-native";
 import type { FieldError } from "../../../../care/entries";
-import { useEntryContext, useTenantId } from "../../../../care/hooks";
+import { useEntryContext, useTenantId, useWhenChoice } from "../../../../care/hooks";
 import {
   checkNote,
   NOTE_BODY_MAX,
@@ -14,7 +14,6 @@ import {
   type NoteField,
 } from "../../../../care/notes";
 import { NOTE_BY_ID_SQL, type NoteRow } from "../../../../care/queries";
-import type { WhenChoice } from "../../../../care/time";
 import { useSaveAndReturn } from "../../../../care/use-save";
 import { FormScreen } from "../../../../components/FormScreen";
 import { ChoiceGroup, CorrectionField, errorText, WhenField } from "../../../../components/forms";
@@ -40,7 +39,7 @@ export default function NoteScreen() {
   const [category, setCategory] = useState<NoteCategory | null>(null);
   const [body, setBody] = useState("");
   const [tags, setTags] = useState<string[]>([]);
-  const [when, setWhen] = useState<WhenChoice>({ kind: "now" });
+  const [when, setWhen] = useWhenChoice(original?.occurred_at);
   const [reason, setReason] = useState("");
   const [errors, setErrors] = useState<Partial<Record<NoteField, FieldError>>>({});
 
@@ -154,7 +153,13 @@ export default function NoteScreen() {
           );
         })}
       </View>
-      <WhenField value={when} onChange={setWhen} error={errors.when} />
+      <WhenField
+        value={when}
+        onChange={setWhen}
+        error={errors.when}
+        windowDays={context.windowDays ?? null}
+        original={original?.occurred_at ?? null}
+      />
     </FormScreen>
   );
 }

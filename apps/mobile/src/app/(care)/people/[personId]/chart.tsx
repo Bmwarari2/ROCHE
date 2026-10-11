@@ -29,14 +29,18 @@ import {
 } from "../../../../care/charts";
 import { currentEntries } from "../../../../care/entries";
 import { observationItem } from "../../../../care/entry-view";
-import { useCareProfile, useEntryContext, useTenantId } from "../../../../care/hooks";
+import {
+  useCareProfileState,
+  useEntryContext,
+  useTenantId,
+  useWhenChoice,
+} from "../../../../care/hooks";
 import {
   OBSERVATION_BY_ID_SQL,
   OBSERVATIONS_SQL,
   type ObservationRow,
   observationParams,
 } from "../../../../care/queries";
-import type { WhenChoice } from "../../../../care/time";
 import { useSaveAndReturn } from "../../../../care/use-save";
 import { Card } from "../../../../components/Card";
 import { EntryRow } from "../../../../components/EntryRow";
@@ -75,14 +79,13 @@ export default function ChartScreen() {
     typeof params.chart === "string" && isChartKind(params.chart) ? params.chart : null;
   const tenantId = useTenantId();
   const context = useEntryContext(id);
-  const profile = useCareProfile(id);
+  const { profile } = useCareProfileState(id);
   const { submit, saving, saveFailed } = useSaveAndReturn();
 
   const [chart, setChart] = useState<ChartKind | null>(initialChart);
   const [text, setText] = useState<Record<string, string>>({});
   const [choice, setChoice] = useState<Record<string, string | null>>({});
   const [yesNo, setYesNo] = useState<Record<string, boolean | null>>({});
-  const [when, setWhen] = useState<WhenChoice>({ kind: "now" });
   const [reason, setReason] = useState("");
   const [errors, setErrors] = useState<ChartErrors>({});
 
@@ -90,6 +93,7 @@ export default function ChartScreen() {
   const { data: originals } = useQuery<ObservationRow>(OBSERVATION_BY_ID_SQL, originalParams);
   const original =
     correctId && originals[0] ? observationItem(originals[0], appEnv.demoMode) : null;
+  const [when, setWhen] = useWhenChoice(correctId ? originals[0]?.occurred_at : null);
 
   const earlierParams = useMemo(
     () => observationParams(tenantId, id, chart ?? "none"),
@@ -433,7 +437,13 @@ export default function ChartScreen() {
         />
       ) : null}
       {fields()}
-      <WhenField value={when} onChange={setWhen} error={errors.when} />
+      <WhenField
+        value={when}
+        onChange={setWhen}
+        error={errors.when}
+        windowDays={context.windowDays ?? null}
+        original={correctId ? (originals[0]?.occurred_at ?? null) : null}
+      />
       {earlier.length > 0 ? (
         <Card title={t("mobile.chart.recentEntries")}>
           {earlier.map((item) => (

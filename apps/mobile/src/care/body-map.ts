@@ -106,7 +106,7 @@ export function checkMark(
   }
   if (!draft.side) errors.side = { key: "mobile.bodyMap.sideRequired" };
   if (!draft.markType) errors.markType = { key: "mobile.bodyMap.markTypeRequired" };
-  const when = resolveOccurredAt(draft.when, now);
+  const when = resolveOccurredAt(draft.when, now, context.windowDays);
   if (!when.ok) errors.when = { key: when.error };
   if (draft.correction) {
     const reason = checkCorrectionReason(draft.correction.reason);

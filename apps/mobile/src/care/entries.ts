@@ -28,6 +28,8 @@ export interface EntryContext {
   readonly locationId: string | null;
   /** The signed-in user, shown as the author until the server's copy arrives. */
   readonly userId: string | null;
+  /** Days of entries the device keeps: how far back an event may be dated (C4). */
+  readonly windowDays?: number | null;
   readonly newId: () => string;
 }
 

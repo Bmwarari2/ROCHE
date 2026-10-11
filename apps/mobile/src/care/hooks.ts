@@ -5,8 +5,9 @@
  */
 import { DEVICE_WRITABLE_TABLES, type OfflineWindowTable } from "@harbour/sync/client";
 import { usePowerSync, useQuery } from "@powersync/react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "../app-state/session";
+import { useVault } from "../app-state/vault";
 import { newEntryId } from "../platform/ids";
 import { type EntryContext, type EntryRow, insertStatement } from "./entries";
 import {
@@ -17,10 +18,44 @@ import {
   UPLOAD_ISSUES_SQL,
   type UploadIssueRow,
 } from "./queries";
+import type { WhenChoice } from "./time";
 
 export function useTenantId(): string {
   const { me } = useSession();
   return me?.tenant.id ?? "";
+}
+
+/**
+ * The person's care profile with whether the query has run, so "not on this device" (C3, C6) is
+ * never shown while it is still loading.
+ */
+export function useCareProfileState(personId: string): {
+  readonly profile: CareProfileRow | null;
+  readonly loaded: boolean;
+} {
+  const tenantId = useTenantId();
+  const params = useMemo(() => [tenantId, personId], [tenantId, personId]);
+  const { data, isLoading } = useQuery<CareProfileRow>(CARE_PROFILE_SQL, params);
+  return { profile: data[0] ?? null, loaded: !isLoading };
+}
+
+/**
+ * When the care happened, for a form (C4). A correction starts from the original entry's event
+ * time, until the carer changes it.
+ */
+export function useWhenChoice(
+  originalAt: string | null | undefined,
+): readonly [WhenChoice, (next: WhenChoice) => void] {
+  const [when, setWhen] = useState<WhenChoice>({ kind: "now" });
+  const touched = useRef(false);
+  useEffect(() => {
+    if (originalAt && !touched.current) setWhen({ kind: "original", at: originalAt });
+  }, [originalAt]);
+  const update = useCallback((next: WhenChoice) => {
+    touched.current = true;
+    setWhen(next);
+  }, []);
+  return [when, update] as const;
 }
 
 /** The person's care profile (IDDSI levels, SpO2 scale), or null when none is on the device. */
@@ -39,9 +74,10 @@ export function useEntryContext(personId: string): EntryContext {
   const { data } = useQuery<PersonContextRow>(PERSON_CONTEXT_SQL, params);
   const locationId = data[0]?.location_id ?? null;
   const userId = me?.user.id ?? null;
+  const windowDays = useVault().offlineWindowDays;
   return useMemo(
-    () => ({ tenantId, personId, locationId, userId, newId: newEntryId }),
-    [tenantId, personId, locationId, userId],
+    () => ({ tenantId, personId, locationId, userId, windowDays, newId: newEntryId }),
+    [tenantId, personId, locationId, userId, windowDays],
   );
 }
 
