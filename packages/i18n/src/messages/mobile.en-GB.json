@@ -220,5 +220,6 @@
   "mobile.summary.skinNotChecked": "Skin not checked",
   "mobile.summary.news2": "NEWS2 {score}, clinical risk {risk}",
   "mobile.risks.assessmentBand": "{band, select, low {Low risk} medium {Medium risk} high {High risk} not_at_risk {Not at risk} at_risk {At risk} high_risk {High risk} very_high_risk {Very high risk} severe_risk {Severe risk} moderate_risk {Moderate risk} below_at_risk_threshold {Below the at-risk threshold} other {Result recorded}}",
-  "mobile.common.selected": "Selected"
+  "mobile.common.selected": "Selected",
+  "mobile.security.compromised": "This device may be rooted or jailbroken, so it is not safe for care records. Medicines features stay switched off. Tell your manager."
 }

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import { useVault } from "../app-state/vault";
 import { appEnv } from "../config/app-env";
+import { t } from "../i18n/t";
 import { AppSyncBanner } from "./AppSyncBanner";
 
 interface ScreenProps {
@@ -13,8 +14,10 @@ interface ScreenProps {
 }
 
 /**
- * Base layout for signed-in screens: themed background, sync banner, demo-mode notice, and the
- * one-off notice shown after the device's data had to be reset.
+ * Base layout for signed-in screens: themed background, sync banner, demo-mode notice, a warning
+ * when the device integrity check reports a rooted or jailbroken device (section 17.2; the check
+ * itself is still a stub, ADR-0029), and the one-off notice shown after the device's data had to
+ * be reset.
  */
 export function Screen({ children, syncBanner = true, testID }: ScreenProps) {
   const theme = useTheme();
@@ -37,6 +40,24 @@ export function Screen({ children, syncBanner = true, testID }: ScreenProps) {
         >
           <Text variant="bodyDense" tone="secondary">
             Demo mode: invented people, not real records.
+          </Text>
+        </View>
+      ) : null}
+      {vault.integrity?.status === "compromised" ? (
+        <View
+          testID="integrity-warning"
+          accessibilityRole="alert"
+          style={[
+            styles.notice,
+            {
+              backgroundColor: theme.colors.card,
+              borderBottomColor: theme.colors.border,
+              padding: theme.space[2],
+            },
+          ]}
+        >
+          <Text tone="danger" emphasis>
+            {t("mobile.security.compromised")}
           </Text>
         </View>
       ) : null}
