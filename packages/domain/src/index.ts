@@ -14,6 +14,7 @@ export * from "./care/tools";
 export * from "./care/waterlow";
 export * from "./care/weight";
 export * from "./integrations/ports";
+export * from "./people/lifecycle";
 export * from "./people/nhs-number";
 export * from "./platform/access";
 export * from "./platform/branding";
