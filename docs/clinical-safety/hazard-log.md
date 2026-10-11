@@ -36,8 +36,16 @@
 | [HZ-011](#hz-011-cross-tenant-or-out-of-scope-record-exposure) | Cross-tenant or out-of-scope record exposure | Major / Medium / 3 | Major / Very low / 2 | Open | `tenant_id` everywhere; RLS with FORCE; non-owner app role; isolation tests | Phase 0 gate, Phase 1, Phase 2 |
 | [HZ-012](#hz-012-validated-assessment-tool-calculated-incorrectly) | Validated assessment tool calculated incorrectly (NEWS2, MUST, Waterlow) | Major / Medium / 3 | Major / Very low / 2 | Open | None (tools arrive in Phase 1) | Phase 1 |
 | [HZ-013](#hz-013-statutory-notification-missed-or-late) | Statutory notification missed or late | Major / Medium / 3 | Major / Low / 3 | Open | Notification centre | Phase 1, Phase 2 |
+| [HZ-014](#hz-014-deterioration-score-or-screening-trigger-not-acted-on) | Deterioration score or screening trigger not acted on | Major / Medium / 3 | Major / Low / 3 | Open | None (Phase 1) | Phase 1 |
+| [HZ-015](#hz-015-resuscitation-decision-missing-out-of-date-or-not-visible) | Resuscitation decision missing, out of date or not visible | Major / Low / 3 | Major / Very low / 2 | Open | None (Phase 1) | Phase 1 |
+| [HZ-016](#hz-016-wrong-iddsi-diet-or-fluid-texture-displayed-or-recorded) | Wrong IDDSI diet or fluid texture displayed or recorded | Major / Low / 3 | Major / Very low / 2 | Open | None (Phase 1) | Phase 1 |
+| [HZ-017](#hz-017-late-or-retrospective-entry-mistaken-for-a-contemporaneous-record) | Late or retrospective entry mistaken for a contemporaneous record | Considerable / Medium / 3 | Considerable / Low / 2 | Open | Append-only design (Phase 0 audit and versioning) | Phase 1 |
+| [HZ-018](#hz-018-safety-critical-item-omitted-from-shift-handover) | Safety-critical item omitted from shift handover | Major / Medium / 3 | Major / Very low / 2 | Open | None (Phase 1) | Phase 1 |
+| [HZ-019](#hz-019-body-map-side-or-site-recorded-wrongly) | Body-map side or site recorded wrongly | Considerable / Medium / 3 | Considerable / Low / 2 | Open | None (Phase 1) | Phase 1 |
+| [HZ-020](#hz-020-deprivation-of-liberty-authorisation-lapses-unnoticed) | Deprivation-of-liberty authorisation lapses unnoticed | Considerable / Medium / 3 | Considerable / Low / 2 | Open | None (Phase 1) | Phase 1 |
+| [HZ-021](#hz-021-no-access-to-essential-information-during-an-it-outage) | No access to essential information during an IT outage | Major / Low / 3 | Major / Very low / 2 | Open | None (Phase 1) | Phase 1 |
 
-Five hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
+Six hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
 ---
 
@@ -745,13 +753,311 @@ Five hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013) have a target residual ris
 
 ---
 
+## HZ-014 Deterioration score or screening trigger not acted on
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-014 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `care` module (lead engineer) |
+| Source | Master prompt 10.1 (NEWS2, MUST); [RCP NEWS2](https://www.rcp.ac.uk/improving-care/resources/national-early-warning-score-news-2/); [BAPEN MUST](https://www.bapen.org.uk/must-and-self-screening/must-toolkit/) |
+
+**Description**: a NEWS2 score or MUST result that calls for a response (for example NEWS2 of 5 or more, or a single parameter scoring 3; MUST medium or high) is calculated correctly but the nurse in charge is not told, or the follow-up (repeat observations, food record, dietitian referral) is not scheduled.
+
+**Causes**: the result is shown only on the screen where it was entered; no task or alert is raised; the alert goes to someone off shift; the follow-up interval is wrong; offline entry delays the alert (HZ-006); alert fatigue (HZ-008).
+
+**Effects**: deterioration goes unnoticed until the person is seriously unwell; malnutrition progresses; avoidable hospital admission or death.
+
+**Initial risk**: severity Major, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Every validated result stores the published response band; bands that call for action raise a task and an urgent notification to the nurse in charge on shift, escalating through the location's chain until acknowledged | Phase 1 |
+| Design | Follow-ups are generated from the band: repeat observation frequency for NEWS2, a food record for MUST medium risk, a dietitian referral task for MUST high risk; intervals come from the rate table where they are defaults | Phase 1 |
+| Design | Results entered offline raise the task on the device immediately and the alert on sync, with the original time | Phase 1 |
+| Design | Handover always includes NEWS2 of 5 or more and open MUST follow-ups from the shift (HZ-018) | Phase 1 |
+| Training and user documentation | User guide: the score supports clinical judgement and the published response, never replaces it; deployer control: escalation policy and on-shift nurse in charge set per location | Phase 1 |
+
+**Target residual risk**: severity Major, likelihood Low, **risk 3**.
+
+**Justification for level 3**: Harbour raises, routes and escalates the response, but acting on it is a clinical decision by the staff on shift; further reduction would mean automating a clinical judgement, which the medical-device boundary rules out. `[CSO acceptance - human action]`
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain` (care): `hazard HZ-014 NEWS2 bands that call for a response raise a task and an urgent alert` | Planned, Phase 1 |
+| `packages/domain` (care): `hazard HZ-014 MUST medium and high risk schedule the food record and the dietitian referral` | Planned, Phase 1 |
+| `apps/api`: `hazard HZ-014 an urgent assessment alert escalates until acknowledged` | Planned, Phase 1 |
+
+---
+
+## HZ-015 Resuscitation decision missing, out of date or not visible
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-015 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `care` module (lead engineer) |
+| Source | Master prompt 10.1 (end of life); [ReSPECT](https://www.resus.org.uk/respect); hazard-log candidate list |
+
+**Description**: staff cannot see, at the moment they need it, whether the person has a ReSPECT plan, DNACPR decision or advance decision to refuse treatment, or they see one that has been withdrawn or replaced.
+
+**Causes**: the document is filed but not flagged; an old version is shown; the record is not available offline or in the downtime pack; the hospital transfer pack omits it.
+
+**Effects**: resuscitation attempted against the person's wishes, or not attempted when it should have been; distress to the person and family.
+
+**Initial risk**: severity Major, likelihood Low, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | The point-of-care header shows the current resuscitation status (word and icon) with the date and clinician; a missing record shows as 'Not recorded', never as blank | Phase 1 |
+| Design | Only one active record per kind; recording a new one supersedes the old; review dates raise tasks | Phase 1 |
+| Design | Advance care records are reference data on the device (never evicted while assigned), in the downtime pack and in the hospital transfer pack | Phase 1 |
+| Training and user documentation | Deployer control: the original signed form stays with the person as the home's policy requires; Harbour shows the record, it is not the legal document | Phase 1 |
+
+**Target residual risk**: severity Major, likelihood Very low, **risk 2**.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain` (care): `hazard HZ-015 a missing resuscitation record shows as not recorded` | Planned, Phase 1 |
+| `packages/db`: `hazard HZ-015 only one advance care record of each kind is active` | Planned, Phase 1 |
+| `apps/api`: `hazard HZ-015 the transfer pack and the downtime pack include the current resuscitation record` | Planned, Phase 1 |
+
+---
+
+## HZ-016 Wrong IDDSI diet or fluid texture displayed or recorded
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-016 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `care` module (lead engineer) |
+| Source | Master prompt 10.1 (food chart with IDDSI); [IDDSI framework](https://www.iddsi.org/framework); hazard-log candidate list |
+
+**Description**: the person's prescribed IDDSI food or drink level is shown wrongly, or food or fluid of a different level is recorded as given without challenge.
+
+**Causes**: levels shown as numbers only; the prescribed level is out of date after a speech and language therapy review; the food chart accepts any level silently.
+
+**Effects**: choking, aspiration pneumonia, death.
+
+**Initial risk**: severity Major, likelihood Low, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | The prescribed food and drink levels show with their IDDSI number, name and colour in the header and on the food and fluid charts | Phase 1 |
+| Design | Recording a level that does not match the prescribed level needs an override reason and raises an alert to the nurse in charge | Phase 1 |
+| Design | A change of prescribed level records who changed it, on whose advice, and shows as new for 72 hours | Phase 1 |
+| Training and user documentation | Deployer control: kitchen and dietary profiles are kept in step (Phase 3 catering links them) | Phase 1 |
+
+**Target residual risk**: severity Major, likelihood Very low, **risk 2**.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain` (care): `hazard HZ-016 a food entry at a different IDDSI level needs an override reason` | Planned, Phase 1 |
+| `apps/web`: `hazard HZ-016 the header shows the prescribed IDDSI levels with number and name` | Planned, Phase 1 |
+
+---
+
+## HZ-017 Late or retrospective entry mistaken for a contemporaneous record
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-017 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `care` module (lead engineer) |
+| Source | Master prompt 10.1 (late-entry flag), 18 (times); [NMC record keeping](https://www.nmc.org.uk/standards/code/read-the-code-online/) |
+
+**Description**: a note, chart entry or incident written long after the event, or backdated, reads as if it were written at the time, so decisions or investigations rely on it wrongly.
+
+**Causes**: only one time stored; device clock wrong (HZ-010); offline entries synced days later; edits overwrite the original.
+
+**Effects**: misleading care history; unsafe decisions based on charts that look complete; investigations and inquests misled.
+
+**Initial risk**: severity Considerable, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Every entry stores the event time, the device time and the server-received time; entries recorded more than the rate-table late-entry threshold after the event are flagged late everywhere they appear | Phase 1 |
+| Design | Entries are append-only; a correction supersedes the original with a reason and both remain readable | Phase 1 |
+| Design | Future event times beyond the clock-drift tolerance are refused | Phase 1 |
+
+**Target residual risk**: severity Considerable, likelihood Low, **risk 2**.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain` (care): `hazard HZ-017 entries older than the late-entry threshold are flagged late` | Planned, Phase 1 |
+| `packages/db`: `hazard HZ-017 notes and observations cannot be updated or deleted by the app` | Planned, Phase 1 |
+
+---
+
+## HZ-018 Safety-critical item omitted from shift handover
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-018 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `care` module (lead engineer) |
+| Source | Master prompt 10.1 (tasks and rounds), 15.1 (handover) |
+
+**Description**: the incoming shift is not told about a fall, a raised NEWS2, a refusal, a new wound, an open incident or an overdue task from the outgoing shift.
+
+**Causes**: handover written from memory; compiled list editable so items are removed; items recorded offline sync after the handover is compiled; nobody acknowledges it.
+
+**Effects**: missed observation or treatment; repeated harm; delayed escalation.
+
+**Initial risk**: severity Major, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Handover compiles automatically from the shift's records by rule (late tasks, NEWS2 of 5 or more, incidents, new body-map marks, refusals, falls, alerts); compiled items cannot be removed, only annotated | Phase 1 |
+| Design | Items that sync after compilation are appended and marked as late additions, and the incoming staff are notified | Phase 1 |
+| Design | Each incoming member of staff acknowledges the handover; unacknowledged handovers show on the nurse-in-charge view | Phase 1 |
+
+**Target residual risk**: severity Major, likelihood Very low, **risk 2**.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain` (care): `hazard HZ-018 handover includes every safety-critical item from the shift` | Planned, Phase 1 |
+| `packages/domain` (care): `hazard HZ-018 items synced after compilation are appended as late additions` | Planned, Phase 1 |
+
+---
+
+## HZ-019 Body-map side or site recorded wrongly
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-019 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `care` module (lead engineer) |
+| Source | Master prompt 10.1 (body map and skin) |
+
+**Description**: a wound, pressure ulcer or bruise is recorded on the wrong side or site, because the drawing is mirrored (front and back views) or tapped imprecisely on a small screen.
+
+**Causes**: front and back views mirror left and right; side shown only by position on the drawing; no confirmation in words.
+
+**Effects**: wrong site treated or checked; deterioration of the real wound missed; safeguarding concern misjudged.
+
+**Initial risk**: severity Considerable, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Side and region are chosen in words as well as on the drawing, and must agree before saving; front and back views label the person's left and right | Phase 1 |
+| Design | Wound photos are linked to the mark, with a ruler prompt | Phase 1 |
+
+**Target residual risk**: severity Considerable, likelihood Low, **risk 2**.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain` (care): `hazard HZ-019 a mark whose drawn side and stated side differ cannot be saved` | Planned, Phase 1 |
+
+---
+
+## HZ-020 Deprivation-of-liberty authorisation lapses unnoticed
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-020 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `care` module (lead engineer) |
+| Source | Master prompt 10.4; [Mental Capacity Act 2005 Schedule A1](https://www.legislation.gov.uk/ukpga/2005/9/schedule/A1); DHSC interim guidance after the June 2026 Supreme Court judgment |
+
+**Description**: an urgent or standard authorisation expires, or a review required by the 2026 legal change is not done, while the person is still deprived of their liberty.
+
+**Causes**: expiry dates kept outside the record; no reminder; the legal-change review not tracked; the CQC outcome notification not drafted.
+
+**Effects**: unlawful deprivation of liberty; the person's rights not protected; regulatory action.
+
+**Initial risk**: severity Considerable, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | DoLS register with expiry clocks from the rate table; tasks at 28 and 7 days before expiry (configurable) to the Registered Manager | Phase 1 |
+| Design | The outcome of an application drafts the CQC notification (HZ-013) | Phase 1 |
+| Design | Tenant switch for the 2026 legal change turns on the review-of-existing-authorisations workflow and lists every authorisation awaiting review | Phase 1 |
+
+**Target residual risk**: severity Considerable, likelihood Low, **risk 2**.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain` (care): `hazard HZ-020 DoLS expiry tasks fire before the end of each authorisation type` | Planned, Phase 1 |
+| `packages/domain` (care): `hazard HZ-020 a DoLS outcome drafts the CQC notification` | Planned, Phase 1 |
+
+---
+
+## HZ-021 No access to essential information during an IT outage
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-021 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `operations` module (lead engineer) |
+| Source | Master prompt 13.4 (nightly downtime pack); hazard-log candidate list |
+
+**Description**: during a power cut, network failure or Harbour outage, staff cannot see allergies, resuscitation status, IDDSI levels, care plan summaries, PEEPs or contacts.
+
+**Causes**: no downtime pack; the pack is out of date; it is printed but not where staff can find it; no way to back-enter records made on paper.
+
+**Effects**: wrong care given during the outage; records lost; evacuation without PEEPs.
+
+**Initial risk**: severity Major, likelihood Low, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | A downtime pack per location is generated nightly (allergies, resuscitation status, IDDSI levels, care plan summaries, PEEPs, contacts) and cached on kiosk devices; each page shows when it was generated | Phase 1 |
+| Design | Back-entry workflow for paper records made during downtime, flagged as late entries (HZ-017) | Phase 1 |
+| Training and user documentation | Deployer control: business continuity plan says where the printed pack is kept and who prints it | Phase 1 |
+
+**Target residual risk**: severity Major, likelihood Very low, **risk 2**.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `apps/api`: `hazard HZ-021 the downtime pack contains every required section for every current resident` | Planned, Phase 1 |
+
+---
+
 ## Candidate hazards for the first CSO workshop
 
 Not yet in the log (no IDs allocated). The CSO decides at the Phase 1 SWIFT workshop whether each becomes a hazard `[CSO decision - human action]`:
 
-- Resuscitation decision (ReSPECT or DNACPR) missing, out of date or not visible at the point of care.
-- Wrong IDDSI diet or fluid level displayed or served.
 - Data import mapping errors beyond allergies and medicines (care-plan content, contacts, legal representatives).
-- Downtime: no access to records during an outage with no current downtime pack.
 - AI module output mistaken for clinical advice (Phase 6; scope lock in [medical-device-boundary.md](../compliance/medical-device-boundary.md)).
 - Missed domiciliary visit not escalated (Phase 4).

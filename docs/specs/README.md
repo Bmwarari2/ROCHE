@@ -23,8 +23,8 @@ change.
 | --- | --- | --- | --- | --- |
 | platform.md | `platform` | 4, 5, 9.1 | 0 | Written by the lead engineer in Phase 0 |
 | people.md | `people` | 9.2, 18 | 0 (schema), 1 | Written by the lead engineer in Phase 0 |
-| care.md | `care` | 10.1, 10.4 | 1 | Planned |
-| safety.md | `safety` | 11.1 | 1 | Planned |
+| [care.md](care.md) | `care` | 10.1, 10.4 | 1 | Written for Phase 1 |
+| [safety.md](safety.md) | `safety` | 11.1 | 1 | Written for Phase 1 |
 | medicines.md | `medicines` | 10.2, 10.3 | 2 | Planned |
 | quality.md | `quality` | 11.2 | 1 (inspector packs), 2 | Planned |
 | workforce.md | `workforce` | 12.1, 12.2, 12.4 | 2 | Planned |
