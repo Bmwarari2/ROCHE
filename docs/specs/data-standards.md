@@ -598,22 +598,29 @@ these differences, defined in `packages/sync/src/client/schema.ts`:
   owner's device recorded as deleted gets a `sync.entry.after_discard` audit event; an entry a
   deletion lists that had already reached the server gets `sync.entry.before_discard` once the
   deletion is recorded as done (scope: the deletion record's id and the task's id). Each deletion
-  record has one review task per kind (`sync.entry_reported_deleted`,
+  record has one review task per kind and location (`sync.entry_reported_deleted`,
   `sync.entry_deleted_after_upload`; source `device_discard`, the record's id; no person id), whose
   title carries the count, and whose audit events (`sync.entry_flag.raised`, `sync.entry_flag.added`,
   resource `task`) carry the count, the owner's `tenant_user` id and up to 20 opaque entry ids;
-  a cap is `sync.entry_flag.capped` (resource `device_discard`). A hold's device report (unsent,
-  refused, held and blocked counts, the oldest age, when the hold started, the owner's
-  `tenant_user` id and up to 50 location ids, contract `SyncDeviceReport`, which refuses unknown
-  keys) may wait in the keystore the same way, with the id of the device that held the entries;
-  the server records it as `sync.device.report` (resource `device`, the device id; scope adds the
-  waiting count, when the waiting began and whether that start was taken from the device's last
-  report). While held, unsent or blocked entries wait, the server keeps a task per location
+  a cap is `sync.entry_flag.capped` (resource `device_discard`, scope `mergedInto`: the owner's
+  oldest open task at the location, whose `added` event then carries `merged`). A hold's device
+  report (unsent, refused, held and blocked counts, the oldest age, when the hold started, the
+  owner's `tenant_user` id and up to 50 location ids, contract `SyncDeviceReport`, which refuses
+  unknown keys) may wait in the keystore the same way, with the id of the device that held the
+  entries; the server records it as `sync.device.report` (resource `device`, the device id; scope
+  adds the waiting count, when the waiting began, `startFloor` (`earlier_report`, `first_seen` or
+  null), `ownerBound`, and `claimedOwnerTenantUserId` when the named owner has no earlier event
+  from the device). `sync.token.issue` names the device as its resource when the request carries
+  its id. While held, unsent or blocked entries wait, the server keeps a task per location
   (`sync.device_hold`, source `device_hold`, the device id) for a Registered Manager, or one per
   Registered Manager when no location is known, written as the reporter, with its raise, reopen,
-  moves, reset and close audited (`sync.device_hold.raised`, `.reopened`, `.moved`, `.reset`,
-  `.closed`, `.close_refused`, `.capped`; the raise and reopen name the hold's owner; opaque ids
-  only). When a cap stops a task, the location's Registered Managers get an in-app notification
+  moves, reset, merge and close audited (`sync.device_hold.raised`, `.reopened`, `.moved`, `.reset`,
+  `.merged`, `.closed`, `.close_refused`, `.capped`; the raise and reopen name the hold's owner and
+  any unbound claim, and the reopen whether it reset the escalation; opaque ids only). Holds past a
+  reporter's daily cap are on one task per reporter (source `device_hold_capped`, its source id
+  the reporter's `tenant_user` id). An overdue sync task no one could be told about is audited as
+  `sync.escalation_unrouted` (resource `task`, no actor) at most once a day. When a cap merges a
+  task into another, the location's Registered Managers also get an in-app notification
   (`sync.reporter_capped`, source the member's `tenant_user` id, no names) at most once a day per
   member and source, audited as `sync.capped_notice.sent` (resource `tenant_user`). The keystore
   also keeps the device's opaque id (the PowerSync client id), and the hold's marker and the

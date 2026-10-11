@@ -519,18 +519,25 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
     deletion lists that had already reached the server, written by the deletion's owner (a response
     lost on the way back), is flagged the same way when the deletion is recorded as done
     (`sync.entry.before_discard`; clinical review round 5, C-L2). Each deletion record has one
-    review task per kind for the Registered Manager at the entries' location
+    review task per kind and location for the Registered Manager there
     (`sync.entry_reported_deleted` or `sync.entry_deleted_after_upload`, source `device_discard`),
-    whatever its number of entries: the first flagged entry raises it, later ones add to its count,
-    and its audit events (`sync.entry_flag.raised`, `sync.entry_flag.added`) carry the count and up
-    to 20 opaque entry ids. A transaction-scoped lock on the tenant, kind and record, and a check
-    for an open task, stop a second; an entry flagged before, under an earlier record or on its
-    upload, is not flagged again. Each owner's deletions have at most 5 such tasks open; past that
-    the cap is audited (`sync.entry_flag.capped`) and the location's Registered Managers get one
-    notice a day (below). The task is due 24 hours after it is raised (hazard HZ-008; security
-    review round 6, N1; human action H-147). Before go-live, a partial GIN index on `audit_event`
-    scope `entryIds` for `device_discard` rows, or a `device_discard_entry` table, replaces the
-    read of the tenant's deletion records (a migration; go-live blocker, HZ-040).
+    so each location's managers see only their own people's entries (clinical review round 7, M4),
+    whatever its number of entries: the first flagged entry there raises it, later ones add to its
+    count, and its audit events (`sync.entry_flag.raised`, `sync.entry_flag.added`) carry the count
+    and up to 20 opaque entry ids. A transaction-scoped lock on the tenant, kind, record and
+    location, and a check for an open task, stop a second, and one owner's flags are taken in turn;
+    an entry flagged before, under an earlier record or on its upload, is not flagged again, and
+    every flagged entry is on a task. Each owner's deletions have at most 5 such tasks open at a
+    location; past that the entries join the oldest of them (`added` with `merged`), the cap is
+    audited (`sync.entry_flag.capped`, naming the task) and the location's Registered Managers get
+    one notice a day (below): no cap stops a task (round 7, M2; human action H-149). The task is due
+    at once when any of its entries is an observation (fluids, repositioning, vital signs and every
+    other chart), because a possible duplicate counts towards the day's totals and can complete a
+    round; otherwise 24 hours after it is raised, and an observation added later brings it forward
+    (hazard HZ-008; clinical review round 7, M3; human actions H-147 and H-148). Before go-live, a
+    partial GIN index on `audit_event` scope `entryIds` for `device_discard` rows, or a
+    `device_discard_entry` table, replaces the read of the tenant's deletion records (a migration;
+    go-live blocker, HZ-040).
   - Until the API can signal a revocation apart from an expiry, a revoked device that still holds
     unsent entries keeps them, encrypted, until the owner or a manager deals with them; that
     signal, and the manager hand-over upload (a manager sending another member of staff's held
@@ -545,31 +552,45 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   the owner's sync scope (`locationIds`, opaque ids, at most 50). Any member of the organisation
   may send it, with MFA where their roles call for it; the device sends it after each sync when the
   counts have changed, every half hour while anything waits, and as soon as a hold starts. Reports
-  for one device are handled one at a time. The server takes its times as no later than it
-  received them, and a hold's start as no earlier than the device's last report for that hold
-  (same owner, still waiting) said.
+  for one device are handled one at a time. The named owner counts only when bound to the device:
+  they already have an event from it whose resource is the device, a sync token issued to it (the
+  device sends its id with every token request) or a report sent from it, as the real owner has from
+  syncing before the hold. A named owner who is not bound is recorded as a claim
+  (`claimedOwnerTenantUserId`) and changes nothing: routing uses the reporter's assignments alone,
+  the claim gives no right to close, and the owner taken for the hold stays the device's last bound
+  owner (security review round 7, M1). The server takes the report's times as no later than it
+  received them, and a hold's start as no earlier than the device's last report for that hold (same
+  owner, still waiting) said, nor than the server first heard from the device.
   While held, unsent or blocked entries wait, the server keeps the device's task (source
   `device_hold`) for a Registered Manager, due at the hold's start plus
-  `mobile.held_entries_max_days`. It is raised at each location the report names where the owner
-  or the reporter has a live or most recent role assignment (any of the organisation's for someone
-  assigned across it), one task per location, closed together; with none left, at the reporter's
-  live locations, then at their most recent one (including one just removed); with no location
-  at all, one for each Registered Manager, assigned to them. A later report can bring the due time
-  earlier, never later. Overdue, the task escalates only to holders of `safety.incident.manage` at
-  its location. A report with nothing waiting, or recording "deleted" for the device's whole hold,
-  closes every copy when it comes from the hold's owner (named when the task was raised or
+  `mobile.held_entries_max_days`. It is raised at each location the report names where the reporter,
+  or the owner when bound, has a live or most recent role assignment (any of the organisation's for
+  someone assigned across it), one task per location, closed together; with none left, at the
+  reporter's live locations, then at their most recent one (including one just removed); with no
+  location at all, one for each Registered Manager, assigned to them. A later report can bring the
+  due time earlier, never later. Overdue, the task escalates only to holders of
+  `safety.incident.manage` at its location; with no one there (a vacant post), to the Registered
+  Managers anywhere in the organisation, then the holders anywhere; with no one at all it is not
+  marked escalated and the gap is audited once a day (`sync.escalation_unrouted`; clinical review
+  round 7, M5). A report with nothing waiting, or recording "deleted" for the device's whole hold,
+  closes every copy when it comes from the hold's owner (as recorded when the task was raised or
   reopened), from whoever raised it, or from a holder of `safety.incident.manage` at one of its
-  locations; anyone else's close is refused and audited, and a new hold after a refused close
-  resets the escalation, at most once a day and with the due time never later. A task closed less
-  than a day ago is reopened, keeping its escalation, instead of a new one being raised. Each
-  reporter raises tasks for at most 3 devices in a rolling day, whatever became of them; past that
-  the hold is audited as capped and the location's Registered Managers (else every Registered
-  Manager) get one notice (`sync.reporter_capped`, in-app, no personal data, linking to the task
-  list) per reporter a day, so a hold is never dropped silently. Raises, reopens, moves, resets,
-  closes, refused closes, caps and notices are audited with opaque ids (clinical reviews round 4
-  H2, round 5 C-H1 and C-M3 and round 6 M1 and M2; security reviews round 5 S-M1 and round 6 N2;
-  human action H-142). Discards and reports each have a per-person limit, and `/v1/sync/*` bodies
-  are limited to 64 KB (security review round 4, M4).
+  locations; anyone else's close is refused and audited. A task closed less than a day ago is
+  reopened instead of a new one being raised. A new hold after a refused close, and a reopen, reset
+  the escalation under one check, at most once a day (`DEVICE_HOLD_RESET_HOURS`) and with the due
+  time never later, so a new hold always signals (clinical review round 7, M1). Each reporter raises
+  tasks for at most 3 devices in a rolling day, whatever became of them, counted under a
+  per-reporter lock; past that, each further hold joins the reporter's one capped-holds task (source
+  `device_hold_capped`, its source id the reporter), raised at the hold's locations when none is
+  open, otherwise brought forward to the earliest capped hold's due time, escalating like a device
+  task until a manager completes it (`sync.device_hold.merged`; round 7, M2). The cap is audited and
+  the location's Registered Managers (else every Registered Manager) also get one notice
+  (`sync.reporter_capped`, in-app, no personal data, linking to the task list) per reporter a day.
+  Raises, reopens, moves, resets, merges, closes, refused closes, caps and notices are audited with
+  opaque ids (clinical reviews round 4 H2, round 5 C-H1 and C-M3, round 6 M1 and M2 and round 7;
+  security reviews round 5 S-M1, round 6 N2 and round 7 M1; human actions H-142 and H-149).
+  Discards and reports each have a per-person limit, and `/v1/sync/*` bodies are limited to 64 KB
+  (security review round 4, M4).
   The PowerSync client id is kept in the keystore so a deletion recorded from the sign-in screen,
   with no database open, still names the device.
 - **Refused entries.** Any refusal of an entry moves it, with its content, to the local-only
