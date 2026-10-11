@@ -2962,11 +2962,12 @@ describe("slice 8 review, round 4: rounds, assignments, exits and return checks"
     );
     const tasks = await seriesTasks(series);
     const past = tasks.filter((t) => t.due_at.getTime() < Date.now() - MIN);
-    // Every hour since the return has its round; nothing from before the return was made.
-    expect(past.length).toBeGreaterThanOrEqual(3);
+    // Every hour since the return has its round (the one caught up is now due now); nothing from
+    // before the return was made.
+    const caughtUp = tasks.filter((t) => t.restore_code === "caught_up");
+    expect(past.length + caughtUp.length).toBeGreaterThanOrEqual(3);
     expect(past.every((t) => t.due_at.getTime() >= new Date(returnedAt).getTime())).toBe(true);
     // One round is caught up, with a fresh window; the others are missed and listed.
-    const caughtUp = tasks.filter((t) => t.restore_code === "caught_up");
     expect(caughtUp).toHaveLength(1);
     expect(caughtUp[0]?.status).toBe("open");
     expect(caughtUp[0]?.due_at.getTime()).toBeGreaterThan(Date.now() - MIN);
@@ -3014,7 +3015,7 @@ describe("slice 8 review, round 4: rounds, assignments, exits and return checks"
     const gap = tasks.filter(
       (t) => t.due_at.getTime() >= Date.now() - 12 * HOUR && t.due_at.getTime() < Date.now() - MIN,
     );
-    expect(gap.length).toBeGreaterThanOrEqual(11);
+    expect(gap.length).toBeGreaterThanOrEqual(10);
     // The catch-up is due now with a fresh window; every other round of the gap is missed.
     expect(gap.every((t) => t.cancel_code === "missed_before_return_recorded")).toBe(true);
   });
