@@ -130,6 +130,13 @@ people only (plus break-glass), `none` no person records.
 | `comms.letter.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |
 | `comms.template.write` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  | yes |  |  | yes |  |  |  |  |  |
 | `comms.template.approve` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
+| `comms.feed.read` |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |
+| `comms.feed.publish` |  | yes | yes |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| `comms.feed.withdraw` |  | yes | yes |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| `comms.notification.subscribe` |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |
+| `comms.notification.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |
+| `comms.visit_booking.request` |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |
+| `comms.visit_booking.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |
 | `insights.dashboard.read` |  |  | yes | yes | yes | yes | yes | yes | yes | yes |  |  |  |  |  | yes | yes | yes |  |  |  | yes |  |
 | `insights.report.manage` |  |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
 | `insights.group.read` |  |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |

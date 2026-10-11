@@ -217,6 +217,28 @@ export const PERMISSIONS = {
   "comms.template.approve": {
     description: "Approve letter and email templates for use (not the template's author)",
   },
+  "comms.feed.read": {
+    description: "Read the family feed and the care plan sections a sharing decision opens",
+    careRecord: true,
+  },
+  "comms.feed.publish": {
+    description: "Mark notes as shareable, choose photos and publish family updates",
+    careRecord: true,
+  },
+  "comms.feed.withdraw": {
+    description: "Take a family update down with a reason",
+    careRecord: true,
+  },
+  "comms.notification.subscribe": {
+    description: "Choose own channels and quiet hours for family update notifications",
+  },
+  "comms.notification.manage": {
+    description: "See family notification delivery problems and the location's settings",
+  },
+  "comms.visit_booking.request": { description: "Ask to book a visit through the family portal" },
+  "comms.visit_booking.manage": {
+    description: "See and cancel visit bookings and set online booking hours",
+  },
   // insights
   "insights.dashboard.read": { description: "Read role dashboards" },
   "insights.report.manage": { description: "Build and schedule reports" },

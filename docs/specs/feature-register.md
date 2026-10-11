@@ -19,13 +19,13 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 | Rostering, time and pay | `SCHED` | 12.3 | 12 | 12 | 0 | 0 |
 | Operations | `OPS` | 13 | 28 | 27 | 1 | 0 |
 | Finance | `FIN` | 14 | 21 | 21 | 0 | 0 |
-| Communication and portals | `COMMS` | 15.1 | 8 | 6 | 2 | 0 |
+| Communication and portals | `COMMS` | 15.1 | 8 | 4 | 4 | 0 |
 | Reporting and analytics | `INSI` | 15.2 | 6 | 6 | 0 | 0 |
-| Integrations | `INTG` | 15.3 | 13 | 12 | 1 | 0 |
+| Integrations | `INTG` | 15.3 | 13 | 11 | 2 | 0 |
 | AI Management Copilot | `AI` | 16 | 11 | 11 | 0 | 0 |
 | Mobile apps | `MOB` | 17 | 13 | 11 | 2 | 0 |
 | Expansion (Phase 7) | `EXP` | 19 | 7 | 7 | 0 | 0 |
-| **Total** | | | **233** | **180** | **53** | **0** |
+| **Total** | | | **233** | **177** | **56** | **0** |
 
 | Phase | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -232,13 +232,13 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | FIN-019 | Home-care unit economics | 14.4 | 4 | todo | - | - | - | - |
 | FIN-020 | Purchasing | 14.4 | 3 | todo | - | - | - | - |
 | FIN-021 | Payroll costing | 14.4 | 3 | todo | - | - | - | - |
-| COMMS-001 | Family portal and app mode: updates feed and consented care plan sections | 15.1 | 1 | todo | - | - | - | - |
-| COMMS-002 | Family portal and app mode: visit booking, messaging, invoices and statements, surveys, complaints, documents to sign | 15.1 | 4 | todo | - | - | - | - |
+| COMMS-001 | Family portal and app mode: updates feed and consented care plan sections | 15.1 | 1 | partial | [comms](comms.md#4-rules-that-are-easy-to-get-wrong), [ADR-0061](../decisions/0061-family-portal-scope-and-row-level-security.md) | `packages/domain/src/comms/feed-visibility.ts`, `feed-compose.ts`, `feed-text.ts`, `packages/domain/src/people/sharing.ts` (authority scope, capacity now, suspension periods), `packages/domain/src/platform/roles.ts` and `access.ts` (comms permissions, portal sessions) | `packages/domain/src/comms/feed-visibility.test.ts`, `feed-compose.test.ts`, `feed-compose-review.test.ts`, `feed-text.test.ts`, `feed-text-review.test.ts`, `feed-permissions.test.ts`, `packages/domain/src/people/sharing-scope.test.ts`, `packages/domain/src/platform/access-portal.test.ts`; schema step must add the family scope, `app.family_can_see` policy and isolation tests in [comms](comms.md#21-family-scope-and-row-level-security-schema-step-requirement-adr-0061) section 2.1 | - |
+| COMMS-002 | Family portal and app mode: visit booking, messaging, invoices and statements, surveys, complaints, documents to sign | 15.1 | 4 | partial | [comms](comms.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/comms/visit-booking.ts` (visit booking rule, location restrictions and booking review only) | `packages/domain/src/comms/visit-booking.test.ts` | - |
 | COMMS-003 | Person's own portal (About Me, notes feed, preferences, feedback) | 15.1 | 4 | todo | - | - | - | - |
 | COMMS-004 | Time-limited professional access | 15.1 | 4 | todo | - | - | - | - |
 | COMMS-005 | Internal messaging and announcements | 15.1 | 4 | todo | - | - | - | - |
 | COMMS-006 | Handover acknowledgement | 15.1 | 1 | partial | [care](care.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/care/handover.ts` | `packages/domain/src/care/handover.test.ts` | - |
-| COMMS-007 | Letter and email templates with approval | 15.1 | 1 | partial | [comms](comms.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/comms/templates.ts`, `template-style.ts` | `packages/domain/src/comms/templates.test.ts`, `template-style.test.ts` | - |
+| COMMS-007 | Letter and email templates with approval | 15.1 | 1 | partial | [comms](comms.md#letter-and-email-templates-comms-007-hz-051) | `packages/domain/src/comms/templates.ts`, `template-style.ts` | `packages/domain/src/comms/templates.test.ts`, `template-style.test.ts` | - |
 | COMMS-008 | Optional public website module with vacancies, fees, rating widget and enquiry form | 15.1 | 4 | todo | - | - | - | - |
 | INSI-001 | Role dashboards | 15.2 | 1 | todo | - | - | - | - |
 | INSI-002 | Governed report builder | 15.2 | 6 | todo | - | - | - | - |
@@ -256,7 +256,7 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | INTG-008 | Nurse call and acoustic monitoring webhooks | 15.3 | 5 | todo | - | - | - | - |
 | INTG-009 | Lone-worker devices (BS 8484) | 12.3, 15.3 | 4 | todo | - | - | - | - |
 | INTG-010 | Bluetooth vitals (SpO2, blood pressure, thermometer) | 15.3 | 5 | todo | - | - | - | - |
-| INTG-011 | Communications (SES, SMS gateway, Expo push, ICS calendar, click-to-call) | 15.3 | 1 | todo | - | - | - | - |
+| INTG-011 | Communications (SES, SMS gateway, Expo push, ICS calendar, click-to-call) | 15.3 | 1 | partial | [comms](comms.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/comms/channels.ts`, `notify-plan.ts`, `notify-calendar.ts`, `notify-rates.ts`, `packages/domain/src/integrations/ports.ts` | `packages/domain/src/comms/channels.test.ts`, `notify-plan.test.ts`, `notify-calendar.test.ts` | - |
 | INTG-012 | Directories and lead sources (carehome.co.uk, Autumna, Lottie) | 15.3 | 3 | todo | - | - | - | - |
 | INTG-013 | E-signature and OCR adapters (optional DocuSign, camera scanning with OCR for paper MARs) | 15.3 | 2 | todo | - | - | - | - |
 | AI-001 | AI gateway with per-tenant enablement (off by default) and provider choice | 16, 16.3 | 6 | todo | - | - | - | - |

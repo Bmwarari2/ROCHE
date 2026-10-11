@@ -55,6 +55,8 @@ for an answer.
 | [0033](0033-incident-scope.md) | Incident scope: visible through any of its people, and classified with tenant-wide scope | proposed | 2026-10-11 | Phase 1 |
 | [0050](0050-evidence-pack-links.md) | Evidence pack links: hashed random tokens bound to one recipient by an emailed code | accepted | 2026-10-11 | Phase 1 |
 | [0051](0051-personal-data-in-template-emails.md) | Personal data in template emails: none in subjects, no special category data in bodies | proposed | 2026-10-11 | Phase 1 |
+| [0060](0060-family-notification-channels.md) | Family notification channels: provider-neutral ports and events, content-free messages | accepted | 2026-10-11 | Phase 1 |
+| [0061](0061-family-portal-scope-and-row-level-security.md) | Family portal scope: portal sessions, no person assignment, and a sharing-decision policy | accepted | 2026-10-11 | Phase 1 (schema step) |
 
 ## Open items carried by these ADRs
 

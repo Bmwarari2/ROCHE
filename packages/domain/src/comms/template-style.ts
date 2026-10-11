@@ -1,5 +1,5 @@
 /**
- * Optional plain-English hints for template authors (comms.md rule 9; packages/ui/CONTENT.md).
+ * Optional plain-English hints for template authors (comms.md rule 26; packages/ui/CONTENT.md).
  * Advisory only: they never block approval. Deliberately simple, and written as loops rather than
  * regular expressions so they cannot backtrack on long text.
  */

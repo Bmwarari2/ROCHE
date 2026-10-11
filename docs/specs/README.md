@@ -32,7 +32,7 @@ change.
 | scheduling.md | `scheduling` | 12.3 | 2 | Planned |
 | [operations.md](operations.md) | `operations` | 13 | 1 (downtime pack), 3 | Phase 1 sections written (slice 11) |
 | finance.md | `finance` | 14 | 3 | Planned |
-| [comms.md](comms.md) | `comms` | 15.1 | 1 | Templates written (slice 11); family feed in slice 12 |
+| [comms.md](comms.md) | `comms` | 15.1, 15.3 (communications) | 1 | Written for Phase 1 (slice 11: templates; slice 12: family feed, notifications, visit booking) |
 | insights.md | `insights` | 15.2 | 1 | Planned |
 | integrations.md | `integrations` | 15.3 | 0 (framework) | Planned |
 | ai.md | `ai` | 16 | 6 | Planned |

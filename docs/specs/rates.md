@@ -198,6 +198,8 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | bowel.no_movement_prompt_days | 3 | days | 2026-10-01 | - | all | tenant default | to-verify |
 | handover.day_shift_start_minute | 480 | minute_of_day | 2026-10-01 | - | all | Harbour default (12-hour day and night shifts, day from 08:00); tenant setting for the shift handover (care.md rule 8) | to-verify |
 | handover.night_shift_start_minute | 1200 | minute_of_day | 2026-10-01 | - | all | Harbour default (12-hour day and night shifts, night from 20:00); tenant setting for the shift handover (care.md rule 8) | to-verify |
+| comms.family_notifications.quiet_start_minute | 1260 | minute_of_day | 2000-01-01 | - | all | Harbour tenant default for family update notifications (comms.md section 4 rule 15): from 21:00 UK time they wait; no statutory figure | to-verify |
+| comms.family_notifications.quiet_end_minute | 480 | minute_of_day | 2000-01-01 | - | all | Harbour tenant default for family update notifications (comms.md section 4 rule 15): waiting notifications go at 08:00 UK time; no statutory figure | to-verify |
 | ld.annual_health_check.min_age_years | 14 | years | 2000-01-01 | - | england | master prompt 10.1 (annual health check from 14) | master-prompt |
 | medicines.paracetamol.min_interval_hours | 4 | hours | 2000-01-01 | - | all | master prompt 10.2 (time-critical rules) | master-prompt |
 | medicines.bisphosphonate.before_food_minutes | 30 | minutes | 2000-01-01 | - | all | master prompt 10.2 (time-critical rules) | master-prompt |
@@ -290,6 +292,11 @@ literals, and tests assert against the table, not a literal (section 7, section 
   the person wants their family or representative involved (master prompt section 9.2 names the
   record without an interval). The care plan review and the local authority review are separate
   clocks. Tenant default, confirmed by the Registered Manager (H-58).
+- `comms.family_notifications.quiet_start_minute` (1260, 21:00) and `.quiet_end_minute` (480,
+  08:00): family update notifications (email, SMS and push) found in this window wait until it ends
+  (comms.md section 4 rule 15). They are never urgent, so nothing bypasses the window. Harbour
+  default, not a published figure; the tenant confirms or changes it (human action H-107), and a
+  family member may set a stricter window of their own.
 - `exit.money_and_property_return_days` (28): the service level for returning personal money,
   property and keys after a discharge, transfer or death. No statute sets one; the default mirrors
   the CMA deposit-return period (`cma.deposit_return_days`) so the two clocks agree. Tenant default

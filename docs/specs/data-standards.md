@@ -408,9 +408,11 @@ assurance pack.
 | `exit_record` destination | MODS discharge destination (concept); NHS Data Dictionary discharge destination items to be checked | Destination type (`usual_residence`, `another_care_home`, `hospital`, `other`) and the receiving provider's CQC location ID or ODS code | Sets `person.discharged_at`. |
 | `exit_record` death details | NHS Data Dictionary PERSON DEATH DATE (date part of `person.deceased_at`); place of death (concept) | Place `care_home`, `hospital`, `elsewhere`; expected or not; verified by (name, role) and at | Sets `person.deceased_at`. |
 | `exit_checklist_item.status` | Harbour | `pending`, `done`, `not_required` (with a reason, only where allowed) | Item keys from `exitChecklist` in `packages/domain/src/people/exit.ts`. |
-| `sharing_decision.sections` | Harbour | `about_me`, `daily_updates`, `photos`, `activities_and_visits`, `care_plan`, `health_summary`, `medicines`, `appointments`, `finance`, `documents`; care plan domains as the PCSP domains | |
+| `sharing_decision.sections` | Harbour | `about_me`, `daily_updates`, `photos`, `activities_and_visits`, `care_plan`, `health_summary`, `medicines`, `appointments`, `finance`, `benefits`, `documents`; care plan domains as the PCSP domains | `benefits` is the only section a DWP appointee covers; `finance` and `benefits` need a property and financial affairs authority. |
 | `sharing_decision.basis` | UK GDPR and Caldicott principle 7 (direct care) | `consent`, `legal_authority`, `best_interests`, `direct_care` | Consent covers optional processing only (records of processing B8). |
 | `sharing_decision` authority role | Mental Capacity Act 2005 (Office of the Public Guardian registrations, Court of Protection orders); DWP appointeeship | `lpa_health_welfare`, `lpa_property_finance`, `deputy_personal_welfare`, `deputy_property_affairs`, `appointee` | From `contact.role` and `contact.authority_scope`, with reference, evidence document and end date. |
+| `sharing_decision` deputy order sections | Court of Protection order (Mental Capacity Act 2005 s.16 and s.20) | `sharing_decision.sections` codes, as recorded from the order | Required for `deputy_personal_welfare` and `deputy_property_affairs`; a deputy is never shown a section outside it. |
+| `sharing_decision_suspension` | Harbour | `from`, `to` (UTC; `to` empty while it lasts), reason | Periods, not a single flag: an update from a suspension period stays closed after it ends (comms.md rule 2). `to` after `from`. |
 | `sharing_decision` capacity | Mental Capacity Act 2005 s.1(2) (presumption of capacity) | `presumed`, `assessed_has_capacity`, `assessed_lacks_capacity` | Links the capacity assessment where one exists. |
 | `break_glass_event.reason_code` | Harbour | `emergency_care`, `covering_another_area`, `safeguarding`, `incident_or_complaint`, `request_from_professional`, `other` | Phase 1; the typed justification is kept as well. |
 
@@ -450,6 +452,35 @@ tenant export with these names.
 `downtime_pack`, `outage` and `evidence_pack_link` are operational records; they are exported in the
 full tenant export but map to no national standard.
 
+## Family feed and communications (Phase 1, slice 12)
+
+Code lists for the tables in [comms.md](comms.md) section 2. No national data standard covers a
+family feed; addresses follow the internet and telephone standards named below.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `feed_item.kind` | Harbour | `activity`, `visit`, `appointment`, `shared_note`, `photo`, `care_plan_update`, `finance_statement` | Section from `FEED_ITEM_SECTIONS` (the `sharing_decision.sections` codes); `finance_statement` is a placeholder until Phase 3. |
+| `feed_item.text` | Harbour | Plain text, at most 1,000 characters; an approved phrase (`phrase_key`) or a member of staff's words | Never a clinical note: shared notes come from `care_note_share`. |
+| `feed_item.carePlanDomain` | PRSB PCSP need domains (as `care_plan_section.domain`) | `PCSP_DOMAINS` marked `may_appear` in `FEED_CARE_PLAN_DOMAINS` | Required for `care_plan_update` and empty otherwise (CHECK constraint); the CSO confirms the allow-list (H-110). |
+| `feed_item` confirmation | Harbour | Confirmed by (tenant user id) and reason (plain text, at least `FEED_CONFIRMATION_MIN_REASON_LENGTH` characters) | Only when staff words carry an event or wellbeing term (comms.md rule 12); both set or both empty. |
+| `feed_item.photoDocumentId` | Harbour | Document id | Only for `kind = 'photo'` (CHECK constraint). |
+| `feed_item_withdrawal.reason` | Harbour | `source_corrected`, `published_in_error`, `person_asked`, `photo_consent_withdrawn` | |
+| `feed_view` | Harbour | Item, contact, decision, section, care plan domain, person status, capacity for sharing (`presumed`, `assessed_has_capacity`, `assessed_lacks_capacity`), `viewed_at` (UTC) | The exposure history (comms.md rule 4). |
+| `family_portal_user` | Harbour | Tenant user id and contact id, unique together | The link a portal session is resolved from (ADR-0061); never paired with a `person_assignment`. |
+| `family_channel.kind` | Harbour | `email`, `sms`, `push` | |
+| `family_channel.address` | Email: RFC 5321 and 5322 (at most 254 characters); SMS: ITU-T E.164 (`+` and 8 to 15 digits); push: the Expo push token | Text | Proof of the address is the verification, not the format check. |
+| `family_channel.opted_out_via` | Harbour | `sms_reply`, `email_link`, `portal` | SMS replies STOP, STOPALL, UNSUBSCRIBE, CANCEL, END, QUIT opt out; START or UNSTOP opt back in. |
+| `family_channel.suspended_reason` | Harbour | `hard_bounce`, `complaint`, `device_not_registered` | Cleared when the address changes. |
+| `family_notification.status` | Harbour | `planned`, `held`, `sent`, `failed`, `cancelled` | Held until quiet hours end (UK time). |
+| `family_notification_setting` quiet hours | Harbour | `HH:MM` to `HH:MM`, UK local time; a window may cross midnight | The tenant's window comes from the rate table (`comms.family_notifications.*`). |
+| `visit_booking.status` | Harbour | `confirmed`, `cancelled` | With `sequence` for the calendar file. |
+| `visit_booking_setting` hours | Harbour | Minutes after midnight, UK time (`minute_of_day`); end up to 1440 (midnight) | No product default. |
+| `location_visit_restriction.kind` | Harbour | `outbreak`, `other`; with `from`, `to` (UTC) and a reason for staff only | Refuses online booking at the location with the usual "call the home" message. |
+| `visit_log.accompaniment_purpose` | Harbour (Regulation 9A accompanying) | `planned_appointment`, `unplanned_appointment`, `emergency` (`ACCOMPANIMENT_PURPOSES`) | Required for `visit_log.kind = 'accompaniment'`; only planned appointments reach the feed. |
+| Visit calendar file | iCalendar, RFC 5545 | `text/calendar`; UID `visit-{booking id}@{portal domain}`; DTSTART and DTEND with `TZID=Europe/London` and a VTIMEZONE, UTC in the repeated autumn hour | Names the home, never the person. |
+| Click-to-call | RFC 3966 `tel:` URI with an E.164 number | `tel:+441632960001` | The home's own number only. |
+| `consent_record.decision = photos` | Harbour (care consent kinds) | As `CONSENT_DECISION_KINDS` | The basis for photos in the feed, with `best_interests_decision` (decision kind `photos`, a yes or no outcome) where the person lacks capacity. |
+
 ## Platform operational tables (not part of the MODS export)
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but
@@ -457,7 +488,8 @@ map to no national data standard: `audit_event` (hash-chained), `record_version`
 `notification`, `notification_delivery`, `escalation_chain`, `feature_flag`, `form_template`,
 `form_submission`, `integration_connection`, `integration_inbound`, `support_access_request`,
 `break_glass_event`, `person_assignment`, `role`, `role_assignment`, `access_grant`, and from
-Phase 1 `break_glass_weekly_report`, `about_me_share_link` and `welcome_checklist_template`. Field-level
+Phase 1 `break_glass_weekly_report`, `about_me_share_link`, `welcome_checklist_template`,
+`family_notification`, `visit_booking_setting` and `family_portal_user`. Field-level
 detail is in `packages/db/src/schema/`; purposes and lawful bases are in
 [records of processing](../compliance/records-of-processing.md).
 

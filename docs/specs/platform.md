@@ -31,7 +31,13 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
 - Roles: per-tenant copies of the 21 built-in roles in `packages/domain/src/platform/roles.ts`;
   permission matrix: [permissions.md](permissions.md) (generated).
 - Effective access: `resolveAccess` unions active role assignments and time-boxed grants; the widest
-  scope wins (`tenant` > `locations` > `assigned` > `none`).
+  scope wins (`tenant` > `locations` > `assigned` > `none`). Staff and portal sessions never mix
+  (ADR-0061): a staff session (the default) skips portal roles and drops portal-only permissions
+  (`PORTAL_ONLY_PERMISSIONS`) from grants; a portal session (`resolveAccess(..., "portal")`, for
+  family members and later the person's own portal) takes portal roles only, with no grants and
+  scope `none`. `checkRoleDefinition` refuses a role mixing portal and staff permissions,
+  `checkGrantPermissions` refuses portal permissions in grants, and a stored mixed role is ignored.
+  The API passes `"portal"` from the family portal step onwards.
 - MFA: required for every permission that touches care records (`mfa_enrolment_required` otherwise).
 - Step-up: controlled drugs, residents' money approval, data export, break-glass, statutory
   notifications and support-access approval need a sign-in within 10 minutes.

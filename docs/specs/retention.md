@@ -87,6 +87,14 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `evidence_pack`, `evidence_pack_item`, `evidence_pack_link` ([quality.md](quality.md)) | evidence_pack; the rendered bundle is deleted when the link ends |
 | `statement_of_purpose_version`, `letter_template`, `letter_template_version` ([comms.md](comms.md)) | organisation_document |
 | `letter` | care_record; serious_incident only for an incident follow-up or duty of candour letter about an incident graded serious (`letterRetentionClass`) |
+| `feed_item`, `feed_item_withdrawal`, `care_note_share`, `visit_booking` ([comms.md](comms.md)) | care_record; photo updates and their photo documents stay care_record after photo consent is withdrawn (taken down from the feed, kept as the history of what was shared) |
+| `feed_view` (what a family member saw, under which decision) | audit_event.care_record |
+| `family_channel`, `family_notification_setting` | care_record, with the contact; push tokens are deleted when the device signs out, not retained |
+| `family_notification` and its deliveries | the class of the record they relate to (care_record) until the DPO sets a shorter period (H-106) |
+| `visit_booking_setting` | tenant configuration, kept while current |
+| `family_portal_user` | care_record, with the contact |
+| `location_visit_restriction` | care_record |
+| `sharing_decision_suspension` ([people.md](people.md)) | care_record, with the decision |
 
 ## Gaps to settle before the module that needs them ships
 
@@ -97,6 +105,10 @@ of the record they attach to.
 - Enquiries and pre-admission assessments of people who are never admitted (Phase 1 people lifecycle;
   human action H-39). Until a period is set they follow care_record, counted from the date the
   enquiry closed.
+- Family notification delivery logs and channel opt-out and bounce records (Phase 1 family feed;
+  human action H-106). They hold an address, a template id and a status, never update content;
+  until a period is set they follow care_record with the contact. An opt-out must be remembered for
+  as long as the address is held, so it is never sent to again.
 - Unsuccessful job applicants' data (Phase 2 recruitment).
 - DBS certificate information: the DBS code of practice limits how long certificate details may be kept;
   confirm the period before the Phase 2 pre-employment file stores them.

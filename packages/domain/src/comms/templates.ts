@@ -463,7 +463,7 @@ function sameDefinition(a: TemplateVersion, b: TemplateVersion): boolean {
   );
 }
 
-/** Separation of duties: nobody who wrote or edited a version approves it (comms.md rule 5). */
+/** Separation of duties: nobody who wrote or edited a version approves it (comms.md rule 22). */
 export function checkTemplateApproval(
   draft: TemplateVersion,
   current: TemplateVersion | null,

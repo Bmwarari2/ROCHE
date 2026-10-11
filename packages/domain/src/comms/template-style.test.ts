@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MAX_SENTENCE_WORDS, templateStyleWarnings } from "./template-style";
 
-/** Optional plain-English hints (comms.md rule 9): advisory, never blocking. */
+/** Optional plain-English hints (comms.md rule 26): advisory, never blocking. */
 
 describe("template style hints", () => {
   const long = Array.from({ length: MAX_SENTENCE_WORDS + 1 }, (_, i) => `word${i}`).join(" ");

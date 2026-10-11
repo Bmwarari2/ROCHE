@@ -85,5 +85,5 @@ in an email", "refuses an email subject that would carry personal details"). The
 
 ## More information
 
-Related: [comms.md](../specs/comms.md) rules 3 and 7, platform.md (notification centre), hazard
+Related: [comms.md](../specs/comms.md) rules 20 and 24, platform.md (notification centre), hazard
 HZ-051, records of processing. Revisit when the family portal delivers documents (Phase 4).
