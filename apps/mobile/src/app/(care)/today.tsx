@@ -6,7 +6,12 @@ import { useCallback, useMemo } from "react";
 import { FlatList, View } from "react-native";
 import { useSession } from "../../app-state/session";
 import { useVault } from "../../app-state/vault";
-import { useQueuedChanges, useTenantId, useUploadIssues } from "../../care/hooks";
+import {
+  useHeldEntryCount,
+  useQueuedChanges,
+  useTenantId,
+  useUploadIssues,
+} from "../../care/hooks";
 import { resuscitationFlag } from "../../care/person-summary";
 import { type AdvanceCareRow, ALL_ADVANCE_CARE_SQL, byPerson } from "../../care/queries";
 import { syncSummary } from "../../care/sync-summary";
@@ -37,6 +42,7 @@ export default function TodayScreen() {
   const tenantId = useTenantId();
   const queued = useQueuedChanges();
   const issues = useUploadIssues();
+  const held = useHeldEntryCount();
 
   const peopleParams = useMemo(() => peopleListParams(tenantId), [tenantId]);
   const { data: rows } = useQuery<PersonRow>(PEOPLE_LIST_SQL, peopleParams);
@@ -56,6 +62,7 @@ export default function TodayScreen() {
     lastSyncedAt: appEnv.demoMode ? vault.demoSeededAt : lastSyncedAtOf(status),
     queued,
     issues: issues.length,
+    held,
     demo: appEnv.demoMode,
     windowDays: vault.offlineWindowDays,
     now: new Date(),
@@ -95,6 +102,11 @@ export default function TodayScreen() {
           {summary.issues ? (
             <Text tone="danger" emphasis testID="today-sync-issues">
               {summary.issues}
+            </Text>
+          ) : null}
+          {summary.held ? (
+            <Text tone="danger" emphasis testID="today-sync-held">
+              {summary.held}
             </Text>
           ) : null}
           {summary.window ? (

@@ -243,9 +243,8 @@ export const DELETE_UPLOAD_ISSUE_SQL =
   "DELETE FROM upload_issue WHERE (tenant_id = ? OR tenant_id IS NULL) AND id = ?";
 
 /**
- * Refused content ages out with the offline window (S7): once the refusal is older than the
- * window, what was recorded is removed from the device and the entry stays listed, without its
- * content, until someone removes it with a reason.
+ * Entries still held after the owner signed in again: neither back in the upload queue nor moved to
+ * "needs attention" (clinical review M2). Counted with refused entries on the banner and Today, so
+ * the device never reads "Up to date" while any exist.
  */
-export const AGE_OUT_REFUSED_CONTENT_SQL =
-  "UPDATE upload_issue SET payload = NULL WHERE payload IS NOT NULL AND rejected_at < ?";
+export const HELD_COUNT_SQL = "SELECT COUNT(*) AS count FROM held_entry";

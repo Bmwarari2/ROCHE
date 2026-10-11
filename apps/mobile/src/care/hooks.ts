@@ -13,6 +13,7 @@ import { type EntryContext, type EntryRow, insertStatement } from "./entries";
 import {
   CARE_PROFILE_SQL,
   type CareProfileRow,
+  HELD_COUNT_SQL,
   PERSON_CONTEXT_SQL,
   type PersonContextRow,
   UPLOAD_ISSUES_SQL,
@@ -130,4 +131,10 @@ export function useUploadIssues(): readonly UploadIssueRow[] {
   const params = useMemo(() => [tenantId], [tenantId]);
   const { data } = useQuery<UploadIssueRow>(UPLOAD_ISSUES_SQL, params);
   return data;
+}
+
+/** Entries still held after the owner signed in again (clinical review M2). */
+export function useHeldEntryCount(): number {
+  const { data } = useQuery<{ count: number }>(HELD_COUNT_SQL);
+  return Number(data[0]?.count ?? 0);
 }

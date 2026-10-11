@@ -13,8 +13,10 @@ import {
   useState,
 } from "react";
 import { AuthError, type Me, parseMe } from "../auth/auth-client";
-import { authClient } from "../auth/clients";
+import { authClient, platformFetch } from "../auth/clients";
+import { appEnv } from "../config/app-env";
 import {
+  DEVICE_ID_ITEM,
   deletePlain,
   HELD_WORK_ITEM,
   ME_ITEM,
@@ -22,10 +24,12 @@ import {
   readPlain,
   readPlainStrict,
   SESSION_TOKEN_ITEM,
+  tombstoneStore,
   writePlain,
 } from "../platform/secure-store";
 import { DB_ID_ITEM } from "../security/db-key";
-import { admitSignIn, type HeldWork, readHeldMarker, serialiseHeldWork } from "./held-work";
+import { flushPendingReport } from "../sync/device-report";
+import { admitSignIn, type HeldWork, loadHeldMarker, serialiseHeldWork } from "./held-work";
 import { type AppMode, parseAppMode } from "./preferences-model";
 
 export type SessionPhase = "loading" | "signedOut" | "signedIn";
@@ -51,19 +55,46 @@ interface SessionValue {
   clearSession(notice?: string): Promise<void>;
   /** Ends the session but keeps the device's unsent entries for their owner. */
   holdSession(held: HeldWork, notice?: string): Promise<void>;
-  /** Forgets the held entries marker (after the owner signed in, or a deliberate delete). */
+  /**
+   * Forgets the held entries marker: once the vault has put the owner's entries back into the
+   * upload queue, or after a deliberate, recorded delete.
+   */
   clearHeld(): Promise<void>;
   dismissNotice(): void;
 }
 
 const SessionContext = createContext<SessionValue | null>(null);
 
-/** The held marker, read failing closed: a keystore error means "held, owner unknown" (S3). */
-function readHeld(): Promise<HeldWork | null> {
-  return readHeldMarker({
-    readMarker: () => readPlainStrict(HELD_WORK_ITEM),
-    readDatabaseId: () => readPlainStrict(DB_ID_ITEM),
-  });
+/**
+ * The held marker, read failing closed: a keystore error means "held, owner unknown" (S3). A
+ * marker without a deadline gets one and is saved (L2); after a keystore error nothing is written.
+ */
+async function readHeld(): Promise<HeldWork | null> {
+  const { held, save } = await loadHeldMarker(
+    {
+      readMarker: () => readPlainStrict(HELD_WORK_ITEM),
+      readDatabaseId: () => readPlainStrict(DB_ID_ITEM),
+    },
+    new Date(),
+  );
+  if (held && save)
+    await writePlain(HELD_WORK_ITEM, serialiseHeldWork(held)).catch(() => undefined);
+  return held;
+}
+
+/**
+ * A device report waiting since a hold started (counts only) goes with the first session in the
+ * same tenant, even one refused because the entries are someone else's. Best effort.
+ */
+async function sendWaitingReport(me: Me, token: string): Promise<void> {
+  if (appEnv.demoMode) return;
+  await flushPendingReport(tombstoneStore, {
+    apiUrl: appEnv.apiUrl,
+    fetch: platformFetch,
+    token,
+    tenantId: me.tenant.id,
+    deviceId: await readPlain(DEVICE_ID_ITEM),
+  }).catch(() => undefined);
 }
 
 function parseStoredMe(raw: string | null): Me | null {
@@ -115,17 +146,15 @@ export function SessionProvider({ children }: { readonly children: ReactNode }) 
     // Entries held for someone else stay held: this sign-in is ended and refused (HZ-006).
     const current = await readHeld();
     setHeld(current);
-    const admitted = await admitSignIn({
+    if (current) await sendWaitingReport(loaded, newToken);
+    // The owner is back: the vault reopens the same encrypted database and puts the entries back
+    // into the upload queue. The marker stays until that has worked (clinical review M2).
+    await admitSignIn({
       held: current,
       me: loaded,
       token: newToken,
       signOut: (token) => authClient.signOut(token),
     });
-    if (admitted === "resume") {
-      // The owner is back: the vault reopens the same encrypted database and uploads resume.
-      await deletePlain(HELD_WORK_ITEM);
-      setHeld(null);
-    }
     await writePlain(SESSION_TOKEN_ITEM, newToken);
     await writePlain(ME_ITEM, JSON.stringify(loaded));
     setToken(newToken);

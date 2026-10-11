@@ -8,18 +8,7 @@ import {
   parseCachedWindowDays,
   resolveOfflineWindow,
   WINDOW_META_ID,
-  windowStart,
 } from "./offline-window";
-
-describe("windowStart (refused content ages out from here, S7)", () => {
-  it.each([
-    ["2026-10-11T10:00:00Z", 1, "2026-10-11T00:00:00.000Z"],
-    ["2026-10-11T10:00:00Z", 3, "2026-10-09T00:00:00.000Z"],
-    ["2026-10-11T23:59:00Z", 7, "2026-10-05T00:00:00.000Z"],
-  ])("at %s with %i days is %s", (now, days, expected) => {
-    expect(windowStart(new Date(now), days)).toBe(expected);
-  });
-});
 
 const API = "https://api.example.invalid";
 const TENANT = "00000000-0000-4000-8000-0000000000a1";

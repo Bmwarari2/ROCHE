@@ -103,6 +103,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "android.permission.USE_BIOMETRIC",
       "android.permission.USE_FINGERPRINT",
       "android.permission.VIBRATE",
+      // Local notifications when held entries reach their last day and escalate (HZ-040).
+      "android.permission.POST_NOTIFICATIONS",
     ],
     blockedPermissions: [
       "android.permission.READ_EXTERNAL_STORAGE",
@@ -122,6 +124,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-dev-client",
     ["expo-secure-store", { faceIDPermission: FACE_ID_REASON, configureAndroidBackup: true }],
     ["expo-local-authentication", { faceIDPermission: FACE_ID_REASON }],
+    // Local notifications only (held entries, HZ-040); no push service is configured.
+    "expo-notifications",
   ],
   experiments: {
     typedRoutes: true,

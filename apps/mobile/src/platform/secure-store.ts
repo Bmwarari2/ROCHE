@@ -59,10 +59,20 @@ export function readPlainStrict(key: string): Promise<string | null> {
   return SecureStore.getItemAsync(key, plainOptions);
 }
 
-/** Where tombstones are kept (S4): the keystore, outside the database a deletion removes. */
+/**
+ * The device's opaque id (the PowerSync client id), kept so a deletion recorded from the sign-in
+ * screen, with no database open, still names the device.
+ */
+export const DEVICE_ID_ITEM = "harbour.device-id.v1";
+
+/**
+ * Where tombstones (S4, M1) and a waiting device report are kept: the keystore, outside the
+ * database a deletion removes. Neither holds personal data.
+ */
 export const tombstoneStore = {
   read: (key: string) => SecureStore.getItemAsync(key, plainOptions),
   write: (key: string, value: string) => SecureStore.setItemAsync(key, value, plainOptions),
+  remove: (key: string) => SecureStore.deleteItemAsync(key, plainOptions),
 };
 
 export async function writePlain(key: string, value: string): Promise<void> {

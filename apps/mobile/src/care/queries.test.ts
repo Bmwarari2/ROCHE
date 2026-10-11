@@ -5,9 +5,9 @@ import { insertStatement } from "./entries";
 import { recentEntries } from "./entry-view";
 import { checkNote } from "./notes";
 import { resuscitationFlag } from "./person-summary";
+import * as queries from "./queries";
 import {
   type AdvanceCareRow,
-  AGE_OUT_REFUSED_CONTENT_SQL,
   ALL_ADVANCE_CARE_SQL,
   ASSESSMENTS_SQL,
   byPerson,
@@ -207,11 +207,12 @@ describe("hazard HZ-006 refused uploads on the device", () => {
     expect(all(db, UPLOAD_ISSUES_SQL, [DEMO_TENANT_ID])).toEqual([]);
   });
 
-  it("hazard HZ-028 ages refused content out with the window, keeping the refusal listed (S7)", () => {
-    const insert = db.prepare(
+  it("hazard HZ-006 keeps a refused entry's content however old, until someone removes it (clinical review M1)", () => {
+    // The server keeps no copy of a refused entry, so what was recorded stays on the device until
+    // a person deals with it through the recorded removal; nothing ages it out with the window.
+    db.prepare(
       "INSERT INTO upload_issue (id, tenant_id, person_id, record_table, code, message, payload, rejected_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-    );
-    insert.run(
+    ).run(
       "old",
       DEMO_TENANT_ID,
       BEA,
@@ -219,25 +220,14 @@ describe("hazard HZ-006 refused uploads on the device", () => {
       "invalid",
       "Closed",
       '{"body":"x"}',
-      "2026-10-01T09:00:00.000Z",
+      "2026-01-01T09:00:00.000Z",
     );
-    insert.run(
-      "new",
-      DEMO_TENANT_ID,
-      BEA,
-      "care_note",
-      "invalid",
-      "Closed",
-      '{"body":"y"}',
-      "2026-10-11T09:00:00.000Z",
-    );
-    // A 3-day window on 11/10/2026 starts at the beginning of 09/10/2026 (UTC).
-    db.prepare(AGE_OUT_REFUSED_CONTENT_SQL).run("2026-10-09T00:00:00.000Z");
     const rows = all<UploadIssueRow>(db, UPLOAD_ISSUES_SQL, [DEMO_TENANT_ID]);
-    expect(rows.map((r) => [r.id, r.payload])).toEqual([
-      ["new", '{"body":"y"}'],
-      ["old", null],
-    ]);
+    expect(rows.map((r) => [r.id, r.payload])).toEqual([["old", '{"body":"x"}']]);
+    // No statement the device runs clears refused content.
+    for (const [name, sql] of Object.entries(queries)) {
+      if (typeof sql === "string") expect(sql, name).not.toMatch(/payload\s*=\s*NULL/i);
+    }
     db.prepare("DELETE FROM upload_issue").run();
   });
 });

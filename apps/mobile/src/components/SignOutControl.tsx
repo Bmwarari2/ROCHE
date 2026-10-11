@@ -9,7 +9,7 @@ import { DeleteWithReason } from "./DeleteWithReason";
  * Sign-out from Settings and the lock screen (clinical review C2). It counts what has not reached
  * the server with `vault.countUnsent` (queued, refused and held entries). With nothing unsent it
  * asks for a plain confirmation. Otherwise it shows the count (or that the count cannot be known
- * while the database is closed), and needs a reason, a confirmation naming the count and device
+ * while the database is closed), and needs a coded reason, a confirmation naming the count and device
  * authentication before anything is deleted (S4).
  */
 export function SignOutControl({
@@ -82,7 +82,7 @@ export function SignOutControl({
         }
         confirmBody={t("mobile.held.discardBody")}
         reasonLabel={t("mobile.discard.reasonLabel")}
-        onConfirm={(reason) => vault.signOutDiscarding(reason, unsent)}
+        onConfirm={(choice) => vault.signOutDiscarding(choice, unsent)}
         onCancel={() => setUnsent(undefined)}
         testID={`${testID}-discard`}
       />

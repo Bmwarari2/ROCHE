@@ -5,21 +5,17 @@
  * token, and the streams read it only from there, so nothing the device sends can widen it
  * (security review S1). The device reads the same figure through `GET /v1/rates/{key}` whenever
  * the vault opens online, and keeps it in the encrypted database for offline starts, only to say
- * how many days it keeps (HZ-028) and to age out refused entries with the window.
+ * how many days it keeps (HZ-028). Refused entries are not tied to the window: the server keeps no
+ * copy of them, so they stay until someone deals with them (clinical review M1).
  *
  * If the figure has never been read (a first start without signal straight after sign-in, or the
  * rate missing), the device reports today only. That is a fail-safe floor, not a tenant figure,
  * and the next online start corrects it.
  */
 
-import {
-  isValidWindowDays,
-  OFFLINE_WINDOW_RATE_KEY,
-  offlineWindowDays,
-} from "@harbour/sync/client";
+import { isValidWindowDays, OFFLINE_WINDOW_RATE_KEY } from "@harbour/sync/client";
 import type { AbstractPowerSyncDatabase } from "@powersync/common";
 import type { FetchLike } from "../auth/http";
-import { AGE_OUT_REFUSED_CONTENT_SQL } from "../care/queries";
 import { TENANT_HEADER } from "./connector";
 
 /** Days kept until the tenant's figure is known (today only). */
@@ -112,22 +108,4 @@ export async function resolveOfflineWindow(
     await writeCachedWindowDays(db, fetched).catch(() => undefined);
   }
   return { days: chooseWindowDays(fetched, cached) };
-}
-
-/** The first instant inside the window: UTC midnight at the start of its oldest day. */
-export function windowStart(now: Date, days: number): string {
-  const list = offlineWindowDays(now, days);
-  return `${list[list.length - 1]}T00:00:00.000Z`;
-}
-
-/**
- * Removes what was recorded from refusals older than the window (S7), as synced entries leave
- * with it. The refusal stays listed, without its content, until someone removes it.
- */
-export async function ageOutRefusedContent(
-  db: Pick<MetaStore, "execute">,
-  now: Date,
-  days: number,
-): Promise<void> {
-  await db.execute(AGE_OUT_REFUSED_CONTENT_SQL, [windowStart(now, days)]);
 }

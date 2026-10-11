@@ -258,12 +258,8 @@ export function issueItem(row: UploadIssueRow): IssueItem {
       name: display || t("mobile.common.notRecorded"),
     }),
     reason: t("mobile.issues.reason", { reason: row.message ?? t("mobile.issues.unknownReason") }),
-    // Content older than the offline window has been removed from the device (S7).
-    content: content
-      ? t("mobile.issues.content", { content })
-      : row.payload === null
-        ? t("mobile.issues.contentRemoved")
-        : null,
+    // What was recorded stays until someone removes the entry (clinical review M1).
+    content: content ? t("mobile.issues.content", { content }) : null,
     when: when(occurred),
   };
 }

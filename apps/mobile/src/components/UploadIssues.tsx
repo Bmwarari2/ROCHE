@@ -10,8 +10,10 @@ import { DeleteWithReason } from "./DeleteWithReason";
 /**
  * Entries the server refused for good (HZ-006): never dropped silently. Each shows the person, the
  * server's reason and what was recorded, and leaves the device only when someone removes it after
- * recording it again or telling the nurse in charge: with a reason and device authentication, and
- * a tombstone kept for the audit trail (security review S4, clinical review C1).
+ * recording it again or telling the nurse in charge: with a coded reason and device
+ * authentication, and the removal sent to Harbour as an audit event before anything is removed
+ * (security reviews S4, M1 and M2, clinical review C1). What was recorded stays on the device,
+ * encrypted, until then; it never ages out on its own (clinical review M1).
  */
 export function UploadIssues({ personId }: { readonly personId?: string }) {
   const theme = useTheme();
@@ -43,7 +45,7 @@ export function UploadIssues({ personId }: { readonly personId?: string }) {
             confirmBody={t("mobile.issues.removeBody")}
             confirmLabel={t("mobile.issues.remove")}
             reasonLabel={t("mobile.issues.removeReason")}
-            onConfirm={(reason) => vault.removeRefused(item.id, reason)}
+            onConfirm={(choice) => vault.removeRefused(item.id, choice)}
             testID={`issue-${item.id}-remove`}
           />
         </View>

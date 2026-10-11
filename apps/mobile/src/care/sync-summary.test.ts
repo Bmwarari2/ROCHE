@@ -8,6 +8,7 @@ const input = (overrides: Partial<SyncSummaryInput> = {}): SyncSummaryInput => (
   lastSyncedAt: new Date("2026-10-11T12:55:00Z"),
   queued: 0,
   issues: 0,
+  held: 0,
   demo: false,
   windowDays: 7,
   now: NOW,
@@ -57,6 +58,15 @@ describe("hazard HZ-002 the sync status on Today", () => {
     const summary = syncSummary(input({ issues: 1, queued: 3 }));
     expect(summary.issues).toBe("1 entry was not saved and needs attention");
     expect(summary).toMatchObject({ tone: "danger", icon: "cloud-alert", needsAttention: true });
+  });
+
+  it("hazard HZ-006 never reads up to date while entries are still held (clinical review M2)", () => {
+    const summary = syncSummary(input({ held: 2 }));
+    expect(summary.held).toBe(
+      "2 entries from before the session ended are still held on this device and not yet back in the upload queue. Harbour tries again each time it unlocks.",
+    );
+    expect(summary).toMatchObject({ tone: "danger", icon: "cloud-alert", needsAttention: true });
+    expect(syncSummary(input()).held).toBeNull();
   });
 
   it("says plainly that demo entries never upload", () => {

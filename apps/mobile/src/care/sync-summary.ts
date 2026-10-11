@@ -12,6 +12,8 @@ export interface SyncSummaryInput {
   readonly lastSyncedAt: Date | null;
   readonly queued: number;
   readonly issues: number;
+  /** Entries still held after the owner signed in again, not yet back in the queue (M2). */
+  readonly held: number;
   readonly demo: boolean;
   /** The offline window in days, when known. */
   readonly windowDays: number | null;
@@ -27,6 +29,7 @@ export interface SyncSummary {
   /** Changes waiting to upload; null in demo mode, where nothing uploads. */
   readonly queued: string | null;
   readonly issues: string | null;
+  readonly held: string | null;
   readonly window: string | null;
   readonly stale: boolean;
   readonly needsAttention: boolean;
@@ -43,8 +46,10 @@ export function syncSummary(input: SyncSummaryInput): SyncSummary {
     headline = t("mobile.sync.neverSynced");
   }
   const queued = input.demo ? null : t("mobile.sync.queued", { count: input.queued });
-  const needsAttention = input.issues > 0;
-  const issues = needsAttention ? t("mobile.sync.issues", { count: input.issues }) : null;
+  // Held entries need attention as much as refused ones: Today never reads "Up to date" (M2).
+  const needsAttention = input.issues > 0 || input.held > 0;
+  const issues = input.issues > 0 ? t("mobile.sync.issues", { count: input.issues }) : null;
+  const held = input.held > 0 ? t("mobile.sync.held", { count: input.held }) : null;
   const window =
     !input.demo && input.windowDays !== null
       ? t("mobile.sync.window", { days: input.windowDays })
@@ -65,5 +70,5 @@ export function syncSummary(input: SyncSummaryInput): SyncSummary {
       : input.queued > 0
         ? "cloud-upload"
         : "circle-check";
-  return { tone, icon, headline, queued, issues, window, stale, needsAttention };
+  return { tone, icon, headline, queued, issues, held, window, stale, needsAttention };
 }

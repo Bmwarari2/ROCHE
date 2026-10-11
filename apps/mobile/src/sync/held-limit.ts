@@ -1,13 +1,20 @@
 /**
- * How long unsent entries may be held after the session ended (HZ-006, security review S2): the
- * tenant's `mobile.held_entries_max_days` from the rate table. The device reads it whenever the
- * vault opens online and keeps it in the encrypted database's bookkeeping, because the session
- * usually ends offline, when the API cannot be asked.
+ * How long unsent entries are held after the session ended before a manager must resolve them
+ * (HZ-006, HZ-040; security review M3, clinical review H2): the tenant's
+ * `mobile.held_entries_max_days` from the rate table. The device reads it whenever the vault opens
+ * online and keeps it in the encrypted database's bookkeeping, because the session usually ends
+ * offline, when the API cannot be asked.
  *
- * When the time is up the device shows a final warning naming the count during the last day, then
- * deletes the held entries (and records that it did). Until the figure has been read, a hold lasts
- * one day: a fail-safe floor, not a tenant figure, so held entries never linger on a device whose
- * tenant figure is unknown.
+ * Nothing is ever deleted when the time is up. Held entries stay encrypted until their owner signs
+ * in and sends them, or the owner or a manager signs in on the device and deletes them with a
+ * reason (`held-work.ts`). The time limit escalates instead: the last day shows a final warning,
+ * and once the time is up the sign-in screen says a manager must resolve them. A local notification
+ * fires when the last day starts and when the time is up, without names or counts.
+ *
+ * The device clock is never trusted to move a hold on: a clock earlier than when the hold started,
+ * or than the last time the server was reached, is reported as such and changes nothing. A clock
+ * that jumped forward can only bring the escalation sooner, never a deletion. Until the tenant's
+ * figure has been read, a hold escalates after one day: a fail-safe floor, not a tenant figure.
  */
 import type { FetchWindowOptions, MetaStore } from "./offline-window";
 import { fetchRateDays } from "./offline-window";
@@ -18,7 +25,7 @@ export const HELD_MAX_DAYS_RATE_KEY = "mobile.held_entries_max_days";
 export const HELD_MAX_META_ID = "meta:held-entries-max-days";
 export const HELD_MAX_META_KEY = "held_entries_max_days";
 
-/** Days a hold lasts until the tenant's figure is known. */
+/** Days a hold lasts before it escalates, until the tenant's figure is known. */
 export const HELD_FAIL_SAFE_DAYS = 1;
 
 /** The final warning shows during the last day of a hold (a product constant, not a tenant figure). */
@@ -63,21 +70,68 @@ export async function resolveHeldMaxDays(
   return fetched ?? cached ?? HELD_FAIL_SAFE_DAYS;
 }
 
-/** When a hold that started at `heldAt` ends. */
+/** When a hold that started at `heldAt` escalates to a manager. */
 export function heldDeadline(heldAt: Date, days: number): Date {
   return new Date(heldAt.getTime() + days * DAY_MS);
 }
 
-export type HeldTimeState = "open" | "final" | "expired";
+function instant(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+/** The times a hold's state depends on (from the held marker). */
+export interface HeldTimes {
+  readonly heldAt: string;
+  readonly expiresAt: string | null;
+  /** The last time the device heard from the server before the hold, when known. */
+  readonly lastServerTime: string | null;
+}
 
 /**
- * Where a hold stands: open, in its final day (the warning names the count and the deadline), or
- * expired (the entries are deleted). A hold with no recorded deadline never expires on its own.
+ * open: waiting for the owner. final: the last day, with a warning naming the count and the time.
+ * escalated: the time is up and a manager must resolve the entries (nothing is deleted).
+ * clockBehind: the device clock reads earlier than the hold's start or the last server time, so it
+ * cannot be trusted and nothing changes. A hold without a usable deadline is escalated, never
+ * open-ended.
  */
-export function heldTimeState(expiresAt: string | null, now: Date): HeldTimeState {
-  if (!expiresAt) return "open";
-  const deadline = Date.parse(expiresAt);
-  if (Number.isNaN(deadline)) return "open";
-  if (now.getTime() >= deadline) return "expired";
+export type HeldTimeState = "open" | "final" | "escalated" | "clockBehind";
+
+export function heldTimeState(held: HeldTimes, now: Date): HeldTimeState {
+  const floor = Math.max(instant(held.heldAt) ?? 0, instant(held.lastServerTime) ?? 0);
+  if (now.getTime() < floor) return "clockBehind";
+  const deadline = instant(held.expiresAt);
+  if (deadline === null || now.getTime() >= deadline) return "escalated";
   return deadline - now.getTime() <= FINAL_WARNING_MS ? "final" : "open";
+}
+
+/** Fixed notification identifiers, so a new plan replaces the old and a cancel needs no lookup. */
+export const HELD_NOTIFICATION_IDS = {
+  final: "harbour.held-entries.final-day",
+  escalated: "harbour.held-entries.escalated",
+} as const;
+
+export interface PlannedNotification {
+  readonly identifier: string;
+  readonly kind: "final" | "escalated";
+  readonly at: Date;
+}
+
+/**
+ * The local notifications for a hold: when its last day starts and when it escalates, only those
+ * still ahead. The times are absolute, so a wrong clock moves nothing but when they show.
+ */
+export function planHeldNotifications(held: HeldTimes, now: Date): PlannedNotification[] {
+  const deadline = instant(held.expiresAt);
+  if (deadline === null) return [];
+  const plan: PlannedNotification[] = [
+    {
+      identifier: HELD_NOTIFICATION_IDS.final,
+      kind: "final",
+      at: new Date(deadline - FINAL_WARNING_MS),
+    },
+    { identifier: HELD_NOTIFICATION_IDS.escalated, kind: "escalated", at: new Date(deadline) },
+  ];
+  return plan.filter((p) => p.at.getTime() > now.getTime());
 }

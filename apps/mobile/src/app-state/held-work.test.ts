@@ -16,20 +16,29 @@ import {
 } from "../security/db-key";
 import { type CrudEntryLike, HarbourConnector, SessionRevokedError } from "../sync/connector";
 import {
-  FINAL_WARNING_MS,
+  DiscardNotSentError,
+  discardBody,
+  putDiscardOnRecord,
+  withdrawDiscard,
+} from "../sync/discards";
+import {
   HELD_FAIL_SAFE_DAYS,
   HELD_MAX_META_ID,
   heldDeadline,
-  heldTimeState,
+  readCachedHeldMaxDays,
   resolveHeldMaxDays,
 } from "../sync/held-limit";
 import type { MetaStore } from "../sync/offline-window";
 import { all, openLocalDatabase, type SqliteDatabase } from "../test-support/local-db";
 import {
   admitSignIn,
+  admitToDatabase,
+  canDiscardHeld,
   checkDeviceOwner,
   checkDiscardReason,
   countPendingWork,
+  DISCARD_OTHERS_PERMISSION,
+  type DiscardDeps,
   DiscardIncompleteError,
   discardHeldWork,
   type HeldWork,
@@ -38,18 +47,23 @@ import {
   handleSessionEnded,
   holdUnsentWork,
   isHeldWorkOwner,
+  loadHeldMarker,
+  type OpenCheckDeps,
   OWNER_META_ID,
   ownerOf,
   parseHeldWork,
   readDeviceOwner,
   readHeldMarker,
+  restoreComplete,
   restoreHeldWork,
   serialiseHeldWork,
   totalPending,
   UNKNOWN_OWNER,
+  VaultResetError,
+  withDeadline,
   writeDeviceOwner,
 } from "./held-work";
-import { readTombstones, recordTombstone, type Tombstone } from "./tombstones";
+import { readTombstones, type Tombstone, TombstoneWriteError } from "./tombstones";
 
 const API = "https://api.example.invalid";
 const OTHER_TENANT = "00000000-0000-4000-8000-0000000000a2";
@@ -151,9 +165,24 @@ const WRITABLE = new Set([
 
 /**
  * A device: a real SQLite engine with the app's tables and the invented demo records (identities,
- * NHS numbers, resuscitation decisions, care plans), PowerSync's behaviour around it (an insert
- * into an entry table joins the upload queue; `disconnectAndClear` empties the synced tables and
- * the queue), the database file by name, its key in the keystore, and the held marker.
+ * NHS numbers, resuscitation decisions, care plans), PowerSync's behaviour around it, the database
+ * file by name, its key in the keystore, and the held marker.
+ *
+ * What the PowerSync stand-in models (security review L4). PowerSync's own engine is the native
+ * powersync-sqlite-core extension, which only loads in the app, so these tests cannot run it:
+ *
+ * - An insert into an entry table joins the upload queue (PowerSync's triggers write `ps_crud`).
+ * - `disconnectAndClear({ clearLocal: false })` is PowerSync 2.3's `SELECT powersync_clear(0)`
+ *   (`@powersync/shared-internals` BasePowerSyncDatabase): a hard clear, because `soft` is not
+ *   set, so the internal copies (`ps_oplog`, `ps_buckets`, `ps_untyped`) go as well as every synced
+ *   table and the upload queue (`ps_crud`), while local-only tables (`held_entry`, `upload_issue`,
+ *   `sync_meta`) stay. The stand-in empties the synced tables and the queue and keeps the
+ *   local-only tables; it has no internal copies to clear. `clearLocal: true` empties those too.
+ * - What it does not model: the client id PowerSync keeps across a clear, sync itself, and SQLCipher
+ *   (the key and the file are modelled by name).
+ *
+ * Whether the native clear removes the internal copies on a real device is checked in the device
+ * test plan (`docs/plans/human-actions.md`, H-68).
  */
 async function device(options: { queued?: number; refused?: number } = {}) {
   const sql: SqliteDatabase = await openLocalDatabase({
@@ -295,6 +324,7 @@ function connectorFor(dev: Device, fetch: FetchLike, token: string, owner: Me) {
           owner,
           now: NOW,
           expiresAt: heldDeadline(NOW, 7),
+          lastServerTime: null,
           wipe: dev.wipe,
           hold: dev.hold,
         }),
@@ -342,6 +372,7 @@ describe("when the API ends the session (401 or 403)", () => {
       entries: 2,
       heldAt: NOW.toISOString(),
       expiresAt: "2026-10-18T07:30:00.000Z",
+      lastServerTime: null,
     });
   });
 
@@ -407,6 +438,7 @@ describe("when the API ends the session (401 or 403)", () => {
       owner: sam,
       now: NOW,
       expiresAt: null,
+      lastServerTime: null,
       wipe: async () => {
         calls.wipe += 1;
       },
@@ -417,6 +449,8 @@ describe("when the API ends the session (401 or 403)", () => {
     expect(result).toBe("held");
     expect(calls.wipe).toBe(0);
     expect(calls.held[0]?.entries).toBeNull();
+    // Never open-ended (L2): with no figure the hold escalates after the fail-safe day.
+    expect(calls.held[0]?.expiresAt).toBe(heldDeadline(NOW, HELD_FAIL_SAFE_DAYS).toISOString());
   });
 
   it("hazard HZ-006 a hold repeated after a crash keeps one copy of each entry", async () => {
@@ -446,7 +480,11 @@ describe("signing in again while entries are held", () => {
     // connects (S3), and puts the held entry back into the upload queue.
     expect((await dev.reopen()).created).toBe(false);
     expect(checkDeviceOwner(await readDeviceOwner(dev.db), sam, false)).toBe("owner");
-    expect(await restoreHeldWork(dev.holdDb, NOW)).toEqual({ restored: 1, parked: 0 });
+    expect(await restoreHeldWork(dev.holdDb, NOW)).toEqual({
+      restored: 1,
+      parked: 0,
+      remaining: 0,
+    });
     expect(dev.count("held_entry")).toBe(0);
     expect(dev.queue.map((e) => e.id)).toEqual([NOTE_ID]);
 
@@ -507,13 +545,55 @@ describe("signing in again while entries are held", () => {
         NOW.toISOString(),
       ],
     );
-    expect(await restoreHeldWork(dev.holdDb, NOW)).toEqual({ restored: 0, parked: 1 });
+    expect(await restoreHeldWork(dev.holdDb, NOW)).toEqual({
+      restored: 0,
+      parked: 1,
+      remaining: 0,
+    });
     const [issue] = all<{ id: string; code: string }>(
       dev.sql,
       "SELECT id, code FROM upload_issue",
       [],
     );
     expect(issue).toEqual({ id: "odd-1", code: "held_not_restored" });
+  });
+
+  it("hazard HZ-006 moves an entry that cannot go back to needing attention, with its content (clinical review M2)", async () => {
+    const { dev } = await heldDevice();
+    // Putting the note back fails (for example a full disk); moving it to "needs attention" works.
+    let failing = true;
+    const flaky = {
+      ...dev.holdDb,
+      writeTransaction: <T>(callback: (tx: never) => Promise<T>) => {
+        if (failing) {
+          failing = false;
+          return Promise.reject(new Error("disk full"));
+        }
+        return dev.holdDb.writeTransaction(callback as never) as Promise<T>;
+      },
+    } as unknown as HoldDb;
+    expect(await restoreHeldWork(flaky, NOW)).toEqual({ restored: 0, parked: 1, remaining: 0 });
+    const [issue] = all<{ code: string; payload: string }>(
+      dev.sql,
+      "SELECT code, payload FROM upload_issue WHERE id = ?",
+      [NOTE_ID],
+    );
+    expect(issue?.code).toBe("held_restore_failed");
+    expect(JSON.parse(issue?.payload ?? "{}")).toMatchObject({
+      body: "Settled; checked at 03:00.",
+    });
+    expect(dev.count("held_entry")).toBe(0);
+  });
+
+  it("hazard HZ-006 keeps an entry held, and counted, when it can neither go back nor be moved", async () => {
+    const { dev } = await heldDevice();
+    const broken = {
+      ...dev.holdDb,
+      writeTransaction: () => Promise.reject(new Error("disk full")),
+    } as unknown as HoldDb;
+    expect(await restoreHeldWork(broken, NOW)).toEqual({ restored: 0, parked: 0, remaining: 1 });
+    expect(dev.count("held_entry")).toBe(1);
+    expect(restoreComplete({ restored: 0, parked: 0, remaining: 1 })).toBe(false);
   });
 
   const heldFor: HeldWork = {
@@ -524,6 +604,7 @@ describe("signing in again while entries are held", () => {
     entries: 1,
     heldAt: NOW.toISOString(),
     expiresAt: null,
+    lastServerTime: null,
   };
 
   // An "older marker" lacks the tenant_user id, so the sign-in (auth user) id is compared instead.
@@ -612,43 +693,202 @@ describe("signing in again while entries are held", () => {
   });
 });
 
-describe("Sign out and delete N unsent entries (S4, S5)", () => {
+describe("opening the database: the owner check before the device connects (S3, L4)", () => {
+  function openDeps(dev: Device, overrides: Partial<OpenCheckDeps> = {}) {
+    const calls = { reset: 0, closeKeeping: 0 };
+    const deps: OpenCheckDeps = {
+      db: dev.holdDb,
+      me: sam,
+      created: false,
+      afterReset: false,
+      now: NOW,
+      cachedHeldMaxDays: () => readCachedHeldMaxDays(dev.db as unknown as MetaStore),
+      reset: async () => {
+        calls.reset += 1;
+        await dev.wipe();
+      },
+      closeKeeping: async () => {
+        calls.closeKeeping += 1;
+      },
+      ...overrides,
+    };
+    return { deps, calls };
+  }
+
+  it("hazard HZ-006 the owner connects after their held entries go back into the queue", async () => {
+    const { dev } = await heldDevice();
+    const { deps, calls } = openDeps(dev);
+    const outcome = await admitToDatabase(deps);
+    expect(outcome).toEqual({
+      kind: "connect",
+      restore: { restored: 1, parked: 0, remaining: 0 },
+    });
+    expect(restoreComplete(outcome.kind === "connect" ? outcome.restore : "failed")).toBe(true);
+    expect(dev.queue.map((e) => e.id)).toEqual([NOTE_ID]);
+    expect(calls).toEqual({ reset: 0, closeKeeping: 0 });
+  });
+
+  it("hazard HZ-006 a new database is claimed for the person who made it", async () => {
+    const dev = await device();
+    await dev.execute("DELETE FROM sync_meta WHERE id = ?", [OWNER_META_ID]);
+    const { deps } = openDeps(dev, { me: kit, created: true });
+    expect((await admitToDatabase(deps)).kind).toBe("connect");
+    expect(await readDeviceOwner(dev.db)).toEqual(ownerOf(kit));
+  });
+
+  it("hazard HZ-006 someone else's database with nothing unsent is deleted and made again", async () => {
+    const dev = await device();
+    const { deps, calls } = openDeps(dev, { me: kit });
+    expect(await admitToDatabase(deps)).toEqual({ kind: "reopen" });
+    expect(calls.reset).toBe(1);
+    expect(dev.files.size).toBe(0);
+    // A second attempt that meets someone else's database again refuses rather than loops.
+    const again = await device();
+    await expect(
+      admitToDatabase(openDeps(again, { me: kit, afterReset: true }).deps),
+    ).rejects.toBeInstanceOf(VaultResetError);
+  });
+
+  it("hazard HZ-006 someone else's unsent work is held for them and this sign-in refused", async () => {
+    const dev = await device({ queued: 1, refused: 1 });
+    const { deps, calls } = openDeps(dev, { me: kit });
+    const outcome = await admitToDatabase(deps);
+    if (outcome.kind !== "refused") throw new Error("expected a refusal");
+    expect(outcome.held).toEqual({
+      tenantId: DEMO_TENANT_ID,
+      tenantUserId: sam.tenantUserId,
+      userId: sam.user.id,
+      ownerName: "Sam Example",
+      entries: 2,
+      heldAt: NOW.toISOString(),
+      expiresAt: "2026-10-18T07:30:00.000Z",
+      lastServerTime: null,
+    });
+    // Only the unsent work stays (S2); the database is closed, never connected for Kit.
+    expect(dev.count("held_entry")).toBe(1);
+    expect(dev.count("person")).toBe(0);
+    expect(calls).toEqual({ reset: 0, closeKeeping: 1 });
+    // The hold's counts for the server, without names or ids.
+    expect(outcome.report).toMatchObject({ unsent: 0, refused: 1, held: 1 });
+  });
+
+  it("hazard HZ-006 an owner that cannot be read is never treated as the reader", async () => {
+    const dev = await device({ queued: 1 });
+    await dev.execute("UPDATE sync_meta SET value = ? WHERE id = ?", ["{not json", OWNER_META_ID]);
+    const outcome = await admitToDatabase(openDeps(dev).deps);
+    expect(outcome.kind).toBe("refused");
+    if (outcome.kind === "refused") expect(outcome.held.tenantId).toBe("");
+  });
+
+  it("hazard HZ-006 refuses to open anything when nobody is signed in", async () => {
+    const dev = await device();
+    await expect(admitToDatabase(openDeps(dev, { me: null }).deps)).rejects.toBeInstanceOf(
+      HeldWorkOwnerError,
+    );
+  });
+
+  it("hazard HZ-006 reports a restore that failed instead of swallowing it (clinical review M2)", async () => {
+    const { dev } = await heldDevice();
+    const broken = {
+      ...dev.holdDb,
+      getAll: async () => {
+        throw new Error("disk I/O error");
+      },
+    } as unknown as HoldDb;
+    const outcome = await admitToDatabase({ ...openDeps(dev).deps, db: broken });
+    expect(outcome).toEqual({ kind: "connect", restore: "failed" });
+    expect(restoreComplete("failed")).toBe(false);
+    // The entry is still held, so the marker stays and the banner counts it.
+    expect(dev.count("held_entry")).toBe(1);
+  });
+});
+
+describe("who may delete held entries on a shared device (M2)", () => {
+  const manager: Me = {
+    ...kit,
+    user: { id: "user-mo", name: "Mo Manager" },
+    tenantUserId: "00000000-0000-4000-8000-0000000000c3",
+    permissions: ["care.note.create", DISCARD_OTHERS_PERMISSION],
+  };
+  const held: HeldWork = {
+    tenantId: DEMO_TENANT_ID,
+    tenantUserId: sam.tenantUserId,
+    userId: sam.user.id,
+    ownerName: "Sam Example",
+    entries: 2,
+    heldAt: NOW.toISOString(),
+    expiresAt: "2026-10-18T07:30:00.000Z",
+    lastServerTime: null,
+  };
+
+  it.each([
+    { case: "the member of staff who wrote them", held, signer: sam, allowed: true },
+    { case: "a manager in the same tenant", held, signer: manager, allowed: true },
+    { case: "another member of staff", held, signer: kit, allowed: false },
+    {
+      case: "a manager in another tenant",
+      held,
+      signer: { ...manager, tenant: { id: OTHER_TENANT, name: "Other Care" } },
+      allowed: false,
+    },
+    { case: "a manager, owner unknown", held: UNKNOWN_OWNER, signer: manager, allowed: true },
+    { case: "anyone else, owner unknown", held: UNKNOWN_OWNER, signer: kit, allowed: false },
+  ])("hazard HZ-040 $case: $allowed", ({ held: h, signer, allowed }) => {
+    expect(canDiscardHeld(h, signer)).toBe(allowed);
+  });
+});
+
+describe("deleting held entries (S4, S5, M1, M2, L4)", () => {
+  const TOMBSTONE_ID = "0199d000-0000-7000-8000-0000000000d1";
   const tombstone: Tombstone = {
+    id: TOMBSTONE_ID,
     kind: "held_deleted",
+    reasonCode: "recorded_elsewhere",
     tenantId: DEMO_TENANT_ID,
     ownerTenantUserId: sam.tenantUserId,
+    deletedByTenantUserId: "00000000-0000-4000-8000-0000000000c3",
+    entryIds: [NOTE_ID],
+    personIds: [ADA_PERSON],
     count: 2,
-    recordIds: [],
-    reason: "Recorded again on paper",
     at: NOW.toISOString(),
   };
 
-  function discardDeps(dev: Device, overrides: { databaseGone?: boolean } = {}) {
+  function discardDeps(dev: Device, overrides: Partial<DiscardDeps> & { gone?: boolean } = {}) {
     const tombstones = memoryTombstones();
-    return {
-      tombstones,
-      deps: {
-        readDatabaseId: () => dev.store.getItem(DB_ID_ITEM, keyOptions.plainOptions),
-        deleteDatabaseFile: (name: string) => {
-          dev.files.delete(name);
-        },
-        destroyKey: () => destroyDatabaseKey(dev.store, keyOptions),
-        databaseGone: async (name: string) => overrides.databaseGone ?? !dev.files.has(name),
-        keyRemains: () => databaseKeyRemains(dev.store, keyOptions),
-        recordTombstone: (stone: Tombstone) => recordTombstone(tombstones.store, stone, "t1"),
-        tombstone,
-        clearHeld: async () => {
-          dev.marker.value = null;
-        },
-        demo: false,
+    const sent: Array<{ body: unknown }> = [];
+    const { gone, ...rest } = overrides;
+    const deps: DiscardDeps = {
+      readDatabaseId: () => dev.store.getItem(DB_ID_ITEM, keyOptions.plainOptions),
+      deleteDatabaseFile: (name: string) => {
+        dev.files.delete(name);
       },
+      destroyKey: () => destroyDatabaseKey(dev.store, keyOptions),
+      databaseGone: async (name: string) => gone ?? !dev.files.has(name),
+      keyRemains: () => databaseKeyRemains(dev.store, keyOptions),
+      putOnRecord: () =>
+        putDiscardOnRecord({
+          store: tombstones.store,
+          tombstone,
+          reason: "Recorded on the paper chart",
+          send: async (stone, reason) => {
+            sent.push({ body: discardBody(stone, reason) });
+            return "retry";
+          },
+        }),
+      withdrawRecord: () => withdrawDiscard(tombstones.store, TOMBSTONE_ID),
+      clearHeld: async () => {
+        dev.marker.value = null;
+      },
+      demo: false,
+      ...rest,
     };
+    return { deps, tombstones, sent };
   }
 
-  it("hazard HZ-006 hazard HZ-040 the explicit discard wipes", async () => {
+  it("hazard HZ-006 hazard HZ-040 the explicit discard wipes, on record first", async () => {
     const { dev } = await heldDevice();
     const filename = databaseFilename(dev.key.id);
-    const { deps, tombstones } = discardDeps(dev);
+    const { deps, tombstones, sent } = discardDeps(dev);
     await discardHeldWork(deps);
 
     expect(dev.files.has(filename)).toBe(false);
@@ -657,49 +897,99 @@ describe("Sign out and delete N unsent entries (S4, S5)", () => {
     const reopened = await dev.reopen();
     expect(reopened.created).toBe(true);
     expect(reopened.key.id).not.toBe(dev.key.id);
-    // On record: whose, how many, why and when (S4).
+    // The words went with the request only; the keystore keeps codes and opaque ids (M1).
+    expect(sent[0]?.body).toMatchObject({ reason: "Recorded on the paper chart" });
     expect(await readTombstones(tombstones.store)).toEqual([tombstone]);
+    expect(tombstones.dump()).not.toContain("paper chart");
   });
 
-  it("hazard HZ-006 hazard HZ-040 stays held and says so when the file is still there (S5)", async () => {
+  it("hazard HZ-040 stays held, with nothing on record, when the file is still there (S5)", async () => {
     const { dev } = await heldDevice();
     const before = dev.marker.value;
-    const { deps, tombstones } = discardDeps(dev, { databaseGone: false });
+    const { deps, tombstones } = discardDeps(dev, { gone: false });
     await expect(discardHeldWork(deps)).rejects.toBeInstanceOf(DiscardIncompleteError);
     // A retry finds the same file again: the key and its id are kept until the file is gone.
     await expect(discardHeldWork(deps)).rejects.toThrow(t("mobile.held.discardIncomplete"));
     expect(dev.marker.value).toBe(before);
     expect((await dev.reopen()).created).toBe(false);
-    // Nothing was deleted, so there is no deletion to record yet.
+    // Nothing was deleted, so the record is withdrawn.
     expect(await readTombstones(tombstones.store)).toEqual([]);
   });
 
-  it("hazard HZ-006 hazard HZ-040 stays held when the key is still in the keystore (S5)", async () => {
+  it("hazard HZ-040 stays held when the key is still in the keystore (S5)", async () => {
     const { dev } = await heldDevice();
     const before = dev.marker.value;
-    const { deps } = discardDeps(dev);
-    await expect(
-      discardHeldWork({ ...deps, destroyKey: async () => undefined }),
-    ).rejects.toBeInstanceOf(DiscardIncompleteError);
+    const { deps } = discardDeps(dev, { destroyKey: async () => undefined });
+    await expect(discardHeldWork(deps)).rejects.toBeInstanceOf(DiscardIncompleteError);
     expect(dev.marker.value).toBe(before);
   });
 
-  it.each([
-    ["", "mobile.discard.reasonRequired"],
-    ["  ok ", "mobile.discard.reasonRequired"],
-    ["x".repeat(501), "mobile.discard.reasonTooLong"],
-  ])("hazard HZ-040 a deletion needs a reason (%j)", (reason, key) => {
-    expect(checkDiscardReason(reason)?.key).toBe(key);
+  it("hazard HZ-040 deletes nothing when the database id cannot be read (L4)", async () => {
+    const { dev } = await heldDevice();
+    const { deps, tombstones } = discardDeps(dev, {
+      readDatabaseId: async () => {
+        throw new Error("keystore unavailable");
+      },
+    });
+    await expect(discardHeldWork(deps)).rejects.toBeInstanceOf(DiscardIncompleteError);
+    expect(dev.files.size).toBe(1);
+    expect((await dev.reopen()).created).toBe(false);
+    expect(await readTombstones(tombstones.store)).toEqual([]);
   });
 
-  it("hazard HZ-040 accepts a reason the staff member gives", () => {
-    expect(checkDiscardReason("Recorded again on paper")).toBeNull();
+  it("hazard HZ-040 deletes nothing when the deletion cannot be put on record (L4)", async () => {
+    const { dev } = await heldDevice();
+    const before = dev.marker.value;
+    const refusing = memoryTombstones({ failWrites: true });
+    const { deps } = discardDeps(dev, {
+      putOnRecord: () =>
+        putDiscardOnRecord({ store: refusing.store, tombstone, reason: null, send: null }),
+    });
+    await expect(discardHeldWork(deps)).rejects.toBeInstanceOf(TombstoneWriteError);
+    expect(dev.files.size).toBe(1);
+    expect(dev.marker.value).toBe(before);
+  });
+
+  it("hazard HZ-040 an 'other' reason the server cannot take now deletes nothing", async () => {
+    const { dev } = await heldDevice();
+    const { deps, tombstones } = discardDeps(dev, {
+      putOnRecord: () =>
+        putDiscardOnRecord({
+          store: tombstones.store,
+          tombstone: { ...tombstone, reasonCode: "other" },
+          reason: "Duplicate device",
+          send: async () => "retry",
+        }),
+    });
+    const attempt = discardHeldWork(deps);
+    await expect(attempt).rejects.toBeInstanceOf(DiscardNotSentError);
+    await expect(attempt).rejects.toThrow(t("mobile.discard.needsConnection"));
+    expect(dev.files.size).toBe(1);
+    expect(await readTombstones(tombstones.store)).toEqual([]);
+  });
+
+  it.each([
+    [{ reasonCode: null, reason: "" }, "mobile.discard.reasonCodeRequired"],
+    [{ reasonCode: "other", reason: "" }, "mobile.discard.reasonRequired"],
+    [{ reasonCode: "other", reason: " ok " }, "mobile.discard.reasonRequired"],
+    [{ reasonCode: "staff_left", reason: "x".repeat(501) }, "mobile.discard.reasonTooLong"],
+    [{ reasonCode: "staff_left", reason: "no" }, "mobile.discard.reasonRequired"],
+  ] as const)("hazard HZ-040 a deletion needs a coded reason (%j)", (choice, key) => {
+    expect(checkDiscardReason(choice)?.key).toBe(key);
+  });
+
+  it.each([
+    { reasonCode: "recorded_elsewhere", reason: "" },
+    { reasonCode: "other", reason: "Duplicate device" },
+  ] as const)("hazard HZ-040 accepts %j", (choice) => {
+    expect(checkDiscardReason(choice)).toBeNull();
   });
 
   it("hazard HZ-006 the button and its confirmation name the count", () => {
     expect(t("mobile.held.discard", { count: 1 })).toBe("Sign out and delete 1 unsent entry");
     expect(t("mobile.held.discard", { count: 3 })).toBe("Sign out and delete 3 unsent entries");
     expect(t("mobile.held.discardTitle", { count: 3 })).toBe("Delete 3 unsent entries?");
+    expect(t("mobile.held.discardStart", { count: 3 })).toBe("Delete 3 unsent entries");
     expect(t("mobile.held.title", { count: 3 })).toBe("Sign in again to send 3 entries");
     expect(t("mobile.signOut.unsent", { count: 2 })).toBe(
       "2 entries have not reached the server and will be deleted.",
@@ -713,64 +1003,69 @@ describe("Sign out and delete N unsent entries (S4, S5)", () => {
     expect(t("mobile.held.owner", { named: "no", name: "" })).toBe(
       "Entries from another member of staff are waiting to be sent.",
     );
-    const deadline = { date: "18/10/2026", time: "08:30" };
-    expect(t("mobile.held.finalWarning", { ...deadline, count: 2, named: "no", name: "" })).toBe(
-      "Final warning: 2 unsent entries will be deleted from this device on 18/10/2026 at 08:30. The member of staff who wrote them needs to sign in to send them before then.",
-    );
-    expect(t("mobile.held.expiredNotice", { count: 1, named: "yes", name: "Sam Example" })).toBe(
-      "1 unsent entry was deleted from this device because Sam Example did not sign in to send them within the time allowed. Tell the nurse in charge so the care can be recorded again.",
-    );
   });
 });
 
-describe("tombstones (S4)", () => {
-  it("keeps each deletion as its own small keystore item, newest kept when full", async () => {
-    const { store, size } = memoryTombstones();
-    for (let i = 0; i < 45; i += 1) {
-      await recordTombstone(
-        store,
-        {
-          kind: "refused_removed",
-          tenantId: DEMO_TENANT_ID,
-          ownerTenantUserId: null,
-          count: 1,
-          recordIds: [`id-${i}`],
-          reason: "r".repeat(900),
-          at: NOW.toISOString(),
+describe("the hold marker always has a deadline (L2)", () => {
+  const LATER = new Date("2026-10-12T09:00:00.000Z");
+  const marker = (value: Record<string, unknown>) => async () => JSON.stringify(value);
+  const dbId = async () => "abc";
+
+  it("gives a marker without a deadline one of now plus the fail-safe days, to be saved", async () => {
+    const loaded = await loadHeldMarker(
+      {
+        readMarker: marker({ tenantId: DEMO_TENANT_ID, userId: "u", heldAt: NOW.toISOString() }),
+        readDatabaseId: dbId,
+      },
+      LATER,
+    );
+    expect(loaded.save).toBe(true);
+    expect(loaded.held?.heldAt).toBe(NOW.toISOString());
+    expect(loaded.held?.expiresAt).toBe(heldDeadline(LATER, HELD_FAIL_SAFE_DAYS).toISOString());
+  });
+
+  it("gives a damaged marker an unknown owner and a deadline, to be saved", async () => {
+    const loaded = await loadHeldMarker(
+      { readMarker: async () => "{not json", readDatabaseId: dbId },
+      LATER,
+    );
+    expect(loaded).toEqual({ held: withDeadline(UNKNOWN_OWNER, LATER), save: true });
+    expect(loaded.held?.expiresAt).toBe(heldDeadline(LATER, HELD_FAIL_SAFE_DAYS).toISOString());
+  });
+
+  it("never writes after a keystore error, so a passing error cannot replace the real marker", async () => {
+    const loaded = await loadHeldMarker(
+      {
+        readMarker: async () => {
+          throw new Error("keystore unavailable");
         },
-        `t${i}`,
-      );
-    }
-    const kept = await readTombstones(store);
-    expect(kept).toHaveLength(40);
-    expect(kept[0]?.recordIds).toEqual(["id-5"]);
-    expect(kept[0]?.reason).toHaveLength(500);
-    expect(size()).toBeGreaterThan(40);
+        readDatabaseId: dbId,
+      },
+      LATER,
+    );
+    expect(loaded.save).toBe(false);
+    expect(loaded.held?.tenantId).toBe("");
+    expect(loaded.held?.expiresAt).toBe(heldDeadline(LATER, HELD_FAIL_SAFE_DAYS).toISOString());
+  });
+
+  it("leaves a marker with a deadline as it is", async () => {
+    const stored = {
+      tenantId: DEMO_TENANT_ID,
+      userId: "u",
+      heldAt: NOW.toISOString(),
+      expiresAt: "2026-10-18T07:30:00.000Z",
+    };
+    const loaded = await loadHeldMarker(
+      { readMarker: marker(stored), readDatabaseId: dbId },
+      LATER,
+    );
+    expect(loaded.save).toBe(false);
+    expect(loaded.held?.expiresAt).toBe(stored.expiresAt);
   });
 });
 
-describe("the time limit on a hold (S2)", () => {
-  it.each([
-    [null, "2026-10-11T08:00:00Z", "open"],
-    ["2026-10-18T07:30:00.000Z", "2026-10-11T08:00:00Z", "open"],
-    ["2026-10-18T07:30:00.000Z", "2026-10-17T08:00:00Z", "final"],
-    ["2026-10-18T07:30:00.000Z", "2026-10-18T07:30:00Z", "expired"],
-    ["not a date", "2026-10-18T07:30:00Z", "open"],
-  ])("a hold ending %s reads at %s as %s", (expiresAt, now, state) => {
-    expect(heldTimeState(expiresAt, new Date(now))).toBe(state);
-  });
-
-  it("gives the final warning during the last day only", () => {
-    const deadline = heldDeadline(NOW, 7);
-    expect(
-      heldTimeState(deadline.toISOString(), new Date(deadline.getTime() - FINAL_WARNING_MS - 1)),
-    ).toBe("open");
-    expect(
-      heldTimeState(deadline.toISOString(), new Date(deadline.getTime() - FINAL_WARNING_MS)),
-    ).toBe("final");
-  });
-
-  it("reads the tenant's figure, caches it, and holds for one day until it is known", async () => {
+describe("the time limit on a hold reads the tenant's figure (S2)", () => {
+  it("reads the tenant's figure, caches it, and escalates after one day until it is known", async () => {
     const dev = await device();
     const rate = (value: number) =>
       new Response(JSON.stringify({ key: "mobile.held_entries_max_days", value, unit: "days" }), {
@@ -794,15 +1089,19 @@ describe("the time limit on a hold (S2)", () => {
   });
 });
 
-function memoryTombstones() {
+function memoryTombstones(options: { failWrites?: boolean } = {}) {
   const items = new Map<string, string>();
   return {
     store: {
       read: async (key: string) => items.get(key) ?? null,
       write: async (key: string, value: string) => {
+        if (options.failWrites) throw new Error("keystore full");
         items.set(key, value);
       },
+      remove: async (key: string) => {
+        items.delete(key);
+      },
     },
-    size: () => items.size,
+    dump: () => [...items.values()].join("\n"),
   };
 }
