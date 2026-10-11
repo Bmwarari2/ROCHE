@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { type DolsNation, type DolsRates, resolveDolsRates } from "../src/care/mca/dols";
 import { type CareRates, resolveCareRates } from "../src/care/rates";
+import { type OperationsRates, resolveOperationsRates } from "../src/operations/rates";
 import type { RateRow } from "../src/platform/rates";
 import { resolveSafetyRates, type SafetyRates } from "../src/safety/rates";
 
@@ -78,4 +79,9 @@ export function tableSafetyRates(on = "2026-10-11"): SafetyRates {
 /** The DoLS figures for a location in England or Wales. */
 export function tableDolsRates(nation: DolsNation = "england", on = "2026-10-11"): DolsRates {
   return resolveDolsRates(readRateTable(), nation, on, null);
+}
+
+/** The downtime pack and back-entry figures for an English location. */
+export function tableOperationsRates(on = "2026-10-11"): OperationsRates {
+  return resolveOperationsRates(readRateTable(), "england", on, null);
 }
