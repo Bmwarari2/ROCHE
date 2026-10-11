@@ -55,9 +55,14 @@ nothing more.
   character the font lacks prints as "?", and the first page names each section that holds one.
 - Lines are wrapped by measured width; line breaks in the record start new lines.
 - Photos: JPEG and PNG (8-bit, not interlaced: grey, colour, palette, with or without
-  transparency). A photo held in another
-  format, or one that cannot be read, is named on the first page so identity is confirmed another
-  way (HZ-001).
+  transparency), at most 4096 x 4096 pixels and 8192 on a side. A photo held in another
+  format, a 16-bit or interlaced PNG, one over the limit, or one that cannot be read, is named on
+  the first page so identity is confirmed another way (HZ-001). Decoding a stored photo is
+  defensive: every PNG chunk read is bounds-checked, IHDR must come first and IEND must be
+  present, inflating is capped at the size the header promises, and the decoder never throws.
+  The pack asks the same decoder whether the photo will print, so the first page and the PDF
+  agree (slice 8 review round 3).
+- Each font file is compressed once per process and kept, rather than once per pack.
 - The pack is rendered on request from the snapshot stored with the transfer
   (`hospital_transfer.pack`), never from the live record, so a reprint shows what went with the
   person. The response carries `content-security-policy: default-src 'none'; sandbox`,

@@ -214,6 +214,12 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
   recorded in error is corrected, or a return from hospital is recorded, and the rounds (with
   medicines rounds from Phase 2) the exit or the absence cancelled are not brought back (slice 8
   review, clinical finding H1).
+- Rounds whose times passed before a late return or correction was recorded stay cancelled with
+  nothing caught up, and the review task does not say which rounds were missed; or rounds that
+  ended long before the return are counted (slice 8 review round 3, clinical finding M2).
+- A correction or the migration that coded existing tasks brings back tasks a different exit, or
+  a manager, stopped, because it matched reason text a user can type (round 3, security finding
+  L5).
 
 **Effects**: deterioration from an omitted time-critical medicine (rigidity and swallowing difficulty in Parkinson's, hypo- or hyperglycaemia, seizures), untreated pain or infection.
 
@@ -232,7 +238,9 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | A dose due for a person not assigned to any staff member on the shift alerts the shift lead | Phase 2 |
 | Design | "Not available" creates a stock and ordering task | Phase 2 |
 | Design | Expired medicines competence blocks administration (manager override logged) | Phase 2 |
-| Design | The tasks and series the people lifecycle stops carry a code (`task.cancel_code`, `task_series.inactive_code`: paused while away, ended at exit). A return reopens the rounds paused while the person was away; correcting a discharge or death recorded in error reopens everything the exit ended and starts the series again. A task whose window passed before the return or correction was recorded stays cancelled, coded as missed, and one urgent review task goes to the nurse in charge ([people.md](../specs/people.md) rules 1 and 2). Whether rounds restart without a person confirming them is for the CSO (H-89) | Built in Phase 1 slice 8 |
+| Design | The tasks and series the people lifecycle stops carry a code (`task.cancel_code`, `task_series.inactive_code`: paused while away, ended at exit) and, when an exit stopped them, that exit (`stopped_by_exit_id`). Migration 0023 codes existing rows only from the lifecycle event that stopped them (the outbox event written in the same transaction), never from reason text. A return brings back the rounds paused while the person was away; correcting a discharge or death recorded in error brings back only what that exit ended and starts its series again ([people.md](../specs/people.md) rules 1 and 2). Whether rounds restart without a person confirming them is for the CSO (H-89) | Built in Phase 1 slice 8 |
+| Design | Of the tasks brought back (`planTaskRestore`), only those whose window ends at or after the return count. A task an entry answered while it was stopped is restored as done, never due again (HZ-004; H-91). One still in its window reopens. Of those whose window passed, the latest occurrence of each series (and each one-off task) reopens as overdue so the round is caught up once, unless a later occurrence was done; the earlier ones stay cancelled, coded as missed (H-92). One urgent review task goes to the nurse in charge and lists every round, its due time and whether it was reopened (`task.details.missedTasks`) | Built in Phase 1 slice 8 (review round 3) |
+| Design | A correction returns the person to the status recorded on the exit (active, on leave or in hospital, `exit_record.status_before`) from when that status began; back to on leave or in hospital, what the exit ended waits for the return, paused, and nothing is due while the person is away (HZ-008; H-93) | Built in Phase 1 slice 8 (review round 3) |
 | Test | See Verification | Phase 2 |
 | Training and user documentation | eMAR training and competency assessment; deployer control: tenant policy on time-critical medicines and round allocation | Phase 2 |
 
@@ -252,7 +260,10 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `apps/api`: `hazard HZ-003 an overdue time-critical dose escalates to the nurse in charge` | Planned, Phase 2 |
 | `apps/mobile` Maestro `hazard-HZ-003-offline-round.yaml`: offline round shows due doses and fires a local reminder | Planned, Phase 2 |
 | `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-003 brings back the rounds and point-of-care tasks the death ended, and cancels the exit task` (the series starts again; the safety follow-ups were never stopped) and `hazards HZ-003 and HZ-023 record the return: rounds resume, ...` | Passing (Phase 1) |
-| `packages/db/test/people-lifecycle.test.ts`: `codes the tasks the lifecycle cancels, and only cancelled tasks carry a code` (migration 0023 codes existing rows from their wording) | Passing (Phase 1) |
+| `packages/db/test/people-lifecycle.test.ts`: `hazard HZ-003 codes the tasks the lifecycle cancels, and only cancelled tasks carry a code` and `hazard HZ-003 codes only what a lifecycle event stopped, with the exit that stopped it (backfill)` (migration 0023 codes existing rows from the event that stopped them; a task a manager cancelled with the same words is left alone) | Passing (Phase 1) |
+| `packages/domain/src/platform/tasks.test.ts`: `hazards HZ-003 and HZ-004 tasks brought back after a return or a correction` (table-driven: a round answered offline restored as done at 10:05 and 10:10; a round still in its window; a window closed before the return; the latest missed round of each series caught up once; a series whose later occurrence was done) | Passing (Phase 1) |
+| `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-003 restores a round an offline entry answered as done, never due again, when a death recorded in error is corrected (10:05, 10:08, 10:15, 10:20)`, `hazard HZ-003 codes the rounds missed during a late-recorded return, catches each series up once and lists them for review` and `hazards HZ-003 and HZ-008 correct a death recorded in error while the person was in hospital back to in hospital, with rounds still paused` | Passing (Phase 1) |
+| `packages/domain/src/people/lifecycle.test.ts`: `hazards HZ-003 and HZ-008 correct ...` (table-driven: back to active, on leave or in hospital as recorded on the exit; any other status refused; an exit with no recorded status returns to active) | Passing (Phase 1) |
 
 ---
 
@@ -275,6 +286,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 - Upload retries create duplicate rows (non-idempotent writes); a double tap on save.
 - Stale data (HZ-002), clock drift (HZ-010) or daylight-saving errors (HZ-009) make an interval look elapsed.
 - A database restore loses acknowledged administrations and staff re-record or re-give ([restore runbook](../runbooks/restore.md)).
+- A round answered offline before a death recorded in error, or before a move, is reopened by the correction or the return as if never done, so it is done again (slice 8 review round 3, clinical finding H1).
+- A second entry for a round already done, or an entry by someone who may not complete the round, is kept with nothing to show it was not linked and nobody to review it (round 3, clinical finding M4).
 
 **Effects**: overdose (opioids, insulin, paracetamol, anticoagulants), hypoglycaemia, respiratory depression, death.
 
@@ -292,6 +305,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | On sync, two administrations for the same scheduled dose from different devices go to a conflict review screen for the nurse in charge; nothing is merged silently | Phase 2 |
 | Design | Save disabled after the first tap until the result returns; the confirmation names person, medicine and dose | Phase 2 |
 | Design | Intervals measured in elapsed UTC time, drift-corrected where drift is known (HZ-009, HZ-010) | Phase 2 |
+| Design | A task the people lifecycle stopped, which an entry answered while it was stopped, is restored as done when the return or correction is recorded, never reopened (HZ-003; H-91) | Built in Phase 1 slice 8 (review round 3) |
+| Design | What an entry did to the task it names is stored on the entry (`task_outcome`: completed, task cancelled, task already closed, not linked; `checkTaskLink`). An entry for a round already done or skipped, or one its author may not complete, is kept, flagged and listed on one review task for the nurse in charge (`care.entry_review`). An entry for a `medicines.*` task its author may not complete, or one already done or skipped, is refused (`task_medicines_not_yours`, `task_medicines_already_closed`), so a second dose is never recorded against a closed round. The chart and task views show the outcome as an icon and words | Built in Phase 1 slice 8 (review round 3; the views with the chart screens) |
 | Test | See Verification | Phase 2 |
 | Training and user documentation | Deployer control: one staff member allocated per person per round; conflict review is part of the nurse-in-charge role | Phase 2 |
 
@@ -307,6 +322,10 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `apps/api`: `hazard HZ-004 two devices recording the same scheduled dose create a conflict review task` | Planned, Phase 2 |
 | `packages/db`: `hazard HZ-004 medication_administration has no UPDATE or DELETE grant` | Planned, Phase 2 |
 | `apps/mobile` Maestro `hazard-HZ-004-offline-conflict.yaml`: two devices record the same dose offline; the nurse in charge sees the conflict on sync | Planned, Phase 2 |
+| `packages/domain/src/platform/tasks.test.ts`: `hazards HZ-004 and HZ-006 what an entry does to the task it names` (table-driven: completes an open round; keeps late evidence for a cancelled round; flags a round already done or skipped, and one the author may not complete, for review; refuses a medicines task not the author's, already done or already skipped; refuses another person's task) and `hazards HZ-003 and HZ-004 tasks brought back after a return or a correction` | Passing (Phase 1) |
+| `apps/api/test/people-lifecycle.test.ts`: `care.md rule 13: an entry and the task it names (HZ-004, HZ-006)`: `hazard HZ-004 keeps an entry for a round its author may not complete, unlinked and flagged, with a review for the nurse in charge`, `hazard HZ-004 keeps a second entry for a round already done, flagged, on the same review`, `hazard HZ-004 refuses an entry for a medicines task its author may not complete` and `... a medicines task already done (a second dose)`; `hazard HZ-003 restores a round an offline entry answered as done, never due again, ...` | Passing (Phase 1) |
+| `packages/db/test/people-lifecycle.test.ts`: `hazards HZ-004 and HZ-006 an entry names its task only with what happened to it` (every entry table: a task and an outcome together, or neither) | Passing (Phase 1) |
+| `apps/web/src/components/care/LifecycleBadges.test.ts`: `hazard HZ-004 an entry for a round already recorded, for review` and `hazard HZ-004 an entry its author could not link to the round, for review` (words and an icon) | Passing (Phase 1) |
 
 ---
 
@@ -322,7 +341,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 
 **Description**: the dose, unit, strength, form, route, frequency or timing is entered or transcribed wrongly onto the MAR from a prescription, discharge letter or pharmacy label. Typical errors: milligrams for micrograms, millilitres for milligrams with oral liquids, misplaced decimal points and tenfold errors, "u" read as zero, a weekly medicine entered as daily, the wrong strength or a look-alike product selected.
 
-**Causes**: free-text entry; ambiguous abbreviations; adjacent similar options in a picker; trailing zeros and missing leading zeros; import mapping errors; manual transcription from discharge summaries; changes passed on verbally.
+**Causes**: free-text entry; ambiguous abbreviations; adjacent similar options in a picker; trailing zeros and missing leading zeros; import mapping errors; manual transcription from discharge summaries; changes passed on verbally; the medicines check after a return from hospital recorded by someone who may only record movements, not reconcile medicines (slice 8 review round 3, security finding M2).
 
 **Effects**: overdose or underdose, wrong medicine, harm up to death.
 
@@ -340,6 +359,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Imported medicines arrive as "Not yet checked"; the import dry run reports unmapped units | Phase 2 |
 | Design | Pharmacy MAR import replaces manual transcription where a pharmacy is integrated | Phase 5 |
 | Design | No dose calculation or dose-range advice is offered (medical-device boundary) | All phases |
+| Design | A return check (the discharge letter, medicines, allergies, resuscitation decisions, IDDSI levels, skin) is recorded only by someone holding the permission its task requires (`care.plan.write` for the clinical checks) or its assignee; checking belongings back in stays with `people.movement.record`. A refusal is audited ([people.md](../specs/people.md) rule 10) | Built in Phase 1 slice 8 (review round 3) |
 | Test | See Verification | Phase 2 |
 | Training and user documentation | Transcription competency; deployer control: tenant transcription and second-check policy | Phase 2 |
 
@@ -357,6 +377,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain` (medicines): `hazard HZ-005 the checker must be a different user from the transcriber` | Planned, Phase 2 |
 | `packages/domain` (medicines): `hazard HZ-005 non-daily schedules show the day on every MAR row` | Planned, Phase 2 |
 | `apps/api`: `hazard HZ-005 imported medicines are created as not yet checked` | Planned, Phase 2 |
+| `apps/api/test/people-lifecycle.test.ts`: `hazards HZ-005 and HZ-015 let only someone who may complete a return check's task record it` (a team leader, who records movements but not care plans, is refused the medicines, resuscitation and allergy checks, each refusal audited, and checks belongings back in; a check's assignee may record it; the nurse in charge records the medicines check) | Passing (Phase 1) |
 
 ---
 
@@ -385,7 +406,12 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
   review, clinical finding H3).
 - A device clock a few minutes fast times an entry just after the exit and it is refused; an
   entry refused after an exit is kept on the device but nobody on the server knows to review it
-  (slice 8 review, clinical finding M7).
+  (slice 8 review, clinical finding M7); the review task then names no entry, so nobody can
+  match it to the device that holds it (round 3, clinical finding M7).
+- An entry kept for a round already recorded, or not linked to its round, is shown nowhere as
+  such (round 3, clinical findings M3 and M4).
+- An incident about an event after a death is accepted as if the person were still in care
+  (round 3, clinical finding L11).
 
 **Effects**: missing records lead to missed or duplicated care (HZ-003, HZ-004), unescalated incidents (HZ-013), unseen safeguarding concerns and an incomplete legal record.
 
@@ -404,8 +430,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Manager dashboard lists devices on an active shift whose last sync is older than the threshold; on-call alert | Phase 1 |
 | Design | The app blocks new writes and prompts an update when it is more than one schema version behind | Phase 1 |
 | Design | Care events recorded offline before a person left or died are accepted after the exit and shown as recorded after it; the person leaves a device only after its queue has uploaded ([people.md](../specs/people.md) rule 3) | Phase 1 (accepted on upload: built in slice 8; leaving the device after upload: offline work) |
-| Design | An entry is never refused because of the task it names: a task the lifecycle cancelled keeps the entry as evidence, flagged (`task.evidence_after_close`), and stays cancelled; a task already closed or one the user may not complete is left alone; the response says which (`taskOutcome`). A task for another person is still refused (HZ-001) | Built in Phase 1 slice 8 |
-| Design | Rule 3 accepts a care event timed up to `sync.clock_drift_flag_minutes` after the exit (a fast clock), flagged as recorded after it. A later one is refused with `care_event_after_exit`, so the device keeps it under "Needs attention"; the refusal is audited and one urgent review task goes to the nurse in charge (`people.late_entry_review`). A result recorded before a move to hospital or on leave still alerts the nurse in charge; after a discharge or death only the safety prompts are raised. Whether late entries are refused or accepted for review, and the alerts before a move, are for the CSO (H-83) | Built in Phase 1 slice 8 |
+| Design | An entry is not refused because of the round it names: a task the lifecycle cancelled keeps the entry as evidence, flagged (`task.evidence_after_close`), and stays cancelled; a round already done or skipped, or one the user may not complete, is left alone and the entry is flagged and listed on one review task for the nurse in charge (`care.entry_review`). The entry stores what happened (`task_outcome`) and the chart and task views show it as an icon and words. A task for another person is still refused (HZ-001), and so is a `medicines.*` task the user may not complete or that is already closed (HZ-004) | Built in Phase 1 slice 8 (review round 3) |
+| Design | Rule 3 accepts a care event timed up to `sync.clock_drift_flag_minutes` after the exit (a fast clock), flagged as recorded after it. A later one is refused with `care_event_after_exit`, so the device keeps it under "Needs attention"; the refusal is audited and one urgent review task goes to the nurse in charge (`people.late_entry_review`), listing each refused entry by kind, client id, device and user (opaque ids, no clinical text; `task.details.entries`) so it can be found on the device. Incidents follow the same rule. Keeping a server copy of the refused entry comes with the mobile hand-over of held entries. A result recorded before a move to hospital or on leave still alerts the nurse in charge; after a discharge or death only the safety prompts are raised. Whether late entries are refused or accepted for review, and the alerts before a move, are for the CSO (H-83) | Built in Phase 1 slice 8 |
 | Test | See Verification | Phase 1 |
 | Training and user documentation | Care worker guide: check the banner shows no queued changes before leaving at the end of a shift. Deployer control: devices charged and connected at handover | Phase 1 |
 
@@ -429,6 +455,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-006 keeps an entry recorded offline at 10:05 for the 10:10 round when the person left at 10:10 and it uploads at 10:15` (accepted, linked, flagged; the round stays cancelled) and `hazard HZ-006 accepts an entry within the clock tolerance after the move, flagged, and gives a later one to the nurse in charge to review` | Passing (Phase 1) |
 | `packages/domain/src/people/lifecycle.test.ts`: `hazard HZ-006 an observation timed ... is accepted within the clock tolerance` (at the death, two minutes after, exactly at the tolerance, a minute beyond) | Passing (Phase 1) |
 | `packages/db/test/people-lifecycle.test.ts`: `hazard HZ-006 keeps the status time in step when only the status is written` | Passing (Phase 1) |
+| `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-006 accepts an entry within the clock tolerance after the move, flagged, and gives a later one to the nurse in charge to review` (the review lists the entry's kind, client id, device and user, and no clinical text), `hazard HZ-006 incidents follow rule 3: one about an event after a death is refused and reviewed` | Passing (Phase 1) |
+| `apps/web/src/components/care/LifecycleBadges.test.ts`: `hazard HZ-006 an entry recorded offline for a round a move cancelled`, `hazard HZ-006 an entry accepted after an exit`, `hazard HZ-006 says a cancelled task's evidence arrived after it was cancelled` | Passing (Phase 1) |
 
 ---
 
@@ -444,7 +472,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 
 **Description**: a person's allergy or adverse reaction is not shown, is shown for the wrong person, is shown incompletely, or the screen implies "no allergies" when allergy status has never been recorded.
 
-**Causes**: a blank allergy area that cannot distinguish "none" from "not asked"; truncation on small screens; allergy not synced or evicted; import dropping allergies; allergy recorded only in a free-text document; catering allergen flags held separately from the care record; allergy entered against the wrong person (HZ-001); a printed transfer pack that cannot print a substance as written (for example "β-lactam" printed as "?-lactam", slice 8 review, clinical finding M4) or prints "no known allergies" without who confirmed it.
+**Causes**: a blank allergy area that cannot distinguish "none" from "not asked"; truncation on small screens; allergy not synced or evicted; import dropping allergies; allergy recorded only in a free-text document; catering allergen flags held separately from the care record; allergy entered against the wrong person (HZ-001); a printed transfer pack that cannot print a substance as written (for example "β-lactam" printed as "?-lactam", slice 8 review, clinical finding M4) or prints "no known allergies" without who confirmed it; a confirmer taken from the values a client writes rather than from who wrote them (slice 8 review round 3, security finding L4); "not recorded" shown with the clock of a due task, so it reads as a task rather than a gap (round 3, clinical finding L12).
 
 **Effects**: anaphylaxis or another adverse reaction to a medicine or food; death.
 
@@ -464,7 +492,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Catering allergen flags read the same allergy record (single source) | Phase 3 |
 | Design | Import dry run lists people without an allergy status | Phase 2 |
 | Design | The printed transfer pack embeds Noto Sans (SIL Open Font Licence), so substances and reactions print as written in Latin, Greek and Cyrillic scripts (β-lactam, μg, Welsh ŵ and ŷ); a section holding a character the font lacks is named on the first page ([ADR-0040](../decisions/0040-transfer-pack-pdf-writer.md)) | Built in Phase 1 slice 8 |
-| Design | Who set the allergy status and when is kept on the person by a trigger whenever the status changes (`allergy_status_confirmed_by`, `_at`), never the last person to edit the row; "No known allergies" prints with them, and one without a confirmer is listed on the pack's first page to check | Built in Phase 1 slice 8 |
+| Design | Who set the allergy status and when is kept on the person by a trigger on every write that touches the status or the confirmer columns (`allergy_status_confirmed_by`, `_at`): always the signed-in user and the time of the write, never values the client sends and never the last person to edit the row; both are cleared when the status is unknown. "No known allergies" prints with them, and one without a confirmer is listed on the pack's first page to check | Built in Phase 1 slice 8 (review round 3) |
+| Design | "Not recorded" is one shared status in `@harbour/ui` (`notRecorded`: the warning colour, a question mark and the words, never the clock of a due task), used for allergies and communication needs, and a link to where they are recorded when that screen is given. The design is for the CSO (H-130) | Built in Phase 1 slice 8 (review round 3; the links with the record screens) |
 | Test | See Verification | Phase 1, Phase 2 |
 | Training and user documentation | Deployer control: allergy status recorded at admission and at medicines reconciliation | Phase 1 |
 
@@ -488,6 +517,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-007 refuses 'not applicable' for allergies, and an unexplained one for equipment` (pre-admission); `hazard HZ-007 ticks the welcome checklist, refusing 'not applicable' for allergies and a stale version` | Passing (Phase 1) |
 | `apps/api/test/pdf.test.ts`: `hazard HZ-023 text prints as written` (β-lactam, μg, ŵ and ŷ, Ł, Œ, €; characters the font lacks named), `hazard HZ-007 prints clinical words as written, with line breaks kept` | Passing (Phase 1) |
 | `packages/db/test/people-lifecycle.test.ts`: `hazard HZ-007 records who set the allergy status and when, not who last edited the person`; `packages/domain/src/people/transfer-pack.test.ts`: `hazard HZ-007 asks for a check when no known allergies has no confirmer` | Passing (Phase 1) |
+| `packages/db/test/people-lifecycle.test.ts`: `hazard HZ-007 never takes the allergy confirmer from the writer` (a write of the confirmer columns alone is replaced with the signed-in user and the time) | Passing (Phase 1) |
+| `packages/ui/src/components/StatusChip/StatusChip.test.tsx`: `hazard HZ-007 shows not recorded as a warning with a question mark, never the clock of a due task`, `hazard HZ-007 links not recorded to the action that records it, with the words as the link text`; the `NotRecorded` and `NotRecordedWithAction` stories pass axe (`stories.a11y.test.tsx`) | Passing (Phase 1) |
 
 ---
 
@@ -503,7 +534,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 
 **Description**: users receive so many alerts, warnings and notifications, many of low value, that they dismiss or ignore the important ones or override safety warnings out of habit.
 
-**Causes**: every rule raising an alert; duplicates across channels; alerts with no clear action; no tiering; thresholds not tuned; overdue alerts for work done but not yet recorded; repeated override prompts for benign cases; quiet hours misconfigured.
+**Causes**: every rule raising an alert; duplicates across channels; alerts with no clear action; no tiering; thresholds not tuned; overdue alerts for work done but not yet recorded; repeated override prompts for benign cases; quiet hours misconfigured; a correction of a discharge or death recorded while the person was in hospital returning them to active, so rounds fall due and escalate for someone who is not there (slice 8 review round 3, clinical finding M6); every missed round of a long gap reopened as overdue at once (round 3, clinical finding M2).
 
 **Effects**: missed deterioration escalation, missed time-critical doses, missed notification deadlines, habitual overriding of duplicate-dose blocks.
 
@@ -521,6 +552,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Design rule: a new alert type needs a hazard reference and a named action (checked in clinical PR review) | Phase 1 |
 | Design | Tenants tune thresholds within bounds Thapsus sets; escalation of time-critical medicines cannot be switched off | Phase 2 |
 | Design | Alert volume, acknowledgement time and override rates per user and per alert type, reported monthly to managers and the CSO | Phase 2 |
+| Design | A correction returns the person to the status recorded on the exit, so rounds stay paused for someone still in hospital or on leave; after a late return only the latest missed occurrence of each series reopens as overdue, the rest listed on one review task (HZ-003; H-92, H-93) | Built in Phase 1 slice 8 (review round 3) |
 | Test | See Verification | Phase 1, Phase 2 |
 | Training and user documentation | User guides explain the tiers. Deployer control: managers review the monthly alert report | Phase 2 |
 
@@ -541,6 +573,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `apps/api`: `hazard HZ-008 alert volume and override metrics are reported per user and type` | Planned, Phase 2 |
 | `packages/domain/src/people/reviews.test.ts`: `hazard HZ-008 raises one review on change for several unreviewed changes` | Passing (Phase 1) |
 | `apps/api/test/people-lifecycle.test.ts`: `people.md rule 8: the review scheduler (HZ-008)` (one task for a local authority review in its window, once; one review on change for several changes, covered by a care plan review; recording the review completes the task) | Passing (Phase 1) |
+| `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-008 tells the Registered Manager once a day when reviews are not scheduled for a home` (a home in a nation without its review figures: one notice per recipient per day however often the sweep runs); `hazards HZ-003 and HZ-008 correct a death recorded in error while the person was in hospital back to in hospital, with rounds still paused` | Passing (Phase 1) |
 
 ---
 
@@ -711,7 +744,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/db/test/people-lifecycle.test.ts`: `hazard HZ-011 the lifecycle tables follow the person's scope` (every new person table, the welcome checklist template per tenant, the weekly report per location) | Passing (Phase 1) |
 | `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-011 shows every occupied bed but names only the people in the reader's access`; `hazard HZ-011 refuses a room, its bed board and its clearance to a caller who works elsewhere` (rooms carry only the tenant policy, so the API checks the location); `hazard HZ-011 permissions per route` (out-of-scope people are not found; packs and transfers need `people.movement.record`; audit by record id) | Passing (Phase 1) |
 | `apps/api/test/people-lifecycle.test.ts`: `PLAT-006 the weekly break-glass report (HZ-011)`: `refuses a review by the person whose use the report flags`, `refuses a review of a location outside the reviewer's access as not found` | Passing (Phase 1) |
-| `packages/db/test/people-lifecycle.test.ts`: `keeps About Me, the pre-admission assessment and property out of device replication` (migration 0023 removes them from the PowerSync publication until assignment-pinned streams with two-tenant tests exist) | Passing (Phase 1) |
+| `packages/db/test/people-lifecycle.test.ts`: `hazard HZ-011 keeps About Me, the pre-admission assessment and property out of device replication` (migration 0023 removes them from the PowerSync publication until assignment-pinned streams with two-tenant tests exist) | Passing (Phase 1) |
 
 ---
 
@@ -787,7 +820,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 
 **Description**: a notifiable event (CQC death or other incident notification, RIDDOR report, safeguarding referral, UKHSA outbreak report, duty of candour notification) is not identified, not drafted, not submitted, or submitted late.
 
-**Causes**: the incident is not recorded; a classifier question is answered wrongly or the rule is wrong or out of date (for example after the June 2026 Supreme Court judgment on deprivation of liberty); no holder of `safety.notification.submit` is available and no acting-up grant is in place; the deadline clock starts late or from the wrong time; a notification job fails silently; alert fatigue (HZ-008); an incident recorded offline is not synced (HZ-006); a discharge or death cancels the person's safety, statutory and exit tasks along with their rounds (slice 8 review, clinical finding H2); the drafts of a death recorded in error and corrected stand in for a later real death, or a notification already submitted for it is never corrected with the regulator (H5); the LeDeR question is taken as "no" when nobody answered it (M3).
+**Causes**: the incident is not recorded; a classifier question is answered wrongly or the rule is wrong or out of date (for example after the June 2026 Supreme Court judgment on deprivation of liberty); no holder of `safety.notification.submit` is available and no acting-up grant is in place; the deadline clock starts late or from the wrong time; a notification job fails silently; alert fatigue (HZ-008); an incident recorded offline is not synced (HZ-006); a discharge or death cancels the person's safety, statutory and exit tasks along with their rounds (slice 8 review, clinical finding H2); the drafts of a death recorded in error and corrected stand in for a later real death, or a notification already submitted for it is never corrected with the regulator (H5); the LeDeR question is taken as "no" when nobody answered it (M3); an incident's draft for a death recorded in error is counted for a later real death, or stays submitted with nobody asked to correct it (round 3, clinical finding L9).
 
 **Effects**: a person remains at risk of abuse; the regulator cannot act; an outbreak spreads; the family is not told what happened; regulatory enforcement against the tenant.
 
@@ -809,7 +842,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | The classifier runs on the server whenever an incident is created, synced, changed or answered, with tenant-wide scope so it always reads every person on the incident (ADR-0033); it stores its version and reasoning, writes one draft per incident and kind (per person for deaths, LeDeR, the medical examiner pack and missing people) with clocks from `occurred_at`, and a draft that a later answer no longer supports is flagged, never closed, until a holder of `safety.notification.submit` marks it not required with a reason and step-up (`apps/api/src/services/safety.ts`) | Phase 1 (built) |
 | Design | An overdue draft alerts the holders of `safety.notification.submit` at its location once, through the tenant's `safety.notification.overdue` escalation chain (by default the Nominated Individual after `statutory_notification.escalation_minutes`, H-69), until it is submitted or marked not required; closing an incident counts drafts about people the closer cannot see | Phase 1 (built) |
 | Design | An exit ends only rounds (series tasks) and point-of-care tasks (`care.*`, `medicines.*`), coded `ended_at_exit`; incident reports, safeguarding decisions, DoLS expiry, every `safety.*` and `people.*` task and the exit checklist task stay open | Built in Phase 1 slice 8 |
-| Design | Each death notification draft belongs to its exit record (source key `exit:<exit id>:<kind>`) and the exit checklist follows only that exit's drafts, so a death recorded in error never stands for a later one. A correction flags that exit's drafts no longer indicated, never closing them, and gives the holders of `safety.notification.submit` one urgent task to tell the regulator that a submitted notification was made in error. What to do with submitted notifications is for the CSO (H-88) | Built in Phase 1 slice 8 |
+| Design | Each death notification draft belongs to its exit record (source key `exit:<exit id>:<kind>`) and the exit checklist follows only that exit's drafts, so a death recorded in error never stands for a later one. A correction flags that exit's drafts no longer indicated, never closing them, and gives the holders of `safety.notification.submit` one urgent task to tell the regulator that a submitted notification was made in error. An incident's draft that counted for that death is withdrawn the same way, and neither counts for a later death. What to do with submitted notifications is for the CSO (H-88) | Built in Phase 1 slice 8 (incident drafts: review round 3) |
 | Design | Recording a death needs an explicit answer on learning disability or autism (LeDeR); the exit record has no default. Whether each exit notification is statutory comes from the safety module's `NOTIFICATION_KINDS`, so the checklist and the notification agree. The clocks and the statutory labels for LeDeR and the medical examiner are for the CSO and DPO (H-87) | Built in Phase 1 slice 8 |
 | Design | Safeguarding log and outbreak register feed the same clocks | Phase 2 |
 | Test | See Verification | Phase 1, Phase 2 |
@@ -850,6 +883,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-013 records a death at night: the room is held and the death notifications are drafted, with LeDeR` (the regulator's death notification, the medical examiner and LeDeR drafts raised from `people.person.died`, linked as evidence on the exit checklist and labelled as `NOTIFICATION_KINDS` labels them) and `hazard HZ-001 corrects a death recorded in error only with a reason and step-up` (the drafts are flagged no longer indicated, never closed; a submitted one stays as sent) | Passing (Phase 1) |
 | `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-013 needs to know whether the death was expected, and whether LeDeR applies`, `hazard HZ-013 ends rounds and point-of-care tasks at the death, and keeps the safety follow-ups`, `hazard HZ-013 submits the regulator's death notification`, `hazard HZ-013 gives the Registered Manager a task to tell the CQC that a submitted notification was made in error` (once, however often the event is relayed), `hazard HZ-013 drafts new notifications for a real death after a corrected one, never reusing the old ones` | Passing (Phase 1) |
 | `packages/domain/src/people/exit.test.ts`: `hazard HZ-013 drafts the regulator, medical examiner and LeDeR notifications in safety, labelled as the safety module labels them` | Passing (Phase 1) |
+| `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-013 never counts an incident's draft from a death recorded in error for a later death` (the incident's submitted draft gets a correction task; the later death's checklist follows its own draft, never the incident's) | Passing (Phase 1) |
 
 ---
 
@@ -912,7 +946,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 
 **Description**: staff cannot see, at the moment they need it, whether the person has a ReSPECT plan, DNACPR decision or advance decision to refuse treatment, or they see one that has been withdrawn or replaced.
 
-**Causes**: the document is filed but not flagged; an old version is shown; the record is not available offline or in the downtime pack; the hospital transfer pack omits it.
+**Causes**: the document is filed but not flagged; an old version is shown; the record is not available offline or in the downtime pack; the hospital transfer pack omits it, or prints it on a later page behind a long medicines list (slice 8 review round 3, clinical finding M5); a check of resuscitation decisions made in hospital recorded by someone who may not review the care plan (round 3, security finding M2).
 
 **Effects**: resuscitation attempted against the person's wishes, or not attempted when it should have been; distress to the person and family.
 
@@ -927,6 +961,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Only one active record per kind; recording a new one supersedes the old; review dates raise tasks | Built in Phase 1 slice 4b (database partial unique index; hourly review job) |
 | Design | Advance care records are reference data on the device (never evicted while assigned), in the downtime pack and in the hospital transfer pack | Phase 1 |
 | Design | The transfer pack prints the CPR decision in force by the same rule as the header (`resuscitationStatus`), from ReSPECT and DNACPR records only; an ADRT or advance care plan alone leaves it "not recorded" and still prints. Records that disagree print together as a conflict on the first page and need the named acknowledgement at hand-over; an overdue review is shown on the first page | Built in Phase 1 slice 8 |
+| Design | The identity block on page 1 of the pack carries a "CPR decision:" line in bold, copied from the stored pack and never resolved: the decision in force with its record and date, "not recorded", "no decision in place" with who confirmed it, or that the records disagree. A long medicines list cannot push it to a later page. The wording is for the CSO (H-94) | Built in Phase 1 slice 8 (review round 3) |
+| Design | The return check on resuscitation decisions made in hospital is recorded only by someone who may complete its task (HZ-005) | Built in Phase 1 slice 8 (review round 3) |
 | Training and user documentation | Deployer control: the original signed form stays with the person as the home's policy requires; Harbour shows the record, it is not the legal document | Phase 1 |
 
 **Target residual risk**: severity Major, likelihood Very low, **risk 2**.
@@ -944,6 +980,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `apps/api`: `hazard HZ-015 the downtime pack includes the current resuscitation record` | Planned, Phase 1 |
 | `packages/domain/src/people/pre-admission.test.ts`: `hazard HZ-015 requires the resuscitation and advance care section` | Passing (Phase 1) |
 | `packages/domain/src/people/transfer-pack.test.ts`: `hazard HZ-015 no resuscitation record`, `only a withdrawn resuscitation record`, `prints only the active resuscitation record` | Passing (Phase 1) |
+| `apps/api/test/pdf.test.ts`: `hazard HZ-015 prints the CPR decision in force on page 1, however long the medicines list` (25 long medicines) and `hazard HZ-015 says on page 1 when the CPR decision is ...` (none recorded, records that disagree); the two HZ-015 pack tests in `apps/api/test/people-lifecycle.test.ts` read the line from page 1; `hazards HZ-005 and HZ-015 let only someone who may complete a return check's task record it` | Passing (Phase 1) |
 
 ---
 
@@ -1257,7 +1294,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 
 **Description**: a person goes to hospital without their photo, allergies, current medicines, communication needs, resuscitation status or About Me; with a pack that belongs to someone else, is out of date, or shows a missing item as blank or as "none"; without their glasses, hearing aids or dentures; or comes back without the home picking up what the hospital changed (new allergies, a DNACPR decision, a new IDDSI level, changed medicines).
 
-**Causes**: a pack put together by hand under time pressure; sections never recorded; "unknown" printed as blank or "none"; a withdrawn DNACPR printed; another person's data in the pack (HZ-001); stale offline data (HZ-002); belongings not sent; the hospital discharge letter not reconciled on return; names and clinical words printed with characters missing because the PDF's fonts cannot print them (slice 8 review, clinical finding M4); a medicines list from before admission printed as if it were current; return checks raised with no owner or due time.
+**Causes**: a pack put together by hand under time pressure; sections never recorded; "unknown" printed as blank or "none"; a withdrawn DNACPR printed; another person's data in the pack (HZ-001); stale offline data (HZ-002); belongings not sent; the hospital discharge letter not reconciled on return; names and clinical words printed with characters missing because the PDF's fonts cannot print them (slice 8 review, clinical finding M4); a medicines list from before admission printed as if it were current; return checks raised with no owner or due time; a photo counted as printable that the PDF cannot decode (a 16-bit or interlaced PNG, a truncated or oversized file), or a crafted image that stops the service printing any pack (slice 8 review round 3, security finding M1 and clinical finding L10); the home or hospital name printed with characters missing and not named (round 3, clinical finding L10); return checks recorded by someone who may not complete them (round 3, security finding M2).
 
 **Effects**: a medicine given that the person is allergic to; time-critical medicines (for example for Parkinson's disease) missed; resuscitation contrary to the person's wishes; the person unable to communicate pain or needs; harm after return when hospital changes are missed.
 
@@ -1275,6 +1312,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Return checks: discharge letter, medicines (HZ-005), new allergies, resuscitation decisions made in hospital, IDDSI changes (HZ-016), skin | Phase 1 (checks), Phase 2 (eMAR reconciliation) |
 | Design | Each return check is a task for the nurse in charge, due `people.return_checks_due_hours` after the return (never in the past for a backdated return), urgent where it carries a hazard, and escalated by the task engine when overdue. The owner, the due time and the escalation are for the CSO (H-85) | Built in Phase 1 slice 8 |
 | Design | The printed pack embeds Noto Sans, so names and clinical words print as written; a section with a character the font lacks is named on the first page; a photo held but not printable (anything but JPEG or PNG) is named on the first page ([ADR-0040](../decisions/0040-transfer-pack-pdf-writer.md)) | Built in Phase 1 slice 8 |
+| Design | The pack decides whether the photo is printable with the decoder the PDF uses: only 8-bit, non-interlaced PNGs and JPEGs up to 4096 x 4096 pixels (8192 on a side) print; every PNG chunk is bounds-checked, decompression is capped at the size the header promises and decoding never throws. Anything else counts as missing: page 1 names it and the hand-over needs the acknowledgement. The home and hospital names are checked for characters the font lacks, as the person's name and the sections are ([ADR-0040](../decisions/0040-transfer-pack-pdf-writer.md)) | Built in Phase 1 slice 8 (review round 3) |
 | Design | Until the eMAR (Phase 2) the pack's medicines come from the pre-admission assessment and are marked on the first page as needing checking against the MAR; an empty list reads "not recorded since admission". Whether that list may be printed at all is for the CSO (H-82) | Built in Phase 1 slice 8 |
 | Design | The pre-admission assessment and the welcome checklist require allergies, medicines, communication needs and resuscitation status at admission, so the pack rarely lacks them | Built in Phase 1 slice 8 |
 | Test | See Verification | Phase 1 |
@@ -1295,6 +1333,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `apps/mobile` Maestro `hazard-HZ-023-offline-transfer-pack.yaml`: print the pack offline with the last sync time shown | Planned, Phase 1 |
 | `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-023 previews the pack with every missing safety-critical section flagged`, `hazard HZ-023 previews with the reason and the items to send in the body, never the URL`, `hazard HZ-023 records the hand-over of an incomplete pack only with a named acknowledgement`, `hazard HZ-023 refuses a pack for someone not receiving care`, `hazard HZ-023 communication needs: an empty list is not 'none'` | Passing (Phase 1) |
 | `apps/web/src/lib/people.test.ts`: `communicationSummary (HZ-023)` (the people list and the person header show "Not recorded" as a warning with an icon and words, and "None identified" only for a positive none) | Passing (Phase 1) |
+| `apps/api/test/pdf.test.ts`: `hazard HZ-023 treats ... as not printable, without decoding it` (a 16-bit PNG, an interlaced PNG, one claiming 20000 x 20000 pixels, one over the pixel limit, a truncated one, a chunk running past the end, image data that inflates past its header), `hazard HZ-023 treats a JPEG over the pixel limit, or truncated, as not printable`, `names the home or the hospital on page 1 when their names have characters it cannot print` | Passing (Phase 1) |
+| `apps/api/test/people-lifecycle.test.ts`: `hazards HZ-001 and HZ-023 count ... photo as missing, so page 1 names it and the hand-over needs an acknowledgement` (16-bit and truncated PNGs), `hazard HZ-023 never sets a return check due in the past for a return recorded more than a day late` (a return with no transfer record still raises the checks) | Passing (Phase 1) |
 
 ---
 

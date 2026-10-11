@@ -170,3 +170,40 @@ H-81 reworded.
 
 **Tests**: `packages/domain` 1,917, `packages/db` 261, `packages/contracts` 16, `apps/api` 353,
 `apps/web` 108 unit, all passing locally.
+
+## 2026-10-11: Phase 1 slice 8 review fixes, round 3 (people lifecycle)
+
+**What changed**
+
+- Rounds after a return or correction: tasks and series carry the exit that stopped them, and
+  migration 0023 codes existing rows from the event that stopped them, never from reason text. A
+  task an entry answered while it was stopped is restored as done (the 10:05, 10:08, 10:15 and
+  10:20 case); only tasks whose window ends at or after the return count; the latest missed
+  occurrence of each series reopens as overdue and the review task lists every missed round. A
+  correction returns the person to the status kept on the exit (active, on leave or in hospital).
+- Entries and tasks: each entry stores the task it named and what it did to it (`task_outcome`);
+  an entry for a round already done, or one its author may not complete, is kept, flagged and
+  reviewed (`care.entry_review`), and refused for `medicines.*` tasks. The late-entry review names
+  the entry by kind, client id, device and user. Contracts carry `taskOutcome`,
+  `evidenceAfterClose`, task `details` and the exit's `statusBefore`; the web has badges for them.
+- Transfer pack: photo decoding is bounded (chunk bounds, 4096 x 4096 pixels, capped inflate,
+  never throws), 16-bit and interlaced PNGs count as not printable, the CPR decision is on page 1,
+  home and hospital names are checked for unprintable characters, compressed fonts are cached.
+- Security: return checks need their task's permission or its assignee; finance exit items are
+  decided from the domain definition and checked against the stored row; deleted documents are
+  not evidence; the allergy confirmer always comes from the session user; 0024 credits 0022 only
+  with what it added for each role key; an incident's draft from a death recorded in error is
+  withdrawn and never counts for a later death.
+- `@harbour/ui` gains a `notRecorded` status chip that can link to the record action, used for
+  allergies and communication needs not recorded.
+- Docs: hazard log (HZ-003 to HZ-008, HZ-011, HZ-013, HZ-015, HZ-023), care.md rule 13, people.md
+  rules 2 and 10, data standards, records of processing, ADR-0040.
+
+**Next**: the coordinator merges main; then export catalogue entries for 0020 to 0024 and the
+badges wired into main's chart and task views. Keeping a server copy of an entry refused after an
+exit comes with the mobile hand-over of held entries.
+
+**Human actions logged**: H-91 to H-94 and H-130; H-89 and H-90 updated.
+
+**Tests**: `packages/domain` 1,944, `packages/db` 266, `packages/contracts` 16, `apps/api` 383,
+`apps/web` 114, `packages/ui` 200, `packages/ui-native` 134, all passing locally.

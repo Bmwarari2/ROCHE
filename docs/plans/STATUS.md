@@ -24,8 +24,10 @@ only when they link spec, code, tests and user documentation; no user guides exi
    #13) once reviewed; each carries the CI fixes of the ones below it.
 2. Built and awaiting pull requests: the schema and API for slices 6 and 7
    (`feat/mca-and-incidents-api`) and the people lifecycle schema and API with its security and
-   clinical review fixes (slice 8, `feat/people-lifecycle-api`, migrations 0020 to 0024; CSO
-   decisions H-82 to H-90). Next: slice 5's API (care plan actions generate task series, handover
+   clinical review fixes, three rounds (slice 8, `feat/people-lifecycle-api`, pull request #21,
+   migrations 0020 to 0024; CSO decisions H-82 to H-94 and H-130). After main is merged into it,
+   export catalogue entries for the tables and columns 0020 to 0024 add, and the entry and task
+   badges wired into main's chart and task views. Next: slice 5's API (care plan actions generate task series, handover
    table, round and handover routes).
 3. Web UI for the record built so far (slice 9) and offline Care mode (slice 10), then slices 11 to
    14 ([phase-1.md](phase-1.md)).
@@ -44,8 +46,8 @@ only when they link spec, code, tests and user documentation; no user guides exi
 
 ## Human actions outstanding
 
-All of [human-actions.md](human-actions.md) is open (H-01 to H-90; the slice 8 review added the CSO
-decisions H-82 to H-90). The ones that unblock the most:
+All of [human-actions.md](human-actions.md) is open (H-01 to H-94 and H-130; the slice 8 review
+added the CSO decisions H-82 to H-94 and H-130). The ones that unblock the most:
 H-01 and H-02 (GitHub organisation and branch protection), H-04 (AWS dev account), H-20 (Clinical
 Safety Officer), H-30 and H-31 (data protection lead and ICO registration), H-10 and H-11 (Expo,
 Apple and Google accounts).
@@ -54,14 +56,14 @@ Apple and Google accounts).
 
 | Package | Tests |
 | --- | --- |
-| `packages/domain` | 1,917 |
-| `packages/db` | 261 (real Postgres: RLS coverage, isolation, scope, audit chain, seed, tasks, documents, care record, care planning, MCA and incidents, people lifecycle, bank holidays, pools) |
+| `packages/domain` | 1,944 |
+| `packages/db` | 266 (real Postgres: RLS coverage, isolation, scope, audit chain, seed, tasks, documents, care record, care planning, MCA and incidents, people lifecycle, bank holidays, pools) |
 | `packages/sync` | 10 (PowerSync rules engine) |
 | `packages/contracts` | 16 |
 | `packages/i18n` | 14 (34 with pull request #7) |
-| `packages/ui` | 190, 136 axe runs (233 and 160 with pull request #7) |
-| `packages/ui-native` | 133 |
-| `apps/api` | 353 (sessions, tasks, workflow, documents, care record, care planning, MCA and incidents, people lifecycle, the printed pack, production config) |
+| `packages/ui` | 200, 143 axe runs (233 and 160 with pull request #7) |
+| `packages/ui-native` | 134 |
+| `apps/api` | 383 (sessions, tasks, workflow, documents, care record, care planning, MCA and incidents, people lifecycle, the printed pack, production config) |
 | `apps/mobile` | 208 |
-| `apps/web` | 108 unit (more with pull request #7); 8 Playwright journeys with axe (WCAG 2.2 AA), passkey sign-in, nonce CSP |
+| `apps/web` | 114 unit (more with pull request #7); 8 Playwright journeys with axe (WCAG 2.2 AA), passkey sign-in, nonce CSP |
 | `infra` | `terraform test` 3, TFLint, Trivy and Checkov clean |

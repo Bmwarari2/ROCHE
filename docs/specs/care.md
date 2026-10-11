@@ -199,6 +199,16 @@ applies). Figures come from `rate_table` by key.
     property return, medical examiner pack). Care events that happened at or before the discharge,
     death or move to hospital are still accepted when they upload, flagged as recorded after it
     ([people.md](people.md#4-rules-that-are-easy-to-get-wrong) rule 3, HZ-006).
+13. **An entry and the task it names** (`checkTaskLink`, HZ-004, HZ-006). An entry stores the task
+    it named and what it did to it (`task_outcome`). An open or in-progress task for the same
+    person is completed (`completed`). A task the people lifecycle cancelled keeps the entry as
+    evidence, flagged, and stays cancelled (`task_cancelled`; a return or correction later
+    restores it as done). A task already done or skipped (`task_already_closed`) or one the
+    author may not complete (`not_linked`) is left alone; the entry is kept, flagged, and listed
+    on one review task for the nurse in charge (`care.entry_review`). A `medicines.*` task in
+    either case refuses the entry (`task_medicines_already_closed`, `task_medicines_not_yours`),
+    so a second dose is never recorded against a closed round; a task for another person is
+    refused (HZ-001). The chart and task views show the outcome as an icon and words.
 
 ### Domain modules for consent, capacity and DoLS (slice 6)
 

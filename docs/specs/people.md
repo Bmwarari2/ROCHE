@@ -123,9 +123,19 @@ one applies). Figures come from `rate_table` by key, resolved with `resolvePeopl
    admission needs `checkAdmissionReadiness`; a discharge says whether it is a discharge or a
    transfer; archiving after an exit needs the exit workflow closed; a person who has died is
    never re-admitted. A discharge or death recorded in error is corrected with a reason (and
-   step-up for a death, HZ-001); sharing stays closed until a manager reinstates it. Each change
-   returns its side effects (pause or resume rounds, start the exit workflow, cancel future tasks,
-   close sharing, release or hold the bed, start the retention clock) and one outbox event.
+   step-up for a death, HZ-001) back to the status the person had when it was recorded
+   (`exit_record.status_before`: active, on leave or in hospital, from when that status began;
+   active for an exit recorded before migration 0023); any other status is refused (H-93).
+   Sharing stays closed until a manager reinstates it. Each change returns its side effects
+   (pause or resume rounds, start the exit workflow, cancel future tasks, close sharing, release
+   or hold the bed, start the retention clock) and one outbox event. The tasks and series a move
+   or exit stops carry a code and, for an exit, the exit that stopped them (`stopped_by_exit_id`),
+   so a return or correction brings back only what that move or exit stopped (`planTaskRestore`):
+   only tasks whose window ends at or after the return count; a task an entry answered while it
+   was stopped is done, never due again (H-91); one still in its window reopens; of the rest, the
+   latest occurrence of each series reopens as overdue and the earlier ones are coded missed, all
+   listed on one review task for the nurse in charge (H-92). Corrected back to on leave or in
+   hospital, what the exit ended waits, paused, for the return (HZ-003, HZ-004, HZ-008).
 3. **Read-only after exit** (care.md rule 12). The post-event records are: after-death care and
    the medical examiner pack (deaths only), statutory notifications, exit checklist items,
    property, money and key returns, post-event notes, documents and correspondence. Care events
@@ -181,9 +191,14 @@ one applies). Figures come from `rate_table` by key, resolved with `resolvePeopl
     "not recorded" on the first page (HZ-023). "None" is a positive statement with who confirmed
     it and when; an empty list is not. Only active resuscitation records print; allergies print
     most severe first and time-critical medicines first; every section shows its "as of" time.
-    Recording the hand-over of an incomplete pack needs a named acknowledgement and reason. On
-    return, the checks re-confirm medicines, allergies, resuscitation decisions and IDDSI levels
-    (hospitals change them), skin, and belongings that went with the person.
+    Recording the hand-over of an incomplete pack needs a named acknowledgement and reason. The
+    identity block on the first page carries the CPR decision (H-94). A photo prints only as a
+    JPEG or an 8-bit, non-interlaced PNG of at most 4096 x 4096 pixels, decided by the decoder the
+    PDF uses; anything else counts as missing (HZ-023). On return, the checks re-confirm
+    medicines, allergies, resuscitation decisions and IDDSI levels (hospitals change them), skin,
+    and belongings that went with the person. Each check is recorded only by someone holding the
+    permission its task requires (`care.plan.write` for the clinical checks) or its assignee;
+    checking belongings back in needs `people.movement.record` (HZ-005, HZ-015).
 11. **Exit workflows** (`exit.ts`). Discharge and transfer: `planned`, `left`, `awaiting_return`,
     `closed` (or `cancelled` before leaving). Death: `recorded`, `awaiting_return`, `closed` (or
     `cancelled` with step-up when recorded in error). The `awaiting_return` state escalates after
@@ -313,10 +328,13 @@ otherwise). `POST .../hospital-transfers` stores the snapshot, moves the person 
 never waits for missing sections (HZ-023); `GET .../pdf` prints "not recorded" on the first page
 for each one, with everything recorded that needs checking (records that disagree, an overdue
 review, a medicines list from before admission, a photo that cannot be printed, no known allergies
-without a confirmer); the hand-over of an incomplete pack, or of resuscitation records that
+without a confirmer, a person's, home's or hospital's name with characters the font lacks), and
+the CPR decision in the identity block; the hand-over of an incomplete pack, or of resuscitation records that
 disagree, needs a named acknowledgement; and `POST .../return` brings the person back and opens
 the return checks, each a task for the nurse in charge due `people.return_checks_due_hours` after
-the return (never in the past for a return recorded late) and escalated by the task engine (H-85).
+the return (never in the past for a return recorded late) and escalated by the task engine (H-85);
+`POST .../return-checks/{key}` records one only for someone who may complete its task (rule 10),
+and audits a refusal.
 A pack for someone not receiving care or with a section that belongs to someone else is refused
 (`transfer_pack_not_receiving_care`, `transfer_pack_wrong_person`). The resuscitation section
 prints the CPR decision in force by the care module's rule (`resuscitationStatus`: ReSPECT and
@@ -333,7 +351,10 @@ notifications and return deadlines are created when the person leaves or dies, w
 the Registered Manager. Property and keys items are counted from their records and cannot be
 ticked by hand; safety items follow the statutory notifications; residents' money and deposits are
 confirmed by hand until the finance ledger, only with `finance.ledger.approve` and a fresh sign-in,
-and never by the person who recorded the exit (separation of duties, refusal audited).
+and never by the person who recorded the exit (separation of duties, refusal audited). Whether an
+item is a finance item comes from the checklist definition for its key (`exitItemOwner`), before
+anything is read, and the stored item must agree. A document cited as evidence or for a review
+must not be deleted.
 `POST .../exit/moves` runs `checkExitWorkflowMove`. In England the safety module drafts the
 regulator's death notification, the medical examiner information and the LeDeR notification from
 `people.person.died`, each draft keyed to its exit record (`exit:<exit id>:<kind>`), so a later
@@ -354,8 +375,10 @@ by someone the report flags and only for a location in the reviewer's access. Ca
 person who has left, died or gone to hospital follow rule 3 in the care routes (care.md rule 12):
 an event timed up to `sync.clock_drift_flag_minutes` after the change is accepted and flagged; a
 later one is refused with `care_event_after_exit`, audited, and one urgent review task goes to the
-nurse in charge (`people.late_entry_review`); an entry that names a task the lifecycle cancelled
-is accepted, linked to the task and flagged, and the response says so (`taskOutcome`). A result
+nurse in charge (`people.late_entry_review`), listing each refused entry by kind, client id, device
+and user (opaque ids, no clinical text); incidents follow the same rule. An entry that names a
+task the lifecycle cancelled is accepted, linked to the task and flagged, and the response says so
+(`taskOutcome`); what an entry does to its task otherwise follows care.md rule 13. A result
 recorded before a move to hospital or on leave still alerts the nurse in charge; after a discharge
 or death only the safety prompts are raised (H-83). Existing tenants' role copies gained
 `people.movement.record` and `people.property.manage` (owner, Registered Manager, deputy, clinical
@@ -437,4 +460,7 @@ carry a token whose hash only is stored.
 - The CSO decisions from the slice 8 review: medicines from the pre-admission list (H-82), late
   entries and alerts around a move (H-83), the return checks (H-85), IDDSI as safety-critical
   (H-86), the death notification clocks and labels (H-87), notifications already submitted when a
-  death is corrected (H-88), rounds on correction (H-89) and the ratings (H-90).
+  death is corrected (H-88), rounds on correction (H-89) and the ratings (H-90); from review
+  round 3, a task answered while it was stopped restored as done (H-91), rounds missed during a
+  gap caught up once (H-92), the status a correction returns to (H-93), the CPR decision on page 1
+  (H-94) and the "not recorded" status (H-130).

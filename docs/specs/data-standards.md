@@ -94,7 +94,7 @@ names below are the concepts this contract carries and must be kept in step with
 | `communication_needs` | JSON array | Accessible Information Standard; SNOMED CT | `[{ "code", "display", "preferredFormat" }]` (below) | Flags on every screen and print (section 5.4). |
 | `communication_needs_status` | code | Accessible Information Standard (identify and record) | `not_recorded`, `none_identified`, `recorded` | Phase 1. An empty list is never read as "no needs": `none_identified` is recorded positively, and `communication_needs_confirmed_by` and `_at` name who recorded the needs, or that there are none, on every change (hazard HZ-023). |
 | `allergy_status` | code | FHIR AllergyIntolerance (concept); "no known allergy" situation in SNOMED CT | `unknown`, `no_known_allergies`, `has_allergies` | `unknown` is never shown as "no allergies" (HZ-007). |
-| `allergy_status_confirmed_by`, `allergy_status_confirmed_at` | UUIDv7, timestamp | - | Reference to `tenant_user`; ISO 8601 UTC | Phase 1 (migration 0023). Who set the allergy status and when, kept by a database trigger whenever the status changes and cleared when it returns to `unknown`; never the last person to edit the row. Null for statuses set before the migration (printed as "who confirmed this is not recorded"). |
+| `allergy_status_confirmed_by`, `allergy_status_confirmed_at` | UUIDv7, timestamp | - | Reference to `tenant_user`; ISO 8601 UTC | Phase 1 (migration 0023). Who set the allergy status and when, kept by a database trigger on every write that touches the status or either of these columns: always the signed-in user (`app.current_user_id()`) and the time of the write, never values the client sends, and null when no user is signed in; cleared when the status returns to `unknown`; never the last person to edit the row. Null for statuses set before the migration (printed as "who confirmed this is not recorded"). |
 | `national_data_opt_out` | boolean | National data opt-out | `true` when the person has opted out | Honoured when publicly funded care data is used beyond direct care. Checking against the national service is a Phase 5 item. |
 | `deceased_at` | timestamp | NHS Data Dictionary PERSON DEATH DATE (date part) | ISO 8601 UTC | Sets `status` to `deceased`. |
 | `discharged_at` | timestamp | MODS discharge date | ISO 8601 UTC | Sets `status` to `discharged`. |
@@ -411,6 +411,7 @@ assurance pack.
 | `exit_record` destination | MODS discharge destination (concept); NHS Data Dictionary discharge destination items to be checked | Destination type (`own_home`, `family_home`, `care_home`, `hospital`, `hospice`, `supported_living`, `other`) and the receiving provider's CQC location ID or ODS code | Sets `person.discharged_at`. |
 | `exit_record` death details | NHS Data Dictionary PERSON DEATH DATE (date part of `person.deceased_at`); place of death (concept) | Place `care_home`, `hospital`, `elsewhere`; expected or not; verified by (name, role) and at | Sets `person.deceased_at`. |
 | `exit_record.learning_disability_or_autism` | LeDeR (concept) | `true` or `false`, no default (migration 0023) | An explicit answer for every death, never assumed; a discharge or transfer that does not say records `false`. Decides the LeDeR notification. |
+| `exit_record.status_before`, `status_before_since` | Harbour | `active`, `on_leave`, `in_hospital`; ISO 8601 UTC | Phase 1 (migration 0023). The person's status when the exit was recorded and when it began: a correction of the exit as recorded in error returns the person to it (people.md rule 2). Null for exits recorded before the migration, which return to `active`. |
 | `exit_record.state` | Harbour (`DISCHARGE_WORKFLOW`, `TRANSFER_WORKFLOW`, `DEATH_WORKFLOW`) | `planned`, `left`, `recorded`, `awaiting_return`, `closed`, `cancelled` (with a reason) | Mirrors the exit workflow instance; `regulator` is `cqc`, `ciw`, `care_inspectorate` or `rqia`. |
 | `exit_checklist_item.status` | Harbour | `pending`, `done`, `not_required` (with a reason, only where allowed) | Item keys from `exitChecklist` in `packages/domain/src/people/exit.ts`. |
 | `sharing_decision.sections` | Harbour | `about_me`, `daily_updates`, `photos`, `activities_and_visits`, `care_plan`, `health_summary`, `medicines`, `appointments`, `finance`, `documents`; care plan domains as the PCSP domains | |
@@ -419,6 +420,7 @@ assurance pack.
 | `sharing_decision` capacity | Mental Capacity Act 2005 s.1(2) (presumption of capacity) | `presumed`, `assessed_has_capacity`, `assessed_lacks_capacity` | Links the capacity assessment where one exists. |
 | `about_me_share_link.token_hash` | Harbour | Lower-case hex SHA-256 of the link token (64 characters) | The token itself is shown once and never stored; expiry no later than the sharing decision's end. |
 | `recorded_after_exit` on `care_note`, `observation`, `body_map_mark`, `assessment`, `activity_record` and `visit_log` | Harbour | `true` or `false` | Phase 1. True when an entry about an event at or before a discharge, death or move to hospital, or within the clock tolerance after it (`sync.clock_drift_flag_minutes`), is accepted after it (people.md rule 3, HZ-006); shown with the late-entry flag. |
+| `task_id`, `task_outcome` on `care_note`, `observation`, `body_map_mark`, `assessment`, `activity_record` and `visit_log` | Harbour (`TASK_LINK_OUTCOMES`) | UUIDv7; `completed`, `task_cancelled`, `task_already_closed`, `not_linked` | Phase 1 (migration 0023). The task the entry named and what the entry did to it (care.md rule 13, HZ-004, HZ-006): set together or not at all (check `<table>_task_outcome`). `task_already_closed` and `not_linked` are listed for review by the nurse in charge. |
 | `break_glass_event.reason_code` | Harbour | `emergency_care`, `covering_another_area`, `safeguarding`, `incident_or_complaint`, `request_from_professional`, `other` | Phase 1; the typed justification is kept as well. |
 
 ## Platform operational tables (not part of the MODS export)
@@ -432,7 +434,11 @@ Phase 1 `break_glass_weekly_report`, `about_me_share_link` and `welcome_checklis
 task engine's `task` and `task_series` are exported the same way; from migration 0023 they carry
 `cancel_code` and `inactive_code` (`paused_while_away`, `ended_at_exit`, `exit_recorded_in_error`,
 `planned_exit_cancelled`, `missed_before_return_recorded`: why the people lifecycle stopped them)
-and `task.evidence_after_close` (evidence that arrived after the task was cancelled). Field-level
+and `task.evidence_after_close` (evidence that arrived after the task was cancelled), and
+`stopped_by_exit_id` on both (the exit record that ended the task or series, so a correction brings
+back only what that exit stopped). `task.details` is JSON a review task carries: `missedTasks`
+(task id, kind, due time and whether it was reopened) and `entries` (entry kind, client id, device
+id, user id and times; opaque ids only, never clinical text). Field-level
 detail is in `packages/db/src/schema/`; purposes and lawful bases are in
 [records of processing](../compliance/records-of-processing.md).
 
