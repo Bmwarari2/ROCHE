@@ -25,7 +25,10 @@ import {
   carePlan,
   carePlanAction,
   carePlanSection,
+  consentRecord,
   contact,
+  dolsAuthorisation,
+  dolsLegalChangeReview,
   recordVersion,
   riskAssessment,
   type Transaction,
@@ -89,6 +92,9 @@ const HISTORY_TABLES = {
   care_plan_action: carePlanAction,
   risk_assessment: riskAssessment,
   advance_care_record: advanceCareRecord,
+  consent_record: consentRecord,
+  dols_authorisation: dolsAuthorisation,
+  dols_legal_change_review: dolsLegalChangeReview,
 } as const;
 const HistoryParams = PersonParam.extend({
   table: z.enum([
@@ -97,6 +103,9 @@ const HistoryParams = PersonParam.extend({
     "care_plan_action",
     "risk_assessment",
     "advance_care_record",
+    "consent_record",
+    "dols_authorisation",
+    "dols_legal_change_review",
   ]),
   recordId: z.uuid(),
 });
@@ -1206,7 +1215,7 @@ export const carePlansRouter = createRouter()
       path: "/v1/people/{id}/care-history/{table}/{recordId}",
       tags: ["care"],
       summary:
-        "Every earlier version of a care plan, section, action, risk assessment or advance care record",
+        "Every earlier version of a care plan, section, action, risk assessment, advance care record, consent, DoLS authorisation or legal-change review",
       security,
       request: { params: HistoryParams },
       responses: {

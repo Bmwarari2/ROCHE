@@ -363,5 +363,7 @@ export const DEVICE_HEADER = "x-harbour-device";
 
 export * from "./care";
 export * from "./care-planning";
+export * from "./mca";
 export * from "./records";
+export * from "./safety";
 export * from "./tasks";

@@ -5,6 +5,7 @@ import {
   notificationDelivery,
   role,
   roleAssignment,
+  type Transaction,
   taskSeries,
   tenantUser,
   withRequestContext,
@@ -19,6 +20,8 @@ import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import type pg from "pg";
 import type { Logger } from "../logger";
 import { raiseOverdueCareReviews } from "../services/care-planning";
+import { raiseDolsReminders } from "../services/mca";
+import { detectLocationOutbreaks, escalateOverdueNotifications } from "../services/safety";
 import { escalateOverdueTasks, materialiseSeries } from "../services/tasks";
 
 /**
@@ -259,6 +262,57 @@ export async function raiseCareReviews(deps: TaskDeps, now = new Date()): Promis
   }
   if (raised > 0) deps.logger.info({ raised }, "care review tasks raised");
   return raised;
+}
+
+/** Runs a per-tenant sweep as the application role in each active tenant's context. */
+async function eachTenant(
+  deps: TaskDeps,
+  fn: (tx: Transaction, tenantId: string) => Promise<number>,
+): Promise<number> {
+  let total = 0;
+  for (const tenantId of await activeTenants(deps)) {
+    total += await withRequestContext(
+      deps.appDb,
+      { tenantId, userId: null, scope: "tenant", locationIds: [] },
+      (tx) => fn(tx, tenantId),
+    );
+  }
+  return total;
+}
+
+/**
+ * DoLS expiry reminders at the rate table's days before each authorisation ends (care.md rule 11,
+ * HZ-020): one task, one alert and one `care.dols.expiring` event per reminder, never twice.
+ */
+export async function remindDolsExpiry(deps: TaskDeps, now = new Date()): Promise<number> {
+  const raised = await eachTenant(deps, (tx, tenantId) => raiseDolsReminders(tx, tenantId, now));
+  if (raised > 0) deps.logger.info({ raised }, "DoLS expiry reminders raised");
+  return raised;
+}
+
+/**
+ * Overdue statutory notifications (safety.md rule 10, HZ-013): one alert to the holders of
+ * `safety.notification.submit`, escalated through the tenant's chain until the notification is
+ * submitted or marked not required, and `safety.notification.overdue`.
+ */
+export async function escalateStatutoryNotifications(
+  deps: TaskDeps,
+  now = new Date(),
+): Promise<number> {
+  const escalated = await eachTenant(deps, (tx, tenantId) =>
+    escalateOverdueNotifications(tx, tenantId, now),
+  );
+  if (escalated > 0) deps.logger.info({ escalated }, "overdue statutory notifications escalated");
+  return escalated;
+}
+
+/** Outbreak detection across each location's infection cases (safety.md rule 7). */
+export async function detectOutbreaks(deps: TaskDeps, now = new Date()): Promise<number> {
+  const drafted = await eachTenant(deps, (tx, tenantId) =>
+    detectLocationOutbreaks(tx, tenantId, now),
+  );
+  if (drafted > 0) deps.logger.info({ drafted }, "outbreak reports drafted");
+  return drafted;
 }
 
 export interface DeliveryDeps extends TaskDeps {

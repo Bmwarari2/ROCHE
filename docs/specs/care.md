@@ -42,6 +42,7 @@ Append-only tables have no UPDATE or DELETE grant for the app; a correction is a
 | `capacity_assessment` | append-only | person, decision, time specific, stage 1 (impairment or disturbance), stage 2 (understand, retain, use or weigh, communicate), practicable steps taken, outcome, assessor, review date | `care_record` |
 | `best_interests_decision` | append-only | capacity assessment, section 4 checklist answers, people consulted, less restrictive options considered, decision, review date | `care_record` |
 | `dols_authorisation` | mutable, versioned | person, type (`urgent`, `standard`, `court_order`), request date, granted from and to, extension, conditions, RPR, supervisory body, outcome, CQC notification link, objection evidence, legal-change review status | `care_record` |
+| `dols_legal_change_review` | mutable, versioned | authorisation (one review each), state (`awaiting_review`, `reviewed`, `referred`, `closed`, mirroring the workflow engine), the DHSC multifactorial factors, objection and its forms, consent signs, decision, decided at and by, referral to the local authority, closing reason | `care_record` |
 
 New personal data fields are added to `docs/compliance/records-of-processing.md` and mapped in
 `data-standards.md` (PRSB PCSP sections, SNOMED CT for chart concepts where a code exists) in the
@@ -51,7 +52,9 @@ same pull request as the table.
 
 From the catalogue in `packages/domain/src/platform/roles.ts` (matrix: [permissions.md](permissions.md)):
 `care.plan.read`, `care.plan.write`, `care.note.read`, `care.note.write`, `care.assessment.write`,
-`care.handover.manage`, `care.capacity.write`, `care.dols.manage`, `care.respect.record`. Scope
+`care.handover.manage`, `care.capacity.write` (consent, capacity assessments and best-interests
+decisions), `care.dols.manage` (the register and the legal-change review), `care.respect.record`;
+reading consents, capacity, best interests and DoLS needs `care.plan.read`. Scope
 follows the person (tenant, location, assigned or break-glass). Care workers write notes, charts,
 body-map marks and tasks for assigned people; nurses and seniors also complete assessments and
 publish care plans; capacity assessments and DoLS need the senior or manager roles. Every read of
@@ -252,6 +255,35 @@ or `not_recorded` (HZ-015). `GET /v1/people/{id}/care-history/{table}/{recordId}
 versions of the mutable records. Every write for a discharged, deceased or archived person is
 refused. Outbox events `care.plan.published` and `care.assessment.completed` are written.
 
+Built in slice 6 (`apps/api/src/routes/mca.ts`, `apps/api/src/services/mca.ts`; tables in
+migrations 0018 and 0019): `GET` and `POST /v1/people/{id}/consents` and `POST
+.../consents/{consentId}/withdraw`. The capacity status stored with a consent is found from the
+person's assessments of that decision (`capacityFinding`), never taken from the request, and
+`checkConsentRecord` refuses, in its words, a representative without authority (relatives,
+appointees, IMCAs and advocates; a property and financial attorney; an unregistered attorney; a
+deputy outside their order or past its end), the person's own consent while assessed as lacking
+capacity, bed rails without the restraint conditions and covert medicines without a lack of capacity
+and a best-interests decision (HZ-026). The list returns each decision's `consentStatus` with the
+capacity found now: a later refusal or withdrawal replaces consent, expired consent is not valid, and
+a representative's consent stops applying once the person has capacity. A withdrawal keeps the record
+with its reason. `GET` and `POST /v1/people/{id}/capacity-assessments` and `/best-interests` are
+append-only with device ids (a correction supersedes with a reason): `checkCapacityAssessment` stores
+the outcome, the elements the person could not do and the reason in the Act's words, and
+`checkBestInterests` needs every section 4 item, a consultation or why there was none, and a review
+date, storing the IMCA prompt where nobody appropriate could be consulted. `GET`, `POST` and `PUT
+/v1/people/{id}/dols` check the dates against Schedule A1 (`checkDolsAuthorisation`), England and
+Wales only, and return the status, days left, reminders and the CQC notification; when the outcome
+of a standard request or a court application is known (or it is withdrawn), the regulation 18(4A)
+draft is created with its 18(4B) statement and `care.dols.outcome_known` is published (an urgent
+authorisation is not notified on its own) (HZ-020). `GET /v1/dols/legal-change-review` lists, where
+the tenant flag `dols.post_2026_review_workflow` is on, the authorisations granted before the
+judgment and still in force with no review, soonest ending first, and the reviews under way; `POST
+/v1/dols/legal-change-review/{authorisationId}` records each step through the workflow engine with
+`legalChangeStepProblems` (the review before `reviewed`, the referral before closing when the person
+is no longer deprived of liberty or there is doubt). An hourly job raises each expiry reminder once
+(a task, an alert to the Registered Manager and `care.dols.expiring`), and none for an authorisation
+that has ended or a closed record. The history route covers these mutable records through
+`record_version`.
 
 Resources under `/v1/people/{personId}/...`: `care-plans`, `risk-assessments`, `assessments`,
 `notes`, `observations`, `body-map`, `tasks`, `activities`, `visits`, `advance-care`, `consents`,
@@ -478,6 +510,9 @@ through recorded sharing decisions ([people.md](people.md)).
 - Database: RLS coverage and HZ-011 isolation for every new table; append-only grants; supersedes
   chains.
 - API: contract tests and audit events for every route; idempotent replays of offline writes.
+  Built in slice 6: `packages/db/test/mca-and-incidents.test.ts` (HZ-011 person scope,
+  append-only assessments, the consent and DoLS constraints) and `apps/api/test/mca.test.ts`
+  (HZ-020, HZ-026).
 - Web and mobile: Playwright journeys (care plan, notes, charts, body map, assessments, handover,
   capacity and DoLS) with axe; Maestro offline journey (notes and charts written offline, synced,
   conflict reviewed). Built in slice 10 part 1: `packages/sync/test/care-streams.test.ts` and

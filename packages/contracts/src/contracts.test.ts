@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   BreakGlassRequest,
+  ClassifierAnswerValue,
+  CloseIncident,
   CreateAssessment,
+  CreateIncident,
+  NotRequiredNotification,
   PersonSummary,
   ProblemDetails,
   PublishCarePlan,
@@ -9,8 +13,46 @@ import {
   SyncDeviceReport,
   SyncDiscard,
   SyncUpload,
+  UpdateCandour,
   UpdateCarePlanSection,
 } from "./index";
+
+describe("slice 6 and 7 contracts", () => {
+  it("uses inclusive bounds on versions (0 starts a candour record)", () => {
+    expect(CloseIncident.shape.version.safeParse(0).success).toBe(false);
+    expect(CloseIncident.shape.version.safeParse(1).success).toBe(true);
+    expect(UpdateCandour.shape.version.safeParse(0).success).toBe(true);
+    expect(UpdateCandour.shape.version.safeParse(-1).success).toBe(false);
+  });
+
+  it("takes yes, no, not sure, whole numbers and option values as classifier answers", () => {
+    for (const value of ["yes", "unsure", 0, 28, "none", ["physical", "neglect"]]) {
+      expect(ClassifierAnswerValue.safeParse(value).success).toBe(true);
+    }
+    for (const value of [-1, 1.5, null]) {
+      expect(ClassifierAnswerValue.safeParse(value).success).toBe(false);
+    }
+  });
+
+  it("needs a reason to mark a notification not required", () => {
+    expect(NotRequiredNotification.safeParse({ reason: "", version: 1 }).success).toBe(false);
+    expect(
+      NotRequiredNotification.safeParse({ reason: "No injury after review", version: 1 }).success,
+    ).toBe(true);
+  });
+
+  it("records an incident with a device id and nobody on it", () => {
+    const parsed = CreateIncident.parse({
+      id: "0194d000-0000-7000-8000-00000000abcd",
+      locationId: "0194d000-0000-7000-8000-000000000101",
+      type: "environmental",
+      occurredAt: "2026-10-11T08:00:00+01:00",
+      description: "The hot water failed.",
+    });
+    expect(parsed.people).toEqual([]);
+    expect(parsed.answers).toEqual([]);
+  });
+});
 
 const NOT_RECORDED = {
   status: "not_recorded",
