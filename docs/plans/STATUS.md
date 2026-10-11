@@ -10,7 +10,7 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | Phase | Scope | State |
 | --- | --- | --- |
 | 0 Foundations | Repo, CI, docs, design system, tenancy and RLS, auth, audit, notifications, forms skeleton, rate table, integrations framework, operator API, API, web and mobile skeletons, Terraform | Built and verified locally, web shell included; awaiting CI on the pull request. See [phase-0.md](phase-0.md) |
-| 1 Residential MVP | People lifecycle, care plans, assessments, notes, charts, body map, tasks and handover, MCA and DoLS, incidents and classifier, downtime pack, offline Care mode, family feed | Not started |
+| 1 Residential MVP | People lifecycle, care plans, assessments, notes, charts, body map, tasks and handover, MCA and DoLS, incidents and classifier, downtime pack, offline Care mode, family feed | Planned: [phase-1.md](phase-1.md) (14 slices), specs `care.md` and `safety.md`, hazards HZ-014 to HZ-021 |
 | 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Not started |
 | 3 Money and buildings | Funding, billing, council portals, residents' money, P&L, facilities, catering, enquiries, group reporting | Not started |
 | 4 Home care and family | Packages, runs, ECM, supported living, portals, Manage mode | Not started |
@@ -21,8 +21,8 @@ only when they link spec, code, tests and user documentation; no user guides exi
 ## Next items (in order)
 
 1. Land the Phase 0 pull request with CI green; fix anything CI finds that local runs did not.
-2. Phase 1 plan (`docs/plans/phase-1.md`) and specs for `care`, `safety` and the residential slice of
-   `people`; then build schema and domain rules first (section 19 order of work).
+2. Phase 1 slice 2 onwards from [phase-1.md](phase-1.md): platform engines (tasks and workflow,
+   document store, retention), then the validated tools and chart rules, then the care record.
 3. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; admin session revoke and idle timeouts
    per role; weekly break-glass report; record history PDF export; device push registration; OpenFeature provider;

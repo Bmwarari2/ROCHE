@@ -33,7 +33,7 @@ Owners: **Brian** (Thapsus Cargo Ltd), **CSO** (Clinical Safety Officer, to be a
 | # | Action | Owner | What the build produced | Unblocks | Status |
 | --- | --- | --- | --- | --- | --- |
 | H-20 | Appoint a Clinical Safety Officer (registered clinician trained in clinical risk management) | Brian | [Clinical risk management plan](../clinical-safety/clinical-risk-management-plan.md) | Every item below | open |
-| H-21 | Approve the clinical risk management plan; review all hazard ratings; accept or reject the five proposed level-3 residual risks (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013) | CSO | [Hazard log](../clinical-safety/hazard-log.md) | Safety case sign-off | open |
+| H-21 | Approve the clinical risk management plan; review all hazard ratings (HZ-001 to HZ-021); accept or reject the six proposed level-3 residual risks (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014) | CSO | [Hazard log](../clinical-safety/hazard-log.md) | Safety case sign-off | open |
 | H-22 | Confirm the stale-data threshold (15 minutes, HZ-002) and the clock-change rule for doses (HZ-009) | CSO | Implemented defaults and tests | Phase 1 mobile release | open |
 | H-23 | Run the first hazard workshop and decide the candidate hazards listed in the log | CSO | Candidate list | Safety case v0.1 | open |
 | H-24 | Sign safety case v0.0 (Phase 0) with Brian | CSO, Brian | [Safety case v0.0](../clinical-safety/safety-case/safety-case-v0.0-phase0.md) | Any real tenant | open |
