@@ -56,6 +56,23 @@ does not settle.
   decorative). `StatusChip` takes an `icon` for states with their own symbol, such as a care plan
   draft; `Timeline` takes translated correction words, status chips beside the time and a footer
   for actions and earlier versions.
+- Added after the accessibility review of slice 9: `DateInput` and `DateTimeInput`, the GOV.UK
+  pattern of separate day, month and year boxes (and hour and minute), each box named and marked
+  invalid on its own, with an error that names the part. They check that the parts make a calendar
+  date and a wall-clock time and nothing more: whether a UK time happened, happened twice or lies
+  in the future is the app's rule. `DateTimeInput` takes a `repeated` function from the app; when it
+  says a time happened twice, the input asks which with a required pair of radios ("01:30 BST,
+  before the clocks went back" or "GMT, after") and chooses neither. The web passes the domain rule
+  `resolveRecordedUkTime`, so the design system holds no time-zone rule of its own.
+- `Checkbox` wraps its input in the label, so the whole row is the target, and keeps a visible
+  focus ring when it is invalid; `RadioGroup` marks every radio `aria-invalid` with the group's
+  error. `TabNav` takes `currentAs` (`"page"` for sections with their own address, `"true"` for a
+  switch within a page, such as the chart kind) and shows a scroll shadow at an edge with more tabs
+  beyond it. A long `StatusChip` wraps rather than widening a narrow screen.
+- Hints, errors, status chips and the other text a carer reads to stay safe use the body-dense size
+  (15 px). Below 734 px the callout token rises from 14 px to 15 px and the caption token from
+  12 px to 13 px, so nothing read at the point of care is smaller than 15 px on a phone; captions
+  are left for badges and step numbers.
 - The primary button's hover state darkens the accent instead of using `--accent-hover` (#0077ed):
   white text on #0077ed is about 4.3:1, below AA, and Playwright's axe scans found it on a button
   the pointer rested on after a click. The token stays for other uses.

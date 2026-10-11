@@ -50,6 +50,7 @@
 | [HZ-025](#hz-025-bed-rail-entrapment-risk-not-identified) | Bed rail entrapment risk not identified | Major / Low / 3 | Major / Very low / 2 | Open | None (Phase 1) | Phase 1 |
 | [HZ-026](#hz-026-restrictive-or-covert-care-under-consent-or-authority-that-is-not-valid) | Restrictive or covert care under consent or authority that is not valid | Considerable / Medium / 3 | Considerable / Low / 2 | Open | None (Phase 1) | Phase 1 |
 | [HZ-027](#hz-027-head-injury-after-a-fall-not-observed-or-escalated) | Head injury after a fall not observed or escalated | Major / Medium / 3 | Major / Low / 3 | Open | None (Phase 1) | Phase 1 |
+| [HZ-029](#hz-029-an-entry-recorded-twice-when-a-save-is-tried-again) | An entry recorded twice when a save is tried again | Considerable / Medium / 3 | Considerable / Low / 2 | Open | Append-only entries with client UUIDs (Phase 0 conflict model) | Phase 1 |
 
 Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
@@ -91,7 +92,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Type | Control | When |
 | --- | --- | --- |
 | Design | Point-of-care header on every person screen shows photo, full and preferred name, date of birth, room, allergies and communication needs (master prompt 10). The offline person table carries photo and communication needs (`packages/sync`) | Built in Phase 0 |
-| Design | The web record keeps the point-of-care header in the layout above every tab of the person's record (overview, care plan, assessments, risk assessments, notes, charts, body map, advance care, activities and visits, history), with the resuscitation status and IDDSI levels added (HZ-015, HZ-016) | Built in Phase 1 slice 9 (web) |
+| Design | The web record shows the point-of-care header above every tab of the person's record (overview, care plan, assessments, risk assessments, notes, charts, body map, advance care, activities and visits, history), with the resuscitation status and IDDSI levels (HZ-015, HZ-016). Each tab renders the header itself, so every tab move reads it again (HZ-002); its data is checked against the API's schema when it arrives, and a person who cannot be read safely shows a warning instead of details that may be wrong | Built in Phase 1 slice 9 (web) |
 | Design | A missing photo shows a labelled placeholder ("No photo on record", icon plus words), never a silhouette that could be mistaken for a photo; the photo's date is shown and an old photo prompts an update | Phase 1 |
 | Design | "Similar name" flag (icon plus words) in the header of every active person at a location who shares a family name or has a similar name with another | Phase 1 |
 | Design | No automatic advance after saving: the app confirms the save naming the person and returns to that person or the list | Phase 1 |
@@ -123,7 +124,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain/src/people/occupancy.test.ts`: `hazard HZ-001 two people in one bed on the same day`, `a bed someone else occupies`, `labels the room shown on the header from the history` | Passing (Phase 1) |
 | `packages/domain/src/people/lifecycle.test.ts` and `exit.test.ts`: `hazard HZ-001 a death recorded in error is corrected only with a reason and a fresh sign-in`, `cancels a death recorded in error only with a reason and step-up` | Passing (Phase 1) |
 | `packages/domain/src/people/transfer-pack.test.ts`: `hazard HZ-001 refuses a pack whose sections belong to someone else`, `hazard HZ-001 no photo`; `admission.test.ts`: `hazard HZ-001 accepts no photo with a reason` (welcome checklist) | Passing (Phase 1) |
-| `apps/web/e2e/care-record.spec.ts` (Playwright with axe, WCAG 2.2 AA): `hazard HZ-001 hazard HZ-015 the header shows the resuscitation status on every tab, and 'not recorded' as a warning` (the header, with name, allergies, resuscitation status and IDDSI levels, above all ten tabs; axe on each) | Passing (Phase 1 slice 9) |
+| `apps/web/e2e/care-record.spec.ts` (Playwright with axe, WCAG 2.2 AA): `hazard HZ-001 hazard HZ-015 the header shows the resuscitation status, allergies and IDDSI levels on every tab, and 'not recorded' as a warning` (on each of the ten tabs: the name, the allergies in words, the resuscitation status, the food and drink IDDSI levels and when the header was read; axe on each tab in the light and the dark theme); `the record reflows at 320 px` (header and tabs fit, only the tab row scrolls) | Passing (local run; CI e2e-web on the PR) |
+| `apps/web/src/lib/care-record.test.ts`: `hazard HZ-001 refuses a person whose identity or allergies cannot be read` | Passing (Phase 1 slice 9) |
 
 ---
 
@@ -148,6 +150,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 - PowerSync service outage.
 - An assignment change not yet reflected on the device.
 - A server restore to a point in time earlier than data the device already holds ([restore runbook](../runbooks/restore.md)).
+- On the web, a header drawn once and kept while the person moves between tabs (a shared layout), or a page left open, so a colleague's change (a withdrawn DNACPR, a new allergy) does not show.
 
 **Effects**
 
@@ -163,6 +166,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Type | Control | When |
 | --- | --- | --- |
 | Design | Sync status banner on every Care-mode screen showing online or offline state, the time of the last successful sync and the number of queued changes | Built in Phase 0 |
+| Design | The web point-of-care header is read again from the API on every tab move, every two minutes while the page is in view and when the person comes back to the window; it says when it was read ("Checked at 14:05") and has a "Check again" button. The interval is a product constant (`HEADER_REFRESH_INTERVAL_MS`), not a rate-table figure | Built in Phase 1 slice 9 (web) |
 | Design | Stale-data warning: when the last successful sync is older than the threshold the banner switches to a warning state (icon plus words, for example "Last updated 3 hours ago. Information may be out of date"). The threshold is a named constant in `packages/sync`; the CSO confirms its value `[CSO decision - human action]` | Built in Phase 0 |
 | Design | Reference data for assigned people (care plan summary, allergies, medicines, photo, communication needs) is never evicted while the assignment stands (`NEVER_EVICT_TABLES` in `packages/sync`) | Built in Phase 0 |
 | Design | Safety-critical panels (allergies, medicines, resuscitation decision) show when that data was last confirmed from the server | Phase 1 |
@@ -181,6 +185,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Test | Status |
 | --- | --- |
 | `packages/ui-native/src/logic/sync-banner.test.ts`: `warns that offline data may be out of date past the threshold (HZ-002)`; stale warning kept until caught up (threshold 15 minutes, ADR-0029; CSO to confirm) | Passing (Phase 0) |
+| `apps/web/e2e/care-record.spec.ts` (Playwright with axe, WCAG 2.2 AA): `hazard HZ-002 hazard HZ-015 a colleague's change to the CPR decision shows in the header after one tab move` (a second browser context records and then withdraws a DNACPR decision; the first sees each change after one tab move, and after "Check again") | Passing (local run; CI e2e-web on the PR) |
 | `packages/sync`: `hazard HZ-002 banner state is stale when the last successful sync exceeds the threshold` | Planned, Phase 1 |
 | `packages/sync`: `hazard HZ-002 reference data for assigned people is never evicted while the assignment stands` | Planned, Phase 1 |
 | `packages/ui-native`: `hazard HZ-002 allergy, medicines and resuscitation panels show when data was last confirmed` | Planned, Phase 1 |
@@ -552,6 +557,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Schedules defined as wall-clock times in the location's time zone (Europe/London in England) and expanded to instants with the IANA time-zone database, never by adding 24 hours | Phase 2 |
 | Design | Transition rule (proposed; CSO to confirm `[CSO decision - human action]`): a dose in the skipped spring hour moves later by the length of the gap (01:30 becomes 02:30 BST) and is flagged on the round; a dose in the repeated autumn hour happens once, at the first occurrence | Phase 2 |
 | Design | Recorded event times (proposed; CSO to confirm `[CSO decision - human action]`): one domain rule, `resolveRecordedUkTime`, for every screen where a person types when something happened, web and mobile. A time in the skipped spring hour is refused; a time in the repeated autumn hour is asked about (BST before the clocks went back, or GMT after) when both have passed, with no default; a time ahead of the clock beyond the drift tolerance is refused and never rolled back to an earlier day. Computed times (schedules, deadlines) keep `fromUkWallClock` | Built in Phase 1 (domain) |
+| Design | The web record reads every typed event time through `resolveRecordedUkTime`, in separate day, month, year, hour and minute boxes (so the browser's language cannot swap the day and month); in the repeated hour a required question asks which time, with nothing chosen; the skipped hour and future times are refused. "Now" is the instant the form is sent, not when the page was drawn. Times on the two clock-change days show BST or GMT beside them | Built in Phase 1 slice 9 (web) |
 | Design | Minimum intervals and maximum-in-24-hours computed on elapsed time between UTC instants | Phase 2 |
 | Design | Times always displayed in the location's time zone, 24-hour clock; on transition days the round view states that the clocks changed | Phase 2 |
 | Design | A device whose time zone differs from the location's shows a warning; displayed times stay in the location's zone | Phase 1 |
@@ -567,6 +573,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | --- | --- |
 | `packages/domain/src/shared/time.test.ts`: `hazard HZ-009 UK offset`, `fromUkWallClock` (spring-forward gap and autumn overlap), `addUkDays keeps the wall-clock time across a clock change` | Passing (Phase 0) |
 | `packages/domain/src/shared/time.test.ts`: `hazard HZ-009 ukWallClockOccurrences on every minute of the clock-change days` (every minute of 29/03/2026, 25/10/2026, 28/03/2027 and 31/10/2027) and `hazards HZ-009, HZ-010 and HZ-017 resolveRecordedUkTime` (skipped, ambiguous, one past occurrence, future beyond tolerance, impossible dates), run under `TZ=Europe/London`, `TZ=UTC` and `TZ=America/New_York` | Passing (Phase 1) |
+| `apps/web/src/lib/uk-time.test.ts`: `hazard HZ-009 hazard HZ-017 reads every minute of 29/3/2026`, `25/10/2026`, `28/3/2027` and `31/10/2027` `through the form, by the domain rule`; `says the clocks went forward, and asks which time when they went back`; `does not ask when only the first 01:30 has happened yet`; `takes 'now' when the form is sent, not when the page was drawn` (each run with the process in Europe/London, America/New_York and UTC); `packages/ui/src/lib/zoned-time.test.ts`: `hazard HZ-009 hazard HZ-017 shows UK time on every device, across both clock changes`; `packages/ui/src/components/DateInput/DateInput.test.tsx`: `hazard HZ-009 hazard HZ-017 asks which time was meant only when the app's rule says it happened twice`; `apps/web/src/lib/format.test.ts`: `hazard HZ-009 hazard HZ-017 names the zone only on the days the clocks change` | Passing (Phase 1 slice 9) |
 | `packages/domain/src/platform/tasks.test.ts`: `hazard HZ-009 recurring tasks keep UK local times across clock changes` (daily times stay local; a time in the spring gap moves an hour later; hourly intervals count elapsed time) | Passing (Phase 1) |
 | `packages/domain` (medicines): `hazard HZ-009 a 01:30 dose on a spring-forward day moves to 02:30 BST and is flagged` | Planned, Phase 2 |
 | `packages/domain` (medicines): `hazard HZ-009 a 01:30 dose on a clocks-back day occurs once` | Planned, Phase 2 |
@@ -607,6 +614,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Drift over 5 minutes is flagged on the device and on every record written while drifted (master prompt 10.3) | Phase 1 |
 | Design | A record whose device time is later than its server-received time, or far earlier, raises a manager review flag; a note written more than 2 hours after the event carries the late-entry flag | Phase 1 |
 | Design | The history view shows both device and server times | Phase 1 |
+| Design | The web sends the device's clock reading with every entry (`x-harbour-sent-at`), so the API flags an entry from a browser whose clock is wrong; the entry shows "Device clock differed" in words and an icon | Built in Phase 1 slice 9 (web) |
 | Design | Interval checks on the device use a drift-corrected clock when drift is known | Phase 2 |
 | Test | See Verification | Phase 1, Phase 2 |
 | Training and user documentation | Care worker guide: never change the device time. Deployer control: MDM policy enforces automatic network time on shared devices ([kiosk.md](../compliance/kiosk.md)) | Phase 1 |
@@ -618,6 +626,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Test | Status |
 | --- | --- |
 | `packages/domain/src/shared/time.test.ts`: `hazard HZ-010 clock drift` (5-minute tolerance) | Passing (Phase 0) |
+| `apps/web/src/components/care/EntryBadges.test.ts`: `hazard HZ-010 says when the device clock differed from the server's`; `apps/web/src/lib/uk-time.test.ts`: `hazard HZ-010 hazard HZ-017 refuses a time later than now, beyond the clock tolerance` | Passing (Phase 1 slice 9) |
 | `packages/db`: append-only event columns keep device time, device offset and server-received time | Built in Phase 0 |
 | `apps/api`: `hazard HZ-010 every uploaded event is stamped with server-received time` | Planned, Phase 1 |
 | `packages/sync`: `hazard HZ-010 drift over 5 minutes between device and server is flagged` | Planned, Phase 1 |
@@ -696,7 +705,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 
 **Description**: a NEWS2, MUST or Waterlow score (and later Braden, Abbey, PAINAD and the other tools in master prompt 10.1) is calculated, banded or displayed wrongly, or the wrong version or scale is used (for example NEWS2 SpO2 Scale 2 for a person who has no clinical decision for it).
 
-**Causes**: transcription errors in scoring tables; boundary errors (less than versus less than or equal); unit conversions (weight, height, temperature); rounding of BMI; a missing value treated as zero; a tenant editing a locked template; new confusion not scored as the published value; supplemental oxygen not scored; MUST weight-loss percentage over the wrong period; Waterlow multi-select categories summed wrongly; mixing observations taken at different times.
+**Causes**: transcription errors in scoring tables; boundary errors (less than versus less than or equal); unit conversions (weight, height, temperature); rounding of BMI; a missing value treated as zero; a form that pre-selects an answer (for example "Air" and "Alert" on the NEWS2 form), so an unanswered question is scored as normal; a tenant editing a locked template; new confusion not scored as the published value; supplemental oxygen not scored; MUST weight-loss percentage over the wrong period; Waterlow multi-select categories summed wrongly; mixing observations taken at different times.
 
 **Effects**: under-scoring leads to missed deterioration (for example sepsis), missed malnutrition referral or pressure-ulcer prevention not started, causing severe harm or death; over-scoring leads to unnecessary escalation.
 
@@ -709,6 +718,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Validated tools are locked templates implemented exactly as published, with the publisher, edition and source cited in code and on screen; tenants cannot edit scoring | Phase 1 |
 | Design | The screen shows every parameter's sub-score, the total and the published banding table, so the user can check the arithmetic | Phase 1 |
 | Design | Missing inputs produce no total ("Score incomplete: 2 values missing"), never a partial total | Phase 1 |
+| Design | Nothing is pre-selected on the web forms for validated tools; an unanswered question is refused at its own field (NEWS2 air or oxygen, and consciousness). Without the care profile the SpO2 scale is unknown, so vital signs are not offered | Built in Phase 1 slice 9 (web) |
 | Design | NEWS2 SpO2 Scale 2 is available only when a registered clinician has recorded that decision and target range on the person's record | Phase 1 |
 | Design | The result links to the tenant's escalation policy; Harbour adds no recommendation of its own | Phase 1 |
 | Design | Each stored score records the tool edition and the code version that calculated it | Built in Phase 1 slice 4b: the server runs the tool by key and stores the version, answers, score, band and workings; the client never sends a score |
@@ -740,7 +750,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain/src/care/validated-assessment.test.ts`: `hazard HZ-012 the tool runs on the server by its key` (MUST, Waterlow, Braden and the NG249 pathway stored with tool version, score, band and workings; the falls pathway with no score and no band; no result for incomplete answers) | Passing |
 | `apps/api/test/care-planning.test.ts`: `hazard HZ-012 refuses Braden where its licence flag is off (H-25), and allows it in the demo tenant` | Passing |
 | `packages/domain` (platform): `hazard HZ-012 tenants cannot edit locked validated templates` | Planned, Phase 1 |
-| `apps/web/e2e/care-record.spec.ts` (Playwright with axe, WCAG 2.2 AA): `hazard HZ-012 a nurse runs MUST and sees the API's score, band, workings and follow-ups` (the web sends answers only; the result shows each item's points, the total, the band in the publisher's words and the source); `apps/web/src/lib/assessments.test.ts`: `hazard HZ-012 names the publisher, edition and source the API calculates from` | Passing (Phase 1 slice 9) |
+| `apps/web/e2e/care-record.spec.ts` (Playwright with axe, WCAG 2.2 AA): `hazard HZ-012 a nurse runs MUST and sees the API's score, band, workings, follow-ups and source` (the web sends answers only; the test checks each step's points in the workings, the total, the band in the publisher's words and the source link); `hazard HZ-014 vital signs show the NEWS2 result and the RCP response the API returns` (saving with air or oxygen and consciousness unanswered is refused at those fields) | Passing (local run; CI e2e-web on the PR) |
+| `apps/web/src/lib/assessments.test.ts`: `hazard HZ-012 names the publisher, edition and source the API calculates from`; `hazard HZ-012 words every MUST and Waterlow band in the catalogue, never by its code` (against the domain's band types); `apps/web/src/lib/assessment-answers.test.ts`: `answer options match the API's contract`; `apps/web/src/lib/chart-entry.test.ts`: `hazard HZ-012 hazard HZ-014 refuses vital signs until air or oxygen and consciousness are chosen` | Passing (Phase 1 slice 9) |
 | `apps/web` Playwright: `hazard HZ-012 the score screen shows the full published banding table beside the band` | Planned, Phase 1 |
 
 ---
@@ -852,8 +863,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `apps/api/test/care-planning.test.ts`: `hazard HZ-014 MUST high raises the dietitian referral and sets next_due_on` (the rescreen and weight-check tasks are scheduled, one open at a time, and the next result answers the rescreen); `a weight answers the weight check and schedules the next at the MUST interval` | Passing |
 | `apps/api`: `hazard HZ-014 an urgent assessment alert escalates until acknowledged` | Planned, Phase 1 |
 | `apps/api/test/care.test.ts`: `hazard HZ-012 and HZ-014 NEWS2 vital signs` (a high score alerts the nurse in charge and creates the urgent response and continuous-monitoring tasks; a score of 0 schedules nothing outside the care plan) | Passing |
-| `apps/web/src/lib/charts.test.ts`: `hazard HZ-014 reads the score, band and the RCP's response wording as stored`; `apps/web/src/lib/assessments.test.ts`: `hazard HZ-014 says what a result raised in the API's words, and leaves out what it cannot read` | Passing (Phase 1 slice 9) |
-| `apps/web/e2e/care-record.spec.ts` (Playwright with axe, WCAG 2.2 AA): `hazard HZ-014 vital signs show the NEWS2 result and the RCP response the API returns` (score 6, clinical risk Medium, "Key threshold for urgent response", minimum 1 hourly, with the workings) | Passing (Phase 1 slice 9) |
+| `apps/web/src/lib/charts.test.ts`: `hazard HZ-014 reads the score, band and the RCP's response wording as stored`; `hazard HZ-014 counts workings it cannot read, and never assumes SpO2 scale 1`; `apps/web/src/lib/assessments.test.ts`: `hazard HZ-014 never shows a result that raised something unknown as if it raised nothing`; `apps/web/src/lib/assessments.test.ts`: `hazard HZ-014 says what a result raised in the API's words, and leaves out what it cannot read` | Passing (Phase 1 slice 9) |
+| `apps/web/e2e/care-record.spec.ts` (Playwright with axe, WCAG 2.2 AA): `hazard HZ-014 vital signs show the NEWS2 result and the RCP response the API returns` (score 6, clinical risk Medium, "Key threshold for urgent response", minimum 1 hourly, with the workings) | Passing (local run; CI e2e-web on the PR) |
 
 ---
 
@@ -869,7 +880,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 
 **Description**: staff cannot see, at the moment they need it, whether the person has a ReSPECT plan, DNACPR decision or advance decision to refuse treatment, or they see one that has been withdrawn or replaced.
 
-**Causes**: the document is filed but not flagged; an old version is shown; the record is not available offline or in the downtime pack; the hospital transfer pack omits it.
+**Causes**: the document is filed but not flagged; an old version is shown; the record is not available offline or in the downtime pack; the hospital transfer pack omits it; on the web, a header kept from an earlier tab after a colleague withdrew or recorded a decision (HZ-002); a status the screen does not know shown as if it were "Attempt CPR".
 
 **Effects**: resuscitation attempted against the person's wishes, or not attempted when it should have been; distress to the person and family.
 
@@ -882,6 +893,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | The point-of-care header shows the current resuscitation status (word and icon) with the date and clinician; a missing record shows as 'Not recorded', never as blank | Built in Phase 1 slice 9 (web: a warning chip that says to check the paper record; records that disagree are the strongest warning; an overdue review keeps the decision and says it still stands); mobile in slice 10 |
 | Design | The person summary every point-of-care header reads carries the resuscitation status in force from an active ReSPECT or DNACPR record, with the clinician and dates, or `not_recorded`; records in force that disagree are flagged; a passed review date never hides a decision | Built in Phase 1 slice 4b (screens in slice 9) |
 | Design | Only one active record per kind; recording a new one supersedes the old; review dates raise tasks | Built in Phase 1 slice 4b (database partial unique index; hourly review job) |
+| Design | The web header is read again on every tab move and says when (HZ-002); the resuscitation status is checked against the API's schema, and one that cannot be read, or that this version does not know, shows "CPR decision could not be read" as the strongest warning, never "Attempt CPR". Withdrawing a ReSPECT plan or DNACPR decision says first that the header will then show "CPR decision not recorded" unless another record is in force | Built in Phase 1 slice 9 (web) |
 | Design | Advance care records are reference data on the device (never evicted while assigned), in the downtime pack and in the hospital transfer pack | Phase 1 |
 | Training and user documentation | Deployer control: the original signed form stays with the person as the home's policy requires; Harbour shows the record, it is not the legal document | Phase 1 |
 
@@ -898,8 +910,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `apps/api`: `hazard HZ-015 the transfer pack and the downtime pack include the current resuscitation record` | Planned, Phase 1 |
 | `packages/domain/src/people/pre-admission.test.ts`: `hazard HZ-015 requires the resuscitation and advance care section` | Passing (Phase 1) |
 | `packages/domain/src/people/transfer-pack.test.ts`: `hazard HZ-015 no resuscitation record`, `only a withdrawn resuscitation record`, `prints only the active resuscitation record` | Passing (Phase 1) |
-| `apps/web/src/lib/care-record.test.ts`: `hazard HZ-015 a missing decision reads as a warning, never blank or calm`; `a DNACPR decision shows the word, icon, source and clinician`; `an overdue review keeps the decision and says it still stands`; `records that disagree are the strongest warning` | Passing (Phase 1 slice 9) |
-| `apps/web/e2e/care-record.spec.ts` (Playwright with axe, WCAG 2.2 AA): `hazard HZ-001 hazard HZ-015 the header shows the resuscitation status on every tab, and 'not recorded' as a warning`; `hazard HZ-015 a DNACPR decision recorded on the advance care tab shows in the header on every tab` | Passing (Phase 1 slice 9) |
+| `apps/web/src/lib/care-record.test.ts`: `hazard HZ-015 a missing decision reads as a warning, never blank or calm`; `a DNACPR decision shows the word, icon, source and clinician`; `an overdue review keeps the decision and says it still stands`; `records that disagree are the strongest warning`; `a status that could not be read, or is unknown, is a warning, never 'Attempt CPR'`; `keeps the person but marks a resuscitation status it cannot read` | Passing (Phase 1 slice 9) |
+| `apps/web/e2e/care-record.spec.ts` (Playwright with axe, WCAG 2.2 AA): `hazard HZ-001 hazard HZ-015 the header shows the resuscitation status, allergies and IDDSI levels on every tab, and 'not recorded' as a warning`; `hazard HZ-015 a DNACPR decision recorded on the advance care tab shows in the header on every tab`; `hazard HZ-002 hazard HZ-015 a colleague's change to the CPR decision shows in the header after one tab move` | Passing (local run; CI e2e-web on the PR) |
 
 ---
 
@@ -915,7 +927,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 
 **Description**: the person's prescribed IDDSI food or drink level is shown wrongly, or food or fluid of a different level is recorded as given without challenge.
 
-**Causes**: levels shown as numbers only; the prescribed level is out of date after a speech and language therapy review; the food chart accepts any level silently.
+**Causes**: levels shown as numbers only; the prescribed level is out of date after a speech and language therapy review; the food chart accepts any level silently; a form that pre-selects the prescribed level, so the record says the right texture was given without anyone choosing it; a drink level left optional when one is prescribed; a viewer who cannot read the care profile told "No level prescribed".
 
 **Effects**: choking, aspiration pneumonia, death.
 
@@ -927,6 +939,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | --- | --- | --- |
 | Design | The prescribed food and drink levels show with their IDDSI number, name and colour in the header and on the food and fluid charts | Built in Phase 1 slice 9 (web: the header, and beside the level chosen on the food and drink forms, which ask for a reason on a mismatch); mobile in slice 10 |
 | Design | Recording a level that does not match the prescribed level needs an override reason and raises an alert to the nurse in charge | Phase 1 |
+| Design | The web food and drink forms pre-select no level: the texture given is chosen every time, with the prescribed level shown beside it. A drink level is required when one is prescribed (the API to require it too: a planned API change, listed in care.md section 10). A viewer who cannot read the care profile is told the prescribed level is not available to them; the header says so too | Built in Phase 1 slice 9 (web) |
 | Design | A change of prescribed level records who changed it, on whose advice, and shows as new for 72 hours | Phase 1 |
 | Training and user documentation | Deployer control: kitchen and dietary profiles are kept in step (Phase 3 catering links them) | Phase 1 |
 
@@ -940,7 +953,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain` (care): `hazard HZ-016 recorded IDDSI levels are checked against the prescribed level` | Passing |
 | `packages/domain` (care): `hazard HZ-016 IDDSI levels show number, name and colour` | Passing |
 | `apps/web/src/lib/care-record.test.ts`: `hazard HZ-016 food level 5 shows number, name and colour` (and the other levels, and no level prescribed); `apps/web/src/lib/charts.test.ts`: `hazard HZ-016 shows IDDSI levels with number, name and colour` | Passing (Phase 1 slice 9) |
-| `apps/web/e2e/care-record.spec.ts` (Playwright with axe, WCAG 2.2 AA): `hazard HZ-016 food at a texture other than the prescribed level is refused without a reason` (the header shows the prescribed level; the form shows it beside the choice; the API's refusal is shown word for word, then the entry with its reason is saved) | Passing (Phase 1 slice 9) |
+| `apps/web/e2e/care-record.spec.ts` (Playwright with axe, WCAG 2.2 AA): `hazard HZ-016 food at a texture other than the prescribed level is refused without a reason` (the header shows the prescribed level; the form shows it beside the choice with nothing chosen; saving without a level is refused at the level; the API's refusal is shown in the catalogue's words at the level and the reason, then the entry with its reason is saved) | Passing (local run; CI e2e-web on the PR) |
+| `apps/web/src/lib/chart-entry.test.ts`: `hazard HZ-016 needs the texture given for food, and for a drink when a level is prescribed`; `apps/web/src/lib/refusals.test.ts`: `hazard HZ-016 puts a texture without its reason at the reason and the level`; `apps/web/src/lib/care-record.test.ts`: `hazard HZ-016 marks a care profile it cannot read` | Passing (Phase 1 slice 9) |
 | `apps/api/test/care.test.ts`: `hazard HZ-016 IDDSI levels` (a level change needs who advised it; food above the prescribed level needs a reason and alerts) | Passing |
 | `packages/domain/src/people/pre-admission.test.ts`: `hazard HZ-016 never lets eating, drinking and swallowing be marked not applicable`; `transfer-pack.test.ts`: `hazard HZ-016 re-checks allergies, resuscitation decisions and IDDSI levels on return` | Passing (Phase 1) |
 
@@ -986,6 +1000,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/db/test/care-planning.test.ts`: `hazard HZ-017 assessments, activities and visits are append-only` (UPDATE and DELETE refused for the app and by trigger; a correction supersedes with a reason and only for the same person; replayed device ids ignored) | Passing |
 | `packages/domain/src/care/validated-assessment.test.ts`: `hazard HZ-017 corrections supersede with a reason` | Passing |
 | `apps/api/test/care-planning.test.ts`: `hazard HZ-017 corrects a result by superseding it with a reason, and reads the latest per tool`; `hazard HZ-017 ignores a replayed upload with the same device id` | Passing |
+| `apps/web/src/components/care/EntryBadges.test.ts`: `hazard HZ-017 says an entry was written late, with when it was recorded, in words and an icon`; `apps/web/src/lib/uk-time.test.ts`: the HZ-009 and HZ-017 entry time tests (a time later than now is refused; a note correction keeps the original instant) | Passing (Phase 1 slice 9) |
 
 ---
 
@@ -1063,8 +1078,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain` (care): `hazard HZ-019 a mark whose drawn side and stated side differ cannot be saved` | Passing |
 | `packages/domain` (care): `hazard HZ-019 body map sides are the person's own left and right` | Passing |
 | `apps/api/test/care.test.ts`: `hazard HZ-019 body map` (a mark whose stated side differs from the drawing is refused; a category 3 ulcer prompts an incident and the safeguarding guide) | Passing |
-| `apps/web/src/lib/body-map.test.ts`: `hazard HZ-019 match the API's regions and the sides each allows, on both views`; `hazard HZ-019 places the person's left on your right on the front view and on your left on the back`; `apps/web/src/lib/outcome.test.ts`: `hazard HZ-019 shows the API's own words when it refuses an entry by rule` | Passing (Phase 1 slice 9) |
-| `apps/web/e2e/care-record.spec.ts` (Playwright with axe, WCAG 2.2 AA): `hazard HZ-019 a body map mark whose side in words differs from the drawing is refused` (a tap on the front view's knee on your right, the person's left, with "Right" chosen in words, is refused in the API's words; the list then records the person's right knee) | Passing (Phase 1 slice 9) |
+| `apps/web/src/lib/body-map.test.ts`: `hazard HZ-019 match the API's regions and the sides each allows, on both views`; `hazard HZ-019 places the person's left on your right on the front view and on your left on the back`; `hazard HZ-019 reads the midline and either side of it the same way as the domain, on both views`; `apps/web/src/lib/refusals.test.ts`: `hazard HZ-019 says a side mismatch in the catalogue's words, at the side and the area` (the rule run in the domain package) | Passing (Phase 1 slice 9) |
+| `apps/web/e2e/care-record.spec.ts` (Playwright with axe, WCAG 2.2 AA): `hazard HZ-019 a body map mark whose side in words differs from the drawing is refused` (a tap on the front view's knee on your right, the person's left, with "Right" chosen in words, is refused, with the error at the side question and the body area list; the list then records the person's right knee); `keyboard only: move between tabs and record a body map mark with the area list and the side in words` | Passing (local run; CI e2e-web on the PR) |
 
 ---
 
@@ -1279,7 +1294,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/db/test/care-planning.test.ts`: integrity rules (a second active care plan is refused; child rows cannot claim another person) | Passing |
 | `apps/api/test/care-planning.test.ts`: `hazard HZ-024 raises one review task to the nurse in charge for an overdue first plan or review`; `hazard HZ-024 publishes a draft, supersedes it with the next version and keeps both` | Passing |
 | `apps/web/src/lib/assessments.test.ts`: `hazard HZ-024 labels every version in word and icon, and only the active one as in use` | Passing (Phase 1 slice 9) |
-| `apps/web/e2e/care-record.spec.ts` (Playwright with axe, WCAG 2.2 AA): `hazard HZ-024 a draft care plan is labelled as not in use until it is published with sign-off` (the draft shows its status and the draft notice; once published with who agreed it, the plan in use and the versions table show one version in use and no draft) | Passing (Phase 1 slice 9) |
+| `apps/web/e2e/care-record.spec.ts` (Playwright with axe, WCAG 2.2 AA): `hazard HZ-024 a draft care plan is labelled as not in use until it is published with sign-off` (the draft shows its status and the draft notice; once published with who agreed it, the plan in use and the versions table show one version in use and no draft) | Passing (local run; CI e2e-web on the PR) |
 
 ---
 
@@ -1407,6 +1422,47 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain` (safety): `hazard HZ-013 open questions, provisional drafts and tasks` (a fall on anticoagulants raises urgent advice and timed observations) | Passing |
 | `apps/api`: `hazard HZ-027 a fall creates the post-fall tasks with the observation schedule` | Planned, Phase 1 |
 | Maestro `hazard-HZ-027-post-fall-observations.yaml` | Planned, Phase 1 |
+
+---
+
+## HZ-029 An entry recorded twice when a save is tried again
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-029 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `care` module and `apps/web` (lead engineer) |
+| Source | Clinical review of the slice 9 web screens (finding M4); master prompt 6 (client UUIDs and idempotent inserts) |
+
+**Description**: a note, chart entry, body-map mark, assessment, activity or visit is recorded twice because a save was tried again after its outcome was unknown, so the record shows two events where there was one.
+
+**Causes**: the connection drops after the server saved the entry but before the reply arrived; the person presses Save again after an error message; a form that makes a new id on every attempt; a record type whose create route takes no client id (advance care records, risk assessments and care plan actions today).
+
+**Effects**: a fluid intake counted twice overstates the day's total and hides a shortfall (dehydration); a repeated NEWS2 or repositioning entry misrepresents the observations or turns given; a duplicated body-map mark or incident note misleads a review; a duplicated advance care record could confuse which decision is in force.
+
+**Initial risk**: severity Considerable, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Every append-only entry carries a client UUIDv7 made by the form; the same id is sent with every attempt and a new one is made only after a confirmed save (`useEntryId`, `apps/web/src/lib/entry-id.ts`) | Built in Phase 1 slice 9 (web) |
+| Design | The API inserts with the client id and ignores a replay with the same id for the same person, returning the entry already saved; an id used for another person is refused | Built in Phase 1 slices 4a and 4b |
+| Design | Mutable records (care plans, risk assessment reviews, closing and withdrawing) carry the version read, so a repeated update is refused as a conflict rather than applied twice | Built in Phase 1 slice 4b |
+| Design | Advance care records, risk assessments and care plan actions take a client id on create (an API gap, listed in care.md section 10) | Planned, Phase 1 |
+| Test | See Verification | Phase 1 |
+
+**Target residual risk**: severity Considerable, likelihood Low, **risk 2**.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `apps/web/src/lib/entry-id.test.ts`: `uuidv7 (hazard HZ-029) makes RFC 9562 version 7 ids that the API's contracts accept`; `orders ids by time and makes a new one each time` | Passing (Phase 1 slice 9) |
+| `packages/db/test/care-record.test.ts`: corrections supersede; replayed device ids are ignored | Passing |
+| `apps/api/test/care-planning.test.ts`: `hazard HZ-017 ignores a replayed upload with the same device id` | Passing |
+| `apps/api`: `hazard HZ-029 an advance care record, risk assessment or care plan action sent twice with the same client id is recorded once` | Planned, Phase 1 |
 
 ---
 
