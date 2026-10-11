@@ -19299,7 +19299,7 @@
           "sync"
         ],
         "summary": "A device's unsent work: counts and the oldest age, no personal data",
-        "description": "Writes an audit event with the device's queued, refused and held counts and the age of the oldest, so the server knows what a lost or wiped device held (HZ-006). While anything waits, the device has one task for the Registered Manager, due when its hold escalates; a report with nothing waiting closes it.",
+        "description": "Writes an audit event with the device's queued, refused and held counts and the age of the oldest, so the server knows what a lost or wiped device held (HZ-006). Any member of the organisation may report, so a device whose Care mode access was withdrawn can still report its hold. While anything waits, the device has one task for the Registered Manager, due when its hold escalates; a report with nothing waiting closes it.",
         "security": [
           {
             "bearerAuth": []

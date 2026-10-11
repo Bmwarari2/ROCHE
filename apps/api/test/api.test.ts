@@ -787,6 +787,16 @@ describe("offline sync", () => {
       expect(tasks.map((t) => t.status)).toEqual(["done"]);
     });
 
+    it("hazard HZ-040 takes a hold's report from a member whose Care mode access was withdrawn (round 4, H2)", async () => {
+      // The agency worker is a member here with no role, so without people.person.read.
+      const device = "0199d000-0000-4000-8000-00000000de04";
+      const heldSince = new Date(Date.now() - 3_600_000).toISOString();
+      expect((await report(h.tokens.agency, { held: 1, heldSince }, device)).status).toBe(204);
+      expect((await deviceTasks(device)).map((t) => t.status)).toEqual(["open"]);
+      // Not a member at all: refused.
+      expect((await report(h.tokens.rae, { held: 1, heldSince }, device)).status).toBe(403);
+    });
+
     it("limits each person's reports per hour (round 4, M4)", async () => {
       let last: Response | null = null;
       for (let i = 0; i < 121; i += 1) last = await report(h.tokens.owner, {});

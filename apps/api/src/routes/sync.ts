@@ -274,13 +274,16 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         tags: ["sync"],
         summary: "A device's unsent work: counts and the oldest age, no personal data",
         description:
-          "Writes an audit event with the device's queued, refused and held counts and the age of the oldest, so the server knows what a lost or wiped device held (HZ-006). While anything waits, the device has one task for the Registered Manager, due when its hold escalates; a report with nothing waiting closes it.",
+          "Writes an audit event with the device's queued, refused and held counts and the age of the oldest, so the server knows what a lost or wiped device held (HZ-006). Any member of the organisation may report, so a device whose Care mode access was withdrawn can still report its hold. While anything waits, the device has one task for the Registered Manager, due when its hold escalates; a report with nothing waiting closes it.",
         security,
         request: { body: { content: { "application/json": { schema: SyncDeviceReport } } } },
         responses: { 204: { description: "Recorded" }, ...errorResponses },
       }),
       async (c) => {
-        const access = await requirePermission(c, "people.person.read");
+        // Any member of the organisation may report what their device holds: counts and times, no
+        // personal data. A hold often starts because the access Care mode needs was withdrawn, and
+        // its report must still get through at once (clinical review round 4, H2).
+        const access = c.get("access");
         reportQuota.take(access.tenantUserId);
         const report = c.req.valid("json");
         await withTenant(c, (tx) =>
