@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { t } from "@/lib/i18n";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "Harbour", template: "%s | Harbour" },
-  description: "Harbour care platform",
-  applicationName: "Harbour",
+  title: { default: t("app.name"), template: `%s | ${t("app.name")}` },
+  description: t("app.description"),
+  applicationName: t("app.name"),
   // Personal data lives behind sign-in; nothing here is for search engines.
   robots: { index: false, follow: false },
   referrer: "same-origin",
@@ -24,7 +25,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { readonly children: ReactNode }) {
   return (
-    <html lang="en-GB">
+    <html lang={t.locale}>
       <body className="bg-bg-secondary">{children}</body>
     </html>
   );

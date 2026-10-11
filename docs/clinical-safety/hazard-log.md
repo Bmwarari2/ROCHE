@@ -451,6 +451,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | --- | --- |
 | `packages/ui-native/src/logic/person.test.ts`: `allergy flag (HZ-007)` (unknown is never shown as calm; three states) | Passing (Phase 0) |
 | `packages/db`: `allergy_status` enum distinguishes `unknown`, `no_known_allergies` and `has_allergies`; `apps/api/test/api.test.ts` returns `unknown` for a person never asked | Passing (Phase 0) |
+| `apps/web/src/lib/people.test.ts`: `allergySummary` (unknown, and recorded as having allergies with none active, both read "Allergies not recorded", never "No known allergies") | Passing (Phase 0) |
+| `packages/i18n/src/i18n.test.ts`: `names allergy severities and shows one it does not know as recorded, never blank (HZ-007)` (web point-of-care header) | Passing (Phase 0) |
 | `packages/ui-native`: `hazard HZ-007 header shows allergy status not recorded when no allergy record exists` | Planned, Phase 1 |
 | `packages/ui`: `hazard HZ-007 web header shows allergy status not recorded when no allergy record exists` | Planned, Phase 1 |
 | `packages/domain` (people): `hazard HZ-007 no known allergies can only be recorded positively with author and time` | Planned, Phase 1 |

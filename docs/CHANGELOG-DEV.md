@@ -137,3 +137,36 @@ then their schema and API.
 
 **Tests**: `packages/domain` 1,836, `packages/db` 142, `apps/api` 161, all passing locally.
 
+## 2026-10-11: Web copy into the catalogues; text area and account menu in the design system
+
+**What changed**
+
+- i18n: every word in the web app's own code now comes from `@harbour/i18n` (138 new keys, 198 in
+  all; a few `@harbour/ui` defaults without a prop remain, see Next):
+  sign-in and set-up errors, the offline banner, people table headers, the person header, the
+  break-glass sheet, the security settings page, the home tiles, notifications and error pages.
+  Plurals, terminology and regulator names are ICU messages. Welsh has every key, marked
+  untranslated in `cy.status.json`; new tests fail if a Welsh entry is still English but unmarked,
+  or if an English message loses sentence case. `apps/web/src/copy.test.ts` parses every component
+  and fails on literal copy in JSX text or in attributes people read or hear.
+- `@harbour/ui`: `TextArea` (label, hint, error, character count with a maximum, described by all
+  three; a polite live region reads the count once typing pauses; text is never cut off) and
+  `AccountMenu` (Radix dropdown; name, email, organisation and location; link and action items;
+  keyboard and screen reader behaviour unchanged). Stories in both themes; axe runs over each. The
+  app bar now shortens organisation and location names on phones itself, and takes a translated
+  skip link label; the app-level CSS override is gone. Story-level axe options are honoured for
+  best-practice rules only (ADR-0026).
+- Web shell: uses the package `AccountMenu` (now also showing the location) and `TextArea` in
+  break-glass; one shared sign-out helper; break-glass reasons over 1,000 characters are refused
+  by the form and the server action with a message, instead of being cut off by the browser.
+- The manager journey waits for the sheet's fade-in before running axe; it had been measuring
+  contrast on a half-transparent frame.
+
+**Next**: label props for the remaining `@harbour/ui` English defaults (sidebar toggle, table
+density, "None selected") before Welsh tenants; then Phase 1 as in STATUS.md.
+
+**Human actions logged**: none.
+
+**Tests**: `packages/i18n` 34, `packages/ui` 233 (160 axe runs), `apps/web` 142 unit and 8
+Playwright journeys with axe, all passing locally; Biome, typecheck, Storybook build and the web
+production build clean.

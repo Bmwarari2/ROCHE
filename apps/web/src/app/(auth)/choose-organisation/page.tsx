@@ -7,7 +7,7 @@ import { t } from "@/lib/i18n";
 import { safeNextPath } from "@/lib/problems";
 import { SignOutButton } from "./SignOutButton";
 
-export const metadata: Metadata = { title: "Choose an organisation" };
+export const metadata: Metadata = { title: t("auth.chooseOrganisation.title") };
 
 /** For people who work for more than one provider: pick the organisation to act for. */
 export default async function ChooseOrganisationPage({
@@ -27,8 +27,8 @@ export default async function ChooseOrganisationPage({
         <EmptyState
           headingLevel={1}
           icon={<Building2 size={32} strokeWidth={1.5} aria-hidden="true" />}
-          title="You are not part of an organisation yet"
-          description="Ask your manager to invite you to Harbour. You can sign out and come back when they have."
+          title={t("auth.chooseOrganisation.noneTitle")}
+          description={t("auth.chooseOrganisation.noneBody")}
           action={<SignOutButton label={t("common.signOut")} />}
         />
       </Card>
@@ -38,11 +38,8 @@ export default async function ChooseOrganisationPage({
   return (
     <>
       <div className="flex flex-col gap-2">
-        <h1 className="m-0 text-title">Choose an organisation</h1>
-        <p className="m-0 text-body text-text-secondary">
-          You work for more than one organisation. Choose the one you are working for now. You can
-          switch at any time from the bar at the top of the page.
-        </p>
+        <h1 className="m-0 text-title">{t("auth.chooseOrganisation.title")}</h1>
+        <p className="m-0 text-body text-text-secondary">{t("auth.chooseOrganisation.body")}</p>
       </div>
       <Card padding="none">
         <ul className="m-0 list-none divide-y divide-border p-0">

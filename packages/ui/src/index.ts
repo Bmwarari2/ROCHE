@@ -7,6 +7,13 @@
  */
 
 export {
+  AccountMenu,
+  type AccountMenuActionItem,
+  type AccountMenuItem,
+  type AccountMenuLinkItem,
+  type AccountMenuProps,
+} from "./components/AccountMenu/AccountMenu";
+export {
   AppBar,
   type AppBarProps,
   type AppBarSwitcher,
@@ -61,6 +68,12 @@ export {
   type StepperFormStep,
   type StepperFormStepContext,
 } from "./components/StepperForm/StepperForm";
+export {
+  CHARACTER_COUNT_ANNOUNCE_DELAY,
+  defaultCharacterCount,
+  TextArea,
+  type TextAreaProps,
+} from "./components/TextArea/TextArea";
 export { TextField, type TextFieldProps } from "./components/TextField/TextField";
 export { Tile, type TileLink, type TileProps } from "./components/Tile/Tile";
 export {

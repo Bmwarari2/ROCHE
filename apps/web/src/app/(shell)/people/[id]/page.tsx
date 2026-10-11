@@ -7,7 +7,12 @@ import { PersonHeader } from "@/components/people/PersonHeader";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
 import { peopleLabel, t } from "@/lib/i18n";
-import { canBreakGlass, personNames } from "@/lib/people";
+import {
+  BREAK_GLASS_MAX_LENGTH,
+  BREAK_GLASS_MIN_LENGTH,
+  canBreakGlass,
+  personNames,
+} from "@/lib/people";
 
 type Params = Promise<{ id: string }>;
 
@@ -54,11 +59,7 @@ export default async function PersonPage({ params }: { readonly params: Params }
             )
           }
           title={forbidden ? t("errors.forbidden") : t("errors.notFound")}
-          description={
-            forbidden
-              ? undefined
-              : "This record does not exist, or it is outside your access. Records outside your access can be opened only with a reason, which is recorded and shared with your Registered Manager."
-          }
+          description={forbidden ? undefined : t("people.notFound.body")}
           action={
             !forbidden && canBreakGlass(me.permissions) ? (
               <BreakGlass
@@ -67,16 +68,30 @@ export default async function PersonPage({ params }: { readonly params: Params }
                   title: t("people.breakGlass.title"),
                   body: t("people.breakGlass.body"),
                   justification: t("people.breakGlass.justification"),
+                  hint: t("people.breakGlass.hint", { min: BREAK_GLASS_MIN_LENGTH }),
+                  submit: t("people.breakGlass.submit"),
                   cancel: t("common.cancel"),
+                  close: t("common.close"),
                   stepUpTitle: t("auth.stepUp.title"),
                   stepUpBody: t("auth.stepUp.body"),
+                  stepUpReason: t("people.breakGlass.stepUpReason"),
+                  signInAgain: t("people.breakGlass.signInAgain"),
+                  failure: {
+                    "too-short": t("people.breakGlass.tooShort", { min: BREAK_GLASS_MIN_LENGTH }),
+                    "too-long": t("people.breakGlass.tooLong", { max: BREAK_GLASS_MAX_LENGTH }),
+                    forbidden: t("people.breakGlass.forbidden"),
+                    "not-found": t("people.breakGlass.notFound"),
+                    unavailable: t("people.breakGlass.unavailable"),
+                  },
                 }}
               />
             ) : null
           }
           secondaryAction={
             <Link href="/people" className="hb-button hb-button--tertiary">
-              <span className="hb-button__label">Back to {people.toLocaleLowerCase("en-GB")}</span>
+              <span className="hb-button__label">
+                {t("people.list.back", { terminology: me.tenant.terminology })}
+              </span>
               <span className="hb-button__chevron" aria-hidden="true">
                 ›
               </span>
@@ -92,7 +107,7 @@ export default async function PersonPage({ params }: { readonly params: Params }
 
   return (
     <div className="flex w-full flex-col gap-6">
-      <nav aria-label="Breadcrumb" className="text-callout">
+      <nav aria-label={t("common.breadcrumb")} className="text-callout">
         <Link href="/people">{people}</Link>
         <span aria-hidden="true" className="px-2 text-text-secondary">
           ›
@@ -105,19 +120,16 @@ export default async function PersonPage({ params }: { readonly params: Params }
           <EmptyState
             headingLevel={2}
             icon={<ClipboardList size={32} strokeWidth={1.5} aria-hidden="true" />}
-            title="No care notes yet"
-            description={`Notes written by the team about ${names.preferred} will appear here.`}
+            title={t("people.notes.emptyTitle")}
+            description={t("people.notes.emptyBody", { name: names.preferred })}
           />
         </div>
         <InspectorPanel
-          title={`About ${names.preferred}`}
-          subtitle="Care plan, medicines and risk assessments"
+          title={t("people.about.title", { name: names.preferred })}
+          subtitle={t("people.about.subtitle")}
           className="md:w-[360px] md:shrink-0"
         >
-          <p className="m-0 text-callout text-text-secondary">
-            Care plans, medicines and risk assessments will appear here once they are recorded in
-            Harbour.
-          </p>
+          <p className="m-0 text-callout text-text-secondary">{t("people.about.empty")}</p>
         </InspectorPanel>
       </div>
     </div>
