@@ -6,6 +6,7 @@ import { type FormEvent, useState } from "react";
 import { refreshSecurity } from "@/app/actions/security";
 import { authClient } from "@/lib/auth-client";
 import { authMessages } from "@/lib/auth-messages";
+import { t } from "@/lib/i18n";
 import { QrCode } from "./QrCode";
 
 type Stage =
@@ -38,7 +39,7 @@ export function TotpSetup() {
     event.preventDefault();
     const password = String(new FormData(event.currentTarget).get("password") ?? "");
     if (!password) {
-      setError("Enter your password");
+      setError(t("auth.signIn.passwordRequired"));
       return;
     }
     setError(null);
@@ -49,7 +50,7 @@ export function TotpSetup() {
         setError(
           result.error?.status === 429
             ? authMessages.tooManyAttempts
-            : "That password did not match the one for your account. Check it and try again.",
+            : authMessages.passwordMismatch,
         );
         return;
       }
@@ -65,7 +66,7 @@ export function TotpSetup() {
     event.preventDefault();
     const code = String(new FormData(event.currentTarget).get("code") ?? "").replace(/\s+/g, "");
     if (!/^\d{6}$/.test(code)) {
-      setError("Enter the 6 digits from your authenticator app");
+      setError(t("auth.totp.codeRequired"));
       return;
     }
     setError(null);
@@ -73,7 +74,7 @@ export function TotpSetup() {
     try {
       const result = await authClient().twoFactor.verifyTotp({ code });
       if (result.error) {
-        setError(authMessages.totpFailed);
+        setError(authMessages.codeMismatch);
         return;
       }
       setStage({ kind: "done" });
@@ -89,7 +90,7 @@ export function TotpSetup() {
   if (stage.kind === "done") {
     return (
       <p role="status" className="m-0 font-semibold">
-        Your authenticator app is set up. Harbour will ask for a code when you sign in.
+        {t("security.totp.done")}
       </p>
     );
   }
@@ -100,20 +101,16 @@ export function TotpSetup() {
       <div className="flex flex-col gap-6">
         <ol className="m-0 flex flex-col gap-6 ps-5">
           <li className="flex flex-col gap-3">
-            <span>Scan this QR code with your authenticator app.</span>
-            <QrCode value={stage.uri} label="QR code to add Harbour to your authenticator app" />
+            <span>{t("security.totp.scan")}</span>
+            <QrCode value={stage.uri} label={t("security.totp.qrCode")} />
             {key ? (
               <span className="text-callout text-text-secondary">
-                Cannot scan it? Enter this key in the app instead:{" "}
-                <code className="font-mono text-text">{key}</code>
+                {t("security.totp.manualKey")} <code className="font-mono text-text">{key}</code>
               </span>
             ) : null}
           </li>
           <li className="flex flex-col gap-3">
-            <span>
-              Keep these backup codes somewhere safe, away from your phone. Each one works once if
-              you cannot use your authenticator app.
-            </span>
+            <span>{t("security.totp.backupCodes")}</span>
             <ul className="m-0 grid list-none grid-cols-2 gap-2 p-0 font-mono sm:grid-cols-5">
               {stage.backupCodes.map((code) => (
                 <li key={code} className="rounded-input bg-bg-secondary px-2 py-1 text-center">
@@ -126,7 +123,7 @@ export function TotpSetup() {
             <form className="flex flex-col gap-4" onSubmit={verify} noValidate>
               <TextField
                 name="code"
-                label="Enter the 6-digit code from the app"
+                label={t("security.totp.code")}
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 maxLength={6}
@@ -134,7 +131,7 @@ export function TotpSetup() {
               />
               <div>
                 <Button type="submit" disabled={busy}>
-                  Finish setting up
+                  {t("security.totp.finish")}
                 </Button>
               </div>
             </form>
@@ -149,14 +146,14 @@ export function TotpSetup() {
       <TextField
         name="password"
         type="password"
-        label="Your password"
-        hint="Harbour asks for it before changing how you sign in."
+        label={t("security.totp.password")}
+        hint={t("security.totp.passwordHint")}
         autoComplete="current-password"
         {...(error ? { error } : {})}
       />
       <div>
         <Button type="submit" disabled={busy}>
-          Set up an authenticator app
+          {t("security.totp.start")}
         </Button>
       </div>
     </form>

@@ -48,6 +48,9 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | financial_record | 6 | years | created | HMRC and Companies Act accounting records; master prompt 5.1 | Invoices, credit notes, charge lines, funding arrangements, remittances, residents' ledger entries, petty cash. Counted from the end of the financial year the record relates to. |
 | water_hygiene_record | 5 | years | created | HSE ACoP L8 and HSG274; master prompt 13.4 | Legionella risk assessment actions, sentinel temperatures, flushing, descaling and TMV records. |
 | organisation_document | 0 | years | tenant_policy | Master prompt 9.1 (document store: retention class per document) | Policies, procedures, statement of purpose versions and templates. Kept while current; the tenant's records policy sets how long superseded versions are kept, so the engine never offers them for destruction automatically. |
+| downtime_pack | 1 | months | created | Harbour default for data minimisation (UK GDPR Art 5(1)(c) and (e)); master prompt 13.4 | Nightly downtime packs and their snapshots. Each is replaced the next night, so a copy is kept only long enough to answer "what did the pack say?". A pack in force during a declared outage is kept as downtime_record instead. Printed copies are shredded when replaced (deployer control). DPO to confirm (H-96). |
+| downtime_record | 8 | years | record_closed | NHS Records Management Code of Practice (as care_record); master prompt 13.4 | Outage windows, their reconciliation and the downtime packs in force during them: the evidence for every back-entry's late time. Counted from reconciliation, and never destroyed while a back-entry that cites the outage is kept (the engine checks the citing records first). |
+| evidence_pack | 6 | years | created | Limitation Act 1980 ss.2 and 5 (six-year period for claims, as the basis for keeping proof of a disclosure); master prompt 11.2 | The inspector evidence pack's manifest: recipient, purpose, items with record ids and versions, redactions with reasons, watermark, link issue, opens and revocation. The rendered PDF bundle is deleted when its link expires or is revoked; the manifest can rebuild it from the record versions. Harbour default for the DPO to confirm (H-96). |
 | cctv | 0 | months | tenant_policy | Master prompt 5.1 (CCTV per the tenant's policy); ICO CCTV guidance | No product default. The tenant sets the period in its CCTV policy and DPIA (starter template in 11.2) before any CCTV still or clip is attached to a record. |
 | audit_event | 8 | years | created | NHS Records Management Code of Practice (record-keeping evidence); master prompt 5.3, 5.5 | Default for every audit event (logins, permission changes, exports, views, sync). Chosen so the audit trail supports a care record for its full Records Code period, well above the 6-month security-log minimum in section 5.3. |
 | audit_event.care_record | 8 | years | care_ended | NHS Records Management Code of Practice; master prompt 5.5 | Audit events about a person's record are kept at least as long as that record (longest period wins), so the history view and signed exports for inspectors, coroners and courts stay complete. |
@@ -61,9 +64,11 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `person`, `contact`, `allergy`, `placement`, `about_me` | care_record |
 | `pre_admission_assessment`, `admission_decision`, `admission_condition`, `bed_occupancy`, `welcome_checklist_item`, `property_item`, `key_issue`, `care_plan_change`, `review_record`, `hospital_transfer`, `exit_record`, `exit_checklist_item`, `sharing_decision`, `about_me_share_link` ([people.md](people.md)) | care_record |
 | `break_glass_event`, `break_glass_weekly_report` | audit_event |
-| `care_plan`, `care_plan_item`, `assessment`, `risk_assessment`, `care_note`, `observation`, `capacity_record`, `dols_authorisation` | care_record |
-| `incident` (not serious), `investigation` | care_record |
-| `incident` (serious), `notification` | serious_incident |
+| `care_plan`, `care_plan_item`, `assessment`, `risk_assessment`, `care_note`, `observation` | care_record |
+| `consent_record`, `capacity_assessment`, `best_interests_decision`, `dols_authorisation`, `dols_legal_change_review` | care_record |
+| `incident` with `retention_class` `care_record` (no notification applies), and its `incident_person`, `classifier_answer` and `investigation` rows | care_record |
+| `incident` with `retention_class` `serious_incident` (set once any notification applies), its people, answers, `candour_record` and `investigation`, and `statutory_notification` | serious_incident |
+| `statutory_notification` of a RIDDOR kind (`riddor_*`) | riddor_report (the incident keeps serious_incident; longest wins) |
 | `medication`, `medication_schedule`, `medication_administration` | mar_chart |
 | `controlled_drug_entry` | controlled_drugs_register (and mar_chart for administrations) |
 | `staff_profile`, `compliance_item`, `er_case` | staff_file (tenant's chosen row) |
@@ -76,6 +81,20 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `document_signature` | the class of the signed document |
 | `legal_hold`, `destruction_certificate` | kept permanently (proof of records management); never destroyed by the engine |
 | `task`, `task_series`, `workflow_instance`, `workflow_transition` | the class of the record they concern (care_record for tasks about a person) |
+| `downtime_pack` ([operations.md](operations.md)) | downtime_pack, or downtime_record when in force during a declared outage |
+| `outage` | downtime_record |
+| Back-entered care events (the back-entry columns on `care_note`, `observation` and the others) | care_record, as the event |
+| `evidence_pack`, `evidence_pack_item`, `evidence_pack_link` ([quality.md](quality.md)) | evidence_pack; the rendered bundle is deleted when the link ends |
+| `statement_of_purpose_version`, `letter_template`, `letter_template_version` ([comms.md](comms.md)) | organisation_document |
+| `letter` | care_record; serious_incident only for an incident follow-up or duty of candour letter about an incident graded serious (`letterRetentionClass`) |
+| `feed_item`, `feed_item_withdrawal`, `care_note_share`, `visit_booking` ([comms.md](comms.md)) | care_record; photo updates and their photo documents stay care_record after photo consent is withdrawn (taken down from the feed, kept as the history of what was shared) |
+| `feed_view` (what a family member saw, under which decision) | audit_event.care_record |
+| `family_channel`, `family_notification_setting` | care_record, with the contact; push tokens are deleted when the device signs out, not retained |
+| `family_notification` and its deliveries | the class of the record they relate to (care_record) until the DPO sets a shorter period (H-106) |
+| `visit_booking_setting` | tenant configuration, kept while current |
+| `family_portal_user` | care_record, with the contact |
+| `location_visit_restriction` | care_record |
+| `sharing_decision_suspension` ([people.md](people.md)) | care_record, with the decision |
 | `tenant_export` ([platform-completions.md](platform-completions.md)) | audit_event; the export file itself is deleted at `export.link_expiry_hours` and never kept as a record |
 | `dpia`, `sub_processor_response`, `tenant_setting_decision`, `retention_decision` | audit_event (interim: accountability evidence; H-115) |
 | Search audit events that showed people | audit_event.care_record: they record views of those people's care records, so they are kept as long as those records |
@@ -92,6 +111,10 @@ of the record they attach to.
 - Enquiries and pre-admission assessments of people who are never admitted (Phase 1 people lifecycle;
   human action H-39). Until a period is set they follow care_record, counted from the date the
   enquiry closed.
+- Family notification delivery logs and channel opt-out and bounce records (Phase 1 family feed;
+  human action H-106). They hold an address, a template id and a status, never update content;
+  until a period is set they follow care_record with the contact. An opt-out must be remembered for
+  as long as the address is held, so it is never sent to again.
 - Unsuccessful job applicants' data (Phase 2 recruitment).
 - DBS certificate information: the DBS code of practice limits how long certificate details may be kept;
   confirm the period before the Phase 2 pre-employment file stores them.

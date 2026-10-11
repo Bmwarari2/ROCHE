@@ -37,6 +37,8 @@ export interface AppBarProps extends HTMLAttributes<HTMLElement> {
   actions?: ReactNode;
   /** Id of the main content element for the skip link. Pass null to leave the skip link out. */
   skipLinkTarget?: string | null;
+  /** Words for the skip link. Defaults to "Skip to main content". */
+  skipLinkLabel?: string;
   linkComponent?: LinkComponent;
 }
 
@@ -50,7 +52,8 @@ function Switcher({ switcher, icon }: { switcher: AppBarSwitcher; icon: ReactNod
         <span className="hb-appbar__context-icon" aria-hidden="true">
           {icon}
         </span>
-        <VisuallyHidden>{switcher.label}:</VisuallyHidden> <span>{currentLabel}</span>
+        <VisuallyHidden>{switcher.label}:</VisuallyHidden>{" "}
+        <span className="hb-appbar__context-value">{currentLabel}</span>
       </span>
     );
   }
@@ -95,7 +98,8 @@ function Switcher({ switcher, icon }: { switcher: AppBarSwitcher; icon: ReactNod
 
 /**
  * The 44 px translucent global bar of the product shell, with the organisation and location
- * switchers. Render it outside `main` so it is the page banner.
+ * switchers. Render it outside `main` so it is the page banner. On phones the organisation and
+ * location names shorten with an ellipsis so the actions (such as `AccountMenu`) stay on screen.
  */
 export function AppBar({
   productName = "Harbour",
@@ -104,6 +108,7 @@ export function AppBar({
   location,
   actions,
   skipLinkTarget = "main-content",
+  skipLinkLabel = "Skip to main content",
   linkComponent,
   className,
   ...rest
@@ -113,7 +118,7 @@ export function AppBar({
     <header className={cx("hb-appbar", className)} {...rest}>
       {skipLinkTarget ? (
         <a className="hb-skip-link" href={`#${skipLinkTarget}`}>
-          Skip to main content
+          {skipLinkLabel}
         </a>
       ) : null}
       <div className="hb-appbar__inner">

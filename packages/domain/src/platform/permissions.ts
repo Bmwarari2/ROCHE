@@ -117,7 +117,7 @@ export const PERMISSIONS = {
   "care.assessment.write": { description: "Complete validated assessments", careRecord: true },
   "care.handover.manage": { description: "Compile and acknowledge handovers", careRecord: true },
   "care.capacity.write": {
-    description: "Record capacity and best-interests decisions",
+    description: "Record consent, capacity assessments and best-interests decisions",
     careRecord: true,
   },
   "care.dols.manage": { description: "Manage the DoLS register", careRecord: true },
@@ -148,10 +148,16 @@ export const PERMISSIONS = {
   },
   // safety
   "safety.incident.report": { description: "Report incidents and near misses" },
+  "safety.incident.read": {
+    description: "Read incidents in scope, with the people on them that are in scope",
+    careRecord: true,
+  },
   "safety.incident.manage": { description: "Investigate and close incidents", careRecord: true },
   "safety.notification.submit": {
-    description: "Submit statutory notifications (CQC, RIDDOR, safeguarding)",
+    description:
+      "Submit statutory notifications (CQC, RIDDOR, safeguarding) or mark them not required",
     stepUp: true,
+    careRecord: true,
   },
   "safety.safeguarding.manage": { description: "Manage the safeguarding log", careRecord: true },
   "safety.complaint.manage": { description: "Manage complaints and compliments" },
@@ -160,9 +166,32 @@ export const PERMISSIONS = {
   // quality
   "quality.audit.manage": { description: "Run audits and mock inspections" },
   "quality.policy.manage": { description: "Publish policies and read-and-sign campaigns" },
-  "quality.evidence.manage": { description: "Manage the evidence library and inspector packs" },
+  "quality.evidence.manage": {
+    description: "Manage the evidence library (tag records against quality statements)",
+  },
   "quality.dsar.manage": { description: "Run the DSAR workbench and breach register" },
-  "quality.evidence.read": { description: "Read inspector evidence packs" },
+  "quality.evidence.read": {
+    description: "Open evidence packs released to you (inspectors only)",
+    careRecord: true,
+  },
+  "quality.evidence_pack.compose": {
+    description:
+      "Compose inspector evidence packs (evidence, people in scope, redactions) and revoke their links",
+    careRecord: true,
+  },
+  "quality.evidence_pack.release": {
+    description:
+      "Release an evidence pack to its recipient by a time-limited link (not the person who composed it)",
+    stepUp: true,
+    careRecord: true,
+  },
+  "quality.statement_of_purpose.write": {
+    description: "Draft changes to the statement of purpose",
+  },
+  "quality.statement_of_purpose.approve": {
+    description:
+      "Approve a statement of purpose revision (the registered provider or manager; not its author)",
+  },
   // workforce
   "workforce.recruitment.manage": { description: "Manage applicants and pre-employment files" },
   "workforce.training.manage": { description: "Manage the training matrix and competence" },
@@ -185,6 +214,15 @@ export const PERMISSIONS = {
   "operations.activities.manage": { description: "Manage the activities programme" },
   "operations.visitors.manage": { description: "Manage visitors and appointments" },
   "operations.occupancy.manage": { description: "Manage the bed board and enquiries" },
+  "operations.downtime.read": {
+    description: "Print or open the location's downtime pack",
+    careRecord: true,
+  },
+  "operations.downtime.manage": {
+    description:
+      "Declare and close outages and confirm that paper records from an outage were entered",
+    careRecord: true,
+  },
   // finance
   "finance.billing.manage": { description: "Manage funding, charges and invoices" },
   "finance.ledger.record": { description: "Record residents' money transactions" },
@@ -198,7 +236,35 @@ export const PERMISSIONS = {
   "comms.message.send": { description: "Send internal messages and announcements" },
   "comms.portal.family": { description: "Use the family portal for one person" },
   "comms.portal.self": { description: "Use the person's own portal" },
-  "comms.letter.manage": { description: "Manage letter templates" },
+  "comms.letter.manage": {
+    description: "Write letters and emails from approved templates and send them",
+  },
+  "comms.template.write": { description: "Write and change letter and email templates" },
+  "comms.template.approve": {
+    description: "Approve letter and email templates for use (not the template's author)",
+  },
+  "comms.feed.read": {
+    description: "Read the family feed and the care plan sections a sharing decision opens",
+    careRecord: true,
+  },
+  "comms.feed.publish": {
+    description: "Mark notes as shareable, choose photos and publish family updates",
+    careRecord: true,
+  },
+  "comms.feed.withdraw": {
+    description: "Take a family update down with a reason",
+    careRecord: true,
+  },
+  "comms.notification.subscribe": {
+    description: "Choose own channels and quiet hours for family update notifications",
+  },
+  "comms.notification.manage": {
+    description: "See family notification delivery problems and the location's settings",
+  },
+  "comms.visit_booking.request": { description: "Ask to book a visit through the family portal" },
+  "comms.visit_booking.manage": {
+    description: "See and cancel visit bookings and set online booking hours",
+  },
   // insights
   "insights.dashboard.read": { description: "Read role dashboards" },
   "insights.report.manage": { description: "Build and schedule reports" },

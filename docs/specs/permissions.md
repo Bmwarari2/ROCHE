@@ -90,8 +90,9 @@ people only (plus break-glass), `none` no person records.
 | `medicines.stock.manage` |  | yes | yes |  | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `medicines.override.approve` |  | yes | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `safety.incident.report` |  |  | yes |  | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes |  |  |  |  |  |  | yes |  |
+| `safety.incident.read` |  | yes | yes |  | yes | yes | yes | yes | yes | yes |  |  |  |  |  |  |  | yes |  |  |  | yes |  |
 | `safety.incident.manage` |  | yes | yes |  | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| `safety.notification.submit` | yes |  | yes |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| `safety.notification.submit` | yes | yes | yes |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `safety.safeguarding.manage` |  | yes | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `safety.complaint.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
 | `safety.whistleblowing.read` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
@@ -100,7 +101,11 @@ people only (plus break-glass), `none` no person records.
 | `quality.policy.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
 | `quality.evidence.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
 | `quality.dsar.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
-| `quality.evidence.read` |  |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  | yes |
+| `quality.evidence.read` |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | yes |
+| `quality.evidence_pack.compose` |  | yes | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
+| `quality.evidence_pack.release` | yes | yes | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
+| `quality.statement_of_purpose.write` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
+| `quality.statement_of_purpose.approve` |  |  | yes |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `workforce.recruitment.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |
 | `workforce.training.manage` |  |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |
 | `workforce.competence.observe` |  |  | yes |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |
@@ -118,6 +123,8 @@ people only (plus break-glass), `none` no person records.
 | `operations.activities.manage` |  |  | yes |  | yes | yes |  |  |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |
 | `operations.visitors.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |
 | `operations.occupancy.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |
+| `operations.downtime.read` |  | yes | yes |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| `operations.downtime.manage` |  | yes | yes |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `finance.billing.manage` |  |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |
 | `finance.ledger.record` |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |
 | `finance.ledger.approve` | yes |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |
@@ -127,6 +134,15 @@ people only (plus break-glass), `none` no person records.
 | `comms.portal.family` |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |
 | `comms.portal.self` |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |
 | `comms.letter.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |
+| `comms.template.write` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  | yes |  |  | yes |  |  |  |  |  |
+| `comms.template.approve` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
+| `comms.feed.read` |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |
+| `comms.feed.publish` |  | yes | yes |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| `comms.feed.withdraw` |  | yes | yes |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| `comms.notification.subscribe` |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |
+| `comms.notification.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |
+| `comms.visit_booking.request` |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |
+| `comms.visit_booking.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |
 | `insights.dashboard.read` |  |  | yes | yes | yes | yes | yes | yes | yes | yes |  |  |  |  |  | yes | yes | yes |  |  |  | yes |  |
 | `insights.report.manage` |  |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
 | `insights.group.read` |  |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |

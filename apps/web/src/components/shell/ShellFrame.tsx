@@ -1,23 +1,46 @@
 "use client";
 
 import {
+  AccountMenu,
+  type AccountMenuItem,
   AppBar,
   type AppBarSwitcher,
   Sidebar,
   type SidebarItem,
   type SwitcherOption,
 } from "@harbour/ui";
-import { Bell, House, ShieldCheck, Users } from "lucide-react";
+import { Bell, House, LogOut, ShieldCheck, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState, useTransition } from "react";
 import { switchLocation, switchOrganisation } from "@/app/actions/context";
-import { AccountMenu } from "./AccountMenu";
+import { signOutAndForget } from "@/lib/sign-out";
 
 const icon = { size: 20, strokeWidth: 1.5, "aria-hidden": true } as const;
+const menuIcon = { size: 16, strokeWidth: 1.5, "aria-hidden": true } as const;
 
 /** Value used in the location switcher for "All locations". Never a valid location id. */
 const ALL_LOCATIONS = "all";
+
+export interface ShellFrameLabels {
+  readonly skipLink: string;
+  readonly organisation: string;
+  readonly organisationMenu: string;
+  readonly location: string;
+  readonly locationMenu: string;
+  readonly allLocations: string;
+  readonly navigation: string;
+  readonly home: string;
+  readonly people: string;
+  readonly notifications: string;
+  /** Accessible text for the unread badge, for example "3 unread". */
+  readonly unreadNotifications: string;
+  readonly settings: string;
+  /** Accessible name of the account menu button, for example "Your account: Ada Example". */
+  readonly accountMenu: string;
+  readonly security: string;
+  readonly signOut: string;
+}
 
 export interface ShellFrameProps {
   readonly user: { readonly name: string; readonly email: string };
@@ -29,16 +52,7 @@ export interface ShellFrameProps {
     readonly description?: string;
   }[];
   readonly locationId: string | null;
-  readonly labels: {
-    readonly organisation: string;
-    readonly location: string;
-    readonly allLocations: string;
-    readonly home: string;
-    readonly people: string;
-    readonly notifications: string;
-    readonly settings: string;
-    readonly signOut: string;
-  };
+  readonly labels: ShellFrameLabels;
   readonly unreadNotifications: number;
   readonly children: ReactNode;
 }
@@ -68,6 +82,7 @@ export function ShellFrame({
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [collapsed, setCollapsed] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   // Icons only on phones, so the content keeps the width (the labels stay as tooltips).
   useEffect(() => {
@@ -77,6 +92,7 @@ export function ShellFrame({
 
   const tenantSwitcher: AppBarSwitcher = {
     label: labels.organisation,
+    menuLabel: labels.organisationMenu,
     options: memberships.map((m) => ({ id: m.tenantId, label: m.tenantName })),
     value: organisation.id,
     onValueChange: (id) => {
@@ -99,13 +115,16 @@ export function ShellFrame({
       ...(l.description ? { description: l.description } : {}),
     })),
   ];
+  const locationValue =
+    locationId ?? (locations.length > 1 ? ALL_LOCATIONS : (locations[0]?.id ?? ""));
 
   const locationSwitcher: AppBarSwitcher | undefined =
     locations.length > 0
       ? {
           label: labels.location,
+          menuLabel: labels.locationMenu,
           options: locationOptions,
-          value: locationId ?? (locations.length > 1 ? ALL_LOCATIONS : (locations[0]?.id ?? "")),
+          value: locationValue,
           onValueChange: (id) => {
             startTransition(async () => {
               const result = await switchLocation(id === ALL_LOCATIONS ? null : id);
@@ -124,7 +143,7 @@ export function ShellFrame({
       href: "/notifications",
       icon: <Bell {...icon} />,
       ...(unreadNotifications > 0
-        ? { badge: String(unreadNotifications), badgeLabel: `${unreadNotifications} unread` }
+        ? { badge: String(unreadNotifications), badgeLabel: labels.unreadNotifications }
         : {}),
     },
     {
@@ -135,17 +154,45 @@ export function ShellFrame({
     },
   ];
 
+  const accountItems: AccountMenuItem[] = [
+    {
+      id: "security",
+      label: labels.security,
+      href: "/settings/security",
+      icon: <ShieldCheck {...menuIcon} />,
+    },
+    {
+      id: "sign-out",
+      label: labels.signOut,
+      icon: <LogOut {...menuIcon} />,
+      disabled: signingOut,
+      onSelect: (event) => {
+        // Keep the menu open, with the item disabled, while signing out.
+        event.preventDefault();
+        setSigningOut(true);
+        void signOutAndForget();
+      },
+    },
+  ];
+
   return (
     <div className="flex min-h-dvh flex-col bg-bg-secondary">
       <AppBar
         tenant={tenantSwitcher}
         {...(locationSwitcher ? { location: locationSwitcher } : {})}
+        skipLinkLabel={labels.skipLink}
         linkComponent={Link}
         actions={
           <AccountMenu
-            user={user}
+            userName={user.name}
+            userDetail={user.email}
             organisationName={organisation.name}
-            signOutLabel={labels.signOut}
+            locationName={locationOptions.find((option) => option.id === locationValue)?.label}
+            organisationLabel={labels.organisation}
+            locationLabel={labels.location}
+            triggerLabel={labels.accountMenu}
+            items={accountItems}
+            linkComponent={Link}
           />
         }
       />
@@ -154,6 +201,7 @@ export function ShellFrame({
           <Sidebar
             items={items}
             currentId={currentSection(pathname)}
+            label={labels.navigation}
             collapsed={collapsed}
             onCollapsedChange={setCollapsed}
             linkComponent={Link}

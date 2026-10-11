@@ -1,11 +1,51 @@
 import { isPermission, type Permission, requiresStepUp } from "./permissions";
-import type { ScopeKind } from "./roles";
+import { PORTAL_ONLY_PERMISSIONS, type ScopeKind } from "./roles";
 
 /**
  * Effective access for one tenant user at one moment (section 4): RBAC for what they may do,
  * attribute-based scope for whom they may do it to. The result feeds both the API's permission
  * checks and the row-level security context (`app.scope`, `app.location_ids`).
+ *
+ * Staff and portal sessions never mix (comms.md section 3, ADR-0061): a portal session (a family
+ * member, or the person in their own portal) is resolved from portal roles only, with no person
+ * scope and no grants; a staff session never carries a portal-only permission. A role or grant
+ * that mixes the two is refused when it is defined and ignored if one is ever stored.
  */
+
+export type SessionKind = "staff" | "portal";
+
+export type RolePermissionMix = "staff" | "portal" | "mixed" | "empty";
+
+const isPortalOnly = (p: string) => (PORTAL_ONLY_PERMISSIONS as readonly string[]).includes(p);
+
+/** Whether a set of permissions belongs to a portal role, a staff role, or wrongly to both. */
+export function rolePermissionMix(permissions: readonly string[]): RolePermissionMix {
+  if (permissions.length === 0) return "empty";
+  const portal = permissions.filter(isPortalOnly).length;
+  if (portal === 0) return "staff";
+  return portal === permissions.length ? "portal" : "mixed";
+}
+
+export type RoleDefinitionProblem = "portal_and_staff_permissions_mixed" | "unknown_permission";
+
+/** Checks a role (built-in, cloned or tenant-designed) before it is saved. */
+export function checkRoleDefinition(permissions: readonly string[]): RoleDefinitionProblem[] {
+  const problems: RoleDefinitionProblem[] = [];
+  if (permissions.some((p) => !isPermission(p))) problems.push("unknown_permission");
+  if (rolePermissionMix(permissions) === "mixed")
+    problems.push("portal_and_staff_permissions_mixed");
+  return problems;
+}
+
+export type GrantProblem = "portal_permission_in_grant" | "unknown_permission";
+
+/** Grants are time-boxed delegation and acting-up for staff; they never carry portal access. */
+export function checkGrantPermissions(permissions: readonly string[]): GrantProblem[] {
+  const problems: GrantProblem[] = [];
+  if (permissions.some((p) => !isPermission(p))) problems.push("unknown_permission");
+  if (permissions.some(isPortalOnly)) problems.push("portal_permission_in_grant");
+  return problems;
+}
 
 export interface RoleAssignmentInput {
   readonly roleKey: string;
@@ -33,6 +73,8 @@ export interface EffectiveAccess {
   /** Locations the user may act on; for 'tenant' scope this is empty (meaning all). */
   readonly locationIds: readonly string[];
   readonly roleKeys: readonly string[];
+  /** Portal sessions get no person scope: their rows come through the family policies (ADR-0061). */
+  readonly session: SessionKind;
 }
 
 const SCOPE_RANK: Record<DataScope, number> = { none: 0, assigned: 1, locations: 2, tenant: 3 };
@@ -51,6 +93,7 @@ export function resolveAccess(
   assignments: readonly RoleAssignmentInput[],
   grants: readonly AccessGrantInput[],
   at: Date,
+  session: SessionKind = "staff",
 ): EffectiveAccess {
   const permissions = new Set<Permission>();
   const locationIds = new Set<string>();
@@ -59,6 +102,15 @@ export function resolveAccess(
 
   for (const assignment of assignments) {
     if (!isActive(assignment.validFrom, assignment.validTo, at)) continue;
+    const mix = rolePermissionMix(assignment.permissions);
+    if (mix === "mixed") continue;
+    if (session === "portal") {
+      if (mix !== "portal") continue;
+      roleKeys.add(assignment.roleKey);
+      for (const p of assignment.permissions) if (isPermission(p)) permissions.add(p);
+      continue;
+    }
+    if (mix === "portal") continue;
     roleKeys.add(assignment.roleKey);
     for (const p of assignment.permissions) if (isPermission(p)) permissions.add(p);
 
@@ -81,9 +133,12 @@ export function resolveAccess(
     }
   }
 
-  for (const grant of grants) {
-    if (grant.revokedAt !== null || !isActive(grant.validFrom, grant.validTo, at)) continue;
-    for (const p of grant.permissions) if (isPermission(p)) permissions.add(p);
+  if (session === "staff") {
+    for (const grant of grants) {
+      if (grant.revokedAt !== null || !isActive(grant.validFrom, grant.validTo, at)) continue;
+      for (const p of grant.permissions)
+        if (isPermission(p) && !isPortalOnly(p)) permissions.add(p);
+    }
   }
 
   return {
@@ -91,6 +146,7 @@ export function resolveAccess(
     scope,
     locationIds: scope === "tenant" ? [] : [...locationIds].sort(),
     roleKeys: [...roleKeys].sort(),
+    session,
   };
 }
 

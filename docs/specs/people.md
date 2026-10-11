@@ -71,7 +71,7 @@ Append-only tables have no UPDATE or DELETE grant for the app; a correction is a
 | `hospital_transfer` | mutable, versioned | person, left at, hospital (name, ODS code), reason, pack snapshot (JSON) and rendered document, missing critical sections, acknowledgement (by, at, reason), items sent, returned at, return checks (key, by, at) | `care_record` |
 | `exit_record` | mutable, versioned | person, kind (`discharge`, `transfer`, `death`), workflow instance, left or died at, the `ExitContext` flags; discharge and transfer: destination type, receiving provider (name, CQC location ID or ODS code), reason; death: place, expected or not, verified by (name, role) and at, who was present, funeral director and collection time, coroner referral (by, reference) | `care_record` |
 | `exit_checklist_item` | mutable | exit record, item key, owner, status (`pending`, `done`, `not_required`), reason, by and at, evidence (notification, document or ledger entry id) | `care_record` |
-| `sharing_decision` | mutable, versioned | person, recipient (contact, tenant user or share link), sections, care plan domains, basis, consent given by, capacity for the decision (with the capacity assessment), best-interests decision, authority (contact, role, reference, evidence document, valid until), valid from, valid to (required), withdrawn at and reason, suspended at and reason, recorded by | `care_record` |
+| `sharing_decision` | mutable, versioned | person, recipient (contact, tenant user or share link), sections, care plan domains, basis, consent given by, capacity for the decision (with the capacity assessment), best-interests decision, authority (contact, role, reference, evidence document, valid until, and for a deputy the sections the order covers), valid from, valid to (required), withdrawn at and reason, suspended at and reason, recorded by; suspension periods in `sharing_decision_suspension` (from, to, reason) | `care_record` |
 | `about_me_share_link` | mutable | person, sharing decision, token hash (never the token), expires at, revoked at, created by, last opened at | `care_record` |
 | `break_glass_weekly_report` | append-only | location (or tenant), week start, generated at, summary (counts and opaque ids only), reviewed by and at, actions taken | `audit_event` |
 
@@ -204,13 +204,21 @@ one applies). Figures come from `rate_table` by key, resolved with `resolvePeopl
     and share links until a decision covers that section (and, for the care plan, that domain) for
     that recipient and is in force. Bases: the person's consent (unless assessed as lacking
     capacity for it); consent by an attorney or deputy whose authority covers the section; a legal
-    authority held by the recipient (property and finance authorities and appointees cover
-    finance only, welfare authorities everything else and only when the person lacks capacity); a
-    recorded best-interests decision; or direct care, for professionals and clinical sections
-    only. Authorities need evidence and lapse at their end date. Every decision expires; withdrawn
-    or suspended (for example during a safeguarding enquiry) decisions close at once; sharing
-    closes at discharge or death. A share link carries About Me only and never outlives its
-    decision.
+    authority held by the recipient (property and finance authorities cover `finance` and
+    `benefits`, a DWP appointee `benefits` only, never finance statements; welfare authorities
+    everything else; a deputy only the sections their Court of Protection order covers, recorded
+    with the authority); a recorded best-interests decision; or direct care, for professionals and
+    clinical sections only. A decision that rests on the person lacking capacity (a welfare
+    authority, a representative's consent or a best-interests decision) applies only while the
+    current capacity finding, passed in at each check, says the person lacks capacity for it;
+    without a finding capacity is presumed and the decision stays closed (`capacity_regained`).
+    Authorities need evidence and lapse at their end date. Every decision expires; withdrawn or
+    suspended (for example during a safeguarding enquiry) decisions close at once. Suspensions are
+    stored as periods, and `decisionInForceAt` says whether a decision was in force and not
+    suspended at an earlier instant, so the family feed keeps closed what happened during a
+    suspension (comms.md rule 2). Sharing closes at discharge or death. A share link carries About
+    Me only and never outlives its decision. Family members see shared sections only in a portal
+    session, never through a person assignment (ADR-0061).
 14. **Break-glass weekly report** (`break-glass-report.ts`, PLAT-006, HZ-011). Monday 00:00 to
     Monday 00:00 UK time, built every Monday for the week before: totals, by user, by person and
     by reason, unreviewed openings, and flags for a user reaching

@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { describeDevice } from "./devices";
 import { formatDate, formatDateTime, formatNhsNumber } from "./format";
 
 describe("formatDate", () => {
@@ -17,9 +16,15 @@ describe("formatDate", () => {
 describe("formatDateTime", () => {
   it("shows UK local time on the 24-hour clock, across the October clock change", () => {
     expect(formatDateTime("2026-10-03T13:05:00Z")).toBe("03/10/2026 14:05");
-    expect(formatDateTime("2026-10-25T00:30:00Z")).toBe("25/10/2026 01:30");
-    expect(formatDateTime("2026-10-25T01:30:00Z")).toBe("25/10/2026 01:30");
+    expect(formatDateTime("2026-10-25T00:30:00Z")).toBe("25/10/2026 01:30 BST");
+    expect(formatDateTime("2026-10-25T01:30:00Z")).toBe("25/10/2026 01:30 GMT");
     expect(formatDateTime("2026-12-01T00:00:00Z")).toBe("01/12/2026 00:00");
+  });
+  it("hazard HZ-009 hazard HZ-017 names the zone only on the days the clocks change", () => {
+    expect(formatDateTime("2026-03-29T00:30:00Z")).toBe("29/03/2026 00:30 GMT");
+    expect(formatDateTime("2026-03-29T01:30:00Z")).toBe("29/03/2026 02:30 BST");
+    expect(formatDateTime("2026-03-28T12:00:00Z")).toBe("28/03/2026 12:00");
+    expect(formatDateTime("2026-10-26T12:00:00Z")).toBe("26/10/2026 12:00");
   });
   it("returns null for missing or unreadable values", () => {
     expect(formatDateTime(null)).toBeNull();
@@ -35,30 +40,5 @@ describe("formatNhsNumber", () => {
     [null, null],
   ])("%s gives %s", (value, expected) => {
     expect(formatNhsNumber(value)).toBe(expected);
-  });
-});
-
-describe("describeDevice", () => {
-  it.each([
-    [
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
-      "Chrome on Windows",
-    ],
-    [
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15",
-      "Safari on macOS",
-    ],
-    [
-      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
-      "Safari on iOS",
-    ],
-    [
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0",
-      "Edge on Windows",
-    ],
-    ["Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0", "Firefox on Linux"],
-    [null, "Unknown device"],
-  ])("%s", (ua, expected) => {
-    expect(describeDevice(ua)).toBe(expected);
   });
 });

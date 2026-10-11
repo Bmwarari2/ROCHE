@@ -368,6 +368,48 @@ STU3 assets), checked on 2026-10-11 and to be confirmed against the UK edition l
 The point-of-care header shows the decision in force from an active ReSPECT or DNACPR record, or "not
 recorded" when there is none (hazard HZ-015).
 
+## Consent, capacity and DoLS (Phase 1, slice 6)
+
+Code lists for the tables in [care.md](care.md) section 2. They mirror the domain constants in
+`packages/domain/src/care/mca/`; the database CHECKs and the API tests keep them in step. Mental
+Capacity Act 2005 concepts have no national code list; SNOMED CT concepts for capacity and DoLS
+findings are an open item below.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `consent_record.decision` | Harbour (master prompt 5.1, 9.2, 10.4) | `care_plan`, `photos`, `social_media`, `sharing`, `marketing`, `ai_processing`, `bed_rails`, `covert_medicines` | `CONSENT_DECISION_KINDS`; also `capacity_assessment.decision_kind` |
+| `consent_record.outcome` | Harbour | `given`, `refused` | A refusal is a record too |
+| `consent_record.given_by_kind`, `representative_kind` | Mental Capacity Act 2005 s.9, s.16, s.20; DWP appointeeship | `person`, `representative`; `lpa_health_welfare`, `lpa_property_financial`, `deputy`, `appointee`, `imca`, `advocate`, `family_or_friend` | With the OPG reference and registration, or the deputy's `personal_welfare` or `property_and_affairs` scope, decisions, end and court reference |
+| `consent_record.capacity_status` | Mental Capacity Act 2005 s.1(2) | `assumed`, `has_capacity`, `lacks_capacity` | Found from the assessments of the decision, with the assessment id |
+| `capacity_assessment.practicable_steps` | Mental Capacity Act 2005 s.1(3) | `[{ step, detail }]`, step one of `simple_language`, `visual_aids`, `best_time_or_place`, `interpreter_or_communication_aid`, `trusted_person_present`, `information_repeated`, `other` | |
+| `capacity_assessment.stage2`, `unable_to` | Mental Capacity Act 2005 s.3(1) | `understand`, `retain`, `useOrWeigh`, `communicate`, each `{ able, evidence }` | The outcome is `has_capacity` or `lacks_capacity` with the reason in the Act's words |
+| `best_interests_decision.checklist` | Mental Capacity Act 2005 s.4 and s.1(6) | Keyed by `no_unjustified_assumptions`, `relevant_circumstances`, `regaining_capacity`, `participation`, `life_sustaining_treatment`, `wishes_and_feelings`, `beliefs_and_values`, `other_factors`, `views_of_others`, `less_restrictive_option`; each `considered` with a note or `not_applicable` with a reason | |
+| `best_interests_decision.consultations` | Mental Capacity Act 2005 s.4(7) | `[{ consultee, name, contactId, views, consultedAt }]`, consultee one of `named_by_person`, `family_or_friend`, `lpa_donee`, `deputy`, `paid_carer_or_professional`, `imca` | Or `no_consultation_reason` |
+| `dols_authorisation.type`, `outcome`, `nation` | Mental Capacity Act 2005 Schedule A1; s.16(2)(a) | `urgent`, `standard`, `court_order`; `pending`, `granted`, `not_granted`, `withdrawn`; `england`, `wales` | `extensions` are `[{ requestedAt, outcome (pending, granted, refused), extendedTo }]`; the end (`granted_to`) is exclusive |
+| `dols_legal_change_review.state`, `decision`, `objection` | DHSC interim guidance on [2026] UKSC 16 (updated 22 September 2026) | `awaiting_review`, `reviewed`, `referred`, `closed`; `still_deprived`, `no_longer_deprived`, `in_doubt`; `objects`, `does_not_object`, `fluctuates`, `unclear` | `factors` keyed by `type`, `duration`, `effects`, `manner`, `prison_cell_comparison`, `normality`, `purpose`; `objection_forms` from `attempts_to_leave`, `refusing_care_or_treatment`, `restraint_or_one_to_one_care`, `covert_medication`, `sedating_medication` |
+
+## Incidents and statutory notifications (Phase 1, slice 7)
+
+Code lists for the tables in [safety.md](safety.md) section 2. They mirror the domain constants in
+`packages/domain/src/safety/`; the database CHECKs and the API tests keep them in step. Harm grades
+follow the NHS England Learn from Patient Safety Events (LFPSE) physical harm levels and severity
+the NPSA consequence scale, both as staff judge them (Harbour never computes them). A national
+mapping of incident types to LFPSE categories is an open item below.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `incident.type` | Harbour (master prompt 11.1) | `fall`, `medication`, `skin`, `behaviour`, `missing_person`, `safeguarding_concern`, `injury`, `near_miss`, `environmental`, `ipc`, `staff_injury`, `violence_to_staff`, `self_harm`, `sexual_safety`, `absconding`, `fire_setting`, `substance_use`, `data_breach` | `INCIDENT_TYPES` |
+| `incident.severity` | NPSA risk matrix consequence scale (2008) | `negligible`, `minor`, `moderate`, `major`, `catastrophic` | Staff judgement |
+| `incident.harm_grade` | LFPSE physical harm | `none`, `low`, `moderate`, `severe`, `fatal` | Staff judgement |
+| `incident.status` | Harbour (`INCIDENT_WORKFLOW`) | `open`, `under_review`, `closed` | Closed by someone other than `raised_by` |
+| `incident.retention_class` | [retention.md](retention.md) | `care_record`, `serious_incident` | `serious_incident` once any notification applies |
+| `incident_person.kind`, `role` | RIDDOR 2013 reg 4 and 5 (worker, person not at work) | `service_user`, `worker`, `other_not_at_work`; `affected`, `witness`, `involved` | `infection` is `{ syndrome (acute_respiratory, diarrhoea_vomiting), onsetAt, couldBeLinkedWithinSetting, fluConfirmedAt, link ({ group } or not_linked) }` |
+| `classifier_answer.question_key`, `value` | The regulations each question quotes (`CLASSIFIER_QUESTIONS`) | `CLASSIFIER_QUESTION_KEYS`; `yes`, `no`, `unsure`, a whole number of days or hours, or option values | Append-only; the latest answer per key counts |
+| `statutory_notification.kind` | CQC Registration Regulations 2009 regs 16 and 18; RIDDOR 2013; Care Act 2014 s.42; regulation 20 of the 2014 Regulations; LeDeR; UKHSA; death certification reforms | `cqc_reg16_death`, `cqc_reg18_serious_injury`, `cqc_reg18_abuse`, `cqc_reg18_police`, `cqc_reg18_service_disruption`, `cqc_reg18_dols_outcome`, `riddor_death`, `riddor_specified_injury`, `riddor_non_worker_hospital`, `riddor_over_7_day`, `riddor_dangerous_occurrence`, `safeguarding_s42`, `candour`, `leder`, `ukhsa_outbreak`, `medical_examiner`, `police_missing_person` | `STATUTORY_NOTIFICATION_KINDS` |
+| `statutory_notification.status` | Harbour (`STATUTORY_NOTIFICATION_WORKFLOW`) | `draft`, `ready`, `submitted` (time and reference or form), `not_required` (reason) | `deadlines` are `[{ key, dueAt, wording, statutory }]` |
+| `candour_record.state` | Regulation 20 of the 2014 Regulations (`CANDOUR_WORKFLOW`) | `threshold_assessment`, `not_notifiable`, `verbal_due`, `no_contact`, `written_due`, `enquiries_open`, `closed` | |
+| `investigation.method`, `status`, `actions` | Harbour | `root_cause_analysis`, `five_whys`, `fishbone`, `after_action_review`, `swarm_huddle`, `other`; `open`, `completed`; actions `[{ id, action, ownerTenantUserId, dueOn, status (open, done, cancelled), taskId }]` | |
+
 ## Lifecycle records (Phase 1)
 
 Code lists for the tables in [people.md](people.md) section 2. MODS and NHS Data Dictionary
@@ -393,11 +435,78 @@ assurance pack.
 | `exit_record` destination | MODS discharge destination (concept); NHS Data Dictionary discharge destination items to be checked | Destination type (`usual_residence`, `another_care_home`, `hospital`, `other`) and the receiving provider's CQC location ID or ODS code | Sets `person.discharged_at`. |
 | `exit_record` death details | NHS Data Dictionary PERSON DEATH DATE (date part of `person.deceased_at`); place of death (concept) | Place `care_home`, `hospital`, `elsewhere`; expected or not; verified by (name, role) and at | Sets `person.deceased_at`. |
 | `exit_checklist_item.status` | Harbour | `pending`, `done`, `not_required` (with a reason, only where allowed) | Item keys from `exitChecklist` in `packages/domain/src/people/exit.ts`. |
-| `sharing_decision.sections` | Harbour | `about_me`, `daily_updates`, `photos`, `activities_and_visits`, `care_plan`, `health_summary`, `medicines`, `appointments`, `finance`, `documents`; care plan domains as the PCSP domains | |
+| `sharing_decision.sections` | Harbour | `about_me`, `daily_updates`, `photos`, `activities_and_visits`, `care_plan`, `health_summary`, `medicines`, `appointments`, `finance`, `benefits`, `documents`; care plan domains as the PCSP domains | `benefits` is the only section a DWP appointee covers; `finance` and `benefits` need a property and financial affairs authority. |
 | `sharing_decision.basis` | UK GDPR and Caldicott principle 7 (direct care) | `consent`, `legal_authority`, `best_interests`, `direct_care` | Consent covers optional processing only (records of processing B8). |
 | `sharing_decision` authority role | Mental Capacity Act 2005 (Office of the Public Guardian registrations, Court of Protection orders); DWP appointeeship | `lpa_health_welfare`, `lpa_property_finance`, `deputy_personal_welfare`, `deputy_property_affairs`, `appointee` | From `contact.role` and `contact.authority_scope`, with reference, evidence document and end date. |
+| `sharing_decision` deputy order sections | Court of Protection order (Mental Capacity Act 2005 s.16 and s.20) | `sharing_decision.sections` codes, as recorded from the order | Required for `deputy_personal_welfare` and `deputy_property_affairs`; a deputy is never shown a section outside it. |
+| `sharing_decision_suspension` | Harbour | `from`, `to` (UTC; `to` empty while it lasts), reason | Periods, not a single flag: an update from a suspension period stays closed after it ends (comms.md rule 2). `to` after `from`. |
 | `sharing_decision` capacity | Mental Capacity Act 2005 s.1(2) (presumption of capacity) | `presumed`, `assessed_has_capacity`, `assessed_lacks_capacity` | Links the capacity assessment where one exists. |
 | `break_glass_event.reason_code` | Harbour | `emergency_care`, `covering_another_area`, `safeguarding`, `incident_or_complaint`, `request_from_professional`, `other` | Phase 1; the typed justification is kept as well. |
+
+## Packs and governance (Phase 1, slice 11)
+
+Code lists for [operations.md](operations.md), [quality.md](quality.md) and [comms.md](comms.md).
+None of these fields has a national standard; they are Harbour's, and are exported in the full
+tenant export with these names.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `downtime_pack.source` | Harbour | `server_nightly`, `server_on_demand`, `kiosk_cache` | |
+| `downtime_pack.generated_at`, `as_at`, `valid_until` | Harbour | ISO 8601 UTC; shown dd/mm/yyyy hh:mm UK time | `valid_until` = `as_at` + `downtime_pack.valid_hours` |
+| `downtime_pack` content sections | Harbour; allergies as `allergy`, communication needs as AIS, resuscitation as `advance_care_record`, IDDSI levels as the care profile (IDDSI framework codes, food and drink separately), care plan domains as the PRSB PCSP domains | `identity`, `allergies`, `resuscitation`, `iddsi_food`, `iddsi_drink`, `communication`, `evacuation`, `medicines_due`, `contacts`, `care_plan`, `risks`, each with status `included`, `not_recorded`, `held_elsewhere`, `withheld`, `conflicting` (resuscitation records that disagree) or `unreadable` (a stored value that is not a valid code) | The snapshot is stored as JSON with its rendered PDF. The resuscitation section lists every active ReSPECT and DNACPR record. Medicines due list scheduled doses (`due`, `given`, `not_given`) and PRN medicines with their last-given time, dm+d-coded from Phase 2 |
+| Location settings `downtime.mar_location`, `downtime.peep_location` | Harbour | Plain text, worded for the printed page | Where the paper MAR and the PEEPs are kept until the eMAR (Phase 2) and PEEPs (Phase 3) |
+| `outage.kind` | Harbour | `power`, `network`, `harbour_unavailable`, `device_failure`, `planned_maintenance`, `other` | With a free-text description |
+| `outage.started_at`, `ended_at`, `declared_at`, `closed_at`, `back_entry_due_at` | Harbour | ISO 8601 UTC | `ended_at` null while open; the outage window used by back-entry |
+| `outage` state | Harbour | `declared`, `closed`, `reconciled`, `cancelled` | |
+| `late_entry_reason` (care events) | Harbour | `downtime` or null | With `outage_id`, `outside_outage_reason` (free text, only outside the window), `paper_reference` and `not_from_paper_reason` (free text, for an entry inside an outage that was not copied from paper) |
+| `paper_date`, `paper_time`, `paper_occurrence` (care events) | Harbour | `YYYY-MM-DD` and `HH:MM` as written on the form, UK wall-clock time; `only`, `earlier` (BST) or `later` (GMT) for the repeated autumn hour | Kept beside the resolved event instant (`resolvePaperTime`) |
+| `outage` reconciliation | Harbour | reconciled by and at, statement (free text), reviewed entry ids, forms entered (count) | The reconciler cannot have entered records for the outage |
+| `evidence_pack.recipient` | Harbour | name, organisation, work email (lower case) | The recipient is personal data (records of processing) |
+| `evidence_pack.purpose`, date range, locations, statements | Harbour; statements as the CQC quality statement ids of the framework model (QUAL-001, Phase 2) | Free text; `YYYY-MM-DD` inclusive; location ids; statement ids | |
+| `evidence_pack_item` field outcome | Harbour | key; kind `organisational`, `care_content`, `direct_identifier`, `staff_name`, `third_party`, `free_text` (from `EVIDENCE_FIELD_KIND_MAP` by record type, [quality.md](quality.md) rule 3); `included`, `redacted`, `withheld`, with reason `third_party`, `staff_role_only`, `free_text_redacted_by_hand`, `person_not_in_scope`, `person_unknown`, `identifier_not_needed`, `free_text_not_reviewed`, `redaction_incomplete`; redacted by (user id) | Roles printed in place of names come from `EVIDENCE_PARTY_ROLES` and `EVIDENCE_STAFF_ROLES` |
+| `evidence_pack_item` record type | Harbour | `incident`, `care_note`, `observation`, `body_map_mark`, `assessment`, `care_plan_section`, `risk_assessment`, `activity_record`, `visit_log`, `advance_care_record` | |
+| `evidence_pack_item` exclusion | Harbour | `restricted_record`, `outside_date_range`, `location_not_requested`, `not_tagged`, `statement_not_requested`, `person_not_in_scope` | Internal manifest only |
+| `evidence_pack_link` | Harbour | token hash (SHA-256, never the token), issued by and at, replaces link, `expires_at`, `revoked_at`, failed code attempts (never decreases) | ADR-0050 |
+| `evidence_pack_link_code` | Harbour | code hash (never the code), `issued_at`, `used_at` | Six digits, single use, valid `evidence_pack.code_valid_minutes`; verification lives in an HttpOnly session cookie per link, not in the database |
+| `statement_of_purpose_version` sections | CQC (Registration) Regulations 2009 Schedule 3 | `aims_and_objectives`, `services_and_needs`, `contact_details`, `legal_status`, `locations` | Contact details are business details of the provider and registered managers |
+| `statement_of_purpose_version.legal_status` | Harbour | `individual`, `partnership`, `limited_company`, `limited_liability_partnership`, `charitable_incorporated_organisation`, `community_interest_company`, `nhs_body`, `local_authority`, `other` (with detail) | |
+| `statement_of_purpose_version` kind and state | Harbour | kind `baseline`, `revision`; state `draft`, `approved`, `superseded`, `discarded` | |
+| `letter_template.kind`, `channel` | Harbour | kind `admission`, `fee_review`, `incident_follow_up`, `duty_of_candour`, `general`; channel `letter`, `email` | |
+| Merge fields | Harbour (`MERGE_FIELDS` in `packages/domain/src/comms/templates.ts`) | `{{field.name}}`; types `text`, `date` (`YYYY-MM-DD`), `datetime` (ISO 8601), `money` (whole pence), `number`; data classes `none`, `personal`, `special_category`; flags `multiLine` (never in a subject), `notInEmail` (NHS number, date of birth), `allowsResultsToFollow` (`candour.results` only) | ADR-0051 |
+| `letter` | Harbour | template version, person, recipient (`person` or `contact` with contact id), channel, personal-data fields used, special category flag, results to follow (candour), incident and its grade | The rendered letter is a document about the person; retention by `letterRetentionClass` |
+| Candour relevant person | Harbour; Health and Social Care Act 2008 (Regulated Activities) Regulations 2014 regulation 20(7) | `service_user`, or `representative` with contact id and basis `death`, `under_16_not_competent`, `lacks_capacity` | Held on the candour record ([safety.md](safety.md)); the letter goes to this person |
+
+`downtime_pack`, `outage` and `evidence_pack_link` are operational records; they are exported in the
+full tenant export but map to no national standard.
+
+## Family feed and communications (Phase 1, slice 12)
+
+Code lists for the tables in [comms.md](comms.md) section 2. No national data standard covers a
+family feed; addresses follow the internet and telephone standards named below.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `feed_item.kind` | Harbour | `activity`, `visit`, `appointment`, `shared_note`, `photo`, `care_plan_update`, `finance_statement` | Section from `FEED_ITEM_SECTIONS` (the `sharing_decision.sections` codes); `finance_statement` is a placeholder until Phase 3. |
+| `feed_item.text` | Harbour | Plain text, at most 1,000 characters; an approved phrase (`phrase_key`) or a member of staff's words | Never a clinical note: shared notes come from `care_note_share`. |
+| `feed_item.carePlanDomain` | PRSB PCSP need domains (as `care_plan_section.domain`) | `PCSP_DOMAINS` marked `may_appear` in `FEED_CARE_PLAN_DOMAINS` | Required for `care_plan_update` and empty otherwise (CHECK constraint); the CSO confirms the allow-list (H-110). |
+| `feed_item` confirmation | Harbour | Confirmed by (tenant user id) and reason (plain text, at least `FEED_CONFIRMATION_MIN_REASON_LENGTH` characters) | Only when staff words carry an event or wellbeing term (comms.md rule 12); both set or both empty. |
+| `feed_item.photoDocumentId` | Harbour | Document id | Only for `kind = 'photo'` (CHECK constraint). |
+| `feed_item_withdrawal.reason` | Harbour | `source_corrected`, `published_in_error`, `person_asked`, `photo_consent_withdrawn` | |
+| `feed_view` | Harbour | Item, contact, decision, section, care plan domain, person status, capacity for sharing (`presumed`, `assessed_has_capacity`, `assessed_lacks_capacity`), `viewed_at` (UTC) | The exposure history (comms.md rule 4). |
+| `family_portal_user` | Harbour | Tenant user id and contact id, unique together | The link a portal session is resolved from (ADR-0061); never paired with a `person_assignment`. |
+| `family_channel.kind` | Harbour | `email`, `sms`, `push` | |
+| `family_channel.address` | Email: RFC 5321 and 5322 (at most 254 characters); SMS: ITU-T E.164 (`+` and 8 to 15 digits); push: the Expo push token | Text | Proof of the address is the verification, not the format check. |
+| `family_channel.opted_out_via` | Harbour | `sms_reply`, `email_link`, `portal` | SMS replies STOP, STOPALL, UNSUBSCRIBE, CANCEL, END, QUIT opt out; START or UNSTOP opt back in. |
+| `family_channel.suspended_reason` | Harbour | `hard_bounce`, `complaint`, `device_not_registered` | Cleared when the address changes. |
+| `family_notification.status` | Harbour | `planned`, `held`, `sent`, `failed`, `cancelled` | Held until quiet hours end (UK time). |
+| `family_notification_setting` quiet hours | Harbour | `HH:MM` to `HH:MM`, UK local time; a window may cross midnight | The tenant's window comes from the rate table (`comms.family_notifications.*`). |
+| `visit_booking.status` | Harbour | `confirmed`, `cancelled` | With `sequence` for the calendar file. |
+| `visit_booking_setting` hours | Harbour | Minutes after midnight, UK time (`minute_of_day`); end up to 1440 (midnight) | No product default. |
+| `location_visit_restriction.kind` | Harbour | `outbreak`, `other`; with `from`, `to` (UTC) and a reason for staff only | Refuses online booking at the location with the usual "call the home" message. |
+| `visit_log.accompaniment_purpose` | Harbour (Regulation 9A accompanying) | `planned_appointment`, `unplanned_appointment`, `emergency` (`ACCOMPANIMENT_PURPOSES`) | Required for `visit_log.kind = 'accompaniment'`; only planned appointments reach the feed. |
+| Visit calendar file | iCalendar, RFC 5545 | `text/calendar`; UID `visit-{booking id}@{portal domain}`; DTSTART and DTEND with `TZID=Europe/London` and a VTIMEZONE, UTC in the repeated autumn hour | Names the home, never the person. |
+| Click-to-call | RFC 3966 `tel:` URI with an E.164 number | `tel:+441632960001` | The home's own number only. |
+| `consent_record.decision = photos` | Harbour (care consent kinds) | As `CONSENT_DECISION_KINDS` | The basis for photos in the feed, with `best_interests_decision` (decision kind `photos`, a yes or no outcome) where the person lacks capacity. |
 
 ## Platform completions (Phase 1, slice 13)
 
@@ -428,10 +537,12 @@ map to no national data standard: `audit_event` (hash-chained), `record_version`
 `notification`, `notification_delivery`, `escalation_chain`, `feature_flag`, `form_template`,
 `form_submission`, `integration_connection`, `integration_inbound`, `support_access_request`,
 `break_glass_event`, `person_assignment`, `role`, `role_assignment`, `access_grant`, and from
-Phase 1 `break_glass_weekly_report`, `about_me_share_link`, `welcome_checklist_template`, `tenant_export`,
-`dpia`, `sub_processor_response`, `tenant_setting_decision` and `retention_decision` (the global
-`sub_processor_notice` table is Thapsus's and is not exported). Every exported table is described in
-`EXPORT_TABLES` (`packages/domain/src/platform/export.ts`), which a test keeps in step with the schema. Field-level
+Phase 1 `break_glass_weekly_report`, `about_me_share_link`, `welcome_checklist_template`,
+`tenant_export`, `dpia`, `sub_processor_response`, `tenant_setting_decision`, `retention_decision`,
+`family_notification`, `visit_booking_setting` and `family_portal_user` (the global
+`sub_processor_notice` table is Thapsus's and is not exported). Every exported table is described
+in `EXPORT_TABLES` (`packages/domain/src/platform/export.ts`), which a test keeps in step with the
+schema. Field-level
 detail is in `packages/db/src/schema/`; purposes and lawful bases are in
 [records of processing](../compliance/records-of-processing.md).
 
@@ -449,3 +560,5 @@ detail is in `packages/db/src/schema/`; purposes and lawful bases are in
   findings.
 - MODS and NHS Data Dictionary items for admission date, discharge destination and place of death
   (people lifecycle, Phase 1).
+- SNOMED CT concepts for mental capacity findings, consent decisions and DoLS status, and a mapping
+  of incident types and harm grades to LFPSE for national reporting (slices 6 and 7).
