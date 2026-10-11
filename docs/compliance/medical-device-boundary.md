@@ -84,9 +84,14 @@ Where the Waterlow card leaves room for reading, the reading taken is stated in 
 photos and care plan updates, and words a member of staff wrote for the family; it has no kind for
 observations, charts, assessments, validated tool results, body maps, medicines or incidents, and
 it refuses staff-written words that name a validated tool or a score, or read as a diagnosis or a
-prognosis (`FEED_CLINICAL_TERMS`, a backstop behind the staff member's decision). Approved phrases
-say what happened, never how the person is. Notifications carry an approved generic line and a link
-only. Nothing interprets, scores or predicts ([comms.md](../specs/comms.md) rules 7 to 13).
+prognosis (`FEED_CLINICAL_TERMS`, a backstop behind the staff member's decision, checked on
+normalised text, each part of a hyphenated word and without plural endings). Staff words that
+announce an event or claim how the person is (`FEED_EVENT_TERMS`, `FEED_WELLBEING_TERMS`) are word
+lists, not an assessment: they only ask a manager to confirm before publishing (HZ-061). Care plan
+sections such as end of life and medicines are never announced (`FEED_CARE_PLAN_DOMAINS`).
+Approved phrases say what happened, never how the person is. Notifications carry an approved
+generic line and a link only. Nothing interprets, scores or predicts
+([comms.md](../specs/comms.md) rules 7 to 13).
 
 **Regulatory opinion needed** `[human action]`: MHRA guidance indicates that software performing calculations that inform clinical decisions can be a medical device. Thapsus's position is that reproducing a published paper tool exactly, with every sub-score and the banding visible so the user can verify it, and leaving the response to the provider's own policy, is a record-keeping aid. This position should be confirmed by regulatory advice before the Phase 1 tools are used by a live tenant.
 
