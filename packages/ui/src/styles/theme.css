@@ -1,0 +1,117 @@
+/*
+ * Tailwind CSS 4 theme for Harbour. Maps the custom properties in tokens.css to utilities, for
+ * example bg-bg-secondary, text-text-secondary, border-border, text-link, bg-accent, rounded-card,
+ * shadow-floating, text-body, text-title, font-sans, min-h-target.
+ *
+ * "inline" makes utilities reference the token variables directly, so light, dark and the
+ * responsive type sizes switch without regenerating CSS.
+ *
+ * The default Tailwind colour palette is removed on purpose: the design system has a narrow palette
+ * and every colour in the product comes from a token.
+ */
+
+@theme inline {
+  --color-*: initial;
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  --color-bg: var(--bg);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-card: var(--card);
+  --color-text: var(--text);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-border: var(--border);
+  --color-link: var(--link);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-on-accent: var(--on-accent);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+  --color-focus-ring: var(--focus-ring);
+  --color-nav: var(--nav-surface);
+
+  --color-status-overdue: var(--status-overdue);
+  --color-status-due: var(--status-due);
+  --color-status-done: var(--status-done);
+  --color-status-not-applicable: var(--status-not-applicable);
+  --color-status-info: var(--status-info);
+  --color-status-on-fill: var(--status-on-fill);
+
+  --font-sans: var(--font-stack);
+
+  --text-display: var(--type-display-size);
+  --text-display--line-height: var(--type-display-line-height);
+  --text-display--letter-spacing: var(--type-display-tracking);
+  --text-display--font-weight: var(--type-display-weight);
+
+  --text-headline: var(--type-headline-size);
+  --text-headline--line-height: var(--type-headline-line-height);
+  --text-headline--letter-spacing: var(--type-headline-tracking);
+  --text-headline--font-weight: var(--type-headline-weight);
+
+  --text-title: var(--type-title-size);
+  --text-title--line-height: var(--type-title-line-height);
+  --text-title--letter-spacing: var(--type-title-tracking);
+  --text-title--font-weight: var(--type-title-weight);
+
+  --text-eyebrow: var(--type-eyebrow-size);
+  --text-eyebrow--line-height: var(--type-eyebrow-line-height);
+  --text-eyebrow--letter-spacing: var(--type-eyebrow-tracking);
+  --text-eyebrow--font-weight: var(--type-eyebrow-weight);
+
+  --text-intro: var(--type-intro-size);
+  --text-intro--line-height: var(--type-intro-line-height);
+  --text-intro--letter-spacing: var(--type-intro-tracking);
+
+  --text-body: var(--type-body-size);
+  --text-body--line-height: var(--type-body-line-height);
+  --text-body--letter-spacing: var(--type-body-tracking);
+
+  --text-body-dense: var(--type-body-dense-size);
+  --text-body-dense--line-height: var(--type-body-dense-line-height);
+  --text-body-dense--letter-spacing: var(--type-body-dense-tracking);
+
+  --text-callout: var(--type-callout-size);
+  --text-callout--line-height: var(--type-callout-line-height);
+  --text-callout--letter-spacing: var(--type-callout-tracking);
+
+  --text-caption: var(--type-caption-size);
+  --text-caption--line-height: var(--type-caption-line-height);
+  --text-caption--letter-spacing: var(--type-caption-tracking);
+
+  --text-nav: var(--nav-text-size);
+
+  --radius-pill: var(--corner-pill);
+  --radius-card: var(--corner-card);
+  --radius-tile: var(--corner-tile);
+  --radius-input: var(--corner-input);
+  --radius-chip: var(--corner-chip);
+
+  --shadow-floating: var(--elevation-floating);
+
+  --spacing-target: var(--touch-target);
+  --spacing-nav: var(--nav-height);
+  --spacing-gutter: var(--gutter);
+  --spacing-shell: var(--shell-page-padding);
+
+  --container-content: var(--content-width);
+
+  --ease-out: var(--motion-easing);
+  --default-transition-duration: var(--motion-duration);
+  --default-transition-timing-function: var(--motion-easing);
+}
+
+/*
+ * Breakpoints are min-width in Tailwind. sm starts above the 734 px small breakpoint, md above the
+ * 1068 px medium breakpoint and xl above 1440 px, so "max-sm:" means at or below 734 px and
+ * "max-md:" means at or below 1068 px, matching the Apple-derived layout.
+ */
+@theme {
+  --breakpoint-*: initial;
+  --breakpoint-sm: 735px;
+  --breakpoint-md: 1069px;
+  --breakpoint-xl: 1441px;
+}

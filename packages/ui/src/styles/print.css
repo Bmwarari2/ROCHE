@@ -1,0 +1,146 @@
+/* biome-ignore-all lint/complexity/noImportantStyles: print rules must beat theme, component and inline styles so records always print black on white. */
+
+/*
+ * Print stylesheet: records print cleanly in black on white. Navigation, toolbars and floating
+ * layers are hidden; status keeps its icon and word without relying on a coloured fill; link URLs
+ * are not appended. Mark anything else to leave off paper with data-print="hide".
+ */
+
+@media print {
+  @page {
+    margin: 15mm;
+  }
+
+  :root,
+  [data-theme] {
+    /* !important so the dark theme rules cannot win on paper. */
+    color-scheme: light !important;
+    --bg: #ffffff !important;
+    --bg-secondary: #ffffff !important;
+    --card: #ffffff !important;
+    --text: #000000 !important;
+    --text-secondary: #000000 !important;
+    --text-tertiary: #000000 !important;
+    --border: #000000 !important;
+    --link: #000000 !important;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt;
+  }
+
+  .hb-appbar,
+  .hb-sidebar,
+  .hb-skip-link,
+  .hb-toast-viewport,
+  .hb-sheet-overlay,
+  .hb-table__toolbar,
+  .hb-stepper__actions,
+  .hb-inspector__close,
+  .hb-page-header__actions,
+  .hb-banner__actions,
+  .hb-tooltip,
+  .hb-menu,
+  [data-print="hide"] {
+    display: none !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  a,
+  a:visited {
+    color: #000000;
+    text-decoration: underline;
+  }
+
+  /* Show link URLs: off. */
+  a[href]::after {
+    content: none !important;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    break-after: avoid;
+  }
+
+  .hb-card,
+  .hb-tile,
+  .hb-inspector,
+  .hb-banner,
+  .hb-stepper,
+  .hb-timeline__entry {
+    break-inside: avoid;
+  }
+
+  .hb-card,
+  .hb-tile,
+  .hb-inspector,
+  .hb-stepper,
+  .hb-table__scroll {
+    border: 0.5pt solid #000000;
+  }
+
+  .hb-inspector {
+    position: static;
+    width: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .hb-table__scroll {
+    max-height: none !important;
+    overflow: visible;
+  }
+
+  .hb-table__th {
+    position: static;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr {
+    break-inside: avoid;
+  }
+
+  .hb-table__sort-icon {
+    display: none;
+  }
+
+  /* Status: a hairline box with the icon and word, so it reads without colour. */
+  .hb-status-chip {
+    border: 0.5pt solid #000000;
+    background: none !important;
+    color: #000000 !important;
+  }
+
+  .hb-timeline__body--struck {
+    color: #000000;
+    text-decoration: line-through;
+  }
+
+  .hb-timeline__correction {
+    border-inline-start: 2pt solid #000000;
+  }
+
+  .hb-sheet {
+    position: static;
+    width: auto;
+    max-height: none;
+    transform: none;
+    border: 0;
+  }
+}
