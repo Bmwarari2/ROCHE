@@ -122,16 +122,32 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | riddor.over_7_day.threshold_days | 7 | days | 2013-10-01 | - | wales | https://www.hse.gov.uk/riddor/when-do-i-report.htm (over-seven-day incapacitation) | verified |
 | riddor.over_7_day.threshold_days | 7 | days | 2013-10-01 | - | scotland | https://www.hse.gov.uk/riddor/when-do-i-report.htm (over-seven-day incapacitation) | verified |
 | candour.written_notification.working_days | 10 | working_days | 2000-01-01 | - | england | Tenant-configurable target, ADR-0021; regulation 20 requires "as soon as reasonably practicable"; section 21 open item | to-verify |
-| candour.prolonged_harm_days | 28 | days | 2000-01-01 | - | england | master prompt 11.1 (prolonged pain or psychological harm 28 days or more) | master-prompt |
-| dols.urgent.days | 7 | days | 2009-04-01 | - | england | master prompt 10.4 | master-prompt |
-| dols.urgent.days | 7 | days | 2009-04-01 | - | wales | master prompt 10.4 | master-prompt |
-| dols.urgent.extension_days | 7 | days | 2009-04-01 | - | england | master prompt 10.4 (one 7-day extension) | master-prompt |
-| dols.urgent.extension_days | 7 | days | 2009-04-01 | - | wales | master prompt 10.4 (one 7-day extension) | master-prompt |
-| dols.standard.max_months | 12 | months | 2009-04-01 | - | england | master prompt 10.4 | master-prompt |
-| dols.standard.max_months | 12 | months | 2009-04-01 | - | wales | master prompt 10.4 | master-prompt |
+| candour.prolonged_harm_days | 28 | days | 2000-01-01 | - | england | https://www.legislation.gov.uk/uksi/2014/2936/regulation/20 (reg 20(7) "prolonged pain" and "prolonged psychological harm", and reg 20(9)(a)(ii): a continuous period of at least 28 days); master prompt 11.1 | verified |
+| cqc.reg18.prolonged_harm_days | 28 | days | 2010-04-01 | - | england | https://www.legislation.gov.uk/uksi/2009/3112/regulation/18 (reg 18(5)(g): prolonged pain or psychological harm, and an impairment that is not temporary, mean a continuous period of at least 28 days) | verified |
+| cqc.reg18.interruption_hours | 24 | hours | 2010-04-01 | - | england | https://www.legislation.gov.uk/uksi/2009/3112/regulation/18 (reg 18(2)(g)(ii) and (iv): utilities, fire alarms or safety devices out for longer than a continuous period of 24 hours) | verified |
+| dols.urgent.days | 7 | days | 2009-04-01 | - | england | https://www.legislation.gov.uk/ukpga/2005/9/schedule/A1/paragraph/78 (para 78(2) "must not exceed 7 days"); master prompt 10.4 | verified |
+| dols.urgent.days | 7 | days | 2009-04-01 | - | wales | https://www.legislation.gov.uk/ukpga/2005/9/schedule/A1/paragraph/78 (para 78(2) "must not exceed 7 days"); master prompt 10.4 | verified |
+| dols.urgent.extension_days | 7 | days | 2009-04-01 | - | england | https://www.legislation.gov.uk/ukpga/2005/9/schedule/A1/paragraph/85 (para 85(3) "must not exceed 7 days"); master prompt 10.4 | verified |
+| dols.urgent.extension_days | 7 | days | 2009-04-01 | - | wales | https://www.legislation.gov.uk/ukpga/2005/9/schedule/A1/paragraph/85 (para 85(3) "must not exceed 7 days"); master prompt 10.4 | verified |
+| dols.urgent.max_extension_requests | 1 | count | 2009-04-01 | - | england | https://www.legislation.gov.uk/ukpga/2005/9/schedule/A1/paragraph/77 (para 77(4) "Only one request under sub-paragraph (3) may be made"); master prompt 10.4 | verified |
+| dols.urgent.max_extension_requests | 1 | count | 2009-04-01 | - | wales | https://www.legislation.gov.uk/ukpga/2005/9/schedule/A1/paragraph/77 (para 77(4) "Only one request under sub-paragraph (3) may be made"); master prompt 10.4 | verified |
+| dols.standard.max_months | 12 | months | 2009-04-01 | - | england | https://www.legislation.gov.uk/ukpga/2005/9/schedule/A1/paragraph/42 (para 42(2)(b) "1 year, or such shorter period as may be prescribed in regulations"; para 51(2)); master prompt 10.4 | verified |
+| dols.standard.max_months | 12 | months | 2009-04-01 | - | wales | https://www.legislation.gov.uk/ukpga/2005/9/schedule/A1/paragraph/42 (para 42(2)(b) "1 year, or such shorter period as may be prescribed in regulations"; para 51(2)); master prompt 10.4 | verified |
+| dols.expiry_reminder_days.first | 28 | days | 2000-01-01 | - | england | Harbour tenant default (care.md section 4 rule 11; HZ-020); no statutory figure | to-verify |
+| dols.expiry_reminder_days.first | 28 | days | 2000-01-01 | - | wales | Harbour tenant default (care.md section 4 rule 11; HZ-020); no statutory figure | to-verify |
+| dols.expiry_reminder_days.second | 7 | days | 2000-01-01 | - | england | Harbour tenant default (care.md section 4 rule 11; HZ-020); no statutory figure | to-verify |
+| dols.expiry_reminder_days.second | 7 | days | 2000-01-01 | - | wales | Harbour tenant default (care.md section 4 rule 11; HZ-020); no statutory figure | to-verify |
 | outbreak.ari_cases | 2 | count | 2000-01-01 | - | england | https://www.gov.uk/guidance/report-an-outbreak-of-acute-respiratory-infection-in-an-adult-social-care-setting; master prompt 11.1 | verified |
-| outbreak.ari_window_days | 5 | days | 2000-01-01 | - | england | https://www.gov.uk/guidance/report-an-outbreak-of-acute-respiratory-infection-in-an-adult-social-care-setting; master prompt 11.1 | verified |
+| outbreak.ari_window_days | 5 | days | 2000-01-01 | - | england | https://www.gov.uk/guidance/report-an-outbreak-of-acute-respiratory-infection-in-an-adult-social-care-setting ("symptoms that started within 5 days of each other"); master prompt 11.1 | verified |
+| outbreak.flu_confirmed_cases | 1 | count | 2026-01-15 | - | england | https://www.gov.uk/guidance/report-an-outbreak-of-acute-respiratory-infection-in-an-adult-social-care-setting ("a single confirmed case of flu in your setting") | verified |
 | outbreak.diarrhoea_vomiting_cases | 2 | count | 2000-01-01 | - | england | master prompt 11.1 (2 or more linked cases) | master-prompt |
+| pressure_ulcer.decision_guide_hours | 48 | hours | 2024-01-16 | - | england | https://www.gov.uk/government/publications/pressure-ulcers-how-to-safeguard-adults/safeguarding-adults-protocol-pressure-ulcers-and-raising-a-safeguarding-concern ("completed immediately or within 48 hours of identifying the pressure ulcer of concern") | verified |
+| falls.monitoring_hours | 24 | hours | 2000-01-01 | - | all | Hertfordshire Care Providers Association care home falls pathway, May 2026 ("Always monitor the person for 24 hours following a fall"), https://www.hcpa.info/wp-content/uploads/2026/05/Management-of-a-person-who-has-fallen-in-a-care-home.pdf; regional source; tenant default | to-verify |
+| falls.head_injury_obs.phase_1_interval_minutes | 30 | minutes | 2000-01-01 | - | all | https://www.nice.org.uk/guidance/ng232/chapter/Recommendations (1.9.11 "half-hourly for 2 hours", written for people admitted to hospital); care home default for CSO review; tenant default | to-verify |
+| falls.head_injury_obs.phase_1_hours | 2 | hours | 2000-01-01 | - | all | https://www.nice.org.uk/guidance/ng232/chapter/Recommendations (1.9.11 "half-hourly for 2 hours"); care home default for CSO review; tenant default | to-verify |
+| falls.head_injury_obs.phase_2_interval_minutes | 60 | minutes | 2000-01-01 | - | all | https://www.nice.org.uk/guidance/ng232/chapter/Recommendations (1.9.11 "then 1 hourly for 4 hours"); care home default for CSO review; tenant default | to-verify |
+| falls.head_injury_obs.phase_2_hours | 4 | hours | 2000-01-01 | - | all | https://www.nice.org.uk/guidance/ng232/chapter/Recommendations (1.9.11 "then 1 hourly for 4 hours"); care home default for CSO review; tenant default | to-verify |
+| falls.head_injury_obs.phase_3_interval_minutes | 120 | minutes | 2000-01-01 | - | all | https://www.nice.org.uk/guidance/ng232/chapter/Recommendations (1.9.11 "then 2 hourly"), until falls.monitoring_hours; care home default for CSO review; tenant default | to-verify |
 | capacity_tracker.window_start_day | 8 | day_of_month | 2022-07-31 | - | england | https://www.gov.uk/government/publications/adult-social-care-provider-information-provisions-formal-notice/formal-notice-of-a-mandate-for-all-adult-social-care-providers; master prompt 11.2 | verified |
 | capacity_tracker.window_end_day | 14 | day_of_month | 2022-07-31 | - | england | https://www.gov.uk/government/publications/adult-social-care-provider-information-provisions-formal-notice/formal-notice-of-a-mandate-for-all-adult-social-care-providers; master prompt 11.2 | verified |
 | asc_wds.funding_completeness_percentage | 90 | percent | 2000-01-01 | - | england | master prompt 12.3 (ASC-WDS funding data standard) | master-prompt |
@@ -227,6 +243,18 @@ literals, and tests assert against the table, not a literal (section 7, section 
 - `candour.written_notification.working_days` (10): regulation 20 says "as soon as reasonably
   practicable" and sets no number of days. 10 working days is a tenant-configurable target (ADR-0021),
   never presented as a statutory deadline. Brian to confirm the value to encode (Appendix open question).
+- `dols.expiry_reminder_days.first` (28) and `.second` (7): when the DoLS register reminds the
+  Registered Manager before an authorisation ends (care.md section 4 rule 11, HZ-020). No statutory
+  figure exists; they are tenant defaults for the tenant's DoLS lead to confirm (human action H-64). A
+  reminder that would fall before an authorisation starts (an urgent authorisation is shorter than
+  28 days) fires when it starts.
+- `falls.monitoring_hours` (24) and `falls.head_injury_obs.*` (30 minutes for 2 hours, 60 minutes for
+  4 hours, then 120 minutes): NICE NG232 recommendation 1.9.11 gives the observation frequency for
+  people admitted to hospital with a head injury and a GCS score of 15; NICE gives no care home
+  schedule. The 24-hour monitoring period comes from a regional care home pathway (Hertfordshire
+  Care Providers Association, May 2026). Harbour uses them as defaults after a fall with a head
+  injury or anticoagulant or antiplatelet treatment (safety.md rule 12) until the CSO confirms or
+  replaces them (human action H-66). Each tenant's clinical lead may set its own.
 - `bowel.no_movement_prompt_days` (3): the number of days without a recorded bowel movement before
   the bowel chart prompts staff (care.md section 4 rule 6 calls it the 3-day prompt). It is a tenant
   default, not a clinical threshold from a published source; the tenant's clinical lead confirms it
@@ -258,4 +286,22 @@ literals, and tests assert against the table, not a literal (section 7, section 
   tenant's clinical lead sets the actual interval per person.
 - Guaranteed-hours and short-notice cancellation payment figures (Employment Rights Act 2025, from 2027)
   and Fair Pay Agreement rates are not yet set; add rows when regulations are made.
+- `dols.*` statutory rows were confirmed on legislation.gov.uk (Mental Capacity Act 2005 Schedule A1,
+  paragraphs 42, 51, 77, 78 and 85) on 11 October 2026 and moved from `master-prompt` to `verified`.
+  The Mental Capacity (Amendment) Act 2019 (Liberty Protection Safeguards) has not replaced
+  Schedule A1. `dols.standard.max_months` stores "1 year" as 12 months; the end is computed in UK
+  time, falling back to the last day of a shorter month, so it is never late.
+- `cqc.reg18.*` and `candour.prolonged_harm_days`: the regulations define prolonged pain, prolonged
+  psychological harm and an impairment that is not temporary as "a continuous period of at least 28
+  days" (CQC (Registration) Regulations 2009 reg 18(5)(g); Regulated Activities Regulations 2014
+  reg 20(7) and (9)(a)(ii)). The utility and safety-device interruptions in reg 18(2)(g) count only
+  when "longer than" 24 continuous hours.
+- `outbreak.ari_window_days` (5): UKHSA says "symptoms that started within 5 days of each other".
+  Harbour reads this as onset dates at most 5 UK calendar days apart, and counts cases that could be
+  linked by spread in the setting ("If in doubt, report as an outbreak"). `outbreak.flu_confirmed_cases`
+  (1) is UKHSA's "a single confirmed case of flu in your setting". `outbreak.diarrhoea_vomiting_cases`
+  stays `master-prompt`: no national UKHSA definition for adult social care was found, so linkage is a
+  staff decision recorded on each case (human action H-65).
+- `pressure_ulcer.decision_guide_hours` (48): DHSC, "Pressure ulcers: how to safeguard adults"
+  (January 2024, updated June 2025), which replaced the 2018 protocol withdrawn on 26 June 2023.
 - Retention periods are not in this table; they live in `docs/specs/retention.md`.
