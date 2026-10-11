@@ -24,7 +24,7 @@ import {
   evaluateFlag,
   type FlagKey,
   firstCarePlanDue,
-  isClosedRecord,
+  LIVE_PERSON_STATUSES,
   type RateNation,
   type RateRow,
   resolveBedRailLimits,
@@ -370,7 +370,11 @@ export async function raiseOverdueCareReviews(
     .from(person)
     .innerJoin(location, eq(location.id, person.locationId))
     .where(isNull(person.deletedAt));
-  const open = people.filter((p) => !isClosedRecord(p.status) && p.status !== "enquiry");
+  // People receiving care; care plan reviews wait while the person is in hospital, and their
+  // return raises a review on change instead (people.md rule 8).
+  const open = people.filter(
+    (p) => LIVE_PERSON_STATUSES.includes(p.status) && p.status !== "in_hospital",
+  );
   const byId = new Map(open.map((p) => [p.id, p]));
 
   const activePlans = await tx

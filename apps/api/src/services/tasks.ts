@@ -1,13 +1,14 @@
 import type { Recurrence, TaskItem } from "@harbour/contracts";
 import {
   notification,
+  person,
   role,
   roleAssignment,
   type Transaction,
   task,
   taskSeries,
 } from "@harbour/db";
-import { occurrences, type TaskStatus, taskTimeState } from "@harbour/domain";
+import { occurrences, personStatusAllows, type TaskStatus, taskTimeState } from "@harbour/domain";
 import { and, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { rateNumber } from "./rates";
 
@@ -70,6 +71,15 @@ export async function materialiseSeries(
   now: Date,
 ): Promise<number> {
   if (!series.active) return 0;
+  if (series.personId) {
+    // A person in hospital, on leave or no longer receiving care is off rounds (people.md rule
+    // 1): nothing is materialised, and the series picks up again from now when they return.
+    const [who] = await tx
+      .select({ status: person.status })
+      .from(person)
+      .where(eq(person.id, series.personId));
+    if (!who || !personStatusAllows(who.status, "point_of_care_rounds")) return 0;
+  }
   const earliest = new Date(now.getTime() - MAX_BACKFILL_HOURS * 3_600_000);
   const from =
     series.materialisedUntil && series.materialisedUntil.getTime() > earliest.getTime()
