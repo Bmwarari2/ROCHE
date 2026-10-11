@@ -28,6 +28,7 @@
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
     "@harbour/config": "workspace:*",
+    "@harbour/domain": "workspace:*",
     "@playwright/test": "1.56.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^22.15.0",
