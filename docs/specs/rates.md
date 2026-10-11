@@ -168,9 +168,11 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | break_glass.weekly_repeat_threshold | 3 | count | 2000-01-01 | - | all | Harbour default for flagging repeated break-glass use in the weekly report (master prompt 4 requires the report but sets no number); tenant default | to-verify |
 | family_involvement.interval_months | 6 | months | 2000-01-01 | - | all | Harbour default for the family involvement record (master prompt 9.2 names the record but sets no interval); tenant default | to-verify |
 | exit.money_and_property_return_days | 28 | days | 2000-01-01 | - | all | Harbour default matching cma.deposit_return_days (master prompt 9.2); no statutory period for returning personal money and property; tenant default | to-verify |
-| downtime_pack.valid_hours | 24 | hours | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: a nightly downtime pack is in date for 24 hours from its information's time (master prompt 13.4 "nightly"); tenant default | to-verify |
+| downtime_pack.valid_hours | 36 | hours | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: a nightly downtime pack is in date for 36 hours from its information's time, longer than the nightly interval so one failed night does not leave a home with only an out-of-date pack (master prompt 13.4 "nightly"); tenant default; CSO to confirm (H-101) | to-verify |
+| downtime.duplicate_match_minutes | 10 | minutes | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: entries for the same person and kind within this many minutes of each other are listed as possible duplicates at outage reconciliation (master prompt 13.4 back-entry workflow); tenant default | to-verify |
 | downtime.back_entry_due_hours | 24 | hours | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: paper records from an outage are entered within 24 hours of its closure (master prompt 13.4 back-entry workflow); tenant default | to-verify |
 | evidence_pack.link_expiry_days.default | 7 | days | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: an inspector evidence pack link lasts 7 days unless the sender chooses otherwise (master prompt 11.2 "time-limited link"); tenant default | to-verify |
+| evidence_pack.code_valid_minutes | 10 | minutes | 2000-01-01 | - | all | Harbour security policy, not a statutory figure: a one-time code for opening an evidence pack link is valid for at most 10 minutes (ADR-0050; OWASP ASVS 5.0 out-of-band verifier lifetime) | to-verify |
 | evidence_pack.link_expiry_days.max | 30 | days | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: the longest an evidence pack link may last (data minimisation, UK GDPR Art 5(1)(c) and (e)); tenant default | to-verify |
 | ecm.tolerance_minutes.high | 15 | minutes | 2000-01-01 | - | all | master prompt 13.2 (defaults 15, 30, 60 by client risk); tenant default | master-prompt |
 | ecm.tolerance_minutes.medium | 30 | minutes | 2000-01-01 | - | all | master prompt 13.2 (defaults 15, 30, 60 by client risk); tenant default | master-prompt |
@@ -286,17 +288,25 @@ literals, and tests assert against the table, not a literal (section 7, section 
   property and keys after a discharge, transfer or death. No statute sets one; the default mirrors
   the CMA deposit-return period (`cma.deposit_return_days`) so the two clocks agree. Tenant default
   (H-58); the escalation goes to the Registered Manager, it is not a legal deadline.
-- `downtime_pack.valid_hours` (24) and `downtime.back_entry_due_hours` (24): policy defaults for the
-  downtime pack ([operations.md](operations.md) rules 2 and 7). A pack is in date for this many
-  hours from the time its information was read (the server's read time, or a kiosk's last sync);
-  after that every page says in words that it is out of date (HZ-050). Paper records from an outage
-  are due to be entered within this many hours of the outage's closure; overdue back-entry
-  escalates to the Registered Manager. No statute sets either figure; the tenant's business
-  continuity lead confirms them (human action H-98).
+- `downtime_pack.valid_hours` (36), `downtime.back_entry_due_hours` (24) and
+  `downtime.duplicate_match_minutes` (10): policy defaults for the downtime pack
+  ([operations.md](operations.md) rules 2, 11 and 14). A pack is in date for this many hours from
+  the time its information was read (the server's read time, or a kiosk's last sync). The figure is
+  longer than the nightly interval, so one failed nightly job does not leave the home with only an
+  out-of-date pack; after it, every page says in words that it is out of date, and during a
+  declared outage every page says it is the latest available and that anything since is on paper
+  (HZ-021). The CSO confirms the figure and the wording (H-101). Paper records from an outage are
+  due within `downtime.back_entry_due_hours` of the outage's closure; overdue back-entry escalates
+  to the Registered Manager. Entries for one person and kind within
+  `downtime.duplicate_match_minutes` of each other are listed as possible duplicates. No statute
+  sets any of these figures; the tenant's business continuity lead confirms them (H-98).
 - `evidence_pack.link_expiry_days.default` (7) and `.max` (30): policy defaults for the time-limited
   link to an inspector evidence pack ([quality.md](quality.md) rule 6). The sender may choose a
   shorter or longer expiry up to the maximum; a tenant may lower the maximum. No statute or CQC
   guidance sets a period; the data protection lead confirms them (human action H-96).
+- `evidence_pack.code_valid_minutes` (10): how long a one-time code for opening an evidence pack
+  link stays valid (ADR-0050). A security policy value, not a tenant preference: a tenant may
+  shorten it, never lengthen it. Codes are 6 digits, single-use and stored hashed.
 
 ## Other notes
 
