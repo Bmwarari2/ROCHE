@@ -211,7 +211,7 @@ describe("permission catalogue", () => {
     ["finance.ledger.approve", true],
     ["platform.export.create", true],
     ["platform.search.use", false],
-    ["platform.dpia.sign", false],
+    ["platform.dpia.sign", true],
     ["people.person.break_glass", true],
     ["safety.notification.submit", true],
     ["care.note.write", false],

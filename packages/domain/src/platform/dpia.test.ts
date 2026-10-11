@@ -207,6 +207,9 @@ describe("DPIA sign-off by the data protection lead, not a preparer", () => {
     icoConsultationReference: null,
     versionSha256: SHA,
     actor: { tenantUserId: "ql-1", access: accessFor("quality_lead") },
+    lastMfaSignInAt: new Date(NOW.getTime() - 60_000),
+    now: NOW,
+    stepUpWindowSeconds: 600,
     designatedLeadIds: ["ql-1"],
     signature: { typedName: "Ada Example", sha256Seen: SHA },
     ...extra,
@@ -239,6 +242,12 @@ describe("DPIA sign-off by the data protection lead, not a preparer", () => {
 
   it.each<[string, Partial<DpiaSignOffInput>, string]>([
     ["a draft", { status: "draft" }, "not_prepared"],
+    [
+      "an old MFA sign-in",
+      { lastMfaSignInAt: new Date(NOW.getTime() - 3_600_000) },
+      "step_up_required",
+    ],
+    ["no MFA sign-in", { lastMfaSignInAt: null }, "step_up_required"],
     ["an already signed version", { status: "signed" }, "not_prepared"],
     [
       "a Registered Manager",

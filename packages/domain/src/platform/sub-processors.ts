@@ -1,5 +1,5 @@
 import { addUkDays } from "../shared/time";
-import { can, type EffectiveAccess } from "./access";
+import { authorise, type EffectiveAccess } from "./access";
 import type { FlagKey } from "./feature-flags";
 import type { PlatformRates } from "./rates";
 
@@ -262,6 +262,8 @@ export const OBJECTION_GROUNDS_MIN_LENGTH = 20;
 
 export type NoticeResponseProblem =
   | "missing_permission"
+  | "step_up_required"
+  | "not_designated_lead"
   | "not_applicable"
   | "window_closed"
   | "already_objected"
@@ -272,8 +274,10 @@ export type NoticeResponseCheck =
   | { readonly ok: false; readonly problem: NoticeResponseProblem; readonly message: string };
 
 const RESPONSE_MESSAGES: Record<NoticeResponseProblem, string> = {
-  missing_permission:
-    "Only the organisation's data protection lead or owner can answer this notice.",
+  missing_permission: "Only the organisation's data protection lead can answer this notice.",
+  step_up_required: "Sign in again with your second step to answer this notice.",
+  not_designated_lead:
+    "Only the person named as the organisation's data protection officer or lead can answer this notice.",
   not_applicable: "This change does not affect your organisation's data.",
   window_closed: "The time to object has passed. Contact Thapsus support if you have a concern.",
   already_objected: "Your organisation has already objected. Thapsus will be in touch.",
@@ -281,8 +285,10 @@ const RESPONSE_MESSAGES: Record<NoticeResponseProblem, string> = {
 };
 
 /**
- * Acknowledging or objecting to a notice needs `platform.dpia.sign`. An objection must come within
- * the window and give its grounds; an acknowledgement can come at any time.
+ * Acknowledging or objecting to a notice is the controller's decision, so it follows the DPIA
+ * sign-off rule: a holder of `platform.dpia.sign` (a step-up permission, so an MFA sign-in within
+ * the window) who is named as the organisation's data protection officer or lead. An objection
+ * must come within the window and give its grounds; an acknowledgement can come at any time.
  */
 export function checkNoticeResponse(input: {
   readonly kind: "acknowledge" | "object";
@@ -290,6 +296,11 @@ export function checkNoticeResponse(input: {
   readonly response: NoticeResponse;
   readonly config: SubProcessorConfig;
   readonly access: EffectiveAccess;
+  readonly actorTenantUserId: string;
+  /** The tenant's designated DPO or named data protection lead(s), from governance settings. */
+  readonly designatedLeadIds: readonly string[];
+  readonly lastMfaSignInAt: Date | null;
+  readonly stepUpWindowSeconds: number;
   readonly grounds?: string;
   readonly now: Date;
   readonly rates: Pick<PlatformRates, "subProcessorNoticeDays">;
@@ -299,7 +310,18 @@ export function checkNoticeResponse(input: {
     problem,
     message: RESPONSE_MESSAGES[problem],
   });
-  if (!can(input.access, "platform.dpia.sign")) return fail("missing_permission");
+  const decision = authorise(
+    input.access,
+    "platform.dpia.sign",
+    input.lastMfaSignInAt,
+    input.now,
+    input.stepUpWindowSeconds,
+  );
+  if (!decision.allowed) {
+    return fail(decision.reason === "step_up_required" ? "step_up_required" : "missing_permission");
+  }
+  if (!input.designatedLeadIds.includes(input.actorTenantUserId))
+    return fail("not_designated_lead");
   if (!subProcessorUsedBy(input.notice.use, input.config)) return fail("not_applicable");
   if (input.response.objection && input.response.objection.resolvedAt === null) {
     return fail("already_objected");

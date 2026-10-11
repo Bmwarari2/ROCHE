@@ -358,11 +358,46 @@ describe("sub-processor change notices", () => {
       response,
       config: input,
       access: accessFor(role),
+      actorTenantUserId: "u-1",
+      designatedLeadIds: ["u-1"],
+      lastMfaSignInAt: new Date(now.getTime() - 60_000),
+      stepUpWindowSeconds: 600,
       ...(text === undefined ? {} : { grounds: text }),
       now,
       rates: RATES,
     });
     if (problem === null) expect(result).toEqual({ ok: true });
     else expect(result).toMatchObject({ ok: false, problem });
+  });
+
+  it.each<[string, string, Date | null, string]>([
+    [
+      "the quality lead when someone else is the named lead",
+      "u-2",
+      ANNOUNCED,
+      "not_designated_lead",
+    ],
+    [
+      "the named lead with an old MFA sign-in",
+      "u-1",
+      new Date(ANNOUNCED.getTime() - DAY),
+      "step_up_required",
+    ],
+    ["the named lead with no MFA sign-in", "u-1", null, "step_up_required"],
+  ])("refuses an answer from %s", (_label, actorTenantUserId, lastMfaSignInAt, problem) => {
+    const result = checkNoticeResponse({
+      kind: "acknowledge",
+      notice: notice(),
+      response: none,
+      config: smsTenant,
+      access: accessFor("quality_lead"),
+      actorTenantUserId,
+      designatedLeadIds: ["u-1"],
+      lastMfaSignInAt,
+      stepUpWindowSeconds: 600,
+      now: ANNOUNCED,
+      rates: RATES,
+    });
+    expect(result).toMatchObject({ ok: false, problem });
   });
 });

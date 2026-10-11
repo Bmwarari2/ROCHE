@@ -56,7 +56,7 @@ people only (plus break-glass), `none` no person records.
 | `platform.onboarding.manage` |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `platform.dpia.read` |  |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
 | `platform.dpia.prepare` |  |  | yes |  | yes |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
-| `platform.dpia.sign` |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
+| `platform.dpia.sign` | yes |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
 | `platform.grant.manage` |  |  | yes |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `platform.task.manage` |  |  | yes |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `platform.document.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  | yes |  |  | yes |  |  |  |  |  |

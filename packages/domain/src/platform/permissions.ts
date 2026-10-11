@@ -69,6 +69,7 @@ export const PERMISSIONS = {
   "platform.dpia.sign": {
     description:
       "Sign the DPIA and data processing agreement as the named data protection lead, and answer sub-processor notices",
+    stepUp: true,
   },
   "platform.grant.manage": { description: "Give time-boxed delegation and acting-up grants" },
   "platform.task.manage": { description: "Create, assign and reassign tasks for other people" },

@@ -1,5 +1,5 @@
 import { addUkMonths } from "../shared/time";
-import { can, type EffectiveAccess } from "./access";
+import { authorise, type EffectiveAccess } from "./access";
 import { checkSignature, type SignatureProblem } from "./documents";
 import type { FlagKey } from "./feature-flags";
 import {
@@ -403,6 +403,7 @@ export type DpiaStatus = "draft" | "prepared" | "signed" | "superseded";
 export type DpiaSignOffProblem =
   | "not_prepared"
   | "missing_permission"
+  | "step_up_required"
   | "not_designated_lead"
   | "preparer_cannot_sign"
   | "config_missing"
@@ -424,6 +425,10 @@ export interface DpiaSignOffInput {
   readonly icoConsultationReference: string | null;
   readonly versionSha256: string;
   readonly actor: { readonly tenantUserId: string; readonly access: EffectiveAccess };
+  /** The signer's last sign-in with the second step: signing needs one within the window. */
+  readonly lastMfaSignInAt: Date | null;
+  readonly now: Date;
+  readonly stepUpWindowSeconds: number;
   /** The tenant's designated DPO or named data protection lead(s), from governance settings. */
   readonly designatedLeadIds: readonly string[];
   readonly signature: {
@@ -451,6 +456,7 @@ export type DpiaSignOffCheck =
 const SIGN_OFF_MESSAGES: Record<Exclude<DpiaSignOffProblem, SignatureProblem>, string> = {
   not_prepared: "Mark the DPIA as ready for sign-off first.",
   missing_permission: "Only the data protection lead can sign the DPIA.",
+  step_up_required: "Sign in again with your second step to sign the DPIA.",
   not_designated_lead:
     "Only the person named as the organisation's data protection officer or lead can sign the DPIA.",
   preparer_cannot_sign: DUTY_RULE_MESSAGES.dpia_sign_off,
@@ -464,8 +470,9 @@ const SIGN_OFF_MESSAGES: Record<Exclude<DpiaSignOffProblem, SignatureProblem>, s
 /**
  * Checks a DPIA sign-off and returns every problem at once: the version must be prepared and
  * complete, every risk rated after its measures, any high residual risk referred to the ICO, the
- * signer the designated data protection lead holding `platform.dpia.sign` and not one of its
- * preparers, and the typed-name signature bound to the version read.
+ * signer the designated data protection lead holding `platform.dpia.sign`, signed in again with
+ * MFA within the step-up window and not one of its preparers, and the typed-name signature bound to
+ * the version read.
  */
 export function checkDpiaSignOff(input: DpiaSignOffInput): DpiaSignOffCheck {
   const issues: DpiaSignOffIssue[] = [];
@@ -475,7 +482,14 @@ export function checkDpiaSignOff(input: DpiaSignOffInput): DpiaSignOffCheck {
   ) => issues.push({ problem, message: SIGN_OFF_MESSAGES[problem], ...(detail ? { detail } : {}) });
 
   if (input.status !== "prepared") add("not_prepared");
-  if (!can(input.actor.access, "platform.dpia.sign")) add("missing_permission");
+  const decision = authorise(
+    input.actor.access,
+    "platform.dpia.sign",
+    input.lastMfaSignInAt,
+    input.now,
+    input.stepUpWindowSeconds,
+  );
+  if (!decision.allowed) add(decision.reason);
   if (!input.designatedLeadIds.includes(input.actor.tenantUserId)) add("not_designated_lead");
   if (input.preparedBy.includes(input.actor.tenantUserId)) add("preparer_cannot_sign");
   if (input.draft.missingConfig.length > 0) add("config_missing", input.draft.missingConfig);
