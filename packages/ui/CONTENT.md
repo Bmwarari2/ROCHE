@@ -88,6 +88,10 @@ Say what to do, in the person's terms. Put the message next to the field it is a
 When something is our fault, say so and say what happens next. Never show stack traces, codes
 without words, or internal names.
 
+Fields with a maximum length show a count under the field: "You have 20 characters remaining",
+then "You have 3 characters too many" once over. Never cut the text off; say what to do when the
+form is sent: "Shorten the reason to 1,000 characters or fewer."
+
 ### Destructive actions
 
 Name what will happen, to what, and whether it can be undone.

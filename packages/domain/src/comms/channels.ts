@@ -1,4 +1,5 @@
 import type { PortName } from "../integrations/ports";
+import { isPlausibleEmail } from "../shared/email";
 
 /**
  * Family notification channels (INTG-011; comms.md section 4 rule 14; ADR-0060). Email, SMS
@@ -202,31 +203,6 @@ export function classifySmsReply(text: string): "opt_out" | "opt_in" | "not_a_ke
 
 const isAsciiDigit = (ch: string) => ch >= "0" && ch <= "9";
 
-/** The longest email address the standards allow (RFC 5321 path limit). */
-export const MAX_EMAIL_ADDRESS_LENGTH = 254;
-
-/**
- * A plausible email address: one "@", something before it, a domain with a dot that does not
- * start or end the domain, and no spaces. Proof of the address comes from verification, not
- * from this check.
- */
-export function isPlausibleEmail(address: string): boolean {
-  if (address.length === 0 || address.length > MAX_EMAIL_ADDRESS_LENGTH) return false;
-  let at = -1;
-  for (let i = 0; i < address.length; i++) {
-    const ch = address[i] as string;
-    if (ch === " " || ch === "\t" || ch === "\n" || ch === "\r") return false;
-    if (ch === "@") {
-      if (at >= 0) return false;
-      at = i;
-    }
-  }
-  if (at <= 0 || at === address.length - 1) return false;
-  const domain = address.slice(at + 1);
-  const dot = domain.indexOf(".");
-  return dot > 0 && !domain.endsWith(".") && !domain.includes("..");
-}
-
 /**
  * A phone number in E.164 form ("+447700900123"), from what a person typed. UK numbers written
  * nationally ("07700 900123") become +44 and "00" becomes "+"; spaces, hyphens and brackets are
@@ -258,7 +234,8 @@ export function isUkMobile(e164: string): boolean {
 
 /** Whether an address suits its channel. Push tokens are checked by the push adapter. */
 export function checkFamilyChannelAddress(kind: FamilyChannelKind, address: string): boolean {
-  if (kind === "email") return isPlausibleEmail(address);
+  // Stored addresses are exact strings: the shared check trims, so padding is refused here.
+  if (kind === "email") return address === address.trim() && isPlausibleEmail(address);
   if (kind === "sms") return toE164(address) === address;
   return address.trim().length > 0;
 }

@@ -127,6 +127,20 @@
       "when": 1791692656807,
       "tag": "0017_care_plans_and_assessments_security",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791695976200,
+      "tag": "0018_mca_and_incidents",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791695984982,
+      "tag": "0019_mca_and_incidents_security",
+      "breakpoints": true
     }
   ]
 }

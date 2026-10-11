@@ -850,6 +850,27 @@ describe("hazard HZ-013 open questions, provisional drafts and tasks", () => {
     ).toEqual([...tasks].sort());
   });
 
+  it("hazard HZ-027 counts post-fall observations from when the person was found", () => {
+    const foundAt = new Date(OCCURRED.getTime() + 3 * 3_600_000);
+    const tasks = classifyIncident({
+      ...input(S.ownConditionFracture),
+      facts: { ...input(S.ownConditionFracture).facts, foundAt },
+    }).tasks;
+    const check = tasks.find((t) => t.task === "post_fall_injury_check");
+    const observations = tasks.find((t) => t.task === "post_fall_observations");
+    expect(check?.dueAt).toEqual(foundAt);
+    expect(observations?.dueAt).toEqual(
+      new Date(foundAt.getTime() + rates.headInjuryPhase1IntervalMinutes * 60_000),
+    );
+    expect(observations?.until).toEqual(
+      new Date(foundAt.getTime() + rates.fallsMonitoringHours * 3_600_000),
+    );
+    // The statutory clocks still run from the fall itself.
+    expect(output(run(S.ownConditionFracture), "cqc_reg18_serious_injury")?.dueAt).toEqual(
+      OCCURRED,
+    );
+  });
+
   it("checks a worker's absence the day after the RIDDOR threshold passes", () => {
     const check = run(S.workerShortAbsence).tasks.find((t) => t.task === "riddor_absence_check");
     expect(check?.dueAt).toEqual(addUkDays(OCCURRED, rates.riddorOver7DayThresholdDays + 1));

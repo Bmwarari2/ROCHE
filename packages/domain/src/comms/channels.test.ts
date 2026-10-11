@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PORTS } from "../integrations/ports";
+import { isPlausibleEmail } from "../shared/email";
 import {
   applyFamilyChannelEvent,
   checkFamilyChannelAddress,
@@ -10,9 +11,7 @@ import {
   type FamilyChannelEvent,
   type FamilyChannelState,
   familyChannelUsability,
-  isPlausibleEmail,
   isUkMobile,
-  MAX_EMAIL_ADDRESS_LENGTH,
   toE164,
 } from "./channels";
 
@@ -258,7 +257,7 @@ describe("addresses", () => {
     ["ben@example..invalid", false],
     ["ben@example.invalid.", false],
     ["", false],
-    [`${"b".repeat(MAX_EMAIL_ADDRESS_LENGTH)}@example.invalid`, false],
+    [`${"b".repeat(254)}@example.invalid`, false],
   ])("treats %j as a plausible email: %s", (address, expected) => {
     expect(isPlausibleEmail(address)).toBe(expected);
   });
@@ -290,6 +289,9 @@ describe("addresses", () => {
   it.each<[FamilyChannelState["kind"], string, boolean]>([
     ["email", "ben@example.invalid", true],
     ["email", "not an address", false],
+    ["email", " ben@example.invalid", false],
+    // A Cyrillic "е" in place of the Latin "e": one address must stay one string.
+    ["email", "b\u0435n@example.invalid", false],
     ["sms", "+447700900123", true],
     ["sms", "07700 900123", false],
     ["push", "ExpoPushToken[example]", true],

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { t } from "@/lib/i18n";
 
-export const metadata = { title: "Page not found" };
+export const metadata = { title: t("errors.pageNotFound.title") };
 
 /**
  * Shown for any address Harbour does not recognise. Rendered per request, like every page, so its
@@ -19,10 +19,10 @@ export default async function NotFound() {
         headingLevel={1}
         icon={<SearchX size={40} strokeWidth={1.5} aria-hidden="true" />}
         title={t("errors.notFound")}
-        description="The page may have moved, or the link may be out of date."
+        description={t("errors.pageNotFound.body")}
         action={
           <Link href="/" className={buttonClassName({ variant: "primary" })}>
-            Go to the home page
+            {t("errors.pageNotFound.home")}
           </Link>
         }
       />

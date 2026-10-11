@@ -4,27 +4,36 @@ Master prompt section 15.1 (communication and portals) with the 15.3 communicati
 section 4 (the "Family / representative" role: one person; updates, consented sections of the care
 plan, visit booking; attorneys see finance where their power covers it), section 5.1 (consent
 covers only optional processing such as photos in the family portal), section 8 (plain English at
-reading age 9 on family surfaces) and section 17 for offline behaviour. Status per feature lives in
-the [feature register](feature-register.md).
+reading age 9 on family surfaces) and section 17 for offline behaviour. Phase 1 builds letter and
+email templates with approval (slice 11) and the family feed with the communications integrations
+(slice 12); handover acknowledgement (COMMS-006) is specified with the handover in
+[care.md](care.md) rule 8. The person's portal, professional access, messaging and the public site
+arrive in Phase 4. Status per feature lives in the [feature register](feature-register.md).
 
 ## 1. Purpose and register rows
 
 A family member or representative sees everyday updates about one person, and the care plan
 sections they are entitled to, only while a recorded sharing decision allows it; is told there is
-something new without the message saying what; and can book a visit. This slice (Phase 1 slice
-12) builds the spec and the domain rules. The schema, API, web and mobile steps follow (section
-11).
+something new without the message saying what; and can book a visit. Phase 1 slice 12 built the
+spec and the domain rules. The schema, API, web and mobile steps follow (section 11).
 
-| Phase 1 rows (this slice) | Later rows |
+Letters and emails that matter (an admission letter, a fee review, an incident follow-up, a duty of
+candour letter) say the right things about the right person, in words someone with authority has
+approved, and never put health details where they do not belong.
+
+| Phase 1 rows | Later rows |
 | --- | --- |
-| COMMS-001 family portal and app mode: updates feed and consented care plan sections; INTG-011 communications (SES email, SMS gateway, Expo push, ICS calendar, click-to-call): domain side and ports only, adapters behind mocks and contract tests | COMMS-002 visit booking (its domain rule is built early here, rule 17), messaging, invoices, surveys, complaints and documents to sign (Phase 4); COMMS-003 the person's own portal; COMMS-004 professional access; COMMS-005 internal messaging (Phase 4); COMMS-007 letter and email templates with approval (slice 11, separate work in `packages/domain/src/comms/`) |
+| COMMS-007 letter and email templates with approval (slice 11); COMMS-001 family portal and app mode (slice 12): updates feed and consented care plan sections; INTG-011 communications (SES email, SMS gateway, Expo push, ICS calendar, click-to-call): domain side and ports only, adapters behind mocks and contract tests; COMMS-006 handover acknowledgement (care.md) | COMMS-002 visit booking (its domain rule is built early here, rule 17), messaging, invoices, surveys, complaints and documents to sign (Phase 4); COMMS-003 the person's own portal; COMMS-004 professional access; COMMS-005 internal messaging (Phase 4); COMMS-008 (Phase 4) |
 
 The family feed builds on the sharing rules in [people.md](people.md) rule 13 and
 `packages/domain/src/people/sharing.ts`; it never decides on its own who may see a section.
 
+PLAT-009 (document store) names "merge-field templates": this spec is where they are defined; a
+rendered letter is stored as a document about the person.
+
 ## 2. Schema
 
-To be added in the schema step (expand only; nothing in this slice changes the database). All
+To be added in the schema step (expand only; slices 11 and 12 change no database table). All
 tables carry `id` (UUIDv7), `tenant_id`, `created_at`, `created_by` and forced RLS. Staff reach
 rows about a person through `app.person_in_scope`; family members reach only the rows section 2.1
 allows (ADR-0002, ADR-0061).
@@ -42,6 +51,12 @@ allows (ADR-0002, ADR-0061).
 | `visit_booking` | mutable, versioned | person, contact, start, end, status (`confirmed`, `cancelled`), sequence (for the calendar file), cancelled by and reason, review flag (rule 17) | `care_record` |
 | `visit_booking_setting` | mutable, versioned | location, online booking hours (start and end minute, UK time), visits at once | tenant configuration |
 | `location_visit_restriction` | mutable, versioned | location, kind (`outbreak`, `other`), from, to, reason (staff only) | `care_record` |
+| `letter_template` | mutable | name, kind (`TEMPLATE_KINDS`), channel (`letter`, `email`), current approved version | `organisation_document` |
+| `letter_template_version` | mutable while draft, then fixed | template, version, state (`TEMPLATE_WORKFLOW`), name, subject (email), body, author, contributors, approved by and at, retirement reason | `organisation_document` |
+| `letter` | append-only | template version, person, recipient (the person or one of their contacts), channel, the personal-data fields used, whether it holds special category data, results to follow (candour), incident and its grade (incident and candour letters), rendered document (PDF for letters; for email, the delivery and the document), sent by and at, delivery reference | `letterRetentionClass`: `serious_incident` for an incident or candour letter about an incident graded serious, otherwise `care_record` |
+
+Templates are tenant configuration with no personal data; rendered letters follow the person they
+are about (slice 11).
 
 CHECK constraints for the schema step (the domain also refuses these, fail-closed):
 `kind = 'care_plan_update'` requires `care_plan_domain`; `photo_document_id` is set only when
@@ -58,8 +73,10 @@ an incident's next of kin still have to be told (rule 12); tenant settings gain 
 for family updates (`first_name_only` or `full_name`) and the portal address used in notification
 links.
 
-New personal data fields are mapped in [data-standards.md](data-standards.md) and listed in
-[records of processing](../compliance/records-of-processing.md) in this pull request.
+New personal data fields are mapped in [data-standards.md](data-standards.md) (sections
+[packs and governance](data-standards.md#packs-and-governance-phase-1-slice-11) and
+[family feed](data-standards.md#family-feed-and-communications-phase-1-slice-12)) and listed in the
+[records of processing](../compliance/records-of-processing.md).
 
 ### 2.1 Family scope and row-level security (schema-step requirement, ADR-0061)
 
@@ -113,6 +130,9 @@ contact is linked to; staff permissions follow the person's scope. Every read an
 
 | Permission | Care record (MFA) | Allows | Held by (built-in roles) |
 | --- | --- | --- | --- |
+| `comms.template.write` | no | Write and change draft letter and email templates | Owner, Registered Manager, deputy, quality lead, administrator |
+| `comms.template.approve` | no | Approve a version (not one you wrote or edited), supersede or retire one | Owner, Registered Manager, deputy, quality lead |
+| `comms.letter.manage` | no | Make and send letters and emails from approved templates; also needs `people.person.read` or `people.demographics.read`, in scope, for every person-bound field merged | Owner, Registered Manager, deputy, administrator |
 | `comms.feed.read` | yes | Read the family feed and the care plan sections a sharing decision opens | Family or representative |
 | `comms.feed.publish` | yes | Mark a note as shareable and write it for the family, choose photos, publish updates, and confirm flagged words with a reason (rule 12) | Owner, Registered Manager, deputy, clinical lead, team leader |
 | `comms.feed.withdraw` | yes | Take an update down with a reason | Owner, Registered Manager, deputy, clinical lead, team leader |
@@ -129,10 +149,15 @@ enforced in code: `checkRoleDefinition` refuses a role that mixes them with staf
 them and a portal session nothing else (`packages/domain/src/platform/access.ts`). Existing
 tenants' role copies gain the new permissions through a data migration in the schema step.
 
+Duty of candour and incident letters also need `safety.incident.manage` for the incident (the API
+checks it when it fills the `incident.*` and `candour.*` fields).
+
 ## 4. Rules that are easy to get wrong
 
 Every rule has a table-driven test in `packages/domain/src/comms/` (named with its hazard ID where
-one applies). Figures come from `rate_table` by key, resolved with `resolveCommsRates`.
+one applies). Figures come from `rate_table` by key: the family notification figures resolved with
+`resolveCommsRates`, and `fee.notice_days` in a template filled from `cma.fee_review_notice_days`
+by the caller.
 
 ### The feed: who sees what (COMMS-001, HZ-022)
 
@@ -266,7 +291,8 @@ one applies). Figures come from `rate_table` by key, resolved with `resolveComms
     unregistered device suspends the channel until the address changes; a temporary bounce is
     retried; STOP (and the usual variants) by SMS, an email unsubscribe link or the portal opts out
     at once; START from the same phone or the portal opts back in. Addresses are checked for shape
-    (email, E.164); proof comes from verification. Click-to-call offers only the home's own number
+    (email with the shared printable-ASCII check also used for letters, so a lookalike letter is
+    refused; E.164 for SMS); proof comes from verification. Click-to-call offers only the home's own number
     as a `tel:` link.
 15. **Quiet hours and one notification at a time.** Family updates are never urgent, so quiet hours
     always apply: the tenant's window (`comms.family_notifications.quiet_start_minute` to
@@ -303,22 +329,106 @@ one applies). Figures come from `rate_table` by key, resolved with `resolveComms
     "The home needs to speak to you about this visit. Please call the home." How the nominated
     visitor is treated during restrictions is the tenant's Regulation 9A policy (H-111).
 
-### Domain modules (slice 12)
+### Letter and email templates (COMMS-007, HZ-051)
+
+18. **Typed merge fields** (`MERGE_FIELDS`). Each field has a type (`text`, `date`, `datetime`,
+    `money` in whole pence, `number`), a data class (`none`, `personal`, `special_category`) and
+    whether it belongs to one person receiving care (`personBound`: the person's own details, a
+    contact's details, their fees, incidents and candour details). Incident and candour details are
+    special category data. Three flags say where a field may go: `multiLine` (addresses, the
+    incident summary and the candour texts can run over several lines), `notInEmail` (the NHS
+    number and date of birth identify the person outright) and `allowsResultsToFollow` (only
+    `candour.results`).
+19. **Syntax** (`parseTemplateText`). Fields are written `{{field.name}}` (lower case, digits,
+    underscores and dots). An unclosed field, a stray `}}`, a malformed name or a field not in the
+    catalogue is refused with the field named. The parser is a loop, not a regular expression, so
+    it cannot backtrack on long input (the CodeQL ReDoS gate); bodies are limited to
+    `MAX_TEMPLATE_BODY_LENGTH` characters.
+20. **Where personal data may go** (`checkTemplateDefinition`; ADR-0051).
+    - An email needs a subject of at most `MAX_TEMPLATE_SUBJECT_LENGTH` characters that uses only
+      fields with no personal data (subjects show in inbox previews and notifications) and no
+      `multiLine` field (a line break in a subject is a header break).
+    - The subject may not hold a character that can break or disguise an email header
+      (`hasUnsafeHeaderCharacter`): C0 and C1 control characters (CR and LF among them), DEL,
+      U+2028 and U+2029, and the bidirectional controls (U+061C, U+200E, U+200F, U+202A to U+202E,
+      U+2066 to U+2069). The check runs on the template and again on the rendered subject, after
+      the values are merged (rule 24).
+    - Incident follow-up and duty of candour letters are letters only (`LETTER_ONLY_KINDS`): they
+      cannot be email templates at all.
+    - A special category field never goes in an email body, and nor does a `notInEmail` field (NHS
+      number, date of birth); such content goes as a letter (by post, by hand or through the
+      portal). Other personal fields may go in an email body and are flagged.
+21. **Required content and the relevant person.** A duty of candour letter must contain the
+    written notification's contents from regulation 20(4) of the 2014 Regulations: the account of
+    the facts (`candour.account`, 20(4)(a)), the enquiries to be made (`candour.enquiries`, (b)), the
+    results of further enquiries (`candour.results`, (c)) and an apology (`candour.apology`, (d)).
+    - **Results to follow.** The first notification usually comes before the enquiries end, so
+      `candour.results` alone may take a `results_to_follow` marker with an optional expected date.
+      It prints standard words (`resultsToFollowText`): "The results of our further enquiries are
+      not available yet. We will write to you with them by dd/mm/yyyy." The rendered letter carries
+      `resultsToFollow`, and the API step keeps the candour record's "enquiries and results shared"
+      step ([safety.md](safety.md) schema) open until a letter without the marker is sent. A blank
+      `candour.results` is still refused.
+    - **Who receives it** (`checkCandourRelevantPerson`). Regulation 20(7): the relevant person is
+      the service user or, on their death, where they are under 16 and not competent, or where they
+      are 16 or over and lack capacity in relation to the matter, a person lawfully acting on their
+      behalf. A representative recorded without one of those bases is refused
+      (`representative_basis_not_met`), and so is the service user when one applies
+      (`representative_required`). A candour letter renders only for the relevant person on the
+      candour record: the service user, or that representative as one of the person's contacts
+      (`candour_recipient_required`, `candour_wrong_recipient`). Harbour's reading, to confirm with
+      the CSO and a solicitor (H-103).
+22. **Approval and separation of duties** (`checkTemplateApproval`, `TEMPLATE_WORKFLOW`). Only a
+    draft with no problems, that differs from the approved version, approved by a holder of
+    `comms.template.approve` who neither wrote nor edited it (`checkTemplateEdit` adds every editor
+    to the contributors).
+23. **Versions** (`startTemplateRevision`, `currentApprovedTemplate`). An approved version never
+    changes; any change is a new draft that needs approval again, and until then the approved version
+    stays in use. Approving the new version supersedes the old; a template can be retired with a
+    reason.
+24. **Rendering** (`renderTemplate`):
+    - only an approved version renders (HZ-051);
+    - every field used needs a value of its type; a missing or blank value refuses the letter rather
+      than leaving a gap (HZ-051);
+    - every person-bound value must belong to the person the letter is about, and a recipient must
+      be that person's contact; otherwise the letter is refused (HZ-051);
+    - values are formatted in British style (dd/mm/yyyy, 24-hour UK time, pounds and pence);
+    - for HTML email every value and every piece of the template's own text is escaped
+      (`escapeHtml`), paragraphs become `<p>` and line breaks `<br>`; nothing in a template or value
+      can inject markup;
+    - the rendered email subject is checked again for header-breaking characters (a value could
+      carry one) and must pass the outbound title check (`outboundTitleProblem`);
+    - a letter's text goes to the PDF renderer (Typst) as data, never as markup: values and template
+      text are passed as strings the template prints, so nothing typed can run as Typst code;
+    - a duty of candour letter needs the candour record's relevant person and the recipient, and
+      they must match (rule 21);
+    - the result lists the personal-data fields used and whether special category data is present,
+      for the "check before sending" screen and the audit trail.
+25. **Before sending** (the API step). The sender sees the person's name and photo (HZ-001), the
+    recipient, and the flagged personal-data fields, and confirms; the letter, the template version
+    and the fields used are stored and audited.
+26. **Plain English** (`templateStyleWarnings`, optional and advisory). Sentences over
+    `MAX_SENTENCE_WORDS` words, capitals used for emphasis (acronyms such as CQC and NHS excepted) and
+    title-case template names are pointed out; nothing is blocked.
+
+### Domain modules (slices 11 and 12)
 
 `packages/domain/src/comms/`, exported from `@harbour/domain`; pure functions with no I/O:
 
 | Module | Main exports | For |
 | --- | --- | --- |
+| `templates.ts` | `MERGE_FIELDS`, `TEMPLATE_KINDS`, `LETTER_ONLY_KINDS`, `TEMPLATE_REQUIRED_FIELDS`, `parseTemplateText`, `hasUnsafeHeaderCharacter`, `checkTemplateDefinition`, `TEMPLATE_WORKFLOW`, `checkTemplateApproval`, `checkTemplateEdit`, `startTemplateRevision`, `currentApprovedTemplate`, `CANDOUR_REPRESENTATIVE_BASES`, `checkCandourRelevantPerson`, `resultsToFollowText`, `renderTemplate`, `formatMergeValue`, `escapeHtml`, `letterRetentionClass` | Rules 18 to 25 |
+| `template-style.ts` | `templateStyleWarnings`, `MAX_SENTENCE_WORDS`, `TEMPLATE_ACRONYMS` | Rule 26 |
 | `feed-visibility.ts` | `FEED_ITEM_KINDS`, `FEED_ITEM_SECTIONS`, `FEED_CARE_PLAN_DOMAINS`, `checkFeedItemVisibility`, `buildFamilyFeed`, `feedPhotoBasis`, `feedExposure`, `FEED_NOT_FULL_RECORD_STATEMENT`, `FEED_WITHDRAWN_NOTICE`, `FEED_PAUSED_STATEMENT` | Rules 1 to 7 and 12 |
 | `feed-compose.ts` | `FEED_SOURCE_KINDS`, `FEED_PHRASES`, `ACCOMPANIMENT_PURPOSES`, `composeFeedItem`, `checkFeedText`, `feedPublishingHolds`, `stripStaffSurnames`, `checkFeedWithdrawal`, `photoItemsToWithdraw` | Rules 4 and 6 to 12 |
 | `feed-text.ts` | `normaliseFeedText`, `foldLookalikes`, `feedWords`, `feedSentences`, `feedReadabilityLint`, `FEED_CLINICAL_TERMS`, `FEED_EVENT_TERMS`, `FEED_WELLBEING_TERMS`, `findFeedTerms`, `findClinicalTerms`, `findConfirmationTerms`, `findNameMentions`, `hasEmailLikeText`, `longestDigitRun` | Rules 9 to 13; loops only, no unbounded regular expression over user text |
-| `channels.ts` | `FAMILY_CHANNEL_KINDS`, `FAMILY_CHANNEL_PORTS`, `familyChannelUsability`, `applyFamilyChannelEvent`, `classifySmsReply`, `isPlausibleEmail`, `toE164`, `checkFamilyChannelAddress`, `clickToCallLink` | Rule 14 |
+| `channels.ts` | `FAMILY_CHANNEL_KINDS`, `FAMILY_CHANNEL_PORTS`, `familyChannelUsability`, `applyFamilyChannelEvent`, `classifySmsReply`, `toE164`, `checkFamilyChannelAddress`, `clickToCallLink` | Rule 14 |
 | `notify-plan.ts` | `planFamilyNotification`, `checkFamilyNotificationTemplate`, `currentFamilyTemplate`, `familyUpdatesLink`, `quietHoursRelease`, `isValidQuietHours`, `recheckPendingNotification` | Rules 13 and 15 |
 | `notify-rates.ts` | `COMMS_RATE_KEYS`, `resolveCommsRates`, `familyQuietHours`, `minuteOfDayToHhMm` | Rule 15 figures |
 | `notify-calendar.ts` | `buildIcsCalendar`, `checkIcsEvent`, `escapeIcsText`, `foldIcsLine`, `icsDateTimeProperty`, `EUROPE_LONDON_VTIMEZONE` | Rule 16 |
 | `visit-booking.ts` | `checkVisitBooking`, `visitBookingsToReview`, `VISIT_CALL_THE_HOME`, `VISIT_BOOKING_NEEDS_A_CALL`, `visitBookingCalendarEvent` | Rule 17 |
 
-Changed outside `comms` for this slice: `people/sharing.ts` (appointees and `benefits`, deputy order
+Changed outside `comms` for slice 12: `people/sharing.ts` (appointees and `benefits`, deputy order
 sections, the current capacity finding, suspension periods, `decisionInForceAt`) and
 `platform/access.ts` and `roles.ts` (portal-only permissions enforced, portal sessions).
 
@@ -357,6 +467,19 @@ member), `comms.visit_booking.confirmed`, `comms.visit_booking.cancelled`. Consu
 that open or close an incident's next-of-kin contact or a candour step (the publishing hold).
 `care.note.recorded` is not consumed: sharing a note is a deliberate staff action.
 
+Letter and email templates (for the schema and API step; none of this is built in slice 11):
+
+- `GET` and `POST /v1/letter-templates`, `GET /v1/letter-templates/{id}/versions`,
+  `POST .../versions` (a new draft from the approved one), `PUT .../versions/{versionId}` (drafts
+  only), `POST .../versions/{versionId}/approve`, `.../retire`, `GET /v1/merge-fields`.
+- `POST /v1/people/{id}/letters/preview` (renders, returns the flags; nothing stored),
+  `POST /v1/people/{id}/letters` (renders, stores the document, sends email through the
+  `comms.email` port or marks a letter printed), `GET /v1/people/{id}/letters`.
+- Audit events: `comms.template.drafted`, `.approved`, `.retired`; `comms.letter.previewed`,
+  `comms.letter.sent` (template version, person, recipient, fields used, never the content).
+- Outbox events: `comms.letter.sent` (safety links a candour letter to the candour record's written
+  notification step).
+
 ## 6. Offline behaviour (section 17.1)
 
 | Data | On the device | Writes offline | Conflict handling |
@@ -364,6 +487,7 @@ that open or close an incident's next-of-kin contact or a candour step (the publ
 | Family feed (web portal, Phase 1) | Nothing: the portal is online only, `no-store` | No | Not applicable |
 | Family app mode (MOB-004, Phase 4) | Only items whose sections a decision opens, through family sync streams tested on their own (replication bypasses RLS, HZ-022) | No | Not applicable; the last sync time shows (HZ-061) |
 | Sharing a note or choosing a photo (Care mode) | Online only in Phase 1 | No | Not applicable |
+| Letter and email templates and letters | Nothing: online-only office tasks | No | Not applicable |
 
 ## 7. Clinical safety
 
@@ -374,12 +498,20 @@ and new with this spec HZ-060 (health details in an email, SMS or push notificat
 it). HZ-002 covers staff on offline devices and is not the same hazard. See the
 [hazard log](../clinical-safety/hazard-log.md).
 
-Medical-device boundary: the feed composes fixed sentences and staff-written words; it has no kind
-for observations, scores or assessments, refuses words that read as a score, diagnosis or
-prognosis, and interprets nothing. Notifications carry no clinical content
+HZ-051 (a letter or email carries another person's details, or wrong or unapproved content) is new
+with this spec. Its controls include the person check on every person-bound value, approval by a
+second person, letter-only kinds, identifiers kept out of email, header-safe subjects, the candour
+recipient check and the "results to follow" words that keep the follow-up due (rules 20, 21 and 24).
+HZ-001 applies to the "check before sending" screen. Duty of candour letters relate to HZ-013
+through the candour clock in [safety.md](safety.md).
+
+Medical-device boundary: templates merge recorded values and add no clinical content; the feed
+composes fixed sentences and staff-written words; it has no kind for observations, scores or
+assessments, refuses words that read as a score, diagnosis or prognosis, and interprets nothing.
+Notifications carry no clinical content
 ([medical-device-boundary.md](../compliance/medical-device-boundary.md)).
 
-## 8. Data protection
+## 8. Data protection and data standards
 
 The tenant is the controller and Thapsus the processor. Updates and photos shared with family are
 optional processing under consent (records of processing B8), or under the basis of a legal
@@ -396,6 +528,16 @@ the family app mode, Expo push with APNs and FCM (United States; safeguard to co
 pending entries in [sub-processors.md](../compliance/sub-processors.md) (H-105). No personal data
 leaves in a message body beyond the recipient's own address.
 
+Templates hold no personal data. Rendered letters hold the person's and their contact's data and,
+for incident and candour letters, special category data; they are disclosures to the recipient
+under the purpose of the record they relate to (B1 or B2; candour letters B7). Email is used only
+for content without special category data or identifiers such as the NHS number and date of birth
+(ADR-0051, for the DPO to accept, H-99). Recipient addresses are printable ASCII only, lower-cased
+without Unicode case-folding, so two different addresses cannot be treated as one. Retention:
+templates `organisation_document`; letters `care_record`, or `serious_incident` for an incident or
+candour letter about an incident graded serious (`letterRetentionClass`, [retention.md](retention.md)).
+Field mapping: [data-standards.md](data-standards.md#packs-and-governance-phase-1-slice-11).
+
 ## 9. Acceptance criteria and tests (written before code)
 
 - Domain (built): `feed-visibility.test.ts` (HZ-022: closed by default, every hidden reason, the
@@ -411,21 +553,41 @@ leaves in a message body beyond the recipient's own address.
   `visit-booking.test.ts` (refusals, identical messages, decision before status, outbreaks,
   re-checking bookings, UK clock), `feed-permissions.test.ts`; outside comms
   `people/sharing-scope.test.ts` and `platform/access-portal.test.ts`.
+- Domain (built, slice 11): `packages/domain/src/comms/templates.test.ts` (catalogue; parsing and
+  hostile input; definition checks; header-unsafe characters and multi-line fields in subjects;
+  letter-only kinds; identifiers kept out of email; candour contents, results to follow and the
+  relevant person; approval and separation of duties; edits and versions; rendering, escaping and
+  formatting; HZ-051 wrong person, missing values and unapproved versions; letter retention;
+  permissions), `packages/domain/src/comms/template-style.test.ts` and
+  `packages/domain/src/shared/email.test.ts`.
 - Database (schema step): section 2.1 (family scope, `app.family_can_see`, the isolation tests and
   CHECK constraints); RLS coverage and HZ-011 isolation for every new table; append-only grants for
   `feed_item`, `feed_item_withdrawal`, `care_note_share` and `feed_view`.
+- Database (templates): RLS for the new tables; fixed approved versions; append-only `letter`.
 - API: `hazard HZ-022 the family feed returns nothing without a sharing decision in force`;
   withdrawal and suspension close the feed on the next request; every view writes `feed_view`;
   portal sessions resolved with `resolveAccess(..., "portal")`; `hazard HZ-060` adapters refuse a
   non-generic title; webhook events update channels; contract tests for the SMS mock and the SES
   and Expo adapters; audit events for every route.
+- API (templates): `hazard HZ-051 a letter cannot be made with another person's details`; email
+  delivery through the guarded `comms.email` port, which refuses a header-unsafe subject again; a
+  Typst render test with a value full of Typst syntax that prints as text; audit without content.
 - Web and mobile: Playwright family journey (sign in with MFA, empty feed without a decision, feed
   after a decision, withdrawn notice, paused feed, quiet hours setting, visit booking and calendar
   download) with axe; staff journey (mark a note shareable, see problems and lint, confirm flagged
   words with a reason, publish, withdraw).
+- Web (templates): Playwright journeys (author, approve by another user, preview with flags, send)
+  with axe.
 
 ## 10. Open questions
 
+- The DPO accepts ADR-0051 (no special category data or identifiers in email bodies) and the data
+  classes of the merge fields (H-99).
+- The CSO and a solicitor confirm the "results to follow" wording and Harbour's reading of the
+  relevant person under regulation 20(7) (H-103).
+- Starter templates (admission, fee review, incident follow-up, duty of candour) need wording
+  reviewed by the provider's adviser; Harbour ships the fields, not legal wording.
+- Welsh-language versions of a template (Phase 7) will be a second body per version.
 - The lawful basis for sharing photos and updates under a best-interests decision or a legal
   authority (H-38, H-106) and the photo consent wording (H-106).
 - The care plan sections announced in the feed, the paused-feed wording, the event and wellbeing
@@ -442,16 +604,20 @@ leaves in a message body beyond the recipient's own address.
   prompt 6).
 - Standing visit restrictions are not yet recorded in `care` (rule 17 takes them as input).
 
-## 11. As built (slice 12, domain only)
+## 11. As built
 
-Built: the eight modules in section 4 with table-driven tests, revised after the clinical and
-security review; the sharing changes in `people` and the portal session rules in `platform`; the
-comms permissions in the catalogue and roles; the quiet-hours rows in [rates.md](rates.md). Not
-built here, by design: schema (including section 2.1, which is a schema-step requirement), API,
-web and mobile (other slices are changing them), and the adapters (SES and Expo exist from
-Phase 0; the SMS adapter is a mock until H-105). The feed's photo rule reads `consent_record` and
-`capacity_assessment` through the care rules, and a best-interests decision about photos through
-`PhotoBestInterestsView` until the care schema adds the decision kind and outcome. The publishing
-hold reads `FeedIncidentView` and candour states until safety exposes the next-of-kin contact. The
-template type here (`FamilyNotificationTemplate`) is what the planner reads; the API maps the
-COMMS-007 approved template to it.
+Slice 11 (domain rules): `templates.ts` and `template-style.ts` in `packages/domain/src/comms/`,
+exported from `@harbour/domain`; pure functions with no I/O. No schema, API or web changes in
+that slice.
+
+Slice 12 (domain only): the eight feed and notification modules in section 4 with table-driven
+tests, revised after the clinical and security review; the sharing changes in `people` and the
+portal session rules in `platform`; the comms permissions in the catalogue and roles; the
+quiet-hours rows in [rates.md](rates.md). Not built here, by design: schema (including section 2.1,
+which is a schema-step requirement), API, web and mobile (other slices are changing them), and the
+adapters (SES and Expo exist from Phase 0; the SMS adapter is a mock until H-105). The feed's photo
+rule reads `consent_record` and `capacity_assessment` through the care rules, and a best-interests
+decision about photos through `PhotoBestInterestsView` until the care schema adds the decision kind
+and outcome. The publishing hold reads `FeedIncidentView` and candour states until safety exposes
+the next-of-kin contact. The template type here (`FamilyNotificationTemplate`) is what the planner
+reads; the API maps the COMMS-007 approved template to it.

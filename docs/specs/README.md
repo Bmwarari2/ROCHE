@@ -27,12 +27,12 @@ change.
 | [care.md](care.md) | `care` | 10.1, 10.4 | 1 | Written for Phase 1 |
 | [safety.md](safety.md) | `safety` | 11.1 | 1 | Written for Phase 1 |
 | medicines.md | `medicines` | 10.2, 10.3 | 2 | Planned |
-| quality.md | `quality` | 11.2 | 1 (inspector packs), 2 | Planned |
+| [quality.md](quality.md) | `quality` | 11.2 | 1 (inspector packs, statement of purpose), 2 | Phase 1 sections written (slice 11) |
 | workforce.md | `workforce` | 12.1, 12.2, 12.4 | 2 | Planned |
 | scheduling.md | `scheduling` | 12.3 | 2 | Planned |
-| operations.md | `operations` | 13 | 1 (downtime pack), 3 | Planned |
+| [operations.md](operations.md) | `operations` | 13 | 1 (downtime pack), 3 | Phase 1 sections written (slice 11) |
 | finance.md | `finance` | 14 | 3 | Planned |
-| [comms.md](comms.md) | `comms` | 15.1, 15.3 (communications) | 1 | Written for Phase 1 (slice 12: family feed, notifications, visit booking) |
+| [comms.md](comms.md) | `comms` | 15.1, 15.3 (communications) | 1 | Written for Phase 1 (slice 11: templates; slice 12: family feed, notifications, visit booking) |
 | insights.md | `insights` | 15.2 | 1 | Planned |
 | integrations.md | `integrations` | 15.3 | 0 (framework) | Planned |
 | ai.md | `ai` | 16 | 6 | Planned |

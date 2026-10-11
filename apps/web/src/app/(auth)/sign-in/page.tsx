@@ -5,7 +5,7 @@ import { t } from "@/lib/i18n";
 import { safeNextPath } from "@/lib/problems";
 import { SignInForm } from "./SignInForm";
 
-export const metadata: Metadata = { title: "Sign in" };
+export const metadata: Metadata = { title: t("auth.signIn.pageTitle") };
 
 export default async function SignInPage({
   searchParams,
@@ -36,11 +36,15 @@ export default async function SignInPage({
           nextPath={nextPath}
           labels={{
             email: t("auth.signIn.email"),
+            emailRequired: t("auth.signIn.emailRequired"),
             password: t("auth.signIn.password"),
+            passwordRequired: t("auth.signIn.passwordRequired"),
             submit: t("auth.signIn.submit"),
+            or: t("common.or"),
             passkey: t("auth.signIn.passkey"),
             totpTitle: t("auth.totp.title"),
             totpHint: t("auth.totp.hint"),
+            codeRequired: t("auth.totp.codeRequired"),
           }}
         />
       </Card>

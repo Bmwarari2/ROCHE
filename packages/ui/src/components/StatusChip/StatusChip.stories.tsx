@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { History, PencilLine } from "lucide-react";
 import { StatusChip } from "./StatusChip";
 
 const meta = {
@@ -29,6 +30,16 @@ export const AllStatuses: Story = {
       <StatusChip status="notApplicable" />
       <StatusChip status="info" label="New" />
       <StatusChip status="neutral" label="Draft" />
+    </div>
+  ),
+};
+
+/** States with their own symbol, for example care plan versions: always the icon and the word. */
+export const CustomIcons: Story = {
+  render: () => (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+      <StatusChip status="info" label="Draft, not in use" icon={PencilLine} />
+      <StatusChip status="neutral" label="Superseded" icon={History} />
     </div>
   ),
 };

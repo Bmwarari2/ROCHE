@@ -112,6 +112,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | dsar.extension_months | 2 | months | 2018-05-25 | - | uk | master prompt 5.1 (extendable to three months in total) | master-prompt |
 | dp_complaint.acknowledge_days | 30 | days | 2026-06-19 | - | uk | master prompt 5.1 (Data (Use and Access) Act 2025 complaints duty) | master-prompt |
 | reg14.absence_notice_days | 28 | days | 2000-01-01 | - | england | master prompt 11.2 (CQC Registration Regulations 2009 reg 14) | master-prompt |
+| cqc.statement_of_purpose.revision_notice_days | 28 | days | 2010-04-01 | - | england | https://www.legislation.gov.uk/uksi/2009/3112/regulation/12 (reg 12(3): written details of any revision to the statement of purpose to the Commission within 28 days of the revision); master prompt 11.2 | verified |
 | riddor.report_days | 10 | days | 2013-10-01 | - | england | https://www.hse.gov.uk/riddor/when-do-i-report.htm; master prompt 11.1 | verified |
 | riddor.report_days | 10 | days | 2013-10-01 | - | wales | https://www.hse.gov.uk/riddor/when-do-i-report.htm; master prompt 11.1 | verified |
 | riddor.report_days | 10 | days | 2013-10-01 | - | scotland | https://www.hse.gov.uk/riddor/when-do-i-report.htm; master prompt 11.1 | verified |
@@ -167,11 +168,18 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | break_glass.weekly_repeat_threshold | 3 | count | 2000-01-01 | - | all | Harbour default for flagging repeated break-glass use in the weekly report (master prompt 4 requires the report but sets no number); tenant default | to-verify |
 | family_involvement.interval_months | 6 | months | 2000-01-01 | - | all | Harbour default for the family involvement record (master prompt 9.2 names the record but sets no interval); tenant default | to-verify |
 | exit.money_and_property_return_days | 28 | days | 2000-01-01 | - | all | Harbour default matching cma.deposit_return_days (master prompt 9.2); no statutory period for returning personal money and property; tenant default | to-verify |
+| downtime_pack.valid_hours | 36 | hours | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: a nightly downtime pack is in date for 36 hours from its information's time, longer than the nightly interval so one failed night does not leave a home with only an out-of-date pack (master prompt 13.4 "nightly"); tenant default; CSO to confirm (H-101) | to-verify |
+| downtime.duplicate_match_minutes | 10 | minutes | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: entries for the same person and kind within this many minutes of each other are listed as possible duplicates at outage reconciliation (master prompt 13.4 back-entry workflow); tenant default | to-verify |
+| downtime.back_entry_due_hours | 24 | hours | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: paper records from an outage are entered within 24 hours of its closure (master prompt 13.4 back-entry workflow); tenant default | to-verify |
+| evidence_pack.link_expiry_days.default | 7 | days | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: an inspector evidence pack link lasts 7 days unless the sender chooses otherwise (master prompt 11.2 "time-limited link"); tenant default | to-verify |
+| evidence_pack.code_valid_minutes | 10 | minutes | 2000-01-01 | - | all | Harbour security policy, not a statutory figure: a one-time code for opening an evidence pack link is valid for at most 10 minutes (ADR-0050; OWASP ASVS 5.0 out-of-band verifier lifetime) | to-verify |
+| evidence_pack.link_expiry_days.max | 30 | days | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: the longest an evidence pack link may last (data minimisation, UK GDPR Art 5(1)(c) and (e)); tenant default | to-verify |
 | ecm.tolerance_minutes.high | 15 | minutes | 2000-01-01 | - | all | master prompt 13.2 (defaults 15, 30, 60 by client risk); tenant default | master-prompt |
 | ecm.tolerance_minutes.medium | 30 | minutes | 2000-01-01 | - | all | master prompt 13.2 (defaults 15, 30, 60 by client risk); tenant default | master-prompt |
 | ecm.tolerance_minutes.low | 60 | minutes | 2000-01-01 | - | all | master prompt 13.2 (defaults 15, 30, 60 by client risk); tenant default | master-prompt |
 | notification.missed_visit_escalation_minutes | 10 | minutes | 2000-01-01 | - | all | master prompt 9.1, 19 Phase 4 gate | master-prompt |
 | task.overdue_escalation_minutes | 30 | minutes | 2000-01-01 | - | all | Harbour default for the task engine (master prompt 9.1): an overdue task escalates once to the nurse in charge; tenant default | to-verify |
+| statutory_notification.escalation_minutes | 60 | minutes | 2000-01-01 | - | all | Harbour default (safety.md rule 10, HZ-013): an overdue statutory notification alerts the holders of safety.notification.submit at once and escalates to the Nominated Individual (owner role) after this many minutes unless the tenant sets its own chain; tenant default | to-verify |
 | homecare.min_planned_visit_minutes | 30 | minutes | 2000-01-01 | - | england | master prompt 13.2 (NICE NG21: shorter planned visits flagged) | master-prompt |
 | enquiry.first_response_working_hours | 1 | working_hours | 2000-01-01 | - | all | master prompt 13.1; tenant default | master-prompt |
 | care_note.late_entry_hours | 2 | hours | 2000-01-01 | - | all | master prompt 10.1 | master-prompt |
@@ -255,6 +263,11 @@ literals, and tests assert against the table, not a literal (section 7, section 
   figure exists; they are tenant defaults for the tenant's DoLS lead to confirm (human action H-64). A
   reminder that would fall before an authorisation starts (an urgent authorisation is shorter than
   28 days) fires when it starts.
+- `statutory_notification.escalation_minutes` (60): how long an overdue statutory notification
+  waits before the default escalation chain tells the Nominated Individual (the owner role), after
+  the holders of `safety.notification.submit` were told at once (safety.md rule 10, HZ-013). No
+  statutory figure exists; a tenant may replace the chain (`safety.notification.overdue`) or the
+  figure. For the CSO and the tenant to confirm (human action H-69).
 - `falls.monitoring_hours` (24) and `falls.head_injury_obs.*` (30 minutes for 2 hours, 60 minutes for
   4 hours, then 120 minutes): NICE NG232 recommendation 1.9.11 gives the observation frequency for
   people admitted to hospital with a head injury and a GCS score of 15; NICE gives no care home
@@ -288,6 +301,26 @@ literals, and tests assert against the table, not a literal (section 7, section 
   property and keys after a discharge, transfer or death. No statute sets one; the default mirrors
   the CMA deposit-return period (`cma.deposit_return_days`) so the two clocks agree. Tenant default
   (H-58); the escalation goes to the Registered Manager, it is not a legal deadline.
+- `downtime_pack.valid_hours` (36), `downtime.back_entry_due_hours` (24) and
+  `downtime.duplicate_match_minutes` (10): policy defaults for the downtime pack
+  ([operations.md](operations.md) rules 2, 10 and 14). A pack is in date for this many hours from
+  the time its information was read (the server's read time, or a kiosk's last sync). The figure is
+  longer than the nightly interval, so one failed nightly job does not leave the home with only an
+  out-of-date pack; after it, every page says in words that it is out of date, and during a
+  declared outage every page says it is the latest available and that anything since is on paper
+  (HZ-021). The CSO confirms the figure and the wording (H-101). Paper records from an outage are
+  due within `downtime.back_entry_due_hours` of the outage's closure; overdue back-entry escalates
+  to the Registered Manager. Entries for one person and kind within
+  `downtime.duplicate_match_minutes` of each other are listed as possible duplicates. No statute
+  sets any of these figures; the tenant's business continuity lead confirms them (H-98).
+- `evidence_pack.link_expiry_days.default` (7) and `.max` (30): policy defaults for the time-limited
+  link to an inspector evidence pack ([quality.md](quality.md) rule 7). The sender may choose a
+  shorter or longer expiry up to the maximum; a tenant may lower the maximum. No statute or CQC
+  guidance sets a period; the data protection lead confirms them (human action H-96).
+- `evidence_pack.code_valid_minutes` (10): how long a one-time code for opening an evidence pack
+  link stays valid ([quality.md](quality.md) rule 8, ADR-0050). A security policy value, not a
+  tenant preference: a tenant may shorten it, never lengthen it past 10 minutes
+  (`EVIDENCE_CODE_MAX_VALID_MINUTES`). Codes are 6 digits, single-use and stored hashed.
 
 ## Other notes
 
@@ -333,4 +366,11 @@ literals, and tests assert against the table, not a literal (section 7, section 
   staff decision recorded on each case (human action H-65).
 - `pressure_ulcer.decision_guide_hours` (48): DHSC, "Pressure ulcers: how to safeguard adults"
   (January 2024, updated June 2025), which replaced the 2018 protocol withdrawn on 26 June 2023.
+- `cqc.statement_of_purpose.revision_notice_days` (28): CQC (Registration) Regulations 2009
+  regulation 12(3), "The registered person must provide written details of any revision to the
+  statement of purpose to the Commission within 28 days of any such revision", read on
+  legislation.gov.uk on 11 October 2026 (no outstanding effects listed). `valid_from` is the
+  regulations' commencement for the clock's purposes (1 April 2010, as the other `cqc.*` rows).
+  England only; Wales, Scotland and Northern Ireland have their own regulators and rules (Phase 7
+  nation packs).
 - Retention periods are not in this table; they live in `docs/specs/retention.md`.

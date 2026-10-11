@@ -2,27 +2,10 @@
  * Harbour web stylesheet. @harbour/ui/styles.css brings Tailwind CSS 4, the Harbour theme and
  * tokens, self-hosted Inter, base element styles, component styles and print styles. Tailwind's
  * default palette and breakpoints are replaced by the tokens (sm 735 px, md 1069 px, xl 1441 px).
+ * Component styles, including how the app bar fits on a phone, belong in @harbour/ui, not here.
  */
 
 @import "@harbour/ui/styles.css";
 
 /* Generate utilities used in the app's own components. */
 @source "../";
-
-/*
- * Phone widths: let the organisation and location names shorten with an ellipsis so the account
- * menu (and sign out) stays on screen. To move into @harbour/ui's AppBar styles.
- */
-@media (max-width: 734px) {
-  .hb-appbar__switchers {
-    flex: 1 1 auto;
-    overflow: hidden;
-  }
-
-  .hb-appbar__context > span:last-child,
-  .hb-appbar__switcher-value {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-}

@@ -26,6 +26,7 @@ const pointOfCare: Permission[] = [
   "care.handover.manage",
   "medicines.emar.administer",
   "safety.incident.report",
+  "safety.incident.read",
   "scheduling.rota.read",
   "scheduling.timesheet.self",
   "workforce.self.read",
@@ -53,7 +54,8 @@ const registeredManager: Permission[] = ALL_PERMISSIONS.filter(
     !p.startsWith("ai.copilot.manage") &&
     p !== "insights.group.read" &&
     staffPermission(p) &&
-    p !== "finance.ledger.record",
+    p !== "finance.ledger.record" &&
+    p !== "quality.evidence.read",
 ).concat([
   "platform.user.manage",
   "platform.audit.read",
@@ -69,7 +71,9 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
     name: "Owner",
     description: "Founder, director or Nominated Individual. Everything, including billing.",
     scopeKind: "tenant",
-    permissions: ALL_PERMISSIONS.filter(staffPermission),
+    // Least privilege: opening a released evidence pack by its link is for the inspector it was
+    // sent to; providers see their packs through `quality.evidence_pack.compose`.
+    permissions: ALL_PERMISSIONS.filter((p) => staffPermission(p) && p !== "quality.evidence.read"),
   },
   {
     key: "group_executive",
@@ -85,7 +89,6 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "workforce.training.manage",
       "workforce.supervision.manage",
       "quality.audit.manage",
-      "quality.evidence.read",
       "insights.dashboard.read",
       "insights.report.manage",
       "insights.group.read",
@@ -107,8 +110,13 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
     description:
       "As Registered Manager minus tenant settings; submits notifications only under an acting-up grant.",
     scopeKind: "location",
+    // The statement of purpose is approved by the registered provider or manager (CQC
+    // Registration Regulations 2009 reg 12), not by a deputy.
     permissions: registeredManager.filter(
-      (p) => p !== "safety.notification.submit" && p !== "platform.grant.manage",
+      (p) =>
+        p !== "safety.notification.submit" &&
+        p !== "platform.grant.manage" &&
+        p !== "quality.statement_of_purpose.approve",
     ),
   },
   {
@@ -134,6 +142,8 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "people.property.manage",
       "comms.feed.publish",
       "comms.feed.withdraw",
+      "operations.downtime.read",
+      "operations.downtime.manage",
     ],
   },
   {
@@ -152,6 +162,8 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "people.property.manage",
       "comms.feed.publish",
       "comms.feed.withdraw",
+      "operations.downtime.read",
+      "operations.downtime.manage",
     ],
   },
   {
@@ -174,6 +186,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "scheduling.visit.manage",
       "people.assignment.manage",
       "safety.incident.report",
+      "safety.incident.read",
       "comms.message.send",
       "insights.dashboard.read",
     ],
@@ -247,6 +260,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "comms.letter.manage",
       "comms.notification.manage",
       "comms.visit_booking.manage",
+      "comms.template.write",
       "platform.document.manage",
     ],
   },
@@ -293,10 +307,15 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "quality.audit.manage",
       "quality.policy.manage",
       "quality.evidence.manage",
-      "quality.evidence.read",
+      "quality.evidence_pack.compose",
+      "quality.evidence_pack.release",
+      "quality.statement_of_purpose.write",
+      "comms.template.write",
+      "comms.template.approve",
       "quality.dsar.manage",
       "safety.whistleblowing.read",
       "safety.complaint.manage",
+      "safety.incident.read",
       "platform.audit.read",
       "platform.document.manage",
       "platform.retention.manage",
