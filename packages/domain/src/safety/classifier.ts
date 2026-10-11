@@ -1156,6 +1156,7 @@ function classifierTasks(
     const checklist = postFallChecklist(
       {
         occurredAt,
+        foundAt: input.facts.foundAt ?? null,
         headInjury: c.answers.yesNoUnsure("falls.head_injury"),
         anticoagulantOrAntiplatelet: c.answers.yesNoUnsure("falls.anticoagulant"),
       },

@@ -181,6 +181,8 @@ export const CreateBodyMapMark = z
     description: z.string().trim().max(1000).optional(),
     photoDocumentId: uuid.optional(),
     status: z.enum(["present", "healed"]).default("present"),
+    /** The incident the mark is recorded for (safety.md section 2); the person must be on it. */
+    incidentId: uuid.optional(),
   })
   .meta({ id: "CreateBodyMapMark" });
 export type CreateBodyMapMark = z.infer<typeof CreateBodyMapMark>;
@@ -199,6 +201,7 @@ export const BodyMapMarkItem = z
     description: z.string().nullable(),
     photoDocumentId: uuid.nullable(),
     status: z.enum(["present", "healed"]),
+    incidentId: uuid.nullable(),
   })
   .meta({ id: "BodyMapMarkItem" });
 export type BodyMapMarkItem = z.infer<typeof BodyMapMarkItem>;

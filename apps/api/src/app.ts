@@ -14,7 +14,9 @@ import { careRouter } from "./routes/care";
 import { carePlansRouter } from "./routes/care-plans";
 import { careRecordsRouter } from "./routes/care-records";
 import { documentsRouter } from "./routes/documents";
+import { incidentsRouter } from "./routes/incidents";
 import { integrationsRouter, supportAccessRouter } from "./routes/integrations";
+import { mcaRouter } from "./routes/mca";
 import { membershipsRouter, meRouter } from "./routes/me";
 import { createRouter } from "./routes/openapi";
 import { operatorMiddleware, operatorRouter } from "./routes/operator";
@@ -27,6 +29,7 @@ import {
   ratesRouter,
 } from "./routes/platform";
 import { sessionsRouter } from "./routes/sessions";
+import { statutoryNotificationsRouter } from "./routes/statutory-notifications";
 import { createSyncRouter } from "./routes/sync";
 import { tasksRouter } from "./routes/tasks";
 import { SyncTokenSigner } from "./sync/token";
@@ -142,6 +145,9 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", careRouter);
   app.route("/", carePlansRouter);
   app.route("/", careRecordsRouter);
+  app.route("/", mcaRouter);
+  app.route("/", incidentsRouter);
+  app.route("/", statutoryNotificationsRouter);
   app.route("/", ratesRouter);
   app.route("/", createSyncRouter(signer));
   app.route("/", integrationsRouter);

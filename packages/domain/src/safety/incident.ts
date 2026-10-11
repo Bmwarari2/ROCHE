@@ -58,6 +58,11 @@ export interface IncidentFacts {
   readonly type: IncidentType;
   /** When it happened (device time for offline capture): every clock starts here (safety.md 6). */
   readonly occurredAt: Date;
+  /**
+   * When the person was found, if later (an unwitnessed fall): post-fall observations count from
+   * here (`postFallChecklist`). Statutory clocks still start at `occurredAt`.
+   */
+  readonly foundAt?: Date | null;
   readonly nation: IncidentNation;
   readonly people: readonly IncidentPersonFacts[];
 }
