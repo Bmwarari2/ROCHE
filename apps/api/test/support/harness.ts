@@ -57,6 +57,8 @@ export interface Harness {
       origin?: string;
       /** A raw body (file upload) sent with its own content type instead of JSON. */
       raw?: { bytes: Uint8Array; contentType: string };
+      /** Extra request headers (for example the device id). */
+      headers?: Record<string, string>;
     },
   ): Promise<Response>;
   close(): Promise<void>;
@@ -154,6 +156,7 @@ export async function createHarness(): Promise<Harness> {
     DATABASE_OPERATOR_URL: db.url("harbour_operator"),
     LOG_LEVEL: "silent",
     LOCAL_DOCUMENTS_DIR: mkdtempSync(join(tmpdir(), "harbour-documents-")),
+    TRANSFER_PACK_REQUESTS_PER_MINUTE: "1000",
   });
   const handle = createApp(config, createLogger("silent"));
 
@@ -164,6 +167,7 @@ export async function createHarness(): Promise<Harness> {
     if (init.token) headers.set("authorization", `Bearer ${init.token}`);
     if (init.tenant) headers.set(TENANT_HEADER, init.tenant);
     if (init.origin) headers.set("origin", init.origin);
+    for (const [name, value] of Object.entries(init.headers ?? {})) headers.set(name, value);
     return Promise.resolve(
       handle.app.request(path, {
         method: init.method ?? "GET",

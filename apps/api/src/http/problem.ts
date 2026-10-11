@@ -4,6 +4,9 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 
 /** RFC 9457 problem details. Messages are plain English and never blame the user (section 8). */
 export class HttpProblem extends Error {
+  /** For a 429: how long to wait, sent as Retry-After. */
+  retryAfterSeconds?: number;
+
   constructor(
     readonly status: ContentfulStatusCode,
     readonly code: string,
@@ -58,5 +61,8 @@ export function problemResponse(c: Context, problem: HttpProblem, requestId?: st
     ...(problem.detail ? { detail: problem.detail } : {}),
     ...(requestId ? { requestId } : {}),
   };
-  return c.json(body, problem.status, { "content-type": "application/problem+json" });
+  return c.json(body, problem.status, {
+    "content-type": "application/problem+json",
+    ...(problem.retryAfterSeconds ? { "retry-after": String(problem.retryAfterSeconds) } : {}),
+  });
 }

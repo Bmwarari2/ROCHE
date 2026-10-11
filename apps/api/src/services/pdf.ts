@@ -91,22 +91,34 @@ export function wrap(
 // ------------------------------------------------------------------------------------------------
 
 /**
- * The largest photo the pack prints, in pixels (4096 x 4096). A photo for identification needs far
+ * The largest photo the pack prints: 2048 pixels on each side. A photo for identification needs far
  * less; anything larger is named on the first page rather than decoded, so a crafted file cannot
- * take the API down for every tenant (HZ-023).
+ * hold the API's CPU or memory (HZ-023).
  */
-export const MAX_IMAGE_PIXELS = 4096 * 4096;
-const MAX_IMAGE_SIDE = 8192;
+export const MAX_IMAGE_SIDE = 2048;
+export const MAX_IMAGE_PIXELS = MAX_IMAGE_SIDE * MAX_IMAGE_SIDE;
+/** A PNG with more image-data chunks, or more compressed data, than this is not decoded. */
+export const MAX_PNG_IDAT_CHUNKS = 1024;
+export const MAX_PNG_COMPRESSED_BYTES = 8 * 1024 * 1024;
 
 const sizeAllowed = (width: number, height: number) =>
-  width > 0 &&
-  height > 0 &&
-  width <= MAX_IMAGE_SIDE &&
-  height <= MAX_IMAGE_SIDE &&
-  width * height <= MAX_IMAGE_PIXELS;
+  width > 0 && height > 0 && width <= MAX_IMAGE_SIDE && height <= MAX_IMAGE_SIDE;
 
-/** Reads a JPEG's pixel size from its start-of-frame marker, or null when it is not a JPEG. */
-export function jpegSize(bytes: Uint8Array): { width: number; height: number } | null {
+/** Frame markers a PDF reader decodes: baseline, extended and progressive Huffman JPEGs. */
+const JPEG_FRAMES = new Set([0xc0, 0xc1, 0xc2]);
+
+interface JpegFrame {
+  readonly width: number;
+  readonly height: number;
+  /** 1 (grey) or 3 (colour); CMYK (4) and other counts are not printed. */
+  readonly components: 1 | 3;
+}
+
+/**
+ * Reads a JPEG's start-of-frame: its pixel size and number of colour components, or null when it
+ * is not a JPEG the pack prints (12-bit, arithmetic-coded, CMYK, or over the size limit).
+ */
+export function jpegFrame(bytes: Uint8Array): JpegFrame | null {
   if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return null;
   let i = 2;
   while (i + 9 < bytes.length) {
@@ -116,13 +128,22 @@ export function jpegSize(bytes: Uint8Array): { width: number; height: number } |
     if (length < 2 || i + 2 + length > bytes.length) return null;
     const isFrame = marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker);
     if (isFrame) {
+      if (!JPEG_FRAMES.has(marker) || bytes[i + 4] !== 8) return null;
       const height = ((bytes[i + 5] ?? 0) << 8) | (bytes[i + 6] ?? 0);
       const width = ((bytes[i + 7] ?? 0) << 8) | (bytes[i + 8] ?? 0);
-      return sizeAllowed(width, height) ? { width, height } : null;
+      const components = bytes[i + 9];
+      if (components !== 1 && components !== 3) return null;
+      return sizeAllowed(width, height) ? { width, height, components } : null;
     }
     i += 2 + length;
   }
   return null;
+}
+
+/** A JPEG's pixel size, or null when the pack cannot print it. */
+export function jpegSize(bytes: Uint8Array): { width: number; height: number } | null {
+  const frame = jpegFrame(bytes);
+  return frame ? { width: frame.width, height: frame.height } : null;
 }
 
 export interface ImageObject {
@@ -171,13 +192,22 @@ function unfilter(data: Uint8Array, width: number, height: number, bpp: number):
   return out;
 }
 
+interface ParsedPng {
+  readonly width: number;
+  readonly height: number;
+  readonly colourType: 0 | 2 | 3 | 4 | 6;
+  readonly palette: Uint8Array | null;
+  readonly compressed: Buffer;
+}
+
+const CHANNELS: Record<number, number> = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 };
+
 /**
- * A PNG as a PDF image, or null when the pack cannot print it. Only 8-bit, non-interlaced PNGs
- * within `MAX_IMAGE_PIXELS` print; 16-bit and interlaced ones are not decoded and count as not
- * printable, so the first page names them and the hand-over asks for an acknowledgement. Every
- * chunk is bounds-checked and decompression is capped at the size the header promises.
+ * Reads a PNG's chunks without decompressing anything: every chunk is bounds-checked, IHDR comes
+ * first, IEND is present, only 8-bit, non-interlaced images within the size limit pass, a palette
+ * image has its palette, and the number and total size of the image-data chunks are capped.
  */
-function pngImage(bytes: Uint8Array): ImageObject | null {
+function parsePng(bytes: Uint8Array): ParsedPng | null {
   if (bytes.length < 8 || !PNG_SIGNATURE.every((b, i) => bytes[i] === b)) return null;
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let width = 0;
@@ -187,6 +217,7 @@ function pngImage(bytes: Uint8Array): ImageObject | null {
   let interlace = 0;
   let palette: Uint8Array | null = null;
   const idat: Uint8Array[] = [];
+  let idatBytes = 0;
   let at = 8;
   let ended = false;
   while (at + 12 <= bytes.length) {
@@ -206,8 +237,11 @@ function pngImage(bytes: Uint8Array): ImageObject | null {
     } else if (type === "PLTE") {
       if (length % 3 !== 0 || length === 0 || length > 768) return null;
       palette = body;
-    } else if (type === "IDAT") idat.push(body);
-    else if (type === "IEND") {
+    } else if (type === "IDAT") {
+      idatBytes += length;
+      if (idat.length >= MAX_PNG_IDAT_CHUNKS || idatBytes > MAX_PNG_COMPRESSED_BYTES) return null;
+      idat.push(body);
+    } else if (type === "IEND") {
       ended = true;
       break;
     }
@@ -218,11 +252,55 @@ function pngImage(bytes: Uint8Array): ImageObject | null {
     !sizeAllowed(width, height) ||
     depth !== 8 ||
     interlace !== 0 ||
-    idat.length === 0
+    idat.length === 0 ||
+    !(colourType in CHANNELS) ||
+    (colourType === 3 && palette === null)
   ) {
     return null;
   }
-  const compressed = Buffer.concat(idat.map((c) => Buffer.from(c)));
+  return {
+    width,
+    height,
+    colourType: colourType as ParsedPng["colourType"],
+    palette,
+    compressed: Buffer.concat(idat.map((c) => Buffer.from(c))),
+  };
+}
+
+/**
+ * Decompresses a parsed PNG's image data, capped at exactly the size its header promises, and
+ * checks every row's filter byte (0 to 4) and, for a palette image, every index against the
+ * palette. Returns the filtered rows, or null when they are not exactly right.
+ */
+function inflatePng(
+  png: ParsedPng,
+): { readonly rows: Buffer; readonly pixels: Uint8Array | null } | null {
+  const bpp = CHANNELS[png.colourType] ?? 1;
+  const stride = png.width * bpp;
+  const expected = png.height * (stride + 1);
+  const rows = inflateSync(png.compressed, { maxOutputLength: expected });
+  if (rows.length !== expected) return null;
+  for (let y = 0; y < png.height; y++) {
+    if ((rows[y * (stride + 1)] ?? 255) > 4) return null;
+  }
+  if (png.colourType !== 3 || !png.palette) return { rows, pixels: null };
+  const pixels = unfilter(rows, png.width, png.height, 1);
+  const entries = png.palette.length / 3;
+  for (const index of pixels) if (index >= entries) return null;
+  return { rows, pixels };
+}
+
+/**
+ * A PNG as a PDF image, or null when the pack cannot print it (see `parsePng` and `inflatePng`).
+ * Grey, colour and palette images keep their own compressed data; only an image with
+ * transparency is split into colour and a soft mask, which needs compressing again.
+ */
+function pngImage(bytes: Uint8Array): ImageObject | null {
+  const png = parsePng(bytes);
+  if (!png) return null;
+  const inflated = inflatePng(png);
+  if (!inflated) return null;
+  const { width, height, colourType } = png;
   const params = (colours: number) =>
     `/DecodeParms << /Predictor 15 /Colors ${colours} /BitsPerComponent 8 /Columns ${width} >>`;
   const base = `/Type /XObject /Subtype /Image /Width ${width} /Height ${height} /BitsPerComponent 8`;
@@ -232,44 +310,37 @@ function pngImage(bytes: Uint8Array): ImageObject | null {
       width,
       height,
       dict: `<< ${base} /ColorSpace /${colours === 1 ? "DeviceGray" : "DeviceRGB"} /Filter /FlateDecode ${params(colours)}`,
-      data: compressed,
+      data: png.compressed,
     };
   }
-  if (colourType === 3 && palette) {
-    const hex = Buffer.from(palette).toString("hex");
+  if (colourType === 3 && png.palette) {
+    const hex = Buffer.from(png.palette).toString("hex");
     return {
       width,
       height,
-      dict: `<< ${base} /ColorSpace [/Indexed /DeviceRGB ${palette.length / 3 - 1} <${hex}>] /Filter /FlateDecode ${params(1)}`,
-      data: compressed,
+      dict: `<< ${base} /ColorSpace [/Indexed /DeviceRGB ${png.palette.length / 3 - 1} <${hex}>] /Filter /FlateDecode ${params(1)}`,
+      data: png.compressed,
     };
   }
-  if (colourType === 4 || colourType === 6) {
-    // Colour with alpha: the colour and the alpha go in separate images (a soft mask).
-    const colours = colourType === 4 ? 1 : 3;
-    const expected = height * (width * (colours + 1) + 1);
-    const inflated = inflateSync(compressed, { maxOutputLength: expected });
-    if (inflated.length !== expected) return null;
-    const pixels = unfilter(inflated, width, height, colours + 1);
-    const colour = new Uint8Array(width * height * colours);
-    const alpha = new Uint8Array(width * height);
-    for (let p = 0; p < width * height; p++) {
-      for (let k = 0; k < colours; k++)
-        colour[p * colours + k] = pixels[p * (colours + 1) + k] ?? 0;
-      alpha[p] = pixels[p * (colours + 1) + colours] ?? 255;
-    }
-    return {
-      width,
-      height,
-      dict: `<< ${base} /ColorSpace /${colours === 1 ? "DeviceGray" : "DeviceRGB"} /Filter /FlateDecode`,
-      data: deflateSync(colour),
-      mask: {
-        dict: `<< /Type /XObject /Subtype /Image /Width ${width} /Height ${height} /BitsPerComponent 8 /ColorSpace /DeviceGray /Filter /FlateDecode`,
-        data: deflateSync(alpha),
-      },
-    };
+  // Colour with alpha: the colour and the alpha go in separate images (a soft mask).
+  const colours = colourType === 4 ? 1 : 3;
+  const pixels = unfilter(inflated.rows, width, height, colours + 1);
+  const colour = new Uint8Array(width * height * colours);
+  const alpha = new Uint8Array(width * height);
+  for (let p = 0; p < width * height; p++) {
+    for (let k = 0; k < colours; k++) colour[p * colours + k] = pixels[p * (colours + 1) + k] ?? 0;
+    alpha[p] = pixels[p * (colours + 1) + colours] ?? 255;
   }
-  return null;
+  return {
+    width,
+    height,
+    dict: `<< ${base} /ColorSpace /${colours === 1 ? "DeviceGray" : "DeviceRGB"} /Filter /FlateDecode`,
+    data: deflateSync(colour),
+    mask: {
+      dict: `<< /Type /XObject /Subtype /Image /Width ${width} /Height ${height} /BitsPerComponent 8 /ColorSpace /DeviceGray /Filter /FlateDecode`,
+      data: deflateSync(alpha),
+    },
+  };
 }
 
 /**
@@ -284,18 +355,30 @@ export function pdfImage(image: PdfImage): ImageObject | null {
   }
 }
 
-/** Whether a stored photo will print on the pack (the same decoder the PDF uses). */
+/**
+ * Whether a photo will print on the pack: the same checks the PDF's decoder makes, without
+ * building the PDF image (nothing is compressed again). Decided once, when a photo is uploaded,
+ * and stored with the document (`document.image_printable`). Never throws.
+ */
 export function isPrintableImage(image: PdfImage): boolean {
-  return pdfImage(image) !== null;
+  try {
+    if (image.contentType === "image/jpeg") return jpegFrame(image.bytes) !== null;
+    if (image.contentType !== "image/png") return false;
+    const png = parsePng(image.bytes);
+    return png !== null && inflatePng(png) !== null;
+  } catch {
+    return false;
+  }
 }
 
 function decodeImage(image: PdfImage): ImageObject | null {
   if (image.contentType === "image/jpeg") {
-    const size = jpegSize(image.bytes);
-    if (!size) return null;
+    const frame = jpegFrame(image.bytes);
+    if (!frame) return null;
     return {
-      ...size,
-      dict: `<< /Type /XObject /Subtype /Image /Width ${size.width} /Height ${size.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode`,
+      width: frame.width,
+      height: frame.height,
+      dict: `<< /Type /XObject /Subtype /Image /Width ${frame.width} /Height ${frame.height} /ColorSpace /${frame.components === 1 ? "DeviceGray" : "DeviceRGB"} /BitsPerComponent 8 /Filter /DCTDecode`,
       data: image.bytes,
     };
   }

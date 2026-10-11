@@ -8,6 +8,7 @@ import { withoutSessionTokens } from "./auth/token-exposure";
 import type { Config } from "./config";
 import { type AppEnv, type Services, sessionMiddleware, tenantMiddleware } from "./http/context";
 import { HttpProblem, problemResponse, problems } from "./http/problem";
+import { RateLimiter } from "./http/rate-limit";
 import { createDocumentServices } from "./integrations/documents";
 import { idleErrorLogger, type Logger } from "./logger";
 import { breakGlassReportRouter } from "./routes/break-glass-report";
@@ -77,6 +78,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     operatorPool,
     auth: createAuth(config, authPool),
     ...createDocumentServices(config),
+    transferPackLimiter: new RateLimiter(config.TRANSFER_PACK_REQUESTS_PER_MINUTE, 60_000),
   };
   const signer = new SyncTokenSigner(config.SYNC_SIGNING_KEY_ID, config.SYNC_SIGNING_KEY_PEM);
 

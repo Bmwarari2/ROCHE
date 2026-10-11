@@ -24,11 +24,10 @@ import {
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, desc, eq, inArray, isNull, like } from "drizzle-orm";
 import type { Context } from "hono";
-import { writeAudit } from "../http/audit";
 import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
+import { requireWithinLimit } from "../http/rate-limit";
 import { publish } from "../outbox";
-import { readDocumentContent } from "../services/documents";
 import { type ImageObject, pdfImage } from "../services/pdf";
 import {
   CLOCK_DRIFT_RATE_KEY,
@@ -40,7 +39,7 @@ import {
 } from "../services/people";
 import { rateNumber } from "../services/rates";
 import { toJson } from "../services/safety";
-import { assemblePackFor } from "../services/transfer-pack";
+import { assemblePackFor, decidePhotoPrintable } from "../services/transfer-pack";
 import { renderTransferPackPdf, type StoredPack } from "../services/transfer-pack-pdf";
 import {
   conflictResponse,
@@ -50,7 +49,15 @@ import {
   notFoundResponse,
   security,
 } from "./openapi";
-import { audit, changeStatus, iso, PersonParam, requireAnyPermission } from "./people-shared";
+import {
+  AuditedRefusal,
+  audit,
+  changeStatus,
+  iso,
+  PersonParam,
+  requireAnyPermission,
+  withAuditedRefusal,
+} from "./people-shared";
 
 /**
  * The hospital transfer pack and the transfer itself (people.md rule 10; HZ-001, HZ-007, HZ-015,
@@ -175,7 +182,12 @@ async function mayDoReturnCheck(
       ),
     )
     .limit(1);
-  if (!carried) return held.has("care.plan.write");
+  // With no task, belongings stay with whoever records movements and the rest need the care plan.
+  if (!carried) {
+    return held.has(
+      MOVEMENT_RETURN_CHECKS.has(checkKey) ? "people.movement.record" : "care.plan.write",
+    );
+  }
   return carried.assignee === access.tenantUserId || held.has(carried.permission);
 }
 
@@ -214,8 +226,14 @@ async function itemsToSend(tx: Transaction, personId: string, ids: readonly stri
   }
 }
 
+/** Limits the caller, then decides an older photo's printability before any transaction (S2). */
+async function beforePack(c: Context<AppEnv>, access: TenantAccess, personId: string) {
+  // The pack routes build a snapshot and may print a photo: a per-user limit (S2).
+  requireWithinLimit(c.get("services").transferPackLimiter, `${access.tenantUserId}:transfer-pack`);
+  await decidePhotoPrintable((fn) => withTenant(c, fn), c.get("services").storage, personId);
+}
+
 async function packFor(
-  c: Context<AppEnv>,
   tx: Transaction,
   p: PersonRecord,
   generatedBy: string,
@@ -228,8 +246,6 @@ async function packFor(
     sendItemIds,
     generatedBy,
     now,
-    // The photo is decoded as the PDF decodes it, so "printable" means it will print.
-    storage: c.get("services").storage,
   });
   if (!result.ok) refusePack(result);
   return result.pack;
@@ -263,11 +279,11 @@ async function previewPack(
   id: string,
   body: PreviewTransferPack,
 ) {
+  await beforePack(c, access, id);
   return withTenant(c, async (tx) => {
     const p = await loadPerson(tx, id);
     await itemsToSend(tx, id, body.sendItemIds);
     const assembled = await packFor(
-      c,
       tx,
       p,
       access.tenantUserId,
@@ -392,6 +408,7 @@ export const peopleTransfersRouter = createRouter()
       const body = c.req.valid("json");
       const now = new Date();
       const leftAt = new Date(body.leftAt);
+      await beforePack(c, access, id);
       const out = await withTenant(c, async (tx) => {
         if (body.id) {
           const [replayed] = await tx
@@ -418,7 +435,6 @@ export const peopleTransfersRouter = createRouter()
         }
         await itemsToSend(tx, id, body.sendItemIds);
         const pack = await packFor(
-          c,
           tx,
           p,
           access.tenantUserId,
@@ -504,23 +520,33 @@ export const peopleTransfersRouter = createRouter()
       const access = await requirePermission(c, "people.movement.record");
       const { id, transferId } = c.req.valid("param");
       const { storage } = c.get("services");
-      const bytes = await withTenant(c, async (tx) => {
+      requireWithinLimit(
+        c.get("services").transferPackLimiter,
+        `${access.tenantUserId}:transfer-pack`,
+      );
+      // Everything from the database in one short transaction; the photo is read and decoded and
+      // the PDF drawn after it ends, so no connection is held while the CPU works (S2).
+      const read = await withTenant(c, async (tx) => {
         const p = await loadPerson(tx, id);
         const row = await transferFor(tx, id, transferId);
         const pack = row.pack as unknown as StoredPack;
         // JPEG and PNG photos print; anything that cannot be read or drawn is named on page 1.
-        let photo: ImageObject | null = null;
         const photoId = (pack.content.photo as { documentId?: string } | null)?.documentId;
+        let photo: { storageKey: string; contentType: string } | null = null;
         if (photoId) {
           const [doc] = await tx
-            .select({ contentType: document.contentType, personId: document.personId })
+            .select({
+              contentType: document.contentType,
+              personId: document.personId,
+              storageKey: document.storageKey,
+              status: document.status,
+              imagePrintable: document.imagePrintable,
+            })
             .from(document)
-            .where(eq(document.id, photoId));
-          if (doc && doc.personId === id) {
-            const content = await readDocumentContent(tx, storage, photoId).catch(() => null);
-            photo = content
-              ? pdfImage({ bytes: content.bytes, contentType: doc.contentType })
-              : null;
+            .where(and(eq(document.id, photoId), isNull(document.deletedAt)));
+          // A photo decided as not printable at upload is never decoded.
+          if (doc && doc.personId === id && doc.status === "available" && doc.imagePrintable) {
+            photo = { storageKey: doc.storageKey, contentType: doc.contentType };
           }
         }
         await audit(c, tx, access, {
@@ -529,14 +555,26 @@ export const peopleTransfersRouter = createRouter()
           resourceId: transferId,
           scope: { recipient: row.hospitalName },
         });
-        return renderTransferPackPdf({
+        return {
           pack,
           hospitalName: row.hospitalName,
           locationName: p.locationName,
           names: await staffNames(tx, pack),
           photo,
-          printedAt: new Date(),
-        });
+        };
+      });
+      let image: ImageObject | null = null;
+      if (read.photo) {
+        const content = await storage.get(read.photo.storageKey).catch(() => null);
+        image = content ? pdfImage({ bytes: content, contentType: read.photo.contentType }) : null;
+      }
+      const bytes = renderTransferPackPdf({
+        pack: read.pack,
+        hospitalName: read.hospitalName,
+        locationName: read.locationName,
+        names: read.names,
+        photo: image,
+        printedAt: new Date(),
       });
       return c.body(bytes as Uint8Array<ArrayBuffer>, 200, {
         "content-type": "application/pdf",
@@ -718,73 +756,73 @@ export const peopleTransfersRouter = createRouter()
       const { id, transferId, checkKey } = c.req.valid("param");
       const body = c.req.valid("json");
       const now = new Date();
-      const out = await withTenant(c, async (tx) => {
-        await loadPerson(tx, id);
-        const row = await transferFor(tx, id, transferId);
-        requireVersion(row.version, body.version);
-        const checks = { ...((row.returnChecks ?? {}) as Record<string, StoredCheck>) };
-        const check = Object.hasOwn(checks, checkKey) ? checks[checkKey] : undefined;
-        if (!check) throw problems.notFound();
-        if (check.doneAt) throw problems.invalid("This check has already been recorded.");
-        // Each check is done only by someone who may complete its task (a clinical check needs
-        // care.plan.write, or being its assignee); checking belongings back in stays with
-        // whoever records movements (HZ-005, HZ-015, HZ-016).
-        if (!(await mayDoReturnCheck(tx, access, transferId, checkKey))) {
-          await writeAudit(c.get("services").appPool, access, {
-            action: "people.hospital_transfer.return_check",
-            outcome: "denied",
-            resourceType: "hospital_transfer",
-            resourceId: transferId,
-            reason: "missing_permission",
-            requestId: c.get("requestId"),
-          });
-          throw problems.forbidden();
-        }
-        checks[checkKey] = { ...check, doneBy: access.tenantUserId, doneAt: now.toISOString() };
-        const [updated] = await tx
-          .update(hospitalTransfer)
-          .set({ returnChecks: checks })
-          .where(
-            and(eq(hospitalTransfer.id, transferId), eq(hospitalTransfer.version, body.version)),
-          )
-          .returning();
-        if (!updated) throw problems.conflict();
-        await tx
-          .update(task)
-          .set({
-            status: "done",
-            completedAt: now,
-            completedBy: access.tenantUserId,
-            evidenceType: "hospital_transfer",
-            evidenceId: transferId,
-          })
-          .where(
-            and(
-              eq(task.sourceType, "hospital_transfer"),
-              eq(task.sourceId, transferId),
-              eq(task.kind, returnCheckTaskKind(checkKey)),
-              inArray(task.status, ["open", "in_progress"]),
-            ),
-          );
-        if (checkKey === "belongings_returned") {
+      const out = await withAuditedRefusal(c, access, () =>
+        withTenant(c, async (tx) => {
+          await loadPerson(tx, id);
+          const row = await transferFor(tx, id, transferId);
+          requireVersion(row.version, body.version);
+          const checks = { ...((row.returnChecks ?? {}) as Record<string, StoredCheck>) };
+          const check = Object.hasOwn(checks, checkKey) ? checks[checkKey] : undefined;
+          if (!check) throw problems.notFound();
+          if (check.doneAt) throw problems.invalid("This check has already been recorded.");
+          // Each check is done only by someone who may complete its task (a clinical check needs
+          // care.plan.write, or being its assignee); checking belongings back in stays with
+          // whoever records movements (HZ-005, HZ-015, HZ-016).
+          if (!(await mayDoReturnCheck(tx, access, transferId, checkKey))) {
+            throw new AuditedRefusal(problems.forbidden(), {
+              action: "people.hospital_transfer.return_check",
+              outcome: "denied",
+              resourceType: "hospital_transfer",
+              resourceId: transferId,
+              reason: "missing_permission",
+            });
+          }
+          checks[checkKey] = { ...check, doneBy: access.tenantUserId, doneAt: now.toISOString() };
+          const [updated] = await tx
+            .update(hospitalTransfer)
+            .set({ returnChecks: checks })
+            .where(
+              and(eq(hospitalTransfer.id, transferId), eq(hospitalTransfer.version, body.version)),
+            )
+            .returning();
+          if (!updated) throw problems.conflict();
           await tx
-            .update(propertyItem)
-            .set({ status: "held", hospitalTransferId: null })
+            .update(task)
+            .set({
+              status: "done",
+              completedAt: now,
+              completedBy: access.tenantUserId,
+              evidenceType: "hospital_transfer",
+              evidenceId: transferId,
+            })
             .where(
               and(
-                eq(propertyItem.hospitalTransferId, transferId),
-                eq(propertyItem.status, "sent_with_person"),
+                eq(task.sourceType, "hospital_transfer"),
+                eq(task.sourceId, transferId),
+                eq(task.kind, returnCheckTaskKind(checkKey)),
+                inArray(task.status, ["open", "in_progress"]),
               ),
             );
-        }
-        await audit(c, tx, access, {
-          action: "people.hospital_transfer.return_check",
-          resourceType: "hospital_transfer",
-          resourceId: transferId,
-          scope: { check: checkKey },
-        });
-        return transferWithTasks(tx, updated);
-      });
+          if (checkKey === "belongings_returned") {
+            await tx
+              .update(propertyItem)
+              .set({ status: "held", hospitalTransferId: null })
+              .where(
+                and(
+                  eq(propertyItem.hospitalTransferId, transferId),
+                  eq(propertyItem.status, "sent_with_person"),
+                ),
+              );
+          }
+          await audit(c, tx, access, {
+            action: "people.hospital_transfer.return_check",
+            resourceType: "hospital_transfer",
+            resourceId: transferId,
+            scope: { check: checkKey },
+          });
+          return transferWithTasks(tx, updated);
+        }),
+      );
       return c.json(out, 200);
     },
   );

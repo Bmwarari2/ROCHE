@@ -3,7 +3,7 @@ import type { Permission } from "@harbour/domain";
 import { z } from "@hono/zod-openapi";
 import { and, eq, isNull } from "drizzle-orm";
 import type { Context } from "hono";
-import { auditInTx, writeAudit } from "../http/audit";
+import { type AuditInput, auditInTx, writeAudit } from "../http/audit";
 import { type AppEnv, requirePermission, type TenantAccess } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import {
@@ -101,6 +101,39 @@ export async function requireStepUp(
     requestId: c.get("requestId"),
   });
   throw problems.stepUp();
+}
+
+/**
+ * A refusal decided inside a transaction whose audit row must survive it: thrown in the
+ * transaction, and turned into the problem by `withAuditedRefusal` after the transaction has
+ * ended and released its connection, so writing the audit never needs a second connection while
+ * one is held (S-L7).
+ */
+export class AuditedRefusal extends Error {
+  constructor(
+    readonly problem: HttpProblem,
+    readonly audit: AuditInput,
+  ) {
+    super(problem.message);
+  }
+}
+
+/** Runs a transaction and, if it ends in an `AuditedRefusal`, records the refusal, then throws. */
+export async function withAuditedRefusal<T>(
+  c: Context<AppEnv>,
+  access: TenantAccess,
+  run: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    if (!(error instanceof AuditedRefusal)) throw error;
+    await writeAudit(c.get("services").appPool, access, {
+      ...error.audit,
+      requestId: c.get("requestId"),
+    });
+    throw error.problem;
+  }
 }
 
 /** A foreign key that points nowhere (another person's contact or document) reads as invalid. */

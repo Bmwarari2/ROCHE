@@ -31,6 +31,7 @@ import type { Config } from "../config";
 import type { Logger } from "../logger";
 import { writeAudit } from "./audit";
 import { problems } from "./problem";
+import type { RateLimiter } from "./rate-limit";
 
 export interface Services {
   readonly config: Config;
@@ -42,6 +43,8 @@ export interface Services {
   readonly auth: Auth;
   readonly storage: DocumentStoragePort;
   readonly scanner: MalwareScanPort;
+  /** Per-user limit on the transfer pack routes (S2). */
+  readonly transferPackLimiter: RateLimiter;
 }
 
 export interface SessionInfo {
@@ -190,6 +193,16 @@ async function loadAccess(db: Database, tenantId: string, tenantUserId: string, 
 }
 
 /**
+ * The device id a client sends (`x-harbour-device`), kept only when it is an opaque id: a UUID or a
+ * short token of letters, digits, dots, colons, underscores and hyphens (at most 64). Anything else
+ * is dropped, so free text never reaches the audit log or a review task (S-L6).
+ */
+export function deviceIdFrom(header: string | undefined): string | null {
+  if (!header) return null;
+  return /^[A-Za-z0-9._:-]{1,64}$/.test(header) ? header : null;
+}
+
+/**
  * Requires a signed-in user who belongs to the tenant named in `x-harbour-tenant` (or their only
  * tenant), and resolves their effective access. Every route under /v1 except /v1/me runs behind it.
  */
@@ -244,7 +257,7 @@ export const tenantMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
       locationIds: effective.locationIds,
     },
     mfaSatisfied,
-    deviceId: c.req.header(DEVICE_HEADER) ?? null,
+    deviceId: deviceIdFrom(c.req.header(DEVICE_HEADER)),
     ip: clientIp(c),
   });
   await next();

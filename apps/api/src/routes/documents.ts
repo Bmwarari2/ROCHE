@@ -39,6 +39,7 @@ import {
   activeHolds,
   careEndedOn,
   contentHeaders,
+  imagePrintableOf,
   readDocumentContent,
   storeDocument,
   toDocumentItems,
@@ -142,10 +143,13 @@ export const documentsRouter = createRouter()
       const q = c.req.valid("query");
       const access = await requirePermission(c, UPLOAD_PERMISSION[q.category]);
       const bytes = await body(c);
+      // Decided before the transaction opens: decoding an image never holds a connection (S2).
+      const imagePrintable = imagePrintableOf(bytes);
       const { storage, scanner } = c.get("services");
       const item = await withTenant(c, async (tx) => {
         const row = await storeDocument(tx, { storage, scanner }, access.tenantId, {
           bytes,
+          imagePrintable,
           declaredType: c.req.header("content-type") ?? null,
           category: q.category,
           title: q.title,
@@ -299,10 +303,13 @@ export const documentsRouter = createRouter()
         UPLOAD_PERMISSION[previous.category as DocumentCategoryKey],
       );
       const bytes = await body(c);
+      // Decided before the transaction opens: decoding an image never holds a connection (S2).
+      const imagePrintable = imagePrintableOf(bytes);
       const { storage, scanner } = c.get("services");
       const item = await withTenant(c, async (tx) => {
         const row = await storeDocument(tx, { storage, scanner }, access.tenantId, {
           bytes,
+          imagePrintable,
           declaredType: c.req.header("content-type") ?? null,
           category: previous.category as DocumentCategoryKey,
           title: previous.title,
@@ -395,6 +402,8 @@ export const documentsRouter = createRouter()
       const access = await requirePermission(c, "people.person.update");
       const { id: personId } = c.req.valid("param");
       const bytes = await body(c);
+      // Decided before the transaction opens: decoding an image never holds a connection (S2).
+      const imagePrintable = imagePrintableOf(bytes);
       const { storage, scanner } = c.get("services");
       const item = await withTenant(c, async (tx) => {
         const [target] = await tx
@@ -404,6 +413,7 @@ export const documentsRouter = createRouter()
         if (!target) throw problems.notFound();
         const row = await storeDocument(tx, { storage, scanner }, access.tenantId, {
           bytes,
+          imagePrintable,
           declaredType: c.req.header("content-type") ?? null,
           category: "person_photo",
           title: "Photo for identification",

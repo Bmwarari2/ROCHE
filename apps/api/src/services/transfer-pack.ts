@@ -6,6 +6,7 @@ import {
   contact,
   document,
   dolsAuthorisation,
+  person,
   personCareProfile,
   preAdmissionAssessment,
   propertyItem,
@@ -30,7 +31,6 @@ import {
   ukIsoDate,
 } from "@harbour/domain";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
-import { readDocumentContent } from "./documents";
 import { capacityViews } from "./mca";
 import { isPrintableImage } from "./pdf";
 import type { PersonRecord } from "./people";
@@ -102,11 +102,6 @@ export interface TransferPackRequest {
   readonly sendItemIds: readonly string[];
   readonly generatedBy: string;
   readonly now: Date;
-  /**
-   * The document store, to check that the photo will actually print (decoded the way the PDF
-   * decodes it). Without it, only the content type is checked.
-   */
-  readonly storage?: DocumentStoragePort;
 }
 
 /** Gathers the record and assembles the pack (never interpreted; HZ-023). */
@@ -134,21 +129,17 @@ export async function transferPackInput(
         personId: document.personId,
         createdAt: document.createdAt,
         contentType: document.contentType,
+        imagePrintable: document.imagePrintable,
       })
       .from(document)
       .where(eq(document.id, p.photoDocumentId));
     if (doc) {
-      // A 16-bit or interlaced PNG, a truncated file or one over the size limit does not print:
-      // it counts as missing, so page 1 names it and the hand-over needs an acknowledgement.
-      let printable = PRINTABLE_PHOTO_TYPES.includes(doc.contentType);
-      if (printable && request.storage && doc.personId === p.id) {
-        const content = await readDocumentContent(tx, request.storage, p.photoDocumentId).catch(
-          () => null,
-        );
-        printable =
-          content !== null &&
-          isPrintableImage({ bytes: content.bytes, contentType: doc.contentType });
-      }
+      // Whether it prints was decided once, when it was uploaded (or by `decidePhotoPrintable`
+      // before this transaction for an older photo): a 16-bit or interlaced PNG, a truncated file
+      // or one over the size limit does not print, so page 1 names it and the hand-over needs an
+      // acknowledgement. Nothing is decoded here.
+      const printable =
+        PRINTABLE_PHOTO_TYPES.includes(doc.contentType) && doc.imagePrintable === true;
       photo = {
         personId: doc.personId ?? "",
         asOf: doc.createdAt,
@@ -415,4 +406,49 @@ export async function transferPackInput(
     sendItemIds: request.sendItemIds,
     homeContact: p.locationPhone ? { locationName: p.locationName, phone: p.locationPhone } : null,
   };
+}
+
+/**
+ * Decides, once, whether a person's photo prints, for a photo uploaded before the decision was
+ * stored at upload (`document.image_printable` empty). The row is read in one short transaction,
+ * the file is read and checked with no transaction open, and the answer is stored in another, so
+ * no image is ever decoded while a database connection is held (S2). Called before the transfer
+ * pack routes open their own transaction.
+ */
+export async function decidePhotoPrintable(
+  run: <T>(fn: (tx: Transaction) => Promise<T>) => Promise<T>,
+  storage: DocumentStoragePort,
+  personId: string,
+): Promise<void> {
+  const pending = await run(async (tx) => {
+    const [row] = await tx
+      .select({
+        id: document.id,
+        storageKey: document.storageKey,
+        contentType: document.contentType,
+        status: document.status,
+      })
+      .from(person)
+      .innerJoin(document, eq(document.id, person.photoDocumentId))
+      .where(
+        and(
+          eq(person.id, personId),
+          eq(document.personId, personId),
+          isNull(document.imagePrintable),
+          isNull(document.deletedAt),
+        ),
+      );
+    return row && PRINTABLE_PHOTO_TYPES.includes(row.contentType) && row.status === "available"
+      ? row
+      : null;
+  });
+  if (!pending) return;
+  const bytes = await storage.get(pending.storageKey).catch(() => null);
+  const printable = bytes !== null && isPrintableImage({ bytes, contentType: pending.contentType });
+  await run((tx) =>
+    tx
+      .update(document)
+      .set({ imagePrintable: printable })
+      .where(and(eq(document.id, pending.id), isNull(document.imagePrintable))),
+  );
 }

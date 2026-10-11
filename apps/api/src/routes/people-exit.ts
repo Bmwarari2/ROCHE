@@ -28,7 +28,6 @@ import {
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
-import { writeAudit } from "../http/audit";
 import { requirePermission, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { draftedKinds, notificationsForExit } from "../services/death-notifications";
@@ -53,6 +52,7 @@ import {
   security,
 } from "./openapi";
 import {
+  AuditedRefusal,
   actorOf,
   audit,
   invalidOnForeignKey,
@@ -60,6 +60,7 @@ import {
   PersonParam,
   refusal,
   requireAnyPermission,
+  withAuditedRefusal,
 } from "./people-shared";
 
 /**
@@ -411,100 +412,113 @@ export const peopleExitRouter = createRouter()
       const access = finance
         ? await requirePermission(c, "finance.ledger.approve")
         : await requireAnyPermission(c, ["people.admission.manage", "people.movement.record"]);
-      const view = await withTenant(c, async (tx) => {
-        const p = await loadPerson(tx, id);
-        requireExitWrite(p);
-        const exit = await latestExit(tx, id);
-        if (!exit || exit.state === "closed" || exit.state === "cancelled")
-          throw problems.notFound();
-        const state = await exitState(tx, exit);
-        const row = state.rows.find((r) => r.itemKey === itemKey);
-        if (!row) throw problems.notFound();
-        // The stored owner must agree with the definition the permission was checked against.
-        if ((row.owner === "finance") !== finance) throw problems.forbidden();
-        requireVersion(row.version, body.version);
-        if (finance && body.status !== "pending" && exit.createdBy === access.tenantUserId) {
-          await writeAudit(c.get("services").appPool, access, {
+      const view = await withAuditedRefusal(c, access, () =>
+        withTenant(c, async (tx) => {
+          const p = await loadPerson(tx, id);
+          requireExitWrite(p);
+          const exit = await latestExit(tx, id);
+          if (!exit || exit.state === "closed" || exit.state === "cancelled")
+            throw problems.notFound();
+          const state = await exitState(tx, exit);
+          const row = state.rows.find((r) => r.itemKey === itemKey);
+          if (!row) throw problems.notFound();
+          // The stored owner must agree with the definition the permission was checked against.
+          if ((row.owner === "finance") !== finance) {
+            throw new AuditedRefusal(problems.forbidden(), {
+              action: "people.exit.item",
+              outcome: "denied",
+              resourceType: "exit_checklist_item",
+              resourceId: row.id,
+              reason: "owner_mismatch",
+            });
+          }
+          requireVersion(row.version, body.version);
+          if (finance && body.status !== "pending" && exit.createdBy === access.tenantUserId) {
+            throw new AuditedRefusal(
+              new HttpProblem(
+                403,
+                "separation_of_duties",
+                "Someone else must confirm this.",
+                "The person who recorded the exit cannot also confirm the return of the person's money or deposit.",
+              ),
+              {
+                action: "people.exit.item",
+                outcome: "denied",
+                resourceType: "exit_checklist_item",
+                resourceId: row.id,
+                reason: "separation_of_duties",
+              },
+            );
+          }
+          if (
+            body.evidenceType &&
+            body.evidenceId &&
+            !(await evidenceBelongs(tx, id, body.evidenceType, body.evidenceId))
+          ) {
+            throw problems.invalid("The evidence was not found in this person's record.");
+          }
+          if (DERIVED_FROM_RECORDS.has(itemKey)) {
+            throw problems.invalid(
+              "This is counted from the property inventory and the keys log: record each return there.",
+            );
+          }
+          if (state.fromSafety.has(itemKey)) {
+            throw problems.invalid(
+              "This follows its statutory notification: submit it, or mark it not required, in notifications.",
+            );
+          }
+          const proposed: ExitItemState =
+            body.status === "pending"
+              ? { status: "pending" }
+              : body.status === "done"
+                ? {
+                    status: "done",
+                    by: access.tenantUserId,
+                    at: now,
+                    evidenceId: body.evidenceId ?? null,
+                  }
+                : {
+                    status: "not_required",
+                    reason: body.reason ?? "",
+                    by: access.tenantUserId,
+                    at: now,
+                  };
+          const check = exitChecklistStatus(
+            state.definitions,
+            { ...state.states, [itemKey]: proposed },
+            { property: [], keys: [], residentsMoneyBalancePence: null },
+          );
+          if (check.invalid.includes(itemKey)) {
+            throw problems.invalid(
+              row.allowNotRequired ? "Say why it is not required." : "This item must be done.",
+            );
+          }
+          const [updated] = await tx
+            .update(exitChecklistItem)
+            .set({
+              status: body.status,
+              reason: body.status === "not_required" ? (body.reason ?? null) : null,
+              doneBy: body.status === "pending" ? null : access.tenantUserId,
+              doneAt: body.status === "pending" ? null : now,
+              evidenceType: body.evidenceType ?? null,
+              evidenceId: body.evidenceId ?? null,
+            })
+            .where(
+              and(eq(exitChecklistItem.id, row.id), eq(exitChecklistItem.version, body.version)),
+            )
+            .returning()
+            .catch(invalidOnForeignKey("evidence"));
+          if (!updated) throw problems.conflict();
+          await audit(c, tx, access, {
             action: "people.exit.item",
-            outcome: "denied",
             resourceType: "exit_checklist_item",
             resourceId: row.id,
-            reason: "separation_of_duties",
-            requestId: c.get("requestId"),
+            reason: body.reason,
+            scope: { itemKey, status: body.status },
           });
-          throw new HttpProblem(
-            403,
-            "separation_of_duties",
-            "Someone else must confirm this.",
-            "The person who recorded the exit cannot also confirm the return of the person's money or deposit.",
-          );
-        }
-        if (
-          body.evidenceType &&
-          body.evidenceId &&
-          !(await evidenceBelongs(tx, id, body.evidenceType, body.evidenceId))
-        ) {
-          throw problems.invalid("The evidence was not found in this person's record.");
-        }
-        if (DERIVED_FROM_RECORDS.has(itemKey)) {
-          throw problems.invalid(
-            "This is counted from the property inventory and the keys log: record each return there.",
-          );
-        }
-        if (state.fromSafety.has(itemKey)) {
-          throw problems.invalid(
-            "This follows its statutory notification: submit it, or mark it not required, in notifications.",
-          );
-        }
-        const proposed: ExitItemState =
-          body.status === "pending"
-            ? { status: "pending" }
-            : body.status === "done"
-              ? {
-                  status: "done",
-                  by: access.tenantUserId,
-                  at: now,
-                  evidenceId: body.evidenceId ?? null,
-                }
-              : {
-                  status: "not_required",
-                  reason: body.reason ?? "",
-                  by: access.tenantUserId,
-                  at: now,
-                };
-        const check = exitChecklistStatus(
-          state.definitions,
-          { ...state.states, [itemKey]: proposed },
-          { property: [], keys: [], residentsMoneyBalancePence: null },
-        );
-        if (check.invalid.includes(itemKey)) {
-          throw problems.invalid(
-            row.allowNotRequired ? "Say why it is not required." : "This item must be done.",
-          );
-        }
-        const [updated] = await tx
-          .update(exitChecklistItem)
-          .set({
-            status: body.status,
-            reason: body.status === "not_required" ? (body.reason ?? null) : null,
-            doneBy: body.status === "pending" ? null : access.tenantUserId,
-            doneAt: body.status === "pending" ? null : now,
-            evidenceType: body.evidenceType ?? null,
-            evidenceId: body.evidenceId ?? null,
-          })
-          .where(and(eq(exitChecklistItem.id, row.id), eq(exitChecklistItem.version, body.version)))
-          .returning()
-          .catch(invalidOnForeignKey("evidence"));
-        if (!updated) throw problems.conflict();
-        await audit(c, tx, access, {
-          action: "people.exit.item",
-          resourceType: "exit_checklist_item",
-          resourceId: row.id,
-          reason: body.reason,
-          scope: { itemKey, status: body.status },
-        });
-        return { exit: await exitOut(tx, exit) };
-      });
+          return { exit: await exitOut(tx, exit) };
+        }),
+      );
       return c.json(view, 200);
     },
   )
