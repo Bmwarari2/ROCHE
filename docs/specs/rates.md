@@ -222,6 +222,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | childrens.reg44.visit_interval_months | 1 | months | 2000-01-01 | - | england | master prompt 19 Phase 7 (Reg 44 monthly visits) | master-prompt |
 | childrens.reg45.review_interval_months | 6 | months | 2000-01-01 | - | england | master prompt 19 Phase 7 (Reg 45 six-monthly reviews) | master-prompt |
 | mobile.offline_window_days | 7 | days | 2000-01-01 | - | all | master prompt 22, ADR-0011; tenant default | master-prompt |
+| mobile.held_entries_max_days | 7 | days | 2000-01-01 | - | all | Security review S2 of Care mode (care.md section 6); tenant default | to-verify |
 | mobile.auto_lock_seconds.personal | 120 | seconds | 2000-01-01 | - | all | master prompt 5.3, 17.2 | master-prompt |
 | mobile.auto_lock_seconds.shared | 30 | seconds | 2000-01-01 | - | all | master prompt 17.2, ADR-0011; tenant default | master-prompt |
 | mobile.auto_lock_seconds.shared_max | 120 | seconds | 2000-01-01 | - | all | master prompt 17.2 (configurable from 30 seconds to 2 minutes) | master-prompt |
@@ -281,6 +282,13 @@ literals, and tests assert against the table, not a literal (section 7, section 
   property and keys after a discharge, transfer or death. No statute sets one; the default mirrors
   the CMA deposit-return period (`cma.deposit_return_days`) so the two clocks agree. Tenant default
   (H-58); the escalation goes to the Registered Manager, it is not a legal deadline.
+- `mobile.held_entries_max_days` (7): how long a device keeps entries that had not uploaded when the
+  session ended, encrypted and with nothing else from the care record, for their owner to sign in
+  again and send them (HZ-006, HZ-040; [care.md](care.md) section 6). When it runs out the device
+  shows a final warning naming the count during the last day, then deletes them and keeps a
+  tombstone. No statute sets it: it balances losing care records against keeping personal data on
+  a device whose session has ended. The default matches the offline window. Tenant default, to be
+  confirmed by the DPO with the CSO (H-85).
 
 ## Other notes
 

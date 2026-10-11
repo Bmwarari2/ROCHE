@@ -387,13 +387,23 @@ detail is in `packages/db/src/schema/`; purposes and lawful bases are in
 
 The mobile app keeps a subset of the care tables on the device (Phase 1 slice 10, [care.md](care.md)
 section 6). Device columns use the database column names, so this mapping applies unchanged, with
-three differences defined in `packages/sync/src/client/schema.ts`:
+these differences, defined in `packages/sync/src/client/schema.ts`:
 
 - `observation.values` is `chart_values` on the device, because `values` is a reserved word in SQLite.
 - `body_map_mark.drawn_side` exists only on the device: the side where the mark was drawn, sent with
   the upload as `drawnSide` so the API repeats the HZ-019 check. The database keeps `side` only.
 - `upload_issue` exists only on the device: an entry the API refused, with its content, until
-  someone removes it. It is never uploaded or exported.
+  someone removes it; the content (`payload`) is cleared once the refusal is older than the offline
+  window. It is never uploaded or exported.
+- `held_entry` exists only on the device: entries that had not uploaded when the session ended,
+  each with its table, operation and columns as JSON (`payload`) and its place in the queue, kept
+  for at most `mobile.held_entries_max_days` and put back into their tables when the owner signs in
+  again. `sync_meta` keeps the database's owner (`tenant_user` id, sign-in id, tenant and name, as
+  JSON) under the id `meta:owner`.
+- Tombstones of deleted unsent entries are kept in the device keystore, outside the database, as
+  JSON: the kind, the tenant, the owner's `tenant_user` id, the count, the entry ids when known, the
+  reason (500 characters at most) and the time. They wait there for an API endpoint that records
+  them as audit events.
 
 Timestamps arrive on the device as ISO 8601 in UTC with microseconds (`2026-10-11T09:30:00.000000Z`);
 booleans as `1` and `0`; JSON and array columns as JSON text. Entries written on the device carry a

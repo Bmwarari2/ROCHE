@@ -51,8 +51,9 @@
 | [HZ-026](#hz-026-restrictive-or-covert-care-under-consent-or-authority-that-is-not-valid) | Restrictive or covert care under consent or authority that is not valid | Considerable / Medium / 3 | Considerable / Low / 2 | Open | None (Phase 1) | Phase 1 |
 | [HZ-027](#hz-027-head-injury-after-a-fall-not-observed-or-escalated) | Head injury after a fall not observed or escalated | Major / Medium / 3 | Major / Low / 3 | Open | None (Phase 1) | Phase 1 |
 | [HZ-028](#hz-028-point-of-care-history-on-a-device-mistaken-for-the-complete-record) | Point-of-care history on a device mistaken for the complete record | Considerable / Medium / 3 | Considerable / Low / 2 | Open | None (Phase 1) | Phase 1 |
+| [HZ-040](#hz-040-held-entries-deleted-to-get-past-the-lockout) | Held entries deleted to get past the lockout | Major / Medium / 3 | Major / Low / 3 | Open | None (Phase 1) | Phase 1 |
 
-Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
+Nine hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
 ---
 
@@ -101,6 +102,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | eMAR requires positive identification for each administration: wristband barcode scan or photo confirmation | Phase 2 |
 | Design | Shared and kiosk devices lock after 30 seconds by default and return to user sign-in, not to the last person ([kiosk.md](../compliance/kiosk.md)) | Phase 1 |
 | Design | The room on the header comes from the dated bed history, which never puts two people in one bed; a death or discharge recorded against the wrong person is corrected with a reason (and a fresh sign-in for a death), cancelling the exit workflow and the death notification drafts ([people.md](../specs/people.md) rules 2 and 6) | Phase 1 (domain rules built) |
+| Design | Every Care mode form pins a compact identity bar (photo, name, allergies, resuscitation status) while it scrolls, names the person in its title, and shows Save only once the person has loaded | Built in Phase 1 (mobile, clinical review C7) |
 | Test | See Verification | Phase 1, Phase 2 |
 | Training and user documentation | Care worker guide: check photo and date of birth before every administration and entry. Deployer control: photos taken at admission and refreshed under the tenant's policy | Phase 1 |
 
@@ -123,8 +125,9 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain/src/people/occupancy.test.ts`: `hazard HZ-001 two people in one bed on the same day`, `a bed someone else occupies`, `labels the room shown on the header from the history` | Passing (Phase 1) |
 | `packages/domain/src/people/lifecycle.test.ts` and `exit.test.ts`: `hazard HZ-001 a death recorded in error is corrected only with a reason and a fresh sign-in`, `cancels a death recorded in error only with a reason and step-up` | Passing (Phase 1) |
 | `packages/domain/src/people/transfer-pack.test.ts`: `hazard HZ-001 refuses a pack whose sections belong to someone else`, `hazard HZ-001 no photo`; `admission.test.ts`: `hazard HZ-001 accepts no photo with a reason` (welcome checklist) | Passing (Phase 1) |
-| `apps/mobile/src/care/screens.test.ts`: `hazard HZ-001 every screen about a person shows the point-of-care header`, `hazard HZ-001 the form layout itself starts with the header` (record, note, chart, body map, care plan and risk screens: photo, names, date of birth, NHS number, room, allergies, communication needs, resuscitation status, IDDSI levels) | Passing (Phase 1, mobile) |
-| `apps/mobile/.maestro/hazard-HZ-006-offline-note-and-vitals.yaml`: the header shows on the record, note and chart screens with no signal | Written; runs on the live-API build (the nightly workflow builds demo mode, which never syncs) |
+| `apps/mobile/src/components/person-header.render.test.ts`: `hazard HZ-001 the point-of-care header renders who this is` (the header drawn with react-test-renderer from the device's own rows: name, date of birth, NHS number, allergies, resuscitation status and IDDSI levels, identifiers not selectable) | Passing (Phase 1, mobile) |
+| `apps/mobile/src/care/screens.test.ts`: wiring checks only, not evidence that the header renders: every screen about a person uses the header; the form layout pins the identity bar before the form and shows Save only once the person has loaded | Passing (Phase 1, mobile) |
+| `apps/mobile/.maestro/hazard-HZ-006-offline-note-and-vitals.yaml`: the header shows on the record, note and chart screens with no signal | Written; not run in CI (the nightly workflow builds demo mode, which never syncs); run by hand on a live-API build before release |
 
 ---
 
@@ -372,6 +375,10 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 - Session expiry while offline: a session lasts 12 hours but a device may work offline for the whole
   offline window, and the API answers an expired session with the same 401 as a revoked one, so
   treating every 401 as a remote wipe deleted entries that had not uploaded.
+- A 403 about the session (MFA required, account removed) read as a refusal of each entry, parking
+  the whole queue as refused.
+- Refused entries visible only on Today and the record, so the banner on other screens read "Up to
+  date" while entries had not been saved.
 - A poison record blocking the queue.
 - Sign-out, uninstall, device reset, loss or remote wipe while changes are queued.
 - PowerSync outage; device storage full; an upload handler that swallows errors.
@@ -392,7 +399,11 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Rejected uploads are never dropped: they move to a visible "Needs attention" list on the device and create a review task for the manager on the server (stale writes become review tasks, never silent overwrites) | Phase 1 |
 | Design | One failing record does not block the rest of the queue; retries with backoff | Phase 1 |
 | Design | Sign-out warns and requires a reason when the queue is not empty; the device reports its queue depth at every sync so that the server knows how many changes a lost or wiped device held | Phase 1 |
-| Design | When the API ends the session (401 or 403), the device wipes only if nothing is waiting to upload (queue and refused entries). Otherwise it stops uploading, keeps the encrypted database and asks for sign-in again ("Sign in again to send N entries"); only the same member of staff (`tenant_user`) can resume, anyone else is refused, and "Sign out and delete N unsent entries" needs a confirmation naming the count ([care.md](../specs/care.md) section 6; DPO position in human action H-68) | Built in Phase 1 (mobile) |
+| Design | When the API ends the session (401 or 403), the device wipes only if nothing is waiting to upload (queued, refused or held entries). Otherwise it copies the upload queue into the local-only `held_entry` table and clears everything else synced, so only the unsent work stays, encrypted, for at most `mobile.held_entries_max_days`, with a final warning naming the count in the last day; it stops uploading and asks for sign-in again ("Sign in again to send N entries", naming whose they are). The owner (`tenant_user`) is stored inside the encrypted database and checked before the device connects: only the owner resumes, and their entries go back into the queue; anyone else is refused; a keystore error or a database with no recorded owner is never opened for the next person ([care.md](../specs/care.md) section 6; security review S2 and S3; DPO position in human action H-68) | Built in Phase 1 (mobile) |
+| Design | Deleting unsent entries (held entries, a refused entry, or sign-out from Settings or the lock screen with entries unsent) shows the count, needs a reason, a confirmation naming the count and device authentication, and leaves a tombstone for the audit trail; a held deletion checks the file and key are gone before clearing the marker (security review S4 and S5, clinical review C2; HZ-040) | Built in Phase 1 (mobile); audit upload needs an API endpoint |
+| Design | A 403 on a care upload is decided by its problem code: only a refusal of the entry itself (`missing_permission`, `feature_disabled`) moves it to needs attention; session-level and unknown codes end the session through the hold rules (security review S6) | Built in Phase 1 (mobile) |
+| Design | The banner on every screen counts refused entries and never reads "Up to date" while one is on the device; refusals recorded without a tenant are listed and removable; refused content ages out with the offline window and the refusal stays listed (clinical review C1, security review S7) | Built in Phase 1 (mobile) |
+| Design | The server keeps a copy of every refused entry and raises a review task for the manager | Phase 1 (API follow-up) |
 | Design | Manager dashboard lists devices on an active shift whose last sync is older than the threshold; on-call alert | Phase 1 |
 | Design | The app blocks new writes and prompts an update when it is more than one schema version behind | Phase 1 |
 | Design | Care events recorded offline before a person left or died are accepted after the exit and shown as recorded after it; the person leaves a device only after its queue has uploaded ([people.md](../specs/people.md) rule 3) | Phase 1 (domain rule built) |
@@ -416,8 +427,12 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain/src/people/lifecycle.test.ts`: `hazard HZ-006 accepts an offline ... that happened before the death, flagged as recorded after it` (notes, observations, body-map marks, incidents) | Passing (Phase 1) |
 | `apps/mobile/src/sync/connector.test.ts`: `hazard HZ-006 keeps a refusal for a missing permission on the device, without wiping it`, `hazard HZ-006 never completes an operation the API refused inside a 200`, `hazard HZ-006 never discards a refused write: it moves to needs attention`; network failures retry and stay queued | Passing (Phase 1, mobile) |
 | `apps/mobile/src/care/entry-view.test.ts`: `hazard HZ-006 refused entries stay readable`, `hazard HZ-002 hazard HZ-006 entry status in words`; `queries.test.ts`: `hazard HZ-006 refused uploads on the device` | Passing (Phase 1, mobile) |
-| `apps/mobile/.maestro/hazard-HZ-006-offline-note-and-vitals.yaml`: a note and vital signs written offline show as waiting to upload, survive the app being closed, then upload and read as saved | Written; runs on the live-API build (the nightly workflow builds demo mode, which never syncs) |
-| `apps/mobile/src/app-state/held-work.test.ts`: `hazard HZ-006 a 401 with pending entries keeps them`, `hazard HZ-006 a 401 with no pending entries wipes`, `hazard HZ-006 the same user resumes and the queue drains`, `hazard HZ-006 a different user is refused`, `hazard HZ-006 the explicit discard wipes`; also a 401 or 403 from the sync token, refused entries alone and an uncountable queue keep the entries, a damaged marker releases them to nobody, and the button and confirmation name the count | Passing (Phase 1, mobile) |
+| `apps/mobile/.maestro/hazard-HZ-006-offline-note-and-vitals.yaml`: a note and vital signs written offline show as waiting to upload, survive the app being closed, then upload and read as saved | Written; not run in CI (the nightly workflow builds demo mode, which never syncs); run by hand on a live-API build before release |
+| `apps/mobile/src/app-state/held-work.test.ts`: `hazard HZ-006 a 401 with pending entries keeps them`, `hazard HZ-006 keeps only the unsent work: identities and the care record leave the device (S2)`, `hazard HZ-006 a 401 with no pending entries wipes`, `hazard HZ-006 the same user resumes and the queue drains`, `hazard HZ-006 a different user is refused`, `hazard HZ-006 the database is checked before it connects (S3)`, `hazard HZ-006 a keystore read error means held with an unknown owner (S3)`, `hazard HZ-006 hazard HZ-040 the explicit discard wipes`, `... stays held and says so when the file is still there (S5)`, `... stays held when the key is still in the keystore (S5)`; the time limit on a hold (open, final warning, expired) | Passing (Phase 1, mobile) |
+| `apps/mobile/src/sync/connector.test.ts`: `hazard HZ-006 treats a 403 missing_permission as a refusal of the entry itself`, `hazard HZ-006 ends the session on a 403 not_a_member instead of parking the entry as refused` (and `mfa_enrolment_required`, `step_up_required`, `session_revoked`, an unknown code) | Passing (Phase 1, mobile) |
+| `packages/ui-native/src/logic/sync-banner.test.ts`: `hazard HZ-006 refused entries on the banner (clinical review C1)`: never "Up to date" with a refused entry, in any connection state | Passing (Phase 1) |
+| `apps/mobile/src/care/queries.test.ts`: `hazard HZ-006 shows and removes a refusal recorded without a tenant (S7)`, `hazard HZ-028 ages refused content out with the window, keeping the refusal listed (S7)` | Passing (Phase 1, mobile) |
+| `apps/api`: `hazard HZ-006 a refused care entry is kept on the server with a review task` | Planned, Phase 1 (API follow-up) |
 
 ---
 
@@ -631,7 +646,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain` (care): `hazard HZ-010 a note written more than 2 hours after the event carries the late-entry flag` | Planned, Phase 1 |
 | `packages/domain` (medicines): `hazard HZ-010 the minimum-interval check uses the drift-corrected clock` | Planned, Phase 2 |
 | `apps/mobile/src/sync/connector.test.ts`: `hazard HZ-010 hazard HZ-017 sends the time it was written and the time it was sent apart`, `hazard HZ-010 stamps each retry with the time it is sent` (`deviceTime` is the time written; `x-harbour-sent-at` is stamped as each request leaves) | Passing (Phase 1, mobile) |
-| `apps/mobile/src/care/time.test.ts`: `hazard HZ-010 hazard HZ-017 when the event happened` (an event time later than the device clock is refused; earlier times read as UK time) | Passing (Phase 1, mobile) |
+| `apps/mobile/src/care/time.test.ts`: `hazard HZ-010 hazard HZ-017 when the event happened`, `... earlier days within the offline window (C4)` (23:45 typed at 00:30 is yesterday; days back limited to the window), `... the clock changes (C4)` (29/03/2026: a time in the gap refused, times either side read correctly; 25/10/2026: both occurrences found, the latest not in the future used) | Passing (Phase 1, mobile) |
 
 ---
 
@@ -690,6 +705,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain/src/people/break-glass-report.test.ts`: `hazard HZ-011 weekly break-glass report` (UK weeks across clock changes; totals by user, person and reason; unreviewed openings; repeated use, the same person reopened and one person opened by many users flagged at the rate-table threshold) | Passing (Phase 1) |
 | `apps/api`: `hazard HZ-011 the weekly break-glass report reaches the Registered Manager and data protection lead every Monday` | Planned, Phase 1 |
 | `packages/sync/test/care-streams.test.ts`: `hazard HZ-011 care record streams` in the assigned and location scopes and across tenants: a person not assigned, an ended assignment, another tenant or a token without a tenant never reaches the device, whatever window the device asks for; connection parameters cannot widen the scope; a malformed window is refused | Passing (Phase 1) |
+| `packages/sync/test/streams.test.ts`: stream queries read no connection parameters; `carries live people only in the location-scope care streams`; `care-streams.test.ts`: `takes the care record of people discharged, deceased or archived off managers' devices` (security review S8) | Passing (Phase 1) |
 
 ---
 
@@ -724,6 +740,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Waterlow and Braden stay off for real tenants until their licence terms are confirmed (H-25): `care.tool.waterlow` and `care.tool.braden` flags, off by default, on in the demo tenant | Built in Phase 1 slice 4b |
 | Design | Fixed units (kg, cm, degrees Celsius) with visible conversion for stones and pounds | Phase 1 |
 | Design | The CSO checks each tool implementation against its published source before release `[CSO - human action]` | Phase 1 |
+| Design | On the phone NEWS2 shows the formula, the published bands, every parameter's points and the RCP chart 4 clinical response, with the source and a link to it; with no SpO2 scale on the device no total is shown and the server scores the readings on upload ([medical-device boundary](../compliance/medical-device-boundary.md) section 5 rules 1 to 3) | Built in Phase 1 (mobile, clinical review C6) |
 | Test | See Verification | Phase 1 |
 | Training and user documentation | User guide per tool with the published source; deployer control: tenant escalation policy linked in configuration | Phase 1 |
 
@@ -750,7 +767,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `apps/api/test/care-planning.test.ts`: `hazard HZ-012 refuses Braden where its licence flag is off (H-25), and allows it in the demo tenant` | Passing |
 | `packages/domain` (platform): `hazard HZ-012 tenants cannot edit locked validated templates` | Planned, Phase 1 |
 | `apps/web` Playwright: `hazard HZ-012 the score screen shows sub-scores and the banding table` | Planned, Phase 1 |
-| `apps/mobile/src/care/charts.test.ts`: `NEWS2 on the device (HZ-012, HZ-014)` (the device's result equals the server calculator's; SpO2 scale 2 only from the person's record; nothing scored until every reading is in; impossible readings refused) | Passing (Phase 1, mobile) |
+| `packages/domain/src/care/news2.test.ts`: `hazard HZ-012 NEWS2 matches the reference vectors worked by hand from RCP chart 1` (`NEWS2_REFERENCE_VECTORS`: every band and chart 4 threshold, both SpO2 scales, a single 3) | Passing |
+| `apps/mobile/src/care/charts.test.ts`: `hazard HZ-012 NEWS2 on the device against the reference vectors (C6)` (the same vectors from typed readings); `NEWS2 on the device (HZ-012, HZ-014)`: no total without the person's SpO2 scale on the device, the readings kept for the server; the RCP chart 4 clinical response kept with the score; nothing scored until every reading | Passing (Phase 1, mobile) |
 
 ---
 
@@ -937,6 +955,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Recording a level that does not match the prescribed level needs an override reason and raises an alert to the nurse in charge | Phase 1 |
 | Design | A change of prescribed level records who changed it, on whose advice, and shows as new for 72 hours | Phase 1 |
 | Training and user documentation | Deployer control: kitchen and dietary profiles are kept in step (Phase 3 catering links them) | Phase 1 |
+| Design | With a drink level prescribed, a drink is recorded with its level; with no care profile on the device the header and the chart show "Food and drink levels not recorded" and a level is accepted only once the carer confirms they checked it with the nurse in charge | Built in Phase 1 (mobile, clinical review C3) |
+| Design | The server stores an unsafe IDDSI entry with an alert to the nurse in charge instead of refusing it, so the record of what was given is never lost | Phase 1 (API follow-up) |
 
 **Target residual risk**: severity Major, likelihood Very low, **risk 2**.
 
@@ -951,6 +971,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `apps/api/test/care.test.ts`: `hazard HZ-016 IDDSI levels` (a level change needs who advised it; food above the prescribed level needs a reason and alerts) | Passing |
 | `packages/domain/src/people/pre-admission.test.ts`: `hazard HZ-016 never lets eating, drinking and swallowing be marked not applicable`; `transfer-pack.test.ts`: `hazard HZ-016 re-checks allergies, resuscitation decisions and IDDSI levels on return` | Passing (Phase 1) |
 | `apps/mobile/src/care/charts.test.ts`: `hazard HZ-016 IDDSI levels on food and drink` (the prescribed level beside the choice; food more solid or a drink thinner than prescribed refused without a reason and marked unsafe; a softer level refused without a reason; saved with a reason and the alert flag); `person-summary.test.ts`: `hazard HZ-016 prescribed IDDSI levels in the header` | Passing (Phase 1, mobile) |
+| `apps/mobile/src/care/charts.test.ts`: `hazard HZ-016 food and drink levels on the device (C3)` (a drink needs its level when one is prescribed; a level is blocked without a profile until confirmed); `person-summary.test.ts`: `warns that the levels are not recorded when the profile is not on the device (C3)`; `person-header.render.test.ts`: `hazard HZ-016 says the food and drink levels are not recorded when the profile is not on the device (C3)` | Passing (Phase 1, mobile) |
 
 ---
 
@@ -979,6 +1000,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Every entry stores the event time, the device time and the server-received time; entries recorded more than the rate-table late-entry threshold after the event are flagged late everywhere they appear | Phase 1 |
 | Design | Entries are append-only; a correction supersedes the original with a reason and both remain readable | Phase 1 |
 | Design | Future event times beyond the clock-drift tolerance are refused | Phase 1 |
+| Design | A correction keeps the original entry's event time by default; "When" offers earlier days within the offline window and says which date and time will be recorded, so a time typed after midnight is never dated tonight | Built in Phase 1 (mobile, clinical review C4) |
 
 **Target residual risk**: severity Considerable, likelihood Low, **risk 2**.
 
@@ -995,6 +1017,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain/src/care/validated-assessment.test.ts`: `hazard HZ-017 corrections supersede with a reason` | Passing |
 | `apps/api/test/care-planning.test.ts`: `hazard HZ-017 corrects a result by superseding it with a reason, and reads the latest per tool`; `hazard HZ-017 ignores a replayed upload with the same device id` | Passing |
 | `apps/mobile/src/care/notes.test.ts`: `hazard HZ-017 late and corrected notes` (event time and time written kept apart; a correction supersedes with a reason, never an edit); `entry-view.test.ts`: `hazard HZ-017 corrections and late entries in lists`; `queries.test.ts`: `hazard HZ-017 a note written on the device and its correction read back as one current entry`; `sync/care-upload.test.ts`: `hazard HZ-017 sends a correction with the entry it supersedes and the reason` | Passing (Phase 1, mobile) |
+| `apps/mobile/src/care/notes.test.ts`: `hazard HZ-017 a correction keeps the original's event time by default (C4)`, `hazard HZ-017 dates a note yesterday when the time typed is still to come today (C4)`; `time.test.ts`: `hazard HZ-017 a correction keeps the original's event time by default (C4)` | Passing (Phase 1, mobile) |
 
 ---
 
@@ -1062,6 +1085,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | --- | --- | --- |
 | Design | Side and region are chosen in words as well as on the drawing, and must agree before saving; front and back views label the person's left and right | Phase 1 |
 | Design | Wound photos are linked to the mark, with a ruler prompt | Phase 1 |
+| Design | The body map is read against the body's midline, with a narrow centre band over the head and trunk only, so a mark on a leg or an arm is always on a side; three buttons choose the same zones for screen readers | Built in Phase 1 (mobile, clinical review C5) |
 
 **Target residual risk**: severity Considerable, likelihood Low, **risk 2**.
 
@@ -1073,6 +1097,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain` (care): `hazard HZ-019 body map sides are the person's own left and right` | Passing |
 | `apps/api/test/care.test.ts`: `hazard HZ-019 body map` (a mark whose stated side differs from the drawing is refused; a category 3 ulcer prompts an incident and the safeguarding guide) | Passing |
 | `apps/mobile/src/care/body-map.test.ts`: `hazard HZ-019 the side on the drawing and in words` (front and back views; a mark drawn on one side and described as the other refused with both sides named; the midline only for central areas); `sync/care-upload.test.ts`: `hazard HZ-019 sends the side drawn and the side chosen in words` so the API repeats the check | Passing (Phase 1, mobile) |
+| `apps/mobile/src/care/body-map.test.ts`: `hazard HZ-019 the drawing is split at the body's midline (C5)` (a mark on the person's left leg reads left on both views; no centre band between the legs; the band only over the head and trunk; taps mapped from the frame to the drawing) | Passing (Phase 1, mobile) |
 
 ---
 
@@ -1287,6 +1312,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/db/test/care-planning.test.ts`: integrity rules (a second active care plan is refused; child rows cannot claim another person) | Passing |
 | `apps/api/test/care-planning.test.ts`: `hazard HZ-024 raises one review task to the nurse in charge for an overdue first plan or review`; `hazard HZ-024 publishes a draft, supersedes it with the next version and keeps both` | Passing |
 | `apps/web` Playwright: `hazard HZ-024 a draft or superseded plan is labelled and never shown as the current plan` | Planned, Phase 1 |
+| `packages/sync/test/care-streams.test.ts`: `hazard HZ-024 only the active care plan, with its own sections and actions` (drafts and superseded plans never reach a device) | Passing (Phase 1) |
 
 ---
 
@@ -1439,10 +1465,11 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 
 | Type | Control | When |
 | --- | --- | --- |
-| Design | Today, the person's record and every chart say how many days of entries the device keeps ("Entries from the last 7 days are kept on this device") | Phase 1 (built in slice 10 part 1) |
+| Design | Today, the person's record and every chart say how many days of entries the device keeps ("Entries from the last 7 days are kept on this device"), a chart even when it has no entries on the device | Phase 1 (built in slice 10 part 1; empty charts after clinical review C9) |
 | Design | Reference data is never evicted while the person is in scope: allergies, the care profile (IDDSI levels, SpO2 scale), the active care plan, active risk assessments, every validated-tool result and active advance care records | Phase 1 (built in slice 10 part 1) |
 | Design | Present body-map marks and the latest weight and NEWS2 stay on the device whatever their age, through a current-record flag the server maintains and the streams filter on (needs an API and database change) | Phase 1 (slice 10 part 2) |
 | Design | The full history stays one tap away online; the tenant chooses the window within ADR-0011's options | Phase 1 |
+| Design | The window is minted by the API into the signed sync token from the rate table; the streams read it only from there, so a device cannot widen it (security review S1) | Built in Phase 1 |
 | Test | See Verification | Phase 1 |
 | Training and user documentation | Care worker guide: the phone holds the last few days; check the full record online or with the nurse in charge before relying on history. Deployer control: handover covers open wounds and charts with a trend | Phase 1 |
 
@@ -1455,6 +1482,48 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/sync/test/care-streams.test.ts`: `hazard HZ-028 takes entries off the device when their day leaves the window`; `hazard HZ-002 reference data for assigned people is never evicted while the assignment stands` | Passing (Phase 1) |
 | `apps/mobile/src/care/sync-summary.test.ts`: `hazard HZ-028 says how many days of entries the device keeps` | Passing (Phase 1, mobile) |
 | `packages/sync`: `hazard HZ-028 present body-map marks stay on the device beyond the window` | Planned, Phase 1 (needs the server-maintained flag) |
+| `packages/sync/test/care-streams.test.ts`: `hazard HZ-028 ignores a window sent by the device: only the token's window counts`, `sends no entries when the token has no window, whatever the device sends`; `apps/api/test/api.test.ts`: `hazard HZ-028 puts the tenant's offline window from the rate table in the token`, `does not let a script with a normal session widen the offline window` | Passing (Phase 1) |
+
+---
+
+## HZ-040 Held entries deleted to get past the lockout
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-040 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `apps/mobile` (lead engineer) |
+| Source | Clinical review C8 of Care mode; [care.md](../specs/care.md) section 6; linked to HZ-006 |
+
+**Description**: when a session ends with entries unsent, the device holds them for their owner and refuses anyone else (HZ-006). On a shared device the next member of staff, locked out, deletes the held entries to get in, and notes, observations or body-map marks that never reached the server are lost.
+
+**Causes**: the owner is off shift or has left; staff do not know whose entries they are or that the owner can send them; the lockout comes at the start of a busy shift; deleting is quicker than finding the owner; the deadline passes while the owner is away.
+
+**Effects**: missing care records lead to missed or duplicated care (HZ-003, HZ-004), unescalated incidents (HZ-013) and an incomplete legal record, with no trace of what was lost.
+
+**Initial risk**: severity Major, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | The sign-in screen names whose entries are held and how many, and says only that member of staff can send them | Built in Phase 1 (mobile, clinical review C8) |
+| Design | Deleting needs a reason, a confirmation naming the count and device authentication; a tombstone keeps whose entries, how many, why and when, for the audit trail (security review S4) | Built in Phase 1 (mobile); upload of the tombstone needs an API endpoint |
+| Design | A deletion is checked: the file and key must be gone before the marker clears, otherwise the entries stay held and the screen says so (security review S5) | Built in Phase 1 (mobile) |
+| Design | The hold lasts at most `mobile.held_entries_max_days`, with a final warning naming the count and the deadline during the last day, so entries are not kept, or deleted, without notice | Built in Phase 1 (mobile) |
+| Design | The server is told of every deletion (tombstones uploaded as audit events) and the manager sees which entries a device deleted | Phase 1 (API follow-up) |
+| Test | See Verification | Phase 1 |
+| Training and user documentation | Shared-device procedure: before leaving, wait for the banner to show nothing waiting; if locked out by someone else's entries, ask the nurse in charge to contact them rather than deleting. Deployer control: a shift lead can reach staff who have just left | Phase 1 |
+
+**Target residual risk**: severity Major, likelihood Low, **risk 3**. A lower likelihood needs the server to be told of every deletion; the tombstone and the reason make each one visible, but until the API follow-up lands that is on the device only.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `apps/mobile/src/app-state/held-work.test.ts`: `hazard HZ-040 a deletion needs a reason`, `hazard HZ-040 accepts a reason the staff member gives`, `hazard HZ-040 says whose entries are waiting, in whole sentences (C8)`, `hazard HZ-006 hazard HZ-040 the explicit discard wipes` (with the tombstone), `... stays held and says so when the file is still there (S5)`, `... stays held when the key is still in the keystore (S5)`; tombstones kept as small keystore items, newest kept when full | Passing (Phase 1, mobile) |
+| `apps/api`: `hazard HZ-040 a deletion on a device reaches the audit trail` | Planned, Phase 1 (needs the endpoint) |
 
 ---
 
