@@ -53,6 +53,7 @@ for an answer.
 | [0031](0031-document-storage-scanning-and-destruction.md) | Document storage, malware scanning and destruction past retention | accepted | 2026-10-11 | Phase 1 |
 | [0032](0032-risk-assessment-rating.md) | Risk assessment ratings: the NPSA matrix on the assessor's judgements, and no falls rating | proposed | 2026-10-11 | Phase 1 |
 | [0060](0060-family-notification-channels.md) | Family notification channels: provider-neutral ports and events, content-free messages | accepted | 2026-10-11 | Phase 1 |
+| [0061](0061-family-portal-scope-and-row-level-security.md) | Family portal scope: portal sessions, no person assignment, and a sharing-decision policy | accepted | 2026-10-11 | Phase 1 (schema step) |
 
 ## Open items carried by these ADRs
 
