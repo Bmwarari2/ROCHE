@@ -10,6 +10,7 @@ import { type AppEnv, type Services, sessionMiddleware, tenantMiddleware } from 
 import { HttpProblem, problemResponse, problems } from "./http/problem";
 import { createDocumentServices } from "./integrations/documents";
 import { idleErrorLogger, type Logger } from "./logger";
+import { breakGlassReportRouter } from "./routes/break-glass-report";
 import { careRouter } from "./routes/care";
 import { carePlansRouter } from "./routes/care-plans";
 import { careRecordsRouter } from "./routes/care-records";
@@ -21,6 +22,12 @@ import { membershipsRouter, meRouter } from "./routes/me";
 import { createRouter } from "./routes/openapi";
 import { operatorMiddleware, operatorRouter } from "./routes/operator";
 import { peopleRouter } from "./routes/people";
+import { peopleExitRouter } from "./routes/people-exit";
+import { peopleLifecycleRouter } from "./routes/people-lifecycle";
+import { peoplePropertyRouter } from "./routes/people-property";
+import { peopleRecordsRouter } from "./routes/people-records";
+import { peopleSharingRouter } from "./routes/people-sharing";
+import { peopleTransfersRouter } from "./routes/people-transfers";
 import {
   auditRouter,
   formsRouter,
@@ -137,6 +144,13 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", meRouter);
   app.route("/", sessionsRouter);
   app.route("/", peopleRouter);
+  app.route("/", peopleLifecycleRouter);
+  app.route("/", peoplePropertyRouter);
+  app.route("/", peopleRecordsRouter);
+  app.route("/", peopleTransfersRouter);
+  app.route("/", peopleExitRouter);
+  app.route("/", peopleSharingRouter);
+  app.route("/", breakGlassReportRouter);
   app.route("/", notificationsRouter);
   app.route("/", auditRouter);
   app.route("/", formsRouter);
