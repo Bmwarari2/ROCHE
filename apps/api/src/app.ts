@@ -9,7 +9,7 @@ import type { Config } from "./config";
 import { type AppEnv, type Services, sessionMiddleware, tenantMiddleware } from "./http/context";
 import { HttpProblem, problemResponse, problems } from "./http/problem";
 import { createDocumentServices } from "./integrations/documents";
-import type { Logger } from "./logger";
+import { idleErrorLogger, type Logger } from "./logger";
 import { careRouter } from "./routes/care";
 import { documentsRouter } from "./routes/documents";
 import { integrationsRouter, supportAccessRouter } from "./routes/integrations";
@@ -45,9 +45,17 @@ export interface AppHandle {
 }
 
 export function createApp(config: Config, logger: Logger): AppHandle {
-  const appPool = createPool(config.DATABASE_APP_URL);
-  const authPool = createPool(config.DATABASE_AUTH_URL, { max: 5 });
-  const operatorPool = createPool(config.DATABASE_OPERATOR_URL, { max: 3 });
+  const appPool = createPool(config.DATABASE_APP_URL, {}, idleErrorLogger(logger, "app"));
+  const authPool = createPool(
+    config.DATABASE_AUTH_URL,
+    { max: 5 },
+    idleErrorLogger(logger, "auth"),
+  );
+  const operatorPool = createPool(
+    config.DATABASE_OPERATOR_URL,
+    { max: 3 },
+    idleErrorLogger(logger, "operator"),
+  );
   const services: Services = {
     config,
     logger,
