@@ -46,6 +46,13 @@ export const PERMISSIONS = {
   "platform.billing.read": { description: "See the tenant's Harbour subscription and invoices" },
   "platform.dpia.sign": { description: "Sign the DPIA and data processing agreement" },
   "platform.grant.manage": { description: "Give time-boxed delegation and acting-up grants" },
+  "platform.task.manage": { description: "Create, assign and reassign tasks for other people" },
+  "platform.document.manage": { description: "Upload and manage organisation documents" },
+  "platform.retention.manage": {
+    description:
+      "Place and release legal holds and approve destruction of records past retention (tenant-wide roles only)",
+    stepUp: true,
+  },
   "platform.support.approve": {
     description: "Approve or decline Thapsus support access to the organisation's data",
     stepUp: true,

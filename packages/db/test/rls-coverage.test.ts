@@ -8,7 +8,15 @@ import { createTestDatabase, type TestDatabase } from "./support/database";
  * on an append-only table fails CI here.
  */
 
-const APPEND_ONLY_TABLES = ["audit_event", "record_version"];
+const APPEND_ONLY_TABLES = [
+  "audit_event",
+  "record_version",
+  "workflow_transition",
+  "document_signature",
+  "destruction_certificate",
+];
+/** Audit and history rows may be written before a tenant is chosen. */
+const NULLABLE_TENANT_TABLES = ["audit_event", "record_version"];
 const GLOBAL_REFERENCE_TABLES = ["form_template", "rate_table", "retention_class"];
 
 let db: TestDatabase;
@@ -99,7 +107,7 @@ describe("hazard HZ-011 row-level security coverage", () => {
        ORDER BY table_name`,
     );
     expect(rows.map((r) => r.table_name)).toEqual(
-      [...GLOBAL_REFERENCE_TABLES, ...APPEND_ONLY_TABLES].sort(),
+      [...GLOBAL_REFERENCE_TABLES, ...NULLABLE_TENANT_TABLES].sort(),
     );
   });
 

@@ -4,3 +4,5 @@ export * from "./integrations";
 export * from "./operator";
 export * from "./people";
 export * from "./platform";
+export * from "./records";
+export * from "./work";

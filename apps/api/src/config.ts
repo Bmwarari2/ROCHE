@@ -40,6 +40,14 @@ const Env = z.object({
   SYNC_SIGNING_KEY_ID: z.string().default("harbour-sync-1"),
   /** Seconds a sign-in counts as fresh for step-up actions (section 5.3). */
   STEP_UP_WINDOW_SECONDS: z.coerce.number().int().positive().default(600),
+  /** Where document bytes live: local disk (development and tests) or S3 (AWS). */
+  DOCUMENT_STORAGE: z.enum(["local", "s3"]).default("local"),
+  LOCAL_DOCUMENTS_DIR: z.string().default(".data/documents"),
+  S3_DOCUMENTS_BUCKET: z.string().optional(),
+  /** Malware scanning of uploads: ClamAV (AWS), the EICAR-aware mock (tests), or none (quarantine all). */
+  MALWARE_SCANNER: z.enum(["clamd", "mock", "none"]).default("mock"),
+  CLAMD_HOST: z.string().default("127.0.0.1"),
+  CLAMD_PORT: z.coerce.number().int().default(3310),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   APP_VERSION: z.string().default("0.0.0-dev"),
 });
@@ -73,6 +81,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // The local defaults point at localhost; a deployed task without its secret must not start.
     for (const key of DATABASE_URL_KEYS) {
       if (!env[key]) throw new Error(`${key} must be set in production`);
+    }
+    if (parsed.DOCUMENT_STORAGE !== "s3" || !parsed.S3_DOCUMENTS_BUCKET) {
+      throw new Error("DOCUMENT_STORAGE must be s3 with S3_DOCUMENTS_BUCKET set in production");
+    }
+    if (parsed.MALWARE_SCANNER === "mock") {
+      throw new Error("MALWARE_SCANNER cannot be mock in production");
     }
   }
   return {

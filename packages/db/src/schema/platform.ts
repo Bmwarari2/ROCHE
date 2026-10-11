@@ -512,9 +512,28 @@ export const document = pgTable(
     documentVersion: integer("document_version").notNull().default(1),
     previousVersionId: uuid("previous_version_id"),
     legalHold: boolean("legal_hold").notNull().default(false),
+    /** What the document belongs to (for example a person, an incident or a policy). */
+    subjectType: text("subject_type"),
+    subjectId: uuid("subject_id"),
+    /**
+     * Set for documents about a person, so they follow the person's scope. The composite foreign
+     * key to person is added in SQL (migration 0010) to avoid a schema import cycle.
+     */
+    personId: uuid("person_id"),
+    /** Display name only, made safe on upload; storage keys never contain it. */
+    fileName: text("file_name"),
+    /** `available`, `quarantined` (failed the malware scan) or `destroyed` (past retention). */
+    status: text("status").notNull().default("available"),
+    /** `clean`, `infected`, `unavailable` (scanner down: kept quarantined) or `not_scanned`. */
+    scanStatus: text("scan_status").notNull().default("not_scanned"),
+    destroyedAt: timestamp("destroyed_at", { withTimezone: true }),
     ...mutableColumns(),
   },
-  (t) => [unique("document_tenant_id_id_key").on(t.tenantId, t.id)],
+  (t) => [
+    unique("document_tenant_id_id_key").on(t.tenantId, t.id),
+    index("document_person_idx").on(t.tenantId, t.personId),
+    index("document_subject_idx").on(t.tenantId, t.subjectType, t.subjectId),
+  ],
 );
 
 /**

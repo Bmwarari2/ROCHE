@@ -82,6 +82,65 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   Phase 1, never tenant formulas (medical-device boundary).
 - API: `GET /v1/forms/templates`. Authoring UI and submissions: Phase 1.
 
+## Task and workflow engine (PLAT-011)
+
+- Tasks (`task`): kind (`module.what`), generic title, optional person and location, assignee,
+  due time and window, priority, status, the reason for a skip or cancellation, evidence (the note,
+  observation or document that shows it was done), escalation state. A task about a person follows
+  the person's scope; other tasks are visible to tenant-wide roles, the assignee and staff at the
+  location (`app.task_visible`).
+- Recurring tasks (`task_series`): daily, weekly or monthly at UK local times, or every N hours of
+  elapsed time (`packages/domain/src/platform/tasks.ts`). The worker materialises the next 48 hours
+  every 15 minutes, idempotently; a worker outage never backfills more than an hour.
+- Rules: skip and cancel need a reason; tasks that ask for evidence cannot be completed without it;
+  finished tasks never change; two devices cannot overwrite each other (version check). The
+  assignee, or anyone holding the permission the task names, completes it; managers with
+  `platform.task.manage` create, assign and schedule.
+- Overdue: once a task's window closes it is overdue; after `task.overdue_escalation_minutes` (rate
+  table) the worker notifies the assignee and the clinical leads and team leaders at the location
+  (the Registered Manager when there are none), once (HZ-008).
+- Workflows (`workflow_instance`, append-only `workflow_transition`): each module declares its
+  states, transitions (permission, reason, step-up, separation of duties) and SLAs in code with
+  `defineWorkflow`; `startWorkflow` and `moveWorkflow` (`apps/api/src/services/workflow.ts`) check
+  the rules, record every move and set the next deadline (fixed hours or a rate-table figure).
+- API: `GET /v1/tasks` (views: all or mine; by person, location, status, window), `POST /v1/tasks`,
+  `POST /v1/tasks/{id}/transition`, `POST /v1/tasks/{id}/assign`, `POST /v1/task-series`,
+  `POST /v1/task-series/{id}/end`. Every list and change is audited.
+
+## Document store (PLAT-009)
+
+- `document`: category, title, safe display file name, content type, size, SHA-256, version and the
+  previous version, person (documents about a person follow the person's scope), subject (the
+  record it belongs to), status (`available`, `quarantined`, `destroyed`), scan result, retention
+  class from the category. Categories and limits (`packages/domain/src/platform/documents.ts`):
+  person photo (images, 10 MB), care attachment (images or PDF, 15 MB), document about a person
+  (images or PDF, 25 MB), organisation document (PDF, 25 MB).
+- Uploads: the request body is the file; content is sniffed and must match the declared type;
+  ClamAV scans it (an infected file is refused and nothing is stored; an unscannable one is
+  quarantined); bytes go to S3 (SSE-KMS) or local disk under an opaque key
+  ([ADR-0031](../decisions/0031-document-storage-scanning-and-destruction.md)).
+- Serving: `GET /v1/documents/{id}/content` (audited) and `GET /v1/people/{id}/photo`, with
+  `nosniff`, a sandboxing CSP, `no-store`, and `attachment` disposition except for photos.
+- Versions: `POST /v1/documents/{id}/versions` adds a version; earlier ones stay. Signatures:
+  `POST /v1/documents/{id}/signatures` with a typed name, a statement and the SHA-256 of the
+  version read; append-only, refused if the document changed since it was read.
+- Permissions: person photos and documents need `people.person.update` (care attachments
+  `care.note.write`); organisation documents `platform.document.manage`; reading a person's
+  documents needs `people.person.read` and MFA.
+
+## Retention and legal hold (PLAT-012)
+
+- Legal holds (`legal_hold`) on a person (every record about them) or one record; placing and
+  releasing need `platform.retention.manage` with step-up, which only tenant-wide roles hold
+  (owner, quality lead); RLS enforces the same.
+- `GET /v1/retention/candidates`: documents past their class's period (care-record documents
+  count from discharge or death; people still receiving care are never eligible) with no hold.
+- `POST /v1/retention/destroy`: re-checks each id, deletes every stored version, keeps a tombstone
+  row without the title, and writes an append-only `destruction_certificate` per record class
+  (ids, rule, reason, method). Held, current or unknown ids are returned as skipped.
+- Later: retention of structured care records (not only documents), crypto-shredding with
+  per-tenant data keys, and the destruction review screen (Phase 1 web slice).
+
 ## Statutory figures (PLAT-021)
 
 - `rate_table` seeded from [rates.md](rates.md) (169 rows), `retention_class` from

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { createDatabase, createPool } from "@harbour/db";
+import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import { createAuth } from "./auth/better-auth";
@@ -7,7 +8,9 @@ import { withoutSessionTokens } from "./auth/token-exposure";
 import type { Config } from "./config";
 import { type AppEnv, type Services, sessionMiddleware, tenantMiddleware } from "./http/context";
 import { HttpProblem, problemResponse, problems } from "./http/problem";
+import { createDocumentServices } from "./integrations/documents";
 import type { Logger } from "./logger";
+import { documentsRouter } from "./routes/documents";
 import { integrationsRouter, supportAccessRouter } from "./routes/integrations";
 import { membershipsRouter, meRouter } from "./routes/me";
 import { createRouter } from "./routes/openapi";
@@ -22,7 +25,11 @@ import {
 } from "./routes/platform";
 import { sessionsRouter } from "./routes/sessions";
 import { createSyncRouter } from "./routes/sync";
+import { tasksRouter } from "./routes/tasks";
 import { SyncTokenSigner } from "./sync/token";
+
+/** Largest upload accepted at the edge of the API; each category has its own lower limit. */
+const MAX_UPLOAD_BYTES = 26 * 1024 * 1024;
 
 /** Routes that need a session but not yet a chosen tenant, or no session at all. */
 const TENANTLESS = new Set(["/v1/memberships", "/v1/sync/jwks"]);
@@ -48,6 +55,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     authPool,
     operatorPool,
     auth: createAuth(config, authPool),
+    ...createDocumentServices(config),
   };
   const signer = new SyncTokenSigner(config.SYNC_SIGNING_KEY_ID, config.SYNC_SIGNING_KEY_PEM);
 
@@ -87,6 +95,17 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     await next();
     c.header("cache-control", "no-store");
   });
+  // Uploads are capped before they are read (largest category limit plus headroom; ASVS V5).
+  for (const path of ["/v1/documents", "/v1/documents/*", "/v1/people/:id/photo"]) {
+    app.use(
+      path,
+      bodyLimit({
+        maxSize: MAX_UPLOAD_BYTES,
+        onError: (c) =>
+          problemResponse(c, new HttpProblem(413, "too_large", "The file is too large.")),
+      }),
+    );
+  }
   app.use("/v1/*", sessionMiddleware);
   app.use("/operator/*", async (c, next) => {
     await next();
@@ -107,6 +126,8 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", notificationsRouter);
   app.route("/", auditRouter);
   app.route("/", formsRouter);
+  app.route("/", tasksRouter);
+  app.route("/", documentsRouter);
   app.route("/", ratesRouter);
   app.route("/", createSyncRouter(signer));
   app.route("/", integrationsRouter);

@@ -152,6 +152,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | ecm.tolerance_minutes.medium | 30 | minutes | 2000-01-01 | - | all | master prompt 13.2 (defaults 15, 30, 60 by client risk); tenant default | master-prompt |
 | ecm.tolerance_minutes.low | 60 | minutes | 2000-01-01 | - | all | master prompt 13.2 (defaults 15, 30, 60 by client risk); tenant default | master-prompt |
 | notification.missed_visit_escalation_minutes | 10 | minutes | 2000-01-01 | - | all | master prompt 9.1, 19 Phase 4 gate | master-prompt |
+| task.overdue_escalation_minutes | 30 | minutes | 2000-01-01 | - | all | Harbour default for the task engine (master prompt 9.1): an overdue task escalates once to the nurse in charge; tenant default | to-verify |
 | homecare.min_planned_visit_minutes | 30 | minutes | 2000-01-01 | - | england | master prompt 13.2 (NICE NG21: shorter planned visits flagged) | master-prompt |
 | enquiry.first_response_working_hours | 1 | working_hours | 2000-01-01 | - | all | master prompt 13.1; tenant default | master-prompt |
 | care_note.late_entry_hours | 2 | hours | 2000-01-01 | - | all | master prompt 10.1 | master-prompt |

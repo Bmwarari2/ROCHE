@@ -51,3 +51,9 @@ blob-report/
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Claude Code agent worktrees
+.claude/worktrees/
+
+# local document storage (development and tests)
+.data/

@@ -13,7 +13,9 @@ import {
 import {
   type AccessGrantInput,
   authorise,
+  type DocumentStoragePort,
   type EffectiveAccess,
+  type MalwareScanPort,
   type Permission,
   type RoleAssignmentInput,
   resolveAccess,
@@ -38,6 +40,8 @@ export interface Services {
   readonly authPool: pg.Pool;
   readonly operatorPool: pg.Pool;
   readonly auth: Auth;
+  readonly storage: DocumentStoragePort;
+  readonly scanner: MalwareScanPort;
 }
 
 export interface SessionInfo {
