@@ -104,8 +104,6 @@
   "people.header.allergySeverity": "{severity, select, severe {Severe} moderate {Moderate} mild {Mild} other {{severity}}}",
   "people.header.allergyReaction": "{severity}: {reaction}",
   "people.header.communicationNeeds": "Communication needs",
-  "people.header.communicationNeedsNone": "None recorded",
-  "people.header.preferredFormat": "preferred format: {format}",
   "people.header.room": "Room {room}",
   "people.communication.notRecorded": "Not recorded",
   "people.communication.noneIdentified": "None identified",
