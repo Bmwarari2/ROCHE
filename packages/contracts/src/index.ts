@@ -270,6 +270,11 @@ export const SyncDiscard = z
     leftover: z.array(z.enum(SYNC_DISCARD_LEFTOVERS)).max(2).optional(),
     /** Why there are no entry ids, when there are none. */
     idsMissing: z.enum(SYNC_DISCARD_IDS_MISSING).optional(),
+    /**
+     * The device the entries were held on (its PowerSync client id when the deletion began), so a
+     * stage sent later from the device's next database still closes that device's hold task.
+     */
+    deviceId: uuid.optional(),
   })
   // Unknown keys are refused, not dropped (security review round 5, S-L6).
   .strict()
@@ -288,6 +293,9 @@ export const SyncDiscardResult = z
   .object({ id: uuid, recorded: z.boolean(), replay: z.boolean() })
   .meta({ id: "SyncDiscardResult" });
 export type SyncDiscardResult = z.infer<typeof SyncDiscardResult>;
+
+/** Locations a device report may name. */
+export const SYNC_DEVICE_REPORT_MAX_LOCATIONS = 50;
 
 /** A device's unsent work, without personal data (HZ-006: queue depth seen by the server). */
 export const SyncDeviceReport = z
@@ -313,6 +321,16 @@ export const SyncDeviceReport = z
     /** When the current hold started, if entries are held; the manager's task falls due from it. */
     heldSince: isoDateTime.nullable().optional(),
     reportedAt: isoDateTime,
+    /**
+     * Whose entries these are (tenant_user id), when the device knows: the hold's owner, who may
+     * close the task, even when the next person to sign in sends the report for them.
+     */
+    ownerTenantUserId: uuid.nullable().optional(),
+    /**
+     * The locations of the device's sync scope (opaque ids). The server keeps those where the
+     * owner or the reporter works or last worked, and raises the task at each.
+     */
+    locationIds: z.array(uuid).max(SYNC_DEVICE_REPORT_MAX_LOCATIONS).optional(),
   })
   .strict()
   .meta({ id: "SyncDeviceReport" });

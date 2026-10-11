@@ -21,8 +21,26 @@ export class PerUserQuota {
     readonly windowMs: number,
   ) {}
 
+  /** Throws the 429 problem `take` would, without counting anything. */
+  check(key: string, amount = 1, now = Date.now()): void {
+    this.recent(key, amount, now);
+  }
+
   /** Counts `amount` for `key`; throws a 429 problem when it would pass the window's limit. */
   take(key: string, amount = 1, now = Date.now()): void {
+    const recent = this.recent(key, amount, now);
+    if (amount > 0) recent.push({ at: now, amount });
+    this.hits.set(key, recent);
+    // Keep the map small: forget keys whose window has passed.
+    if (this.hits.size > 10_000) {
+      for (const [k, entries] of this.hits) {
+        if ((entries.at(-1)?.at ?? 0) <= now - this.windowMs) this.hits.delete(k);
+      }
+    }
+  }
+
+  /** The key's hits inside the window; throws when `amount` more would pass the limit. */
+  private recent(key: string, amount: number, now: number) {
     const since = now - this.windowMs;
     const recent = (this.hits.get(key) ?? []).filter((h) => h.at > since);
     const used = recent.reduce((sum, h) => sum + h.amount, 0);
@@ -30,14 +48,7 @@ export class PerUserQuota {
       const oldest = recent[0]?.at ?? now;
       throw new QuotaExceeded(Math.max(1, Math.ceil((oldest + this.windowMs - now) / 1000)));
     }
-    if (amount > 0) recent.push({ at: now, amount });
-    this.hits.set(key, recent);
-    // Keep the map small: forget keys whose window has passed.
-    if (this.hits.size > 10_000) {
-      for (const [k, entries] of this.hits) {
-        if ((entries.at(-1)?.at ?? 0) <= since) this.hits.delete(k);
-      }
-    }
+    return recent;
   }
 }
 

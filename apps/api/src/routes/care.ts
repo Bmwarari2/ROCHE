@@ -184,7 +184,6 @@ export const careRouter = createRouter()
           await flagIfReportedDeleted(tx, access, {
             resourceType: "care_note",
             id: row.id,
-            personId,
             locationId: person.locationId,
             requestId: c.get("requestId"),
           });
@@ -342,7 +341,6 @@ export const careRouter = createRouter()
           await flagIfReportedDeleted(tx, access, {
             resourceType: "observation",
             id: row.id,
-            personId,
             locationId: person.locationId,
             requestId: c.get("requestId"),
           });
@@ -657,7 +655,6 @@ export const careRouter = createRouter()
           await flagIfReportedDeleted(tx, access, {
             resourceType: "body_map_mark",
             id: row.id,
-            personId,
             locationId: person.locationId,
             requestId: c.get("requestId"),
           });

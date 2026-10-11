@@ -20,7 +20,6 @@ import { requirePermission, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { PerUserQuota } from "../http/quota";
 import {
-  clampReportTimes,
   closeDeviceHoldOnDeletion,
   DISCARD_ACTIONS,
   DISCARD_OTHERS_PERMISSION,
@@ -42,9 +41,11 @@ const FAIL_SAFE_WINDOW_DAYS = 1;
  * network fails) and a report after each sync; a full window is a 429, which the device reads as
  * "try again later". Each deletion record lists at most 500 entry ids, and each person's new
  * records list at most a day's worth, so one token cannot grow the hash-chained audit trail for
- * good.
+ * good. Each person starts at most 20 deletion records a day, with or without ids (security review
+ * round 6, M2 remainder): a record with no ids costs nothing against the id quota.
  */
 const DISCARDS_PER_HOUR = 30;
+const DISCARD_RECORDS_PER_DAY = 20;
 const DISCARD_IDS_PER_DAY = 2_000;
 const REPORTS_PER_HOUR = 120;
 const HOUR_MS = 3_600_000;
@@ -65,6 +66,7 @@ const WRITABLE_TABLES = new Set<string>();
 
 export function createSyncRouter(signer: SyncTokenSigner) {
   const discardQuota = new PerUserQuota(DISCARDS_PER_HOUR, HOUR_MS);
+  const discardRecordsQuota = new PerUserQuota(DISCARD_RECORDS_PER_DAY, DAY_MS);
   const discardIdsQuota = new PerUserQuota(DISCARD_IDS_PER_DAY, DAY_MS);
   const reportQuota = new PerUserQuota(REPORTS_PER_HOUR, HOUR_MS);
   return createRouter()
@@ -200,7 +202,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         tags: ["sync"],
         summary: "Record that a device deleted entries that never reached the server",
         description:
-          "Writes an append-only audit event for one stage of a deletion (requested, deleted or failed): who deleted them, whose they were, the coded reason, how many and from which device (HZ-040). Anyone but the caller's own entries, deleted by the caller, needs a manager's permission. Each stage of an id is recorded once, and later stages must match the first (kind and owner) and come from its sender, the owner or a manager. A deletion recorded as deleted closes the device's hold task, and listed entries already on the server are flagged for the manager.",
+          "Writes an append-only audit event for one stage of a deletion (requested, deleted or failed): who deleted them, whose they were, the coded reason, how many and from which device (HZ-040). Anyone but the caller's own entries, deleted by the caller, needs a manager's permission. Each stage of an id is recorded once, and later stages must match the first (kind and owner) and come from its sender, the owner or a manager. Each person starts at most 20 deletion records a day. A deletion recorded as deleted closes the hold tasks of the device it names (or the sender's) when the sender owns the hold, raised its task or can act on it there, and listed entries already on the server are counted on one review task for the record.",
         security,
         request: { body: { content: { "application/json": { schema: SyncDiscard } } } },
         responses: { 200: jsonBody(SyncDiscardResult, "Recorded"), ...errorResponses },
@@ -224,7 +226,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
           await requirePermission(c, DISCARD_OTHERS_PERMISSION);
         }
         const action = DISCARD_ACTIONS[body.stage];
-        const { replay, first } = await withTenant(c, async (tx) => {
+        const { replay } = await withTenant(c, async (tx) => {
           // The owner and the deleter must be staff of this organisation (row-level security keeps
           // the lookup inside the tenant).
           const staffIds = [
@@ -276,9 +278,14 @@ export function createSyncRouter(signer: SyncTokenSigner) {
               await requirePermission(c, DISCARD_OTHERS_PERMISSION);
             }
           }
-          if (recorded.some((r) => r.action === action)) return { replay: true, first: false };
-          // A new deletion counts its entry ids against the sender's day (S-M2).
-          if (!earliest) discardIdsQuota.take(access.tenantUserId, body.entryIds.length);
+          if (recorded.some((r) => r.action === action)) return { replay: true };
+          // A new deletion counts against the sender's day: one record, and its entry ids (S-M2;
+          // security review round 6, M2 remainder).
+          if (!earliest) {
+            discardRecordsQuota.check(access.tenantUserId);
+            discardIdsQuota.take(access.tenantUserId, body.entryIds.length);
+            discardRecordsQuota.take(access.tenantUserId);
+          }
           // A failure supersedes the request it follows (clinical review round 4, H1).
           const requested = recorded.find((r) => r.action === DISCARD_ACTIONS.requested);
           await auditInTx(tx, access, {
@@ -299,6 +306,8 @@ export function createSyncRouter(signer: SyncTokenSigner) {
               count: body.count,
               discardedAt: body.discardedAt,
               ...(body.idsMissing ? { idsMissing: body.idsMissing } : {}),
+              // The device the entries were held on, when it differs from the sender's now.
+              ...(body.deviceId ? { heldOnDeviceId: body.deviceId } : {}),
               ...(body.stage === "failed" && requested
                 ? { supersedesAuditEventId: requested.id }
                 : {}),
@@ -316,23 +325,26 @@ export function createSyncRouter(signer: SyncTokenSigner) {
               requestId: c.get("requestId"),
             });
           }
-          return { replay: false, first: !earliest };
+          return { replay: false };
         });
         if (!replay) {
           const services = c.get("services");
           const requestId = c.get("requestId");
-          // The device's hold is gone: its task closes (clinical review round 5, C-M3).
+          // The device's hold is gone: its tasks close (clinical review round 5, C-M3), found by
+          // the device the deletion names, since a stage sent later comes from the device's next
+          // database (clinical review round 6, M1).
           if (body.stage === "deleted" && WHOLE_HOLD_KINDS.has(body.kind)) {
             await closeDeviceHoldOnDeletion(
               services.db,
               access,
-              access.deviceId,
+              body.deviceId ?? access.deviceId,
               new Date(),
               requestId,
             );
           }
-          // Listed entries the server already had are flagged once (C-L2).
-          if (first) {
+          // Listed entries the server already had are flagged once the deletion is done (C-L2;
+          // security review round 6, N1).
+          if (body.stage === "deleted") {
             await flagEntriesAlreadyUploaded(services.db, access, body, requestId);
           }
         }
@@ -346,7 +358,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         tags: ["sync"],
         summary: "A device's unsent work: counts and the oldest age, no personal data",
         description:
-          "Writes an audit event with the device's queued, refused, held and blocked counts and the age of the oldest, so the server knows what a lost or wiped device held (HZ-006). Any member of the organisation may report (with MFA when their roles call for it), so a device whose Care mode access was withdrawn can still report its hold. Times later than the server's are taken as the server's. While anything waits, the device has one task for the Registered Manager, due when its hold escalates and never moved later; a report with nothing waiting closes it only when it comes from whoever raised it or from a manager. Each reporter may have a few devices' tasks open.",
+          "Writes an audit event with the device's queued, refused, held and blocked counts and the age of the oldest, so the server knows what a lost or wiped device held (HZ-006). Any member of the organisation may report (with MFA when their roles call for it), so a device whose Care mode access was withdrawn can still report its hold. Times later than the server's are taken as the server's, and a hold's start is never earlier than the device's last report for it said. While anything waits, the device has a task for the Registered Manager at each location of its sync scope where the hold's owner or the reporter works, due when its hold escalates and never moved later; one closed in the last day is reopened, keeping its escalation. A report with nothing waiting closes them when it comes from the hold's owner, from whoever raised them or from a manager at one of their locations. Each reporter raises tasks for a few devices a day; past that, the location's Registered Managers get one notice a day.",
         security,
         request: { body: { content: { "application/json": { schema: SyncDeviceReport } } } },
         responses: { 204: { description: "Recorded" }, ...errorResponses },
@@ -355,32 +367,26 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         // Any member of the organisation may report what their device holds: counts and times, no
         // personal data. A hold often starts because the access Care mode needs was withdrawn, and
         // its report must still get through at once (clinical review round 4, H2). What a member
-        // can do with it is bounded (security review round 5, S-M1): raise a task for a device
-        // (a few at most), bring its due time earlier, and close only a task they raised. MFA is
-        // asked wherever the member's roles call for it, as on the care routes.
+        // can do with it is bounded (security reviews rounds 5 and 6): raise a task for a few
+        // devices a day, bring a due time earlier, and close only a task for a hold they own or
+        // raised, unless they can act on it at its location. MFA is asked wherever the member's
+        // roles call for it, as on the care routes.
         const access = c.get("access");
         if (!access.mfaSatisfied) throw problems.mfaRequired();
         reportQuota.take(access.tenantUserId);
         const report = c.req.valid("json");
         const receivedAt = new Date();
-        const times = clampReportTimes(report, receivedAt);
-        await withTenant(c, (tx) =>
-          auditInTx(tx, access, {
-            action: "sync.device.report",
-            scope: {
-              unsent: report.unsent,
-              refused: report.refused,
-              held: report.held,
-              blocked: report.blocked,
-              oldestAgeSeconds: report.oldestAgeSeconds,
-              heldSince: times.heldSince?.toISOString() ?? null,
-              reportedAt: times.reportedAt.toISOString(),
-              deviceClockAhead: times.clamped,
-            },
-            requestId: c.get("requestId"),
-          }),
-        );
-        // The Registered Manager's task for this device (clinical review round 4, H2).
+        // The hold's owner must be staff of this organisation (row-level security keeps the lookup
+        // inside the tenant): they may close the task (clinical review round 6, M1).
+        const owner = report.ownerTenantUserId ?? null;
+        if (owner && owner !== access.tenantUserId) {
+          const [member] = await withTenant(c, (tx) =>
+            tx.select({ id: tenantUser.id }).from(tenantUser).where(eq(tenantUser.id, owner)),
+          );
+          if (!member) throw problems.invalid("The member of staff is not in this organisation.");
+        }
+        // The audit event and the Registered Manager's task for this device (clinical review
+        // round 4, H2).
         await recordDeviceHold(
           c.get("services").db,
           access,

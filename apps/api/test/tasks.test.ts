@@ -5,7 +5,7 @@ import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { escalateTasks, materialiseTaskSeries, type TaskDeps } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
-import { createHarness, type Harness } from "./support/harness";
+import { createHarness, type Harness, LODGE } from "./support/harness";
 
 let h: Harness;
 let appPool: pg.Pool;
@@ -337,5 +337,82 @@ describe("hazard HZ-008 a sync task escalates only to people who can act on it (
     expect(toHold).not.toContain(DEMO.users.carer.id);
     // Other tasks are unchanged: the first responders at the location, team leaders included.
     expect(await recipients(ordinary)).toContain(teamLeader);
+  });
+
+  it("does not tell a holder of the permission at another location (round 6)", async () => {
+    const lodgeLead = "0194d000-0000-7000-8000-0000000003f3";
+    const overdueAt = new Date(Date.now() - 3 * HOUR);
+    const [home, there] = await asDemoTenant(async (c) => {
+      await c.query(
+        "INSERT INTO tenant_user (id, display_name, email, status) VALUES ($1, 'Lou Lodge', 'lou@example.invalid', 'active')",
+        [lodgeLead],
+      );
+      await c.query(
+        `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, reason)
+         SELECT $1, id, $2, 'Test' FROM role WHERE key = 'clinical_lead' AND tenant_id = $3`,
+        [lodgeLead, LODGE.locationId, DEMO.tenantId],
+      );
+      const insert = (locationId: string) =>
+        c.query<{ id: string }>(
+          `INSERT INTO task (location_id, kind, title, required_permission, assignee_role_key, due_at)
+           VALUES ($1, 'sync.device_hold', 'Check', 'safety.incident.manage', 'registered_manager', $2)
+           RETURNING id`,
+          [locationId, overdueAt],
+        );
+      return [
+        (await insert(DEMO.locationId)).rows[0]?.id,
+        (await insert(LODGE.locationId)).rows[0]?.id,
+      ];
+    });
+    await escalateTasks(deps, new Date());
+    const recipients = (taskId: string | undefined) =>
+      asDemoTenant(async (c) =>
+        (
+          await c.query<{ recipient_tenant_user_id: string }>(
+            "SELECT recipient_tenant_user_id FROM notification WHERE source_type = 'task' AND source_id = $1",
+            [taskId],
+          )
+        ).rows.map((r) => r.recipient_tenant_user_id),
+      );
+    expect(await recipients(home)).toContain(DEMO.users.manager.id);
+    expect(await recipients(home)).not.toContain(lodgeLead);
+    expect(await recipients(there)).toContain(lodgeLead);
+    expect(await recipients(there)).not.toContain(DEMO.users.manager.id);
+  });
+
+  it("signals again once a device's task is reset after a refused close (round 6, M1)", async () => {
+    const overdueAt = new Date(Date.now() - 3 * HOUR);
+    const held = await asDemoTenant(
+      async (c) =>
+        (
+          await c.query<{ id: string }>(
+            `INSERT INTO task (location_id, kind, title, required_permission, assignee_role_key, due_at)
+             VALUES ($1, 'sync.device_hold', 'Check', 'safety.incident.manage', 'registered_manager', $2)
+             RETURNING id`,
+            [DEMO.locationId, overdueAt],
+          )
+        ).rows[0]?.id,
+    );
+    const toManager = () =>
+      asDemoTenant(
+        async (c) =>
+          (
+            await c.query(
+              "SELECT 1 FROM notification WHERE source_type = 'task' AND source_id = $1 AND recipient_tenant_user_id = $2",
+              [held, DEMO.users.manager.id],
+            )
+          ).rowCount,
+      );
+    await escalateTasks(deps, new Date());
+    expect(await toManager()).toBe(1);
+    // Escalated once only.
+    await escalateTasks(deps, new Date());
+    expect(await toManager()).toBe(1);
+    // A new hold after a refused close resets the escalation (`device-holds.ts`): it signals again.
+    await asDemoTenant((c) =>
+      c.query("UPDATE task SET escalation_level = 0, escalated_at = NULL WHERE id = $1", [held]),
+    );
+    await escalateTasks(deps, new Date());
+    expect(await toManager()).toBe(2);
   });
 });

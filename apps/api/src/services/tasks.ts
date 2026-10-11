@@ -177,6 +177,9 @@ export async function escalateOverdueTasks(
       if (responders.length === 0) responders = await atLocation(["registered_manager"]);
       for (const r of responders) recipients.add(r.id);
     }
+    // A device's task whose escalation was reset by a new hold after a refused close (at most once
+    // a day; clinical review round 6, M1) signals again: its key carries the task's version.
+    const occurrence = PERMISSION_ESCALATED_TASK_KINDS.includes(t.kind) ? `:v${t.version}` : "";
     for (const recipient of recipients) {
       await tx
         .insert(notification)
@@ -190,7 +193,7 @@ export async function escalateOverdueTasks(
           channels: t.priority === "urgent" ? ["in_app", "push"] : ["in_app"],
           sourceType: "task",
           sourceId: t.id,
-          dedupeKey: `task_overdue:${t.id}:${recipient}`,
+          dedupeKey: `task_overdue:${t.id}${occurrence}:${recipient}`,
         })
         .onConflictDoNothing();
     }

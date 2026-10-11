@@ -346,7 +346,6 @@ export const careRecordsRouter = createRouter()
           await flagIfReportedDeleted(tx, access, {
             resourceType: "assessment",
             id: row.id,
-            personId,
             locationId: person.locationId,
             requestId: c.get("requestId"),
           });
@@ -551,7 +550,6 @@ export const careRecordsRouter = createRouter()
           await flagIfReportedDeleted(tx, access, {
             resourceType: "activity_record",
             id: row.id,
-            personId,
             locationId: person.locationId,
             requestId: c.get("requestId"),
           });
@@ -722,7 +720,6 @@ export const careRecordsRouter = createRouter()
           await flagIfReportedDeleted(tx, access, {
             resourceType: "visit_log",
             id: row.id,
-            personId,
             locationId: person.locationId,
             requestId: c.get("requestId"),
           });
