@@ -702,9 +702,19 @@ describe("Sign out and delete N unsent entries (S4, S5)", () => {
     );
   });
 
-  it("hazard HZ-040 says whose entries are waiting (C8)", () => {
-    expect(t("mobile.held.owner", { name: "Sam Example" })).toBe(
+  it("hazard HZ-040 says whose entries are waiting, in whole sentences (C8)", () => {
+    expect(t("mobile.held.owner", { named: "yes", name: "Sam Example" })).toBe(
       "Entries from Sam Example are waiting to be sent.",
+    );
+    expect(t("mobile.held.owner", { named: "no", name: "" })).toBe(
+      "Entries from another member of staff are waiting to be sent.",
+    );
+    const deadline = { date: "18/10/2026", time: "08:30" };
+    expect(t("mobile.held.finalWarning", { ...deadline, count: 2, named: "no", name: "" })).toBe(
+      "Final warning: 2 unsent entries will be deleted from this device on 18/10/2026 at 08:30. The member of staff who wrote them needs to sign in to send them before then.",
+    );
+    expect(t("mobile.held.expiredNotice", { count: 1, named: "yes", name: "Sam Example" })).toBe(
+      "1 unsent entry was deleted from this device because Sam Example did not sign in to send them within the time allowed. Tell the nurse in charge so the care can be recorded again.",
     );
   });
 });

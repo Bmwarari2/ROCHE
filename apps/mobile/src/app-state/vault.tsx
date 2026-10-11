@@ -616,7 +616,8 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
               ? t("mobile.held.expiredNoticeUnknown")
               : t("mobile.held.expiredNotice", {
                   count: held.entries,
-                  name: held.ownerName ?? t("mobile.held.someone"),
+                  named: held.ownerName ? "yes" : "no",
+                  name: held.ownerName ?? "",
                 }),
           ),
         )

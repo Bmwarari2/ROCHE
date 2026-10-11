@@ -42,7 +42,8 @@ function HeldEntries({ held }: { readonly held: HeldWork }) {
   const theme = useTheme();
   const vault = useVault();
   const entries = held.entries;
-  const name = held.ownerName ?? t("mobile.held.someone");
+  // Whole sentences with a select, never a name fragment, so word order works in Welsh too.
+  const who = { named: held.ownerName ? "yes" : "no", name: held.ownerName ?? "" };
   const known = held.tenantId !== "";
   const deadline = held.expiresAt ? ukDateTimeParts(new Date(held.expiresAt)) : null;
   const final = heldTimeState(held.expiresAt, new Date()) === "final";
@@ -56,14 +57,14 @@ function HeldEntries({ held }: { readonly held: HeldWork }) {
             : t("mobile.held.title", { count: entries })}
         </Text>
         <Text testID="held-owner">
-          {known ? t("mobile.held.owner", { name }) : t("mobile.held.ownerUnknown")}
+          {known ? t("mobile.held.owner", who) : t("mobile.held.ownerUnknown")}
         </Text>
         <Text variant="bodyDense">{t("mobile.held.body")}</Text>
         {deadline && final ? (
           <Text tone="danger" emphasis testID="held-final-warning">
             {entries === null
-              ? t("mobile.held.finalWarningUnknown", { ...deadline, name })
-              : t("mobile.held.finalWarning", { ...deadline, count: entries, name })}
+              ? t("mobile.held.finalWarningUnknown", { ...deadline, ...who })
+              : t("mobile.held.finalWarning", { ...deadline, ...who, count: entries })}
           </Text>
         ) : deadline ? (
           <Text variant="bodyDense" testID="held-deadline">
