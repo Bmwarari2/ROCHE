@@ -3,6 +3,7 @@ import { createDatabase, createPool } from "@harbour/db";
 import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import { createAuth } from "./auth/better-auth";
+import { withoutSessionTokens } from "./auth/token-exposure";
 import type { Config } from "./config";
 import { type AppEnv, type Services, sessionMiddleware, tenantMiddleware } from "./http/context";
 import { HttpProblem, problemResponse, problems } from "./http/problem";
@@ -19,11 +20,14 @@ import {
   notificationsRouter,
   ratesRouter,
 } from "./routes/platform";
+import { sessionsRouter } from "./routes/sessions";
 import { createSyncRouter } from "./routes/sync";
 import { SyncTokenSigner } from "./sync/token";
 
 /** Routes that need a session but not yet a chosen tenant, or no session at all. */
 const TENANTLESS = new Set(["/v1/memberships", "/v1/sync/jwks"]);
+/** Identity-level routes: the person's own devices, whatever organisation they work in. */
+const isTenantless = (path: string) => TENANTLESS.has(path) || path.startsWith("/v1/me/sessions");
 
 export interface AppHandle {
   readonly app: ReturnType<typeof createRouter>;
@@ -68,12 +72,15 @@ export function createApp(config: Config, logger: Logger): AppHandle {
         "x-harbour-device",
         "x-request-id",
       ],
-      exposeHeaders: ["set-auth-token", "x-request-id"],
+      // set-auth-token is not exposed: browsers never receive session tokens (token-exposure.ts).
+      exposeHeaders: ["x-request-id"],
       maxAge: 600,
     }),
   );
 
-  app.on(["GET", "POST"], "/api/auth/*", (c) => services.auth.handler(c.req.raw));
+  app.on(["GET", "POST"], "/api/auth/*", async (c) =>
+    withoutSessionTokens(c.req.raw, await services.auth.handler(c.req.raw)),
+  );
 
   // Responses may hold personal data: never cache them in browsers, proxies or devices.
   app.use("/v1/*", async (c, next) => {
@@ -88,13 +95,14 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.use("/operator/*", sessionMiddleware);
   app.use("/operator/*", operatorMiddleware);
   app.use("/v1/*", async (c, next) => {
-    if (TENANTLESS.has(c.req.path)) return next();
+    if (isTenantless(c.req.path)) return next();
     return tenantMiddleware(c, next);
   });
 
   app.route("/", healthRouter);
   app.route("/", membershipsRouter);
   app.route("/", meRouter);
+  app.route("/", sessionsRouter);
   app.route("/", peopleRouter);
   app.route("/", notificationsRouter);
   app.route("/", auditRouter);

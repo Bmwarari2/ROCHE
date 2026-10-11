@@ -28,6 +28,12 @@ const Env = z.object({
   /** Comma-separated origins allowed to call the API with credentials (the web app). */
   WEB_ORIGINS: z.string().default("http://localhost:3000"),
   PASSKEY_RP_ID: z.string().default("localhost"),
+  /**
+   * Comma-separated CIDRs of the load balancers and the web tier in front of the API. Sign-in
+   * throttling reads the client address from X-Forwarded-For, skipping these hops from the right;
+   * without them every sign-in shares one throttle bucket.
+   */
+  TRUSTED_PROXY_CIDRS: z.string().default(""),
   POWERSYNC_URL: z.url().default("http://localhost:8080"),
   /** PKCS#8 PEM for the ES256 key that signs PowerSync tokens; generated per process when absent locally. */
   SYNC_SIGNING_KEY_PEM: z.string().optional(),
@@ -38,7 +44,23 @@ const Env = z.object({
   APP_VERSION: z.string().default("0.0.0-dev"),
 });
 
-export type Config = z.infer<typeof Env> & { readonly webOrigins: readonly string[] };
+export type Config = z.infer<typeof Env> & {
+  readonly webOrigins: readonly string[];
+  readonly trustedProxies: readonly string[];
+};
+
+const DATABASE_URL_KEYS = [
+  "DATABASE_APP_URL",
+  "DATABASE_AUTH_URL",
+  "DATABASE_OPERATOR_URL",
+  "DATABASE_WORKER_URL",
+] as const;
+
+const list = (value: string) =>
+  value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const parsed = Env.parse(env);
@@ -48,11 +70,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     }
     if (!parsed.SYNC_SIGNING_KEY_PEM)
       throw new Error("SYNC_SIGNING_KEY_PEM must be set in production");
+    // The local defaults point at localhost; a deployed task without its secret must not start.
+    for (const key of DATABASE_URL_KEYS) {
+      if (!env[key]) throw new Error(`${key} must be set in production`);
+    }
   }
   return {
     ...parsed,
-    webOrigins: parsed.WEB_ORIGINS.split(",")
-      .map((o) => o.trim())
-      .filter(Boolean),
+    webOrigins: list(parsed.WEB_ORIGINS),
+    trustedProxies: list(parsed.TRUSTED_PROXY_CIDRS),
   };
 }

@@ -270,6 +270,59 @@
           "none"
         ]
       },
+      "DeviceSessionList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeviceSession"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "DeviceSession": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "device": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "User agent of the signed-in device"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastActiveAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "current": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "device",
+          "createdAt",
+          "lastActiveAt",
+          "expiresAt",
+          "current"
+        ],
+        "description": "A device where the person is signed in. Never carries the session token."
+      },
       "PersonList": {
         "type": "object",
         "properties": {
@@ -339,6 +392,13 @@
               "null"
             ]
           },
+          "roomLabel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Room or bed at the person's location"
+          },
           "photoUrl": {
             "type": [
               "string",
@@ -392,6 +452,7 @@
           "preferredName",
           "dateOfBirth",
           "nhsNumber",
+          "roomLabel",
           "photoUrl",
           "allergyStatus",
           "allergies",
@@ -1227,6 +1288,143 @@
           },
           "422": {
             "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/sessions": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Devices where you are signed in",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Signed-in devices",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceSessionList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/sessions/{id}/revoke": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Sign out one of your devices",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Signed out"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/sessions/revoke-others": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Sign out every device except this one",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Devices signed out",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "revoked": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "revoked"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
             "content": {
               "application/problem+json": {
                 "schema": {

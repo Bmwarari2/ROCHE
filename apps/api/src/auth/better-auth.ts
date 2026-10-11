@@ -8,6 +8,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import type pg from "pg";
 import type { Config } from "../config";
 import { passwordProblem } from "./password-policy";
+import { MOBILE_APP_ORIGIN } from "./token-exposure";
 
 /**
  * Better Auth (ADR-0009): email and password with NCSC rules, passkeys (FIDO2) and TOTP as MFA,
@@ -25,7 +26,7 @@ export function createAuth(config: Config, authPool: pg.Pool) {
     secret: config.BETTER_AUTH_SECRET,
     database: drizzleAdapter(db, { provider: "pg", schema: betterAuthSchema }),
     // The mobile app's deep-link scheme is an origin for Better Auth's CSRF checks.
-    trustedOrigins: [...config.webOrigins, "harbour://"],
+    trustedOrigins: [...config.webOrigins, MOBILE_APP_ORIGIN],
     emailAndPassword: {
       enabled: true,
       // NCSC: at least 12 characters, a deny-list, no forced expiry; throttling, not lockout.
@@ -51,6 +52,8 @@ export function createAuth(config: Config, authPool: pg.Pool) {
     advanced: {
       useSecureCookies: config.NODE_ENV === "production",
       cookiePrefix: "harbour",
+      // Throttle per client address, not per platform (see TRUSTED_PROXY_CIDRS).
+      ipAddress: { trustedProxies: [...config.trustedProxies] },
     },
     telemetry: { enabled: false },
     hooks: {

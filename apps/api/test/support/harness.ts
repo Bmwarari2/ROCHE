@@ -12,6 +12,7 @@ import {
 import { createTestDatabase, type TestDatabase } from "@harbour/db/testing";
 import type pg from "pg";
 import { type AppHandle, createApp } from "../../src/app";
+import { MOBILE_APP_ORIGIN } from "../../src/auth/token-exposure";
 import { loadConfig } from "../../src/config";
 import { createLogger } from "../../src/logger";
 
@@ -45,7 +46,7 @@ export interface Harness {
   readonly authIds: Record<string, string>;
   request(
     path: string,
-    init?: { token?: string; tenant?: string; method?: string; body?: unknown },
+    init?: { token?: string; tenant?: string; method?: string; body?: unknown; origin?: string },
   ): Promise<Response>;
   close(): Promise<void>;
 }
@@ -147,6 +148,7 @@ export async function createHarness(): Promise<Harness> {
     const headers = new Headers({ "content-type": "application/json" });
     if (init.token) headers.set("authorization", `Bearer ${init.token}`);
     if (init.tenant) headers.set(TENANT_HEADER, init.tenant);
+    if (init.origin) headers.set("origin", init.origin);
     return Promise.resolve(
       handle.app.request(path, {
         method: init.method ?? "GET",
@@ -164,9 +166,11 @@ export async function createHarness(): Promise<Harness> {
     if (response.status !== 200)
       throw new Error(`sign-up failed: ${response.status} ${await response.text()}`);
     const body = (await response.json()) as { user: { id: string } };
+    // Signs in as the mobile app does: only that origin receives a bearer token.
     const signIn = await request("/api/auth/sign-in/email", {
       method: "POST",
       body: { email, password: PASSWORD },
+      origin: MOBILE_APP_ORIGIN,
     });
     const token = signIn.headers.get("set-auth-token");
     if (!token) throw new Error("no bearer token returned");

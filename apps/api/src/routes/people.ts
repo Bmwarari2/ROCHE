@@ -66,6 +66,7 @@ async function summaries(tx: Transaction, personIds?: readonly string[]) {
       preferredName: p.preferredName,
       dateOfBirth: p.dateOfBirth,
       nhsNumber: p.nhsNumber,
+      roomLabel: p.roomLabel,
       photoUrl: p.photoDocumentId ? `/v1/people/${p.id}/photo` : null,
       allergyStatus: p.allergyStatus,
       allergies: allergies

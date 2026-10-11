@@ -45,6 +45,26 @@ export const Membership = z
   .meta({ id: "Membership" });
 export type Membership = z.infer<typeof Membership>;
 
+export const DeviceSession = z
+  .object({
+    id: z.string(),
+    device: z.string().nullable().meta({ description: "User agent of the signed-in device" }),
+    createdAt: isoDateTime,
+    lastActiveAt: isoDateTime,
+    expiresAt: isoDateTime,
+    current: z.boolean(),
+  })
+  .meta({
+    id: "DeviceSession",
+    description: "A device where the person is signed in. Never carries the session token.",
+  });
+export type DeviceSession = z.infer<typeof DeviceSession>;
+
+export const DeviceSessionList = z
+  .object({ items: z.array(DeviceSession) })
+  .meta({ id: "DeviceSessionList" });
+export type DeviceSessionList = z.infer<typeof DeviceSessionList>;
+
 export const LocationSummary = z
   .object({
     id: uuid,
@@ -109,6 +129,7 @@ export const PersonSummary = z
     preferredName: z.string().nullable(),
     dateOfBirth: isoDate.nullable(),
     nhsNumber: z.string().nullable(),
+    roomLabel: z.string().nullable().meta({ description: "Room or bed at the person's location" }),
     photoUrl: z.string().nullable(),
     allergyStatus: AllergyStatus,
     allergies: z.array(

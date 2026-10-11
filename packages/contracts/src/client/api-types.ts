@@ -159,6 +159,152 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/me/sessions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Devices where you are signed in */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Signed-in devices */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DeviceSessionList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/me/sessions/{id}/revoke": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Sign out one of your devices */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Signed out */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/me/sessions/revoke-others": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Sign out every device except this one */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Devices signed out */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              revoked: number;
+            };
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/people": {
     parameters: {
       query?: never;
@@ -1870,6 +2016,22 @@ export interface components {
     };
     /** @enum {string} */
     DataScope: "tenant" | "locations" | "assigned" | "none";
+    DeviceSessionList: {
+      items: components["schemas"]["DeviceSession"][];
+    };
+    /** @description A device where the person is signed in. Never carries the session token. */
+    DeviceSession: {
+      id: string;
+      /** @description User agent of the signed-in device */
+      device: string | null;
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: date-time */
+      lastActiveAt: string;
+      /** Format: date-time */
+      expiresAt: string;
+      current: boolean;
+    };
     PersonList: {
       items: components["schemas"]["PersonSummary"][];
       nextCursor: string | null;
@@ -1894,6 +2056,8 @@ export interface components {
       /** Format: date */
       dateOfBirth: string | null;
       nhsNumber: string | null;
+      /** @description Room or bed at the person's location */
+      roomLabel: string | null;
       photoUrl: string | null;
       allergyStatus: components["schemas"]["AllergyStatus"];
       allergies: {

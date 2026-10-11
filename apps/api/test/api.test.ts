@@ -1,5 +1,6 @@
 import type {
   AuditList,
+  DeviceSessionList,
   Me,
   NotificationList,
   PersonList,
@@ -12,7 +13,8 @@ import { DEMO } from "@harbour/db/seed";
 import { SYNC_TOKEN_AUDIENCE, SYNC_TOKEN_ISSUER } from "@harbour/sync/streams";
 import { jwtVerify } from "jose";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
+import { MOBILE_APP_ORIGIN } from "../src/auth/token-exposure";
+import { createHarness, type Harness, LODGE, OTHER, PASSWORD } from "./support/harness";
 
 let h: Harness;
 
@@ -82,6 +84,117 @@ describe("authentication", () => {
       body: { email: "short@example.invalid", password: "short pass", name: "Short Example" },
     });
     expect(response.status).toBe(400);
+  });
+});
+
+describe("session tokens stay out of browsers (ASVS V7)", () => {
+  const credentials = { email: "nurse@example.invalid", password: PASSWORD };
+
+  it("gives a bearer token only to the mobile app's origin", async () => {
+    const mobile = await h.request("/api/auth/sign-in/email", {
+      method: "POST",
+      body: credentials,
+      origin: MOBILE_APP_ORIGIN,
+    });
+    expect(mobile.status).toBe(200);
+    expect(mobile.headers.get("set-auth-token")).toBeTruthy();
+    expect((await json<{ token?: string }>(mobile)).token).toBeTruthy();
+  });
+
+  it.each([
+    ["a web origin", "http://localhost:3000"],
+    ["no origin (a server)", undefined],
+  ])("returns no token to %s, only the session cookie", async (_label, origin) => {
+    const response = await h.request("/api/auth/sign-in/email", {
+      method: "POST",
+      body: credentials,
+      ...(origin ? { origin } : {}),
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("set-auth-token")).toBeNull();
+    expect(response.headers.get("set-cookie")).toContain("harbour.session_token");
+    const body = await json<Record<string, unknown>>(response);
+    expect(body).not.toHaveProperty("token");
+    expect(body).toHaveProperty("user");
+  });
+
+  it("removes tokens from Better Auth's session list", async () => {
+    const response = await h.request("/api/auth/list-sessions", { token: h.tokens.nurse });
+    expect(response.status).toBe(200);
+    const sessions = await json<Record<string, unknown>[]>(response);
+    expect(sessions.length).toBeGreaterThan(0);
+    for (const session of sessions) expect(session).not.toHaveProperty("token");
+  });
+});
+
+describe("signed-in devices (/v1/me/sessions)", () => {
+  // The nurse has no second factor in the harness, so a password sign-in completes.
+  async function mobileSignIn(email: string): Promise<string> {
+    const response = await h.request("/api/auth/sign-in/email", {
+      method: "POST",
+      body: { email, password: PASSWORD },
+      origin: MOBILE_APP_ORIGIN,
+    });
+    const token = response.headers.get("set-auth-token");
+    if (!token) throw new Error("no token");
+    return token;
+  }
+
+  it("lists your own devices without tokens and marks this one", async () => {
+    const response = await h.request("/v1/me/sessions", { token: h.tokens.carer });
+    expect(response.status).toBe(200);
+    const { items } = await json<DeviceSessionList>(response);
+    expect(items.filter((s) => s.current)).toHaveLength(1);
+    for (const item of items) expect(item).not.toHaveProperty("token");
+  });
+
+  it("needs a session", async () => {
+    expect((await h.request("/v1/me/sessions")).status).toBe(401);
+  });
+
+  it("signs out another of your devices, which then stops working", async () => {
+    const second = await mobileSignIn("nurse@example.invalid");
+    const { items } = await json<DeviceSessionList>(
+      await h.request("/v1/me/sessions", { token: second }),
+    );
+    const secondId = items.find((s) => s.current)?.id;
+    expect(secondId).toBeDefined();
+
+    const revoked = await h.request(`/v1/me/sessions/${secondId}/revoke`, {
+      method: "POST",
+      token: h.tokens.nurse,
+    });
+    expect(revoked.status).toBe(204);
+    expect((await h.request("/v1/me/sessions", { token: second })).status).toBe(401);
+    expect((await h.request("/v1/me/sessions", { token: h.tokens.nurse })).status).toBe(200);
+  });
+
+  it("cannot sign out someone else's device", async () => {
+    const { items } = await json<DeviceSessionList>(
+      await h.request("/v1/me/sessions", { token: h.tokens.manager }),
+    );
+    const managerSession = items.find((s) => s.current)?.id;
+    const response = await h.request(`/v1/me/sessions/${managerSession}/revoke`, {
+      method: "POST",
+      token: h.tokens.nurse,
+    });
+    expect(response.status).toBe(404);
+    expect((await h.request("/v1/me/sessions", { token: h.tokens.manager })).status).toBe(200);
+  });
+
+  it("signs out every other device and keeps this one", async () => {
+    const extra = await mobileSignIn("nurse@example.invalid");
+    const response = await h.request("/v1/me/sessions/revoke-others", {
+      method: "POST",
+      token: h.tokens.nurse,
+    });
+    expect(response.status).toBe(200);
+    expect((await json<{ revoked: number }>(response)).revoked).toBeGreaterThanOrEqual(1);
+    expect((await h.request("/v1/me/sessions", { token: extra })).status).toBe(401);
+    const { items } = await json<DeviceSessionList>(
+      await h.request("/v1/me/sessions", { token: h.tokens.nurse }),
+    );
+    expect(items).toHaveLength(1);
   });
 });
 

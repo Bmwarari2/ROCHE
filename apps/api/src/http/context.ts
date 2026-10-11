@@ -42,6 +42,7 @@ export interface Services {
 
 export interface SessionInfo {
   readonly authUserId: string;
+  readonly sessionId: string;
   readonly name: string;
   readonly email: string;
   readonly twoFactorEnabled: boolean;
@@ -97,6 +98,7 @@ export const sessionMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     const user = result.user as typeof result.user & { twoFactorEnabled?: boolean | null };
     c.set("session", {
       authUserId: user.id,
+      sessionId: result.session.id,
       name: user.name,
       email: user.email,
       twoFactorEnabled: user.twoFactorEnabled === true,
