@@ -68,10 +68,12 @@ applies). Figures come from `rate_table` by key.
    nurse in charge.
 2. **Plan publication.** Only an `active` plan drives tasks. Publishing supersedes the previous
    version; sign-off records whether the person or their representative agreed, or why not.
-3. **Late entries.** A note or observation whose `occurred_at` is more than
-   `care_note.late_entry_hours` hours before `recorded_at` is flagged late and shown so everywhere.
-   `occurred_at` can never be in the future beyond the clock-drift tolerance
-   (`sync.clock_drift_flag_minutes`, HZ-010).
+3. **Late entries.** An entry made more than `care_note.late_entry_hours` hours after its event
+   is flagged late and shown so everywhere. "Made" is the device time when the entry was written
+   (the server time for the web), never the upload time: an entry written on time on a phone that
+   synced hours later is not late. `occurred_at` can never be in the future beyond the clock-drift
+   tolerance (`sync.clock_drift_flag_minutes`, HZ-010); clock drift is flagged by comparing the
+   device clock when it sent the request (`x-harbour-sent-at`) with the server's.
 4. **Corrections.** Notes, observations, assessments and marks are never edited. A correction
    supersedes the original with a reason; both remain readable (Reg 17).
 5. **Validated tools** (locked templates, medical-device boundary): scoring exactly as published,
@@ -132,6 +134,17 @@ applies). Figures come from `rate_table` by key.
     property return, medical examiner pack).
 
 ## 5. API and events
+
+Built in slice 4a: `POST` and `GET /v1/people/{id}/notes`, `/observations` (typed values per chart;
+vital signs scored with NEWS2 using the recorded SpO2 scale; food and drink checked against the IDDSI
+levels), `GET /v1/people/{id}/charts/fluid?date=`, `POST` and `GET /v1/people/{id}/body-map`,
+`GET` and `PUT /v1/people/{id}/care-profile`. Any entry may name the `taskId` it answers (for example
+the 02:00 turn), which completes that task with the entry as evidence. A NEWS2 response band alerts
+the nurse in charge and creates the response and repeat-observation tasks; a score of 0 schedules
+nothing outside the care plan (HZ-008). Body marks that prompt an incident or the safeguarding guide
+create those tasks for the manager. Charts and marks are refused for discharged, deceased and
+archived people; post-event notes are allowed.
+
 
 Resources under `/v1/people/{personId}/...`: `care-plans`, `risk-assessments`, `assessments`,
 `notes`, `observations`, `body-map`, `tasks`, `activities`, `visits`, `advance-care`, `consents`,
