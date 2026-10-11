@@ -63,6 +63,18 @@ The formula shown to users for the three Phase 1 tools:
 | MUST | Step 1 BMI score from BMI = weight (kg) / height (m) squared; Step 2 unplanned weight-loss score from percentage loss in the past 3 to 6 months; Step 3 acute disease effect score; overall risk = Step 1 + Step 2 + Step 3, banded low (0), medium (1), high (2 or more). Where height or weight cannot be measured, the published alternative measurements are offered | [BAPEN MUST](https://www.bapen.org.uk/must-and-self-screening/must-calculator) |
 | Waterlow | Total = sum of the category scores on the published card (build and weight for height, continence, skin type, mobility, sex and age, malnutrition screening, and the special-risk categories), banded at risk, high risk and very high risk as published | Published Waterlow scoring card `[authoritative source and terms - human action]` |
 
+**Implementation (Phase 1)**: NEWS2, MUST, Waterlow and Braden are calculated exactly as published in `packages/domain/src/care/` (`news2.ts`, `must.ts`, `waterlow.ts`, `braden.ts`). Each scoring table is a versioned constant with the publisher, edition and source cited in a code comment; `VALIDATED_TOOLS` in `tools.ts` carries the same citation for the screen; every result stores its `toolVersion` and the workings (each item, the value recorded and its points). Incomplete or impossible input returns a typed error and no total. NEWS2 returns the RCP chart 2 and chart 4 wording unchanged. MUST and Waterlow band the exact BMI and round it to one decimal place only for display, so a MUST BMI of 18.49 scores 2. Braden bands use the publisher's wording (severe risk, high risk, moderate risk, at risk), and a total of 19 or more reads "Below the at-risk threshold". The NG249 falls pathway (`falls.ts`) follows NICE's recommendations by setting (1.1.7 in residential care; 1.1.3, 1.1.4 and 1.1.6 in the community), names the recommendation that applies, returns follow-up tasks only, and a test asserts that it returns no numeric score. Waterlow and Braden are listed in `TOOLS_AWAITING_LICENCE_CONFIRMATION` until H-25 is closed.
+
+Where the Waterlow card leaves room for reading, the reading taken is stated in the source comment of `waterlow.ts` for CSO review:
+
+| Reading | Card text | Harbour |
+| --- | --- | --- |
+| Obese at 30 | "Above average BMI 25-29.9"; "Obese BMI > 30" | A BMI of 30.0 or more scores 2 |
+| Exact BMI bands | Bands written to one decimal place, with gaps between 24.9 and 25 and between 29.9 and 30 | Under 20, 20 up to 25, 25 up to 30, 30 or more, on the exact BMI |
+| Medication, maximum 4 | "Cytotoxics, long term/high dose steroids, anti-inflammatory: max of 4", no per-item score | 4 when any listed medicine applies, however many |
+| Weight lost as categories | "0.5-5 kg = 1; 5-10 kg = 2; 10-15 kg = 3; > 15 kg = 4" (bands share end points) | The assessor chooses the band; no kilogram entry |
+| Neurological deficit capped at 6 | "Diabetes, MS, CVA 4-6; motor/sensory 4-6; paraplegia (max of 6) 4-6" | Each condition 4 to 6 at the assessor's choice; category total capped at 6 |
+
 **Regulatory opinion needed** `[human action]`: MHRA guidance indicates that software performing calculations that inform clinical decisions can be a medical device. Thapsus's position is that reproducing a published paper tool exactly, with every sub-score and the banding visible so the user can verify it, and leaving the response to the provider's own policy, is a record-keeping aid. This position should be confirmed by regulatory advice before the Phase 1 tools are used by a live tenant.
 
 ## 6. Grey areas that need an ADR and CSO review before they are built

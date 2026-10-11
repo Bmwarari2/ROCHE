@@ -86,10 +86,17 @@ applies). Figures come from `rate_table` by key.
      `must.care_home.screening_interval_months` months; medium risk raises a
      `must.medium_risk.food_record_days`-day food record; high risk raises a dietitian referral
      task. Weight and height alternatives (ulna length, MUAC) are supported as BAPEN publishes.
+     Bands apply to the exact BMI; it is rounded to one decimal place only for display.
    - Waterlow (2005 revision) and Braden: every published category and band, with the source and
-     licence recorded (human action H-25).
-   - Falls: no falls prediction score (NG249). The NG249 question (falls in the past 12 months, or
-     a fall now) triggers the multifactorial assessment form and a review task.
+     licence recorded (human action H-25). Braden bands use the publisher's wording (severe risk,
+     high risk, moderate risk, at risk); a total of 19 or more reads "Below the at-risk threshold".
+   - Falls: no falls prediction score (NG249 1.1.1), in NICE's words. Residential care settings
+     offer everyone a comprehensive falls assessment on admission, at review and after a fall
+     (1.1.7). Community settings ask about falls in the last year or a fall now (1.1.2): a fall
+     with any 1.1.3 criterion (frailty, injury needing treatment, loss of consciousness, unable to
+     get up, 2 or more falls) raises the comprehensive falls assessment, a fall without them raises
+     the gait and balance check (1.1.4), and no fall gives information and advice (1.1.6). A
+     reported fall also raises a review task.
 6. **Charts.** Fluid balance keeps a daily target per person and a running total from 00:00 in the
    location's time zone, with the shortfall visible by mid-afternoon; food intake records the IDDSI
    level (0 to 7) and shows the person's prescribed level beside it, refusing a mismatched level

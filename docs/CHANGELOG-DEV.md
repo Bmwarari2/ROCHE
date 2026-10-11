@@ -45,3 +45,35 @@ logged, test status.
 
 **Tests**: all suites pass locally (see STATUS.md totals). Not run here: Maestro on devices, a
 Terraform plan against AWS, Docker image builds (no daemon).
+
+## 2026-10-11: Phase 1 slice 3, validated tools and chart rules (domain)
+
+**What changed**
+
+- `packages/domain/src/care/`: NEWS2 (RCP 2017, charts 1, 2 and 4), MUST (BAPEN, 2011 review),
+  Waterlow (2005 card) and Braden (1988 form) as pure calculators that return the tool version,
+  score, band, workings and triggers, and a typed error with no total for missing or impossible
+  input; the NG249 falls pathway (triggers only, never a score); late and future entries; fluid
+  balance days in UK time (23- and 25-hour days); IDDSI levels and the prescribed-level check;
+  repositioning intervals; Bristol scale and the no-movement prompt; weight frequency; body map
+  regions, side agreement, pressure ulcer categories and the incident and safeguarding prompts.
+- Every tenant default comes from the rate table through `resolveCareRates`; tests read the real
+  `docs/specs/rates.md`. New row `bowel.no_movement_prompt_days` (3, tenant default, to verify).
+- Hazard log: HZ-012, HZ-014, HZ-016, HZ-017 and HZ-019 domain tests passing (HZ-009 care tests
+  added); register rows CARE-003, CARE-006, CARE-007, CARE-010 and CARE-012 now `partial`;
+  medical-device boundary notes the implementation and the readings taken where a form is ambiguous.
+
+- Corrections after review: MUST and Waterlow band the exact BMI (rounded only for display, so
+  18.49 scores 2 on MUST); the NG249 falls pathway is setting-aware in NICE's words (1.1.7 in
+  residential care, 1.1.3 and 1.1.4 in the community, 1.1.6 for no fall); Braden uses the
+  publisher's band wording; the Waterlow readings are tabled in the medical-device boundary.
+
+**Next**: slice 4 (care record schema and API) stores these results and decides whether a late entry
+is measured from device or server time; Waterlow and Braden stay off for real tenants until H-25 is
+closed.
+
+**Human actions logged**: none new; H-25 (licence terms and regulatory opinion) covers Waterlow and
+Braden. The CSO should review the readings listed in the medical-device boundary (H-21).
+
+**Tests**: `packages/domain` 687 passing, 99.9% line coverage; `packages/db` 78 passing (rate table
+seed).
