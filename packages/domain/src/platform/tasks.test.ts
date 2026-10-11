@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { formatUkDateTime } from "../shared/time";
 import {
+  checkTaskLink,
   checkTaskTransition,
   occurrences,
+  planTaskRestore,
   RecurrenceError,
   type RecurrenceSeries,
+  type StoppedTask,
+  type TaskRestorePlan,
   type TaskStatus,
   taskTimeState,
   validateRecurrence,
@@ -237,5 +241,170 @@ describe("recurrence rules", () => {
         at("2026-12-31T00:00:00Z"),
       ),
     ).toThrow(RecurrenceError);
+  });
+});
+
+describe("hazards HZ-004 and HZ-006 what an entry does to the task it names", () => {
+  const task = (kind: string, status: TaskStatus, personId: string | null = "p1") => ({
+    personId,
+    kind,
+    status,
+  });
+  it.each<[string, ReturnType<typeof task>, boolean, ReturnType<typeof checkTaskLink>]>([
+    [
+      "completes an open round",
+      task("care.reposition", "open"),
+      true,
+      { ok: true, outcome: "completed", review: false },
+    ],
+    [
+      "completes a round in progress",
+      task("care.reposition", "in_progress"),
+      true,
+      { ok: true, outcome: "completed", review: false },
+    ],
+    [
+      "keeps the entry as late evidence for a cancelled round",
+      task("care.reposition", "cancelled"),
+      true,
+      { ok: true, outcome: "task_cancelled", review: false },
+    ],
+    [
+      "keeps an entry for a round already done, flagged for review",
+      task("care.reposition", "done"),
+      true,
+      { ok: true, outcome: "task_already_closed", review: true },
+    ],
+    [
+      "keeps an entry for a round already skipped, flagged for review",
+      task("care.reposition", "skipped"),
+      true,
+      { ok: true, outcome: "task_already_closed", review: true },
+    ],
+    [
+      "keeps an entry for a round the user may not complete, unlinked and flagged",
+      task("care.reposition", "open"),
+      false,
+      { ok: true, outcome: "not_linked", review: true },
+    ],
+    [
+      "refuses a medicines task the user may not complete",
+      task("medicines.round", "open"),
+      false,
+      {
+        ok: false,
+        problem: "medicines_not_yours",
+        message: expect.stringContaining("right permission") as unknown as string,
+      },
+    ],
+    [
+      "refuses a medicines task already done (a second dose)",
+      task("medicines.round", "done"),
+      true,
+      {
+        ok: false,
+        problem: "medicines_already_closed",
+        message: expect.stringContaining("already been recorded") as unknown as string,
+      },
+    ],
+    [
+      "refuses a medicines task already skipped",
+      task("medicines.round", "skipped"),
+      true,
+      {
+        ok: false,
+        problem: "medicines_already_closed",
+        message: expect.any(String) as unknown as string,
+      },
+    ],
+    [
+      "refuses a task for another person (HZ-001)",
+      task("care.reposition", "open", "p2"),
+      true,
+      { ok: false, problem: "wrong_person", message: "That task is not for this person." },
+    ],
+  ])("%s", (_label, t, mayComplete, expected) => {
+    expect(checkTaskLink(t, { personId: "p1", mayComplete })).toEqual(expected);
+  });
+});
+
+describe("hazards HZ-003 and HZ-004 tasks brought back after a return or a correction", () => {
+  const at = (hhmm: string) => new Date(`2026-10-10T${hhmm}:00Z`);
+  const stopped = (
+    id: string,
+    due: string,
+    options: { series?: string | null; windowEnd?: string; evidence?: boolean } = {},
+  ): StoppedTask => ({
+    id,
+    seriesId: options.series === undefined ? "turns" : options.series,
+    dueAt: at(due),
+    windowEnd: options.windowEnd ? at(options.windowEnd) : null,
+    hasEvidence: options.evidence ?? false,
+  });
+
+  it.each<[string, StoppedTask[], string, string, Partial<TaskRestorePlan>]>([
+    [
+      "restores a round answered offline as done, not due again (10:05 entry, 10:10 turn)",
+      [stopped("t1010", "10:10", { windowEnd: "10:40", evidence: true })],
+      "10:08",
+      "10:20",
+      { done: ["t1010"], reopen: [], reopenOverdue: [], missed: [] },
+    ],
+    [
+      "restores an answered round as done even when its window has passed",
+      [stopped("t1010", "10:10", { evidence: true })],
+      "10:08",
+      "11:20",
+      { done: ["t1010"], reopenOverdue: [], missed: [] },
+    ],
+    [
+      "reopens a round still in its window",
+      [stopped("t1200", "12:00", { windowEnd: "12:30" })],
+      "10:00",
+      "12:10",
+      { reopen: ["t1200"], reopenOverdue: [], missed: [] },
+    ],
+    [
+      "reopens a round due just before the return but still in its window",
+      [stopped("t1300", "13:00", { windowEnd: "14:00" })],
+      "13:30",
+      "13:35",
+      { reopen: ["t1300"] },
+    ],
+    [
+      "leaves a round whose window closed before the return as it was",
+      [stopped("t0900", "09:00", { windowEnd: "09:30" })],
+      "10:00",
+      "10:05",
+      { done: [], reopen: [], reopenOverdue: [], missed: [] },
+    ],
+    [
+      "reopens the latest missed round of a series as overdue and codes the earlier ones missed",
+      [stopped("t1000", "10:00"), stopped("t1100", "11:00"), stopped("t1200", "12:00")],
+      "09:30",
+      "12:30",
+      { reopen: [], reopenOverdue: ["t1200"], missed: ["t1000", "t1100"] },
+    ],
+    [
+      "catches up each series once, and each one-off task",
+      [
+        stopped("turn10", "10:00"),
+        stopped("turn11", "11:00"),
+        stopped("fluid10", "10:00", { series: "fluids" }),
+        stopped("weight", "10:30", { series: null }),
+      ],
+      "09:30",
+      "12:00",
+      { reopenOverdue: ["turn11", "fluid10", "weight"], missed: ["turn10"] },
+    ],
+    [
+      "does not catch up a series whose later occurrence was done",
+      [stopped("t1000", "10:00"), stopped("t1100", "11:00", { evidence: true })],
+      "09:30",
+      "12:00",
+      { done: ["t1100"], reopenOverdue: [], missed: ["t1000"] },
+    ],
+  ])("%s", (_label, tasks, since, now, expected) => {
+    expect(planTaskRestore(tasks, at(since), at(now))).toMatchObject(expected);
   });
 });

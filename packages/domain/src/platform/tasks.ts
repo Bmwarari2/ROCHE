@@ -104,6 +104,120 @@ export function taskTimeState(
 }
 
 // ------------------------------------------------------------------------------------------------
+// Entries that answer a task, and tasks brought back after a return or a correction
+// ------------------------------------------------------------------------------------------------
+
+/** What happened to the task an entry named (care.md rule 7; HZ-004, HZ-006). */
+export type TaskLinkOutcome = "completed" | "task_cancelled" | "task_already_closed" | "not_linked";
+
+export type TaskLinkProblem = "wrong_person" | "medicines_not_yours" | "medicines_already_closed";
+
+export type TaskLinkCheck =
+  | {
+      readonly ok: true;
+      readonly outcome: TaskLinkOutcome;
+      /** True when the nurse in charge must look at it: the round may be repeated or doubled. */
+      readonly review: boolean;
+    }
+  | { readonly ok: false; readonly problem: TaskLinkProblem; readonly message: string };
+
+const TASK_LINK_MESSAGES: Record<TaskLinkProblem, string> = {
+  wrong_person: "That task is not for this person.",
+  medicines_not_yours:
+    "This medicines task is for someone with the right permission. Ask them to record it.",
+  medicines_already_closed:
+    "This medicines task has already been recorded. Check the record before giving anything again.",
+};
+
+const isMedicinesTask = (kind: string) => kind.startsWith("medicines.");
+
+/**
+ * What an entry does to the task it names. The entry is kept whatever happened to the task (an
+ * entry recorded offline is never lost, HZ-006), except for a medicines task: one the user may not
+ * complete, or one already done or skipped, is refused, because recording it could repeat a dose
+ * (HZ-004). Otherwise an entry for a task the user may not complete, or one already closed, is kept
+ * unlinked and flagged, and the nurse in charge reviews it, since the round may be repeated or
+ * counted twice. A task cancelled by the lifecycle keeps the entry as late evidence.
+ */
+export function checkTaskLink(
+  task: { readonly personId: string | null; readonly kind: string; readonly status: TaskStatus },
+  entry: { readonly personId: string; readonly mayComplete: boolean },
+): TaskLinkCheck {
+  const refuse = (problem: TaskLinkProblem): TaskLinkCheck => ({
+    ok: false,
+    problem,
+    message: TASK_LINK_MESSAGES[problem],
+  });
+  if (task.personId !== entry.personId) return refuse("wrong_person");
+  if (!entry.mayComplete) {
+    if (isMedicinesTask(task.kind)) return refuse("medicines_not_yours");
+    return { ok: true, outcome: "not_linked", review: true };
+  }
+  if (task.status === "cancelled") return { ok: true, outcome: "task_cancelled", review: false };
+  if (task.status === "done" || task.status === "skipped") {
+    if (isMedicinesTask(task.kind)) return refuse("medicines_already_closed");
+    return { ok: true, outcome: "task_already_closed", review: true };
+  }
+  return { ok: true, outcome: "completed", review: false };
+}
+
+/** A task the people lifecycle stopped (paused while away, or ended at an exit). */
+export interface StoppedTask {
+  readonly id: string;
+  readonly seriesId: string | null;
+  readonly dueAt: Date;
+  readonly windowEnd: Date | null;
+  /** An entry answered it after it was stopped (an offline upload). */
+  readonly hasEvidence: boolean;
+}
+
+export interface TaskRestorePlan {
+  /** Answered by an entry while stopped: restored as done, never due again (HZ-003, HZ-004). */
+  readonly done: readonly string[];
+  /** Still in their window: open again. */
+  readonly reopen: readonly string[];
+  /** The latest missed occurrence of each series (or a missed one-off task): open, overdue. */
+  readonly reopenOverdue: readonly string[];
+  /** Missed earlier occurrences: stay cancelled, coded as missed, and listed for review. */
+  readonly missed: readonly string[];
+}
+
+/**
+ * What a return or a correction does with the tasks the lifecycle stopped (people.md rules 1 and
+ * 2; HZ-003, HZ-004). Only tasks whose window had not closed by `since` (when the person came
+ * back, or when the exit recorded in error began) count. A task with evidence is done. One still in
+ * its window at `now` reopens. Of the rest, the latest occurrence of each series reopens as overdue
+ * so the round is caught up once, unless a later occurrence was done; earlier ones stay missed.
+ */
+export function planTaskRestore(
+  tasks: readonly StoppedTask[],
+  since: Date,
+  now: Date,
+): TaskRestorePlan {
+  const end = (t: StoppedTask) => (t.windowEnd ?? t.dueAt).getTime();
+  const relevant = tasks.filter((t) => end(t) >= since.getTime());
+  const done = relevant.filter((t) => t.hasEvidence);
+  const rest = relevant.filter((t) => !t.hasEvidence);
+  const reopen = rest.filter((t) => end(t) >= now.getTime());
+  const late = rest.filter((t) => end(t) < now.getTime());
+  const key = (t: StoppedTask) => t.seriesId ?? t.id;
+  const latest = new Map<string, StoppedTask>();
+  for (const t of late) {
+    const current = latest.get(key(t));
+    if (!current || t.dueAt.getTime() > current.dueAt.getTime()) latest.set(key(t), t);
+  }
+  const reopenOverdue = [...latest.values()]
+    .filter((t) => !done.some((d) => key(d) === key(t) && d.dueAt.getTime() > t.dueAt.getTime()))
+    .map((t) => t.id);
+  return {
+    done: done.map((t) => t.id),
+    reopen: reopen.map((t) => t.id),
+    reopenOverdue,
+    missed: late.filter((t) => !reopenOverdue.includes(t.id)).map((t) => t.id),
+  };
+}
+
+// ------------------------------------------------------------------------------------------------
 // Recurrence
 // ------------------------------------------------------------------------------------------------
 
