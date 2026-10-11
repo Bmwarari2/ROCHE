@@ -22,6 +22,7 @@ import { auditInTx } from "../http/audit";
 import { requirePermission, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { publish } from "../outbox";
+import { contentHeaders, readDocumentContent } from "../services/documents";
 import { createRouter, errorResponses, jsonBody, notFoundResponse, security } from "./openapi";
 
 /** Break-glass access lasts long enough to deal with the situation, then lapses (section 4). */
@@ -193,12 +194,33 @@ export const peopleRouter = createRouter()
       summary: "The person's photo (shown on every point-of-care screen)",
       security,
       request: { params: PersonId },
-      responses: { ...errorResponses, ...notFoundResponse },
+      responses: {
+        200: {
+          content: {
+            "image/jpeg": { schema: z.string().meta({ format: "binary" }) },
+            "image/png": { schema: z.string().meta({ format: "binary" }) },
+            "image/webp": { schema: z.string().meta({ format: "binary" }) },
+          },
+          description: "The photo",
+        },
+        ...errorResponses,
+        ...notFoundResponse,
+      },
     }),
     async (c) => {
       await requirePermission(c, "people.person.read");
-      // The document store and S3 delivery arrive with the admission workflow in Phase 1.
-      throw problems.notFound();
+      const { id } = c.req.valid("param");
+      const { storage } = c.get("services");
+      // Not audited separately: the photo is part of a person view, which is audited.
+      const { row, bytes } = await withTenant(c, async (tx) => {
+        const [target] = await tx
+          .select({ photoDocumentId: person.photoDocumentId })
+          .from(person)
+          .where(eq(person.id, id));
+        if (!target?.photoDocumentId) throw problems.notFound();
+        return readDocumentContent(tx, storage, target.photoDocumentId);
+      });
+      return c.body(bytes as Uint8Array<ArrayBuffer>, 200, contentHeaders(row));
     },
   )
   .openapi(

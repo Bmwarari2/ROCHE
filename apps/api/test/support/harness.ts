@@ -1,4 +1,6 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { TENANT_HEADER } from "@harbour/contracts";
 import {
@@ -46,7 +48,15 @@ export interface Harness {
   readonly authIds: Record<string, string>;
   request(
     path: string,
-    init?: { token?: string; tenant?: string; method?: string; body?: unknown; origin?: string },
+    init?: {
+      token?: string;
+      tenant?: string;
+      method?: string;
+      body?: unknown;
+      origin?: string;
+      /** A raw body (file upload) sent with its own content type instead of JSON. */
+      raw?: { bytes: Uint8Array; contentType: string };
+    },
   ): Promise<Response>;
   close(): Promise<void>;
 }
@@ -141,11 +151,14 @@ export async function createHarness(): Promise<Harness> {
     DATABASE_AUTH_URL: db.url("harbour_auth"),
     DATABASE_OPERATOR_URL: db.url("harbour_operator"),
     LOG_LEVEL: "silent",
+    LOCAL_DOCUMENTS_DIR: mkdtempSync(join(tmpdir(), "harbour-documents-")),
   });
   const handle = createApp(config, createLogger("silent"));
 
   const request: Harness["request"] = (path, init = {}) => {
-    const headers = new Headers({ "content-type": "application/json" });
+    const headers = new Headers({
+      "content-type": init.raw ? init.raw.contentType : "application/json",
+    });
     if (init.token) headers.set("authorization", `Bearer ${init.token}`);
     if (init.tenant) headers.set(TENANT_HEADER, init.tenant);
     if (init.origin) headers.set("origin", init.origin);
@@ -153,7 +166,11 @@ export async function createHarness(): Promise<Harness> {
       handle.app.request(path, {
         method: init.method ?? "GET",
         headers,
-        ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+        ...(init.raw
+          ? { body: init.raw.bytes }
+          : init.body !== undefined
+            ? { body: JSON.stringify(init.body) }
+            : {}),
       }),
     );
   };

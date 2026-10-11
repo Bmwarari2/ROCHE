@@ -1,0 +1,201 @@
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { connect } from "node:net";
+import { dirname, join, resolve, sep } from "node:path";
+import {
+  DeleteObjectsCommand,
+  GetObjectCommand,
+  HeadBucketCommand,
+  ListObjectVersionsCommand,
+  NoSuchKey,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
+import type {
+  DocumentStoragePort,
+  HealthResult,
+  MalwareScanPort,
+  MalwareVerdict,
+} from "@harbour/domain";
+
+/**
+ * Document storage and malware scanning adapters (section 9.1, ASVS V5). Local disk for development
+ * and tests; S3 (SSE-KMS by bucket default, versioned) in AWS; ClamAV over its INSTREAM protocol
+ * in AWS; a mock scanner that recognises the EICAR test file for tests.
+ */
+
+const KEY_PATTERN = /^tenants\/[0-9a-f-]{36}\/documents\/[0-9a-f-]{36}$/;
+
+function assertKey(key: string): void {
+  if (!KEY_PATTERN.test(key)) throw new Error("Invalid storage key");
+}
+
+export class LocalDocumentStorage implements DocumentStoragePort {
+  readonly provider = "local";
+  private readonly root: string;
+
+  constructor(root: string) {
+    this.root = resolve(root);
+  }
+
+  private path(key: string): string {
+    assertKey(key);
+    const full = resolve(join(this.root, key));
+    if (!full.startsWith(this.root + sep)) throw new Error("Invalid storage key");
+    return full;
+  }
+
+  async put(key: string, bytes: Uint8Array): Promise<void> {
+    const path = this.path(key);
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, bytes, { mode: 0o600 });
+  }
+
+  async get(key: string): Promise<Uint8Array | null> {
+    try {
+      return new Uint8Array(await readFile(this.path(key)));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw error;
+    }
+  }
+
+  async destroy(key: string): Promise<void> {
+    await rm(this.path(key), { force: true });
+  }
+
+  async health(): Promise<HealthResult> {
+    await mkdir(this.root, { recursive: true });
+    return { ok: true, detail: "local disk" };
+  }
+}
+
+export class S3DocumentStorage implements DocumentStoragePort {
+  readonly provider = "s3";
+
+  constructor(
+    private readonly bucket: string,
+    private readonly client: S3Client = new S3Client({}),
+  ) {}
+
+  async put(key: string, bytes: Uint8Array, contentType: string): Promise<void> {
+    assertKey(key);
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: bytes,
+        ContentType: contentType,
+        // Bucket default encryption is SSE-KMS (infra); ask for it explicitly as well.
+        ServerSideEncryption: "aws:kms",
+      }),
+    );
+  }
+
+  async get(key: string): Promise<Uint8Array | null> {
+    assertKey(key);
+    try {
+      const result = await this.client.send(
+        new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
+      return result.Body ? new Uint8Array(await result.Body.transformToByteArray()) : null;
+    } catch (error) {
+      if (error instanceof NoSuchKey) return null;
+      throw error;
+    }
+  }
+
+  /** Deletes every version and delete marker, so nothing survives destruction in a versioned bucket. */
+  async destroy(key: string): Promise<void> {
+    assertKey(key);
+    let keyMarker: string | undefined;
+    let versionMarker: string | undefined;
+    do {
+      const page = await this.client.send(
+        new ListObjectVersionsCommand({
+          Bucket: this.bucket,
+          Prefix: key,
+          KeyMarker: keyMarker,
+          VersionIdMarker: versionMarker,
+        }),
+      );
+      const objects = [...(page.Versions ?? []), ...(page.DeleteMarkers ?? [])]
+        .filter((v) => v.Key === key && v.VersionId)
+        .map((v) => ({ Key: key, VersionId: v.VersionId }));
+      if (objects.length > 0) {
+        await this.client.send(
+          new DeleteObjectsCommand({
+            Bucket: this.bucket,
+            Delete: { Objects: objects, Quiet: true },
+          }),
+        );
+      }
+      keyMarker = page.IsTruncated ? page.NextKeyMarker : undefined;
+      versionMarker = page.IsTruncated ? page.NextVersionIdMarker : undefined;
+    } while (keyMarker);
+  }
+
+  async health(): Promise<HealthResult> {
+    try {
+      await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }));
+      return { ok: true, detail: "bucket reachable" };
+    } catch (error) {
+      return { ok: false, detail: error instanceof Error ? error.name : "unreachable" };
+    }
+  }
+}
+
+/** The standard anti-virus test string (not malware); scanners must flag it. */
+export const EICAR = "X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*";
+
+export class MockMalwareScanner implements MalwareScanPort {
+  readonly provider = "mock";
+
+  async scan(bytes: Uint8Array): Promise<MalwareVerdict> {
+    return Buffer.from(bytes).includes(EICAR) ? "infected" : "clean";
+  }
+}
+
+/**
+ * ClamAV daemon client (INSTREAM). Any failure is `unavailable`, which keeps the upload
+ * quarantined rather than serving an unscanned file.
+ */
+export class ClamdScanner implements MalwareScanPort {
+  readonly provider = "clamd";
+
+  constructor(
+    private readonly host: string,
+    private readonly port = 3310,
+    private readonly timeoutMs = 30_000,
+  ) {}
+
+  scan(bytes: Uint8Array): Promise<MalwareVerdict> {
+    return new Promise((done) => {
+      const socket = connect({ host: this.host, port: this.port });
+      const chunks: Buffer[] = [];
+      const finish = (verdict: MalwareVerdict) => {
+        socket.destroy();
+        done(verdict);
+      };
+      socket.setTimeout(this.timeoutMs, () => finish("unavailable"));
+      socket.on("error", () => finish("unavailable"));
+      socket.on("data", (chunk) => chunks.push(chunk));
+      socket.on("end", () => {
+        const reply = Buffer.concat(chunks).toString("utf8").replace(/\0/g, "").trim();
+        if (reply.endsWith("OK")) finish("clean");
+        else if (reply.endsWith("FOUND")) finish("infected");
+        else finish("unavailable");
+      });
+      socket.on("connect", () => {
+        socket.write("zINSTREAM\0");
+        const size = Buffer.alloc(4);
+        for (let offset = 0; offset < bytes.length; offset += 64 * 1024) {
+          const chunk = bytes.subarray(offset, offset + 64 * 1024);
+          size.writeUInt32BE(chunk.length, 0);
+          socket.write(Buffer.from(size));
+          socket.write(chunk);
+        }
+        socket.write(Buffer.alloc(4));
+      });
+    });
+  }
+}

@@ -20,10 +20,14 @@
     "seed:users": "tsx --env-file-if-exists=../../.env scripts/seed-users.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1149.0",
+    "@aws-sdk/client-sesv2": "^3.1149.0",
     "@better-auth/passkey": "^1.7.7",
     "@harbour/contracts": "workspace:*",
     "@harbour/db": "workspace:*",
     "@harbour/domain": "workspace:*",
+    "@harbour/i18n": "workspace:*",
+    "@harbour/sync": "workspace:*",
     "@hono/node-server": "^2.1.4",
     "@hono/zod-openapi": "^1.6.3",
     "better-auth": "^1.7.7",
@@ -33,10 +37,7 @@
     "pg": "^8.23.1",
     "pg-boss": "^12.37.1",
     "pino": "^10.4.0",
-    "zod": "^4.6.5",
-    "@harbour/sync": "workspace:*",
-    "@harbour/i18n": "workspace:*",
-    "@aws-sdk/client-sesv2": "^3.1149.0"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@harbour/config": "workspace:*",

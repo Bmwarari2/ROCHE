@@ -54,3 +54,6 @@ blob-report/
 
 # Claude Code agent worktrees
 .claude/worktrees/
+
+# local document storage (development and tests)
+.data/
