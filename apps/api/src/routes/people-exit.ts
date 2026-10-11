@@ -7,6 +7,8 @@ import {
   UpdateExitItem,
 } from "@harbour/contracts";
 import {
+  careNote,
+  document,
   exitChecklistItem,
   exitRecord,
   statutoryNotification,
@@ -25,9 +27,10 @@ import {
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { writeAudit } from "../http/audit";
 import { requirePermission, withTenant } from "../http/context";
-import { problems } from "../http/problem";
-import { DEATH_NOTIFICATION_KINDS } from "../services/death-notifications";
+import { HttpProblem, problems } from "../http/problem";
+import { draftedKinds, notificationsForExit } from "../services/death-notifications";
 import {
   contextOfExit,
   loadPerson,
@@ -75,6 +78,37 @@ type ItemRow = typeof exitChecklistItem.$inferSelect;
 /** Items counted from their own records: the inventory and the keys log. */
 const DERIVED_FROM_RECORDS = new Set(["property_returned", "keys_returned"]);
 
+/** The evidence an item may cite must be the same person's record. */
+async function evidenceBelongs(
+  tx: Transaction,
+  personId: string,
+  type: string,
+  id: string,
+): Promise<boolean> {
+  const owner = async (rows: Promise<{ personId: string | null }[]>) =>
+    (await rows)[0]?.personId === personId;
+  switch (type) {
+    case "statutory_notification":
+      return owner(
+        tx
+          .select({ personId: statutoryNotification.personId })
+          .from(statutoryNotification)
+          .where(eq(statutoryNotification.id, id)),
+      );
+    case "document":
+      return owner(
+        tx.select({ personId: document.personId }).from(document).where(eq(document.id, id)),
+      );
+    case "note":
+      return owner(
+        tx.select({ personId: careNote.personId }).from(careNote).where(eq(careNote.id, id)),
+      );
+    default:
+      // Residents' money ledger entries arrive with the finance module (Phase 3).
+      return false;
+  }
+}
+
 async function latestExit(tx: Transaction, personId: string): Promise<ExitRow | null> {
   const [row] = await tx
     .select()
@@ -106,23 +140,15 @@ async function exitState(tx: Transaction, exit: ExitRow) {
   const states: Record<string, ExitItemState> = {};
   for (const row of rows) states[row.itemKey] = storedState(row);
 
-  // Statutory notifications are drafted and submitted in the safety module (HZ-013): their items
-  // follow the draft once there is one.
-  const notifications = await tx
-    .select()
-    .from(statutoryNotification)
-    .where(
-      and(
-        eq(statutoryNotification.personId, exit.personId),
-        inArray(statutoryNotification.kind, Object.values(DEATH_NOTIFICATION_KINDS)),
-        eq(statutoryNotification.noLongerIndicated, false),
-      ),
-    );
+  // Notifications drafted in the safety module (HZ-013) follow their draft once there is one:
+  // this death's drafts only, never those of an earlier death recorded in error.
+  const forExit = await notificationsForExit(tx, exit);
+  const drafts = new Map<string, typeof statutoryNotification.$inferSelect>();
   const fromSafety = new Set<string>();
-  for (const [itemKey, kind] of Object.entries(DEATH_NOTIFICATION_KINDS)) {
-    if (exit.kind !== "death") continue;
-    const draft = notifications.find((n) => n.kind === kind);
-    if (!draft) continue;
+  for (const [itemKey, kind] of draftedKinds(exit)) {
+    const draft = forExit.get(kind);
+    if (!draft || draft.noLongerIndicated) continue;
+    drafts.set(itemKey, draft);
     fromSafety.add(itemKey);
     if (draft.status === "submitted" && draft.submittedBy && draft.submittedAt) {
       states[itemKey] = {
@@ -165,11 +191,11 @@ async function exitState(tx: Transaction, exit: ExitRow) {
         : 1
       : null,
   });
-  return { context, definitions, rows, states, status, fromSafety, notifications };
+  return { context, definitions, rows, states, status, fromSafety, drafts };
 }
 
 async function exitOut(tx: Transaction, exit: ExitRow): Promise<ExitOut> {
-  const { context, definitions, rows, states, status, fromSafety, notifications } = await exitState(
+  const { context, definitions, rows, states, status, fromSafety, drafts } = await exitState(
     tx,
     exit,
   );
@@ -214,9 +240,7 @@ async function exitOut(tx: Transaction, exit: ExitRow): Promise<ExitOut> {
       const recordsDone =
         DERIVED_FROM_RECORDS.has(definition.key) &&
         !status.outstandingReturns.includes(definition.key);
-      const draft = fromSafety.has(definition.key)
-        ? notifications.find((n) => n.kind === DEATH_NOTIFICATION_KINDS[definition.key])
-        : undefined;
+      const draft = drafts.get(definition.key);
       const effective = recordsDone ? "done" : state.status;
       return {
         key: definition.key,
@@ -269,7 +293,6 @@ function requireExitWrite(p: PersonRecord) {
 }
 
 const DEFAULT_DETAILS: ExitDetails = {
-  learningDisabilityOrAutism: false,
   homeIsDwpAppointee: false,
   holdsResidentsMoney: false,
   holdsDeposit: false,
@@ -368,16 +391,36 @@ export const peopleExitRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requireAnyPermission(c, [
-        "people.admission.manage",
-        "people.movement.record",
-      ]);
       const { id, itemKey } = c.req.valid("param");
       const body = c.req.valid("json");
       const now = new Date();
       if ((body.evidenceType === undefined) !== (body.evidenceId === undefined)) {
         throw problems.invalid("Name both the kind of evidence and its id, or neither.");
       }
+      // Residents' money and deposits (finance items) are confirmed only with the finance
+      // approval permission, which needs a fresh sign-in (step-up), and never by whoever recorded
+      // the exit (separation of duties for residents' money).
+      const owner = await withTenant(c, async (tx) => {
+        await loadPerson(tx, id);
+        const exit = await latestExit(tx, id);
+        const [item] = exit
+          ? await tx
+              .select({ owner: exitChecklistItem.owner })
+              .from(exitChecklistItem)
+              .where(
+                and(
+                  eq(exitChecklistItem.exitRecordId, exit.id),
+                  eq(exitChecklistItem.itemKey, itemKey),
+                  isNull(exitChecklistItem.deletedAt),
+                ),
+              )
+          : [];
+        return item?.owner ?? null;
+      });
+      const finance = owner === "finance";
+      const access = finance
+        ? await requirePermission(c, "finance.ledger.approve")
+        : await requireAnyPermission(c, ["people.admission.manage", "people.movement.record"]);
       const view = await withTenant(c, async (tx) => {
         const p = await loadPerson(tx, id);
         requireExitWrite(p);
@@ -388,6 +431,29 @@ export const peopleExitRouter = createRouter()
         const row = state.rows.find((r) => r.itemKey === itemKey);
         if (!row) throw problems.notFound();
         requireVersion(row.version, body.version);
+        if (finance && body.status !== "pending" && exit.createdBy === access.tenantUserId) {
+          await writeAudit(c.get("services").appPool, access, {
+            action: "people.exit.item",
+            outcome: "denied",
+            resourceType: "exit_checklist_item",
+            resourceId: row.id,
+            reason: "separation_of_duties",
+            requestId: c.get("requestId"),
+          });
+          throw new HttpProblem(
+            403,
+            "separation_of_duties",
+            "Someone else must confirm this.",
+            "The person who recorded the exit cannot also confirm the return of the person's money or deposit.",
+          );
+        }
+        if (
+          body.evidenceType &&
+          body.evidenceId &&
+          !(await evidenceBelongs(tx, id, body.evidenceType, body.evidenceId))
+        ) {
+          throw problems.invalid("The evidence was not found in this person's record.");
+        }
         if (DERIVED_FROM_RECORDS.has(itemKey)) {
           throw problems.invalid(
             "This is counted from the property inventory and the keys log: record each return there.",
@@ -541,7 +607,11 @@ export const peopleExitRouter = createRouter()
                     evidenceType: "exit_record",
                     evidenceId: exit.id,
                   }
-                : { status: "cancelled", statusReason: "The planned exit was cancelled" },
+                : {
+                    status: "cancelled",
+                    statusReason: "The planned exit was cancelled",
+                    cancelCode: "planned_exit_cancelled",
+                  },
             )
             .where(
               and(

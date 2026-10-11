@@ -263,6 +263,13 @@ export const peoplePropertyRouter = createRouter()
             .where(eq(propertyItem.id, body.id));
           if (replayed) {
             if (replayed.personId !== id) throw problems.invalid("That id is already used.");
+            // A replay returns the stored record: audited as a view of it.
+            await audit(c, tx, access, {
+              action: "people.property.view",
+              resourceType: "property_item",
+              resourceId: replayed.id,
+              scope: { replay: true },
+            });
             return propertyItemOut(replayed);
           }
         }
@@ -573,6 +580,12 @@ export const peoplePropertyRouter = createRouter()
           const [replayed] = await tx.select().from(keyIssue).where(eq(keyIssue.id, body.id));
           if (replayed) {
             if (replayed.personId !== id) throw problems.invalid("That id is already used.");
+            await audit(c, tx, access, {
+              action: "people.key.view",
+              resourceType: "key_issue",
+              resourceId: replayed.id,
+              scope: { replay: true },
+            });
             return keyOut(replayed);
           }
         }

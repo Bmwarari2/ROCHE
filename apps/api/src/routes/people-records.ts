@@ -70,6 +70,8 @@ import {
   iso,
   PersonParam,
   requireAnyPermission,
+  requireOwnDocument,
+  requireStepUp,
 } from "./people-shared";
 
 /**
@@ -375,6 +377,8 @@ export const peopleRecordsRouter = createRouter()
     }),
     async (c) => {
       const access = await requirePermission(c, "people.sharing.manage");
+      // A link opens About Me to whoever holds it: it needs a fresh sign-in (step-up).
+      await requireStepUp(c, access, "people.about_me.link.create");
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const now = new Date();
@@ -601,6 +605,7 @@ export const peopleRecordsRouter = createRouter()
         if (covered.some((changeId) => !open.some((x) => x.id === changeId))) {
           throw problems.invalid("A change named was not found, or has already been reviewed.");
         }
+        await requireOwnDocument(tx, id, body.documentId, "review document");
         const [row] = await tx
           .insert(reviewRecord)
           .values({
