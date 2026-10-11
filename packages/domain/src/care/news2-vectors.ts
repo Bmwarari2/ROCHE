@@ -614,4 +614,112 @@ export const NEWS2_REFERENCE_VECTORS: readonly News2ReferenceVector[] = [
       redScore: false,
     },
   },
+  {
+    // RR 8 (3) + pulse 95 (1) = 4: a total in the low range with a single 3, which makes it low-medium. (Clinical review round 5.)
+    name: "total 4 including a single 3",
+    input: { ...normal, respirationRate: 8, pulse: 95 },
+    expected: {
+      points: points({ respirationRate: 3, pulse: 1 }),
+      score: 4,
+      band: "low_medium",
+      threshold: "single_parameter_3",
+      redScore: true,
+    },
+  },
+  {
+    // Scale 2 on air: 88 to 92 scores 0. (Clinical review round 5.)
+    name: "SpO2 88 on air, scale 2",
+    input: { ...normal, spo2: 88, spo2Scale2Decision: true },
+    expected: {
+      points: ZERO,
+      score: 0,
+      band: "low",
+      threshold: "score_0",
+      redScore: false,
+    },
+  },
+  {
+    // Scale 2 on air: 93 or more scores 0. (Clinical review round 5.)
+    name: "SpO2 93 on air, scale 2",
+    input: { ...normal, spo2: 93, spo2Scale2Decision: true },
+    expected: {
+      points: ZERO,
+      score: 0,
+      band: "low",
+      threshold: "score_0",
+      redScore: false,
+    },
+  },
+  {
+    // Scale 1: 91 or less scores 3. (Clinical review round 5.)
+    name: "SpO2 91 on air, scale 1",
+    input: { ...normal, spo2: 91 },
+    expected: {
+      points: points({ spo2: 3 }),
+      score: 3,
+      band: "low_medium",
+      threshold: "single_parameter_3",
+      redScore: true,
+    },
+  },
+  {
+    // Scale 1: 96 or more scores 0. (Clinical review round 5.)
+    name: "SpO2 96 on air, scale 1",
+    input: { ...normal, spo2: 96 },
+    expected: {
+      points: ZERO,
+      score: 0,
+      band: "low",
+      threshold: "score_0",
+      redScore: false,
+    },
+  },
+  {
+    // Systolic 91 to 100 scores 2. (Clinical review round 5.)
+    name: "systolic 91 alone",
+    input: { ...normal, systolicBp: 91 },
+    expected: {
+      points: points({ systolicBp: 2 }),
+      score: 2,
+      band: "low",
+      threshold: "score_1_to_4",
+      redScore: false,
+    },
+  },
+  {
+    // Systolic 111 to 219 scores 0. (Clinical review round 5.)
+    name: "systolic 111 alone",
+    input: { ...normal, systolicBp: 111 },
+    expected: {
+      points: ZERO,
+      score: 0,
+      band: "low",
+      threshold: "score_0",
+      redScore: false,
+    },
+  },
+  {
+    // Responds to pain (the P of ACVPU) scores 3. (Clinical review round 5.)
+    name: "responds to pain alone",
+    input: { ...normal, consciousness: "pain" },
+    expected: {
+      points: points({ consciousness: 3 }),
+      score: 3,
+      band: "low_medium",
+      threshold: "single_parameter_3",
+      redScore: true,
+    },
+  },
+  {
+    // Unresponsive (the U of ACVPU) scores 3. (Clinical review round 5.)
+    name: "unresponsive alone",
+    input: { ...normal, consciousness: "unresponsive" },
+    expected: {
+      points: points({ consciousness: 3 }),
+      score: 3,
+      band: "low_medium",
+      threshold: "single_parameter_3",
+      redScore: true,
+    },
+  },
 ];
