@@ -626,6 +626,35 @@ describe("hazard HZ-023 the hospital transfer pack and the transfer", () => {
     expect(await code(refused)).toBe("transfer_pack_not_receiving_care");
   });
 
+  it("hazard HZ-015 prints the current resuscitation record in the pack", async () => {
+    const recorded = await as("manager", `/v1/people/${resident(2)}/advance-care`, {
+      method: "POST",
+      body: {
+        kind: "dnacpr",
+        clinicianName: "Dr Example",
+        clinicianRole: "GP",
+        completedOn: ukIsoDate(new Date(Date.now() - DAY)),
+      },
+    });
+    expect(recorded.status).toBe(201);
+    const pack = await json<TransferPack>(
+      await as("manager", `/v1/people/${resident(2)}/transfer-pack`),
+    );
+    expect(pack.missingCritical).not.toContain("resuscitation");
+    expect(pack.sections.find((s) => s.key === "resuscitation")?.status).toBe("included");
+    expect(pack.content.resuscitation).toMatchObject({
+      status: "recorded",
+      records: [
+        {
+          kind: "dnacpr",
+          summary: "Not for cardiopulmonary resuscitation",
+          clinician: "Dr Example, GP",
+          active: true,
+        },
+      ],
+    });
+  });
+
   it("sends the person to hospital with the pack, pausing rounds and keeping the bed", async () => {
     roundTask = await asDemoTenant(async (c) => {
       const series = await c.query<{ id: string }>(
