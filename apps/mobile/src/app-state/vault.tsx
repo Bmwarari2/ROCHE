@@ -7,8 +7,11 @@
  * - Auto-lock after idle (2 minutes personal, 30 seconds to 2 minutes shared) covers the app with
  *   the lock screen; the database stays open so sync carries on, and unlocking again needs strong
  *   biometrics or the passcode.
- * - Sign-out, or the API reporting the session revoked, wipes the device: the database is cleared,
- *   closed and deleted, and the key destroyed, so nothing readable remains (remote wipe).
+ * - Sign-out wipes the device: the database is cleared, closed and deleted, and the key destroyed,
+ *   so nothing readable remains. When the API says the session has ended (401 or 403), the device
+ *   is wiped only if nothing is waiting to upload; otherwise the encrypted database is kept for its
+ *   owner to sign in again and send, because an expired session looks the same as a revoked one
+ *   (HZ-006, `held-work.ts`).
  */
 
 import { nextWindowChange } from "@harbour/sync/client";
@@ -37,13 +40,19 @@ import {
   DeviceNotSecureError,
   unlockFailureMessages,
 } from "../security/biometric";
-import { databaseFilename, destroyDatabaseKey, loadOrCreateDatabaseKey } from "../security/db-key";
+import {
+  DB_ID_ITEM,
+  databaseFilename,
+  destroyDatabaseKey,
+  loadOrCreateDatabaseKey,
+} from "../security/db-key";
 import { type DeviceIntegrityResult, stubIntegrityChecker } from "../security/device-integrity";
 import { IdleTimer } from "../security/idle-timer";
 import { HarbourConnector } from "../sync/connector";
 import { deleteDatabaseFile, EncryptionUnavailableError, openDatabase } from "../sync/database";
 import { seedDemoDatabase } from "../sync/demo-seed";
 import { resolveOfflineWindow } from "../sync/offline-window";
+import { countPendingWork, discardHeldWork, type HeldWork, handleSessionEnded } from "./held-work";
 import { usePreferences } from "./preferences";
 import { useSession } from "./session";
 
@@ -70,6 +79,13 @@ interface VaultValue {
   retrySync(): Promise<void>;
   forceResync(): Promise<ResyncResult>;
   signOutAndWipe(notice?: string): Promise<void>;
+  /** Counts what has not reached the server: queued changes and refused entries. */
+  countUnsent(): Promise<number>;
+  /**
+   * "Sign out and delete N unsent entries": deletes the held database and its key for good (lost
+   * device or leaver), after a confirmation naming the count.
+   */
+  discardHeld(): Promise<void>;
   dismissResetNotice(): void;
 }
 
@@ -116,6 +132,9 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
   const wipingRef = useRef(false);
   const busyRef = useRef(false);
   const signOutAndWipeRef = useRef<(notice?: string) => Promise<void>>(async () => undefined);
+  const sessionEndedRef = useRef<() => Promise<void>>(async () => undefined);
+  const meRef = useRef(session.me);
+  meRef.current = session.me;
 
   tokenRef.current = session.token;
   tenantRef.current = session.me?.tenant.id ?? null;
@@ -224,13 +243,13 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
         fetch: platformFetch,
         getToken: async () => tokenRef.current,
         onSessionRevoked: () => {
-          void signOutAndWipeRef.current(REMOTE_WIPE_NOTICE);
+          void sessionEndedRef.current();
         },
       });
       connectorRef.current = connector;
       connectSync(opened, connector).catch(() => undefined);
       session.refreshMe().then((result) => {
-        if (result === "ended") void signOutAndWipeRef.current(REMOTE_WIPE_NOTICE);
+        if (result === "ended") void sessionEndedRef.current();
       });
     }
     setDb(opened);
@@ -293,6 +312,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
         }
         await closeAndDelete(true);
         await destroyDatabaseKey(secretStore, keyOptions);
+        await session.clearHeld();
         clearPhotoCache();
         setDemoSeededAt(null);
         setIntegrity(null);
@@ -304,9 +324,77 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
         wipingRef.current = false;
       }
     },
-    [closeAndDelete, idle, session.clearSession],
+    [closeAndDelete, idle, session.clearSession, session.clearHeld],
   );
   signOutAndWipeRef.current = signOutAndWipe;
+
+  /** Stops syncing and closes the database, keeping the file and its key (HZ-006). */
+  const closeKeepingData = useCallback(async () => {
+    const current = dbRef.current;
+    dbRef.current = null;
+    filenameRef.current = null;
+    connectorRef.current = null;
+    setDb(null);
+    if (current) {
+      await current.disconnect().catch(() => undefined);
+      await current.close().catch(() => undefined);
+    }
+  }, []);
+
+  const holdingRef = useRef(false);
+
+  /**
+   * The API says the session has ended. With nothing unsent the device is wiped as before; with
+   * entries waiting, uploads stop and the encrypted database is kept for its owner (HZ-006).
+   */
+  const sessionEnded = useCallback(async () => {
+    if (wipingRef.current || holdingRef.current) return;
+    holdingRef.current = true;
+    try {
+      const current = dbRef.current;
+      await handleSessionEnded({
+        countPending: async () => (current ? countPendingWork(current) : null),
+        owner: meRef.current,
+        now: new Date(),
+        wipe: () => signOutAndWipe(REMOTE_WIPE_NOTICE),
+        hold: async (held: HeldWork) => {
+          idle.stop();
+          setStatus("locked");
+          await closeKeepingData();
+          clearPhotoCache();
+          setOfflineWindowDays(null);
+          windowValidUntilRef.current = null;
+          setError(null);
+          await session.holdSession(held);
+        },
+      });
+    } finally {
+      holdingRef.current = false;
+    }
+  }, [closeKeepingData, idle, session.holdSession, signOutAndWipe]);
+  sessionEndedRef.current = sessionEnded;
+
+  const countUnsent = useCallback(async () => {
+    const current = dbRef.current;
+    if (!current) return 0;
+    const counts = await countPendingWork(current).catch(() => ({ queued: 0, refused: 0 }));
+    return counts.queued + counts.refused;
+  }, []);
+
+  const discardHeld = useCallback(async () => {
+    await closeKeepingData();
+    await discardHeldWork({
+      readDatabaseId: () => secretStore.getItem(DB_ID_ITEM, keyOptions.plainOptions),
+      deleteDatabaseFile,
+      destroyKey: () => destroyDatabaseKey(secretStore, keyOptions),
+      clearHeld: session.clearHeld,
+      demo: appEnv.demoMode,
+    });
+    clearPhotoCache();
+    setError(null);
+    // A full sign-out: the kept app mode goes too, so the next person starts fresh.
+    await session.clearSession();
+  }, [closeKeepingData, session.clearHeld, session.clearSession]);
 
   const retrySync = useCallback(async () => {
     const current = dbRef.current;
@@ -359,9 +447,12 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
   }, [connectSync]);
 
   // A remote sign-out can arrive while locked; make sure nothing stays open after the session ends.
+  // Held entries (HZ-006) keep their file: the database is only closed.
   useEffect(() => {
-    if (session.phase === "signedOut" && dbRef.current) void closeAndDelete(true);
-  }, [session.phase, closeAndDelete]);
+    if (session.phase !== "signedOut" || !dbRef.current) return;
+    if (session.held) void closeKeepingData();
+    else void closeAndDelete(true);
+  }, [session.phase, session.held, closeAndDelete, closeKeepingData]);
 
   const touch = useCallback(() => idle.touch(), [idle]);
   const dismissResetNotice = useCallback(() => setResetNotice(null), []);
@@ -382,6 +473,8 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       retrySync,
       forceResync,
       signOutAndWipe,
+      countUnsent,
+      discardHeld,
       dismissResetNotice,
     }),
     [
@@ -399,6 +492,8 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       retrySync,
       forceResync,
       signOutAndWipe,
+      countUnsent,
+      discardHeld,
       dismissResetNotice,
     ],
   );

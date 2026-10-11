@@ -2,8 +2,9 @@
  * PowerSync backend connector for the Harbour API.
  *
  * - fetchCredentials: exchanges the Better Auth session for a short-lived PowerSync token
- *   (`POST /v1/sync/token`). A 401 or 403 means the session or device was revoked elsewhere, which
- *   triggers the remote wipe of the local database.
+ *   (`POST /v1/sync/token`). A 401 or 403 means the session expired or was revoked elsewhere; the
+ *   connector reports it and the vault decides (HZ-006, `held-work.ts`): wipe when nothing is
+ *   waiting to upload, otherwise keep the encrypted entries for their owner to sign in and send.
  * - uploadData: sends the next local transaction. Care entries (notes, chart observations,
  *   body-map marks, activities and visits) go one by one to the API's own endpoints for them
  *   (`care-upload.ts`) with the device's UUIDv7, the device id, the tenant and the time the device

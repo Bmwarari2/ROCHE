@@ -53,6 +53,11 @@ export type SignInResult =
 export interface Me {
   readonly user: { readonly id: string; readonly name: string };
   readonly tenant: { readonly id: string; readonly name: string };
+  /**
+   * The tenant_user id: who owns entries written on this device. Null when an older cached answer
+   * lacks it (the auth user id and tenant are compared instead).
+   */
+  readonly tenantUserId: string | null;
   readonly locations: ReadonlyArray<{ readonly id: string; readonly name: string }>;
   readonly permissions: readonly string[];
 }
@@ -96,6 +101,8 @@ export function parseMe(value: unknown): Me {
   return {
     user: { id: value.user.id, name: value.user.name },
     tenant: { id: value.tenant.id, name: value.tenant.name },
+    tenantUserId:
+      typeof value.tenantUserId === "string" && value.tenantUserId ? value.tenantUserId : null,
     locations: value.locations.map((l) => ({ id: l.id, name: l.name })),
     permissions: [...value.permissions],
   };

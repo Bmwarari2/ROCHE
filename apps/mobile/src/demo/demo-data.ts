@@ -12,6 +12,7 @@ export const DEMO_SEEDED_AT_KEY = "demo_seeded_at";
 export const demoMe: Me = {
   user: { id: "00000000-0000-4000-8000-00000000d201", name: "Demo Carer" },
   tenant: { id: DEMO_TENANT_ID, name: "Example Care (demo)" },
+  tenantUserId: "00000000-0000-4000-8000-00000000d202",
   locations: [{ id: DEMO_LOCATION_ID, name: "Example House" }],
   permissions: ["people.person.read"],
 };

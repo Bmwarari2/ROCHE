@@ -28,6 +28,7 @@ const json = (body: unknown, init: ResponseInit = {}) =>
 const me = {
   user: { id: "u1", name: "Ada Example" },
   tenant: { id: "t1", name: "Example Care Ltd" },
+  tenantUserId: "tu-1",
   locations: [{ id: "l1", name: "Example House" }],
   permissions: ["people.person.read"],
 };
@@ -164,6 +165,11 @@ describe("getMe and signOut", () => {
 });
 
 describe("parseMe", () => {
+  it("keeps the tenant_user id, which owns the entries written on this device", () => {
+    expect(parseMe(me).tenantUserId).toBe("tu-1");
+    expect(parseMe({ ...me, tenantUserId: undefined }).tenantUserId).toBeNull();
+  });
+
   it.each([
     null,
     {},

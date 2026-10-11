@@ -221,5 +221,15 @@
   "mobile.summary.news2": "NEWS2 {score}, clinical risk {risk}",
   "mobile.risks.assessmentBand": "{band, select, low {Low risk} medium {Medium risk} high {High risk} not_at_risk {Not at risk} at_risk {At risk} high_risk {High risk} very_high_risk {Very high risk} severe_risk {Severe risk} moderate_risk {Moderate risk} below_at_risk_threshold {Below the at-risk threshold} other {Result recorded}}",
   "mobile.common.selected": "Selected",
-  "mobile.security.compromised": "This device may be rooted or jailbroken, so it is not safe for care records. Medicines features stay switched off. Tell your manager."
+  "mobile.security.compromised": "This device may be rooted or jailbroken, so it is not safe for care records. Medicines features stay switched off. Tell your manager.",
+  "mobile.held.title": "{count, plural, one {Sign in again to send # entry} other {Sign in again to send # entries}}",
+  "mobile.held.titleUnknown": "Sign in again to send your unsent entries",
+  "mobile.held.body": "Your session ended before these entries reached Harbour. They are kept encrypted on this device, and nothing is sent until the member of staff who wrote them signs in again.",
+  "mobile.held.otherUser": "Entries from another member of staff are waiting. They need to sign in to send them.",
+  "mobile.held.discard": "{count, plural, one {Sign out and delete # unsent entry} other {Sign out and delete # unsent entries}}",
+  "mobile.held.discardUnknown": "Sign out and delete the unsent entries",
+  "mobile.held.discardTitle": "{count, plural, one {Delete # unsent entry?} other {Delete # unsent entries?}}",
+  "mobile.held.discardTitleUnknown": "Delete the unsent entries?",
+  "mobile.held.discardBody": "They have not reached Harbour and cannot be recovered. Use this only when the member of staff who wrote them cannot sign in again, and tell the nurse in charge so the care can be recorded again.",
+  "mobile.held.discardConfirm": "Delete for good"
 }

@@ -188,12 +188,15 @@ describe("fetchCredentials", () => {
     expect(calls).toHaveLength(0);
   });
 
-  it.each([401, 403])("treats %i as a revoked session and triggers the wipe", async (status) => {
-    const { fetch } = fakeFetch([json({}, status)]);
-    const { instance, revoked } = connector(fetch);
-    await expect(instance.fetchCredentials()).resolves.toBeNull();
-    expect(revoked.count).toBe(1);
-  });
+  it.each([401, 403])(
+    "treats %i as an ended session and reports it for the hold-or-wipe rule",
+    async (status) => {
+      const { fetch } = fakeFetch([json({}, status)]);
+      const { instance, revoked } = connector(fetch);
+      await expect(instance.fetchCredentials()).resolves.toBeNull();
+      expect(revoked.count).toBe(1);
+    },
+  );
 
   it("throws on server errors so PowerSync retries the connection", async () => {
     const { fetch } = fakeFetch([json({}, 503)]);
@@ -363,7 +366,7 @@ describe("uploadData: care entries go to their own endpoints", () => {
     expect(queue.issues()).toEqual([]);
   });
 
-  it("stops and triggers the wipe when the session was revoked", async () => {
+  it("stops and reports the ended session, leaving the entry queued", async () => {
     const { fetch } = fakeFetch([json({}, 401)]);
     const { instance, revoked } = connector(fetch);
     const queue = fakeQueue([note()]);
@@ -463,7 +466,7 @@ describe("uploadData: other tables through /v1/sync/upload", () => {
     expect(queue.state.completed).toBe(1);
   });
 
-  it.each([401, 403])("stops and triggers the wipe on %i", async (status) => {
+  it.each([401, 403])("stops and reports the ended session on %i", async (status) => {
     const { fetch } = fakeFetch([json({}, status)]);
     const { instance, revoked } = connector(fetch);
     const queue = fakeQueue([other]);

@@ -1,6 +1,7 @@
 import { Button, Text, useHaptics, useTheme } from "@harbour/ui-native";
 import { useRef, useState } from "react";
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -9,19 +10,80 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { HeldWorkOwnerError } from "../app-state/held-work";
 import { useSession } from "../app-state/session";
+import { useVault } from "../app-state/vault";
 import { AuthError, type TwoFactorChallenge } from "../auth/auth-client";
 import { authClient } from "../auth/clients";
+import { Card } from "../components/Card";
 import { TextField } from "../components/TextField";
 import { appEnv } from "../config/app-env";
 import { DEMO_TOTP_CODE } from "../demo/demo-auth";
+import { t } from "../i18n/t";
 
 type Step =
   | { readonly kind: "credentials" }
   | { readonly kind: "totp"; readonly challenge: TwoFactorChallenge };
 
 function messageFor(error: unknown): string {
-  return error instanceof AuthError ? error.message : new AuthError("unexpected").message;
+  if (error instanceof AuthError || error instanceof HeldWorkOwnerError) return error.message;
+  return new AuthError("unexpected").message;
+}
+
+/**
+ * Entries kept on the device after the session ended (HZ-006): only their owner can sign in and
+ * send them. "Sign out and delete N unsent entries" removes them for good after a confirmation that
+ * names the count.
+ */
+function HeldEntries({ entries }: { readonly entries: number | null }) {
+  const theme = useTheme();
+  const vault = useVault();
+  const [deleting, setDeleting] = useState(false);
+
+  const confirmDiscard = () => {
+    Alert.alert(
+      entries === null
+        ? t("mobile.held.discardTitleUnknown")
+        : t("mobile.held.discardTitle", { count: entries }),
+      t("mobile.held.discardBody"),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        {
+          text: t("mobile.held.discardConfirm"),
+          style: "destructive",
+          onPress: () => {
+            setDeleting(true);
+            vault.discardHeld().finally(() => setDeleting(false));
+          },
+        },
+      ],
+    );
+  };
+
+  return (
+    <Card testID="held-entries">
+      <View accessible accessibilityRole="alert" style={{ gap: theme.space[1] }}>
+        <Text emphasis>
+          {entries === null
+            ? t("mobile.held.titleUnknown")
+            : t("mobile.held.title", { count: entries })}
+        </Text>
+        <Text variant="bodyDense">{t("mobile.held.body")}</Text>
+      </View>
+      <Button
+        label={
+          entries === null
+            ? t("mobile.held.discardUnknown")
+            : t("mobile.held.discard", { count: entries })
+        }
+        variant="destructive"
+        onPress={confirmDiscard}
+        loading={deleting}
+        fullWidth
+        testID="held-discard-button"
+      />
+    </Card>
+  );
 }
 
 /** Email and password, then the authenticator code when the account has TOTP. */
@@ -100,6 +162,8 @@ export default function SignInScreen() {
                 : "Enter the 6-digit code from your authenticator app."}
             </Text>
           </View>
+
+          {session.held ? <HeldEntries entries={session.held.entries} /> : null}
 
           {session.notice ? (
             <Text tone="warning" accessibilityRole="alert" testID="sign-in-notice">

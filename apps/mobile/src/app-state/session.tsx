@@ -16,12 +16,14 @@ import { AuthError, type Me, parseMe } from "../auth/auth-client";
 import { authClient } from "../auth/clients";
 import {
   deletePlain,
+  HELD_WORK_ITEM,
   ME_ITEM,
   MODE_ITEM,
   readPlain,
   SESSION_TOKEN_ITEM,
   writePlain,
 } from "../platform/secure-store";
+import { admitSignIn, type HeldWork, parseHeldWork, serialiseHeldWork } from "./held-work";
 import { type AppMode, parseAppMode } from "./preferences-model";
 
 export type SessionPhase = "loading" | "signedOut" | "signedIn";
@@ -33,6 +35,11 @@ interface SessionValue {
   readonly mode: AppMode | null;
   /** A message for the sign-in screen, for example after a remote sign-out. */
   readonly notice: string | null;
+  /**
+   * Entries kept on the device after the session ended (HZ-006): only their owner can sign in
+   * and send them, or they can be deleted with "Sign out and delete N unsent entries".
+   */
+  readonly held: HeldWork | null;
   /** Stores a new session after sign-in and loads the user's details. */
   completeSignIn(token: string): Promise<void>;
   /** Refreshes `/v1/me` when online; an ended session is reported to the caller. */
@@ -40,6 +47,10 @@ interface SessionValue {
   setMode(mode: AppMode): void;
   /** Forgets the session. Callers wipe the device first (see the vault). */
   clearSession(notice?: string): Promise<void>;
+  /** Ends the session but keeps the device's unsent entries for their owner. */
+  holdSession(held: HeldWork): Promise<void>;
+  /** Forgets the held entries marker (after the owner signed in, or a deliberate delete). */
+  clearHeld(): Promise<void>;
   dismissNotice(): void;
 }
 
@@ -60,16 +71,19 @@ export function SessionProvider({ children }: { readonly children: ReactNode }) 
   const [me, setMe] = useState<Me | null>(null);
   const [mode, setModeState] = useState<AppMode | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [held, setHeld] = useState<HeldWork | null>(null);
 
   useEffect(() => {
     let active = true;
     (async () => {
-      const [storedToken, storedMe, storedMode] = await Promise.all([
+      const [storedToken, storedMe, storedMode, storedHeld] = await Promise.all([
         readPlain(SESSION_TOKEN_ITEM),
         readPlain(ME_ITEM),
         readPlain(MODE_ITEM),
+        readPlain(HELD_WORK_ITEM),
       ]);
       if (!active) return;
+      setHeld(parseHeldWork(storedHeld));
       const parsedMe = parseStoredMe(storedMe);
       // Without the cached tenant the app cannot scope offline queries, so it starts signed out.
       if (storedToken && parsedMe) {
@@ -88,6 +102,18 @@ export function SessionProvider({ children }: { readonly children: ReactNode }) 
 
   const completeSignIn = useCallback(async (newToken: string) => {
     const loaded = await authClient.getMe(newToken);
+    // Entries held for someone else stay held: this sign-in is ended and refused (HZ-006).
+    const admitted = await admitSignIn({
+      held: parseHeldWork(await readPlain(HELD_WORK_ITEM)),
+      me: loaded,
+      token: newToken,
+      signOut: (token) => authClient.signOut(token),
+    });
+    if (admitted === "resume") {
+      // The owner is back: the vault reopens the same encrypted database and uploads resume.
+      await deletePlain(HELD_WORK_ITEM);
+      setHeld(null);
+    }
     await writePlain(SESSION_TOKEN_ITEM, newToken);
     await writePlain(ME_ITEM, JSON.stringify(loaded));
     setToken(newToken);
@@ -127,6 +153,22 @@ export function SessionProvider({ children }: { readonly children: ReactNode }) 
     setPhase("signedOut");
   }, []);
 
+  const holdSession = useCallback(async (next: HeldWork) => {
+    await writePlain(HELD_WORK_ITEM, serialiseHeldWork(next));
+    // The mode is kept so the owner goes straight back to Care mode after signing in again.
+    await Promise.all([deletePlain(SESSION_TOKEN_ITEM), deletePlain(ME_ITEM)]);
+    setHeld(next);
+    setToken(null);
+    setMe(null);
+    setNotice(null);
+    setPhase("signedOut");
+  }, []);
+
+  const clearHeld = useCallback(async () => {
+    await deletePlain(HELD_WORK_ITEM);
+    setHeld(null);
+  }, []);
+
   const dismissNotice = useCallback(() => setNotice(null), []);
 
   const value = useMemo<SessionValue>(
@@ -136,10 +178,13 @@ export function SessionProvider({ children }: { readonly children: ReactNode }) 
       me,
       mode,
       notice,
+      held,
       completeSignIn,
       refreshMe,
       setMode,
       clearSession,
+      holdSession,
+      clearHeld,
       dismissNotice,
     }),
     [
@@ -148,10 +193,13 @@ export function SessionProvider({ children }: { readonly children: ReactNode }) 
       me,
       mode,
       notice,
+      held,
       completeSignIn,
       refreshMe,
       setMode,
       clearSession,
+      holdSession,
+      clearHeld,
       dismissNotice,
     ],
   );

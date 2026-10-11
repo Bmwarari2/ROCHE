@@ -70,7 +70,7 @@ old seed; sign out and in again to see the care records.
 | Sync | `src/sync/connector.ts` | `fetchCredentials` calls `POST /v1/sync/token`. `uploadData` sends each care entry (notes, observations, body-map marks, activities, visits) to its own API endpoint (`src/sync/care-upload.ts`) with its UUIDv7, `deviceTime`, and the `x-harbour-tenant`, `x-harbour-device`, `Idempotency-Key` and `x-harbour-sent-at` headers (stamped as each request leaves); other tables go to `POST /v1/sync/upload` with `deviceSentAt`. Network errors, 408, 425, 429 (honouring `Retry-After`) and 5xx retry with full-jitter backoff and stay queued. A refusal moves the entry, with its content, to the local-only `upload_issue` table and the queue moves on; Today and the record show it as "not saved: needs attention" until someone removes it. Nothing is discarded silently. |
 | Offline window | `src/sync/offline-window.ts`, `vault.connectSync` | Reads `mobile.offline_window_days` from `GET /v1/rates/{key}` (cached in `sync_meta`; today only until first read) and connects with the `offline_days` connection parameter, so entries older than the window leave the device. Reconnects when the UTC day changes. |
 | Care mode | `src/app/(care)`, `src/care`, `src/components` | Pure rules in `src/care` (notes, charts, IDDSI, NEWS2 via `@harbour/domain`, body map sides, header flags, Today's sync summary, local SQL), tested in Node. Screens: Today, the person's record, note, chart, body map, care plan and risk assessments, each starting with `CarePersonHeader`. Words come from `@harbour/i18n` (`mobile.*` keys) through `src/i18n/t.ts`. |
-| Remote wipe | `vault.signOutAndWipe` | Sign-out, or a 401/403 from the sync token or upload endpoints, clears and deletes the database file and destroys its key. |
+| Remote wipe | `vault.signOutAndWipe`, `src/app-state/held-work.ts` | Sign-out clears and deletes the database file and destroys its key. A 401/403 from the sync token, an upload or `/v1/me` does the same only when nothing is waiting to upload; with unsent entries the device stops uploading, keeps the encrypted database and asks its owner (the same `tenant_user`) to sign in again, refuses anyone else, and offers "Sign out and delete N unsent entries" after a confirmation naming the count (HZ-006). |
 | Schema | `src/sync/schema.ts` | Rebuilds `@harbour/sync`'s schema for PowerSync 2.x from its JSON form (the shared package still uses `@powersync/common` 1.x); a test proves both serialise identically. Remove once `@harbour/sync` moves to 2.x. |
 | Sync banner | `src/components/AppSyncBanner.tsx` | On every signed-in screen: offline, syncing, up to date, or sync failed with Retry; changes waiting to upload; a "may be out of date" warning after 15 minutes without a sync (HZ-002, HZ-006). |
 | People | `src/app/(care)/people` | `useQuery` over local SQLite, scoped to the signed-in tenant, virtualised `FlatList`. Rows show photo or initials, name, room, allergy flag (three states, HZ-007) and communication-needs flag. |
@@ -83,7 +83,10 @@ old seed; sign out and in again to see the care records.
 - List `harbour://` in Better Auth's trusted origins (the app sends it as `Origin`).
 - Expose `set-auth-token` on sign-in and TOTP verification responses.
 - Return 401 from `/v1/me`, `/v1/sync/token` and `/v1/sync/upload` when the session is revoked (the
-  device then wipes itself); 403 is treated the same way.
+  device then wipes itself unless entries are waiting to upload); 403 is treated the same way.
+- Return `tenantUserId` from `/v1/me`: it records who owns entries held on the device.
+- Follow-up: a revocation signal distinct from expiry, so a revoked or lost device wipes even when
+  it holds unsent entries (human action H-68).
 - Accept `Idempotency-Key` on `/v1/sync/upload` and record business conflicts as review tasks
   rather than failing the upload.
 - Serve photos with `Cache-Control: no-store` so the native HTTP cache keeps no copy.
