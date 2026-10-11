@@ -13,6 +13,7 @@ export * from "./care/rates";
 export * from "./care/repositioning";
 export * from "./care/risk-assessment";
 export * from "./care/tools";
+export * from "./care/validated-assessment";
 export * from "./care/waterlow";
 export * from "./care/weight";
 export * from "./integrations/ports";

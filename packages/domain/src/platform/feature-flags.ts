@@ -67,6 +67,18 @@ export const FLAGS = {
     defaultEnabled: true,
     licensed: false,
   },
+  // Validated tools whose terms of use in software are not yet confirmed (human action H-25,
+  // care.md section 10): off for real tenants, switched on for the demo tenant by the seed.
+  "care.tool.waterlow": {
+    description: "Waterlow pressure ulcer risk score (until its licence and source are confirmed)",
+    defaultEnabled: false,
+    licensed: false,
+  },
+  "care.tool.braden": {
+    description: "Braden Scale for pressure sore risk (until its licence is confirmed)",
+    defaultEnabled: false,
+    licensed: false,
+  },
 } as const satisfies Record<string, FlagDefinition>;
 
 export type FlagKey = keyof typeof FLAGS;
