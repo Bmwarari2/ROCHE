@@ -9,7 +9,7 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 
 | Module | Prefix | Sections | Rows | todo | partial | done |
 | --- | --- | --- | --- | --- | --- | --- |
-| Platform core | `PLAT` | 9.1 | 23 | 10 | 13 | 0 |
+| Platform core | `PLAT` | 9.1 | 23 | 6 | 17 | 0 |
 | Service-user lifecycle | `PEOP` | 9.2 | 13 | 4 | 9 | 0 |
 | Care planning and delivery | `CARE` | 10.1, 10.4 | 22 | 9 | 13 | 0 |
 | Medicines | `MEDS` | 10.2-10.3 | 14 | 14 | 0 | 0 |
@@ -25,7 +25,7 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 | AI Management Copilot | `AI` | 16 | 11 | 11 | 0 | 0 |
 | Mobile apps | `MOB` | 17 | 13 | 11 | 2 | 0 |
 | Expansion (Phase 7) | `EXP` | 19 | 7 | 7 | 0 | 0 |
-| **Total** | | | **233** | **187** | **46** | **0** |
+| **Total** | | | **233** | **183** | **50** | **0** |
 
 | Phase | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -69,17 +69,17 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | PLAT-010 | Configurable forms and assessment engine (field types, scoring, branching, review cadence, locked validated templates) | 9.1 | 0 | partial | [platform](platform.md#forms-and-assessment-engine-plat-010-skeleton) | `packages/domain/src/platform/forms.ts`, `form_template` | `packages/domain/src/platform/forms-notifications.test.ts` | - |
 | PLAT-011 | Task and workflow engine (owner, due date, recurrence, evidence, states, approvals, SLAs) | 9.1 | 1 | partial | [platform](platform.md#task-and-workflow-engine-plat-011) | `packages/domain/src/platform/tasks.ts`, `packages/domain/src/platform/workflow.ts`, `packages/db/src/schema/work.ts`, `apps/api/src/routes/tasks.ts`, `apps/api/src/services/workflow.ts` | `packages/domain/src/platform/tasks.test.ts`, `workflow.test.ts`, `packages/db/test/tasks-and-workflows.test.ts`, `apps/api/test/tasks.test.ts`, `apps/api/test/workflow.test.ts` | - |
 | PLAT-012 | Retention schedule engine with legal hold, soft delete, crypto-shredding and destruction certificates | 5.1, 9.1 | 1 | partial | [platform](platform.md#retention-and-legal-hold-plat-012) | `packages/domain/src/platform/retention.ts`, `apps/api/src/routes/documents.ts` (holds, candidates, destruction) | `packages/domain/src/platform/rules.test.ts`, `documents.test.ts`, `apps/api/test/documents.test.ts` | - |
-| PLAT-013 | Permission-aware, tenant-scoped full-text search across people, staff, documents and notes | 9.1 | 1 | todo | - | - | - | - |
+| PLAT-013 | Permission-aware, tenant-scoped full-text search across people, staff, documents and notes | 9.1 | 1 | partial | [platform completions](platform-completions.md#search-plat-013), [ADR-0070](../decisions/0070-search-on-postgres-full-text.md) | `packages/domain/src/platform/search.ts` | `packages/domain/src/platform/search.test.ts` | - |
 | PLAT-014 | Migration import wizard (CSV and JSON mapping, dry run, validation report) | 9.1 | 2 | todo | - | - | - | - |
-| PLAT-015 | Free full tenant export (CSV and JSON with documents, documented schema) | 5.1, 9.1 | 1 | todo | - | - | - | - |
+| PLAT-015 | Free full tenant export (CSV and JSON with documents, documented schema) | 5.1, 9.1 | 1 | partial | [platform completions](platform-completions.md#full-export-plat-015) | `packages/domain/src/platform/export.ts` | `packages/domain/src/platform/export.test.ts` | - |
 | PLAT-016 | Public API and signed webhooks (OpenAPI 3.1, OAuth2 client credentials, scoped tokens, sandbox tenant) | 9.1, 15.3 | 6 | todo | - | - | - | - |
 | PLAT-017 | Localisation framework (ICU messages, en-GB, Welsh-ready catalogues, per-tenant terminology) | 5.4, 9.1 | 0 | partial | [platform](platform.md#localisation-plat-017) | `packages/i18n` | `packages/i18n/src/i18n.test.ts` | - |
-| PLAT-018 | In-app help and onboarding (guides, tenant onboarding checklist, sample data mode, status page link) | 9.1 | 1 | todo | - | - | - | - |
+| PLAT-018 | In-app help and onboarding (guides, tenant onboarding checklist, sample data mode, status page link) | 9.1 | 1 | partial | [platform completions](platform-completions.md#help-and-onboarding-plat-018) | `packages/domain/src/platform/onboarding.ts`, `packages/domain/src/platform/sample-data.ts` | `packages/domain/src/platform/onboarding.test.ts` | - |
 | PLAT-019 | Thapsus operator console: tenant provisioning, support impersonation with approval, platform and integration health | 9.1, 15.3 | 0 | partial | [platform](platform.md#operator-console-plat-019) | `apps/api/src/routes/operator.ts` | `apps/api/test/operator-and-integrations.test.ts` | - |
 | PLAT-020 | Thapsus operator console: plan and seat metering, invoices to tenants | 9.1 | 6 | todo | - | - | - | - |
 | PLAT-021 | Statutory rate table with valid-from and valid-to dates, seeded from `docs/specs/rates.md` | 18 | 0 | partial | [platform](platform.md#statutory-figures-plat-021), [rates](rates.md) | `rate_table`, `packages/domain/src/platform/rates.ts`, `GET /v1/rates/{key}` | `packages/db/src/seed/reference-data.test.ts`, `apps/api/test/api.test.ts` | - |
 | PLAT-022 | Data-subject rights and breach tooling: DSAR workbench, breach register with 72-hour clock, data-protection complaints | 5.1 | 2 | todo | - | - | - | - |
-| PLAT-023 | DPIA template prefill and in-app sign-off; records-of-processing and sub-processor registers | 5.1 | 1 | todo | - | - | - | - |
+| PLAT-023 | DPIA template prefill and in-app sign-off; records-of-processing and sub-processor registers | 5.1 | 1 | partial | [platform completions](platform-completions.md#dpia-and-registers-plat-023), [records of processing](../compliance/records-of-processing.md), [sub-processors](../compliance/sub-processors.md) | `packages/domain/src/platform/dpia.ts`, `packages/domain/src/platform/processing-register.ts`, `packages/domain/src/platform/sub-processors.ts` | `packages/domain/src/platform/dpia.test.ts`, `processing-register.test.ts`, `sub-processors.test.ts` | - |
 | PEOP-001 | MODS-aligned person record with validated NHS number, demographics, lifestyle and preferences, key contacts and legal representatives with evidence and expiry, national data opt-out flag | 9.2, 10.4, 18 | 1 | partial | [people](people.md) | `packages/db/src/schema/people.ts`, `packages/domain/src/people/nhs-number.ts` | `packages/domain/src/people/nhs-number.test.ts`, `packages/db/test/scope.test.ts` | - |
 | PEOP-002 | Accessible Information Standard communication needs, flagged on every screen and print | 5.4, 9.2 | 1 | partial | [people](people.md) | `person.communication_needs`, `GET /v1/people` | `apps/api/test/api.test.ts` | - |
 | PEOP-003 | PRSB About Me, authored by the person or carer and shareable with consent | 9.2 | 1 | partial | [people](people.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/people/about-me.ts`, `packages/domain/src/people/sharing.ts` (share links) | `packages/domain/src/people/about-me.test.ts`, `packages/domain/src/people/sharing.test.ts` | - |
