@@ -1,7 +1,7 @@
 import { document, type Transaction } from "@harbour/db";
 import type { Permission } from "@harbour/domain";
 import { z } from "@hono/zod-openapi";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx, writeAudit } from "../http/audit";
 import { type AppEnv, requirePermission, type TenantAccess } from "../http/context";
@@ -81,7 +81,7 @@ export async function requireOwnDocument(
   const [found] = await tx
     .select({ personId: document.personId })
     .from(document)
-    .where(eq(document.id, documentId));
+    .where(and(eq(document.id, documentId), isNull(document.deletedAt)));
   if (found?.personId !== personId) {
     throw problems.invalid(`The ${what} was not found in this person's documents.`);
   }

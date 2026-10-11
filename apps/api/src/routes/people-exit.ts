@@ -98,7 +98,10 @@ async function evidenceBelongs(
       );
     case "document":
       return owner(
-        tx.select({ personId: document.personId }).from(document).where(eq(document.id, id)),
+        tx
+          .select({ personId: document.personId })
+          .from(document)
+          .where(and(eq(document.id, id), isNull(document.deletedAt))),
       );
     case "note":
       return owner(
