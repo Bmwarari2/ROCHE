@@ -95,41 +95,34 @@ describe("choosing the window", () => {
   });
 });
 
-describe("resolveOfflineWindow", () => {
-  const now = new Date("2026-10-11T10:00:00Z");
-
-  it("caches a new figure and builds the connection parameters from it", async () => {
+describe("resolveOfflineWindow (what the device says it keeps, HZ-028)", () => {
+  it("caches a new figure", async () => {
     const { fetch } = fetchReturning(rate(3));
     const store = metaStore("7");
-    const result = await resolveOfflineWindow(
-      store.db,
-      { apiUrl: API, fetch, token: "tok", tenantId: TENANT },
-      now,
-    );
-    expect(result.days).toBe(3);
-    expect(result.params.offline_days).toEqual([
-      "2026-10-12",
-      "2026-10-11",
-      "2026-10-10",
-      "2026-10-09",
-    ]);
+    const result = await resolveOfflineWindow(store.db, {
+      apiUrl: API,
+      fetch,
+      token: "tok",
+      tenantId: TENANT,
+    });
+    expect(result).toEqual({ days: 3 });
     expect(store.rows.get(WINDOW_META_ID)).toBe("3");
   });
 
   it("uses the cached figure when offline", async () => {
     const { fetch } = fetchReturning(new TypeError("Network request failed"));
     const store = metaStore("2");
-    const result = await resolveOfflineWindow(
-      store.db,
-      { apiUrl: API, fetch, token: "tok", tenantId: TENANT },
-      now,
-    );
-    expect(result.params.offline_days).toEqual(["2026-10-12", "2026-10-11", "2026-10-10"]);
+    const result = await resolveOfflineWindow(store.db, {
+      apiUrl: API,
+      fetch,
+      token: "tok",
+      tenantId: TENANT,
+    });
+    expect(result).toEqual({ days: 2 });
   });
 
-  it("keeps today only until the tenant's figure has been read", async () => {
-    const result = await resolveOfflineWindow(metaStore(null).db, null, now);
-    expect(result.days).toBe(FAIL_SAFE_WINDOW_DAYS);
-    expect(result.params.offline_days).toEqual(["2026-10-12", "2026-10-11"]);
+  it("reports today only until the tenant's figure has been read", async () => {
+    const result = await resolveOfflineWindow(metaStore(null).db, null);
+    expect(result).toEqual({ days: FAIL_SAFE_WINDOW_DAYS });
   });
 });

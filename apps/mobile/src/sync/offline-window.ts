@@ -1,21 +1,18 @@
 /**
  * The device's offline window (ADR-0011, care.md section 6): how many days of notes, charts,
  * body-map marks, activities and visits stay on the device. The figure is the tenant's
- * `mobile.offline_window_days` from the rate table, read through `GET /v1/rates/{key}` whenever
- * the vault opens online and kept in the encrypted database for offline starts. It becomes the
- * `offline_days` connection parameter the entry streams filter on (packages/sync).
+ * `mobile.offline_window_days` from the rate table. The API puts the window in the signed sync
+ * token, and the streams read it only from there, so nothing the device sends can widen it
+ * (security review S1). The device reads the same figure through `GET /v1/rates/{key}` whenever
+ * the vault opens online, and keeps it in the encrypted database for offline starts, only to say
+ * how many days it keeps (HZ-028) and to age out refused entries with the window.
  *
  * If the figure has never been read (a first start without signal straight after sign-in, or the
- * rate missing), the device keeps today only. That is a fail-safe floor, not a tenant figure: it
- * holds less than any tenant could choose, and the next online start corrects it.
+ * rate missing), the device reports today only. That is a fail-safe floor, not a tenant figure,
+ * and the next online start corrects it.
  */
 
-import {
-  isValidWindowDays,
-  OFFLINE_WINDOW_RATE_KEY,
-  type SyncConnectionParameters,
-  syncConnectionParameters,
-} from "@harbour/sync/client";
+import { isValidWindowDays, OFFLINE_WINDOW_RATE_KEY } from "@harbour/sync/client";
 import type { AbstractPowerSyncDatabase } from "@powersync/common";
 import type { FetchLike } from "../auth/http";
 import { TENANT_HEADER } from "./connector";
@@ -91,13 +88,12 @@ export async function writeCachedWindowDays(db: MetaStore, days: number): Promis
 
 /**
  * Reads the tenant's figure (online) or the cached one (offline), caches a new figure, and returns
- * the number of days with the connection parameters for now.
+ * the number of days. Display and ageing only: the window that syncs is the one in the token.
  */
 export async function resolveOfflineWindow(
   db: MetaStore,
   fetchOptions: FetchWindowOptions | null,
-  now: Date,
-): Promise<{ readonly days: number; readonly params: SyncConnectionParameters }> {
+): Promise<{ readonly days: number }> {
   const [fetched, cached] = await Promise.all([
     fetchOptions ? fetchOfflineWindowDays(fetchOptions) : Promise.resolve(null),
     readCachedWindowDays(db),
@@ -105,6 +101,5 @@ export async function resolveOfflineWindow(
   if (fetched !== null && fetched !== cached) {
     await writeCachedWindowDays(db, fetched).catch(() => undefined);
   }
-  const days = chooseWindowDays(fetched, cached);
-  return { days, params: syncConnectionParameters(now, days) };
+  return { days: chooseWindowDays(fetched, cached) };
 }

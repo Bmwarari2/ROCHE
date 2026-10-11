@@ -140,8 +140,9 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
   tenantRef.current = session.me?.tenant.id ?? null;
 
   /**
-   * Connects PowerSync with the offline window as connection parameters (ADR-0011): the tenant's
-   * `mobile.offline_window_days` read from the rate table when online, else the cached figure.
+   * Connects PowerSync. The offline window travels in the sync token the API mints (ADR-0011,
+   * security review S1), so the device sends no parameters; it reads the tenant's
+   * `mobile.offline_window_days` only to say how many days it keeps (HZ-028).
    */
   const connectSync = useCallback(
     async (database: AbstractPowerSyncDatabase, connector: HarbourConnector) => {
@@ -151,13 +152,10 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       const window = await resolveOfflineWindow(
         database,
         token && tenantId ? { apiUrl: appEnv.apiUrl, fetch: platformFetch, token, tenantId } : null,
-        now,
       );
       setOfflineWindowDays(window.days);
       windowValidUntilRef.current = nextWindowChange(now);
-      await database.connect(connector, {
-        params: { offline_days: [...window.params.offline_days] },
-      });
+      await database.connect(connector);
     },
     [],
   );
