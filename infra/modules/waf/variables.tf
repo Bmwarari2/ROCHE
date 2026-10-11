@@ -41,6 +41,17 @@ variable "rate_limit_retry_after_seconds" {
   }
 }
 
+variable "managed_rule_group_versions" {
+  description = "Static versions to pin AWS managed rule groups to, by group name (for example AWSManagedRulesCommonRuleSet = \"Version_1.15\"), read from `aws wafv2 list-available-managed-rule-group-versions` before each change. A group not listed follows AWS's default version. Pin each group once its version is confirmed in the account, and review managed_rule_blocks when a pin moves."
+  type        = map(string)
+  default     = {}
+
+  validation {
+    condition     = alltrue([for v in values(var.managed_rule_group_versions) : can(regex("^Version_[0-9]+\\.[0-9]+$", v))])
+    error_message = "Managed rule group versions look like Version_1.15."
+  }
+}
+
 variable "managed_rule_blocks" {
   description = "Per AWS managed rule group, the rules that block with the edge_blocked JSON body (AWS WAF Developer Guide, baseline, IP reputation and use-case rule groups). A rule not listed keeps its own action. Rules that only count are left out."
   type        = map(list(string))

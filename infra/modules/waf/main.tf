@@ -141,6 +141,10 @@ resource "aws_wafv2_web_acl" "this" {
         managed_rule_group_statement {
           name        = rule.value.name
           vendor_name = "AWS"
+          # A pinned static version changes only when this module does, so a new AWS rule cannot
+          # start blocking (or lose the edge_blocked body) unannounced. Unpinned groups follow the
+          # version AWS sets as default.
+          version = lookup(var.managed_rule_group_versions, rule.value.name, null)
 
           dynamic "rule_action_override" {
             for_each = rule.value.count
