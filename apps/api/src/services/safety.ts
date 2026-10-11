@@ -198,11 +198,6 @@ export async function upsertDraft(
   spec: DraftSpec,
   now: Date,
 ): Promise<{ id: string; created: boolean }> {
-  const [existing] = await tx
-    .select()
-    .from(statutoryNotification)
-    .where(eq(statutoryNotification.sourceKey, spec.sourceKey))
-    .for("update");
   const values = {
     dueAt: spec.dueAt,
     deadlines: toJson(spec.deadlines),
@@ -213,21 +208,25 @@ export async function upsertDraft(
     statement: spec.statement === undefined ? null : toJson(spec.statement),
     classifierVersion: spec.classifierVersion,
   };
-  if (!existing) {
-    const [row] = await tx
-      .insert(statutoryNotification)
-      .values({
-        ...values,
-        sourceKey: spec.sourceKey,
-        kind: spec.kind,
-        locationId: spec.locationId,
-        incidentId: spec.incidentId,
-        personId: spec.personId,
-        dolsAuthorisationId: spec.dolsAuthorisationId ?? null,
-        retentionClass: NOTIFICATION_KINDS[spec.kind].retentionClass,
-      })
-      .returning({ id: statutoryNotification.id });
-    if (!row) throw new Error("statutory notification was not created");
+  // Insert first: two classifications at once cannot both create the draft (the source key is
+  // unique), and the one that loses refreshes the winner's draft below.
+  const [row] = await tx
+    .insert(statutoryNotification)
+    .values({
+      ...values,
+      sourceKey: spec.sourceKey,
+      kind: spec.kind,
+      locationId: spec.locationId,
+      incidentId: spec.incidentId,
+      personId: spec.personId,
+      dolsAuthorisationId: spec.dolsAuthorisationId ?? null,
+      retentionClass: NOTIFICATION_KINDS[spec.kind].retentionClass,
+    })
+    .onConflictDoNothing({
+      target: [statutoryNotification.tenantId, statutoryNotification.sourceKey],
+    })
+    .returning({ id: statutoryNotification.id });
+  if (row) {
     await startWorkflow(
       tx,
       tenantId,
@@ -250,6 +249,12 @@ export async function upsertDraft(
     });
     return { id: row.id, created: true };
   }
+  const [existing] = await tx
+    .select()
+    .from(statutoryNotification)
+    .where(eq(statutoryNotification.sourceKey, spec.sourceKey))
+    .for("update");
+  if (!existing) throw new Error("statutory notification was not found after a conflict");
   if (existing.status === "draft" || existing.status === "ready") {
     const changed =
       existing.dueAt.getTime() !== spec.dueAt.getTime() ||
@@ -1090,8 +1095,14 @@ export async function escalateOverdueNotifications(
   if (overdue.length === 0) return 0;
   const chain = await overdueChain(tx, tenantId);
   const steps = chain.steps as EscalationStep[];
+  let alerted = 0;
   for (const n of overdue) {
-    for (const recipient of await submitHolders(tx, n.locationId, now)) {
+    const recipients = await submitHolders(tx, n.locationId, now);
+    // Nobody can submit here (no holder and no acting-up grant): keep it overdue and unalerted, so
+    // the next run tries again once someone is given the permission (HZ-013).
+    if (recipients.length === 0) continue;
+    alerted++;
+    for (const recipient of recipients) {
       await tx
         .insert(notification)
         .values({
@@ -1126,7 +1137,7 @@ export async function escalateOverdueNotifications(
       payload: { notificationId: n.id, kind: n.kind, dueAt: n.dueAt.toISOString() },
     });
   }
-  return overdue.length;
+  return alerted;
 }
 
 /** Stops the escalation chain once a notification is submitted or marked not required. */
