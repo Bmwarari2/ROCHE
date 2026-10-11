@@ -61,7 +61,7 @@ MASVS v2 defines control groups; the levels L1, L2 and R are testing profiles in
 | Patching | Critical and high (CVSS 7 or higher) fixed and deployed within 14 days | Renovate PRs; release log |
 | Static analysis and secrets | CodeQL, gitleaks on every PR | CI |
 | Images and SBOM | Trivy image scan; Syft SBOM; no critical or high findings | CI |
-| Dependencies | `pnpm audit`; licence allowlist (`pnpm check:licences`) | CI |
+| Dependencies | `pnpm audit` (high and critical fail the build; unfixable advisories in build tooling only are listed with a review date in [vulnerability-exceptions.md](vulnerability-exceptions.md)); Trivy; CodeQL (high and critical fail the build, `scripts/check-sarif.mjs`); licence allowlist (`pnpm check:licences`) | CI |
 | Releases | Signed tags; signed SBOM and provenance attestation per production release | Release workflow |
 | Penetration test | Annual external test `[Thapsus - human action]` | Report summary shared with tenants on request |
 

@@ -27,6 +27,7 @@ Owners: **Brian** (Thapsus Cargo Ltd), **CSO** (Clinical Safety Officer, to be a
 | H-14 | Sign in on dev with a passkey and see the empty demo home (Phase 0 human follow-up) | Brian | Web shell, `HARBOUR_DEMO_OWNER_EMAIL` option in `seed:users` | Phase 0 acceptance | open |
 | H-15 | Create the first Thapsus operator: insert an `operator_user` row (role `admin`) for Brian's identity, with TOTP or a passkey enrolled | Brian | Operator console API | Tenant provisioning | open |
 | H-16 | Mirror a ClamAV image into ECR and add it as a sidecar to the API task (the `ecs_service` module needs sidecar support first, an engineering follow-up); keep its signatures updated (freshclam) | Brian, Engineering | `ClamdScanner` adapter (INSTREAM on 127.0.0.1:3310), `MALWARE_SCANNER=clamd` in Terraform, ADR-0031 | Document uploads in AWS (until then they are stored quarantined and never served) | open |
+| H-17 | Enable GitHub code scanning on the repository (GitHub Advanced Security for a private repository), then set `upload: always` in `.github/workflows/codeql.yml` so findings appear as code-scanning alerts | Brian | CodeQL runs on every pull request and fails on high and critical findings via `scripts/check-sarif.mjs`; SARIF kept as an artifact | Code-scanning alerts and history in GitHub | open |
 
 ## Clinical safety
 

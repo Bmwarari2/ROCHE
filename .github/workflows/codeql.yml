@@ -27,3 +27,15 @@ jobs:
       - uses: github/codeql-action/analyze@v3
         with:
           category: "/language:javascript-typescript"
+          # Code scanning is not enabled on the repository yet (human action H-17), so results
+          # stay here: gate on high and critical findings and keep the SARIF as an artifact.
+          upload: never
+          output: codeql-results
+      - name: High and critical security findings fail the build
+        run: node scripts/check-sarif.mjs codeql-results
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: codeql-sarif
+          path: codeql-results
+          retention-days: 30
