@@ -85,6 +85,17 @@ export const CLINICAL_EXPORT_TABLES: readonly string[] = [
   "public.care_plan_action",
   "public.activity_record",
   "public.visit_log",
+  "public.capacity_assessment",
+  "public.best_interests_decision",
+  "public.consent_record",
+  "public.dols_authorisation",
+  "public.dols_legal_change_review",
+  "public.incident",
+  "public.incident_person",
+  "public.classifier_answer",
+  "public.statutory_notification",
+  "public.candour_record",
+  "public.investigation",
 ];
 
 interface ConventionalDoc {
@@ -419,6 +430,50 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       "Global reference data with no organisation rows (published in calendar.md).",
     columns: {},
   },
+  "public.best_interests_decision": {
+    context: "care",
+    description:
+      "Best-interests decisions after an assessment found a lack of capacity (MCA 2005 s.4). Append-only; corrections supersede.",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      capacity_assessment_id: {
+        description:
+          "The capacity assessment that found the person lacked capacity for this decision (capacity_assessment.id).",
+      },
+      decision: { description: "The decision made in the person's best interests, in words." },
+      decided_at: { description: "When the decision was made (instant, UTC)." },
+      checklist: {
+        description:
+          "The MCA s.4 checklist, JSON keyed by item: { answer: considered or not_applicable, note or reason }.",
+      },
+      consultations: {
+        description:
+          "Who was consulted (MCA s.4(7)), JSON list of { consultee, name, contactId, views, consultedAt }.",
+      },
+      no_consultation_reason: { description: "Why nobody could be consulted, when nobody was." },
+      serious_medical_treatment: {
+        description: "True when the decision is about serious medical treatment.",
+      },
+      accommodation_change: {
+        description: "True when the decision is about a long-term change of accommodation.",
+      },
+      imca_prompt: {
+        description:
+          "The prompt shown to instruct an Independent Mental Capacity Advocate (MCA s.37 to s.39), when one applied.",
+      },
+      review_on: { description: "When the decision is to be reviewed (UK calendar date)." },
+      recorded_at: "exported",
+      supersedes_id: "exported",
+      correction_reason: "exported",
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
   "public.body_map_mark": {
     context: "care",
     description: "Body-map marks with side and site.",
@@ -483,6 +538,117 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       updated_by: "exported",
       version: "exported",
       deleted_at: "exported",
+    },
+  },
+  "public.candour_record": {
+    context: "safety",
+    description:
+      "The duty of candour for an incident (regulation 20 of the 2014 Regulations): threshold, notification in person, written notification and contact attempts.",
+    treatment: "tenant_rows",
+    retention: "as_subject",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      incident_id: { description: "The incident (incident.id)." },
+      person_id: "exported",
+      state: {
+        description:
+          "Where the duty of candour stands (CANDOUR_WORKFLOW): threshold_assessment, not_notifiable, verbal_due, no_contact, written_due, enquiries_open or closed.",
+      },
+      threshold_notifiable: {
+        description: "True when the incident was decided to be a notifiable safety incident.",
+      },
+      threshold_decided_at: { description: "When the threshold was decided (instant, UTC)." },
+      threshold_decided_by: {
+        description:
+          "The health care professional whose opinion the threshold decision records, in words.",
+      },
+      verbal: {
+        description:
+          "The notification in person (regulation 20(3)), JSON { at, byRepresentatives, inPerson, accountGiven, enquiriesAdvised, apologyGiven, writtenRecordId }.",
+      },
+      contact_attempts: {
+        description:
+          "Attempts to contact the relevant person (regulation 20(5)(b)), JSON list of { at, note }.",
+      },
+      written: {
+        description:
+          "The written notification (regulation 20(4)), JSON { sentAt, documentId, includesAccount, includesEnquiries, includesApology }.",
+      },
+      enquiry_results_shared_at: {
+        description: "When the results of further enquiries were shared (instant, UTC).",
+      },
+      correspondence_document_ids: {
+        description: "Letters and other correspondence about the duty of candour (document.id).",
+      },
+      outcome: { description: "How the duty of candour ended, as recorded when it closed." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.capacity_assessment": {
+    context: "care",
+    description:
+      "Mental capacity assessments: one decision at one time (MCA 2005 s.1 to s.3). Append-only; corrections supersede.",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      decision: {
+        description:
+          "The decision assessed, in words (for example, whether to have bed rails at night).",
+      },
+      decision_kind: {
+        description:
+          "The consent decision assessed, when it is one: care_plan, photos, social_media, sharing, marketing, ai_processing, bed_rails or covert_medicines.",
+      },
+      assessed_at: { description: "When the assessment was carried out (instant, UTC)." },
+      assessor_tenant_user_id: {
+        description:
+          "The member of staff who assessed (tenant_user.id); empty when an outside professional did.",
+      },
+      assessor_name: { description: "Name of an outside professional who assessed." },
+      assessor_role: { description: "Role of an outside professional who assessed." },
+      practicable_steps: {
+        description:
+          "Steps taken to help the person decide (MCA s.1(3)), JSON list of { step, detail }.",
+      },
+      stage1_impairment: {
+        description:
+          "Stage 1: true when there is an impairment of, or a disturbance in the functioning of, the mind or brain.",
+      },
+      stage1_description: { description: "Stage 1: the impairment or disturbance, in words." },
+      stage2: {
+        description:
+          "Stage 2 (MCA s.3(1)): understand, retain, use or weigh, and communicate, each with able and evidence, JSON.",
+      },
+      inability_because_of_impairment: {
+        description: "True when an inability to decide is because of the stage 1 impairment.",
+      },
+      outcome: {
+        description: "The finding for this decision at this time.",
+        codes: {
+          has_capacity: "The person can make this decision.",
+          lacks_capacity:
+            "The person cannot make this decision, because of the impairment; a best-interests decision or a representative's consent is needed.",
+        },
+      },
+      unable_to: { description: "The stage 2 abilities the person was unable to use." },
+      reason: { description: "The reason for the finding, in the Act's words." },
+      review_on: { description: "When the assessment is to be reviewed (UK calendar date)." },
+      recorded_at: "exported",
+      supersedes_id: "exported",
+      correction_reason: "exported",
+      created_at: "exported",
+      created_by: "exported",
     },
   },
   "public.care_note": {
@@ -601,6 +767,143 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       outcome: { description: "The outcome, in the person's words." },
       strengths: { description: "Strengths." },
       contingency: { description: "Contingency plan." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.classifier_answer": {
+    context: "safety",
+    description:
+      "Answers to the notification classifier's questions about an incident. Append-only; the latest answer to each question counts.",
+    treatment: "tenant_rows",
+    retention: "as_subject",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      incident_id: { description: "The incident (incident.id)." },
+      question_key: {
+        description:
+          "The question (CLASSIFIER_QUESTION_KEYS), for example harm.pain_days or riddor.work_connected.",
+      },
+      value: {
+        description:
+          'The answer, JSON: "yes", "no", "unsure", a whole number of days or hours, or option values.',
+      },
+      answered_at: { description: "When the question was answered (instant, UTC)." },
+      answered_by: { description: "Tenant user who answered (tenant_user.id)." },
+      device_id: "exported",
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.consent_record": {
+    context: "care",
+    description:
+      "Consent decisions about care and optional processing: who decided, on what authority and capacity, and any withdrawal.",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      decision: {
+        description: "What the consent is about.",
+        codes: {
+          care_plan: "Agreement to the care plan.",
+          photos: "Photographs, including photos shared with family.",
+          social_media: "Appearing in the provider's social media.",
+          sharing: "Sharing information with family or others.",
+          marketing: "The provider's marketing.",
+          ai_processing: "Optional AI processing of free text.",
+          bed_rails: "Bed rails.",
+          covert_medicines: "Giving medicines covertly.",
+        },
+      },
+      outcome: {
+        description: "The decision.",
+        codes: { given: "Consent given.", refused: "Consent refused." },
+      },
+      given_by_kind: {
+        description: "Who decided.",
+        codes: {
+          person: "The person themselves.",
+          representative: "A representative with authority for this decision.",
+        },
+      },
+      representative_kind: {
+        description:
+          "The representative's authority: lpa_health_welfare, lpa_property_financial, deputy, appointee, imca, advocate or family_or_friend.",
+      },
+      representative_contact_id: {
+        description: "The representative as one of the person's contacts (contact.id).",
+      },
+      representative_name: { description: "The representative's name, as recorded." },
+      lpa_registered: {
+        description:
+          "Lasting power of attorney: true when registered with the Office of the Public Guardian (MCA s.9(2)(b)).",
+      },
+      opg_reference: {
+        description: "Office of the Public Guardian reference for the lasting power of attorney.",
+      },
+      excluded_decisions: {
+        description:
+          "Decisions the lasting power of attorney excludes or restricts (MCA s.9(4)(b)).",
+      },
+      deputy_scope: {
+        description: "Deputy: personal_welfare or property_and_affairs.",
+      },
+      deputy_decisions: {
+        description: "Deputy: the decisions the Court of Protection order covers.",
+      },
+      deputy_restraint_authorised: {
+        description: "Deputy: true when the order expressly authorises restraint (MCA s.20(8)).",
+      },
+      deputy_order_ends_at: {
+        description: "Deputy: when the order ends (instant, UTC); empty when it has no end date.",
+      },
+      court_reference: { description: "Court of Protection order reference." },
+      capacity_status: {
+        description: "The person's capacity for this decision when it was recorded.",
+        codes: {
+          assumed: "Capacity presumed (MCA s.1(2)); no assessment found a lack of it.",
+          has_capacity: "An assessment found the person can decide.",
+          lacks_capacity: "An assessment found the person cannot decide.",
+        },
+      },
+      capacity_assessment_id: {
+        description:
+          "The assessment behind capacity_status, when there is one (capacity_assessment.id).",
+      },
+      given_at: { description: "When consent was given or refused (instant, UTC)." },
+      expires_at: {
+        description: "When this consent ends (instant, UTC); empty when it has no end date.",
+      },
+      withdrawn_at: {
+        description: "When consent was withdrawn (instant, UTC); empty while it stands.",
+      },
+      withdrawn_reason: { description: "Why consent was withdrawn." },
+      evidence: { description: "How the decision was made, in words." },
+      evidence_document_id: {
+        description: "A supporting document, such as a signed form (document.id).",
+      },
+      restraint_necessary: {
+        description:
+          "Bed rails agreed by a representative: true when recorded as necessary to prevent harm (MCA s.11(3) or s.20(10)).",
+      },
+      restraint_proportionate: {
+        description:
+          "Bed rails agreed by a representative: true when recorded as proportionate to the likelihood and seriousness of harm (MCA s.11(4) or s.20(11)).",
+      },
+      best_interests_decision_id: {
+        description:
+          "Covert medicines: the best-interests decision behind them (best_interests_decision.id).",
+      },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -730,6 +1033,132 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       created_by: "exported",
     },
   },
+  "public.dols_authorisation": {
+    context: "care",
+    description:
+      "The Deprivation of Liberty Safeguards register: requests, outcomes, periods in force, conditions and the relevant person's representative.",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      location_id: "exported",
+      type: {
+        description: "The kind of authorisation.",
+        codes: {
+          urgent: "An urgent authorisation given by the managing authority.",
+          standard: "A standard authorisation from the supervisory body.",
+          court_order: "An order of the Court of Protection.",
+        },
+      },
+      nation: {
+        description: "The nation whose Schedule A1 procedure applies: england or wales.",
+      },
+      requested_at: { description: "When the authorisation was requested (instant, UTC)." },
+      outcome: {
+        description: "The outcome of the request.",
+        codes: {
+          pending: "Requested; no decision yet.",
+          granted: "Granted.",
+          not_granted: "Refused.",
+          withdrawn: "The request was withdrawn.",
+        },
+      },
+      outcome_at: { description: "When the outcome was given (instant, UTC)." },
+      granted_from: {
+        description: "Start of the authorisation (instant, UTC), inclusive.",
+      },
+      granted_to: {
+        description:
+          "The first moment the authorisation is no longer in force (instant, UTC); empty for a court order with no end.",
+      },
+      extensions: {
+        description:
+          "Extensions of an urgent authorisation, JSON list of { requestedAt, outcome, extendedTo }.",
+      },
+      preceded_by_urgent: { description: "True when an urgent authorisation came first." },
+      preceded_by_authorisation_id: {
+        description: "The authorisation this one follows (dols_authorisation.id).",
+      },
+      withdrawal_reason: { description: "Why the request was withdrawn." },
+      ended_at: {
+        description:
+          "When the authorisation ended early (instant, UTC): terminated after a review, or the person left or died.",
+      },
+      ended_reason: { description: "Why it ended early." },
+      conditions: { description: "Conditions the supervisory body attached, in words." },
+      rpr_name: { description: "The relevant person's representative (RPR), by name." },
+      rpr_contact_id: {
+        description:
+          "The relevant person's representative as one of the person's contacts (contact.id).",
+      },
+      supervisory_body: { description: "The supervisory body that decides, by name." },
+      supervisory_body_reference: { description: "The supervisory body's reference." },
+      objection_evidence: {
+        description: "How the person shows objection, where they do, in words.",
+      },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.dols_legal_change_review": {
+    context: "care",
+    description:
+      "The review of each existing DoLS authorisation after the June 2026 judgment (care.md rule 11): whether the person is still deprived of liberty.",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      dols_authorisation_id: {
+        description: "The authorisation reviewed (dols_authorisation.id); one review each.",
+      },
+      state: {
+        description:
+          "Where the review stands: awaiting_review, reviewed, referred (to the local authority) or closed.",
+      },
+      factors: {
+        description:
+          "The DHSC multifactorial assessment, JSON keyed by factor (MULTIFACTORIAL_FACTORS).",
+      },
+      objection: {
+        description: "Whether the person objects: objects, does_not_object, fluctuates or unclear.",
+      },
+      objection_forms: { description: "How the person shows objection, as recorded." },
+      consent_signs: {
+        description:
+          "Signs bearing on whether the person consents, JSON { consciousOfEnvironment, basicUnderstanding, expressesAcceptance, seriousDoubt }.",
+      },
+      decision: {
+        description: "The finding: still_deprived, no_longer_deprived or in_doubt.",
+      },
+      decided_at: { description: "When the finding was made (instant, UTC)." },
+      decided_by: { description: "Tenant user who made the finding (tenant_user.id)." },
+      referral_sent_at: {
+        description: "When the case was referred to the local authority (instant, UTC).",
+      },
+      referral_reference: { description: "The local authority's reference for the referral." },
+      referral_required: {
+        description: "True when the local authority must be asked before the review can close.",
+      },
+      prompts: { description: "Prompts the review rules raised, as shown." },
+      closed_reason: { description: "Why the review was closed." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
   "public.escalation_chain": {
     context: "platform",
     description: "Notification escalation chains by role or user.",
@@ -826,6 +1255,154 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.incident": {
+    context: "safety",
+    description:
+      "Incidents and near misses. Every statutory clock starts at occurred_at; each row's retention is in retention_class.",
+    treatment: "tenant_rows",
+    retention: "serious_incident",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      location_id: "exported",
+      type: {
+        description:
+          "Incident type: fall, medication, skin, behaviour, missing_person, safeguarding_concern, injury, near_miss, environmental, ipc, staff_injury, violence_to_staff, self_harm, sexual_safety, absconding, fire_setting, substance_use or data_breach.",
+      },
+      occurred_at: "exported",
+      device_time: "exported",
+      recorded_at: "exported",
+      device_id: "exported",
+      late_entry: "exported",
+      clock_drift: "exported",
+      found_at: {
+        description:
+          "When the person was found, if later than the event (instant, UTC); post-fall observations count from here.",
+      },
+      severity: {
+        description:
+          "Consequence on the NPSA scale, recorded by staff: negligible, minor, moderate, major or catastrophic.",
+      },
+      harm_grade: {
+        description:
+          "Physical harm on the LFPSE scale, recorded by staff and never calculated: none, low, moderate, severe or fatal.",
+      },
+      description: { description: "What happened, in words." },
+      immediate_actions: { description: "What was done straight away, in words." },
+      emergency_services_called: { description: "True when emergency services were called." },
+      gp_contacted: { description: "True when the GP was contacted." },
+      contact_notes: { description: "Who was contacted and what they advised, in words." },
+      family_informed_who: {
+        description: "Which family member or representative was told, in words.",
+      },
+      family_informed_at: {
+        description: "When the family member or representative was told (instant, UTC).",
+      },
+      status: {
+        description: "Where the incident is in its workflow.",
+        codes: {
+          open: "Reported; not yet under review.",
+          under_review: "Being reviewed or investigated.",
+          closed: "Closed with a reason, by someone other than the person who raised it.",
+        },
+      },
+      raised_by: { description: "Tenant user who reported the incident (tenant_user.id)." },
+      closed_by: {
+        description: "Tenant user who closed it (tenant_user.id); never the person who raised it.",
+      },
+      closed_at: { description: "When it was closed (instant, UTC)." },
+      closed_reason: { description: "Why it was closed." },
+      person_ids: {
+        description:
+          "The people using the service on the incident (person.id), kept in step with incident_person.",
+      },
+      classifier_version: {
+        description: "Version of the notification classifier that last ran on the incident.",
+      },
+      classified_at: { description: "When the classifier last ran (instant, UTC)." },
+      nation_supported: {
+        description:
+          "True when the classifier's rules cover the location's nation; when false, notifications were not worked out.",
+      },
+      classifier_result: {
+        description: "The last classification: which notifications apply and why, JSON.",
+      },
+      open_questions: { description: "Classifier questions not yet answered (question keys)." },
+      retention_class: {
+        description: "This incident's retention class.",
+        codes: {
+          care_record: "No statutory notification applies; kept as a care record.",
+          serious_incident: "A statutory notification applies; kept as a serious incident.",
+        },
+      },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.incident_person": {
+    context: "safety",
+    description:
+      "Everyone on an incident: people using the service, workers and others, with their part and injuries.",
+    treatment: "tenant_rows",
+    retention: "as_subject",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      incident_id: { description: "The incident (incident.id)." },
+      kind: {
+        description: "Who they are, as RIDDOR distinguishes them (regulations 4 and 5).",
+        codes: {
+          service_user: "A person using the service.",
+          worker: "A member of staff or an agency worker.",
+          other_not_at_work: "Someone not at work, such as a visitor.",
+        },
+      },
+      role: {
+        description: "Their part in the incident.",
+        codes: {
+          affected: "Harmed or put at risk.",
+          witness: "Saw what happened.",
+          involved: "Involved in another way.",
+        },
+      },
+      person_id: "exported",
+      tenant_user_id: "exported",
+      other_name: {
+        description: "A worker who is not a Harbour user, or a visitor, by name.",
+      },
+      injury_details: { description: "Their injuries, in words." },
+      died: { description: "True when they died." },
+      learning_disability: {
+        description: "Recorded with a death for the LeDeR prompt: true for a learning disability.",
+      },
+      autistic: {
+        description:
+          "Recorded with a death for the LeDeR prompt: true when the person was autistic.",
+      },
+      subject_to_mental_health_act: {
+        description: "True when they were subject to the Mental Health Act 1983 at the time.",
+      },
+      body_map_mark_ids: {
+        description: "Body-map marks recording their injuries (body_map_mark.id).",
+      },
+      infection: {
+        description:
+          "Infection incidents: one case for outbreak detection, JSON { syndrome, onsetAt, couldBeLinkedWithinSetting, fluConfirmedAt, link }.",
+      },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
   "public.integration_connection": {
     context: "integrations",
     description: "Which provider each integration uses (credentials stay in the secret store).",
@@ -873,6 +1450,46 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       resolved_at: "exported",
       resolved_by: "exported",
       resolution: { description: "How a quarantined item was resolved." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.investigation": {
+    context: "safety",
+    description: "The investigation of an incident: method, findings, actions and lessons.",
+    treatment: "tenant_rows",
+    retention: "as_subject",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      incident_id: { description: "The incident (incident.id)." },
+      lead_tenant_user_id: {
+        description: "Tenant user leading the investigation (tenant_user.id).",
+      },
+      method: {
+        description:
+          "The method used: root_cause_analysis, five_whys, fishbone, after_action_review, swarm_huddle or other.",
+      },
+      findings: { description: "What the investigation found, in words." },
+      contributing_factors: { description: "Factors that contributed, as recorded." },
+      actions: {
+        description:
+          "Actions agreed, JSON list of { id, action, ownerTenantUserId, dueOn, status, taskId }.",
+      },
+      lessons: { description: "Lessons learned, in words." },
+      bulletin_published_at: {
+        description: "When the lessons were shared with staff in a bulletin (instant, UTC).",
+      },
+      status: {
+        description: "Where the investigation stands.",
+        codes: { open: "Under way.", completed: "Finished." },
+      },
+      completed_at: { description: "When it was completed (instant, UTC)." },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -1451,6 +2068,92 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       service_type: { description: "Service type (data-standards.md)." },
       status: { description: "active or closed." },
       started_on: "exported",
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.statutory_notification": {
+    context: "safety",
+    description:
+      "Notifications owed to regulators and agencies (CQC, HSE, the local authority and others): drafts, deadlines and submissions.",
+    treatment: "tenant_rows",
+    retention: "serious_incident",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      location_id: "exported",
+      incident_id: { description: "The incident it arises from (incident.id), when it does." },
+      person_id: "exported",
+      dols_authorisation_id: {
+        description:
+          "The DoLS authorisation whose outcome it reports (dols_authorisation.id), when it does.",
+      },
+      source_key: {
+        class: "internal",
+        description: "Key that stops the same notification being drafted twice from one source.",
+      },
+      kind: {
+        description:
+          "The notification: cqc_reg16_death, cqc_reg18_serious_injury, cqc_reg18_abuse, cqc_reg18_police, cqc_reg18_service_disruption, cqc_reg18_dols_outcome, riddor_death, riddor_specified_injury, riddor_non_worker_hospital, riddor_over_7_day, riddor_dangerous_occurrence, safeguarding_s42, candour, leder, ukhsa_outbreak, medical_examiner or police_missing_person.",
+      },
+      status: {
+        description: "Where the notification stands.",
+        codes: {
+          draft: "Drafted; not yet ready.",
+          ready: "Ready for a holder of safety.notification.submit to submit.",
+          submitted: "Submitted to the regulator or agency.",
+          not_required: "A person decided it was not required, with a reason.",
+        },
+      },
+      due_at: {
+        description:
+          "The earliest deadline (instant, UTC), counted from when the event happened or the outcome was given.",
+      },
+      deadlines: {
+        description: "Every deadline, JSON list of { key, dueAt, wording, statutory }.",
+      },
+      provisional: {
+        description:
+          'True when drafted on an "unsure" answer so the clock shows; a person must confirm it.',
+      },
+      reasons: { description: "Why the notification applies, in words." },
+      required_content: { description: "What the regulator's form needs, item by item." },
+      sources: {
+        description:
+          "The legislation and guidance relied on, JSON list of { title, provision, url }.",
+      },
+      statement: {
+        description: "The regulation 18(4B) statement for a DoLS outcome, JSON.",
+      },
+      content: { description: "What the manager prepared for the regulator's form, JSON." },
+      no_longer_indicated: {
+        description:
+          "True when a later classification no longer finds it required; a person must still decide.",
+      },
+      no_longer_indicated_reason: { description: "Why it is no longer indicated." },
+      not_required_reason: { description: "Why a person decided it was not required." },
+      submitted_by: { description: "Tenant user who submitted it (tenant_user.id)." },
+      submitted_at: { description: "When it was submitted (instant, UTC)." },
+      external_reference: {
+        description: "The regulator's or agency's reference for the submission.",
+      },
+      evidence_document_id: { description: "Proof of submission (document.id)." },
+      classifier_version: { description: "Version of the classifier that drafted it." },
+      retention_class: {
+        description: "This notification's retention class.",
+        codes: {
+          serious_incident: "Kept as a serious incident record.",
+          riddor_report: "A RIDDOR report, kept for the RIDDOR period.",
+        },
+      },
+      overdue_notified_at: {
+        description: "When the overdue alert went out (instant, UTC); sent once.",
+      },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
