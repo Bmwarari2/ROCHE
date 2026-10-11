@@ -26,7 +26,7 @@ describe("UK formatting", () => {
   });
 });
 
-describe("UK offset", () => {
+describe("hazard HZ-009 UK offset", () => {
   it.each([
     ["2026-01-15T12:00:00Z", 0],
     ["2026-07-15T12:00:00Z", 60],
@@ -39,7 +39,7 @@ describe("UK offset", () => {
   });
 });
 
-describe("fromUkWallClock", () => {
+describe("hazard HZ-009 fromUkWallClock", () => {
   it.each([
     ["winter", [2026, 1, 15, 8, 0], "2026-01-15T08:00:00.000Z"],
     ["summer", [2026, 7, 15, 8, 0], "2026-07-15T07:00:00.000Z"],
@@ -62,7 +62,7 @@ describe("fromUkWallClock", () => {
   });
 });
 
-describe("addUkDays keeps the wall-clock time across a clock change", () => {
+describe("hazard HZ-009 addUkDays keeps the wall-clock time across a clock change", () => {
   it.each([
     ["08:00 the day before spring forward", "2026-03-28T08:00:00Z", 1, "2026-03-29T07:00:00.000Z"],
     ["08:00 the day before autumn back", "2026-10-24T07:00:00Z", 1, "2026-10-25T08:00:00.000Z"],
@@ -74,7 +74,7 @@ describe("addUkDays keeps the wall-clock time across a clock change", () => {
   });
 });
 
-describe("clock drift (HZ-010)", () => {
+describe("hazard HZ-010 clock drift", () => {
   const server = new Date("2026-10-11T10:00:00Z");
   it.each([
     ["in step", "2026-10-11T10:00:30Z", false, 1],

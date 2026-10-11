@@ -140,7 +140,7 @@ describe("sync streams definition", () => {
   });
 });
 
-describe("care worker (assigned scope)", () => {
+describe("hazard HZ-011 care worker (assigned scope)", () => {
   it("receives only assigned people and their allergies", async () => {
     const device = await syncFor(
       hydrated,
@@ -167,7 +167,7 @@ describe("care worker (assigned scope)", () => {
   });
 });
 
-describe("location manager (locations scope)", () => {
+describe("hazard HZ-011 location manager (locations scope)", () => {
   it("receives everyone at their locations and nobody elsewhere", async () => {
     const device = await syncFor(
       hydrated,
@@ -184,7 +184,7 @@ describe("location manager (locations scope)", () => {
   });
 });
 
-describe("cross-tenant isolation", () => {
+describe("hazard HZ-011 cross-tenant isolation", () => {
   it("gives a token for one tenant nothing from another, even with the other's location ids", async () => {
     const device = await syncFor(
       hydrated,

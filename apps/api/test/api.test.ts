@@ -85,7 +85,7 @@ describe("authentication", () => {
   });
 });
 
-describe("tenancy at the API (section 5.3, HZ-011)", () => {
+describe("hazard HZ-011 tenancy at the API (section 5.3)", () => {
   it("lists every organisation an agency worker belongs to", async () => {
     const response = await h.request("/v1/memberships", { token: h.tokens.agency });
     const body = await json<{ items: { tenantId: string }[] }>(response);
@@ -142,7 +142,7 @@ describe("/v1/me", () => {
   });
 });
 
-describe("people scope", () => {
+describe("hazard HZ-011 people scope", () => {
   it("shows a care worker only their assigned people, with allergy details", async () => {
     const people = await json<PersonList>(await demo("carer", "/v1/people"));
     expect(people.items.map((p) => p.givenName).sort()).toEqual(["Ada", "Ben", "Cara"]);
@@ -197,7 +197,7 @@ describe("people scope", () => {
   });
 });
 
-describe("break-glass access", () => {
+describe("hazard HZ-011 break-glass access", () => {
   it("is refused for roles without the permission, and the refusal is audited", async () => {
     const response = await demo("carer", "/v1/people/break-glass", {
       method: "POST",

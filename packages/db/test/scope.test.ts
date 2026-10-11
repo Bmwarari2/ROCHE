@@ -29,7 +29,7 @@ async function visiblePeople(context: ReturnType<typeof ctx>): Promise<string[]>
   });
 }
 
-describe("person scope", () => {
+describe("hazard HZ-011 person scope", () => {
   it("shows a care worker only the people they are assigned to", async () => {
     expect(await visiblePeople(ctx(TENANT_A, ids.a.carer, "assigned"))).toEqual(["Ada"]);
   });
@@ -109,7 +109,7 @@ describe("person scope", () => {
   });
 });
 
-describe("break-glass access", () => {
+describe("hazard HZ-011 break-glass access", () => {
   it("opens a person outside scope until the break-glass record expires", async () => {
     const carer = ctx(TENANT_A, ids.a.carer, "assigned");
     await inContext(app(), carer, (c) =>

@@ -30,7 +30,7 @@ async function publicTables(): Promise<string[]> {
   return rows.map((r) => r.tablename);
 }
 
-describe("row-level security coverage", () => {
+describe("hazard HZ-011 row-level security coverage", () => {
   it("has tables to check", async () => {
     expect((await publicTables()).length).toBeGreaterThan(20);
   });

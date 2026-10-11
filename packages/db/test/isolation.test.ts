@@ -26,7 +26,7 @@ afterAll(async () => {
 
 const app = () => db.pool("harbour_app");
 
-describe("tenant isolation for harbour_app", () => {
+describe("hazard HZ-011 tenant isolation for harbour_app", () => {
   it("sees nothing at all without a request context (fails closed)", async () => {
     for (const table of [...tenantTables, "tenant", "tenant_group"]) {
       const count = await inContext(app(), null, async (c) => {
@@ -155,7 +155,7 @@ describe("tenant isolation for harbour_app", () => {
   });
 });
 
-describe("membership lookup before a tenant is chosen", () => {
+describe("hazard HZ-011 membership lookup before a tenant is chosen", () => {
   it("returns every active membership for one identity and nothing else", async () => {
     const rows = await inContext(app(), null, async (c) => {
       const result = await c.query<{ tenant_id: string; tenant_name: string }>(
@@ -178,7 +178,7 @@ describe("membership lookup before a tenant is chosen", () => {
   });
 });
 
-describe("service roles", () => {
+describe("hazard HZ-011 service roles", () => {
   it("lets the operator console see tenants but never people", async () => {
     const tenants = await inContext(db.pool("harbour_operator"), null, async (c) => {
       const { rows } = await c.query("SELECT id FROM tenant");
