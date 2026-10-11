@@ -84,6 +84,24 @@ export class UploadRejectedError extends Error {
   }
 }
 
+/**
+ * 403 problem codes that refuse the entry itself (`apps/api/src/http/problem.ts`): the entry moves
+ * to "needs attention" with its content. Every other 403, the session-level codes
+ * (`not_a_member` when the account is removed or disabled, `mfa_enrolment_required`,
+ * `step_up_required`, a revoked session) and any code this build does not know, ends the session
+ * through the held-work rules, so a problem with the session never parks the whole queue as
+ * refused (security review S6).
+ */
+export const ENTRY_REFUSAL_CODES: ReadonlySet<string> = new Set([
+  "missing_permission",
+  "feature_disabled",
+]);
+
+/** True when a 403 with this problem code is about the session rather than the entry. */
+export function forbiddenEndsSession(code: string): boolean {
+  return !ENTRY_REFUSAL_CODES.has(code);
+}
+
 const OPS = new Set<UploadOp>(["PUT", "PATCH", "DELETE"]);
 
 export function toUploadOperation(entry: CrudEntryLike): UploadOperation {
@@ -328,6 +346,12 @@ export class HarbourConnector implements PowerSyncBackendConnector {
           );
         }
         const problem = await readProblem(response);
+        // A 403 about the session, not this entry, ends the session through the held-work rules
+        // rather than parking every queued entry as refused (security review S6).
+        if (response.status === 403 && forbiddenEndsSession(problem.code)) {
+          this.options.onSessionRevoked();
+          throw new SessionRevokedError();
+        }
         throw new UploadRejectedError(response.status, problem.code, problem.reason);
       }, this.retryOptions());
     } catch (error) {

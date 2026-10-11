@@ -337,6 +337,38 @@ describe("uploadData: care entries go to their own endpoints", () => {
     });
   });
 
+  it.each(["missing_permission", "feature_disabled"])(
+    "hazard HZ-006 treats a 403 %s as a refusal of the entry itself",
+    async (code) => {
+      const { fetch } = fakeFetch([problem(403, code, "Refused.")]);
+      const { instance, revoked } = connector(fetch);
+      const queue = fakeQueue([note()]);
+      await instance.uploadData(queue.source);
+      expect(revoked.count).toBe(0);
+      expect(queue.issues()).toHaveLength(1);
+      expect(queue.state.completed).toBe(1);
+    },
+  );
+
+  it.each([
+    "not_a_member",
+    "mfa_enrolment_required",
+    "step_up_required",
+    "session_revoked",
+    "a_code_this_build_does_not_know",
+  ])(
+    "hazard HZ-006 ends the session on a 403 %s instead of parking the entry as refused",
+    async (code) => {
+      const { fetch } = fakeFetch([problem(403, code, "Session problem.")]);
+      const { instance, revoked } = connector(fetch);
+      const queue = fakeQueue([note()]);
+      await expect(instance.uploadData(queue.source)).rejects.toBeInstanceOf(SessionRevokedError);
+      expect(revoked.count).toBe(1);
+      expect(queue.issues()).toEqual([]);
+      expect(queue.state.completed).toBe(0);
+    },
+  );
+
   it("refuses to send a change to an append-only entry and keeps it for attention", async () => {
     const { fetch, calls } = fakeFetch([]);
     const { instance } = connector(fetch);
