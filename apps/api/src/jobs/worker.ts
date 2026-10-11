@@ -9,6 +9,7 @@ import {
   materialiseTaskSeries,
   type OutboxHandler,
   processDeliveries,
+  raiseCareReviews,
   relayOutbox,
   runEscalations,
 } from "./tasks";
@@ -41,6 +42,7 @@ const QUEUES = {
   deliveries: "notification-deliveries",
   taskSeries: "task-series-materialise",
   taskEscalations: "task-escalations",
+  careReviews: "care-reviews",
 } as const;
 
 for (const name of Object.values(QUEUES)) await boss.createQueue(name);
@@ -67,6 +69,9 @@ await boss.work(QUEUES.taskSeries, async () => {
 await boss.work(QUEUES.taskEscalations, async () => {
   await escalateTasks(deps);
 });
+await boss.work(QUEUES.careReviews, async () => {
+  await raiseCareReviews(deps);
+});
 
 // Every minute: escalations are measured in minutes (section 9.1, e.g. on-call after 10 minutes).
 await boss.schedule(QUEUES.outbox, "* * * * *");
@@ -75,6 +80,8 @@ await boss.schedule(QUEUES.assignments, "*/5 * * * *");
 await boss.schedule(QUEUES.deliveries, "* * * * *");
 await boss.schedule(QUEUES.taskSeries, "*/15 * * * *");
 await boss.schedule(QUEUES.taskEscalations, "* * * * *");
+// Hourly: reviews fall due by the day; each overdue review raises one task, once.
+await boss.schedule(QUEUES.careReviews, "7 * * * *");
 
 logger.info("Harbour worker started");
 

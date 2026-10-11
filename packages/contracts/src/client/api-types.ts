@@ -3001,6 +3001,1787 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/people/{id}/care-plans": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Care plan versions, newest first, and what is due next
+     * @description The first plan is due within the rate table's working days of admission (skipping bank holidays); the active plan is reviewed at the review interval and on change.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Plans */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CarePlanList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /** Start a draft care plan (usually from the active plan) */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateCarePlan"];
+        };
+      };
+      responses: {
+        /** @description Draft started */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CarePlanDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/care-plans/{planId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** One care plan version with its sections and actions */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          planId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Plan */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CarePlanDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/care-plans/{planId}/sections/{domain}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Write one need domain of a draft: need, outcome in the person's words, strengths, contingency */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          planId: string;
+          /** @description The 16 need domains of the care and support plan */
+          domain: components["schemas"]["PcspDomain"];
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdateCarePlanSection"];
+        };
+      };
+      responses: {
+        /** @description Section */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CarePlanSectionItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/care-plans/{planId}/sections/{domain}/actions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Add an action to a draft section: what, who (role) and when
+     * @description An action that generates tasks needs a schedule in the location's time zone and a role; only an active plan's actions generate tasks.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          planId: string;
+          /** @description The 16 need domains of the care and support plan */
+          domain: components["schemas"]["PcspDomain"];
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateCarePlanAction"];
+        };
+      };
+      responses: {
+        /** @description Action added */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CarePlanActionItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/care-plans/{planId}/actions/{actionId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Change or remove an action in a draft */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          planId: string;
+          actionId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdateCarePlanAction"];
+        };
+      };
+      responses: {
+        /** @description Action */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CarePlanActionItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/care-plans/{planId}/publish": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Publish a draft: it becomes the active plan and supersedes the previous version
+     * @description Needs at least one section with the need and the outcome. Sets the review date from the rate table's review interval, or earlier when asked. Answers any open first-plan or review task.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          planId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["PublishCarePlan"];
+        };
+      };
+      responses: {
+        /** @description Published */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CarePlanDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/care-plans/{planId}/sign-off": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Record who agreed the plan: the person, a representative with authority, or why not */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          planId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SignOffCarePlan"];
+        };
+      };
+      responses: {
+        /** @description Signed off */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CarePlanSummary"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/care/risk-templates": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Risk assessment templates with their questions, controls and rate-table limits */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Templates */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RiskTemplateList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/risk-assessments": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The person's risk assessments (active by default) */
+    get: {
+      parameters: {
+        query?: {
+          status?: "active" | "closed" | "all";
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Risk assessments */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RiskAssessmentList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Record a positive risk assessment from a template
+     * @description Likelihood and severity are the assessor's judgements, rated with the NPSA matrix; falls are never rated (NICE NG249). Bed rail gaps are checked against the MHRA figures in the rate table.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateRiskAssessment"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RiskAssessmentItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/risk-assessments/{riskId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Review a risk assessment (the earlier version stays in its history) */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          riskId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdateRiskAssessment"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RiskAssessmentItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/risk-assessments/{riskId}/close": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Close a risk assessment that no longer applies, with the reason */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          riskId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CloseRiskAssessment"];
+        };
+      };
+      responses: {
+        /** @description Closed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RiskAssessmentItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/care-history/{table}/{recordId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Every earlier version of a care plan, section, action, risk assessment or advance care record */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          table:
+            | "care_plan"
+            | "care_plan_section"
+            | "care_plan_action"
+            | "risk_assessment"
+            | "advance_care_record";
+          recordId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description History */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RecordHistory"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/assessments": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stored validated tool results, newest first, or the current result per tool */
+    get: {
+      parameters: {
+        query?: {
+          toolKey?: components["schemas"]["AssessmentToolKey"];
+          latest?: "true" | "false";
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Results */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AssessmentList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Complete a validated tool (MUST, Waterlow, Braden or the NG249 falls questions)
+     * @description The server calculates the result exactly as published and stores the tool version, answers, score, band, workings, the follow-ups raised and when the tool is next due. MUST schedules the next screening and the weight checks; a changed band or a fall brings the care plan review forward. Waterlow and Braden are refused while their licence flags are off. Append-only: a correction supersedes with a reason.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateAssessment"];
+        };
+      };
+      responses: {
+        /** @description Saved (or the earlier copy of a replayed upload) */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AssessmentItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/activities": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Activities, newest first (default: the last three days) */
+    get: {
+      parameters: {
+        query?: {
+          from?: string;
+          to?: string;
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Activities */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ActivityRecordList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /** Record an activity: attendance and engagement (group sessions per person) */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateActivityRecord"];
+        };
+      };
+      responses: {
+        /** @description Saved (or the earlier copy of a replayed upload) */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ActivityRecordItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/visits": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The visiting log, newest first (default: the last three days) */
+    get: {
+      parameters: {
+        query?: {
+          from?: string;
+          to?: string;
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Visits */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["VisitList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Record a visit, a visit out or an accompaniment (Regulation 9A)
+     * @description `occurredAt` is when the visit started. A restriction applied to the visit needs the reason it was necessary. A visit is late when it is recorded long after it ended.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateVisit"];
+        };
+      };
+      responses: {
+        /** @description Saved (or the earlier copy of a replayed upload) */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["VisitItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/advance-care": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** ReSPECT, DNACPR, ADRT and advance care plans, with the resuscitation status in force */
+    get: {
+      parameters: {
+        query?: {
+          includeInactive?: "true" | "false";
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Records */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AdvanceCareList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Record a ReSPECT plan, DNACPR decision, ADRT or advance care plan
+     * @description Records the clinician, the date completed, the review date and the scanned form. A new record supersedes the active one of the same kind. The signed original stays with the person.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateAdvanceCareRecord"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AdvanceCareItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/advance-care/{recordId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Change the review date, clinician or form of a record, or withdraw it with the reason
+     * @description A changed CPR decision is a new record, which supersedes this one.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          recordId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdateAdvanceCareRecord"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AdvanceCareItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/rates/{key}": {
     parameters: {
       query?: never;
@@ -4066,6 +5847,7 @@ export interface components {
         reaction: string | null;
       }[];
       communicationNeeds: components["schemas"]["CommunicationNeed"][];
+      resuscitation: components["schemas"]["ResuscitationStatus"];
       version: number;
     };
     /** @enum {string} */
@@ -4075,6 +5857,23 @@ export interface components {
       code: string;
       display: string;
       preferredFormat?: string;
+    };
+    /** @description The CPR decision in force from a DNACPR or ReSPECT record; 'not_recorded' when there is none, never blank */
+    ResuscitationStatus: {
+      /** @enum {string} */
+      status: "not_recorded" | "attempt_cpr" | "do_not_attempt_cpr";
+      conflicting: boolean;
+      /** Format: uuid */
+      recordId: string | null;
+      /** @enum {string|null} */
+      kind: "respect" | "dnacpr" | null;
+      /** Format: date */
+      completedOn: string | null;
+      clinicianName: string | null;
+      clinicianRole: string | null;
+      /** Format: date */
+      reviewDueOn: string | null;
+      reviewOverdue: boolean;
     };
     /** @description Human-readable history of a mutable record */
     RecordHistory: {
@@ -4727,6 +6526,799 @@ export interface components {
       spo2Scale2RecordedOn?: string;
       /** @enum {string} */
       skinRisk?: "not_at_risk" | "at_risk" | "high_risk";
+      version: number;
+    };
+    CarePlanList: {
+      items: components["schemas"]["CarePlanSummary"][];
+      due: components["schemas"]["CarePlanDue"];
+    };
+    CarePlanSummary: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      locationId: string;
+      status: components["schemas"]["CarePlanStatus"];
+      publishedVersion: number | null;
+      /** Format: uuid */
+      basedOnPlanId: string | null;
+      summary: string | null;
+      /** Format: date */
+      reviewDueOn: string | null;
+      reviewReason: string | null;
+      /** Format: date-time */
+      publishedAt: string | null;
+      /** Format: uuid */
+      publishedBy: string | null;
+      /** Format: date-time */
+      supersededAt: string | null;
+      signOff: components["schemas"]["CarePlanSignOff"];
+      version: number;
+    };
+    /** @enum {string} */
+    CarePlanStatus: "draft" | "active" | "superseded";
+    CarePlanSignOff: {
+      /** @enum {string} */
+      agreedBy: "person" | "representative" | "unable";
+      representativeName: string | null;
+      authority: components["schemas"]["SignOffAuthority"];
+      /** Format: uuid */
+      contactId: string | null;
+      unableReason: string | null;
+      /** Format: date-time */
+      signedOffAt: string;
+      /** Format: uuid */
+      recordedBy: string | null;
+    } | null;
+    /** @enum {string|null} */
+    SignOffAuthority:
+      | "lpa_health_welfare"
+      | "deputy"
+      | "imca"
+      | "advocate"
+      | "next_of_kin"
+      | "other"
+      | null;
+    /** @description What is due next: the first plan, then its review */
+    CarePlanDue: {
+      /** @enum {string} */
+      kind: "first_plan" | "review";
+      /** Format: date */
+      dueOn: string | null;
+      overdue: boolean;
+    } | null;
+    CarePlanDetail: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      locationId: string;
+      status: components["schemas"]["CarePlanStatus"];
+      publishedVersion: number | null;
+      /** Format: uuid */
+      basedOnPlanId: string | null;
+      summary: string | null;
+      /** Format: date */
+      reviewDueOn: string | null;
+      reviewReason: string | null;
+      /** Format: date-time */
+      publishedAt: string | null;
+      /** Format: uuid */
+      publishedBy: string | null;
+      /** Format: date-time */
+      supersededAt: string | null;
+      signOff: components["schemas"]["CarePlanSignOff"];
+      version: number;
+      sections: components["schemas"]["CarePlanSectionItem"][];
+    };
+    CarePlanSectionItem: {
+      /** Format: uuid */
+      id: string;
+      domain: components["schemas"]["PcspDomain"];
+      need: string | null;
+      /** @description The outcome in the person's words */
+      outcome: string | null;
+      strengths: string | null;
+      contingency: string | null;
+      actions: components["schemas"]["CarePlanActionItem"][];
+      version: number;
+    };
+    /**
+     * @description The 16 need domains of the care and support plan
+     * @enum {string}
+     */
+    PcspDomain:
+      | "mobility"
+      | "skin"
+      | "nutrition_and_hydration"
+      | "continence"
+      | "communication"
+      | "cognition"
+      | "mood"
+      | "behaviour"
+      | "sleep"
+      | "pain"
+      | "breathing"
+      | "medicines"
+      | "personal_care"
+      | "social_and_spiritual"
+      | "sexuality_and_relationships"
+      | "end_of_life";
+    CarePlanActionItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      sectionId: string;
+      action: string;
+      roleKey: string | null;
+      recurrence: components["schemas"]["Recurrence"];
+      whenText: string | null;
+      generatesTasks: boolean;
+      evidenceRequired: boolean;
+      /** Format: uuid */
+      riskAssessmentId: string | null;
+      /** Format: uuid */
+      taskSeriesId: string | null;
+      version: number;
+    };
+    CreateCarePlan: {
+      /** @default true */
+      copyFromActive: boolean;
+      summary?: string;
+    };
+    UpdateCarePlanSection: {
+      need?: string | null;
+      outcome?: string | null;
+      strengths?: string | null;
+      contingency?: string | null;
+      version: number;
+    };
+    CreateCarePlanAction: {
+      action: string;
+      roleKey?: string;
+      recurrence?: components["schemas"]["Recurrence"];
+      whenText?: string;
+      /** @default false */
+      generatesTasks: boolean;
+      /** @default false */
+      evidenceRequired: boolean;
+      /** Format: uuid */
+      riskAssessmentId?: string;
+    };
+    UpdateCarePlanAction: {
+      action?: string;
+      roleKey?: string | null;
+      recurrence?: components["schemas"]["Recurrence"];
+      whenText?: string | null;
+      generatesTasks?: boolean;
+      evidenceRequired?: boolean;
+      /** Format: uuid */
+      riskAssessmentId?: string | null;
+      removed?: boolean;
+      version: number;
+    };
+    PublishCarePlan: {
+      version: number;
+      /** Format: date */
+      reviewDueOn?: string;
+    };
+    SignOffCarePlan: {
+      /** @enum {string} */
+      agreedBy: "person" | "representative" | "unable";
+      representativeName?: string;
+      authority?: components["schemas"]["SignOffAuthority"];
+      /** Format: uuid */
+      contactId?: string;
+      unableReason?: string;
+      version: number;
+    };
+    RiskTemplateList: {
+      items: components["schemas"]["RiskTemplate"][];
+      matrix: {
+        source: string;
+        likelihood: string[];
+        severity: string[];
+      };
+    };
+    RiskTemplate: {
+      key: components["schemas"]["RiskTemplateKey"];
+      title: string;
+      version: string;
+      source: string;
+      rated: boolean;
+      questions: components["schemas"]["RiskQuestion"][];
+      suggestedControls: string[];
+    };
+    /** @enum {string} */
+    RiskTemplateKey:
+      | "moving_and_handling"
+      | "falls"
+      | "choking"
+      | "skin"
+      | "bed_rails"
+      | "smoking"
+      | "going_out_alone"
+      | "financial"
+      | "environmental"
+      | "self_harm_and_suicide"
+      | "sexual_safety"
+      | "fire_setting"
+      | "absconding"
+      | "substance_and_alcohol_use"
+      | "general";
+    RiskQuestion: {
+      key: string;
+      text: string;
+      /** @enum {string} */
+      kind: "yes_no" | "text" | "measurement_mm";
+      limit: {
+        rateKey: string;
+        valueMm: number;
+        /** @enum {string} */
+        rule: "under" | "at_least";
+        whenYes: {
+          questionKey: string;
+          rateKey: string;
+          valueMm: number;
+        } | null;
+      } | null;
+    };
+    RiskAssessmentList: {
+      items: components["schemas"]["RiskAssessmentItem"][];
+    };
+    RiskAssessmentItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      templateKey: components["schemas"]["RiskTemplateKey"];
+      templateVersion: string;
+      hazard: string;
+      whoAtRisk: string;
+      answers: {
+        [key: string]: unknown;
+      };
+      findings: components["schemas"]["RiskFinding"][];
+      outsideLimits: boolean;
+      likelihood: number | null;
+      severity: number | null;
+      riskRating: number | null;
+      riskBand: components["schemas"]["RiskBand"];
+      residualLikelihood: number | null;
+      residualSeverity: number | null;
+      residualRating: number | null;
+      residualBand: components["schemas"]["RiskBand"];
+      controls: string[];
+      positiveRiskStatement: string | null;
+      personViews: string | null;
+      /** Format: date */
+      assessedOn: string;
+      /** Format: date */
+      reviewDueOn: string;
+      /** @enum {string} */
+      status: "active" | "closed";
+      closedReason: string | null;
+      version: number;
+    };
+    RiskFinding: {
+      questionKey: string;
+      valueMm: number;
+      rateKey: string;
+      limitMm: number;
+      /** @enum {string} */
+      rule: "under" | "at_least";
+      withinLimit: boolean;
+    };
+    /** @enum {string|null} */
+    RiskBand: "low" | "moderate" | "high" | "extreme" | null;
+    CreateRiskAssessment: {
+      templateKey: components["schemas"]["RiskTemplateKey"];
+      hazard: string;
+      whoAtRisk: string;
+      /** @default {} */
+      answers: {
+        [key: string]: boolean | number | string | null;
+      };
+      /** @default null */
+      likelihood: number | null;
+      /** @default null */
+      severity: number | null;
+      /** @default null */
+      residualLikelihood: number | null;
+      /** @default null */
+      residualSeverity: number | null;
+      controls: string[];
+      /** @default null */
+      positiveRiskStatement: string | null;
+      /** @default null */
+      personViews: string | null;
+      /** Format: date */
+      assessedOn: string;
+      /** Format: date */
+      reviewDueOn?: string;
+    };
+    /** @description A review: the whole assessment as it now stands */
+    UpdateRiskAssessment: {
+      hazard: string;
+      whoAtRisk: string;
+      /** @default {} */
+      answers: {
+        [key: string]: boolean | number | string | null;
+      };
+      /** @default null */
+      likelihood: number | null;
+      /** @default null */
+      severity: number | null;
+      /** @default null */
+      residualLikelihood: number | null;
+      /** @default null */
+      residualSeverity: number | null;
+      controls: string[];
+      /** @default null */
+      positiveRiskStatement: string | null;
+      /** @default null */
+      personViews: string | null;
+      /** Format: date */
+      assessedOn: string;
+      /** Format: date */
+      reviewDueOn?: string;
+      version: number;
+    };
+    CloseRiskAssessment: {
+      reason: string;
+      version: number;
+    };
+    AssessmentItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: date-time */
+      occurredAt: string;
+      /** Format: date-time */
+      recordedAt: string;
+      /** Format: date-time */
+      deviceTime: string | null;
+      lateEntry: boolean;
+      clockDrift: boolean;
+      /** Format: uuid */
+      supersedesId: string | null;
+      correctionReason: string | null;
+      superseded: boolean;
+      /** Format: uuid */
+      recordedBy: string | null;
+      toolKey: components["schemas"]["AssessmentToolKey"];
+      toolVersion: string;
+      answers: {
+        [key: string]: unknown;
+      };
+      score: number | null;
+      band: string | null;
+      workings: components["schemas"]["ScoreWorking"][];
+      triggers: {
+        [key: string]: unknown;
+      }[];
+      details: {
+        [key: string]: unknown;
+      };
+      /** Format: date */
+      nextDueOn: string | null;
+    };
+    /** @enum {string} */
+    AssessmentToolKey: "must" | "waterlow" | "braden" | "ng249_falls";
+    ScoreWorking: {
+      item: string;
+      value: string;
+      points: number;
+    };
+    /** @description Answers to a locked validated tool; the server calculates and stores the result. A correction names the result it supersedes and why. */
+    CreateAssessment:
+      | {
+          /** Format: uuid */
+          id?: string;
+          /** Format: date-time */
+          occurredAt: string;
+          /** Format: date-time */
+          deviceTime?: string;
+          /** Format: uuid */
+          supersedesId?: string;
+          correctionReason?: string;
+          /** Format: uuid */
+          taskId?: string;
+          /** @enum {string} */
+          toolKey: "must";
+          answers: components["schemas"]["MustAnswers"];
+        }
+      | {
+          /** Format: uuid */
+          id?: string;
+          /** Format: date-time */
+          occurredAt: string;
+          /** Format: date-time */
+          deviceTime?: string;
+          /** Format: uuid */
+          supersedesId?: string;
+          correctionReason?: string;
+          /** Format: uuid */
+          taskId?: string;
+          /** @enum {string} */
+          toolKey: "waterlow";
+          answers: components["schemas"]["WaterlowAnswers"];
+        }
+      | {
+          /** Format: uuid */
+          id?: string;
+          /** Format: date-time */
+          occurredAt: string;
+          /** Format: date-time */
+          deviceTime?: string;
+          /** Format: uuid */
+          supersedesId?: string;
+          correctionReason?: string;
+          /** Format: uuid */
+          taskId?: string;
+          /** @enum {string} */
+          toolKey: "braden";
+          answers: components["schemas"]["BradenAnswers"];
+        }
+      | {
+          /** Format: uuid */
+          id?: string;
+          /** Format: date-time */
+          occurredAt: string;
+          /** Format: date-time */
+          deviceTime?: string;
+          /** Format: uuid */
+          supersedesId?: string;
+          correctionReason?: string;
+          /** Format: uuid */
+          taskId?: string;
+          /** @enum {string} */
+          toolKey: "ng249_falls";
+          answers: components["schemas"]["FallsAnswers"];
+        };
+    /** @description BAPEN 'MUST' steps 1 to 3 */
+    MustAnswers: {
+      bmi:
+        | {
+            /** @enum {string} */
+            kind: "calculated";
+            weightKg: number;
+            heightM: number;
+            /** @enum {string} */
+            weightMethod: "measured" | "documented_or_reported";
+            /** @enum {string} */
+            heightMethod:
+              | "measured"
+              | "documented_or_reported"
+              | "ulna_length"
+              | "knee_height"
+              | "demispan";
+          }
+        | {
+            /** @enum {string} */
+            kind: "assessor_category";
+            /** @enum {string} */
+            category: "over_20" | "18_5_to_20" | "under_18_5";
+            /** @enum {string} */
+            method: "mid_upper_arm_circumference" | "subjective_criteria";
+          };
+      weightLoss:
+        | {
+            /** @enum {string} */
+            kind: "calculated";
+            previousWeightKg: number;
+            currentWeightKg: number;
+          }
+        | {
+            /** @enum {string} */
+            kind: "assessor_category";
+            /** @enum {string} */
+            category: "under_5" | "5_to_10" | "over_10";
+            /** @enum {string} */
+            method: "reported_weight_loss" | "subjective_criteria";
+          };
+      acuteDiseaseEffect: boolean;
+    };
+    /** @description Waterlow score card (2005 revision) */
+    WaterlowAnswers: {
+      build:
+        | {
+            /** @enum {string} */
+            kind: "calculated";
+            weightKg: number;
+            heightM: number;
+          }
+        | {
+            /** @enum {string} */
+            kind: "assessor_category";
+            /** @enum {string} */
+            category: "average" | "above_average" | "obese" | "below_average";
+          };
+      skin: (
+        | "healthy"
+        | "tissue_paper"
+        | "dry"
+        | "oedematous"
+        | "clammy_or_pyrexia"
+        | "discoloured_grade_1"
+        | "broken_or_spots_grade_2_to_4"
+      )[];
+      /** @enum {string} */
+      sex: "male" | "female";
+      ageYears: number;
+      malnutrition: {
+        /** @enum {string} */
+        recentWeightLoss: "yes" | "no" | "unsure";
+        /** @enum {string|null} */
+        weightLossAmount?:
+          | "0.5_to_5_kg"
+          | "5_to_10_kg"
+          | "10_to_15_kg"
+          | "over_15_kg"
+          | "unsure"
+          | null;
+        eatingPoorlyOrLackOfAppetite: boolean;
+      };
+      /** @enum {string} */
+      continence:
+        | "complete_or_catheterised"
+        | "urinary_incontinence"
+        | "faecal_incontinence"
+        | "urinary_and_faecal_incontinence";
+      /** @enum {string} */
+      mobility:
+        | "fully"
+        | "restless_or_fidgety"
+        | "apathetic"
+        | "restricted"
+        | "bedbound"
+        | "chairbound";
+      tissueMalnutrition: (
+        | "terminal_cachexia"
+        | "multiple_organ_failure"
+        | "single_organ_failure"
+        | "peripheral_vascular_disease"
+        | "anaemia"
+        | "smoking"
+      )[];
+      neurologicalDeficit: {
+        /** @enum {string} */
+        condition: "diabetes_ms_or_cva" | "motor_or_sensory" | "paraplegia";
+        points: number;
+      }[];
+      majorSurgeryOrTrauma: {
+        orthopaedicOrSpinal: boolean;
+        /** @enum {string} */
+        timeOnTable: "not_applicable" | "over_2_hours" | "over_6_hours";
+      };
+      medication: ("cytotoxics" | "long_term_or_high_dose_steroids" | "anti_inflammatory")[];
+    };
+    /** @description Braden Scale subscale scores */
+    BradenAnswers: {
+      sensoryPerception: number;
+      moisture: number;
+      activity: number;
+      mobility: number;
+      nutrition: number;
+      frictionAndShear: number;
+    };
+    /** @description NICE NG249 falls questions (no score) */
+    FallsAnswers:
+      | {
+          /** @enum {string} */
+          setting: "residential";
+          /** @enum {string} */
+          occasion: "admission" | "review" | "after_fall";
+          fallenInLastYear?: boolean | null;
+          presentingAfterFall?: boolean | null;
+        }
+      | {
+          /** @enum {string} */
+          setting: "community";
+          fallenInLastYear?: boolean | null;
+          presentingAfterFall?: boolean | null;
+          criteria?: {
+            livingWithFrailty?: boolean | null;
+            injuredAndNeededMedicalTreatment?: boolean | null;
+            lostConsciousness?: boolean | null;
+            unableToGetUpIndependently?: boolean | null;
+            twoOrMoreFallsInLastYear?: boolean | null;
+          } | null;
+        };
+    AssessmentList: {
+      items: components["schemas"]["AssessmentItem"][];
+    };
+    ActivityRecordItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: date-time */
+      occurredAt: string;
+      /** Format: date-time */
+      recordedAt: string;
+      /** Format: date-time */
+      deviceTime: string | null;
+      lateEntry: boolean;
+      clockDrift: boolean;
+      /** Format: uuid */
+      supersedesId: string | null;
+      correctionReason: string | null;
+      superseded: boolean;
+      /** Format: uuid */
+      recordedBy: string | null;
+      activity: string;
+      /** @enum {string} */
+      format: "group" | "one_to_one";
+      /** Format: uuid */
+      groupSessionId: string | null;
+      attendance: components["schemas"]["ActivityAttendance"];
+      engagement: components["schemas"]["ActivityEngagement"];
+      durationMinutes: number | null;
+      notes: string | null;
+    };
+    /** @enum {string} */
+    ActivityAttendance: "attended" | "partly_attended" | "declined" | "not_able";
+    /** @enum {string|null} */
+    ActivityEngagement:
+      | "engaged_throughout"
+      | "engaged_some_of_the_time"
+      | "engaged_briefly"
+      | "did_not_engage"
+      | null;
+    CreateActivityRecord: {
+      /** Format: uuid */
+      id?: string;
+      /** Format: date-time */
+      occurredAt: string;
+      /** Format: date-time */
+      deviceTime?: string;
+      /** Format: uuid */
+      supersedesId?: string;
+      correctionReason?: string;
+      /** Format: uuid */
+      taskId?: string;
+      activity: string;
+      /** @enum {string} */
+      format: "group" | "one_to_one";
+      /** Format: uuid */
+      groupSessionId?: string;
+      attendance: components["schemas"]["ActivityAttendance"];
+      engagement?: components["schemas"]["ActivityEngagement"];
+      durationMinutes?: number;
+      notes?: string;
+    };
+    ActivityRecordList: {
+      items: components["schemas"]["ActivityRecordItem"][];
+    };
+    VisitItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: date-time */
+      occurredAt: string;
+      /** Format: date-time */
+      recordedAt: string;
+      /** Format: date-time */
+      deviceTime: string | null;
+      lateEntry: boolean;
+      clockDrift: boolean;
+      /** Format: uuid */
+      supersedesId: string | null;
+      correctionReason: string | null;
+      superseded: boolean;
+      /** Format: uuid */
+      recordedBy: string | null;
+      kind: components["schemas"]["VisitKind"];
+      /** Format: uuid */
+      contactId: string | null;
+      visitorName: string | null;
+      visitorRelationship: string | null;
+      /** Format: date-time */
+      endedAt: string | null;
+      restrictionsApplied: boolean;
+      restrictionReason: string | null;
+      notes: string | null;
+    };
+    /**
+     * @description Regulation 9A: visiting, visits out and accompaniment
+     * @enum {string}
+     */
+    VisitKind: "facilitated_visit" | "visit_out" | "accompaniment";
+    CreateVisit: {
+      /** Format: uuid */
+      id?: string;
+      /** Format: date-time */
+      occurredAt: string;
+      /** Format: date-time */
+      deviceTime?: string;
+      /** Format: uuid */
+      supersedesId?: string;
+      correctionReason?: string;
+      /** Format: uuid */
+      taskId?: string;
+      kind: components["schemas"]["VisitKind"];
+      /** Format: uuid */
+      contactId?: string;
+      visitorName?: string;
+      visitorRelationship?: string;
+      /** Format: date-time */
+      endedAt?: string;
+      /** @default false */
+      restrictionsApplied: boolean;
+      restrictionReason?: string;
+      notes?: string;
+    };
+    VisitList: {
+      items: components["schemas"]["VisitItem"][];
+    };
+    AdvanceCareList: {
+      items: components["schemas"]["AdvanceCareItem"][];
+      resuscitation: components["schemas"]["ResuscitationStatus"];
+    };
+    AdvanceCareItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      kind: components["schemas"]["AdvanceCareKind"];
+      /** @enum {string} */
+      status: "active" | "withdrawn" | "superseded";
+      cprDecision: components["schemas"]["CprDecision"];
+      clinicianName: string | null;
+      clinicianRole: string | null;
+      /** Format: date */
+      completedOn: string;
+      /** Format: date */
+      reviewDueOn: string | null;
+      reviewOverdue: boolean;
+      /** Format: uuid */
+      documentId: string | null;
+      details: string | null;
+      /** Format: date-time */
+      withdrawnAt: string | null;
+      withdrawnReason: string | null;
+      /** Format: uuid */
+      supersededByRecordId: string | null;
+      version: number;
+    };
+    /** @enum {string} */
+    AdvanceCareKind: "respect" | "dnacpr" | "adrt" | "advance_care_plan";
+    /** @enum {string|null} */
+    CprDecision: "attempt_cpr" | "do_not_attempt_cpr" | null;
+    CreateAdvanceCareRecord: {
+      kind: components["schemas"]["AdvanceCareKind"];
+      cprDecision?: components["schemas"]["CprDecision"];
+      clinicianName?: string;
+      clinicianRole?: string;
+      /** Format: date */
+      completedOn: string;
+      /** Format: date */
+      reviewDueOn?: string;
+      /** Format: uuid */
+      documentId?: string;
+      details?: string;
+    };
+    /** @description A changed CPR decision is a new record, which supersedes this one */
+    UpdateAdvanceCareRecord: {
+      clinicianName?: string;
+      clinicianRole?: string;
+      /** Format: date */
+      reviewDueOn?: string | null;
+      /** Format: uuid */
+      documentId?: string | null;
+      details?: string | null;
+      withdrawnReason?: string;
       version: number;
     };
     RateValue: {

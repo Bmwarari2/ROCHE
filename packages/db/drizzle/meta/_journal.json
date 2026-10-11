@@ -113,6 +113,20 @@
       "when": 1791690840338,
       "tag": "0015_bank_holidays_security",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1791692655667,
+      "tag": "0016_care_plans_and_assessments",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791692656807,
+      "tag": "0017_care_plans_and_assessments_security",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { FLAGS } from "../platform/feature-flags";
 import { BRADEN_TOOL_VERSION, type BradenInput, calculateBraden } from "./braden";
 import { TOOLS_AWAITING_LICENCE_CONFIRMATION } from "./tools";
 
@@ -81,10 +82,13 @@ describe("hazard HZ-012 Braden gives no total for missing or impossible subscale
 });
 
 describe("validated tools awaiting licence confirmation", () => {
-  it("lists Waterlow and Braden against human action H-25", () => {
+  it("lists Waterlow and Braden against human action H-25, each behind an off-by-default flag", () => {
     expect(TOOLS_AWAITING_LICENCE_CONFIRMATION).toEqual([
-      { toolKey: "waterlow", humanAction: "H-25" },
-      { toolKey: "braden", humanAction: "H-25" },
+      { toolKey: "waterlow", humanAction: "H-25", flagKey: "care.tool.waterlow" },
+      { toolKey: "braden", humanAction: "H-25", flagKey: "care.tool.braden" },
     ]);
+    for (const { flagKey } of TOOLS_AWAITING_LICENCE_CONFIRMATION) {
+      expect(FLAGS[flagKey].defaultEnabled).toBe(false);
+    }
   });
 });

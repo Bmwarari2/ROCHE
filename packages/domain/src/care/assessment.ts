@@ -61,7 +61,11 @@ export type CareTrigger =
       readonly forDays?: number;
     }
   | { readonly kind: "repeat_observations"; readonly frequency: MonitoringFrequency }
-  | { readonly kind: "rescreen"; readonly toolKey: ValidatedToolKey; readonly dueOn: string }
+  | {
+      readonly kind: "rescreen";
+      readonly toolKey: ValidatedToolKey | "ng249_falls";
+      readonly dueOn: string;
+    }
   | { readonly kind: "weight_interval"; readonly interval: WeightInterval };
 
 export interface ToolResult<K extends ValidatedToolKey, B extends string> {

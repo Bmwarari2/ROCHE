@@ -141,7 +141,13 @@ export const contact = pgTable(
     notes: text("notes"),
     ...mutableColumns(),
   },
-  (t) => [personFk("contact_person_fk", t), index("contact_person_idx").on(t.tenantId, t.personId)],
+  (t) => [
+    // Lets visits and care plan sign-offs reference one of the same person's contacts through a
+    // composite key (ADR-0002).
+    unique("contact_tenant_person_id_key").on(t.tenantId, t.personId, t.id),
+    personFk("contact_person_fk", t),
+    index("contact_person_idx").on(t.tenantId, t.personId),
+  ],
 );
 
 export const allergy = pgTable(

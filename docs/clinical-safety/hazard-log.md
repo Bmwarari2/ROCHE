@@ -46,6 +46,8 @@
 | [HZ-021](#hz-021-no-access-to-essential-information-during-an-it-outage) | No access to essential information during an IT outage | Major / Low / 3 | Major / Very low / 2 | Open | None (Phase 1) | Phase 1 |
 | [HZ-022](#hz-022-a-persons-information-shown-to-a-family-member-or-professional-without-a-sharing-decision) | A person's information shown to a family member or professional without a sharing decision | Major / Medium / 3 | Major / Very low / 2 | Open | None (Phase 1) | Phase 1 |
 | [HZ-023](#hz-023-essential-information-missing-from-the-hospital-transfer-pack) | Essential information missing from the hospital transfer pack | Major / Medium / 3 | Major / Low / 3 | Open | None (Phase 1) | Phase 1 |
+| [HZ-024](#hz-024-care-plan-or-risk-assessment-out-of-date-or-a-draft-or-superseded-version-followed) | Care plan or risk assessment out of date, or a draft or superseded version followed | Considerable / Medium / 3 | Considerable / Low / 2 | Open | None (Phase 1) | Phase 1 |
+| [HZ-025](#hz-025-bed-rail-entrapment-risk-not-identified) | Bed rail entrapment risk not identified | Major / Low / 3 | Major / Very low / 2 | Open | None (Phase 1) | Phase 1 |
 
 Seven hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
@@ -701,7 +703,8 @@ Seven hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023) have a ta
 | Design | Missing inputs produce no total ("Score incomplete: 2 values missing"), never a partial total | Phase 1 |
 | Design | NEWS2 SpO2 Scale 2 is available only when a registered clinician has recorded that decision and target range on the person's record | Phase 1 |
 | Design | The result links to the tenant's escalation policy; Harbour adds no recommendation of its own | Phase 1 |
-| Design | Each stored score records the tool edition and the code version that calculated it | Phase 1 |
+| Design | Each stored score records the tool edition and the code version that calculated it | Built in Phase 1 slice 4b: the server runs the tool by key and stores the version, answers, score, band and workings; the client never sends a score |
+| Design | Waterlow and Braden stay off for real tenants until their licence terms are confirmed (H-25): `care.tool.waterlow` and `care.tool.braden` flags, off by default, on in the demo tenant | Built in Phase 1 slice 4b |
 | Design | Fixed units (kg, cm, degrees Celsius) with visible conversion for stones and pounds | Phase 1 |
 | Design | The CSO checks each tool implementation against its published source before release `[CSO - human action]` | Phase 1 |
 | Test | See Verification | Phase 1 |
@@ -726,6 +729,8 @@ Seven hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023) have a ta
 | `packages/domain` (care): `hazard HZ-012 Waterlow gives no total for missing or contradictory answers` | Passing |
 | `packages/domain` (care): `hazard HZ-012 Braden totals and risk bands match the published form` | Passing |
 | `packages/domain` (care): `hazard HZ-012 Braden gives no total for missing or impossible subscale scores` | Passing |
+| `packages/domain/src/care/validated-assessment.test.ts`: `hazard HZ-012 the tool runs on the server by its key` (MUST, Waterlow, Braden and the NG249 pathway stored with tool version, score, band and workings; the falls pathway with no score and no band; no result for incomplete answers) | Passing |
+| `apps/api/test/care-planning.test.ts`: `hazard HZ-012 refuses Braden where its licence flag is off (H-25), and allows it in the demo tenant` | Passing |
 | `packages/domain` (platform): `hazard HZ-012 tenants cannot edit locked validated templates` | Planned, Phase 1 |
 | `apps/web` Playwright: `hazard HZ-012 the score screen shows sub-scores and the banding table` | Planned, Phase 1 |
 
@@ -807,6 +812,7 @@ Seven hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023) have a ta
 | --- | --- | --- |
 | Design | Every validated result stores the published response band; bands that call for action raise a task and an urgent notification to the nurse in charge on shift, escalating through the location's chain until acknowledged | Phase 1 |
 | Design | Follow-ups are generated from the band: repeat observation frequency for NEWS2, a food record for MUST medium risk, a dietitian referral task for MUST high risk; intervals come from the rate table where they are defaults | Phase 1 |
+| Design | Stored MUST results schedule the next screening (`must.care_home.screening_interval_months`) and weighing (weekly at medium or high risk, otherwise monthly, from the rate table) as tasks, one open task of each kind at a time; a recorded weight answers the weight check; a correction raises only the follow-ups the original did not | Built in Phase 1 slice 4b |
 | Design | Results entered offline raise the task on the device immediately and the alert on sync, with the original time | Phase 1 |
 | Design | Handover always includes NEWS2 above the low band (an aggregate of 5 or more, or a single parameter scoring 3) and MUST follow-ups raised in the shift (HZ-018) | Phase 1 |
 | Training and user documentation | User guide: the score supports clinical judgement and the published response, never replaces it; deployer control: escalation policy and on-shift nurse in charge set per location | Phase 1 |
@@ -822,6 +828,8 @@ Seven hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023) have a ta
 | `packages/domain` (care): `hazard HZ-014 NEWS2 bands that call for a response raise a task and an urgent alert` | Passing |
 | `packages/domain` (care): `hazard HZ-014 MUST medium and high risk schedule the food record and the dietitian referral` | Passing |
 | `packages/domain` (care): `hazard HZ-014 Waterlow nutrition score over 2 raises a nutrition assessment task` | Passing |
+| `packages/domain/src/care/validated-assessment.test.ts`: `hazard HZ-014 MUST high risk raises the dietitian referral and sets the next screening date`; `hazard HZ-014 MUST at medium or high risk weighs weekly; low risk monthly (rate table)` | Passing |
+| `apps/api/test/care-planning.test.ts`: `hazard HZ-014 MUST high raises the dietitian referral and sets next_due_on` (the rescreen and weight-check tasks are scheduled, one open at a time, and the next result answers the rescreen); `a weight answers the weight check and schedules the next at the MUST interval` | Passing |
 | `apps/api`: `hazard HZ-014 an urgent assessment alert escalates until acknowledged` | Planned, Phase 1 |
 | `apps/api/test/care.test.ts`: `hazard HZ-012 and HZ-014 NEWS2 vital signs` (a high score alerts the nurse in charge and creates the urgent response and continuous-monitoring tasks; a score of 0 schedules nothing outside the care plan) | Passing |
 
@@ -850,7 +858,8 @@ Seven hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023) have a ta
 | Type | Control | When |
 | --- | --- | --- |
 | Design | The point-of-care header shows the current resuscitation status (word and icon) with the date and clinician; a missing record shows as 'Not recorded', never as blank | Phase 1 |
-| Design | Only one active record per kind; recording a new one supersedes the old; review dates raise tasks | Phase 1 |
+| Design | The person summary every point-of-care header reads carries the resuscitation status in force from an active ReSPECT or DNACPR record, with the clinician and dates, or `not_recorded`; records in force that disagree are flagged; a passed review date never hides a decision | Built in Phase 1 slice 4b (screens in slice 9) |
+| Design | Only one active record per kind; recording a new one supersedes the old; review dates raise tasks | Built in Phase 1 slice 4b (database partial unique index; hourly review job) |
 | Design | Advance care records are reference data on the device (never evicted while assigned), in the downtime pack and in the hospital transfer pack | Phase 1 |
 | Training and user documentation | Deployer control: the original signed form stays with the person as the home's policy requires; Harbour shows the record, it is not the legal document | Phase 1 |
 
@@ -860,8 +869,10 @@ Seven hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023) have a ta
 
 | Test | Status |
 | --- | --- |
-| `packages/domain` (care): `hazard HZ-015 a missing resuscitation record shows as not recorded` | Planned, Phase 1 |
-| `packages/db`: `hazard HZ-015 only one advance care record of each kind is active` | Planned, Phase 1 |
+| `packages/domain/src/care/advance-care.test.ts`: `hazard HZ-015 a missing resuscitation record shows as not recorded`; `hazard HZ-015 the current resuscitation status` (latest decision, conflicts flagged, withdrawn and superseded records ignored, overdue review keeps the decision) | Passing |
+| `packages/db/test/care-planning.test.ts`: `hazard HZ-015 only one advance care record of each kind is active` | Passing |
+| `packages/contracts/src/contracts.test.ts`: `hazard HZ-015 needs a resuscitation status on every point-of-care summary` | Passing |
+| `apps/api/test/care-planning.test.ts`: `hazard HZ-015 advance care records and the resuscitation status` (a DNACPR shows on the person summary and list; superseding and withdrawal) | Passing |
 | `apps/api`: `hazard HZ-015 the transfer pack and the downtime pack include the current resuscitation record` | Planned, Phase 1 |
 | `packages/domain/src/people/pre-admission.test.ts`: `hazard HZ-015 requires the resuscitation and advance care section` | Passing (Phase 1) |
 | `packages/domain/src/people/transfer-pack.test.ts`: `hazard HZ-015 no resuscitation record`, `only a withdrawn resuscitation record`, `prints only the active resuscitation record` | Passing (Phase 1) |
@@ -947,6 +958,9 @@ Seven hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023) have a ta
 | `packages/db/test/care-record.test.ts`: `hazard HZ-017 notes and observations cannot be updated or deleted by the app` | Passing |
 | `packages/db/test/care-record.test.ts`: corrections supersede; replayed device ids are ignored | Passing |
 | `apps/api/test/care.test.ts`: `hazard HZ-017 flags a note written hours after the event, not one synced late`; `corrects by superseding with a reason; the original stays readable` | Passing |
+| `packages/db/test/care-planning.test.ts`: `hazard HZ-017 assessments, activities and visits are append-only` (UPDATE and DELETE refused for the app and by trigger; a correction supersedes with a reason and only for the same person; replayed device ids ignored) | Passing |
+| `packages/domain/src/care/validated-assessment.test.ts`: `hazard HZ-017 corrections supersede with a reason` | Passing |
+| `apps/api/test/care-planning.test.ts`: `hazard HZ-017 corrects a result by superseding it with a reason, and reads the latest per tool`; `hazard HZ-017 ignores a replayed upload with the same device id` | Passing |
 
 ---
 
@@ -1190,6 +1204,87 @@ Seven hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023) have a ta
 | `packages/domain/src/people/transfer-pack.test.ts`: `hazard HZ-001 refuses a pack whose sections belong to someone else`, `hazard HZ-015 prints only the active resuscitation record`, `hazard HZ-007 lists the most severe allergies first`, `hazard HZ-016 re-checks allergies, resuscitation decisions and IDDSI levels on return` | Passing (Phase 1) |
 | `apps/api`: `hazard HZ-023 the transfer pack PDF shows not recorded on the first page for each missing critical section` | Planned, Phase 1 |
 | `apps/mobile` Maestro `hazard-HZ-023-offline-transfer-pack.yaml`: print the pack offline with the last sync time shown | Planned, Phase 1 |
+
+---
+
+## HZ-024 Care plan or risk assessment out of date, or a draft or superseded version followed
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-024 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `care` module (lead engineer) |
+| Source | Master prompt 10.1 (care planning, risk assessments), 9.2 (first plan within 7 working days); [care.md](../specs/care.md) rules 1 and 2; Reg 9 and Reg 12 |
+
+**Description**: staff follow a care plan or risk assessment that no longer matches the person's needs, or a draft or superseded version, because the first plan was never written, a review was missed, or a change in needs did not prompt a review.
+
+**Causes**: no first plan after admission; review dates missed; a new screening band, a fall or a new resuscitation decision does not prompt a review; a draft or superseded version shown or used as current; two active plans; tasks generated from a draft; risk assessment reviews missed.
+
+**Effects**: care against needs that have changed (moving and handling, nutrition, falls, skin), leading to falls, pressure ulcers or malnutrition; a regulatory breach of Regs 9 and 12.
+
+**Initial risk**: severity Considerable, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | One active plan and one open draft per person (database partial unique indexes); only an active plan's actions drive tasks; publishing supersedes the previous version and both stay readable with their history | Built in Phase 1 slice 4b |
+| Design | The first plan is due within `care_plan.initial_working_days` working days of admission, skipping the nation's bank holidays; plans are reviewed every `care_plan.review_interval_months` months; the plan list shows what is due and whether it is overdue | Built in Phase 1 slice 4b |
+| Design | A changed screening band, a fall or a new advance care record brings the review forward to that day and raises the review task at once | Built in Phase 1 slice 4b |
+| Design | An hourly job raises one task and one alert to the nurse in charge for each overdue first plan, plan review, risk assessment review and advance care record review, and never two for the same record (HZ-008) | Built in Phase 1 slice 4b |
+| Design | Draft and superseded versions are labelled with word and icon, with the active version one tap away | Phase 1 (slice 9) |
+| Training and user documentation | Deployer control: the provider's care planning policy names who reviews plans and how changes in need are reported | Phase 1 |
+
+**Target residual risk**: severity Considerable, likelihood Low, **risk 2**.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/care/care-plan.test.ts`: `hazard HZ-024 rule 1: the first care plan is due within the working days after admission`; `hazard HZ-024 rule 1: reviews every review interval and on change`; `hazard HZ-024 rule 2: only an active plan drives tasks` | Passing |
+| `packages/domain/src/care/validated-assessment.test.ts`: `hazard HZ-024 rule 1: a change in the result brings the care plan review forward` | Passing |
+| `packages/db/test/care-planning.test.ts`: integrity rules (a second active care plan is refused; child rows cannot claim another person) | Passing |
+| `apps/api/test/care-planning.test.ts`: `hazard HZ-024 raises one review task to the nurse in charge for an overdue first plan or review`; `hazard HZ-024 publishes a draft, supersedes it with the next version and keeps both` | Passing |
+| `apps/web` Playwright: `hazard HZ-024 a draft or superseded plan is labelled and never shown as the current plan` | Planned, Phase 1 |
+
+---
+
+## HZ-025 Bed rail entrapment risk not identified
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-025 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `care` module (lead engineer) |
+| Source | Master prompt 10.1 (bed rails, MHRA gaps); [MHRA: bed rails management and safe use](https://www.gov.uk/guidance/bed-rails-management-and-safe-use); [rates.md](../specs/rates.md) `bed_rail.*` |
+
+**Description**: bed rails are used where the gaps between the bars, to the mattress or to the headboard, or the rail height, are outside the MHRA figures, or for a person at risk of entrapment, and the record does not show it.
+
+**Causes**: measurements not recorded; limits held as literals and out of date; "under" read as "at most"; the smaller between-bars figure for a small or atypical body size not applied; a mattress or rail changed without measuring again; the review missed.
+
+**Effects**: entrapment of the head, neck or chest; asphyxia; death.
+
+**Initial risk**: severity Major, likelihood Low, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | The bed rails template records each MHRA measurement and checks it against the rate-table figure: gaps strictly under the figure, the rail height at least the figure, and the smaller between-bars figure when the person has a small or atypical body size; findings outside the figures are stored and shown with the assessment | Built in Phase 1 slice 4b |
+| Design | The figures live only in the rate table with their source and verification status | Built in Phase 1 slice 4b |
+| Design | Risk assessment reviews raise tasks when due (HZ-024) | Built in Phase 1 slice 4b |
+| Training and user documentation | Deployer control: measure at fitting and whenever the bed, mattress or rail changes; the MHRA guidance is cited on the template | Phase 1 |
+
+**Target residual risk**: severity Major, likelihood Very low, **risk 2**.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/care/risk-assessment.test.ts`: `hazard HZ-025 bed rails against the MHRA figures in the rate table` | Passing |
+| `apps/api/test/care-planning.test.ts`: `hazard HZ-025 lists the templates with the MHRA figures from the rate table` | Passing |
 
 ---
 
