@@ -433,9 +433,14 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
     (clinical review round 4, H2). A report that could not be built is replaced by one from the
     marker's count, never taken as sent (round 5, C-M4). Once the report has gone, or the hour has
     passed, the ended session is signed out on the server, so access withdrawn does not leave a
-    12-hour session alive (security review round 5, S-L3). A hold whose session ended with a 401 or
-    `not_a_member` is reported only when another member of the organisation signs in on that
-    device; until then the server knows only the last report (human action H-141).
+    12-hour session alive (security review round 5, S-L3). A hold whose session ended with a 401,
+    `not_a_member` or `mfa_enrolment_required` is reported only when someone signs in on that
+    device again: the owner's own sign-in sends the waiting report, as does another member's in the
+    organisation; until then the server knows only the last report (clinical review round 6, M3;
+    human action H-141). The report names the hold's owner and the locations of the owner's sync
+    scope (opaque ids kept in the hold's marker and the database's owner record), and is sent under
+    the id of the device that held the entries, so in the forwarded case the task goes where the
+    owner or that member works and the owner can close it (round 6, M1 and M2; below).
   - Ownership fails closed (security review S3). The owner (`tenant_user` id, sign-in id, tenant
     and name) is written into `sync_meta` inside the encrypted database when the database is made,
     and checked before the device connects. Only the owner resumes: their held entries go back into
@@ -474,9 +479,9 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
     after. A tombstone goes into the keystore with only a coded reason (`recorded_elsewhere`,
     `entered_in_error`, `staff_left`, `nurse_in_charge_informed`, `other`), its stage, the stages
     not yet acknowledged, opaque ids (tenant, owner, who deleted, up to 20 entry and 10 person ids,
-    kind), a count and the time; a tombstone that cannot be written refuses the deletion, and so
-    does a full list (40) of tombstones the server does not have yet: one is never dropped before
-    the server has it. The device sends `POST /v1/sync/discards` for each stage, with the coded
+    kind, and the device the entries were held on), a count and the time; a tombstone that cannot
+    be written refuses the deletion, and so does a full list (40) of tombstones the server does not
+    have yet: one is never dropped before the server has it. The device sends `POST /v1/sync/discards` for each stage, with the coded
     reason and no words, and the ids it has (up to 500, never more than the count). A member of
     staff's own entries may be deleted while the request waits to be sent; anyone else's, or entries
     whose owner is unknown, only once the server has acknowledged it, and a 403 or a refusal deletes
@@ -485,8 +490,11 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
     at once carries up to 500 entry ids; one that has to wait keeps 20 in the keystore and sends
     those (each keystore item stays under 2 KB). At the API a later stage must match the first
     stage's kind and owner and come from its sender, the owner or a manager; an unknown deleter is
-    recorded as unknown; each person may send 30 records an hour and list 2,000 new entry ids a
-    day (security review round 5, S-L1, S-L2 and S-M2).
+    recorded as unknown; each person may send 30 records an hour, start 20 new records a day
+    (with or without ids) and list 2,000 new entry ids a day (security reviews round 5, S-L1, S-L2
+    and S-M2, and round 6, M2). Every stage names the device the entries were held on
+    (`deviceId`), so a stage sent from the device's next database still closes that device's task
+    (clinical review round 6, M1).
   - Only the coded reason leaves the device (security review round 4, M3). Deleting held entries
     and signing out offer the listed codes without "Other" and without words, because the database
     the words would be kept in is deleted. Removing one refused entry also offers "Other" with the
@@ -505,12 +513,24 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
     Otherwise it records "deleted", with any file or key left behind (`leftover`), which the server
     records as a separate security event (`sync.device.residue`), and the marker clears. Signing
     out with unsent entries uses the same steps (human action H-143).
-  - The API keeps an entry uploaded after its own owner's device reported deleting it (and not
-    reported failed), and flags it with an audit event and a task for the Registered Manager at the
-    person's location; only a deletion whose owner is the uploader counts. An entry a deletion lists
-    that had already reached the server, written by the deletion's owner (a response lost on the way
-    back), is flagged the same way when the deletion is first recorded, at most 20 tasks per record
-    (clinical review round 5, C-L2; security review round 5, S-M2).
+  - The API keeps an entry uploaded after its own owner's device recorded deleting it ("deleted",
+    and not later "failed"), and flags it with an audit event on the entry
+    (`sync.entry.after_discard`); only a deletion whose owner is the uploader counts. An entry a
+    deletion lists that had already reached the server, written by the deletion's owner (a response
+    lost on the way back), is flagged the same way when the deletion is recorded as done
+    (`sync.entry.before_discard`; clinical review round 5, C-L2). Each deletion record has one
+    review task per kind for the Registered Manager at the entries' location
+    (`sync.entry_reported_deleted` or `sync.entry_deleted_after_upload`, source `device_discard`),
+    whatever its number of entries: the first flagged entry raises it, later ones add to its count,
+    and its audit events (`sync.entry_flag.raised`, `sync.entry_flag.added`) carry the count and up
+    to 20 opaque entry ids. A transaction-scoped lock on the tenant, kind and record, and a check
+    for an open task, stop a second; an entry flagged before, under an earlier record or on its
+    upload, is not flagged again. Each owner's deletions have at most 5 such tasks open; past that
+    the cap is audited (`sync.entry_flag.capped`) and the location's Registered Managers get one
+    notice a day (below). The task is due 24 hours after it is raised (hazard HZ-008; security
+    review round 6, N1; human action H-147). Before go-live, a partial GIN index on `audit_event`
+    scope `entryIds` for `device_discard` rows, or a `device_discard_entry` table, replaces the
+    read of the tenant's deletion records (a migration; go-live blocker, HZ-040).
   - Until the API can signal a revocation apart from an expiry, a revoked device that still holds
     unsent entries keeps them, encrypted, until the owner or a manager deals with them; that
     signal, and the manager hand-over upload (a manager sending another member of staff's held
@@ -519,23 +539,37 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
     the phone at once, except the unsent work (human action H-145).
 - **What the device tells the server** (security review round 3, queue depth; HZ-006).
   `POST /v1/sync/device-report` takes the device's unsent, refused, held and blocked counts (blocked:
-  entries a failed deletion left), the age of the oldest and when the hold started, with no
-  personal data or ids, as an audit event. Any member of the organisation may send it, with MFA
-  where their roles call for it; the device sends it after each sync when the counts have changed,
-  every half hour while anything waits, and as soon as a hold starts. The server takes its times
-  as no later than it received them. While held, unsent or blocked entries wait, the server keeps
-  one task per device (source `device_hold`) for a Registered Manager, due at the hold's start plus
-  `mobile.held_entries_max_days`: at the location where the reporter works or last worked (their
-  most recent role assignment that names one, including one just removed), or, when none does, one
-  for each Registered Manager, assigned to them. A later report can bring the due time earlier,
-  never later. Overdue, the task escalates only to holders of `safety.incident.manage` at the
-  location. A report with nothing waiting closes it only when it comes from whoever raised it or
-  from someone holding `safety.incident.manage`, and recording "deleted" for the device's whole
-  hold closes it too, since the device's id changes with its next database. Each reporter may have
-  3 devices' tasks open; raises, moves, closes, refused closes and the cap are audited with opaque
-  ids (clinical reviews round 4 H2 and round 5 C-H1 and C-M3; security review round 5, S-M1; human
-  action H-142). Discards and reports each have a per-person limit, and `/v1/sync/*` bodies are
-  limited to 64 KB (security review round 4, M4).
+  entries a failed deletion left), the age of the oldest and when the hold started, with no names
+  and no care data, as an audit event whose resource is the device. It also names whose entries
+  they are (`ownerTenantUserId`, which must be staff of the organisation) and the locations of
+  the owner's sync scope (`locationIds`, opaque ids, at most 50). Any member of the organisation
+  may send it, with MFA where their roles call for it; the device sends it after each sync when the
+  counts have changed, every half hour while anything waits, and as soon as a hold starts. Reports
+  for one device are handled one at a time. The server takes its times as no later than it
+  received them, and a hold's start as no earlier than the device's last report for that hold
+  (same owner, still waiting) said.
+  While held, unsent or blocked entries wait, the server keeps the device's task (source
+  `device_hold`) for a Registered Manager, due at the hold's start plus
+  `mobile.held_entries_max_days`. It is raised at each location the report names where the owner
+  or the reporter has a live or most recent role assignment (any of the organisation's for someone
+  assigned across it), one task per location, closed together; with none left, at the reporter's
+  live locations, then at their most recent one (including one just removed); with no location
+  at all, one for each Registered Manager, assigned to them. A later report can bring the due time
+  earlier, never later. Overdue, the task escalates only to holders of `safety.incident.manage` at
+  its location. A report with nothing waiting, or recording "deleted" for the device's whole hold,
+  closes every copy when it comes from the hold's owner (named when the task was raised or
+  reopened), from whoever raised it, or from a holder of `safety.incident.manage` at one of its
+  locations; anyone else's close is refused and audited, and a new hold after a refused close
+  resets the escalation, at most once a day and with the due time never later. A task closed less
+  than a day ago is reopened, keeping its escalation, instead of a new one being raised. Each
+  reporter raises tasks for at most 3 devices in a rolling day, whatever became of them; past that
+  the hold is audited as capped and the location's Registered Managers (else every Registered
+  Manager) get one notice (`sync.reporter_capped`, in-app, no personal data, linking to the task
+  list) per reporter a day, so a hold is never dropped silently. Raises, reopens, moves, resets,
+  closes, refused closes, caps and notices are audited with opaque ids (clinical reviews round 4
+  H2, round 5 C-H1 and C-M3 and round 6 M1 and M2; security reviews round 5 S-M1 and round 6 N2;
+  human action H-142). Discards and reports each have a per-person limit, and `/v1/sync/*` bodies
+  are limited to 64 KB (security review round 4, M4).
   The PowerSync client id is kept in the keystore so a deletion recorded from the sign-in screen,
   with no database open, still names the device.
 - **Refused entries.** Any refusal of an entry moves it, with its content, to the local-only

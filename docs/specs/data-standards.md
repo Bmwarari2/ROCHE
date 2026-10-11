@@ -583,7 +583,9 @@ these differences, defined in `packages/sync/src/client/schema.ts`:
   `nurse_in_charge_informed`, `other`), the stage reached (`requested`, `deleted`, `failed`) and
   the stages not yet acknowledged, the tenant, owner and deleter `tenant_user` ids, up to 20 entry
   ids and 10 person ids, the count, the time, why there are no ids (`idsMissing`: `key_absent`
-  or `key_invalid`) and what a deletion left behind (`leftover`: `file`, `key`). Each stage is
+  or `key_invalid`), what a deletion left behind (`leftover`: `file`, `key`) and the opaque id
+  of the device the entries were held on (`deviceId`, sent with every stage and recorded in the
+  audit scope as `heldOnDeviceId`). Each stage is
   sent to `POST /v1/sync/discards` (contract `SyncDiscard`, which refuses unknown keys: the coded
   reason and no words; up to 500 entry ids when sent at once, the 20 kept when sent later, never
   more than the count) and the tombstone is deleted once the server has every stage of a finished
@@ -593,17 +595,29 @@ these differences, defined in `packages/sync/src/client/schema.ts`:
   supersedes; `deletedByTenantUserId` null when the device did not know) keep the coded reason only
   (security review round 4, M3; clinical review round 4, H1). A leftover file or key is a separate
   security event (`sync.device.residue`, scope `leftover`). An entry uploaded later whose id its
-  owner's device reported deleted gets a `sync.entry.after_discard` audit event and a task
-  (`sync.entry_reported_deleted`); an entry a deletion lists that had already reached the server
-  gets `sync.entry.before_discard` and a task (`sync.entry_deleted_after_upload`, at most 20 per
-  record). A hold's device report (unsent, refused, held and blocked counts, the oldest age and
-  when the hold started, contract `SyncDeviceReport`, which refuses unknown keys) may wait in the
-  keystore the same way; while held, unsent or blocked entries wait, the server keeps a task
-  (`sync.device_hold`, source `device_hold`, the device id) for a Registered Manager at the
-  reporter's location, or one per Registered Manager when no location is known, written as the
-  reporter, with its raise, moves and close audited (`sync.device_hold.raised`, `.moved`, `.closed`,
-  `.close_refused`, `.capped`; opaque ids only). The keystore also keeps the device's
-  opaque id (the PowerSync client id).
+  owner's device recorded as deleted gets a `sync.entry.after_discard` audit event; an entry a
+  deletion lists that had already reached the server gets `sync.entry.before_discard` once the
+  deletion is recorded as done (scope: the deletion record's id and the task's id). Each deletion
+  record has one review task per kind (`sync.entry_reported_deleted`,
+  `sync.entry_deleted_after_upload`; source `device_discard`, the record's id; no person id), whose
+  title carries the count, and whose audit events (`sync.entry_flag.raised`, `sync.entry_flag.added`,
+  resource `task`) carry the count, the owner's `tenant_user` id and up to 20 opaque entry ids;
+  a cap is `sync.entry_flag.capped` (resource `device_discard`). A hold's device report (unsent,
+  refused, held and blocked counts, the oldest age, when the hold started, the owner's
+  `tenant_user` id and up to 50 location ids, contract `SyncDeviceReport`, which refuses unknown
+  keys) may wait in the keystore the same way, with the id of the device that held the entries;
+  the server records it as `sync.device.report` (resource `device`, the device id; scope adds the
+  waiting count, when the waiting began and whether that start was taken from the device's last
+  report). While held, unsent or blocked entries wait, the server keeps a task per location
+  (`sync.device_hold`, source `device_hold`, the device id) for a Registered Manager, or one per
+  Registered Manager when no location is known, written as the reporter, with its raise, reopen,
+  moves, reset and close audited (`sync.device_hold.raised`, `.reopened`, `.moved`, `.reset`,
+  `.closed`, `.close_refused`, `.capped`; the raise and reopen name the hold's owner; opaque ids
+  only). When a cap stops a task, the location's Registered Managers get an in-app notification
+  (`sync.reporter_capped`, source the member's `tenant_user` id, no names) at most once a day per
+  member and source, audited as `sync.capped_notice.sent` (resource `tenant_user`). The keystore
+  also keeps the device's opaque id (the PowerSync client id), and the hold's marker and the
+  database's owner record keep the owner's location ids.
 
 Timestamps arrive on the device as ISO 8601 in UTC with microseconds (`2026-10-11T09:30:00.000000Z`);
 booleans as `1` and `0`; JSON and array columns as JSON text. Entries written on the device carry a
