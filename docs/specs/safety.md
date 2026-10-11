@@ -19,7 +19,15 @@ the person reporting it needing to know the law.
 
 Forced RLS and person scope as in [care.md](care.md). An incident involving several people is
 visible to a user only for the people in their scope; the incident header (type, time, location)
-is visible to anyone who can see one of them.
+is visible to anyone who can see one of them. As built
+([ADR-0033](../decisions/0033-incident-scope.md)): an incident is visible to tenant-wide roles, to
+the person who raised it, to anyone who can see one of the people using the service on it
+(`incident.person_ids`, kept in step with `incident_person`), and, only when nobody using the service
+is on it, to the people working at its location; a reader who cannot see every person gets it as
+`restricted` (the header and their own people, never the narrative, the classifier's reasoning or
+the notifications). Staff and visitors on an incident are visible to its location and reporter;
+a notification about one person (a death, a DoLS outcome) also needs that person's scope; one about
+a location (an outbreak) follows location scope.
 
 | Table | Kind | Key columns | Retention class |
 | --- | --- | --- | --- |
@@ -32,11 +40,16 @@ is visible to anyone who can see one of them.
 
 ## 3. Permissions
 
-`safety.incident.report` (every role that works with people, including agency staff), 
-`safety.incident.manage` (seniors, nurses, managers), `safety.notification.submit` (Registered
-Manager, deputy, quality lead; step-up required), `safety.safeguarding.manage`. Submitting a
+`safety.incident.report` (every role that works with people, including agency staff, and the
+non-care roles), `safety.incident.read` (the roles that work with people and the quality lead; a
+care-record permission, so MFA applies), `safety.incident.manage` (nurses and managers),
+`safety.notification.submit` (step-up required), `safety.safeguarding.manage`. Submitting a
 notification and deciding "not required" both need step-up (ADR-0002, section 4) and are audited
-with the reason.
+with the reason. **Corrected**: the first draft gave `safety.notification.submit` to the deputy and
+the quality lead and `safety.incident.manage` to seniors; master prompt section 4 gives submission
+to "the Registered Manager and the Nominated Individual, extendable by a time-boxed acting-up grant"
+and the team leader "incident reporting", and the master prompt wins, so the built-in roles follow
+it ([permissions.md](permissions.md)).
 
 ## 4. Rules that are easy to get wrong
 
@@ -210,6 +223,48 @@ until their nation pack (Phase 7) and never a partial answer.
 the regulator's own portal in Phase 1 (Harbour prepares and records); direct submission APIs are
 integrations for later phases where they exist.
 
+Built in slice 7 (`apps/api/src/routes/incidents.ts`, `statutory-notifications.ts`,
+`apps/api/src/services/safety.ts`; tables in migrations 0018 and 0019): `POST /v1/incidents` takes a
+device-generated id, so a replayed offline upload returns the earlier copy with no side effects; the
+event time, device time and late-entry and clock-drift flags are kept, and a reporter may answer only
+the falls questions at capture (`safety.incident.manage` answers the rest). `GET /v1/incidents`
+(filters by status, type, location, person and time) and `GET /v1/incidents/{id}` need
+`safety.incident.read`; `PUT /v1/incidents/{id}` (the reporter or a manager, with `version`) changes
+the narrative and the people; `POST .../review` and `POST .../close` move the `safety.incident`
+workflow, and closing is refused while `incidentCloseProblems` finds open drafts, questions or
+candour (counting drafts about people the closer cannot see) and to the person who raised it (also a
+database check). The classifier runs on the server on every create, change and answer, with
+tenant-wide scope inside the request (ADR-0033): it stores `CLASSIFIER_VERSION`, the reasoning lines,
+the open questions and the retention class on the incident, and writes or refreshes one draft per
+incident and kind (or per person for deaths, LeDeR, the medical examiner pack and missing people)
+with its deadlines from `occurred_at`, never the sync time; "not sure" makes a draft provisional, and
+a draft a later answer no longer supports is flagged, never closed, until a holder of
+`safety.notification.submit` marks it not required. Outside England the result says
+`nationSupported: false` and drafts nothing. Its tasks go through the task engine (generic titles),
+and a fall gets the post-fall checklist in every nation, with one task per timed observation from
+`postFallChecklist` counted from when the person was found; answering "no" to both risks cancels the
+timed observations and starts general monitoring. Body-map marks name their incident
+(`incidentId` on the body map, checked against the people on it) or are linked by id, and their
+pressure ulcer categories reach the classifier. `/v1/notifications/statutory` lists drafts with
+their clock (`notificationClockState`) for `safety.incident.manage`; `POST .../prepare` fills the
+regulator's form and moves draft and ready; `POST .../submit` (the submission time and the
+regulator's reference or the form, `submissionEvidenceProblems`) and `POST .../not-required` (with
+the reason, kept and audited) need `safety.notification.submit` with step-up and acknowledge the
+overdue alerts. `GET` and `PUT /v1/incidents/{id}/candour` record the threshold decision (which the
+classifier then follows), the notifications and the correspondence, and `POST .../candour/step`
+takes the `CANDOUR_WORKFLOW` steps that `candourStepProblems` allows; `GET` and `PUT
+/v1/incidents/{id}/investigation` record the method, findings, actions (an action with an owner and
+date becomes a task) and lessons. Worker jobs: every minute, each overdue draft alerts the holders of
+`safety.notification.submit` at its location (role or acting-up grant) once, through the tenant's
+`safety.notification.overdue` escalation chain (by default the Nominated Individual after
+`statutory_notification.escalation_minutes`, H-67), and publishes `safety.notification.overdue`;
+hourly, outbreak detection classifies the latest infection incident at each English location again
+with the location's cases (from incident people's infection details since the last decided report),
+which drafts the UKHSA report once per threshold. Observations carry no infection case yet, so cases
+come from infection incidents until a chart records them. Statutory notifications, candour and
+investigations are server-only; incidents and their people are published for sync streams (offline
+slice).
+
 ## 6. Offline behaviour
 
 Incident capture works fully offline (section 17.1): the record, people, body-map marks and photos
@@ -245,7 +300,8 @@ authorities is a legal obligation (Article 6(1)(c)) recorded on the notification
   `outbreak.test.ts` (thresholds and windows); `post-fall.test.ts` (HZ-027);
   `workflows.test.ts` (incident close, step-up submission, candour steps, evidence, pack sections).
 - Database and API: isolation for incidents involving people in different scopes; step-up on
-  submit and "not required"; separation of duties on close; audit events.
+  submit and "not required"; separation of duties on close; audit events. Built in slice 7:
+  `packages/db/test/mca-and-incidents.test.ts` and `apps/api/test/incidents.test.ts`.
 - Web and mobile: Playwright journey from a fall to a submitted Reg 18 draft; Maestro offline
   incident capture.
 
