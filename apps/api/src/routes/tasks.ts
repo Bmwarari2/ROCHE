@@ -21,11 +21,11 @@ import {
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, eq, gte, inArray, isNull, lt } from "drizzle-orm";
 import type { Context } from "hono";
-import { auditInTx } from "../http/audit";
+import { auditInTx, writeAudit } from "../http/audit";
 import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { publish } from "../outbox";
-import { escalationMinutes, materialiseSeries, toTaskItem } from "../services/tasks";
+import { escalationMinutes, materialiseSeries, mayBeAssigned, toTaskItem } from "../services/tasks";
 import {
   conflictResponse,
   createRouter,
@@ -241,6 +241,17 @@ export const tasksRouter = createRouter()
         if (TERMINAL_TASK_STATUSES.includes(asTaskStatus(row.status))) {
           throw problems.invalid("This task is already finished.");
         }
+        // Being the assignee lets someone complete the task, so a task that needs a permission
+        // (a clinical check, a medicines round) goes only to someone who holds it at the task's
+        // location, whoever assigns it (themselves included; S1). A general task, which names
+        // only the task-management permission, is allocated to anyone: that is what it is for.
+        if (
+          body.assigneeTenantUserId &&
+          row.requiredPermission !== GENERAL_TASK_PERMISSION &&
+          !(await mayBeAssigned(tx, body.assigneeTenantUserId, row, now))
+        ) {
+          return null;
+        }
         const [updated] = await tx
           .update(task)
           .set({ assigneeTenantUserId: body.assigneeTenantUserId })
@@ -256,6 +267,20 @@ export const tasksRouter = createRouter()
         });
         return toTaskItem(updated, now, await escalationMinutes(tx, access.tenantId));
       });
+      if (!item) {
+        // Written after the transaction, which wrote nothing, so the refusal is kept.
+        await writeAudit(c.get("services").appPool, access, {
+          action: "platform.task.assign",
+          outcome: "denied",
+          resourceType: "task",
+          resourceId: id,
+          reason: "assignee_lacks_permission",
+          requestId: c.get("requestId"),
+        });
+        throw problems.invalid(
+          "That person cannot be given this task: they do not hold its permission at this location.",
+        );
+      }
       return c.json(item, 200);
     },
   )

@@ -1,5 +1,6 @@
 import type { Recurrence, TaskItem } from "@harbour/contracts";
 import {
+  accessGrant,
   notification,
   person,
   role,
@@ -8,7 +9,17 @@ import {
   task,
   taskSeries,
 } from "@harbour/db";
-import { occurrences, personStatusAllows, type TaskStatus, taskTimeState } from "@harbour/domain";
+import {
+  type AccessGrantInput,
+  isPermission,
+  occurrences,
+  permissionsAtLocation,
+  personStatusAllows,
+  type RoleAssignmentInput,
+  type ScopeKind,
+  type TaskStatus,
+  taskTimeState,
+} from "@harbour/domain";
 import { and, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { rateNumber } from "./rates";
 
@@ -52,6 +63,8 @@ export function toTaskItem(row: TaskRow, now: Date, escalateAfterMinutes: number
     evidenceType: row.evidenceType,
     evidenceId: row.evidenceId,
     evidenceAfterClose: row.evidenceAfterClose,
+    catchUp: row.restoreCode === "caught_up",
+    restoredDone: row.restoreCode === "answered_while_stopped",
     completedAt: iso(row.completedAt),
     escalated: row.escalationLevel > 0,
     details: (row.details ?? null) as TaskItem["details"],
@@ -196,4 +209,53 @@ export async function escalateOverdueTasks(
     await tx.update(task).set({ escalationLevel: 1, escalatedAt: now }).where(eq(task.id, t.id));
   }
   return overdue.length;
+}
+
+/**
+ * Whether a member of staff may complete a task at its location: they hold its required
+ * permission there (a role assigned there or tenant-wide, or a grant). Being a task's assignee lets
+ * them complete it, so a task is only ever given to someone who could complete it anyway (S1;
+ * HZ-004, HZ-005). Fails closed: rows the caller cannot read count as nothing held.
+ */
+export async function mayBeAssigned(
+  tx: Transaction,
+  tenantUserId: string,
+  row: { readonly requiredPermission: string; readonly locationId: string | null },
+  now: Date,
+): Promise<boolean> {
+  if (!isPermission(row.requiredPermission)) return false;
+  const assignments = await tx
+    .select({
+      roleKey: role.key,
+      scopeKind: role.scopeKind,
+      permissions: role.permissions,
+      locationId: roleAssignment.locationId,
+      validFrom: roleAssignment.validFrom,
+      validTo: roleAssignment.validTo,
+    })
+    .from(roleAssignment)
+    .innerJoin(role, eq(role.id, roleAssignment.roleId))
+    .where(
+      and(
+        eq(roleAssignment.tenantUserId, tenantUserId),
+        isNull(roleAssignment.deletedAt),
+        isNull(role.archivedAt),
+      ),
+    );
+  const grants = await tx
+    .select({
+      permissions: accessGrant.permissions,
+      locationId: accessGrant.locationId,
+      validFrom: accessGrant.validFrom,
+      validTo: accessGrant.validTo,
+      revokedAt: accessGrant.revokedAt,
+    })
+    .from(accessGrant)
+    .where(and(eq(accessGrant.tenantUserId, tenantUserId), isNull(accessGrant.deletedAt)));
+  return permissionsAtLocation(
+    assignments.map((a): RoleAssignmentInput => ({ ...a, scopeKind: a.scopeKind as ScopeKind })),
+    grants as AccessGrantInput[],
+    row.locationId,
+    now,
+  ).has(row.requiredPermission);
 }

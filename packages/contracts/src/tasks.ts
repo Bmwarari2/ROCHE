@@ -57,6 +57,10 @@ export const TaskDetails = z
         }),
       )
       .optional(),
+    /** Entries beyond the 50 listed. */
+    entriesOmitted: z.number().int().optional(),
+    /** Missed rounds beyond the 50 listed. */
+    missedTasksOmitted: z.number().int().optional(),
   })
   .meta({ id: "TaskDetails" });
 export type TaskDetails = z.infer<typeof TaskDetails>;
@@ -85,6 +89,16 @@ export const TaskItem = z
      * before the person went to hospital): show it as a flag, an icon and words (HZ-006).
      */
     evidenceAfterClose: z.boolean(),
+    /**
+     * Brought back after a late return or correction to catch up a missed round once, with a fresh
+     * window (people.md rule 2): show it as a flag, an icon and words.
+     */
+    catchUp: z.boolean(),
+    /**
+     * Done because an entry answered it while the lifecycle had stopped it (an offline entry
+     * uploaded after a move or an exit recorded in error), so it is not due again.
+     */
+    restoredDone: z.boolean(),
     completedAt: isoDateTime.nullable(),
     escalated: z.boolean(),
     details: TaskDetails.nullable(),
