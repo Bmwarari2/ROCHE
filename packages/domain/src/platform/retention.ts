@@ -70,3 +70,29 @@ export function validateTenantOverride(
   }
   return { ok: true };
 }
+
+export interface LegalHoldView {
+  readonly personId: string | null;
+  readonly subjectType: string | null;
+  readonly subjectId: string | null;
+  readonly releasedAt: Date | null;
+}
+
+export interface HeldRecord {
+  readonly personId?: string | null;
+  readonly subjectType: string;
+  readonly subjectId: string;
+}
+
+/**
+ * True when an unreleased legal hold covers the record: a hold on the person covers everything
+ * about them; a hold on a subject covers that record (section 5.1, legal hold beats retention).
+ */
+export function isUnderLegalHold(record: HeldRecord, holds: readonly LegalHoldView[]): boolean {
+  return holds.some(
+    (h) =>
+      h.releasedAt === null &&
+      ((h.personId !== null && h.personId === record.personId) ||
+        (h.subjectType === record.subjectType && h.subjectId === record.subjectId)),
+  );
+}

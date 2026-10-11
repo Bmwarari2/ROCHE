@@ -121,3 +121,30 @@ export type InboundDecision =
 export function classifyInbound(problems: readonly InboundProblem[]): InboundDecision {
   return problems.length === 0 ? { status: "accepted" } : { status: "quarantined", problems };
 }
+
+/**
+ * Document storage (section 9.1): objects are addressed by opaque keys that never contain personal
+ * data. `destroy` removes every stored version, for destruction past retention (section 5.1).
+ */
+export interface DocumentStoragePort {
+  readonly provider: string;
+  put(key: string, bytes: Uint8Array, contentType: string): Promise<void>;
+  get(key: string): Promise<Uint8Array | null>;
+  destroy(key: string): Promise<void>;
+  health(): Promise<HealthResult>;
+}
+
+/** `unavailable` keeps the upload quarantined: a document is never served unscanned in production. */
+export type MalwareVerdict = "clean" | "infected" | "unavailable";
+
+export interface MalwareScanPort {
+  readonly provider: string;
+  scan(bytes: Uint8Array): Promise<MalwareVerdict>;
+}
+
+/** Opaque storage key for a document: tenant and document ids only. */
+export function documentStorageKey(tenantId: string, documentId: string): string {
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuid.test(tenantId) || !uuid.test(documentId)) throw new Error("Storage keys take ids only");
+  return `tenants/${tenantId.toLowerCase()}/documents/${documentId.toLowerCase()}`;
+}

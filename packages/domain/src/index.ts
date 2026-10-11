@@ -2,6 +2,7 @@ export * from "./integrations/ports";
 export * from "./people/nhs-number";
 export * from "./platform/access";
 export * from "./platform/branding";
+export * from "./platform/documents";
 export * from "./platform/feature-flags";
 export * from "./platform/forms";
 export * from "./platform/notifications";
