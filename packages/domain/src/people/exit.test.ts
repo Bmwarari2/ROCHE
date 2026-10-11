@@ -14,6 +14,7 @@ import {
   type ExitReturns,
   exitChecklist,
   exitChecklistStatus,
+  exitItemOwner,
   exitNotifications,
   exitReturnDeadlines,
   TRANSFER_WORKFLOW,
@@ -365,5 +366,31 @@ describe("checklist status", () => {
     const status = exitChecklistStatus(items, {}, nothingHeld);
     expect(checkExitWorkflowMove("left", status)).toEqual({ ok: true });
     expect(checkExitWorkflowMove("cancelled", status)).toEqual({ ok: true });
+  });
+});
+
+describe("exitItemOwner", () => {
+  it("gives each item key one owner whatever the kind of exit, and finance only for money", () => {
+    for (const kind of ["discharge", "transfer", "death"] as const) {
+      for (const item of exitChecklist({
+        kind,
+        regulator: "cqc",
+        funding: { localAuthority: true, nhs: true },
+        placeOfDeath: "care_home",
+        deathExpected: false,
+        learningDisabilityOrAutism: true,
+        dolsInPlace: true,
+        homeIsDwpAppointee: true,
+        holdsResidentsMoney: true,
+        holdsDeposit: true,
+        hasLoanEquipment: true,
+      })) {
+        expect(exitItemOwner(item.key), item.key).toBe(item.owner);
+      }
+    }
+    expect(
+      ["residents_money_returned", "deposit_returned", "dwp_informed"].map(exitItemOwner),
+    ).toEqual(["finance", "finance", "finance"]);
+    expect(exitItemOwner("not_an_item")).toBeNull();
   });
 });

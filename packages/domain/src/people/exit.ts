@@ -364,6 +364,34 @@ export function exitChecklist(context: ExitContext): ExitChecklistItem[] {
   ];
 }
 
+/** Every item an exit of any kind can have, with every flag on, to look items up by key. */
+const EVERY_ITEM: readonly ExitChecklistItem[] = (
+  ["discharge", "transfer", "death"] as const
+).flatMap((kind) =>
+  exitChecklist({
+    kind,
+    regulator: "cqc",
+    funding: { localAuthority: true, nhs: true },
+    placeOfDeath: "care_home",
+    deathExpected: false,
+    learningDisabilityOrAutism: true,
+    dolsInPlace: true,
+    homeIsDwpAppointee: true,
+    holdsResidentsMoney: true,
+    holdsDeposit: true,
+    hasLoanEquipment: true,
+  }),
+);
+
+/**
+ * Who owns an exit checklist item, by its key alone (the same for every kind of exit), or null for
+ * a key no checklist has. The API decides from this, before reading anything, whether confirming
+ * an item needs the finance approval permission (residents' money, deposits, the DWP).
+ */
+export function exitItemOwner(key: string): ExitItemOwner | null {
+  return EVERY_ITEM.find((item) => item.key === key)?.owner ?? null;
+}
+
 /** The notifications an exit makes, statutory ones first. */
 export function exitNotifications(
   context: ExitContext,

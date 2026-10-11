@@ -22,6 +22,7 @@ import {
   type ExitKind,
   exitChecklist,
   exitChecklistStatus,
+  exitItemOwner,
   LIVE_PERSON_STATUSES,
   type PersonStatus,
 } from "@harbour/domain";
@@ -399,25 +400,10 @@ export const peopleExitRouter = createRouter()
       }
       // Residents' money and deposits (finance items) are confirmed only with the finance
       // approval permission, which needs a fresh sign-in (step-up), and never by whoever recorded
-      // the exit (separation of duties for residents' money).
-      const owner = await withTenant(c, async (tx) => {
-        await loadPerson(tx, id);
-        const exit = await latestExit(tx, id);
-        const [item] = exit
-          ? await tx
-              .select({ owner: exitChecklistItem.owner })
-              .from(exitChecklistItem)
-              .where(
-                and(
-                  eq(exitChecklistItem.exitRecordId, exit.id),
-                  eq(exitChecklistItem.itemKey, itemKey),
-                  isNull(exitChecklistItem.deletedAt),
-                ),
-              )
-          : [];
-        return item?.owner ?? null;
-      });
-      const finance = owner === "finance";
+      // the exit (separation of duties for residents' money). Ownership comes from the domain's
+      // checklist definition for the key, before anything is read, and the stored row is checked
+      // against it below.
+      const finance = exitItemOwner(itemKey) === "finance";
       const access = finance
         ? await requirePermission(c, "finance.ledger.approve")
         : await requireAnyPermission(c, ["people.admission.manage", "people.movement.record"]);
