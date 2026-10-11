@@ -148,6 +148,9 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | document_expiry.reminder_days.second | 30 | days | 2000-01-01 | - | all | master prompt 12 rules | master-prompt |
 | document_expiry.reminder_days.third | 7 | days | 2000-01-01 | - | all | master prompt 12 rules | master-prompt |
 | access.agency.post_shift_hours | 2 | hours | 2000-01-01 | - | all | master prompt 4 (agency access expires at shift end plus 2 hours) | master-prompt |
+| break_glass.weekly_repeat_threshold | 3 | count | 2000-01-01 | - | all | Harbour default for flagging repeated break-glass use in the weekly report (master prompt 4 requires the report but sets no number); tenant default | to-verify |
+| family_involvement.interval_months | 6 | months | 2000-01-01 | - | all | Harbour default for the family involvement record (master prompt 9.2 names the record but sets no interval); tenant default | to-verify |
+| exit.money_and_property_return_days | 28 | days | 2000-01-01 | - | all | Harbour default matching cma.deposit_return_days (master prompt 9.2); no statutory period for returning personal money and property; tenant default | to-verify |
 | ecm.tolerance_minutes.high | 15 | minutes | 2000-01-01 | - | all | master prompt 13.2 (defaults 15, 30, 60 by client risk); tenant default | master-prompt |
 | ecm.tolerance_minutes.medium | 30 | minutes | 2000-01-01 | - | all | master prompt 13.2 (defaults 15, 30, 60 by client risk); tenant default | master-prompt |
 | ecm.tolerance_minutes.low | 60 | minutes | 2000-01-01 | - | all | master prompt 13.2 (defaults 15, 30, 60 by client risk); tenant default | master-prompt |
@@ -231,6 +234,18 @@ literals, and tests assert against the table, not a literal (section 7, section 
   the bowel chart prompts staff (care.md section 4 rule 6 calls it the 3-day prompt). It is a tenant
   default, not a clinical threshold from a published source; the tenant's clinical lead confirms it
   or sets a different value.
+- `break_glass.weekly_repeat_threshold` (3): the number of break-glass openings by one user in a week,
+  or of different users opening one person's record in a week, at which the weekly report flags the
+  pattern (master prompt section 4 asks for the report, not a number). It is a tenant default; the
+  tenant's data protection lead confirms it (human action H-58).
+- `family_involvement.interval_months` (6): how often the family involvement record falls due when
+  the person wants their family or representative involved (master prompt section 9.2 names the
+  record without an interval). The care plan review and the local authority review are separate
+  clocks. Tenant default, confirmed by the Registered Manager (H-58).
+- `exit.money_and_property_return_days` (28): the service level for returning personal money,
+  property and keys after a discharge, transfer or death. No statute sets one; the default mirrors
+  the CMA deposit-return period (`cma.deposit_return_days`) so the two clocks agree. Tenant default
+  (H-58); the escalation goes to the Registered Manager, it is not a legal deadline.
 
 ## Other notes
 

@@ -21,6 +21,8 @@ export * from "./people/nhs-number";
 export * from "./people/occupancy";
 export * from "./people/pre-admission";
 export * from "./people/property";
+export * from "./people/rates";
+export * from "./people/reviews";
 export * from "./platform/access";
 export * from "./platform/branding";
 export * from "./platform/documents";
