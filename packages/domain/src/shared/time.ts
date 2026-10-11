@@ -74,24 +74,24 @@ export function ukOffsetMinutes(instant: Date): number {
 }
 
 /**
- * The instant at which a UK wall-clock time occurs. During the spring-forward gap (01:00-02:00 on
- * the last Sunday in March) the time does not exist and moves forward an hour; during the autumn
- * overlap the first (BST) occurrence is used, so deadlines are never late.
+ * Every instant at which a UK wall-clock time occurs, earliest first: none in the spring-forward
+ * gap (01:00-01:59 on the last Sunday in March), two in the autumn overlap (01:00-01:59 on the
+ * last Sunday in October, first BST then GMT), and one at any other time.
  */
-export function fromUkWallClock(
+export function ukWallClockOccurrences(
   year: number,
   month: number,
   day: number,
   hour: number,
   minute: number,
-): Date {
+): readonly Date[] {
   const naive = Date.UTC(year, month - 1, day, hour, minute);
   const offsets = new Set([
     ukOffsetMinutes(new Date(naive - 60 * 60_000)),
     ukOffsetMinutes(new Date(naive)),
     ukOffsetMinutes(new Date(naive + 60 * 60_000)),
   ]);
-  const candidates = [...offsets]
+  return [...offsets]
     .map((offset) => new Date(naive - offset * 60_000))
     .filter((d) => {
       const w = toUkWallClock(d);
@@ -104,9 +104,101 @@ export function fromUkWallClock(
       );
     })
     .sort((a, b) => a.getTime() - b.getTime());
-  if (candidates[0]) return candidates[0];
+}
+
+/**
+ * The instant at which a UK wall-clock time occurs, for computed times such as deadlines and
+ * schedules. During the spring-forward gap the time does not exist and moves forward an hour;
+ * during the autumn overlap the first (BST) occurrence is used, so deadlines are never late.
+ * Times a person types for an event use `resolveRecordedUkTime` instead, which never guesses.
+ */
+export function fromUkWallClock(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+): Date {
+  const first = ukWallClockOccurrences(year, month, day, hour, minute)[0];
+  if (first) return first;
   // Non-existent local time (spring forward): the same wall time an hour later.
   return fromUkWallClock(year, month, day, hour + 1, minute);
+}
+
+export interface UkWallClockTime {
+  readonly year: number;
+  readonly month: number;
+  readonly day: number;
+  readonly hour: number;
+  readonly minute: number;
+}
+
+/**
+ * How a typed UK date and time resolves to an instant (HZ-009, HZ-010, HZ-017):
+ * - `exact`: one instant, at or before now (plus the clock tolerance).
+ * - `ambiguous`: the time happened twice when the clocks went back and both are past; the person
+ *   must choose "BST, before the clocks went back" (`earlier`) or "GMT, after" (`later`). There is
+ *   no default, because either guess can put events in the wrong order.
+ * - `skipped`: the time did not happen because the clocks went forward; refuse it.
+ * - `future`: the time has not happened yet; refuse it. Never roll it back to an earlier day.
+ */
+export type RecordedUkTime =
+  | { readonly kind: "exact"; readonly instant: Date }
+  | { readonly kind: "ambiguous"; readonly earlier: Date; readonly later: Date }
+  | { readonly kind: "skipped" }
+  | { readonly kind: "future"; readonly instant: Date };
+
+export interface RecordedUkTimeOptions {
+  /** The current instant from the device or server clock. */
+  readonly now: Date;
+  /** Minutes ahead of `now` still accepted, from the clock-drift tolerance in the rate table. */
+  readonly futureToleranceMinutes: number;
+}
+
+function isValidWallClock(t: UkWallClockTime): boolean {
+  const whole = [t.year, t.month, t.day, t.hour, t.minute].every(Number.isInteger);
+  if (!whole || t.month < 1 || t.month > 12 || t.day < 1) return false;
+  if (t.hour < 0 || t.hour > 23 || t.minute < 0 || t.minute > 59) return false;
+  return t.day <= new Date(Date.UTC(t.year, t.month, 0)).getUTCDate();
+}
+
+/**
+ * Resolves a date and time a person typed for when something happened. The one rule for every
+ * screen that records an event time, web and mobile alike.
+ */
+export function resolveRecordedUkTime(
+  time: UkWallClockTime,
+  options: RecordedUkTimeOptions,
+): RecordedUkTime {
+  if (!isValidWallClock(time)) throw new RangeError("Not a valid date and time.");
+  if (!Number.isFinite(options.futureToleranceMinutes) || options.futureToleranceMinutes < 0) {
+    throw new RangeError("The future tolerance must be zero or more minutes.");
+  }
+  const occurrences = ukWallClockOccurrences(
+    time.year,
+    time.month,
+    time.day,
+    time.hour,
+    time.minute,
+  );
+  const [first, second] = occurrences;
+  if (!first) return { kind: "skipped" };
+  const limit = options.now.getTime() + options.futureToleranceMinutes * 60_000;
+  if (first.getTime() > limit) return { kind: "future", instant: first };
+  if (!second || second.getTime() > limit) return { kind: "exact", instant: first };
+  return { kind: "ambiguous", earlier: first, later: second };
+}
+
+/** "BST" or "GMT": shown beside a time on a clock-change day so the two 01:30s differ. */
+export function ukZoneAbbreviation(instant: Date): "BST" | "GMT" {
+  return ukOffsetMinutes(instant) === 0 ? "GMT" : "BST";
+}
+
+/** True on the two days a year the UK clocks change. */
+export function isUkClockChangeDay(year: number, month: number, day: number): boolean {
+  const start = ukOffsetMinutes(new Date(Date.UTC(year, month - 1, day, 0, 0)));
+  const end = ukOffsetMinutes(new Date(Date.UTC(year, month - 1, day, 23, 59)));
+  return start !== end;
 }
 
 /** Adds calendar days in UK local time, keeping the wall-clock time across DST changes. */
