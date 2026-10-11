@@ -69,6 +69,14 @@ describe("hazard HZ-002 the sync status on Today", () => {
     expect(syncSummary(input()).held).toBeNull();
   });
 
+  it("hazard HZ-006 reads held entries that could not be counted as needing attention (round 4, M4)", () => {
+    const summary = syncSummary(input({ held: null }));
+    expect(summary.held).toBe(
+      "Some entries on this device could not be counted and need attention. Harbour tries again each time it unlocks.",
+    );
+    expect(summary).toMatchObject({ tone: "danger", icon: "cloud-alert", needsAttention: true });
+  });
+
   it("says plainly that demo entries never upload", () => {
     const summary = syncSummary(input({ demo: true, lastSyncedAt: null }));
     expect(summary).toMatchObject({

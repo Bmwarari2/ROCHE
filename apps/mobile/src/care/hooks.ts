@@ -143,8 +143,12 @@ export function useUploadIssues(): readonly UploadIssueRow[] {
   return data;
 }
 
-/** Entries still held after the owner signed in again (clinical review M2). */
-export function useHeldEntryCount(): number {
-  const { data } = useQuery<{ count: number }>(HELD_COUNT_SQL);
+/**
+ * Entries still held after the owner signed in again (clinical review M2); null when they could not
+ * be counted, never read as none (clinical review round 4, M4).
+ */
+export function useHeldEntryCount(): number | null {
+  const { data, error } = useQuery<{ count: number }>(HELD_COUNT_SQL);
+  if (error) return null;
   return Number(data[0]?.count ?? 0);
 }

@@ -5,6 +5,7 @@ import { useVault } from "../app-state/vault";
 import { appEnv } from "../config/app-env";
 import { t } from "../i18n/t";
 import { AppSyncBanner } from "./AppSyncBanner";
+import { RestoreProblemNotice } from "./RestoreProblemNotice";
 
 interface ScreenProps {
   readonly children: ReactNode;
@@ -16,8 +17,8 @@ interface ScreenProps {
 /**
  * Base layout for signed-in screens: themed background, sync banner, demo-mode notice, a warning
  * when the device integrity check reports a rooted or jailbroken device (section 17.2; the check
- * itself is still a stub, ADR-0029), and the one-off notice shown after the device's data had to
- * be reset.
+ * itself is still a stub, ADR-0029), the one-off notice shown after the device's data had to be
+ * reset, and held entries that could not be put back after sign-in (clinical review round 4, M4).
  */
 export function Screen({ children, syncBanner = true, testID }: ScreenProps) {
   const theme = useTheme();
@@ -61,6 +62,7 @@ export function Screen({ children, syncBanner = true, testID }: ScreenProps) {
           </Text>
         </View>
       ) : null}
+      {vault.restoreProblem ? <RestoreProblemNotice message={vault.restoreProblem} /> : null}
       {vault.resetNotice ? (
         <View
           testID="reset-notice"

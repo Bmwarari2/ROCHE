@@ -12,8 +12,11 @@ export interface SyncSummaryInput {
   readonly lastSyncedAt: Date | null;
   readonly queued: number;
   readonly issues: number;
-  /** Entries still held after the owner signed in again, not yet back in the queue (M2). */
-  readonly held: number;
+  /**
+   * Entries still held after the owner signed in again, not yet back in the queue (M2); null when
+   * they could not be counted, which needs attention too (clinical review round 4, M4).
+   */
+  readonly held: number | null;
   readonly demo: boolean;
   /** The offline window in days, when known. */
   readonly windowDays: number | null;
@@ -47,9 +50,14 @@ export function syncSummary(input: SyncSummaryInput): SyncSummary {
   }
   const queued = input.demo ? null : t("mobile.sync.queued", { count: input.queued });
   // Held entries need attention as much as refused ones: Today never reads "Up to date" (M2).
-  const needsAttention = input.issues > 0 || input.held > 0;
+  const needsAttention = input.issues > 0 || input.held === null || input.held > 0;
   const issues = input.issues > 0 ? t("mobile.sync.issues", { count: input.issues }) : null;
-  const held = input.held > 0 ? t("mobile.sync.held", { count: input.held }) : null;
+  const held =
+    input.held === null
+      ? t("mobile.sync.heldUnknown")
+      : input.held > 0
+        ? t("mobile.sync.held", { count: input.held })
+        : null;
   const window =
     !input.demo && input.windowDays !== null
       ? t("mobile.sync.window", { days: input.windowDays })

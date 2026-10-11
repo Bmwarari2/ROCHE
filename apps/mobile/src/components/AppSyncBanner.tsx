@@ -18,8 +18,11 @@ export function AppSyncBanner() {
   // Re-counted when the sync status changes and when an entry is written on this device.
   const queued = useQueuedChanges();
   // Refused entries (C1) and entries still held after sign-in (M2) show on every screen, and the
-  // banner never reads "Up to date" while any exist.
-  const refused = useUploadIssues().length + useHeldEntryCount();
+  // banner never reads "Up to date" while any exist, or while they cannot be counted (clinical
+  // review round 4, M4).
+  const issues = useUploadIssues().length;
+  const held = useHeldEntryCount();
+  const refused = held === null ? null : issues + held;
 
   const state = appEnv.demoMode ? "offline" : deriveConnectionState(status, network);
   const lastSyncedAt = appEnv.demoMode ? vault.demoSeededAt : lastSyncedAtOf(status);
