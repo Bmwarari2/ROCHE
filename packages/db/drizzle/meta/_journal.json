@@ -50,6 +50,20 @@
       "when": 1791684790049,
       "tag": "0006_delivery_retry",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791687750996,
+      "tag": "0007_task_and_workflow_engine",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791687769356,
+      "tag": "0008_task_and_workflow_security",
+      "breakpoints": true
     }
   ]
 }

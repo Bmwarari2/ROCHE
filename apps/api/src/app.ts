@@ -22,6 +22,7 @@ import {
 } from "./routes/platform";
 import { sessionsRouter } from "./routes/sessions";
 import { createSyncRouter } from "./routes/sync";
+import { tasksRouter } from "./routes/tasks";
 import { SyncTokenSigner } from "./sync/token";
 
 /** Routes that need a session but not yet a chosen tenant, or no session at all. */
@@ -107,6 +108,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", notificationsRouter);
   app.route("/", auditRouter);
   app.route("/", formsRouter);
+  app.route("/", tasksRouter);
   app.route("/", ratesRouter);
   app.route("/", createSyncRouter(signer));
   app.route("/", integrationsRouter);

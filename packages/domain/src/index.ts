@@ -10,4 +10,6 @@ export * from "./platform/rates";
 export * from "./platform/retention";
 export * from "./platform/roles";
 export * from "./platform/separation-of-duties";
+export * from "./platform/tasks";
+export * from "./platform/workflow";
 export * from "./shared/time";

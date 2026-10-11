@@ -5,6 +5,7 @@ import {
   notificationDelivery,
   role,
   roleAssignment,
+  taskSeries,
   tenantUser,
   withRequestContext,
 } from "@harbour/db";
@@ -14,9 +15,10 @@ import {
   type EscalationStep,
   nextEscalationAt,
 } from "@harbour/domain";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import type pg from "pg";
 import type { Logger } from "../logger";
+import { escalateOverdueTasks, materialiseSeries } from "../services/tasks";
 
 /**
  * Background tasks run by pg-boss (section 6). Cross-tenant scanning uses the harbour_worker role,
@@ -189,6 +191,56 @@ export async function endExpiredAssignments(deps: TaskDeps): Promise<number> {
     );
   }
   return ended;
+}
+
+async function activeTenants(deps: TaskDeps): Promise<string[]> {
+  const { rows } = await deps.workerPool.query<{ id: string }>(
+    "SELECT id FROM tenant WHERE status IN ('onboarding', 'active')",
+  );
+  return rows.map((r) => r.id);
+}
+
+/** Creates the next 48 hours of every active recurring task (idempotent; see services/tasks.ts). */
+export async function materialiseTaskSeries(deps: TaskDeps, now = new Date()): Promise<number> {
+  let created = 0;
+  for (const tenantId of await activeTenants(deps)) {
+    created += await withRequestContext(
+      deps.appDb,
+      { tenantId, userId: null, scope: "tenant", locationIds: [] },
+      async (tx) => {
+        const horizon = new Date(now.getTime() + 36 * 3_600_000);
+        const due = await tx
+          .select()
+          .from(taskSeries)
+          .where(
+            and(
+              eq(taskSeries.active, true),
+              isNull(taskSeries.deletedAt),
+              or(isNull(taskSeries.materialisedUntil), lt(taskSeries.materialisedUntil, horizon)),
+            ),
+          );
+        let n = 0;
+        for (const series of due) n += await materialiseSeries(tx, series, now);
+        return n;
+      },
+    );
+  }
+  if (created > 0) deps.logger.info({ created }, "recurring tasks materialised");
+  return created;
+}
+
+/** Escalates overdue tasks once each to the people on shift (hazard HZ-008). */
+export async function escalateTasks(deps: TaskDeps, now = new Date()): Promise<number> {
+  let escalated = 0;
+  for (const tenantId of await activeTenants(deps)) {
+    escalated += await withRequestContext(
+      deps.appDb,
+      { tenantId, userId: null, scope: "tenant", locationIds: [] },
+      (tx) => escalateOverdueTasks(tx, tenantId, now),
+    );
+  }
+  if (escalated > 0) deps.logger.info({ escalated }, "overdue tasks escalated");
+  return escalated;
 }
 
 export interface DeliveryDeps extends TaskDeps {
