@@ -230,6 +230,7 @@
   }
 
   .hb-appbar__separator {
+    flex-shrink: 0;
     color: var(--text-secondary);
   }
 
@@ -260,24 +261,42 @@
     background-color: color-mix(in srgb, var(--text) 8%, transparent);
   }
 
+  /* The names shrink with an ellipsis (min-width: 0) rather than push the actions off screen. */
+  .hb-appbar__context-value,
   .hb-appbar__switcher-value {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   .hb-appbar__context-icon {
     display: inline-flex;
+    flex-shrink: 0;
     color: var(--text-secondary);
+  }
+
+  .hb-appbar__switcher-chevron {
+    flex-shrink: 0;
   }
 
   .hb-appbar__actions {
     display: flex;
+    flex-shrink: 0;
     align-items: center;
     gap: 4px;
     margin-inline-start: auto;
   }
 
+  /*
+   * Phones: the organisation and location names take the space left after the brand and the
+   * actions, and shorten with an ellipsis, so the account menu (and sign out) stays on screen. The
+   * group does not clip its overflow, so focus rings on the switchers stay visible.
+   */
   @media (max-width: 734px) {
+    .hb-appbar__switchers {
+      flex: 1 1 auto;
+    }
+
     .hb-appbar__context,
     .hb-appbar__switcher {
       font-size: 14px;
@@ -288,7 +307,56 @@
     }
   }
 
-  /* Menus (used by the app bar switchers) */
+  /* Account menu (the button at the end of the app bar) */
+
+  .hb-account-menu__trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: var(--touch-target);
+    min-height: var(--touch-target);
+    padding-inline: 8px;
+    border: 0;
+    border-radius: var(--corner-chip);
+    background-color: transparent;
+    color: var(--text);
+    font-family: inherit;
+    font-size: var(--nav-text-size);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color var(--motion-duration-fast) var(--motion-easing);
+  }
+
+  .hb-account-menu__trigger:hover,
+  .hb-account-menu__trigger[data-state="open"] {
+    background-color: color-mix(in srgb, var(--text) 8%, transparent);
+  }
+
+  .hb-account-menu__icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--text-secondary);
+  }
+
+  .hb-account-menu__name {
+    max-width: 16rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Phones show the icon only; the name stays in the button's accessible name and the menu. */
+  @media (max-width: 734px) {
+    .hb-account-menu__trigger {
+      justify-content: center;
+      padding-inline: 0;
+    }
+
+    .hb-account-menu__name {
+      display: none;
+    }
+  }
+
+  /* Menus (the app bar switchers and the account menu) */
 
   .hb-menu {
     z-index: 50;
@@ -346,6 +414,43 @@
 
   .hb-menu__item[data-highlighted] .hb-menu__item-description {
     color: inherit;
+  }
+
+  .hb-menu__item[data-disabled] {
+    color: var(--text-secondary);
+    cursor: not-allowed;
+  }
+
+  /* A menu item that is a link reads as an item, not as underlined link text. */
+  .hb-menu__item--link {
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .hb-menu__item--link:hover {
+    text-decoration: none;
+  }
+
+  /* Who the menu is for: name, then details such as email, organisation and location. */
+  .hb-menu__header {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 12px 6px;
+    color: var(--text-secondary);
+    font-size: var(--type-callout-size);
+    overflow-wrap: anywhere;
+  }
+
+  .hb-menu__header-name {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .hb-menu__separator {
+    height: var(--hairline);
+    margin: 4px 0;
+    background-color: var(--border);
   }
 
   /* Sidebar */
@@ -1771,5 +1876,28 @@
   .hb-field--invalid .hb-field__input {
     border-color: var(--danger);
     box-shadow: 0 0 0 var(--hairline) var(--danger);
+  }
+
+  /* Text area: the same field, growing downwards only so the layout never scrolls sideways. */
+  .hb-field__input--multiline {
+    display: block;
+    min-height: calc(var(--touch-target) * 2);
+    line-height: 1.47;
+    resize: vertical;
+  }
+
+  .hb-field__count {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--type-callout-size);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Over the limit: the words say so; the bar and weight match an error, never colour alone. */
+  .hb-field__count--over {
+    padding-inline-start: 8px;
+    border-inline-start: 3px solid var(--danger);
+    color: var(--text);
+    font-weight: 600;
   }
 }

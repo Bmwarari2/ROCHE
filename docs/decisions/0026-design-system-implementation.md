@@ -38,3 +38,12 @@ does not settle.
 
 - Axe runs on every story in both themes in jsdom, with `color-contrast` disabled there because jsdom
   cannot compute it; real-browser contrast is checked by Playwright with axe on the web app.
+- A story may switch off a best-practice axe rule, never a WCAG rule, through the
+  `parameters.a11y.options.rules` the Storybook a11y addon reads, with the reason beside it. The open
+  account menu stories switch off `region`, because a Radix menu is portalled outside every landmark
+  while it has focus.
+- Added after Phase 0: `TextArea` (a client component, because the character count follows typing)
+  and `AccountMenu`. The character count follows the GOV.UK pattern: the browser never cuts text off,
+  the count says how many characters are too many, and a polite live region reads it once typing
+  pauses. On phones the app bar's organisation and location names shorten with an ellipsis so the
+  actions stay on screen.
