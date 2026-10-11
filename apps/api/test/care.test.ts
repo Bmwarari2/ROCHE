@@ -360,36 +360,59 @@ describe("hazard HZ-040 an entry a device reported deleted, uploaded later (roun
     expect((await flags(later, relisted, kind, "sync.entry.before_discard")).tasks).toEqual([]);
   });
 
-  it("hazard HZ-008 caps each owner's open flagged-entry tasks and tells the Registered Manager once a day (round 6, N1)", async () => {
+  it("hazard HZ-008 merges an owner's flagged entries past the cap into their oldest open task there, so no cap stops a task (round 6, N1; round 7, M2)", async () => {
     const manager = { user: "manager" as const, owner: DEMO.users.manager.id };
     const records: string[] = [];
+    const entries: string[] = [];
     for (let i = 0; i < 7; i += 1) {
       const entryId = newId();
       expect((await note(1, { id: entryId }, "manager")).status).toBe(201);
+      entries.push(entryId);
       records.push(await deleted([entryId], manager));
     }
     const raised = await asDemoTenant(
       async (c) =>
         (
-          await c.query<{ source_id: string }>(
-            "SELECT source_id FROM task WHERE kind = 'sync.entry_deleted_after_upload' AND source_id = ANY($1::uuid[])",
+          await c.query<{ id: string; source_id: string; title: string }>(
+            "SELECT id, source_id, title FROM task WHERE kind = 'sync.entry_deleted_after_upload' AND source_id = ANY($1::uuid[]) ORDER BY created_at",
             [records],
           )
         ).rows,
     );
-    expect(raised.map((r) => r.source_id).sort()).toEqual(records.slice(0, 5).sort());
+    expect(raised.map((r) => r.source_id)).toEqual(records.slice(0, 5));
+    // The two past the cap are counted on the oldest task, and their ids listed there.
+    expect(raised[0]?.title).toBe("Check entries a device deleted after they reached Harbour: 3");
+    expect(
+      (await taskAudit(raised[0]?.id)).filter(([action]) => action === "sync.entry_flag.added"),
+    ).toEqual([
+      [
+        "sync.entry_flag.added",
+        expect.objectContaining({ discardId: records[5], merged: true, entryIds: [entries[5]] }),
+      ],
+      [
+        "sync.entry_flag.added",
+        expect.objectContaining({ discardId: records[6], merged: true, entryIds: [entries[6]] }),
+      ],
+    ]);
     const capped = await asDemoTenant(
       async (c) =>
         (
-          await c.query<{ resource_id: string; outcome: string }>(
-            "SELECT resource_id, outcome FROM audit_event WHERE action = 'sync.entry_flag.capped' ORDER BY seq",
+          await c.query<{ resource_id: string; outcome: string; into: string }>(
+            "SELECT resource_id, outcome, scope ->> 'mergedInto' AS into FROM audit_event WHERE action = 'sync.entry_flag.capped' ORDER BY seq",
           )
         ).rows,
     );
     expect(capped).toEqual([
-      { resource_id: records[5], outcome: "denied" },
-      { resource_id: records[6], outcome: "denied" },
+      { resource_id: records[5], outcome: "denied", into: raised[0]?.id },
+      { resource_id: records[6], outcome: "denied", into: raised[0]?.id },
     ]);
+    // Each merged entry is on that task, so a later deletion listing it adds nothing.
+    for (const entryId of entries.slice(5)) {
+      expect((await flags(entryId, records[0] ?? "", "x", "sync.entry.before_discard")).audit).toBe(
+        1,
+      );
+    }
+    // In addition, one notice to the Registered Manager a day.
     const notices = await asDemoTenant(
       async (c) =>
         (
@@ -405,6 +428,85 @@ describe("hazard HZ-040 an entry a device reported deleted, uploaded later (roun
         source_id: DEMO.users.manager.id,
       },
     ]);
+  });
+
+  it("hazard HZ-008 makes a flagged task due at once when an entry is an observation, and within the day otherwise (round 7, M3)", async () => {
+    const noteId = newId();
+    const observationId = newId();
+    const record = await deleted([noteId, observationId]);
+    const before = Date.now();
+    // The note alone: a record to check within the day.
+    expect((await note(1, { id: noteId })).status).toBe(201);
+    const [task] = (await flags(noteId, record)).tasks;
+    expect(new Date(task?.due_at ?? 0).getTime()).toBeGreaterThanOrEqual(
+      before + 24 * 60 * MIN - 5_000,
+    );
+    // A fluid entry (a chart) counts towards the day's total: the task is due now.
+    expect(
+      (await observe(1, { chart: "fluid_intake", ml: 150 }, { id: observationId })).status,
+    ).toBe(201);
+    const [after] = (await flags(observationId, record)).tasks;
+    expect(after?.id).toBe(task?.id);
+    expect(new Date(after?.due_at ?? 0).getTime()).toBeLessThanOrEqual(Date.now());
+    expect(after?.window_end).toEqual(after?.due_at);
+    // An observation on its own raises a task due now.
+    const alone = newId();
+    const second = await deleted([alone]);
+    expect((await observe(1, { chart: "fluid_intake", ml: 100 }, { id: alone })).status).toBe(201);
+    const [now] = (await flags(alone, second)).tasks;
+    expect(new Date(now?.due_at ?? 0).getTime()).toBeLessThanOrEqual(Date.now());
+  });
+
+  it("hazard HZ-040 gives each location's managers only their own people's flagged entries (round 7, M4)", async () => {
+    // The owner works across the organisation: one entry for a person at the home, one at the Lodge.
+    const home = newId();
+    const lodge = newId();
+    const lodgePerson = "0194d000-0000-7000-8000-000000000499";
+    const lodgeLocation = "0194d000-0000-7000-8000-000000000102";
+    expect((await note(1, { id: home }, "owner")).status).toBe(201);
+    expect(
+      (
+        await as("owner", `/v1/people/${lodgePerson}/notes`, {
+          method: "POST",
+          body: {
+            id: lodge,
+            category: "personal_care",
+            body: "Assisted with a wash; skin intact.",
+            occurredAt: ago(5),
+          },
+        })
+      ).status,
+    ).toBe(201);
+    const record = await deleted([home, lodge], { user: "owner", owner: DEMO.users.owner.id });
+    const tasks = await asDemoTenant(
+      async (c) =>
+        (
+          await c.query<{ id: string; location_id: string; title: string }>(
+            "SELECT id, location_id, title FROM task WHERE kind = 'sync.entry_deleted_after_upload' AND source_id = $1 ORDER BY location_id",
+            [record],
+          )
+        ).rows,
+    );
+    expect(tasks.map((t) => [t.location_id, t.title])).toEqual(
+      [
+        [DEMO.locationId, "Check entries a device deleted after they reached Harbour: 1"],
+        [lodgeLocation, "Check entries a device deleted after they reached Harbour: 1"],
+      ].sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+    );
+    // Each entry names its own location's task.
+    const entryTask = (entryId: string) =>
+      asDemoTenant(
+        async (c) =>
+          (
+            await c.query<{ task: string }>(
+              "SELECT scope ->> 'taskId' AS task FROM audit_event WHERE action = 'sync.entry.before_discard' AND resource_id = $1",
+              [entryId],
+            )
+          ).rows[0]?.task,
+      );
+    const byLocation = new Map(tasks.map((t) => [t.location_id, t.id]));
+    expect(await entryTask(home)).toBe(byLocation.get(DEMO.locationId));
+    expect(await entryTask(lodge)).toBe(byLocation.get(lodgeLocation));
   });
 });
 

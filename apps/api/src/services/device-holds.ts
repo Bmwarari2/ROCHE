@@ -15,21 +15,30 @@
  * - A report's times are never later than the server received it; a hold's start is never earlier
  *   than the device's last report for that hold said; a later report never moves the due time
  *   later.
+ * - The report's named owner counts only when bound to the device: they already have an event from
+ *   it (a sync token issued to it or a report sent from it). An owner who is not bound is recorded
+ *   as a claim and changes nothing: the task is routed by the reporter's assignments and the claim
+ *   gives no right to close it (security review round 7, M1). A hold's start is never earlier than
+ *   the server first heard from the device.
  * - A report with nothing waiting, or a recorded deletion of the device's held entries, closes the
  *   task when it comes from the hold's owner, from whoever raised the task, or from someone holding
  *   `safety.incident.manage` at one of its locations. A refused close followed by a new hold resets
- *   the task's escalation once a day, so the new hold signals.
- * - A task closed less than a day ago is reopened, keeping its escalation, rather than raised again
- *   (HZ-008: one escalation). Each reporter raises tasks for at most 3 devices in a rolling day;
- *   past that, the location's Registered Managers get one notice a day about the reporter, so a hold
- *   is never dropped silently. Every raise, reopen, move, reset, close and cap is audited.
+ *   the task's escalation, and so does a reopen, at most once a day (`DEVICE_HOLD_RESET_HOURS`), so
+ *   a new hold always signals and raise, close and raise again signals at most once more a day.
+ * - A task closed less than a day ago is reopened rather than raised again. Each reporter raises
+ *   tasks for at most 3 devices in a rolling day; past that, the hold joins the reporter's one
+ *   capped-holds task, due at the earliest capped hold's time, so no cap stops a task (clinical
+ *   review round 7, M2), and the location's Registered Managers get one notice a day about the
+ *   reporter. Every raise, reopen, move, reset, merge, close and cap is audited.
  *
- * Flagged-entry tasks (one per deletion record, never one per entry):
+ * Flagged-entry tasks (one per deletion record and location, never one per entry):
  * - An entry uploaded after its own owner's device recorded deleting it ("deleted", not failed), and
  *   an entry a deletion lists that had already reached the server, are each audited and counted on
- *   one review task for the deletion record, carrying the count and up to 20 opaque entry ids in
- *   its audit events. An entry already flagged is not flagged again under a new record. Each owner
- *   has at most 5 such tasks open; past that, the same daily notice. The task is due within a day.
+ *   one review task for the deletion record at the entry's location, carrying the count and up to 20
+ *   opaque entry ids in its audit events. An entry already flagged is not flagged again under a new
+ *   record. Each owner has at most 5 such tasks open at a location; past that, the entries join the
+ *   oldest of them. The task is due at once when any entry is an observation (a chart), otherwise
+ *   within a day (clinical review round 7, M3).
  */
 import type { SyncDeviceReport } from "@harbour/contracts";
 import {
@@ -63,6 +72,8 @@ const DAY_MS = 86_400_000;
 
 export const DEVICE_HOLD_TASK_KIND = "sync.device_hold";
 export const DEVICE_HOLD_SOURCE = "device_hold";
+/** The reporter's one task for holds past their daily cap; its source id is the reporter. */
+export const CAPPED_HOLDS_SOURCE = "device_hold_capped";
 export const REPORTED_DELETED_TASK_KIND = "sync.entry_reported_deleted";
 export const UPLOADED_BEFORE_DELETION_TASK_KIND = "sync.entry_deleted_after_upload";
 /** A flagged-entry task points at the deletion record it comes from. */
@@ -87,11 +98,11 @@ export const DEVICE_HOLD_REOPEN_HOURS = 24;
 const DEVICE_HOLD_RESET_HOURS = 24;
 /** Opaque entry ids a flagged-entry task's audit events list; its count covers the rest. */
 export const FLAGGED_ENTRY_IDS_PER_TASK = 20;
-/** Flagged-entry tasks one owner's deletions may have open at once (HZ-008). */
+/** Flagged-entry tasks an owner's deletions may have open at a location; more join the oldest. */
 export const FLAGGED_ENTRY_TASKS_PER_OWNER = 5;
-/** A flagged entry is a record to check within the day, not an alarm (HZ-008). */
+/** A flagged entry with no observation among it is checked within the day (HZ-008; H-148). */
 export const FLAGGED_ENTRY_REVIEW_HOURS = 24;
-/** The notice the location's Registered Managers get when a cap stops a task (HZ-008). */
+/** The notice the location's Registered Managers get when a cap merges a task (HZ-008). */
 export const CAPPED_NOTICE_KIND = "sync.reporter_capped";
 /** One notice per person and source in this many hours. */
 const CAPPED_NOTICE_HOURS = 24;
@@ -115,6 +126,7 @@ export const DEVICE_HOLD_ACTIONS = {
   closed: "sync.device_hold.closed",
   closeRefused: "sync.device_hold.close_refused",
   capped: "sync.device_hold.capped",
+  merged: "sync.device_hold.merged",
 } as const;
 
 /** The audit actions of flagged entries and their tasks (security review round 6, N1). */
@@ -211,7 +223,7 @@ const liveAssignment = (now: Date) =>
  * Registered Managers by tenant_user id: those at any of `locationIds` (or across the
  * organisation), or every one when no location is given.
  */
-async function registeredManagers(
+export async function registeredManagers(
   tx: Transaction,
   now: Date,
   locationIds: readonly string[] = [],
@@ -403,19 +415,19 @@ const scopeNumber = (scope: unknown, key: string): number | null => {
 const CAPPED_NOTICE_TEXT = {
   device_hold: {
     title: "A member of staff reached today's limit on device tasks",
-    body: "More of their devices reported unsent entries today. These are in the audit trail but raised no task. Check with them which devices still hold entries.",
+    body: "More of their devices reported unsent entries today. They are on one task for that member of staff, due when the earliest of those holds escalates. Check with them which devices still hold entries.",
   },
   entry_flag: {
     title: "A member of staff reached the limit on entries to check",
-    body: `More of their deleted entries reached Harbour. These are in the audit trail but raised no task while ${FLAGGED_ENTRY_TASKS_PER_OWNER} are open. Finish the open tasks, then check the audit trail.`,
+    body: `More of their deleted entries reached Harbour while ${FLAGGED_ENTRY_TASKS_PER_OWNER} tasks for them were open here. The entries were added to the oldest of those tasks: check it first.`,
   },
 } as const;
 
 /**
- * The notice the location's Registered Managers get when a cap stops a task (clinical review round
- * 6, M1; security review round 6): at most one per person and source a day, audited, with no
- * personal data. Without a Registered Manager there (or anywhere), the holders of
- * `safety.incident.manage` get it. True when a notice was sent.
+ * The notice the location's Registered Managers get when a cap merges a task into another (clinical
+ * reviews rounds 6 and 7; security review round 6), in addition to the merged task itself: at most
+ * one per person and source a day, audited, with no personal data. Without a Registered Manager
+ * there (or anywhere), the holders of `safety.incident.manage` get it. True when one was sent.
  */
 async function noticeCapped(
   tx: Transaction,
@@ -508,6 +520,10 @@ const deviceTasks = (deviceId: string) =>
 const openDeviceTasks = (deviceId: string) =>
   and(deviceTasks(deviceId), inArray(task.status, OPEN_STATUSES));
 
+/** Events whose resource is the device: sync tokens issued to it and the reports it sent. */
+const deviceEvents = (deviceId: string) =>
+  and(eq(auditEvent.resourceType, "device"), eq(auditEvent.resourceId, deviceId));
+
 /** The device's last report before this one: how much waited, since when, and whose. */
 async function previousReport(
   tx: Transaction,
@@ -516,13 +532,7 @@ async function previousReport(
   const [row] = await tx
     .select({ scope: auditEvent.scope, actor: auditEvent.actorTenantUserId })
     .from(auditEvent)
-    .where(
-      and(
-        eq(auditEvent.resourceType, "device"),
-        eq(auditEvent.resourceId, deviceId),
-        eq(auditEvent.action, DEVICE_REPORT_ACTION),
-      ),
-    )
+    .where(and(deviceEvents(deviceId), eq(auditEvent.action, DEVICE_REPORT_ACTION)))
     .orderBy(desc(auditEvent.seq))
     .limit(1);
   if (!row) return null;
@@ -536,10 +546,79 @@ async function previousReport(
 }
 
 /**
- * Whether the member may close the device's task (clinical review round 6, M1; security review
- * round 6): the hold's owner (named when the task was raised or reopened, even when someone else
- * sent that report), whoever raised it, or a holder of `safety.incident.manage` at one of its
- * locations. Null when none of these.
+ * True when the member already has an event from this device (security review round 7, M1): a sync
+ * token issued to the device in their session, or a report they sent from it. A named owner counts
+ * as the hold's owner only then, as the real owner has synced from the device before its hold.
+ * Read through the audit trail's resource index; every build sends the device id with both.
+ */
+async function seenOnDevice(
+  tx: Transaction,
+  deviceId: string,
+  tenantUserId: string,
+): Promise<boolean> {
+  const [row] = await tx
+    .select({ id: auditEvent.id })
+    .from(auditEvent)
+    .where(
+      and(
+        deviceEvents(deviceId),
+        eq(auditEvent.actorTenantUserId, tenantUserId),
+        eq(auditEvent.deviceId, deviceId),
+      ),
+    )
+    .limit(1);
+  return row !== undefined;
+}
+
+/** When the server first heard from the device, or null when this is the first time. */
+async function firstSeen(tx: Transaction, deviceId: string): Promise<Date | null> {
+  const [row] = await tx
+    .select({ at: sql<Date | string | null>`min(${auditEvent.occurredAt})` })
+    .from(auditEvent)
+    .where(deviceEvents(deviceId));
+  return row?.at ? new Date(row.at) : null;
+}
+
+/** The later of two floors. */
+const later = (a: Date | null, b: Date | null): Date | null =>
+  a && b ? (a.getTime() >= b.getTime() ? a : b) : (a ?? b);
+
+/**
+ * True when the tasks' escalation may be reset now: no reset in the last
+ * `DEVICE_HOLD_RESET_HOURS`, whether after a refused close or on a reopen (clinical reviews
+ * round 6, M1 and round 7, M1), so a hold signals at least once a day and at most once more.
+ */
+async function escalationResetDue(
+  tx: Transaction,
+  taskIds: readonly string[],
+  now: Date,
+): Promise<boolean> {
+  const [row] = await tx
+    .select({ occurredAt: auditEvent.occurredAt })
+    .from(auditEvent)
+    .where(
+      and(
+        eq(auditEvent.resourceType, "task"),
+        inArray(auditEvent.resourceId, [...taskIds]),
+        or(
+          eq(auditEvent.action, DEVICE_HOLD_ACTIONS.reset),
+          and(
+            eq(auditEvent.action, DEVICE_HOLD_ACTIONS.reopened),
+            sql`(${auditEvent.scope} ->> 'escalationReset') = 'true'`,
+          ),
+        ),
+      ),
+    )
+    .orderBy(desc(auditEvent.seq))
+    .limit(1);
+  return !row || row.occurredAt.getTime() <= now.getTime() - DEVICE_HOLD_RESET_HOURS * HOUR_MS;
+}
+
+/**
+ * Whether the member may close the device's task (clinical review round 6, M1; security reviews
+ * rounds 6 and 7): the hold's owner (as recorded when the task was raised or reopened: a named
+ * owner only when bound to the device), whoever raised it, or a holder of `safety.incident.manage`
+ * at one of its locations. Null when none of these.
  */
 async function closingRight(
   tx: Transaction,
@@ -634,6 +713,21 @@ async function closeIfEntitled(
   return "closed";
 }
 
+/** Where a new task goes: one per location, else one per Registered Manager, else unassigned. */
+async function taskTargets(
+  tx: Transaction,
+  locations: readonly string[],
+  now: Date,
+): Promise<ReadonlyArray<{ locationId: string | null; assignee: string | null }>> {
+  if (locations.length > 0) return locations.map((locationId) => ({ locationId, assignee: null }));
+  // No location known: each Registered Manager gets one, assigned to them, so it is never visible
+  // only to tenant-wide roles (C-H1). With no Registered Manager, tenant-wide roles see it.
+  const managers = await registeredManagers(tx, now);
+  return managers.length > 0
+    ? managers.map((assignee) => ({ locationId: null, assignee }))
+    : [{ locationId: null, assignee: null }];
+}
+
 /**
  * Records a device's report (an audit event whose resource is the device) and raises, reopens,
  * moves, resets or closes the device's tasks (see the module comment). Runs as the system (tenant
@@ -649,18 +743,37 @@ export async function recordDeviceHold(
   requestId?: string,
 ): Promise<DeviceHoldOutcome> {
   return withRequestContext(db, systemFor(access), async (tx) => {
+    const reporter = access.tenantUserId;
     const times = clampReportTimes(report, receivedAt);
-    const owner = report.ownerTenantUserId ?? access.tenantUserId;
     const waiting = waitingCount(report);
+    const claimed = report.ownerTenantUserId ?? reporter;
     if (deviceId) await lock(tx, access.tenantId, `device_hold:${deviceId}`);
-    // A hold never started earlier than the device's last report for it said (round 6, N2).
+    // Read before this report is recorded, so it counts for none of them.
     const previous = deviceId ? await previousReport(tx, deviceId) : null;
-    const floor =
+    const bound = deviceId ? await seenOnDevice(tx, deviceId, claimed) : false;
+    const seen = deviceId ? await firstSeen(tx, deviceId) : null;
+    // The hold's owner as the server takes it (security review round 7, M1): the named owner (or
+    // the reporter) only when bound to the device; otherwise the owner the device last reported,
+    // else the reporter. A claim that is not bound is recorded, routes nothing and closes nothing.
+    const owner = bound ? claimed : (previous?.owner ?? reporter);
+    const claimedOwner = !bound && claimed !== reporter ? claimed : null;
+    // A hold never started before the device's last report for it said (round 6, N2; kept on the
+    // owner, so naming a new owner each time does not escape it), nor before the server first heard
+    // from the device (round 7, M1).
+    const fromPrevious =
       waiting > 0 && previous && previous.waiting > 0 && previous.owner === owner
         ? previous.waitingSince
         : null;
+    const fromFirstSeen = deviceId ? (seen ?? receivedAt) : null;
     const unfloored = waitingSince(report, receivedAt);
-    const since = waitingSince(report, receivedAt, floor);
+    const since = waitingSince(report, receivedAt, later(fromPrevious, fromFirstSeen));
+    const byPrevious = waitingSince(report, receivedAt, fromPrevious);
+    const startFloor =
+      since.getTime() === unfloored.getTime()
+        ? null
+        : since.getTime() === byPrevious.getTime()
+          ? "earlier_report"
+          : "first_seen";
     await auditInTx(tx, access, {
       action: DEVICE_REPORT_ACTION,
       ...(deviceId ? { resourceType: "device", resourceId: deviceId } : {}),
@@ -675,8 +788,10 @@ export async function recordDeviceHold(
         deviceClockAhead: times.clamped,
         waiting,
         waitingSince: waiting > 0 ? since.toISOString() : null,
-        startFromEarlierReport: since.getTime() !== unfloored.getTime(),
+        startFloor,
         ownerTenantUserId: owner,
+        ownerBound: bound,
+        ...(claimedOwner ? { claimedOwnerTenantUserId: claimedOwner } : {}),
         locationIds: [...new Set(report.locationIds ?? [])],
       },
       requestId,
@@ -691,7 +806,9 @@ export async function recordDeviceHold(
     const open = await tx.select().from(task).where(openDeviceTasks(deviceId));
     if (open.length > 0) return keepOpen(tx, access, open, deviceId, dueAt, receivedAt, requestId);
 
-    // Closed less than a day ago: the same task again, keeping its escalation (round 6, N2).
+    // Closed less than a day ago: the same task again (round 6, N2). Its escalation is reset under
+    // the once-a-day check, so the new hold signals, at most once more a day (clinical review
+    // round 7, M1). A reporter whose claim is not bound keeps the recorded owner (security M1).
     const reopenAfter = new Date(receivedAt.getTime() - DEVICE_HOLD_REOPEN_HOURS * HOUR_MS);
     const recent = await tx
       .select()
@@ -700,10 +817,26 @@ export async function recordDeviceHold(
         and(deviceTasks(deviceId), eq(task.status, "done"), gt(task.completedAt, reopenAfter)),
       );
     if (recent.length > 0) {
+      const ids = recent.map((t) => t.id);
+      const lastRaise = await latestTaskEvent(tx, ids, [
+        DEVICE_HOLD_ACTIONS.raised,
+        DEVICE_HOLD_ACTIONS.reopened,
+      ]);
+      const keptOwner = bound
+        ? claimed
+        : (scopeText(lastRaise?.scope, "ownerTenantUserId") ?? owner);
+      const reset = await escalationResetDue(tx, ids, receivedAt);
       for (const row of recent) {
         await tx
           .update(task)
-          .set({ status: "open", statusReason: null, completedAt: null, completedBy: null, dueAt })
+          .set({
+            status: "open",
+            statusReason: null,
+            completedAt: null,
+            completedBy: null,
+            dueAt,
+            ...(reset ? { escalationLevel: 0, escalatedAt: null } : {}),
+          })
           .where(eq(task.id, row.id));
         await auditInTx(tx, access, {
           action: DEVICE_HOLD_ACTIONS.reopened,
@@ -711,9 +844,11 @@ export async function recordDeviceHold(
           resourceId: row.id,
           scope: {
             deviceId,
-            ownerTenantUserId: owner,
+            ownerTenantUserId: keptOwner,
+            ...(claimedOwner ? { claimedOwnerTenantUserId: claimedOwner } : {}),
             dueAt: dueAt.toISOString(),
             escalationLevel: row.escalationLevel,
+            escalationReset: reset,
           },
           requestId,
         });
@@ -721,14 +856,17 @@ export async function recordDeviceHold(
       return "reopened";
     }
 
+    // Routed by the reporter's assignments, and the owner's only when bound (security M1).
     const locations = await holdLocations(
       tx,
-      { reporter: access.tenantUserId, owner },
+      { reporter, owner: bound ? claimed : reporter },
       report.locationIds ?? [],
       receivedAt,
     );
 
-    // A few devices per reporter in a rolling day, whatever became of their tasks (round 6, N2).
+    // A few devices per reporter in a rolling day, whatever became of their tasks (round 6, N2),
+    // counted under a per-reporter lock so racing reports from several devices take turns.
+    await lock(tx, access.tenantId, `device_hold_reporter:${reporter}`);
     const dayAgo = new Date(receivedAt.getTime() - DAY_MS);
     const raised = await tx
       .selectDistinct({ sourceId: task.sourceId })
@@ -737,12 +875,21 @@ export async function recordDeviceHold(
         and(
           eq(task.kind, DEVICE_HOLD_TASK_KIND),
           eq(task.sourceType, DEVICE_HOLD_SOURCE),
-          eq(task.createdBy, access.tenantUserId),
+          eq(task.createdBy, reporter),
           isNull(task.deletedAt),
           or(gt(task.createdAt, dayAgo), inArray(task.status, OPEN_STATUSES)),
         ),
       );
     if (raised.length >= DEVICE_HOLD_TASKS_PER_REPORTER) {
+      // No cap stops a task (clinical review round 7, M2): the hold goes onto the reporter's one
+      // capped-holds task, due at the earliest capped hold's time and escalating like a device task.
+      const merged = await mergeCappedHold(tx, access, {
+        deviceId,
+        locations,
+        dueAt,
+        now: receivedAt,
+        requestId,
+      });
       await auditInTx(tx, access, {
         action: DEVICE_HOLD_ACTIONS.capped,
         outcome: "denied",
@@ -752,14 +899,15 @@ export async function recordDeviceHold(
           deviceId,
           raised: raised.length,
           ownerTenantUserId: owner,
+          ...(claimedOwner ? { claimedOwnerTenantUserId: claimedOwner } : {}),
           locationIds: locations,
           dueAt: dueAt.toISOString(),
+          mergedInto: merged,
         },
         requestId,
       });
-      // Never silently: the location's Registered Managers hear once a day (clinical round 6, M1).
       await noticeCapped(tx, access, {
-        subject: access.tenantUserId,
+        subject: reporter,
         source: "device_hold",
         locationIds: locations,
         now: receivedAt,
@@ -768,18 +916,8 @@ export async function recordDeviceHold(
       return "capped";
     }
 
-    // One task per location, closed together (clinical review round 6, M2). No location known:
-    // each Registered Manager gets one, assigned to them, so it is never visible only to
-    // tenant-wide roles (C-H1). With no Registered Manager, tenant-wide roles see it.
-    const targets: ReadonlyArray<{ locationId: string | null; assignee: string | null }> =
-      locations.length > 0
-        ? locations.map((locationId) => ({ locationId, assignee: null }))
-        : await registeredManagers(tx, receivedAt).then((ids) =>
-            ids.length > 0
-              ? ids.map((assignee) => ({ locationId: null, assignee }))
-              : [{ locationId: null, assignee: null }],
-          );
-    for (const target of targets) {
+    // One task per location, closed together (clinical review round 6, M2).
+    for (const target of await taskTargets(tx, locations, receivedAt)) {
       const [created] = await tx
         .insert(task)
         .values({
@@ -802,6 +940,7 @@ export async function recordDeviceHold(
         scope: {
           deviceId,
           ownerTenantUserId: owner,
+          ...(claimedOwner ? { claimedOwnerTenantUserId: claimedOwner } : {}),
           locationId: target.locationId,
           assigneeTenantUserId: target.assignee,
           dueAt: dueAt.toISOString(),
@@ -814,9 +953,90 @@ export async function recordDeviceHold(
 }
 
 /**
+ * A hold past the reporter's daily cap joins the reporter's one capped-holds task (clinical review
+ * round 7, M2): raised at the hold's locations when none is open, otherwise brought forward to the
+ * earliest capped hold's due time. A manager completes it once the devices are dealt with. Call
+ * under the per-reporter lock. Returns the task ids.
+ */
+async function mergeCappedHold(
+  tx: Transaction,
+  access: TenantAccess,
+  input: {
+    readonly deviceId: string;
+    readonly locations: readonly string[];
+    readonly dueAt: Date;
+    readonly now: Date;
+    readonly requestId: string | undefined;
+  },
+): Promise<string[]> {
+  const reporter = access.tenantUserId;
+  const open = await tx
+    .select()
+    .from(task)
+    .where(
+      and(
+        eq(task.kind, DEVICE_HOLD_TASK_KIND),
+        eq(task.sourceType, CAPPED_HOLDS_SOURCE),
+        eq(task.sourceId, reporter),
+        inArray(task.status, OPEN_STATUSES),
+        isNull(task.deletedAt),
+      ),
+    );
+  if (open.length > 0) {
+    for (const row of open) {
+      const due = input.dueAt.getTime() < row.dueAt.getTime() ? input.dueAt : row.dueAt;
+      if (due !== row.dueAt) await tx.update(task).set({ dueAt: due }).where(eq(task.id, row.id));
+      await auditInTx(tx, access, {
+        action: DEVICE_HOLD_ACTIONS.merged,
+        resourceType: "task",
+        resourceId: row.id,
+        scope: { deviceId: input.deviceId, created: false, dueAt: due.toISOString() },
+        requestId: input.requestId,
+      });
+    }
+    return open.map((t) => t.id);
+  }
+  const ids: string[] = [];
+  for (const target of await taskTargets(tx, input.locations, input.now)) {
+    const [created] = await tx
+      .insert(task)
+      .values({
+        locationId: target.locationId,
+        kind: DEVICE_HOLD_TASK_KIND,
+        title:
+          "Unsent care entries are waiting on more devices than one member of staff may report",
+        requiredPermission: DISCARD_OTHERS_PERMISSION,
+        sourceType: CAPPED_HOLDS_SOURCE,
+        sourceId: reporter,
+        assigneeTenantUserId: target.assignee,
+        assigneeRoleKey: "registered_manager",
+        dueAt: input.dueAt,
+        priority: "routine",
+      })
+      .returning({ id: task.id });
+    if (!created) continue;
+    ids.push(created.id);
+    await auditInTx(tx, access, {
+      action: DEVICE_HOLD_ACTIONS.merged,
+      resourceType: "task",
+      resourceId: created.id,
+      scope: {
+        deviceId: input.deviceId,
+        created: true,
+        locationId: target.locationId,
+        assigneeTenantUserId: target.assignee,
+        dueAt: input.dueAt.toISOString(),
+      },
+      requestId: input.requestId,
+    });
+  }
+  return ids;
+}
+
+/**
  * A device whose tasks are open reports entries waiting. After a refused close, the new hold resets
- * the tasks' escalation (once a day at most) so it signals again, with the due time never later
- * (clinical review round 6, M1). Otherwise the due time may only move earlier (S-M1).
+ * the tasks' escalation (under the once-a-day check) so it signals again, with the due time never
+ * later (clinical review round 6, M1). Otherwise the due time may only move earlier (S-M1).
  */
 async function keepOpen(
   tx: Transaction,
@@ -835,30 +1055,29 @@ async function keepOpen(
     DEVICE_HOLD_ACTIONS.reset,
     DEVICE_HOLD_ACTIONS.closeRefused,
   ]);
-  if (last?.action === DEVICE_HOLD_ACTIONS.closeRefused) {
-    const lastReset = await latestTaskEvent(tx, ids, [DEVICE_HOLD_ACTIONS.reset]);
-    const resetAfter = now.getTime() - DEVICE_HOLD_RESET_HOURS * HOUR_MS;
-    if (!lastReset || lastReset.occurredAt.getTime() <= resetAfter) {
-      for (const row of open) {
-        const due = dueAt.getTime() < row.dueAt.getTime() ? dueAt : row.dueAt;
-        await tx
-          .update(task)
-          .set({ escalationLevel: 0, escalatedAt: null, dueAt: due })
-          .where(eq(task.id, row.id));
-        await auditInTx(tx, access, {
-          action: DEVICE_HOLD_ACTIONS.reset,
-          resourceType: "task",
-          resourceId: row.id,
-          scope: {
-            deviceId,
-            dueAt: due.toISOString(),
-            escalationLevel: row.escalationLevel,
-          },
-          requestId,
-        });
-      }
-      return "reset";
+  if (
+    last?.action === DEVICE_HOLD_ACTIONS.closeRefused &&
+    (await escalationResetDue(tx, ids, now))
+  ) {
+    for (const row of open) {
+      const due = dueAt.getTime() < row.dueAt.getTime() ? dueAt : row.dueAt;
+      await tx
+        .update(task)
+        .set({ escalationLevel: 0, escalatedAt: null, dueAt: due })
+        .where(eq(task.id, row.id));
+      await auditInTx(tx, access, {
+        action: DEVICE_HOLD_ACTIONS.reset,
+        resourceType: "task",
+        resourceId: row.id,
+        scope: {
+          deviceId,
+          dueAt: due.toISOString(),
+          escalationLevel: row.escalationLevel,
+        },
+        requestId,
+      });
     }
+    return "reset";
   }
   let moved = false;
   for (const row of open) {
@@ -935,46 +1154,14 @@ export async function reportedDeletedBy(
   );
 }
 
-const FLAGGED_ENTRY_TITLES: Record<FlaggedEntryKind, string> = {
+const FLAGGED_ENTRY_TITLES: Record<string, string> = {
   [REPORTED_DELETED_TASK_KIND]: "Check entries uploaded after their device reported deleting them",
   [UPLOADED_BEFORE_DELETION_TASK_KIND]: "Check entries a device deleted after they reached Harbour",
 };
 
-/** The task's title with its count, which grows as further entries of the deletion arrive. */
-const flaggedTitle = (kind: FlaggedEntryKind, count: number) =>
-  `${FLAGGED_ENTRY_TITLES[kind]}: ${count}`;
-
-/** The most frequent location among the entries, or null when none has one. */
-function mostCommonLocation(entries: ReadonlyArray<{ readonly locationId: string | null }>) {
-  const counts = new Map<string, number>();
-  for (const { locationId } of entries) {
-    if (locationId) counts.set(locationId, (counts.get(locationId) ?? 0) + 1);
-  }
-  return (
-    [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? null
-  );
-}
-
-/** Open flagged-entry tasks raised for deletions of this owner's entries. */
-async function openFlaggedTasksOf(tx: Transaction, owner: string): Promise<number> {
-  const [row] = await tx
-    .select({ n: sql<number>`count(*)::int` })
-    .from(task)
-    .where(
-      and(
-        inArray(task.kind, [...FLAGGED_ENTRY_TASK_KINDS]),
-        eq(task.sourceType, FLAGGED_ENTRY_SOURCE),
-        inArray(task.status, OPEN_STATUSES),
-        isNull(task.deletedAt),
-        sql`EXISTS (
-          SELECT 1 FROM audit_event a
-          WHERE a.tenant_id = ${task.tenantId} AND a.resource_type = 'task'
-            AND a.resource_id = ${task.id}::text AND a.action = ${ENTRY_FLAG_ACTIONS.raised}
-            AND a.scope ->> 'ownerTenantUserId' = ${owner})`,
-      ),
-    );
-  return row?.n ?? 0;
-}
+/** The task's title with its count, which grows as further entries are added. */
+const flaggedTitle = (kind: string, count: number) =>
+  `${FLAGGED_ENTRY_TITLES[kind] ?? FLAGGED_ENTRY_TITLES[REPORTED_DELETED_TASK_KIND]}: ${count}`;
 
 interface FlaggedEntry {
   readonly id: string;
@@ -983,72 +1170,155 @@ interface FlaggedEntry {
 }
 
 /**
- * One review task per deletion record and kind (security review round 6, N1): the first flagged
- * entry raises it, due within a day; later ones add to its count. Takes a lock on (tenant, kind,
- * record) first, so racing uploads raise one. Each owner has a few open at most; past that, the
- * cap is audited and the location's Registered Managers get the daily notice. Call with
- * tenant-wide scope.
+ * When the review falls due (clinical review round 7, M3): at once when any entry is an
+ * observation (fluids, repositioning, vital signs and every other chart), because a possible
+ * duplicate counts towards the day's totals and can complete a round; otherwise within
+ * `FLAGGED_ENTRY_REVIEW_HOURS` (human action H-148).
  */
-async function raiseFlaggedTask(
+export function flaggedDue(entries: readonly FlaggedEntry[], now: Date): Date {
+  return entries.some((e) => e.resourceType === "observation")
+    ? now
+    : new Date(now.getTime() + FLAGGED_ENTRY_REVIEW_HOURS * HOUR_MS);
+}
+
+const atLocation = (locationId: string | null) =>
+  locationId ? eq(task.locationId, locationId) : isNull(task.locationId);
+
+/** This owner's open flagged-entry tasks at a location, oldest first (ids only). */
+async function openFlaggedTasksOf(
+  tx: Transaction,
+  owner: string,
+  locationId: string | null,
+): Promise<TaskRow[]> {
+  return tx
+    .select()
+    .from(task)
+    .where(
+      and(
+        inArray(task.kind, [...FLAGGED_ENTRY_TASK_KINDS]),
+        eq(task.sourceType, FLAGGED_ENTRY_SOURCE),
+        atLocation(locationId),
+        inArray(task.status, OPEN_STATUSES),
+        isNull(task.deletedAt),
+        sql`EXISTS (
+          SELECT 1 FROM audit_event a
+          WHERE a.tenant_id = ${task.tenantId} AND a.resource_type = 'task'
+            AND a.resource_id = ${task.id}::text AND a.action = ${ENTRY_FLAG_ACTIONS.raised}
+            AND a.scope ->> 'ownerTenantUserId' = ${owner})`,
+      ),
+    )
+    .orderBy(asc(task.createdAt));
+}
+
+/**
+ * Adds entries to an open flagged-entry task: its count grows, up to 20 more ids are listed in its
+ * audit event, and its due time comes forward when the new entries call for it.
+ */
+async function addToFlaggedTask(
+  tx: Transaction,
+  access: TenantAccess,
+  target: TaskRow,
+  input: {
+    readonly discardId: string;
+    readonly entries: readonly FlaggedEntry[];
+    readonly merged: boolean;
+    readonly now: Date;
+    readonly requestId: string | undefined;
+  },
+): Promise<void> {
+  const last = await latestTaskEvent(
+    tx,
+    [target.id],
+    [ENTRY_FLAG_ACTIONS.raised, ENTRY_FLAG_ACTIONS.added],
+  );
+  const count = (scopeNumber(last?.scope, "count") ?? 0) + input.entries.length;
+  const listedBefore = scopeNumber(last?.scope, "listed") ?? 0;
+  const entryIds = input.entries
+    .slice(0, Math.max(0, FLAGGED_ENTRY_IDS_PER_TASK - listedBefore))
+    .map((e) => e.id);
+  const due = flaggedDue(input.entries, input.now);
+  const sooner = due.getTime() < target.dueAt.getTime();
+  await tx
+    .update(task)
+    .set({
+      title: flaggedTitle(target.kind, count),
+      ...(sooner ? { dueAt: due, windowEnd: due } : {}),
+    })
+    .where(eq(task.id, target.id));
+  await auditInTx(tx, access, {
+    action: ENTRY_FLAG_ACTIONS.added,
+    resourceType: "task",
+    resourceId: target.id,
+    scope: {
+      discardId: input.discardId,
+      count,
+      listed: listedBefore + entryIds.length,
+      entryIds,
+      ...(input.merged ? { merged: true } : {}),
+      ...(sooner ? { dueAt: due.toISOString() } : {}),
+    },
+    requestId: input.requestId,
+  });
+}
+
+type FlagOutcome = { readonly outcome: "raised" | "added" | "merged"; readonly taskId: string };
+
+/**
+ * One review task per deletion record, kind and location (security review round 6, N1; clinical
+ * review round 7, M4), so each location's managers see only their own people's entries: the first
+ * flagged entry there raises it, later ones add to its count. Takes a lock on (tenant, kind,
+ * record, location) first, so racing uploads raise one. Each owner has at most 5 open at a
+ * location; past that, the entries join the owner's oldest open one there, the cap is audited and
+ * the Registered Managers get the daily notice: no cap stops a task (clinical review round 7, M2).
+ * Call with tenant-wide scope, under the owner's lock.
+ */
+async function raiseFlaggedTaskAt(
   tx: Transaction,
   access: TenantAccess,
   input: {
     readonly kind: FlaggedEntryKind;
     readonly discardId: string;
     readonly ownerTenantUserId: string;
+    readonly locationId: string | null;
     readonly entries: readonly FlaggedEntry[];
     readonly now: Date;
     readonly requestId: string | undefined;
   },
-): Promise<{ readonly outcome: "raised" | "added" | "capped"; readonly taskId: string | null }> {
-  await lock(tx, access.tenantId, `${input.kind}:${input.discardId}`);
+): Promise<FlagOutcome> {
+  await lock(
+    tx,
+    access.tenantId,
+    `${input.kind}:${input.discardId}:${input.locationId ?? "no_location"}`,
+  );
   const [open] = await tx
-    .select({ id: task.id })
+    .select()
     .from(task)
     .where(
       and(
         eq(task.kind, input.kind),
         eq(task.sourceType, FLAGGED_ENTRY_SOURCE),
         eq(task.sourceId, input.discardId),
+        atLocation(input.locationId),
         inArray(task.status, OPEN_STATUSES),
         isNull(task.deletedAt),
       ),
     )
     .limit(1);
+  const add = { discardId: input.discardId, entries: input.entries, now: input.now };
   if (open) {
-    const last = await latestTaskEvent(
-      tx,
-      [open.id],
-      [ENTRY_FLAG_ACTIONS.raised, ENTRY_FLAG_ACTIONS.added],
-    );
-    const count = (scopeNumber(last?.scope, "count") ?? 0) + input.entries.length;
-    const listedBefore = scopeNumber(last?.scope, "listed") ?? 0;
-    const entryIds = input.entries
-      .slice(0, Math.max(0, FLAGGED_ENTRY_IDS_PER_TASK - listedBefore))
-      .map((e) => e.id);
-    await tx
-      .update(task)
-      .set({ title: flaggedTitle(input.kind, count) })
-      .where(eq(task.id, open.id));
-    await auditInTx(tx, access, {
-      action: ENTRY_FLAG_ACTIONS.added,
-      resourceType: "task",
-      resourceId: open.id,
-      scope: {
-        discardId: input.discardId,
-        count,
-        listed: listedBefore + entryIds.length,
-        entryIds,
-      },
-      requestId: input.requestId,
-    });
+    await addToFlaggedTask(tx, access, open, { ...add, merged: false, requestId: input.requestId });
     return { outcome: "added", taskId: open.id };
   }
 
-  const locationId = mostCommonLocation(input.entries);
   const entryIds = input.entries.slice(0, FLAGGED_ENTRY_IDS_PER_TASK).map((e) => e.id);
-  const openForOwner = await openFlaggedTasksOf(tx, input.ownerTenantUserId);
-  if (openForOwner >= FLAGGED_ENTRY_TASKS_PER_OWNER) {
+  const owners = await openFlaggedTasksOf(tx, input.ownerTenantUserId, input.locationId);
+  const oldest = owners[0];
+  if (oldest && owners.length >= FLAGGED_ENTRY_TASKS_PER_OWNER) {
+    await addToFlaggedTask(tx, access, oldest, {
+      ...add,
+      merged: true,
+      requestId: input.requestId,
+    });
     await auditInTx(tx, access, {
       action: ENTRY_FLAG_ACTIONS.capped,
       outcome: "denied",
@@ -1057,29 +1327,30 @@ async function raiseFlaggedTask(
       scope: {
         kind: input.kind,
         ownerTenantUserId: input.ownerTenantUserId,
-        open: openForOwner,
+        locationId: input.locationId,
+        open: owners.length,
         count: input.entries.length,
         entryIds,
+        mergedInto: oldest.id,
       },
       requestId: input.requestId,
     });
     await noticeCapped(tx, access, {
       subject: input.ownerTenantUserId,
       source: "entry_flag",
-      locationIds: locationId ? [locationId] : [],
+      locationIds: input.locationId ? [input.locationId] : [],
       now: input.now,
       requestId: input.requestId,
     });
-    return { outcome: "capped", taskId: null };
+    return { outcome: "merged", taskId: oldest.id };
   }
 
-  // A record to check within the day, not an alarm: the care was given and the entry is kept
-  // (HZ-008). Overdue, it escalates once to the holders of its permission at its location.
-  const due = new Date(input.now.getTime() + FLAGGED_ENTRY_REVIEW_HOURS * HOUR_MS);
+  // Overdue, it escalates once to the holders of its permission at its location (HZ-008).
+  const due = flaggedDue(input.entries, input.now);
   const [created] = await tx
     .insert(task)
     .values({
-      locationId,
+      locationId: input.locationId,
       kind: input.kind,
       title: flaggedTitle(input.kind, input.entries.length),
       requiredPermission: DISCARD_OTHERS_PERMISSION,
@@ -1092,30 +1363,68 @@ async function raiseFlaggedTask(
       priority: "routine",
     })
     .returning({ id: task.id });
+  if (!created) throw new Error("The flagged-entry task was not created.");
   await auditInTx(tx, access, {
     action: ENTRY_FLAG_ACTIONS.raised,
     resourceType: "task",
-    resourceId: created?.id,
+    resourceId: created.id,
     scope: {
       discardId: input.discardId,
       ownerTenantUserId: input.ownerTenantUserId,
       count: input.entries.length,
       listed: entryIds.length,
       entryIds,
-      locationId,
+      locationId: input.locationId,
       dueAt: due.toISOString(),
     },
     requestId: input.requestId,
   });
-  return { outcome: "raised", taskId: created?.id ?? null };
+  return { outcome: "raised", taskId: created.id };
+}
+
+/**
+ * Flags entries of one deletion record, grouped by location (clinical review round 7, M4), each
+ * group on its location's task. Returns each entry's task and outcome. Call with tenant-wide scope.
+ */
+async function raiseFlaggedTasks(
+  tx: Transaction,
+  access: TenantAccess,
+  input: {
+    readonly kind: FlaggedEntryKind;
+    readonly discardId: string;
+    readonly ownerTenantUserId: string;
+    readonly entries: readonly FlaggedEntry[];
+    readonly now: Date;
+    readonly requestId: string | undefined;
+  },
+): Promise<Map<string, FlagOutcome>> {
+  // One owner's flags are taken in turn, so racing uploads or deletions cannot pass the cap
+  // (security review round 7, low).
+  await lock(tx, access.tenantId, `entry_flag_owner:${input.ownerTenantUserId}`);
+  const groups = new Map<string, FlaggedEntry[]>();
+  for (const entry of input.entries) {
+    const key = entry.locationId ?? "";
+    groups.set(key, [...(groups.get(key) ?? []), entry]);
+  }
+  const outcomes = new Map<string, FlagOutcome>();
+  for (const key of [...groups.keys()].sort()) {
+    const entries = groups.get(key) ?? [];
+    const outcome = await raiseFlaggedTaskAt(tx, access, {
+      ...input,
+      locationId: key === "" ? null : key,
+      entries,
+    });
+    for (const entry of entries) outcomes.set(entry.id, outcome);
+  }
+  return outcomes;
 }
 
 /**
  * Flags an entry uploaded after its owner's device recorded deleting it (clinical review round 4,
  * H1; security review round 6, N1): kept, as every upload is, with an audit event on the entry and
- * a count on the deletion record's review task. Call inside the upload's transaction, once the
- * entry is new; the task part runs with tenant-wide scope there (ADR-0033), because the uploader
- * may not see the location's tasks.
+ * a count on the deletion record's review task at the entry's location. Call inside the upload's
+ * transaction, once the entry is new; the task part runs with tenant-wide scope there (ADR-0033),
+ * because the uploader may not see the location's tasks.
  */
 export async function flagIfReportedDeleted(
   tx: Transaction,
@@ -1129,8 +1438,8 @@ export async function flagIfReportedDeleted(
 ): Promise<boolean> {
   const discardId = await reportedDeletedBy(tx, entry.id, access.tenantUserId);
   if (!discardId) return false;
-  const flagged = await withTenantWideScope(tx, () =>
-    raiseFlaggedTask(tx, access, {
+  const outcomes = await withTenantWideScope(tx, () =>
+    raiseFlaggedTasks(tx, access, {
       kind: REPORTED_DELETED_TASK_KIND,
       discardId,
       ownerTenantUserId: access.tenantUserId,
@@ -1139,11 +1448,17 @@ export async function flagIfReportedDeleted(
       requestId: entry.requestId,
     }),
   );
+  const flagged = outcomes.get(entry.id);
   await auditInTx(tx, access, {
     action: ENTRY_FLAG_ACTIONS.afterDeletion,
     resourceType: entry.resourceType,
     resourceId: entry.id,
-    scope: { reportedDeleted: true, discardId, taskId: flagged.taskId, task: flagged.outcome },
+    scope: {
+      reportedDeleted: true,
+      discardId,
+      taskId: flagged?.taskId ?? null,
+      task: flagged?.outcome ?? null,
+    },
     requestId: entry.requestId,
   });
   return true;
@@ -1162,9 +1477,10 @@ const CARE_ENTRY_TABLES = [
  * Entries a deletion recorded as "deleted" lists that had already reached the server, written by
  * the deletion's owner (clinical review round 5, C-L2): a response lost on the way back leaves the
  * device thinking an entry unsent, so its deletion would mislead. Each is kept and audited, and
- * counted on one review task for the deletion record (security review round 6, N1). An entry
- * flagged before, under an earlier record or on its upload, is not flagged again. Runs as the
- * system acting for the sender. Returns how many entries were newly flagged.
+ * counted on the deletion record's review task at its location (security review round 6, N1;
+ * clinical review round 7, M4). An entry flagged before, under an earlier record or on its upload,
+ * is not flagged again; every flagged entry is on a task. Runs as the system acting for the
+ * sender. Returns how many entries were newly flagged.
  */
 export async function flagEntriesAlreadyUploaded(
   db: Db,
@@ -1209,7 +1525,7 @@ export async function flagEntriesAlreadyUploaded(
     const seenIds = new Set(seen.map((s) => s.id));
     const fresh = found.filter((e) => !seenIds.has(e.id));
     if (fresh.length === 0) return 0;
-    const flagged = await raiseFlaggedTask(tx, access, {
+    const outcomes = await raiseFlaggedTasks(tx, access, {
       kind: UPLOADED_BEFORE_DELETION_TASK_KIND,
       discardId: discard.id,
       ownerTenantUserId: owner,
@@ -1218,11 +1534,16 @@ export async function flagEntriesAlreadyUploaded(
       requestId,
     });
     for (const entry of fresh) {
+      const flagged = outcomes.get(entry.id);
       await auditInTx(tx, access, {
         action: ENTRY_FLAG_ACTIONS.beforeDeletion,
         resourceType: entry.resourceType,
         resourceId: entry.id,
-        scope: { discardId: discard.id, taskId: flagged.taskId, task: flagged.outcome },
+        scope: {
+          discardId: discard.id,
+          taskId: flagged?.taskId ?? null,
+          task: flagged?.outcome ?? null,
+        },
         requestId,
       });
     }

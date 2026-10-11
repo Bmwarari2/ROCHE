@@ -5,7 +5,7 @@ import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { escalateTasks, materialiseTaskSeries, type TaskDeps } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
-import { createHarness, type Harness, LODGE } from "./support/harness";
+import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 
 let h: Harness;
 let appPool: pg.Pool;
@@ -414,5 +414,88 @@ describe("hazard HZ-008 a sync task escalates only to people who can act on it (
     );
     await escalateTasks(deps, new Date());
     expect(await toManager()).toBe(2);
+  });
+});
+
+describe("hazard HZ-040 a sync task whose location has no one who can act on it (round 7, M5)", () => {
+  /** Runs as the owner inside the other organisation, which has no holder of the permission. */
+  async function asOther<T>(fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {
+    const client = await h.db.pool("harbour_owner").connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+        [OTHER.tenantId],
+      );
+      const result = await fn(client);
+      await client.query("COMMIT");
+      return result;
+    } finally {
+      client.release();
+    }
+  }
+  const vacant = "0194e000-0000-7000-8000-000000000102";
+  const overdueHold = () =>
+    asOther(
+      async (c) =>
+        (
+          await c.query<{ id: string }>(
+            `INSERT INTO task (location_id, kind, title, required_permission, assignee_role_key, due_at)
+             VALUES ($1, 'sync.device_hold', 'Check', 'safety.incident.manage', 'registered_manager', $2)
+             RETURNING id`,
+            [vacant, new Date(Date.now() - 3 * HOUR)],
+          )
+        ).rows[0]?.id,
+    );
+  const state = (taskId: string | undefined) =>
+    asOther(async (c) => {
+      const row = await c.query<{ escalation_level: number }>(
+        "SELECT escalation_level FROM task WHERE id = $1",
+        [taskId],
+      );
+      const told = await c.query<{ recipient_tenant_user_id: string }>(
+        "SELECT recipient_tenant_user_id FROM notification WHERE source_type = 'task' AND source_id = $1",
+        [taskId],
+      );
+      const unrouted = await c.query(
+        "SELECT 1 FROM audit_event WHERE action = 'sync.escalation_unrouted' AND resource_id = $1",
+        [taskId],
+      );
+      return {
+        level: row.rows[0]?.escalation_level,
+        told: told.rows.map((r) => r.recipient_tenant_user_id),
+        unrouted: unrouted.rowCount,
+      };
+    });
+
+  it("tells the Registered Managers elsewhere in the organisation when the post at its location is vacant", async () => {
+    await asOther((c) =>
+      c.query("INSERT INTO location (id, name) VALUES ($1, 'Vacant House')", [vacant]),
+    );
+    const held = await overdueHold();
+    await escalateTasks(deps, new Date());
+    // No one at the house holds safety.incident.manage, and no one across the organisation does:
+    // the Registered Manager at the other home is told.
+    expect(await state(held)).toEqual({ level: 1, told: [OTHER.managerId], unrouted: 0 });
+  });
+
+  it("never marks a task escalated when no one at all can be told, and audits the gap once a day", async () => {
+    const ended = await asOther(async (c) =>
+      (
+        await c.query<{ id: string }>(
+          "UPDATE role_assignment SET deleted_at = now() WHERE deleted_at IS NULL RETURNING id",
+        )
+      ).rows.map((r) => r.id),
+    );
+    try {
+      const held = await overdueHold();
+      await escalateTasks(deps, new Date());
+      await escalateTasks(deps, new Date());
+      expect(await state(held)).toEqual({ level: 0, told: [], unrouted: 1 });
+    } finally {
+      await asOther((c) =>
+        c.query("UPDATE role_assignment SET deleted_at = NULL WHERE id = ANY($1::uuid[])", [ended]),
+      );
+    }
   });
 });

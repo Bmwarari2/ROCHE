@@ -1,5 +1,6 @@
 import type { Recurrence, TaskItem } from "@harbour/contracts";
 import {
+  auditEvent,
   notification,
   role,
   roleAssignment,
@@ -8,8 +9,12 @@ import {
   taskSeries,
 } from "@harbour/db";
 import { occurrences, type TaskStatus, taskTimeState } from "@harbour/domain";
-import { and, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
-import { PERMISSION_ESCALATED_TASK_KINDS, permissionHolders } from "./device-holds";
+import { and, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import {
+  PERMISSION_ESCALATED_TASK_KINDS,
+  permissionHolders,
+  registeredManagers,
+} from "./device-holds";
 import { rateNumber } from "./rates";
 
 /** How far ahead recurring tasks exist as rows, so devices can sync tomorrow's round tonight. */
@@ -118,6 +123,43 @@ export async function materialiseSeries(
   return created;
 }
 
+/** An overdue sync task that no one could be told about (clinical review round 7, M5). */
+export const ESCALATION_UNROUTED_ACTION = "sync.escalation_unrouted";
+
+/**
+ * Audits an overdue task no one could be told about, at most once a day per task, as the system
+ * (no actor): the organisation has no Registered Manager and no holder of the task's permission.
+ */
+async function recordUnrouted(tx: Transaction, t: TaskRow, now: Date): Promise<void> {
+  const since = new Date(now.getTime() - 86_400_000);
+  const [recent] = await tx
+    .select({ id: auditEvent.id })
+    .from(auditEvent)
+    .where(
+      and(
+        eq(auditEvent.resourceType, "task"),
+        eq(auditEvent.resourceId, t.id),
+        eq(auditEvent.action, ESCALATION_UNROUTED_ACTION),
+        gt(auditEvent.occurredAt, since),
+      ),
+    )
+    .limit(1);
+  if (recent) return;
+  await tx.insert(auditEvent).values({
+    tenantId: t.tenantId,
+    action: ESCALATION_UNROUTED_ACTION,
+    outcome: "error",
+    resourceType: "task",
+    resourceId: t.id,
+    scope: {
+      kind: t.kind,
+      locationId: t.locationId,
+      requiredPermission: t.requiredPermission,
+      dueAt: t.dueAt.toISOString(),
+    },
+  });
+}
+
 /** Roles told first about an overdue task at a location: the nurse or senior on shift. */
 export const OVERDUE_FIRST_RESPONDERS = ["clinical_lead", "team_leader"] as const;
 
@@ -129,7 +171,10 @@ export const OVERDUE_FIRST_RESPONDERS = ["clinical_lead", "team_leader"] as cons
  * The sync tasks (a device holding entries, an entry uploaded after or before its deletion) go only
  * to people who can act on them (clinical review round 5, C-H1): the assignee, and the holders of
  * the task's required permission at its location; a task assigned to one Registered Manager with
- * no location goes to that manager alone, and one with neither goes to the holders anywhere.
+ * no location goes to that manager alone, and one with neither goes to the holders anywhere. With
+ * no one at the location, it goes to the Registered Managers anywhere, then to the holders
+ * anywhere; with no one at all it is not marked escalated, and the gap is audited (clinical
+ * review round 7, M5).
  */
 export async function escalateOverdueTasks(
   tx: Transaction,
@@ -149,7 +194,9 @@ export async function escalateOverdueTasks(
         lt(sql`coalesce(${task.windowEnd}, ${task.dueAt})`, threshold),
       ),
     )
+    .orderBy(sql`coalesce(${task.windowEnd}, ${task.dueAt})`)
     .limit(500);
+  let escalated = 0;
   for (const t of overdue) {
     const recipients = new Set<string>();
     if (t.assigneeTenantUserId) recipients.add(t.assigneeTenantUserId);
@@ -172,13 +219,28 @@ export async function escalateOverdueTasks(
         const holders = await permissionHolders(tx, t.requiredPermission, t.locationId, now);
         for (const id of holders) recipients.add(id);
       }
+      // Nobody can act at the location (a vacant post): the Registered Managers anywhere in the
+      // organisation, then the holders of the permission anywhere (clinical review round 7, M5).
+      if (recipients.size === 0) {
+        for (const id of await registeredManagers(tx, now)) recipients.add(id);
+      }
+      if (recipients.size === 0) {
+        for (const id of await permissionHolders(tx, t.requiredPermission, null, now)) {
+          recipients.add(id);
+        }
+      }
+      if (recipients.size === 0) {
+        // Never marked escalated with no one told: it stays due, and the gap is audited daily.
+        await recordUnrouted(tx, t, now);
+        continue;
+      }
     } else {
       let responders = await atLocation(OVERDUE_FIRST_RESPONDERS);
       if (responders.length === 0) responders = await atLocation(["registered_manager"]);
       for (const r of responders) recipients.add(r.id);
     }
-    // A device's task whose escalation was reset by a new hold after a refused close (at most once
-    // a day; clinical review round 6, M1) signals again: its key carries the task's version.
+    // A device's task whose escalation was reset (a new hold after a refused close, or a reopen, at
+    // most once a day; clinical reviews rounds 6 and 7) signals again: its key carries its version.
     const occurrence = PERMISSION_ESCALATED_TASK_KINDS.includes(t.kind) ? `:v${t.version}` : "";
     for (const recipient of recipients) {
       await tx
@@ -198,6 +260,7 @@ export async function escalateOverdueTasks(
         .onConflictDoNothing();
     }
     await tx.update(task).set({ escalationLevel: 1, escalatedAt: now }).where(eq(task.id, t.id));
+    escalated += 1;
   }
-  return overdue.length;
+  return escalated;
 }

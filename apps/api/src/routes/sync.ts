@@ -134,6 +134,9 @@ export function createSyncRouter(signer: SyncTokenSigner) {
           const offlineDays = offlineWindowDays(new Date(), windowDays);
           await auditInTx(tx, access, {
             action: "sync.token.issue",
+            // The device the token is for, when it says: the record that binds a member to the
+            // device for its hold reports (security review round 7, M1).
+            ...(access.deviceId ? { resourceType: "device", resourceId: access.deviceId } : {}),
             scope: {
               scope: access.effective.scope,
               peopleLocations: peopleLocationIds.length,
@@ -358,7 +361,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         tags: ["sync"],
         summary: "A device's unsent work: counts and the oldest age, no personal data",
         description:
-          "Writes an audit event with the device's queued, refused, held and blocked counts and the age of the oldest, so the server knows what a lost or wiped device held (HZ-006). Any member of the organisation may report (with MFA when their roles call for it), so a device whose Care mode access was withdrawn can still report its hold. Times later than the server's are taken as the server's, and a hold's start is never earlier than the device's last report for it said. While anything waits, the device has a task for the Registered Manager at each location of its sync scope where the hold's owner or the reporter works, due when its hold escalates and never moved later; one closed in the last day is reopened, keeping its escalation. A report with nothing waiting closes them when it comes from the hold's owner, from whoever raised them or from a manager at one of their locations. Each reporter raises tasks for a few devices a day; past that, the location's Registered Managers get one notice a day.",
+          "Writes an audit event with the device's queued, refused, held and blocked counts and the age of the oldest, so the server knows what a lost or wiped device held (HZ-006). Any member of the organisation may report (with MFA when their roles call for it), so a device whose Care mode access was withdrawn can still report its hold. A named owner counts only when they already have an event from the device (a sync token issued to it or a report sent from it); otherwise the claim is recorded and changes nothing. Times later than the server's are taken as the server's, and a hold's start is never earlier than the device's last report for it said, nor than the server first heard from the device. While anything waits, the device has a task for the Registered Manager at each location of its sync scope where the hold's owner or the reporter works, due when its hold escalates and never moved later; one closed in the last day is reopened, its escalation reset at most once a day. A report with nothing waiting closes them when it comes from the hold's owner, from whoever raised them or from a manager at one of their locations. Each reporter raises tasks for a few devices a day; past that, their holds join one task for that reporter, due at the earliest of them.",
         security,
         request: { body: { content: { "application/json": { schema: SyncDeviceReport } } } },
         responses: { 204: { description: "Recorded" }, ...errorResponses },
@@ -367,10 +370,11 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         // Any member of the organisation may report what their device holds: counts and times, no
         // personal data. A hold often starts because the access Care mode needs was withdrawn, and
         // its report must still get through at once (clinical review round 4, H2). What a member
-        // can do with it is bounded (security reviews rounds 5 and 6): raise a task for a few
+        // can do with it is bounded (security reviews rounds 5 to 7): raise a task for a few
         // devices a day, bring a due time earlier, and close only a task for a hold they own or
-        // raised, unless they can act on it at its location. MFA is asked wherever the member's
-        // roles call for it, as on the care routes.
+        // raised, unless they can act on it at its location; naming an owner who has never used the
+        // device changes nothing. MFA is asked wherever the member's roles call for it, as on the
+        // care routes.
         const access = c.get("access");
         if (!access.mfaSatisfied) throw problems.mfaRequired();
         reportQuota.take(access.tenantUserId);
