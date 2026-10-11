@@ -67,6 +67,23 @@ Care homes use shared tablets on a unit or corridor, and night staff often share
 | Screen privacy | Screenshots blocked on record screens; clipboard disabled for identifiers |
 | Accessibility | The PIN pad supports VoiceOver and TalkBack, large targets and no time limit while entering the PIN. An alternative to remembering a PIN is needed for WCAG 2.2 criterion 3.3.8 (section 5) |
 
+### 3.5 Exception: the cached downtime pack
+
+A kiosk at a location keeps the latest downtime pack ([operations.md](../specs/operations.md)
+rule 8, OPS-028) so that staff can print it when the network or Harbour is down. The pack covers
+every person at the location, which is wider than the scoped data in section 3.4, and printing it is
+a form of export, which section 3.4 otherwise keeps off shared devices. The exception is accepted
+because the pack is the continuity path for safe care in an outage (hazard HZ-021), with these
+controls (`packages/domain/src/operations/kiosk-cache.ts`):
+
+| Control | Detail |
+| --- | --- |
+| Encrypted at rest under its own key | The pack (JSON and PDF) is stored encrypted inside the SQLCipher store under a separate key held in the Keystore or Secure Enclave. The device releases that key only to a PIN session (section 3.1) of a user who holds `operations.downtime.read` (`kioskDowntimePackUnlock`); anyone else is told to ask the nurse or senior in charge |
+| Print only | The cached pack can be printed or viewed; it cannot be shared, saved to files, copied or sent from the device. Screenshots stay blocked |
+| Audit while offline | Every open and every print is queued on the device as an audit event with opaque ids only (pack, user, device, time) and uploaded when the device is next online (`kioskPrintAuditEvent`) |
+| Eviction | The cached pack is deleted when the device key is revoked (section 3.4, remote revocation) and once its `downtime_pack` retention period ends (`kioskDowntimeCacheDisposition`); a newer pack replaces it |
+| Freshness on every page | Each print recomputes the page header from the device clock: current, out of date, outage or clock behind (operations.md rule 2) |
+
 ## 4. Residual risks
 
 | Risk | Mitigation in place | Residual assessment |

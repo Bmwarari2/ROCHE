@@ -130,6 +130,10 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
 - Permissions: person photos and documents need `people.person.update` (care attachments
   `care.note.write`); organisation documents `platform.document.manage`; reading a person's
   documents needs `people.person.read` and MFA.
+- Merge-field templates: letter and email templates with typed merge fields, approval by someone
+  other than the author and fixed approved versions are specified in [comms.md](comms.md)
+  (COMMS-007, rules in `packages/domain/src/comms/templates.ts`); a rendered letter is stored here
+  as a document about the person.
 
 ## Retention and legal hold (PLAT-012)
 
