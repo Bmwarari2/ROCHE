@@ -16,6 +16,8 @@ import { offlineWindowDays, SYNC_TOKEN_AUDIENCE, SYNC_TOKEN_ISSUER } from "@harb
 import { jwtVerify } from "jose";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { MOBILE_APP_ORIGIN } from "../src/auth/token-exposure";
+import type { TenantAccess } from "../src/http/context";
+import { recordDeviceHold } from "../src/services/device-holds";
 import { createHarness, type Harness, LODGE, OTHER, PASSWORD } from "./support/harness";
 
 let h: Harness;
@@ -1425,19 +1427,105 @@ describe("offline sync", () => {
       expect(closes.at(-1)?.scope).toMatchObject({ as: "owner" });
     });
 
-    it("hazard HZ-040 brings the due time earlier when the owner's own report gives an earlier start than another reporter's (round 5, S-M1)", async () => {
+    it("hazard HZ-040 never takes a hold's start earlier than the device's last report for it said, whoever reports (round 6, N2; security review round 7, L2)", async () => {
       const device = "0199d000-0000-4000-8000-0000000d0e12";
       await syncedOn(device, DEMO.users.carer.id, 30);
       const start = new Date(Date.now() - DAY);
       await report(h.tokens.agency, { held: 1, heldSince: start.toISOString() }, device);
+      const [raised] = await deviceTasks(device);
+      // The device's own owner then reports an earlier start: one device, one hold, one floor.
       const earlier = new Date(start.getTime() - DAY);
       await report(h.tokens.carer, { held: 1, heldSince: earlier.toISOString() }, device);
-      const [moved] = await deviceTasks(device);
-      expect(new Date(moved?.due_at ?? 0).getTime()).toBe(earlier.getTime() + 7 * DAY);
-      expect((await holdAudit(device)).map((r) => r.action)).toEqual([
-        "sync.device_hold.raised",
-        "sync.device_hold.moved",
-      ]);
+      const [after] = await deviceTasks(device);
+      expect(after?.due_at).toEqual(raised?.due_at);
+      expect((await reportScopes(device)).at(-1)).toMatchObject({
+        ownerTenantUserId: DEMO.users.carer.id,
+        startFloor: "earlier_report",
+      });
+      expect((await holdAudit(device)).map((r) => r.action)).toEqual(["sync.device_hold.raised"]);
+    });
+
+    it("hazard HZ-040 routes to every location only from the reporter's own organisation-wide role, never from a named owner's (security review round 7, L1)", async () => {
+      const device = "0199d000-0000-4000-8000-0000000d0e1b";
+      // The organisation's owner, whose role covers every location, has used this device.
+      await syncedOn(device, DEMO.users.owner.id, 30);
+      await report(
+        h.tokens.carer,
+        {
+          held: 1,
+          ownerTenantUserId: DEMO.users.owner.id,
+          locationIds: [LODGE.locationId, DEMO.locationId],
+        },
+        device,
+      );
+      expect((await deviceTasks(device)).map((t) => t.location_id)).toEqual([DEMO.locationId]);
+    });
+
+    it("hazard HZ-008 signals a hold reopened after the day's reset was used once the reset is due, and only once (clinical review round 8, M2)", async () => {
+      const device = "0199d000-0000-4000-8000-0000000d0e1c";
+      await syncedOn(device, DEMO.users.carer.id, 30);
+      const longAgo = (days: number) => new Date(Date.now() - days * DAY).toISOString();
+      const level = async () =>
+        (
+          await asTenant<{ escalation_level: number }>(
+            DEMO.tenantId,
+            "SELECT escalation_level FROM task WHERE source_type = 'device_hold' AND source_id = $1",
+            [device],
+          )
+        ).map((t) => t.escalation_level);
+      const escalate = () =>
+        asTenant(
+          DEMO.tenantId,
+          "UPDATE task SET escalation_level = 1, escalated_at = now() WHERE source_type = 'device_hold' AND source_id = $1",
+          [device],
+        );
+      // A reopen of a task that never escalated has nothing to reset, and uses none of the day's.
+      await report(h.tokens.carer, { held: 1, heldSince: longAgo(10) }, device);
+      await report(h.tokens.carer, {}, device);
+      await report(h.tokens.carer, { held: 1, heldSince: longAgo(10) }, device);
+      expect((await raiseScopes(device)).at(-1)?.scope).not.toHaveProperty("escalationReset");
+      // Hold A escalates and is cleared; hold B reopens it the same day: the day's reset is used.
+      await escalate();
+      await report(h.tokens.carer, {}, device);
+      await report(h.tokens.carer, { held: 1, heldSince: longAgo(10) }, device);
+      await escalate();
+      await report(h.tokens.carer, {}, device);
+      await report(h.tokens.carer, { held: 1, heldSince: longAgo(10) }, device);
+      expect(await level()).toEqual([1]);
+      expect((await raiseScopes(device)).at(-1)?.scope).toMatchObject({ escalationReset: false });
+      // The device re-reports while hold B waits: a day later the reset is due, so it signals.
+      const carer = {
+        tenantId: DEMO.tenantId,
+        tenantUserId: DEMO.users.carer.id,
+        session: { authUserId: h.authIds.carer },
+        effective: { roleKeys: ["care_worker"] },
+        deviceId: device,
+        ip: null,
+      } as unknown as TenantAccess;
+      const later = (hours: number) =>
+        recordDeviceHold(
+          h.handle.services.db,
+          carer,
+          device,
+          {
+            unsent: 0,
+            refused: 0,
+            held: 1,
+            blocked: 0,
+            oldestAgeSeconds: null,
+            heldSince: longAgo(10),
+            reportedAt: new Date(Date.now() + hours * 3_600_000).toISOString(),
+          },
+          new Date(Date.now() + hours * 3_600_000),
+        );
+      expect(await later(12)).toBe("kept");
+      expect(await level()).toEqual([1]);
+      expect(await later(25)).toBe("reset");
+      expect(await level()).toEqual([0]);
+      // It escalates again; later reports leave it so: once, not every day.
+      await escalate();
+      expect(await later(50)).toBe("kept");
+      expect(await level()).toEqual([1]);
     });
 
     it("hazard HZ-040 raises the task at each location of the device's scope where the owner or reporter works, and closes them together (round 6, M2)", async () => {

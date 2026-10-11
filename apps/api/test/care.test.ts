@@ -619,16 +619,27 @@ describe("fluid balance", () => {
       method: "PUT",
       body: { fluidTargetMl: 1500, version: 0 },
     });
-    await observe(2, { chart: "fluid_intake", ml: 200 }, { occurredAt: ago(30) });
-    await observe(2, { chart: "fluid_intake", ml: 300 }, { occurredAt: ago(20) });
-    await observe(2, { chart: "fluid_output", ml: 150, kind: "urine" }, { occurredAt: ago(10) });
-    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(
-      new Date(Date.now() - 30 * MIN),
+    // A fixed day two days ago, with times late in the morning UTC: the same London day in summer
+    // and winter time, so the test passes at any hour.
+    const day = new Date(Date.now() - 2 * 24 * 60 * MIN).toISOString().slice(0, 10);
+    const at = (time: string) => `${day}T${time}:00.000Z`;
+    await observe(2, { chart: "fluid_intake", ml: 200 }, { occurredAt: at("10:00") });
+    await observe(2, { chart: "fluid_intake", ml: 300 }, { occurredAt: at("11:00") });
+    await observe(
+      2,
+      { chart: "fluid_output", ml: 150, kind: "urine" },
+      { occurredAt: at("12:00") },
     );
-    const day = await json<FluidDay>(
-      await as("carer", `/v1/people/${resident(2)}/charts/fluid?date=${today}`),
+    const totals = await json<FluidDay>(
+      await as("carer", `/v1/people/${resident(2)}/charts/fluid?date=${day}`),
     );
-    expect(day).toMatchObject({ intakeMl: 500, outputMl: 150, targetMl: 1500, shortfallMl: 1000 });
+    expect(totals).toMatchObject({
+      date: day,
+      intakeMl: 500,
+      outputMl: 150,
+      targetMl: 1500,
+      shortfallMl: 1000,
+    });
   });
 });
 

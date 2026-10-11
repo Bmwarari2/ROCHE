@@ -24,7 +24,7 @@
  *   task when it comes from the hold's owner, from whoever raised the task, or from someone holding
  *   `safety.incident.manage` at one of its locations. A refused close followed by a new hold resets
  *   the task's escalation, and so does a reopen, at most once a day (`DEVICE_HOLD_RESET_HOURS`), so
- *   a new hold always signals and raise, close and raise again signals at most once more a day.
+ *   a new hold always signals: a reopen that finds the day's reset used is reset once it is due.
  * - A task closed less than a day ago is reopened rather than raised again. Each reporter raises
  *   tasks for at most 3 devices in a rolling day; past that, the hold joins the reporter's one
  *   capped-holds task, due at the earliest capped hold's time, so no cap stops a task (clinical
@@ -275,6 +275,42 @@ export async function permissionHolders(
 }
 
 /**
+ * Who takes a sync task when no one at its location can act on it (clinical reviews round 7 M5 and
+ * round 8 M1): the Registered Managers anywhere in the organisation, else the holders of
+ * `permission` anywhere, longest-serving first (the earliest start of a live assignment, then the
+ * id), so the first is chosen the same way every time. Empty when there is no one.
+ */
+export async function fallbackRecipients(
+  tx: Transaction,
+  permission: string,
+  now: Date,
+): Promise<string[]> {
+  const since = sql`min(${roleAssignment.validFrom})`;
+  const managers = await tx
+    .select({ id: roleAssignment.tenantUserId })
+    .from(roleAssignment)
+    .innerJoin(role, eq(role.id, roleAssignment.roleId))
+    .where(and(eq(role.key, "registered_manager"), liveAssignment(now)))
+    .groupBy(roleAssignment.tenantUserId)
+    .orderBy(since, roleAssignment.tenantUserId);
+  if (managers.length > 0) return managers.map((r) => r.id);
+  const holders = await tx
+    .select({ id: roleAssignment.tenantUserId })
+    .from(roleAssignment)
+    .innerJoin(role, eq(role.id, roleAssignment.roleId))
+    .where(
+      and(
+        sql`${permission} = ANY(${role.permissions})`,
+        isNull(role.archivedAt),
+        liveAssignment(now),
+      ),
+    )
+    .groupBy(roleAssignment.tenantUserId)
+    .orderBy(since, roleAssignment.tenantUserId);
+  return holders.map((r) => r.id);
+}
+
+/**
  * True when the member holds `permission` at one of the locations, through a live role assignment
  * there or across the organisation (security review round 6: the manager check is location-aware).
  * A null location (a task with none) is matched by any live assignment holding it.
@@ -310,9 +346,9 @@ export async function holdsPermissionAt(
 /**
  * Where a hold's task goes (clinical review round 6, M2): the locations the device names that are
  * among the live or most recent assignment locations of the owner or the reporter (all of the
- * organisation's for someone assigned across it); with none left, the reporter's live locations;
- * then their most recent one (an agency worker's role ends with the shift). Empty when no location
- * is known.
+ * organisation's when the reporter is assigned across it); with none left, the reporter's live
+ * locations, then their most recent one (an agency worker's role ends with the shift). Empty when no
+ * location is known.
  */
 export async function holdLocations(
   tx: Transaction,
@@ -350,7 +386,11 @@ export async function holdLocations(
 
   const asked = [...new Set(reported.map((id) => id.toLowerCase()))];
   if (asked.length > 0) {
-    const everywhere = rows.some((r) => isLive(r) && r.locationId === null);
+    // Every location only from the reporter's own organisation-wide role, never from a named owner's
+    // (security review round 7, L1).
+    const everywhere = rows.some(
+      (r) => r.tenantUserId === people.reporter && isLive(r) && r.locationId === null,
+    );
     let kept: string[];
     if (everywhere) {
       const known = await tx
@@ -757,13 +797,11 @@ export async function recordDeviceHold(
     // else the reporter. A claim that is not bound is recorded, routes nothing and closes nothing.
     const owner = bound ? claimed : (previous?.owner ?? reporter);
     const claimedOwner = !bound && claimed !== reporter ? claimed : null;
-    // A hold never started before the device's last report for it said (round 6, N2; kept on the
-    // owner, so naming a new owner each time does not escape it), nor before the server first heard
-    // from the device (round 7, M1).
+    // A hold never started before the device's last report for it said (round 6, N2), whoever is
+    // named as its owner, since one device id is one database and so one owner (security review
+    // round 7, L2), nor before the server first heard from the device (round 7, M1).
     const fromPrevious =
-      waiting > 0 && previous && previous.waiting > 0 && previous.owner === owner
-        ? previous.waitingSince
-        : null;
+      waiting > 0 && previous && previous.waiting > 0 ? previous.waitingSince : null;
     const fromFirstSeen = deviceId ? (seen ?? receivedAt) : null;
     const unfloored = waitingSince(report, receivedAt);
     const since = waitingSince(report, receivedAt, later(fromPrevious, fromFirstSeen));
@@ -806,9 +844,11 @@ export async function recordDeviceHold(
     const open = await tx.select().from(task).where(openDeviceTasks(deviceId));
     if (open.length > 0) return keepOpen(tx, access, open, deviceId, dueAt, receivedAt, requestId);
 
-    // Closed less than a day ago: the same task again (round 6, N2). Its escalation is reset under
-    // the once-a-day check, so the new hold signals, at most once more a day (clinical review
-    // round 7, M1). A reporter whose claim is not bound keeps the recorded owner (security M1).
+    // Closed less than a day ago: the same task again (round 6, N2). An escalated task's level is
+    // reset under the once-a-day check, so the new hold signals; when the day's reset is used, the
+    // reopen records that (escalationReset: false) and a later report resets it once it is due
+    // (`keepOpen`; clinical reviews round 7 M1 and round 8 M2). The recorded owner is kept
+    // (security reviews round 7, M1 and L2).
     const reopenAfter = new Date(receivedAt.getTime() - DEVICE_HOLD_REOPEN_HOURS * HOUR_MS);
     const recent = await tx
       .select()
@@ -822,11 +862,12 @@ export async function recordDeviceHold(
         DEVICE_HOLD_ACTIONS.raised,
         DEVICE_HOLD_ACTIONS.reopened,
       ]);
-      const keptOwner = bound
-        ? claimed
-        : (scopeText(lastRaise?.scope, "ownerTenantUserId") ?? owner);
-      const reset = await escalationResetDue(tx, ids, receivedAt);
+      const keptOwner = scopeText(lastRaise?.scope, "ownerTenantUserId") ?? owner;
+      const resetDue = await escalationResetDue(tx, ids, receivedAt);
       for (const row of recent) {
+        // Only a task that escalated has anything to reset, and only that uses the day's reset.
+        const escalated = row.escalationLevel > 0;
+        const reset = escalated && resetDue;
         await tx
           .update(task)
           .set({
@@ -848,7 +889,7 @@ export async function recordDeviceHold(
             ...(claimedOwner ? { claimedOwnerTenantUserId: claimedOwner } : {}),
             dueAt: dueAt.toISOString(),
             escalationLevel: row.escalationLevel,
-            escalationReset: reset,
+            ...(escalated ? { escalationReset: reset } : {}),
           },
           requestId,
         });
@@ -1036,7 +1077,8 @@ async function mergeCappedHold(
 /**
  * A device whose tasks are open reports entries waiting. After a refused close, the new hold resets
  * the tasks' escalation (under the once-a-day check) so it signals again, with the due time never
- * later (clinical review round 6, M1). Otherwise the due time may only move earlier (S-M1).
+ * later (clinical review round 6, M1); so does a reopen whose reset was deferred (round 8, M2).
+ * Otherwise the due time may only move earlier (S-M1).
  */
 async function keepOpen(
   tx: Transaction,
@@ -1055,11 +1097,28 @@ async function keepOpen(
     DEVICE_HOLD_ACTIONS.reset,
     DEVICE_HOLD_ACTIONS.closeRefused,
   ]);
-  if (
-    last?.action === DEVICE_HOLD_ACTIONS.closeRefused &&
-    (await escalationResetDue(tx, ids, now))
-  ) {
+  // After a refused close, every copy; otherwise an escalated copy whose reopen found the day's
+  // reset used (escalationReset: false) and has not been reset since, so that hold still signals
+  // once the reset is due: a device re-reports every half hour while anything waits (clinical
+  // review round 8, M2).
+  const deferred: TaskRow[] = [];
+  if (last?.action !== DEVICE_HOLD_ACTIONS.closeRefused) {
     for (const row of open) {
+      if (row.escalationLevel === 0) continue;
+      const since = await latestTaskEvent(
+        tx,
+        [row.id],
+        [DEVICE_HOLD_ACTIONS.reopened, DEVICE_HOLD_ACTIONS.reset],
+      );
+      const scope = since?.scope as Record<string, unknown> | null | undefined;
+      if (since?.action === DEVICE_HOLD_ACTIONS.reopened && scope?.escalationReset === false) {
+        deferred.push(row);
+      }
+    }
+  }
+  const toReset = last?.action === DEVICE_HOLD_ACTIONS.closeRefused ? [...open] : deferred;
+  if (toReset.length > 0 && (await escalationResetDue(tx, ids, now))) {
+    for (const row of toReset) {
       const due = dueAt.getTime() < row.dueAt.getTime() ? dueAt : row.dueAt;
       await tx
         .update(task)
@@ -1073,6 +1132,7 @@ async function keepOpen(
           deviceId,
           dueAt: due.toISOString(),
           escalationLevel: row.escalationLevel,
+          ...(toReset === deferred ? { deferred: true } : {}),
         },
         requestId,
       });

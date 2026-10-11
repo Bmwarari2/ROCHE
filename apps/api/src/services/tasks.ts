@@ -11,9 +11,9 @@ import {
 import { occurrences, type TaskStatus, taskTimeState } from "@harbour/domain";
 import { and, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import {
+  fallbackRecipients,
   PERMISSION_ESCALATED_TASK_KINDS,
   permissionHolders,
-  registeredManagers,
 } from "./device-holds";
 import { rateNumber } from "./rates";
 
@@ -172,9 +172,9 @@ export const OVERDUE_FIRST_RESPONDERS = ["clinical_lead", "team_leader"] as cons
  * to people who can act on them (clinical review round 5, C-H1): the assignee, and the holders of
  * the task's required permission at its location; a task assigned to one Registered Manager with
  * no location goes to that manager alone, and one with neither goes to the holders anywhere. With
- * no one at the location, it goes to the Registered Managers anywhere, then to the holders
- * anywhere; with no one at all it is not marked escalated, and the gap is audited (clinical
- * review round 7, M5).
+ * no one at the location, it is assigned to the longest-serving Registered Manager anywhere (else
+ * holder of the permission anywhere), who alone is told; with no one at all it is not marked
+ * escalated, and the gap is audited (clinical reviews round 7, M5 and round 8, M1).
  */
 export async function escalateOverdueTasks(
   tx: Transaction,
@@ -192,6 +192,13 @@ export async function escalateOverdueTasks(
         eq(task.escalationLevel, 0),
         isNull(task.deletedAt),
         lt(sql`coalesce(${task.windowEnd}, ${task.dueAt})`, threshold),
+        // A task no one could be told about today waits a day, so it cannot crowd out the batch
+        // (security review round 7, L3).
+        sql`NOT EXISTS (
+          SELECT 1 FROM audit_event a
+          WHERE a.tenant_id = ${task.tenantId} AND a.resource_type = 'task'
+            AND a.resource_id = ${task.id}::text AND a.action = ${ESCALATION_UNROUTED_ACTION}
+            AND a.occurred_at > ${new Date(now.getTime() - 86_400_000)})`,
       ),
     )
     .orderBy(sql`coalesce(${task.windowEnd}, ${task.dueAt})`)
@@ -199,6 +206,7 @@ export async function escalateOverdueTasks(
   let escalated = 0;
   for (const t of overdue) {
     const recipients = new Set<string>();
+    let assignTo: string | null = null;
     if (t.assigneeTenantUserId) recipients.add(t.assigneeTenantUserId);
     const atLocation = (keys: readonly string[]) =>
       tx
@@ -219,20 +227,19 @@ export async function escalateOverdueTasks(
         const holders = await permissionHolders(tx, t.requiredPermission, t.locationId, now);
         for (const id of holders) recipients.add(id);
       }
-      // Nobody can act at the location (a vacant post): the Registered Managers anywhere in the
-      // organisation, then the holders of the permission anywhere (clinical review round 7, M5).
+      // Nobody can act at the location (a vacant post): the task is assigned to the longest-serving
+      // Registered Manager anywhere in the organisation (else holder of the permission anywhere),
+      // who is told and, as its assignee, can see and complete it (clinical reviews round 7 M5
+      // and round 8 M1).
       if (recipients.size === 0) {
-        for (const id of await registeredManagers(tx, now)) recipients.add(id);
-      }
-      if (recipients.size === 0) {
-        for (const id of await permissionHolders(tx, t.requiredPermission, null, now)) {
-          recipients.add(id);
+        const [fallback] = await fallbackRecipients(tx, t.requiredPermission, now);
+        if (!fallback) {
+          // Never marked escalated with no one told: it stays due, and the gap is audited daily.
+          await recordUnrouted(tx, t, now);
+          continue;
         }
-      }
-      if (recipients.size === 0) {
-        // Never marked escalated with no one told: it stays due, and the gap is audited daily.
-        await recordUnrouted(tx, t, now);
-        continue;
+        recipients.add(fallback);
+        assignTo = fallback;
       }
     } else {
       let responders = await atLocation(OVERDUE_FIRST_RESPONDERS);
@@ -259,7 +266,14 @@ export async function escalateOverdueTasks(
         })
         .onConflictDoNothing();
     }
-    await tx.update(task).set({ escalationLevel: 1, escalatedAt: now }).where(eq(task.id, t.id));
+    await tx
+      .update(task)
+      .set({
+        escalationLevel: 1,
+        escalatedAt: now,
+        ...(assignTo ? { assigneeTenantUserId: assignTo } : {}),
+      })
+      .where(eq(task.id, t.id));
     escalated += 1;
   }
   return escalated;

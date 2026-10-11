@@ -468,18 +468,43 @@ describe("hazard HZ-040 a sync task whose location has no one who can act on it 
       };
     });
 
-  it("tells the Registered Managers elsewhere in the organisation when the post at its location is vacant", async () => {
+  it("assigns the task to the longest-serving Registered Manager elsewhere when the post at its location is vacant, who can then see and complete it (round 8, M1)", async () => {
     await asOther((c) =>
       c.query("INSERT INTO location (id, name) VALUES ($1, 'Vacant House')", [vacant]),
     );
     const held = await overdueHold();
     await escalateTasks(deps, new Date());
     // No one at the house holds safety.incident.manage, and no one across the organisation does:
-    // the Registered Manager at the other home is told.
+    // the Registered Manager at the other home is told, and the task is now theirs.
     expect(await state(held)).toEqual({ level: 1, told: [OTHER.managerId], unrouted: 0 });
+    const [assigned] = await asOther(
+      async (c) =>
+        (
+          await c.query<{ assignee: string | null }>(
+            "SELECT assignee_tenant_user_id AS assignee FROM task WHERE id = $1",
+            [held],
+          )
+        ).rows,
+    );
+    expect(assigned?.assignee).toBe(OTHER.managerId);
+    // Their role covers their own home only, yet as the assignee they can list and complete it.
+    const other = (path: string, init: { method?: string; body?: unknown } = {}) =>
+      h.request(path, { token: h.tokens.rae, tenant: OTHER.tenantId, ...init });
+    const from = new Date(Date.now() - 24 * HOUR).toISOString();
+    const to = new Date(Date.now() + 24 * HOUR).toISOString();
+    const list = await json<TaskList>(
+      await other(`/v1/tasks?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+    );
+    const item = list.items.find((t) => t.id === held);
+    expect(item).toBeDefined();
+    const done = await other(`/v1/tasks/${held}/transition`, {
+      method: "POST",
+      body: { to: "done", version: item?.version },
+    });
+    expect(done.status).toBe(200);
   });
 
-  it("never marks a task escalated when no one at all can be told, and audits the gap once a day", async () => {
+  it("never marks a task escalated when no one at all can be told, audits the gap once a day, and leaves it out of the next day's batches (security review round 7, L3)", async () => {
     const ended = await asOther(async (c) =>
       (
         await c.query<{ id: string }>(
@@ -487,8 +512,9 @@ describe("hazard HZ-040 a sync task whose location has no one who can act on it 
         )
       ).rows.map((r) => r.id),
     );
+    let held: string | undefined;
     try {
-      const held = await overdueHold();
+      held = await overdueHold();
       await escalateTasks(deps, new Date());
       await escalateTasks(deps, new Date());
       expect(await state(held)).toEqual({ level: 0, told: [], unrouted: 1 });
@@ -497,5 +523,9 @@ describe("hazard HZ-040 a sync task whose location has no one who can act on it 
         c.query("UPDATE role_assignment SET deleted_at = NULL WHERE id = ANY($1::uuid[])", [ended]),
       );
     }
+    // A manager is back, but the task waits out the day before it is tried again, so tasks no one
+    // can be told about never fill the batch.
+    await escalateTasks(deps, new Date());
+    expect(await state(held)).toEqual({ level: 0, told: [], unrouted: 1 });
   });
 });
