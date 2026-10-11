@@ -22,6 +22,7 @@ export const SHARING_SECTIONS = [
   "medicines",
   "appointments",
   "finance",
+  "benefits",
   "documents",
 ] as const;
 export type SharingSection = (typeof SHARING_SECTIONS)[number];
@@ -36,8 +37,11 @@ export const DIRECT_CARE_SECTIONS: readonly SharingSection[] = [
   "appointments",
 ];
 
-/** Sections that only a property-and-finance authority covers. */
-export const FINANCE_SECTIONS: readonly SharingSection[] = ["finance"];
+/** Sections that only a property-and-finance authority covers (an appointee: benefits only). */
+export const FINANCE_SECTIONS: readonly SharingSection[] = ["finance", "benefits"];
+
+/** A DWP appointee acts for social security benefits only, not the person's wider finances. */
+export const APPOINTEE_SECTIONS: readonly SharingSection[] = ["benefits"];
 
 export const SHARING_BASES = [
   "consent",
@@ -66,6 +70,11 @@ const WELFARE_AUTHORITIES: readonly AuthorityRole[] = [
   "deputy_personal_welfare",
 ];
 
+const DEPUTY_AUTHORITIES: readonly AuthorityRole[] = [
+  "deputy_personal_welfare",
+  "deputy_property_affairs",
+];
+
 export interface SharingAuthority {
   readonly role: AuthorityRole;
   /** The contact who holds it. */
@@ -75,10 +84,22 @@ export interface SharingAuthority {
   readonly evidenceDocumentId: string | null;
   /** yyyy-mm-dd; null when the authority has no end date. */
   readonly validUntil: string | null;
+  /**
+   * For a deputy: the sections the Court of Protection order covers, as recorded from the order
+   * (MCA 2005 s.16 and s.20: a deputy acts only within the powers given). Required for deputies.
+   */
+  readonly orderSections?: readonly SharingSection[] | null;
 }
 
 /** The person's capacity for this decision. Capacity is presumed (MCA 2005 s.1(2)). */
 export type CapacityForSharing = "presumed" | "assessed_has_capacity" | "assessed_lacks_capacity";
+
+/** A period when sharing under a decision was suspended (for example a safeguarding enquiry). */
+export interface SharingSuspension {
+  readonly from: Date;
+  /** Null while the suspension lasts. */
+  readonly to: Date | null;
+}
 
 export interface SharingDecision {
   readonly id: string;
@@ -97,7 +118,9 @@ export interface SharingDecision {
   /** Every decision expires (access expiry, section 9.2). */
   readonly validTo: Date;
   readonly withdrawnAt: Date | null;
+  /** An open-ended suspension; `suspensions` records periods that have ended as well. */
   readonly suspendedAt: Date | null;
+  readonly suspensions?: readonly SharingSuspension[];
 }
 
 export type SharingDecisionProblem =
@@ -116,27 +139,28 @@ export type SharingDecisionProblem =
   | "authority_expired"
   | "authority_does_not_cover_section"
   | "authority_needs_lack_of_capacity"
+  | "deputy_order_scope_required"
   | "best_interests_decision_required"
   | "best_interests_needs_lack_of_capacity"
   | "direct_care_professionals_only"
   | "direct_care_section_not_clinical"
   | "link_only_about_me"
-  | "link_not_direct_care";
+  | "link_not_direct_care"
+  | "suspension_ends_before_start";
 
 function isSection(value: string): value is SharingSection {
   return (SHARING_SECTIONS as readonly string[]).includes(value);
 }
 
-function authorityCovers(role: AuthorityRole, section: SharingSection): boolean {
+function authorityCovers(authority: SharingAuthority, section: SharingSection): boolean {
+  const { role } = authority;
+  if (role === "appointee") return APPOINTEE_SECTIONS.includes(section);
   const finance = FINANCE_SECTIONS.includes(section);
-  if (
-    role === "lpa_property_finance" ||
-    role === "deputy_property_affairs" ||
-    role === "appointee"
-  ) {
-    return finance;
-  }
-  return !finance;
+  const withinRole =
+    role === "lpa_property_finance" || role === "deputy_property_affairs" ? finance : !finance;
+  if (!withinRole) return false;
+  if (DEPUTY_AUTHORITIES.includes(role)) return authority.orderSections?.includes(section) === true;
+  return true;
 }
 
 function authorityProblems(
@@ -148,7 +172,10 @@ function authorityProblems(
   const problems: SharingDecisionProblem[] = [];
   if (!authority.evidenceDocumentId && !authority.reference)
     problems.push("authority_evidence_required");
-  if (sections.some((s) => !authorityCovers(authority.role, s)))
+  if (DEPUTY_AUTHORITIES.includes(authority.role) && !authority.orderSections?.length) {
+    problems.push("deputy_order_scope_required");
+  }
+  if (sections.some((s) => !authorityCovers(authority, s)))
     problems.push("authority_does_not_cover_section");
   // A health and welfare attorney or deputy acts only when the person lacks capacity for the decision.
   if (
@@ -177,6 +204,8 @@ function structuralProblems(decision: SharingDecision): SharingDecisionProblem[]
   }
   if (decision.validTo.getTime() <= decision.validFrom.getTime())
     problems.push("expiry_before_start");
+  if ((decision.suspensions ?? []).some((s) => s.to !== null && s.to.getTime() <= s.from.getTime()))
+    problems.push("suspension_ends_before_start");
 
   const { recipient, basis } = decision;
   if (recipient.kind === "link") {
@@ -223,6 +252,29 @@ function authorityLapsed(decision: SharingDecision, now: Date): boolean {
   return usesAuthority && until !== null && (!isCalendarDate(until) || until < ukIsoDate(now));
 }
 
+/**
+ * True when the decision rests on the person lacking capacity for it: a welfare attorney or
+ * deputy's authority, a representative's consent, or a best-interests decision. Such a decision
+ * applies only while the person still lacks capacity (MCA 2005 s.11(7)(a), s.20(1)).
+ */
+export function decisionNeedsLackOfCapacity(decision: SharingDecision): boolean {
+  if (decision.basis === "best_interests") return true;
+  if (decision.basis === "consent") return decision.consentGivenBy === "authority_holder";
+  if (decision.basis === "legal_authority") {
+    return decision.authority ? WELFARE_AUTHORITIES.includes(decision.authority.role) : false;
+  }
+  return false;
+}
+
+/** Whether sharing under the decision was suspended at an instant. */
+export function isSharingSuspendedAt(decision: SharingDecision, at: Date): boolean {
+  const t = at.getTime();
+  if (decision.suspendedAt && decision.suspendedAt.getTime() <= t) return true;
+  return (decision.suspensions ?? []).some(
+    (s) => s.from.getTime() <= t && (s.to === null || s.to.getTime() > t),
+  );
+}
+
 export type SharingDecisionCheck =
   | { readonly ok: true }
   | { readonly ok: false; readonly problems: readonly SharingDecisionProblem[] };
@@ -250,6 +302,7 @@ export type HiddenReason =
   | "withdrawn"
   | "suspended"
   | "authority_lapsed"
+  | "capacity_regained"
   | "decision_invalid"
   | "expired"
   | "not_yet_valid";
@@ -265,6 +318,11 @@ export interface SectionVisibilityRequest {
   readonly section: SharingSection;
   /** For the care plan: the domain being shown. */
   readonly carePlanDomain?: string | null;
+  /**
+   * The person's capacity for the sharing decision now, from the latest assessment. Omitted means
+   * presumed (MCA 2005 s.1(2)), so a decision that needs a lack of capacity stays closed.
+   */
+  readonly capacityNow?: CapacityForSharing;
   readonly now: Date;
 }
 
@@ -272,6 +330,7 @@ const HIDDEN_PRIORITY: readonly HiddenReason[] = [
   "withdrawn",
   "suspended",
   "authority_lapsed",
+  "capacity_regained",
   "decision_invalid",
   "expired",
   "not_yet_valid",
@@ -296,15 +355,39 @@ function coversSection(
   return domains === "all" || domains.includes(domain);
 }
 
-function decisionState(decision: SharingDecision, now: Date): HiddenReason | null {
+function decisionState(
+  decision: SharingDecision,
+  now: Date,
+  capacityNow: CapacityForSharing = "presumed",
+): HiddenReason | null {
   const t = now.getTime();
   if (decision.withdrawnAt && decision.withdrawnAt.getTime() <= t) return "withdrawn";
-  if (decision.suspendedAt && decision.suspendedAt.getTime() <= t) return "suspended";
+  if (isSharingSuspendedAt(decision, now)) return "suspended";
   if (authorityLapsed(decision, now)) return "authority_lapsed";
+  if (decisionNeedsLackOfCapacity(decision) && capacityNow !== "assessed_lacks_capacity") {
+    return "capacity_regained";
+  }
   if (structuralProblems(decision).length > 0) return "decision_invalid";
   if (decision.validTo.getTime() <= t) return "expired";
   if (decision.validFrom.getTime() > t) return "not_yet_valid";
   return null;
+}
+
+/**
+ * Whether a decision was in force at an earlier instant, judged by its own dates, withdrawal and
+ * suspensions (not by capacity or validity, which are judged now). The family feed uses this so
+ * that an update from a time the decision did not cover stays closed (comms.md rule 2).
+ */
+export function decisionInForceAt(
+  decision: SharingDecision,
+  at: Date,
+): "in_force" | "not_yet_valid" | "withdrawn" | "suspended" | "expired" {
+  const t = at.getTime();
+  if (decision.validFrom.getTime() > t) return "not_yet_valid";
+  if (decision.withdrawnAt && decision.withdrawnAt.getTime() <= t) return "withdrawn";
+  if (isSharingSuspendedAt(decision, at)) return "suspended";
+  if (decision.validTo.getTime() <= t) return "expired";
+  return "in_force";
 }
 
 /**
@@ -324,7 +407,10 @@ export function checkSectionVisibility(
   if (mine.length === 0) return { visible: false, reason: "no_decision" };
   const covering = mine.filter((d) => coversSection(d, request.section, request.carePlanDomain));
   if (covering.length === 0) return { visible: false, reason: "section_not_covered" };
-  const states = covering.map((d) => ({ decision: d, hidden: decisionState(d, request.now) }));
+  const states = covering.map((d) => ({
+    decision: d,
+    hidden: decisionState(d, request.now, request.capacityNow),
+  }));
   const inForce = states
     .filter((s) => s.hidden === null)
     .sort((a, b) => b.decision.validTo.getTime() - a.decision.validTo.getTime())[0];
@@ -368,6 +454,8 @@ export function checkAboutMeShareLink(
     readonly personStatus: PersonStatus;
     readonly linkExpiresAt: Date;
     readonly now: Date;
+    /** The person's capacity for the sharing decision now (presumed when omitted). */
+    readonly capacityNow?: CapacityForSharing;
   },
 ): AboutMeLinkCheck {
   const problems: AboutMeLinkProblem[] = [];
@@ -375,7 +463,7 @@ export function checkAboutMeShareLink(
   if (!decision.sections.includes("about_me")) problems.push("about_me_not_covered");
   if (
     !LIVE_PERSON_STATUSES.includes(request.personStatus) ||
-    decisionState(decision, request.now) !== null
+    decisionState(decision, request.now, request.capacityNow) !== null
   ) {
     problems.push("decision_not_in_force");
   }
