@@ -549,6 +549,9 @@ Six hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014) have a target resid
 | `packages/domain` (medicines): `hazard HZ-009 a 4-hour minimum interval spanning a clock change is measured in elapsed time` | Planned, Phase 2 |
 | `packages/domain` (medicines): `hazard HZ-009 an 08:00 daily dose stays at 08:00 local time either side of each transition` | Planned, Phase 2 |
 | `packages/domain` (platform): `hazard HZ-009 date of birth round-trips unchanged under every test time zone` | Planned, Phase 1 |
+| `packages/domain` (care): `hazard HZ-009 fluid balance days run from 00:00 to 24:00 UK time` (23- and 25-hour days) | Passing |
+| `packages/domain` (care): `hazard HZ-009 counts elapsed hours across the autumn clock change` (repositioning) | Passing |
+| `packages/domain` (care): `hazard HZ-009 keeps the prompt at the same UK time across the autumn clock change` (bowel) | Passing |
 | `apps/mobile` Maestro `hazard-HZ-009-device-zone.yaml`: a device in another zone shows location time and a warning | Planned, Phase 1 |
 
 ---
@@ -691,12 +694,18 @@ Six hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014) have a target resid
 
 | Test | Status |
 | --- | --- |
-| `packages/domain` (care): `hazard HZ-012 NEWS2 scores every parameter band boundary as published by the RCP` (table-driven, every boundary value) | Planned, Phase 1 |
-| `packages/domain` (care): `hazard HZ-012 NEWS2 adds 2 for supplemental oxygen and scores new confusion as published` | Planned, Phase 1 |
-| `packages/domain` (care): `hazard HZ-012 NEWS2 applies SpO2 Scale 2 only when a clinician decision is recorded` | Planned, Phase 1 |
-| `packages/domain` (care): `hazard HZ-012 NEWS2 returns incomplete when any parameter is missing` | Planned, Phase 1 |
-| `packages/domain` (care): `hazard HZ-012 MUST BMI, weight-loss and acute disease scores match the BAPEN worked examples` | Planned, Phase 1 |
-| `packages/domain` (care): `hazard HZ-012 Waterlow totals and risk bands match the published scoring card` | Planned, Phase 1 |
+| `packages/domain` (care): `hazard HZ-012 NEWS2 scores every parameter band boundary as published by the RCP` (table-driven, every boundary value) | Passing |
+| `packages/domain` (care): `hazard HZ-012 NEWS2 adds 2 for supplemental oxygen and scores new confusion as published` | Passing |
+| `packages/domain` (care): `hazard HZ-012 NEWS2 applies SpO2 Scale 2 only when a clinician decision is recorded` | Passing |
+| `packages/domain` (care): `hazard HZ-012 NEWS2 returns incomplete when any parameter is missing` | Passing |
+| `packages/domain` (care): `hazard HZ-012 NEWS2 refuses impossible or malformed values rather than scoring them` | Passing |
+| `packages/domain` (care): `hazard HZ-012 NEWS2 clinical risk follows RCP chart 2 at every threshold` | Passing |
+| `packages/domain` (care): `hazard HZ-012 MUST BMI, weight-loss and acute disease scores match the BAPEN worked examples` | Passing |
+| `packages/domain` (care): `hazard HZ-012 MUST gives no total for missing or impossible values` | Passing |
+| `packages/domain` (care): `hazard HZ-012 Waterlow totals and risk bands match the published scoring card` | Passing |
+| `packages/domain` (care): `hazard HZ-012 Waterlow gives no total for missing or contradictory answers` | Passing |
+| `packages/domain` (care): `hazard HZ-012 Braden totals and risk bands match the published form` | Passing |
+| `packages/domain` (care): `hazard HZ-012 Braden gives no total for missing or impossible subscale scores` | Passing |
 | `packages/domain` (platform): `hazard HZ-012 tenants cannot edit locked validated templates` | Planned, Phase 1 |
 | `apps/web` Playwright: `hazard HZ-012 the score screen shows sub-scores and the banding table` | Planned, Phase 1 |
 
@@ -789,8 +798,9 @@ Six hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014) have a target resid
 
 | Test | Status |
 | --- | --- |
-| `packages/domain` (care): `hazard HZ-014 NEWS2 bands that call for a response raise a task and an urgent alert` | Planned, Phase 1 |
-| `packages/domain` (care): `hazard HZ-014 MUST medium and high risk schedule the food record and the dietitian referral` | Planned, Phase 1 |
+| `packages/domain` (care): `hazard HZ-014 NEWS2 bands that call for a response raise a task and an urgent alert` | Passing |
+| `packages/domain` (care): `hazard HZ-014 MUST medium and high risk schedule the food record and the dietitian referral` | Passing |
+| `packages/domain` (care): `hazard HZ-014 Waterlow nutrition score over 2 raises a nutrition assessment task` | Passing |
 | `apps/api`: `hazard HZ-014 an urgent assessment alert escalates until acknowledged` | Planned, Phase 1 |
 
 ---
@@ -867,7 +877,9 @@ Six hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014) have a target resid
 
 | Test | Status |
 | --- | --- |
-| `packages/domain` (care): `hazard HZ-016 a food entry at a different IDDSI level needs an override reason` | Planned, Phase 1 |
+| `packages/domain` (care): `hazard HZ-016 a food entry at a different IDDSI level needs an override reason` | Passing |
+| `packages/domain` (care): `hazard HZ-016 recorded IDDSI levels are checked against the prescribed level` | Passing |
+| `packages/domain` (care): `hazard HZ-016 IDDSI levels show number, name and colour` | Passing |
 | `apps/web`: `hazard HZ-016 the header shows the prescribed IDDSI levels with number and name` | Planned, Phase 1 |
 
 ---
@@ -904,7 +916,8 @@ Six hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014) have a target resid
 
 | Test | Status |
 | --- | --- |
-| `packages/domain` (care): `hazard HZ-017 entries older than the late-entry threshold are flagged late` | Planned, Phase 1 |
+| `packages/domain` (care): `hazard HZ-017 entries older than the late-entry threshold are flagged late` | Passing |
+| `packages/domain` (care): `hazard HZ-017 future event times beyond the clock-drift tolerance are refused` | Passing |
 | `packages/db`: `hazard HZ-017 notes and observations cannot be updated or deleted by the app` | Planned, Phase 1 |
 
 ---
@@ -977,7 +990,8 @@ Six hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014) have a target resid
 
 | Test | Status |
 | --- | --- |
-| `packages/domain` (care): `hazard HZ-019 a mark whose drawn side and stated side differ cannot be saved` | Planned, Phase 1 |
+| `packages/domain` (care): `hazard HZ-019 a mark whose drawn side and stated side differ cannot be saved` | Passing |
+| `packages/domain` (care): `hazard HZ-019 body map sides are the person's own left and right` | Passing |
 
 ---
 
