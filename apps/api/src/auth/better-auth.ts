@@ -24,7 +24,8 @@ export function createAuth(config: Config, authPool: pg.Pool) {
     basePath: "/api/auth",
     secret: config.BETTER_AUTH_SECRET,
     database: drizzleAdapter(db, { provider: "pg", schema: betterAuthSchema }),
-    trustedOrigins: [...config.webOrigins],
+    // The mobile app's deep-link scheme is an origin for Better Auth's CSRF checks.
+    trustedOrigins: [...config.webOrigins, "harbour://"],
     emailAndPassword: {
       enabled: true,
       // NCSC: at least 12 characters, a deny-list, no forced expiry; throttling, not lockout.

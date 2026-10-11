@@ -71,6 +71,11 @@ export function createApp(config: Config, logger: Logger): AppHandle {
 
   app.on(["GET", "POST"], "/api/auth/*", (c) => services.auth.handler(c.req.raw));
 
+  // Responses may hold personal data: never cache them in browsers, proxies or devices.
+  app.use("/v1/*", async (c, next) => {
+    await next();
+    c.header("cache-control", "no-store");
+  });
   app.use("/v1/*", sessionMiddleware);
   app.use("/v1/*", async (c, next) => {
     if (TENANTLESS.has(c.req.path)) return next();

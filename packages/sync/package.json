@@ -14,7 +14,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@powersync/common": "^1.40.0"
+    "@powersync/common": "^2.3.1"
   },
   "devDependencies": {
     "@harbour/config": "workspace:*",

@@ -153,6 +153,11 @@ describe("people scope", () => {
     expect(people.items.find((p) => p.givenName === "Cara")?.allergyStatus).toBe("unknown");
   });
 
+  it("tells browsers and devices never to cache personal data", async () => {
+    const response = await demo("carer", "/v1/people");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
   it("hides people outside a care worker's assignments", async () => {
     const all = await json<PersonList>(await demo("owner", "/v1/people"));
     const elsie = all.items.find((p) => p.givenName === "Elsie");
