@@ -1,12 +1,13 @@
 # Mobile E2E (Maestro on an Android emulator) and store builds through EAS when credentials exist.
-# iOS simulator flows run on macOS runners; both are expensive, so they run on demand, nightly and
-# on release candidates rather than on every pull request.
+# iOS simulator flows run on macOS runners; both are expensive (an emulator run costs more minutes
+# than a whole ci run), so they run on demand, weekly and on release candidates rather than on
+# every pull request.
 name: mobile
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "41 2 * * *"
+    - cron: "41 2 * * 1"
   push:
     tags: ["v*-rc*"]
 

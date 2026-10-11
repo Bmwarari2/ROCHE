@@ -1,4 +1,10 @@
 # Quality gates (master prompt section 7). Every job must pass before a pull request merges.
+#
+# Minutes: GitHub bills each job rounded up to the whole minute, and every job pays for its own
+# checkout and install. The cheap checks therefore share one job; the database tests and the web
+# journeys keep their own jobs because they need a Postgres service; and work that a change cannot
+# affect is skipped (`changes` below). A skipped job counts as passed for required checks.
+# When hosted minutes run out, run the same gates locally with scripts/ci-local.sh.
 name: ci
 
 on:
@@ -23,19 +29,77 @@ env:
   DATABASE_ADMIN_URL: postgres://harbour_admin:harbour_admin_ci@localhost:5432/postgres
 
 jobs:
-  lint:
-    name: Lint, format and conventions
+  changes:
+    name: What changed
     runs-on: ubuntu-24.04
+    outputs:
+      code: ${{ steps.paths.outputs.code }}
+      web: ${{ steps.paths.outputs.web }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+      - id: paths
+        name: Classify the changed files
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # Anything other than documentation is code. The web journeys run when the web app, the
+          # API it calls, or a shared package changes; a mobile-only or infra-only change skips them.
+          # With no usable base (a new branch, a manual run) everything runs.
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            echo "web=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          files="$(git diff --name-only "$BASE" HEAD)"
+          printf '%s\n' "$files"
+          code=false
+          web=false
+          if printf '%s\n' "$files" | grep -qvE '^(docs/|.*\.md$)'; then code=true; fi
+          if printf '%s\n' "$files" | grep -qE '^(apps/web/|apps/api/|packages/|package\.json$|pnpm-lock\.yaml$|turbo\.json$|\.nvmrc$|\.github/workflows/ci\.yml$)'; then web=true; fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "web=$web" >> "$GITHUB_OUTPUT"
+
+  checks:
+    name: Lint, types, API contract, builds and security
+    runs-on: ubuntu-24.04
+    needs: [changes]
+    env:
+      CODE: ${{ needs.changes.outputs.code }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      # Security: secrets, vulnerabilities and SBOM run before the install, so they scan the
+      # repository and the lockfile rather than node_modules.
+      - name: Secrets (gitleaks)
+        env:
+          # A pull request is checked for the commits it adds; main for its whole history.
+          LOG_OPTS: ${{ github.event_name == 'pull_request' && format('{0}..{1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha) || 'HEAD' }}
+        run: |
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.28.0 \
+            git /repo --config /repo/.gitleaks.toml --redact --verbose --log-opts="$LOG_OPTS"
+      - name: Vulnerabilities in dependencies and config (Trivy)
+        if: env.CODE == 'true'
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src aquasec/trivy:0.67.2 fs \
+            --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --ignore-unfixed \
+            --exit-code 1 --no-progress .
+      - name: Software bill of materials (Syft)
+        if: env.CODE == 'true'
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: spdx-json
+          artifact-name: harbour-sbom.spdx.json
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Lint, format and conventions
       - name: Biome
         run: pnpm exec biome ci .
       - name: Commit messages follow Conventional Commits
@@ -57,23 +121,43 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       - name: Markdown links resolve
         run: node scripts/check-markdown-links.mjs
-
-  typecheck:
-    name: Types
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm turbo run typecheck
+      # Types
+      - name: Types
+        if: env.CODE == 'true'
+        run: pnpm turbo run typecheck
+      # API contract
+      - name: Committed OpenAPI document matches the code
+        if: env.CODE == 'true'
+        run: |
+          pnpm --filter @harbour/api openapi
+          pnpm --filter @harbour/contracts generate:client
+          git diff --exit-code -- apps/api/openapi.json packages/contracts/src/client/api-types.ts
+      - name: No breaking changes against main without a major version
+        if: env.CODE == 'true' && github.event_name == 'pull_request'
+        run: |
+          if git cat-file -e "${{ github.event.pull_request.base.sha }}:apps/api/openapi.json" 2>/dev/null; then
+            git show "${{ github.event.pull_request.base.sha }}:apps/api/openapi.json" > /tmp/base-openapi.json
+            docker run --rm -v /tmp:/base -v "$PWD/apps/api:/head" tufin/oasdiff:v1.11.7 \
+              breaking /base/base-openapi.json /head/openapi.json --fail-on ERR
+          else
+            echo "No OpenAPI document on the base branch yet."
+          fi
+      # Design system and builds
+      - name: Design system (Storybook build)
+        if: env.CODE == 'true'
+        run: pnpm --filter @harbour/ui build-storybook
+      - name: Build API and web
+        if: env.CODE == 'true'
+        run: pnpm turbo run build --filter=@harbour/api --filter=@harbour/web
+      - name: pnpm audit (production dependencies, high and critical)
+        if: env.CODE == 'true'
+        run: pnpm audit --prod --audit-level high
 
   test:
     name: Unit, domain and RLS isolation tests
     runs-on: ubuntu-24.04
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
     services:
       postgres:
         image: postgres:17
@@ -98,77 +182,11 @@ jobs:
       - name: Domain rules keep 90% line coverage
         run: pnpm --filter @harbour/domain test:coverage
 
-  api-contract:
-    name: API contract
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Committed OpenAPI document matches the code
-        run: |
-          pnpm --filter @harbour/api openapi
-          pnpm --filter @harbour/contracts generate:client
-          git diff --exit-code -- apps/api/openapi.json packages/contracts/src/client/api-types.ts
-      - name: No breaking changes against main without a major version
-        if: github.event_name == 'pull_request'
-        run: |
-          if git cat-file -e "${{ github.event.pull_request.base.sha }}:apps/api/openapi.json" 2>/dev/null; then
-            git show "${{ github.event.pull_request.base.sha }}:apps/api/openapi.json" > /tmp/base-openapi.json
-            docker run --rm -v /tmp:/base -v "$PWD/apps/api:/head" tufin/oasdiff:v1.11.7 \
-              breaking /base/base-openapi.json /head/openapi.json --fail-on ERR
-          else
-            echo "No OpenAPI document on the base branch yet."
-          fi
-
-  storybook:
-    name: Design system (Storybook build)
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @harbour/ui build-storybook
-
-  build:
-    name: Build API and web
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm turbo run build --filter=@harbour/api --filter=@harbour/web
-
-  images:
-    name: Container images build
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        app: [api, web]
-    steps:
-      - uses: actions/checkout@v5
-      - name: Build harbour/${{ matrix.app }} (not pushed)
-        run: docker build -f apps/${{ matrix.app }}/Dockerfile -t harbour/${{ matrix.app }}:ci .
-
   e2e-web:
     name: Web journeys and accessibility (Playwright and axe)
     runs-on: ubuntu-24.04
-    needs: [build]
+    needs: [changes]
+    if: needs.changes.outputs.web == 'true'
     services:
       postgres:
         image: postgres:17
@@ -204,38 +222,18 @@ jobs:
           path: apps/web/playwright-report
           retention-days: 7
 
-  security:
-    name: Security (secrets, vulnerabilities, SBOM)
+  # Container images are built on main (and on demand), not on every pull request: a broken
+  # Dockerfile shows on main straight after the merge, at a fraction of the minutes.
+  images:
+    name: Container images build
     runs-on: ubuntu-24.04
-    permissions:
-      contents: read
+    needs: [changes]
+    if: github.event_name != 'pull_request' && needs.changes.outputs.code == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [api, web]
     steps:
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-      - name: Secrets (gitleaks)
-        env:
-          # A pull request is checked for the commits it adds; main for its whole history.
-          LOG_OPTS: ${{ github.event_name == 'pull_request' && format('{0}..{1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha) || 'HEAD' }}
-        run: |
-          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.28.0 \
-            git /repo --config /repo/.gitleaks.toml --redact --verbose --log-opts="$LOG_OPTS"
-      - name: Vulnerabilities in dependencies and config (Trivy)
-        run: |
-          docker run --rm -v "$PWD:/src" -w /src aquasec/trivy:0.67.2 fs \
-            --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --ignore-unfixed \
-            --exit-code 1 --no-progress .
-      - name: Software bill of materials (Syft)
-        uses: anchore/sbom-action@v0
-        with:
-          path: .
-          format: spdx-json
-          artifact-name: harbour-sbom.spdx.json
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: pnpm audit (production dependencies, high and critical)
-        run: pnpm audit --prod --audit-level high
+      - name: Build harbour/${{ matrix.app }} (not pushed)
+        run: docker build -f apps/${{ matrix.app }}/Dockerfile -t harbour/${{ matrix.app }}:ci .
