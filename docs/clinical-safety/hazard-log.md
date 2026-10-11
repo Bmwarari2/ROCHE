@@ -369,7 +369,10 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 **Causes**
 
 - An upload rejected by the API (stale `expected_version`, validation change after a release) and dropped.
-- Authentication expiry while offline; a poison record blocking the queue.
+- Session expiry while offline: a session lasts 12 hours but a device may work offline for the whole
+  offline window, and the API answers an expired session with the same 401 as a revoked one, so
+  treating every 401 as a remote wipe deleted entries that had not uploaded.
+- A poison record blocking the queue.
 - Sign-out, uninstall, device reset, loss or remote wipe while changes are queued.
 - PowerSync outage; device storage full; an upload handler that swallows errors.
 - The app more than one schema version behind the server.
@@ -389,6 +392,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Rejected uploads are never dropped: they move to a visible "Needs attention" list on the device and create a review task for the manager on the server (stale writes become review tasks, never silent overwrites) | Phase 1 |
 | Design | One failing record does not block the rest of the queue; retries with backoff | Phase 1 |
 | Design | Sign-out warns and requires a reason when the queue is not empty; the device reports its queue depth at every sync so that the server knows how many changes a lost or wiped device held | Phase 1 |
+| Design | When the API ends the session (401 or 403), the device wipes only if nothing is waiting to upload (queue and refused entries). Otherwise it stops uploading, keeps the encrypted database and asks for sign-in again ("Sign in again to send N entries"); only the same member of staff (`tenant_user`) can resume, anyone else is refused, and "Sign out and delete N unsent entries" needs a confirmation naming the count ([care.md](../specs/care.md) section 6; DPO position in human action H-68) | Built in Phase 1 (mobile) |
 | Design | Manager dashboard lists devices on an active shift whose last sync is older than the threshold; on-call alert | Phase 1 |
 | Design | The app blocks new writes and prompts an update when it is more than one schema version behind | Phase 1 |
 | Design | Care events recorded offline before a person left or died are accepted after the exit and shown as recorded after it; the person leaves a device only after its queue has uploaded ([people.md](../specs/people.md) rule 3) | Phase 1 (domain rule built) |
@@ -413,6 +417,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `apps/mobile/src/sync/connector.test.ts`: `hazard HZ-006 keeps a refusal for a missing permission on the device, without wiping it`, `hazard HZ-006 never completes an operation the API refused inside a 200`, `hazard HZ-006 never discards a refused write: it moves to needs attention`; network failures retry and stay queued | Passing (Phase 1, mobile) |
 | `apps/mobile/src/care/entry-view.test.ts`: `hazard HZ-006 refused entries stay readable`, `hazard HZ-002 hazard HZ-006 entry status in words`; `queries.test.ts`: `hazard HZ-006 refused uploads on the device` | Passing (Phase 1, mobile) |
 | `apps/mobile/.maestro/hazard-HZ-006-offline-note-and-vitals.yaml`: a note and vital signs written offline show as waiting to upload, survive the app being closed, then upload and read as saved | Written; runs on the live-API build (the nightly workflow builds demo mode, which never syncs) |
+| `apps/mobile/src/app-state/held-work.test.ts`: `hazard HZ-006 a 401 with pending entries keeps them`, `hazard HZ-006 a 401 with no pending entries wipes`, `hazard HZ-006 the same user resumes and the queue drains`, `hazard HZ-006 a different user is refused`, `hazard HZ-006 the explicit discard wipes`; also a 401 or 403 from the sync token, refused entries alone and an uncountable queue keep the entries, a damaged marker releases them to nobody, and the button and confirmation name the count | Passing (Phase 1, mobile) |
 
 ---
 

@@ -302,8 +302,21 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   `x-harbour-device` (the PowerSync client id), `Idempotency-Key` (the entry id) and
   `x-harbour-sent-at` stamped as each request leaves, so the API flags late entries from the time
   written and clock drift from the time sent (HZ-010, HZ-017). A replay returns the saved copy and
-  is treated as success. Network failures, 408, 425, 429 and 5xx retry with backoff and stay queued;
-  401 wipes the device. Any other refusal moves the entry, with its content, to the local-only
+  is treated as success. Network failures, 408, 425, 429 and 5xx retry with backoff and stay queued.
+  A 401 or 403 from the sync token, an upload or `/v1/me` ends the session, and the device first
+  counts its unsent work (PowerSync's upload queue plus `upload_issue` rows; HZ-006,
+  `apps/mobile/src/app-state/held-work.ts`). With none it signs out and wipes as before. With some
+  it does not wipe: uploads stop, the encrypted database and its key are kept (SQLCipher, key
+  behind device authentication), the owner's `tenant_user` id is recorded and the sign-in screen
+  reads "Sign in again to send N entries". Only that member of staff can resume, and the queue
+  drains under the new session; anyone else is refused ("Entries from another member of staff are
+  waiting. They need to sign in to send them.") and their new session is ended. "Sign out and
+  delete N unsent entries", after a confirmation naming the count, deletes the file and destroys
+  the key. This is because a session lasts 12 hours while a device may work offline for the whole
+  window, and the API answers an expired session with the same 401 as a revoked one; until it
+  signals revocation separately (follow-up: an API revocation signal distinct from expiry), a
+  revoked device that still holds unsent entries keeps them encrypted rather than wiping them
+  (human action H-68). Any other refusal moves the entry, with its content, to the local-only
   `upload_issue` table and the queue moves on: Today and the person's record list it as "not saved:
   needs attention" with the API's reason until someone removes it (HZ-006). The same applies to a
   `rejected` operation inside a 200 from `/v1/sync/upload`, which used to be completed silently.

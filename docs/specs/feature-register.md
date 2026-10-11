@@ -279,7 +279,7 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | MOB-007 | Offline eMAR, rota and timesheets, and training | 17.1 | 2 | todo | - | - | - | - |
 | MOB-008 | Offline domiciliary visits and messaging | 17.1 | 4 | todo | - | - | - | - |
 | MOB-009 | Encrypted SQLCipher store with biometric lock and auto-lock | 5.3, 17.2 | 0 | partial | [ADR-0029](../decisions/0029-mobile-offline-stack.md) | `apps/mobile/src` | `apps/mobile` unit tests | - |
-| MOB-010 | Device protection: remote wipe, root and jailbreak detection, screenshot blocking | 5.3, 17.2 | 1 | partial | [ADR-0029](../decisions/0029-mobile-offline-stack.md) | `apps/mobile/src/app-state/vault.tsx` (remote wipe), `apps/mobile/src/security` | `apps/mobile/src/sync/connector.test.ts` (wipe on a revoked session), `apps/mobile/src/security/device-integrity.test.ts` | - |
+| MOB-010 | Device protection: remote wipe, root and jailbreak detection, screenshot blocking | 5.3, 17.2 | 1 | partial | [ADR-0029](../decisions/0029-mobile-offline-stack.md) | `apps/mobile/src/app-state/vault.tsx` and `held-work.ts` (remote wipe), `apps/mobile/src/security` | `apps/mobile/src/sync/connector.test.ts` (an ended session is reported), `apps/mobile/src/app-state/held-work.test.ts` (wipe, or keep unsent entries for their owner, HZ-006), `apps/mobile/src/security/device-integrity.test.ts` | - |
 | MOB-011 | Store compliance (privacy labels, data safety, health declarations, account deletion, iOS 26 SDK, API 36) | 17.3 | 1 | todo | - | - | - | - |
 | MOB-012 | Public or private distribution and phased rollouts | 17.3 | 1 | todo | - | - | - | - |
 | MOB-013 | Tablet split views and responsive web down to 360 px | 17.4 | 2 | todo | - | - | - | - |
