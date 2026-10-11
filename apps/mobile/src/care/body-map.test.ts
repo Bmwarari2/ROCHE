@@ -2,7 +2,16 @@ import { CreateBodyMapMark } from "@harbour/contracts";
 import type { BodySide } from "@harbour/domain";
 import { describe, expect, it } from "vitest";
 import { toCareUpload } from "../sync/care-upload";
-import { checkMark, drawnSide, type MarkDraft, regionsFor } from "./body-map";
+import {
+  CENTRE_HALF_WIDTH,
+  checkMark,
+  DRAWING,
+  drawnSide,
+  type MarkDraft,
+  regionsFor,
+  toDrawing,
+  zoneAt,
+} from "./body-map";
 import type { EntryContext } from "./entries";
 
 const NOW = new Date("2026-10-11T10:00:00Z");
@@ -28,6 +37,65 @@ const draft = (overrides: Partial<MarkDraft> = {}): MarkDraft => ({
   when: { kind: "now" },
   correction: null,
   ...overrides,
+});
+
+describe("hazard HZ-019 the drawing is split at the body's midline (C5)", () => {
+  // The drawing's coordinates (viewBox 120 by 240): legs from y = 124, at x 40 to 58 and 62 to 80;
+  // arms at x 20 to 34 and 86 to 100; head and trunk across the middle.
+  it.each([
+    // A mark on the person's left leg: on the carer's right of the front view.
+    ["front", { x: 71, y: 180 }, "left"],
+    ["front", { x: 63, y: 200 }, "left"],
+    ["front", { x: 49, y: 180 }, "right"],
+    // On the back view the person's left is on the carer's left.
+    ["back", { x: 49, y: 180 }, "left"],
+    ["back", { x: 71, y: 180 }, "right"],
+    // The inner edge of each leg is still on its side: no centre band between the legs.
+    ["front", { x: 58, y: 150 }, "right"],
+    ["front", { x: 62, y: 150 }, "left"],
+    // Arms are always on a side.
+    ["front", { x: 27, y: 80 }, "right"],
+    ["front", { x: 93, y: 80 }, "left"],
+    // A narrow centre band over the head and trunk only.
+    ["front", { x: 60, y: 22 }, "midline"],
+    ["front", { x: 60, y: 80 }, "midline"],
+    ["front", { x: 64, y: 80 }, "midline"],
+    ["front", { x: 65, y: 80 }, "left"],
+    ["front", { x: 55, y: 80 }, "right"],
+  ] as const)("on the %s view, a mark at %j reads as the person's %s", (view, point, side) => {
+    expect(drawnSide(view, zoneAt(point))).toBe(side);
+  });
+
+  it("keeps the centre band narrow: a fifth of the trunk's width or less", () => {
+    const trunkWidth = 44;
+    expect((CENTRE_HALF_WIDTH * 2) / trunkWidth).toBeLessThanOrEqual(0.2);
+    expect(zoneAt({ x: DRAWING.midline, y: DRAWING.legsTop })).toBe("viewer_right");
+  });
+
+  it.each([
+    // A 320 by 300 frame: the drawing is scaled by 1.25 and centred, 85 points in from each side.
+    [
+      { x: 160, y: 100 },
+      { x: 60, y: 80 },
+    ],
+    [
+      { x: 85, y: 0 },
+      { x: 0, y: 0 },
+    ],
+    [
+      { x: 235, y: 300 },
+      { x: 120, y: 240 },
+    ],
+  ])("maps a tap at %j on the frame to %j on the drawing", (tap, expected) => {
+    const point = toDrawing(tap, { width: 320, height: 300 });
+    expect(point?.x).toBeCloseTo(expected.x);
+    expect(point?.y).toBeCloseTo(expected.y);
+  });
+
+  it("ignores a tap beside the drawing", () => {
+    expect(toDrawing({ x: 40, y: 100 }, { width: 320, height: 300 })).toBeNull();
+    expect(toDrawing({ x: 10, y: 10 }, { width: 0, height: 0 })).toBeNull();
+  });
 });
 
 describe("hazard HZ-019 the side on the drawing and in words", () => {

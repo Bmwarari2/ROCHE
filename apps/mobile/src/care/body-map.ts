@@ -56,6 +56,45 @@ export function drawnSide(view: BodyView, zone: ViewerZone): BodySide {
   return personSideFromDrawing(view, zone);
 }
 
+/**
+ * The drawing's own coordinates (the SVG viewBox, 120 by 240). The body's midline is x = 60; the
+ * head, neck and trunk end where the legs begin.
+ */
+export const DRAWING = { width: 120, height: 240, midline: 60, legsTop: 124 } as const;
+
+/**
+ * Half the width of the centre band, in drawing units. It exists only over the central areas
+ * (head, neck and trunk), so a mark on a leg or an arm is always on a side (clinical review C5).
+ */
+export const CENTRE_HALF_WIDTH = 4;
+
+/**
+ * Which zone of the drawing a point falls in: split at the body's midline, with a narrow centre
+ * band over the central areas only. On the front view the person's left leg is on the carer's
+ * right, so it falls in `viewer_right`, which reads as the person's left.
+ */
+export function zoneAt(point: { readonly x: number; readonly y: number }): ViewerZone {
+  const central = point.y < DRAWING.legsTop;
+  if (central && Math.abs(point.x - DRAWING.midline) <= CENTRE_HALF_WIDTH) return "centre";
+  return point.x < DRAWING.midline ? "viewer_left" : "viewer_right";
+}
+
+/**
+ * Converts a tap on the drawing's frame (in points) to drawing units, for an SVG scaled to fit
+ * and centred ("xMidYMid meet"). Null outside the drawing.
+ */
+export function toDrawing(
+  tap: { readonly x: number; readonly y: number },
+  frame: { readonly width: number; readonly height: number },
+): { readonly x: number; readonly y: number } | null {
+  if (frame.width <= 0 || frame.height <= 0) return null;
+  const scale = Math.min(frame.width / DRAWING.width, frame.height / DRAWING.height);
+  const x = (tap.x - (frame.width - DRAWING.width * scale) / 2) / scale;
+  const y = (tap.y - (frame.height - DRAWING.height * scale) / 2) / scale;
+  if (x < 0 || x > DRAWING.width || y < 0 || y > DRAWING.height) return null;
+  return { x, y };
+}
+
 /** Body areas on a view, in the domain's order. */
 export function regionsFor(view: BodyView): readonly BodyRegion[] {
   return BODY_MAP_REGIONS.filter((r) => r.view === view);
