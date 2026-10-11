@@ -2607,6 +2607,13 @@
               "present",
               "healed"
             ]
+          },
+          "incidentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
           }
         },
         "required": [
@@ -2632,7 +2639,8 @@
           "depthMm",
           "description",
           "photoDocumentId",
-          "status"
+          "status",
+          "incidentId"
         ]
       },
       "BodyMarkType": {
@@ -2761,6 +2769,10 @@
               "healed"
             ],
             "default": "present"
+          },
+          "incidentId": {
+            "type": "string",
+            "format": "uuid"
           }
         },
         "required": [
@@ -5804,6 +5816,4160 @@
           "version"
         ],
         "description": "A changed CPR decision is a new record, which supersedes this one"
+      },
+      "ConsentList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConsentItem"
+            }
+          },
+          "decisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConsentDecisionStatus"
+            }
+          }
+        },
+        "required": [
+          "items",
+          "decisions"
+        ]
+      },
+      "ConsentItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/ConsentDecisionKind"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "given",
+              "refused"
+            ]
+          },
+          "givenBy": {
+            "type": "string",
+            "enum": [
+              "person",
+              "representative"
+            ]
+          },
+          "representative": {
+            "$ref": "#/components/schemas/ConsentRepresentative"
+          },
+          "capacityStatus": {
+            "$ref": "#/components/schemas/CapacityStatus"
+          },
+          "capacityAssessmentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "givenAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "withdrawnAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "withdrawnReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "evidenceDocumentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "restraintConditions": {
+            "$ref": "#/components/schemas/RestraintConditions"
+          },
+          "bestInterestsDecisionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "recordedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "decision",
+          "outcome",
+          "givenBy",
+          "representative",
+          "capacityStatus",
+          "capacityAssessmentId",
+          "givenAt",
+          "expiresAt",
+          "withdrawnAt",
+          "withdrawnReason",
+          "evidence",
+          "evidenceDocumentId",
+          "restraintConditions",
+          "bestInterestsDecisionId",
+          "recordedBy",
+          "version"
+        ]
+      },
+      "ConsentDecisionKind": {
+        "type": "string",
+        "enum": [
+          "care_plan",
+          "photos",
+          "social_media",
+          "sharing",
+          "marketing",
+          "ai_processing",
+          "bed_rails",
+          "covert_medicines"
+        ]
+      },
+      "ConsentRepresentative": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/RepresentativeKind"
+          },
+          "contactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "registered": {
+            "type": "boolean"
+          },
+          "opgReference": {
+            "type": "string",
+            "maxLength": 60
+          },
+          "excludedDecisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConsentDecisionKind"
+            },
+            "maxItems": 8,
+            "default": []
+          },
+          "deputyScope": {
+            "type": "string",
+            "enum": [
+              "personal_welfare",
+              "property_and_affairs"
+            ]
+          },
+          "deputyDecisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConsentDecisionKind"
+            },
+            "maxItems": 8,
+            "default": []
+          },
+          "restraintExpresslyAuthorised": {
+            "type": "boolean"
+          },
+          "orderEndsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "courtReference": {
+            "type": "string",
+            "maxLength": 60
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "RepresentativeKind": {
+        "type": "string",
+        "enum": [
+          "lpa_health_welfare",
+          "lpa_property_financial",
+          "deputy",
+          "appointee",
+          "imca",
+          "advocate",
+          "family_or_friend"
+        ]
+      },
+      "CapacityStatus": {
+        "type": "string",
+        "enum": [
+          "assumed",
+          "has_capacity",
+          "lacks_capacity"
+        ]
+      },
+      "RestraintConditions": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "necessaryToPreventHarm": {
+            "type": "boolean"
+          },
+          "proportionate": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "necessaryToPreventHarm",
+          "proportionate"
+        ]
+      },
+      "ConsentDecisionStatus": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/ConsentDecisionKind"
+          },
+          "label": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "valid",
+              "refused",
+              "none"
+            ]
+          },
+          "recordId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "capacity": {
+            "$ref": "#/components/schemas/CapacityStatus"
+          },
+          "capacityReviewOverdue": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "decision",
+          "label",
+          "status",
+          "recordId",
+          "message",
+          "problems",
+          "capacity",
+          "capacityReviewOverdue"
+        ]
+      },
+      "CreateConsent": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/ConsentDecisionKind"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "given",
+              "refused"
+            ]
+          },
+          "givenBy": {
+            "type": "string",
+            "enum": [
+              "person",
+              "representative"
+            ]
+          },
+          "representative": {
+            "$ref": "#/components/schemas/ConsentRepresentative"
+          },
+          "givenAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "evidence": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "evidenceDocumentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "restraintConditions": {
+            "$ref": "#/components/schemas/RestraintConditions"
+          },
+          "bestInterestsDecisionId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "decision",
+          "outcome",
+          "givenBy",
+          "givenAt",
+          "evidence"
+        ],
+        "description": "The person's capacity for the decision is found from their capacity assessments, never taken from the request."
+      },
+      "WithdrawConsent": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          },
+          "withdrawnAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "reason",
+          "version"
+        ]
+      },
+      "CapacityAssessmentList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CapacityAssessmentItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "CapacityAssessmentItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "decisionKind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ConsentDecisionKind"
+              },
+              {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            ]
+          },
+          "assessedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "assessorTenantUserId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "assessorName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "assessorRole": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "practicableSteps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "step": {
+                  "$ref": "#/components/schemas/PracticableStep"
+                },
+                "detail": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "step",
+                "detail"
+              ]
+            }
+          },
+          "stage1": {
+            "type": "object",
+            "properties": {
+              "impairment": {
+                "type": "boolean"
+              },
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "impairment",
+              "description"
+            ]
+          },
+          "stage2": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/FunctionalAnswer"
+            }
+          },
+          "inabilityBecauseOfImpairment": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "has_capacity",
+              "lacks_capacity"
+            ]
+          },
+          "unableTo": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reason": {
+            "type": "string"
+          },
+          "reviewOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recordedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "supersedesId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "correctionReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "superseded": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "decision",
+          "decisionKind",
+          "assessedAt",
+          "assessorTenantUserId",
+          "assessorName",
+          "assessorRole",
+          "practicableSteps",
+          "stage1",
+          "stage2",
+          "inabilityBecauseOfImpairment",
+          "outcome",
+          "unableTo",
+          "reason",
+          "reviewOn",
+          "recordedAt",
+          "recordedBy",
+          "supersedesId",
+          "correctionReason",
+          "superseded"
+        ]
+      },
+      "PracticableStep": {
+        "type": "string",
+        "enum": [
+          "simple_language",
+          "visual_aids",
+          "best_time_or_place",
+          "interpreter_or_communication_aid",
+          "trusted_person_present",
+          "information_repeated",
+          "other"
+        ]
+      },
+      "FunctionalAnswer": {
+        "type": "object",
+        "properties": {
+          "able": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "evidence": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "able"
+        ]
+      },
+      "CreateCapacityAssessment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decision": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "decisionKind": {
+            "$ref": "#/components/schemas/ConsentDecisionKind"
+          },
+          "assessedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "assessorTenantUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "assessorName": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "assessorRole": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "practicableSteps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "step": {
+                  "$ref": "#/components/schemas/PracticableStep"
+                },
+                "detail": {
+                  "type": "string",
+                  "maxLength": 1000
+                }
+              },
+              "required": [
+                "step",
+                "detail"
+              ]
+            },
+            "maxItems": 20,
+            "default": []
+          },
+          "stage1": {
+            "type": "object",
+            "properties": {
+              "impairment": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "impairment"
+            ]
+          },
+          "stage2": {
+            "type": "object",
+            "properties": {
+              "understand": {
+                "$ref": "#/components/schemas/FunctionalAnswer"
+              },
+              "retain": {
+                "$ref": "#/components/schemas/FunctionalAnswer"
+              },
+              "useOrWeigh": {
+                "$ref": "#/components/schemas/FunctionalAnswer"
+              },
+              "communicate": {
+                "$ref": "#/components/schemas/FunctionalAnswer"
+              }
+            },
+            "default": {}
+          },
+          "inabilityBecauseOfImpairment": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "has_capacity",
+              "lacks_capacity",
+              null
+            ]
+          },
+          "reviewOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "supersedesId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "correctionReason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "decision",
+          "assessedAt",
+          "stage1",
+          "outcome"
+        ]
+      },
+      "BestInterestsList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BestInterestsItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "BestInterestsItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "capacityAssessmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "decidedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "checklist": {
+            "$ref": "#/components/schemas/BestInterestsChecklist"
+          },
+          "consultations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Consultation"
+            }
+          },
+          "noConsultationReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "seriousMedicalTreatment": {
+            "type": "boolean"
+          },
+          "accommodationChange": {
+            "type": "boolean"
+          },
+          "imcaPrompt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recordedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "supersedesId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "correctionReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "superseded": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "capacityAssessmentId",
+          "decision",
+          "decidedAt",
+          "checklist",
+          "consultations",
+          "noConsultationReason",
+          "seriousMedicalTreatment",
+          "accommodationChange",
+          "imcaPrompt",
+          "reviewOn",
+          "recordedAt",
+          "recordedBy",
+          "supersedesId",
+          "correctionReason",
+          "superseded"
+        ]
+      },
+      "BestInterestsChecklist": {
+        "type": "object",
+        "properties": {
+          "no_unjustified_assumptions": {
+            "$ref": "#/components/schemas/ChecklistAnswer"
+          },
+          "relevant_circumstances": {
+            "$ref": "#/components/schemas/ChecklistAnswer"
+          },
+          "regaining_capacity": {
+            "$ref": "#/components/schemas/ChecklistAnswer"
+          },
+          "participation": {
+            "$ref": "#/components/schemas/ChecklistAnswer"
+          },
+          "life_sustaining_treatment": {
+            "$ref": "#/components/schemas/ChecklistAnswer"
+          },
+          "wishes_and_feelings": {
+            "$ref": "#/components/schemas/ChecklistAnswer"
+          },
+          "beliefs_and_values": {
+            "$ref": "#/components/schemas/ChecklistAnswer"
+          },
+          "other_factors": {
+            "$ref": "#/components/schemas/ChecklistAnswer"
+          },
+          "views_of_others": {
+            "$ref": "#/components/schemas/ChecklistAnswer"
+          },
+          "less_restrictive_option": {
+            "$ref": "#/components/schemas/ChecklistAnswer"
+          }
+        }
+      },
+      "ChecklistAnswer": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "answer": {
+                "type": "string",
+                "enum": [
+                  "considered"
+                ]
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "answer",
+              "note"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "answer": {
+                "type": "string",
+                "enum": [
+                  "not_applicable"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "answer",
+              "reason"
+            ]
+          }
+        ]
+      },
+      "Consultation": {
+        "type": "object",
+        "properties": {
+          "consultee": {
+            "$ref": "#/components/schemas/ConsulteeKind"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "contactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "views": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "consultedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "consultee",
+          "views",
+          "consultedAt"
+        ]
+      },
+      "ConsulteeKind": {
+        "type": "string",
+        "enum": [
+          "named_by_person",
+          "family_or_friend",
+          "lpa_donee",
+          "deputy",
+          "paid_carer_or_professional",
+          "imca"
+        ]
+      },
+      "CreateBestInterests": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "capacityAssessmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decision": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "decidedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "checklist": {
+            "$ref": "#/components/schemas/BestInterestsChecklist"
+          },
+          "consultations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Consultation"
+            },
+            "maxItems": 30,
+            "default": []
+          },
+          "noConsultationReason": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "seriousMedicalTreatment": {
+            "type": "boolean",
+            "default": false
+          },
+          "accommodationChange": {
+            "type": "boolean",
+            "default": false
+          },
+          "reviewOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "supersedesId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "correctionReason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "capacityAssessmentId",
+          "decision",
+          "decidedAt",
+          "checklist",
+          "reviewOn"
+        ]
+      },
+      "DolsList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DolsItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "DolsItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "$ref": "#/components/schemas/DolsType"
+          },
+          "nation": {
+            "type": "string",
+            "enum": [
+              "england",
+              "wales"
+            ]
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/DolsOutcome"
+          },
+          "outcomeAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "grantedFrom": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "grantedTo": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "extensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UrgentExtension"
+            }
+          },
+          "precededByUrgent": {
+            "type": "boolean"
+          },
+          "precededByAuthorisationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "withdrawalReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "endedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "endedReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "conditions": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rprName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rprContactId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "supervisoryBody": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "supervisoryBodyReference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "objectionEvidence": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/DolsStatus"
+          },
+          "endsAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "daysLeft": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "reminders": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "enum": [
+                    "first",
+                    "second"
+                  ]
+                },
+                "daysBefore": {
+                  "type": "integer"
+                },
+                "dueAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "key",
+                "daysBefore",
+                "dueAt"
+              ]
+            }
+          },
+          "cqcNotification": {
+            "$ref": "#/components/schemas/DolsCqcNotification"
+          },
+          "legalChangeReview": {
+            "$ref": "#/components/schemas/LegalChangeReviewState"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "locationId",
+          "type",
+          "nation",
+          "requestedAt",
+          "outcome",
+          "outcomeAt",
+          "grantedFrom",
+          "grantedTo",
+          "extensions",
+          "precededByUrgent",
+          "precededByAuthorisationId",
+          "withdrawalReason",
+          "endedAt",
+          "endedReason",
+          "conditions",
+          "rprName",
+          "rprContactId",
+          "supervisoryBody",
+          "supervisoryBodyReference",
+          "objectionEvidence",
+          "status",
+          "endsAt",
+          "daysLeft",
+          "reminders",
+          "cqcNotification",
+          "legalChangeReview",
+          "version"
+        ]
+      },
+      "DolsType": {
+        "type": "string",
+        "enum": [
+          "urgent",
+          "standard",
+          "court_order"
+        ]
+      },
+      "DolsOutcome": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "granted",
+          "not_granted",
+          "withdrawn"
+        ]
+      },
+      "UrgentExtension": {
+        "type": "object",
+        "properties": {
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "granted",
+              "refused"
+            ]
+          },
+          "extendedTo": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "requestedAt",
+          "outcome",
+          "extendedTo"
+        ]
+      },
+      "DolsStatus": {
+        "type": "string",
+        "enum": [
+          "requested",
+          "not_granted",
+          "withdrawn",
+          "not_started",
+          "active",
+          "expiring",
+          "expired",
+          "ended"
+        ]
+      },
+      "DolsCqcNotification": {
+        "type": "object",
+        "properties": {
+          "required": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "notificationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "draft",
+              "ready",
+              "submitted",
+              "not_required",
+              null
+            ]
+          },
+          "dueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "required",
+          "reason",
+          "notificationId",
+          "status",
+          "dueAt"
+        ]
+      },
+      "LegalChangeReviewState": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "awaiting_review",
+          "reviewed",
+          "referred",
+          "closed",
+          null
+        ]
+      },
+      "DolsInput": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/DolsType"
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/DolsOutcome"
+          },
+          "outcomeAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "grantedFrom": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "grantedTo": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "extensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UrgentExtension"
+            },
+            "maxItems": 5,
+            "default": []
+          },
+          "precededByUrgent": {
+            "type": "boolean",
+            "default": false
+          },
+          "precededByAuthorisationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "withdrawalReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1000
+          },
+          "endedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "endedReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1000
+          },
+          "conditions": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4000
+          },
+          "rprName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          },
+          "rprContactId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "supervisoryBody": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          },
+          "supervisoryBodyReference": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 120
+          },
+          "objectionEvidence": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "type",
+          "requestedAt"
+        ]
+      },
+      "UpdateDols": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/DolsType"
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/DolsOutcome"
+          },
+          "outcomeAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "grantedFrom": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "grantedTo": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "extensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UrgentExtension"
+            },
+            "maxItems": 5,
+            "default": []
+          },
+          "precededByUrgent": {
+            "type": "boolean",
+            "default": false
+          },
+          "precededByAuthorisationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "withdrawalReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1000
+          },
+          "endedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "endedReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1000
+          },
+          "conditions": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4000
+          },
+          "rprName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          },
+          "rprContactId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "supervisoryBody": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          },
+          "supervisoryBodyReference": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 120
+          },
+          "objectionEvidence": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "type",
+          "requestedAt",
+          "version"
+        ]
+      },
+      "LegalChangeReviewList": {
+        "type": "object",
+        "properties": {
+          "judgment": {
+            "type": "object",
+            "properties": {
+              "citation": {
+                "type": "string"
+              },
+              "decidedOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "citation",
+              "decidedOn",
+              "url"
+            ]
+          },
+          "guidance": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "lastUpdatedOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "title",
+              "lastUpdatedOn",
+              "url"
+            ]
+          },
+          "awaiting": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LegalChangeReviewItem"
+            }
+          },
+          "reviews": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LegalChangeReviewItem"
+            }
+          }
+        },
+        "required": [
+          "judgment",
+          "guidance",
+          "awaiting",
+          "reviews"
+        ]
+      },
+      "LegalChangeReviewItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "authorisationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "$ref": "#/components/schemas/DolsType"
+          },
+          "grantedFrom": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "endsAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "state": {
+            "$ref": "#/components/schemas/LegalChangeReviewState"
+          },
+          "review": {
+            "$ref": "#/components/schemas/LegalChangeReviewInput"
+          },
+          "decidedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "referralRequired": {
+            "type": "boolean"
+          },
+          "prompts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "closedReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "id",
+          "authorisationId",
+          "personId",
+          "locationId",
+          "type",
+          "grantedFrom",
+          "endsAt",
+          "state",
+          "review",
+          "decidedBy",
+          "referralRequired",
+          "prompts",
+          "closedReason",
+          "version"
+        ]
+      },
+      "LegalChangeReviewInput": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "factors": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "duration": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "effects": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "manner": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "prison_cell_comparison": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "normality": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "purpose": {
+                "type": "string",
+                "maxLength": 2000
+              }
+            },
+            "default": {}
+          },
+          "objection": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "objects",
+              "does_not_object",
+              "fluctuates",
+              "unclear",
+              null
+            ]
+          },
+          "objectionForms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ObjectionForm"
+            },
+            "maxItems": 5,
+            "default": []
+          },
+          "consent": {
+            "type": "object",
+            "properties": {
+              "consciousOfEnvironment": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "basicUnderstanding": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "expressesAcceptance": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "seriousDoubt": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "consciousOfEnvironment",
+              "basicUnderstanding",
+              "expressesAcceptance",
+              "seriousDoubt"
+            ]
+          },
+          "decision": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "still_deprived",
+              "no_longer_deprived",
+              "in_doubt",
+              null
+            ]
+          },
+          "decidedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "referral": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "sentAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "reference": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 120
+              }
+            },
+            "required": [
+              "sentAt",
+              "reference"
+            ]
+          }
+        },
+        "required": [
+          "objection",
+          "consent",
+          "decision",
+          "decidedAt",
+          "referral"
+        ]
+      },
+      "ObjectionForm": {
+        "type": "string",
+        "enum": [
+          "attempts_to_leave",
+          "refusing_care_or_treatment",
+          "restraint_or_one_to_one_care",
+          "covert_medication",
+          "sedating_medication"
+        ]
+      },
+      "LegalChangeReviewAction": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "string",
+            "enum": [
+              "reviewed",
+              "referred",
+              "closed"
+            ]
+          },
+          "review": {
+            "$ref": "#/components/schemas/LegalChangeReviewInput"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "to",
+          "version"
+        ]
+      },
+      "IncidentDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "$ref": "#/components/schemas/IncidentType"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deviceTime": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lateEntry": {
+            "type": "boolean"
+          },
+          "clockDrift": {
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IncidentStatus"
+          },
+          "raisedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "restricted": {
+            "type": "boolean"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/IncidentSeverity"
+          },
+          "harmGrade": {
+            "$ref": "#/components/schemas/HarmGrade"
+          },
+          "classifiedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "openQuestionCount": {
+            "type": "integer"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "immediateActions": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "foundAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "emergencyServicesCalled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "gpContacted": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "contactNotes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "familyInformed": {
+            "$ref": "#/components/schemas/FamilyInformed"
+          },
+          "closedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "closedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "closedReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "retentionClass": {
+            "type": "string",
+            "enum": [
+              "care_record",
+              "serious_incident"
+            ]
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IncidentPersonItem"
+            }
+          },
+          "classifier": {
+            "$ref": "#/components/schemas/ClassifierView"
+          }
+        },
+        "required": [
+          "id",
+          "locationId",
+          "type",
+          "occurredAt",
+          "recordedAt",
+          "deviceTime",
+          "lateEntry",
+          "clockDrift",
+          "status",
+          "raisedBy",
+          "restricted",
+          "severity",
+          "harmGrade",
+          "classifiedAt",
+          "openQuestionCount",
+          "version",
+          "description",
+          "immediateActions",
+          "foundAt",
+          "emergencyServicesCalled",
+          "gpContacted",
+          "contactNotes",
+          "familyInformed",
+          "closedBy",
+          "closedAt",
+          "closedReason",
+          "retentionClass",
+          "people",
+          "classifier"
+        ]
+      },
+      "IncidentType": {
+        "type": "string",
+        "enum": [
+          "fall",
+          "medication",
+          "skin",
+          "behaviour",
+          "missing_person",
+          "safeguarding_concern",
+          "injury",
+          "near_miss",
+          "environmental",
+          "ipc",
+          "staff_injury",
+          "violence_to_staff",
+          "self_harm",
+          "sexual_safety",
+          "absconding",
+          "fire_setting",
+          "substance_use",
+          "data_breach"
+        ]
+      },
+      "IncidentStatus": {
+        "type": "string",
+        "enum": [
+          "open",
+          "under_review",
+          "closed"
+        ]
+      },
+      "IncidentSeverity": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "negligible",
+          "minor",
+          "moderate",
+          "major",
+          "catastrophic",
+          null
+        ],
+        "description": "NPSA consequence scale, as staff judge it"
+      },
+      "HarmGrade": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "none",
+          "low",
+          "moderate",
+          "severe",
+          "fatal",
+          null
+        ],
+        "description": "LFPSE physical harm, as staff judge it"
+      },
+      "FamilyInformed": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "who": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "who",
+          "at"
+        ]
+      },
+      "IncidentPersonItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "service_user",
+              "worker",
+              "other_not_at_work"
+            ]
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "affected",
+              "witness",
+              "involved"
+            ]
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "tenantUserId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "otherName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "injuryDetails": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "died": {
+            "type": "boolean"
+          },
+          "learningDisability": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "autistic": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "subjectToMentalHealthAct": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "bodyMapMarkIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "infection": {
+            "$ref": "#/components/schemas/InfectionCase"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "role",
+          "personId",
+          "tenantUserId",
+          "otherName",
+          "injuryDetails",
+          "died",
+          "learningDisability",
+          "autistic",
+          "subjectToMentalHealthAct",
+          "bodyMapMarkIds",
+          "infection",
+          "version"
+        ]
+      },
+      "InfectionCase": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "syndrome": {
+            "type": "string",
+            "enum": [
+              "acute_respiratory",
+              "diarrhoea_vomiting"
+            ]
+          },
+          "onsetAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "couldBeLinkedWithinSetting": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "fluConfirmedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "group": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  }
+                },
+                "required": [
+                  "group"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "not_linked"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "syndrome",
+          "onsetAt",
+          "couldBeLinkedWithinSetting"
+        ]
+      },
+      "ClassifierView": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "classifierVersion": {
+            "type": "string"
+          },
+          "classifiedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "nationSupported": {
+            "type": "boolean"
+          },
+          "outputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "$ref": "#/components/schemas/StatutoryNotificationKind"
+                },
+                "dueAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "deadlines": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OutputDeadline"
+                  }
+                },
+                "reasons": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "provisional": {
+                  "type": "boolean"
+                },
+                "requiredContent": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "kind",
+                "dueAt",
+                "deadlines",
+                "reasons",
+                "provisional",
+                "requiredContent"
+              ]
+            }
+          },
+          "exclusions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "$ref": "#/components/schemas/StatutoryNotificationKind"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "reason"
+              ]
+            }
+          },
+          "pending": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "$ref": "#/components/schemas/StatutoryNotificationKind"
+                },
+                "waitingFor": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClassifierQuestionKey"
+                  }
+                }
+              },
+              "required": [
+                "kind",
+                "waitingFor"
+              ]
+            }
+          },
+          "openQuestions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClassifierQuestionItem"
+            }
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "task": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "dueAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "until": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "task",
+                "reason",
+                "dueAt",
+                "until"
+              ]
+            }
+          },
+          "reasoning": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notifications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StatutoryNotificationSummary"
+            }
+          }
+        },
+        "required": [
+          "classifierVersion",
+          "classifiedAt",
+          "nationSupported",
+          "outputs",
+          "exclusions",
+          "pending",
+          "openQuestions",
+          "tasks",
+          "reasoning",
+          "notifications"
+        ]
+      },
+      "StatutoryNotificationKind": {
+        "type": "string",
+        "enum": [
+          "cqc_reg16_death",
+          "cqc_reg18_serious_injury",
+          "cqc_reg18_abuse",
+          "cqc_reg18_police",
+          "cqc_reg18_service_disruption",
+          "cqc_reg18_dols_outcome",
+          "riddor_death",
+          "riddor_specified_injury",
+          "riddor_non_worker_hospital",
+          "riddor_over_7_day",
+          "riddor_dangerous_occurrence",
+          "safeguarding_s42",
+          "candour",
+          "leder",
+          "ukhsa_outbreak",
+          "medical_examiner",
+          "police_missing_person"
+        ]
+      },
+      "OutputDeadline": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "without_delay",
+              "notify_without_delay",
+              "report_received",
+              "report",
+              "verbal_notification",
+              "written_notification_target"
+            ]
+          },
+          "dueAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "wording": {
+            "type": "string"
+          },
+          "statutory": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "dueAt",
+          "wording",
+          "statutory"
+        ]
+      },
+      "ClassifierQuestionKey": {
+        "type": "string",
+        "enum": [
+          "harm.impairment_days",
+          "harm.body_structure_changed",
+          "harm.pain_days",
+          "harm.psychological_harm_days",
+          "harm.life_expectancy_shortened",
+          "harm.treatment_to_prevent",
+          "candour.unintended_or_unexpected",
+          "candour.death_related_to_incident",
+          "safeguarding.concern",
+          "safeguarding.types",
+          "pressure_ulcer.neglect_concern",
+          "pressure_ulcer.severe_impact",
+          "police.involved",
+          "service.threatens_safe_running",
+          "service.insufficient_staff",
+          "service.utility_interruption_hours",
+          "service.premises_damage",
+          "service.safety_device_failure_hours",
+          "riddor.work_connected",
+          "riddor.excluded_cause",
+          "riddor.worker_specified_injury",
+          "riddor.worker_incapacity_days",
+          "riddor.non_worker_to_hospital",
+          "riddor.dangerous_occurrence",
+          "falls.head_injury",
+          "falls.anticoagulant"
+        ]
+      },
+      "ClassifierQuestionItem": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "$ref": "#/components/schemas/ClassifierQuestionKey"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "yes_no_unsure",
+              "days",
+              "hours",
+              "choice",
+              "choices"
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "help": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "value",
+                "label"
+              ]
+            }
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            }
+          }
+        },
+        "required": [
+          "key",
+          "kind",
+          "text",
+          "help",
+          "options",
+          "sources"
+        ]
+      },
+      "Citation": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "provision": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "provision",
+          "url"
+        ],
+        "description": "Where a rule comes from"
+      },
+      "StatutoryNotificationSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/StatutoryNotificationKind"
+          },
+          "label": {
+            "type": "string"
+          },
+          "recipient": {
+            "type": "string"
+          },
+          "statutory": {
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatutoryNotificationStatus"
+          },
+          "provisional": {
+            "type": "boolean"
+          },
+          "noLongerIndicated": {
+            "type": "boolean"
+          },
+          "noLongerIndicatedReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dueAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "clock": {
+            "$ref": "#/components/schemas/NotificationClock"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "incidentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "dolsAuthorisationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "label",
+          "recipient",
+          "statutory",
+          "status",
+          "provisional",
+          "noLongerIndicated",
+          "noLongerIndicatedReason",
+          "dueAt",
+          "clock",
+          "locationId",
+          "incidentId",
+          "personId",
+          "dolsAuthorisationId",
+          "version"
+        ]
+      },
+      "StatutoryNotificationStatus": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "ready",
+          "submitted",
+          "not_required"
+        ]
+      },
+      "NotificationClock": {
+        "type": "string",
+        "enum": [
+          "due",
+          "overdue",
+          "done"
+        ]
+      },
+      "CreateIncident": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "$ref": "#/components/schemas/IncidentType"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deviceTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "foundAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/IncidentSeverity"
+          },
+          "harmGrade": {
+            "$ref": "#/components/schemas/HarmGrade"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 4000
+          },
+          "immediateActions": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "emergencyServicesCalled": {
+            "type": "boolean",
+            "default": false
+          },
+          "gpContacted": {
+            "type": "boolean",
+            "default": false
+          },
+          "contactNotes": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "familyInformed": {
+            "$ref": "#/components/schemas/FamilyInformed"
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IncidentPersonInput"
+            },
+            "maxItems": 50,
+            "default": []
+          },
+          "answers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClassifierAnswerInput"
+            },
+            "maxItems": 40,
+            "default": []
+          }
+        },
+        "required": [
+          "locationId",
+          "type",
+          "occurredAt",
+          "description"
+        ]
+      },
+      "IncidentPersonInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "service_user",
+              "worker",
+              "other_not_at_work"
+            ]
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "affected",
+              "witness",
+              "involved"
+            ]
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "otherName": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "injuryDetails": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "died": {
+            "type": "boolean",
+            "default": false
+          },
+          "learningDisability": {
+            "type": "boolean"
+          },
+          "autistic": {
+            "type": "boolean"
+          },
+          "subjectToMentalHealthAct": {
+            "type": "boolean"
+          },
+          "bodyMapMarkIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 50,
+            "default": []
+          },
+          "infection": {
+            "$ref": "#/components/schemas/InfectionCase"
+          },
+          "removed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "role"
+        ]
+      },
+      "ClassifierAnswerInput": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "$ref": "#/components/schemas/ClassifierQuestionKey"
+          },
+          "value": {
+            "$ref": "#/components/schemas/ClassifierAnswerValue"
+          }
+        },
+        "required": [
+          "key",
+          "value"
+        ]
+      },
+      "ClassifierAnswerValue": {
+        "anyOf": [
+          {
+            "type": "string",
+            "enum": [
+              "yes",
+              "no",
+              "unsure"
+            ]
+          },
+          {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          {
+            "type": "string",
+            "maxLength": 80
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 80
+            },
+            "maxItems": 20
+          }
+        ]
+      },
+      "IncidentList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IncidentSummary"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "IncidentSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "$ref": "#/components/schemas/IncidentType"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deviceTime": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lateEntry": {
+            "type": "boolean"
+          },
+          "clockDrift": {
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IncidentStatus"
+          },
+          "raisedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "restricted": {
+            "type": "boolean"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/IncidentSeverity"
+          },
+          "harmGrade": {
+            "$ref": "#/components/schemas/HarmGrade"
+          },
+          "classifiedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "openQuestionCount": {
+            "type": "integer"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "locationId",
+          "type",
+          "occurredAt",
+          "recordedAt",
+          "deviceTime",
+          "lateEntry",
+          "clockDrift",
+          "status",
+          "raisedBy",
+          "restricted",
+          "severity",
+          "harmGrade",
+          "classifiedAt",
+          "openQuestionCount",
+          "version"
+        ]
+      },
+      "UpdateIncident": {
+        "type": "object",
+        "properties": {
+          "severity": {
+            "$ref": "#/components/schemas/IncidentSeverity"
+          },
+          "harmGrade": {
+            "$ref": "#/components/schemas/HarmGrade"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 4000
+          },
+          "immediateActions": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4000
+          },
+          "foundAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "emergencyServicesCalled": {
+            "type": "boolean"
+          },
+          "gpContacted": {
+            "type": "boolean"
+          },
+          "contactNotes": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "familyInformed": {
+            "$ref": "#/components/schemas/FamilyInformed"
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IncidentPersonInput"
+            },
+            "maxItems": 50
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "ReviewIncident": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "string",
+            "enum": [
+              "under_review",
+              "open"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "to",
+          "version"
+        ]
+      },
+      "CloseIncident": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 1000
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "reason",
+          "version"
+        ]
+      },
+      "ClassifierState": {
+        "type": "object",
+        "properties": {
+          "answers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClassifierAnswerItem"
+            }
+          },
+          "result": {
+            "$ref": "#/components/schemas/ClassifierView"
+          }
+        },
+        "required": [
+          "answers",
+          "result"
+        ]
+      },
+      "ClassifierAnswerItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "key": {
+            "$ref": "#/components/schemas/ClassifierQuestionKey"
+          },
+          "value": {
+            "$ref": "#/components/schemas/ClassifierAnswerValue"
+          },
+          "answeredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "answeredBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "value",
+          "answeredAt",
+          "answeredBy"
+        ]
+      },
+      "AnswerClassifier": {
+        "type": "object",
+        "properties": {
+          "answers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClassifierAnswerInput"
+            },
+            "minItems": 1,
+            "maxItems": 40
+          }
+        },
+        "required": [
+          "answers"
+        ]
+      },
+      "CandourView": {
+        "type": "object",
+        "properties": {
+          "record": {
+            "$ref": "#/components/schemas/CandourItem"
+          }
+        },
+        "required": [
+          "record"
+        ]
+      },
+      "CandourItem": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "incidentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "state": {
+            "$ref": "#/components/schemas/CandourState"
+          },
+          "threshold": {
+            "$ref": "#/components/schemas/CandourThreshold"
+          },
+          "verbal": {
+            "$ref": "#/components/schemas/CandourVerbal"
+          },
+          "contactAttempts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "note": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "at",
+                "note"
+              ]
+            }
+          },
+          "written": {
+            "$ref": "#/components/schemas/CandourWritten"
+          },
+          "enquiryResultsSharedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "correspondenceDocumentIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "clocks": {
+            "type": "object",
+            "properties": {
+              "verbalDueAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "writtenTargetAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "writtenTargetWording": {
+                "type": "string"
+              },
+              "provisional": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "verbalDueAt",
+              "writtenTargetAt",
+              "writtenTargetWording",
+              "provisional"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "incidentId",
+          "personId",
+          "state",
+          "threshold",
+          "verbal",
+          "contactAttempts",
+          "written",
+          "enquiryResultsSharedAt",
+          "correspondenceDocumentIds",
+          "outcome",
+          "clocks",
+          "version"
+        ]
+      },
+      "CandourState": {
+        "type": "string",
+        "enum": [
+          "threshold_assessment",
+          "not_notifiable",
+          "verbal_due",
+          "no_contact",
+          "written_due",
+          "enquiries_open",
+          "closed"
+        ]
+      },
+      "CandourThreshold": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "notifiable": {
+            "type": "boolean"
+          },
+          "decidedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "decidedBy": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "notifiable",
+          "decidedAt",
+          "decidedBy"
+        ]
+      },
+      "CandourVerbal": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "byRepresentatives": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "maxItems": 10
+          },
+          "inPerson": {
+            "type": "boolean"
+          },
+          "accountGiven": {
+            "type": "boolean"
+          },
+          "enquiriesAdvised": {
+            "type": "boolean"
+          },
+          "apologyGiven": {
+            "type": "boolean"
+          },
+          "writtenRecordId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "at",
+          "byRepresentatives",
+          "inPerson",
+          "accountGiven",
+          "enquiriesAdvised",
+          "apologyGiven",
+          "writtenRecordId"
+        ]
+      },
+      "CandourWritten": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "sentAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "documentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "includesAccount": {
+            "type": "boolean"
+          },
+          "includesEnquiries": {
+            "type": "boolean"
+          },
+          "includesApology": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "sentAt",
+          "documentId",
+          "includesAccount",
+          "includesEnquiries",
+          "includesApology"
+        ]
+      },
+      "UpdateCandour": {
+        "type": "object",
+        "properties": {
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "threshold": {
+            "$ref": "#/components/schemas/CandourThreshold"
+          },
+          "verbal": {
+            "$ref": "#/components/schemas/CandourVerbal"
+          },
+          "contactAttempts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "note": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 1000
+                }
+              },
+              "required": [
+                "at",
+                "note"
+              ]
+            },
+            "maxItems": 50
+          },
+          "written": {
+            "$ref": "#/components/schemas/CandourWritten"
+          },
+          "enquiryResultsSharedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "correspondenceDocumentIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 100
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "CandourStep": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "$ref": "#/components/schemas/CandourState"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "to",
+          "version"
+        ]
+      },
+      "InvestigationView": {
+        "type": "object",
+        "properties": {
+          "record": {
+            "$ref": "#/components/schemas/InvestigationItem"
+          }
+        },
+        "required": [
+          "record"
+        ]
+      },
+      "InvestigationItem": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "incidentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "leadTenantUserId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "method": {
+            "$ref": "#/components/schemas/InvestigationMethod"
+          },
+          "findings": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contributingFactors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "action": {
+                  "type": "string"
+                },
+                "ownerTenantUserId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "dueOn": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "open",
+                    "done",
+                    "cancelled"
+                  ]
+                },
+                "taskId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "id",
+                "action",
+                "ownerTenantUserId",
+                "dueOn",
+                "status",
+                "taskId"
+              ]
+            }
+          },
+          "lessons": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bulletinPublishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "completed"
+            ]
+          },
+          "completedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "incidentId",
+          "leadTenantUserId",
+          "method",
+          "findings",
+          "contributingFactors",
+          "actions",
+          "lessons",
+          "bulletinPublishedAt",
+          "status",
+          "completedAt",
+          "version"
+        ]
+      },
+      "InvestigationMethod": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "root_cause_analysis",
+          "five_whys",
+          "fishbone",
+          "after_action_review",
+          "swarm_huddle",
+          "other",
+          null
+        ]
+      },
+      "UpdateInvestigation": {
+        "type": "object",
+        "properties": {
+          "leadTenantUserId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "method": {
+            "$ref": "#/components/schemas/InvestigationMethod"
+          },
+          "findings": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 8000
+          },
+          "contributingFactors": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxItems": 30
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvestigationAction"
+            },
+            "maxItems": 50
+          },
+          "lessons": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 8000
+          },
+          "bulletinPublished": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "completed"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "InvestigationAction": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "action": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 1000
+          },
+          "ownerTenantUserId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "dueOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "done",
+              "cancelled"
+            ],
+            "default": "open"
+          }
+        },
+        "required": [
+          "action",
+          "ownerTenantUserId",
+          "dueOn"
+        ]
+      },
+      "StatutoryNotificationList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StatutoryNotificationSummary"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "StatutoryNotificationDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/StatutoryNotificationKind"
+          },
+          "label": {
+            "type": "string"
+          },
+          "recipient": {
+            "type": "string"
+          },
+          "statutory": {
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatutoryNotificationStatus"
+          },
+          "provisional": {
+            "type": "boolean"
+          },
+          "noLongerIndicated": {
+            "type": "boolean"
+          },
+          "noLongerIndicatedReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dueAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "clock": {
+            "$ref": "#/components/schemas/NotificationClock"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "incidentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "dolsAuthorisationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "deadlines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutputDeadline"
+            }
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requiredContent": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            }
+          },
+          "statement": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {}
+          },
+          "content": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "notRequiredReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "submittedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "submittedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "externalReference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "evidenceDocumentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "classifierVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "retentionClass": {
+            "type": "string",
+            "enum": [
+              "serious_incident",
+              "riddor_report"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "label",
+          "recipient",
+          "statutory",
+          "status",
+          "provisional",
+          "noLongerIndicated",
+          "noLongerIndicatedReason",
+          "dueAt",
+          "clock",
+          "locationId",
+          "incidentId",
+          "personId",
+          "dolsAuthorisationId",
+          "version",
+          "deadlines",
+          "reasons",
+          "requiredContent",
+          "sources",
+          "statement",
+          "content",
+          "notRequiredReason",
+          "submittedAt",
+          "submittedBy",
+          "externalReference",
+          "evidenceDocumentId",
+          "classifierVersion",
+          "retentionClass"
+        ]
+      },
+      "PrepareNotification": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 8000
+            },
+            "default": {}
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "ready",
+          "version"
+        ]
+      },
+      "SubmitNotification": {
+        "type": "object",
+        "properties": {
+          "submittedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "externalReference": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "evidenceDocumentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "submittedAt",
+          "version"
+        ]
+      },
+      "NotRequiredNotification": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 1000
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "reason",
+          "version"
+        ]
       },
       "RateValue": {
         "type": "object",
@@ -11893,6 +16059,2697 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AdvanceCareItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/consents": {
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Consent records, and whether a valid consent exists for each decision now",
+        "description": "Each decision's status comes from consentStatus: the latest record decides, a refusal or withdrawal replaces an earlier consent, expired consent is not valid, and a representative's consent stops applying once the person has capacity (care.md rule 9; HZ-026).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consents",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Record a consent or a refusal for one decision",
+        "description": "Refused with the reasons when checkConsentRecord finds a problem: a representative without authority for the decision, an unregistered attorney, a deputy outside their order, the person's own consent while assessed as lacking capacity, bed rails without the restraint conditions, or covert medicines without a lack of capacity and a best-interests decision (HZ-026). The capacity status comes from the person's assessments of the decision.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateConsent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Consent recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/consents/{consentId}/withdraw": {
+      "post": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Record that a consent was withdrawn (the record stays, with the reason)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "consentId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WithdrawConsent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Consent withdrawn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/capacity-assessments": {
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Capacity assessments, newest first (corrections supersede)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Assessments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapacityAssessmentList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Record a capacity assessment for one decision (append-only)",
+        "description": "checkCapacityAssessment refuses an assessment of 'everything', one dated in the future, missing answers, and an outcome the two-stage test does not support (MCA 2005 s.1 to s.3; HZ-026). A replayed upload with the same id is ignored.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCapacityAssessment"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Assessment recorded (or the earlier copy)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapacityAssessmentItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/best-interests": {
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Best-interests decisions, newest first",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Decisions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BestInterestsList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Record a best-interests decision after an assessment found a lack of capacity",
+        "description": "checkBestInterests needs every section 4 item answered (not applicable with a reason), a consultation or why there was none, and a review date; the IMCA prompt is stored when nobody appropriate could be consulted (s.37 to s.39).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBestInterests"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Decision recorded (or the earlier copy)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BestInterestsItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/dols": {
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "The person's DoLS register: status, days left, reminders and the CQC notification",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorisations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DolsList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Record a DoLS request, urgent authorisation or court application",
+        "description": "Dates are checked against Schedule A1 with the rate table's figures (HZ-020). England and Wales only. When the outcome of a standard request or a court application is known, the CQC regulation 18(4A) draft is created and care.dols.outcome_known is published.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DolsInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DolsItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/dols/{dolsId}": {
+      "put": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Update an authorisation: its outcome, dates, extension, conditions or end",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "dolsId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDols"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DolsItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/dols/legal-change-review": {
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Authorisations to review after the June 2026 judgment, and reviews under way",
+        "description": "Where the tenant flag dols.post_2026_review_workflow is on (England and Wales): authorisations granted before 2 June 2026 that are still in force and not yet reviewed, soonest ending first (HZ-020).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reviews",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegalChangeReviewList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/dols/legal-change-review/{authorisationId}": {
+      "post": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Record the review of an authorisation: reviewed, referred to the local authority, or closed",
+        "description": "checkLegalChangeReview and legalChangeStepProblems decide what each step needs: the DHSC multifactorial assessment, objection and consent signs to record it as reviewed; the referral before closing when the person is no longer deprived of liberty or there is doubt. Each step goes through the workflow engine with its reason.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "authorisationId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LegalChangeReviewAction"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Review recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegalChangeReviewItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/incidents": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Record an incident or near miss (works for an offline upload)",
+        "description": "A device-generated id makes a replayed upload return the earlier copy without side effects. The classifier runs on the server: drafts with clocks from occurred_at (never the sync time), provisional drafts for 'not sure', a task for unanswered questions, and the post-fall checklist for a fall (HZ-013, HZ-027). Publishes safety.incident.recorded.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateIncident"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded (or the earlier copy of a replayed upload)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Incidents in your scope, newest first",
+        "description": "An incident is listed when you can see one of its people, you raised it, or it involves nobody using the service and happened at one of your locations. When it involves people outside your scope it is marked restricted.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": false,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": false,
+            "name": "to",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/IncidentStatus"
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/IncidentType"
+            },
+            "required": false,
+            "name": "type",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "locationId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "personId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Incidents",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/incidents/{id}": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "One incident, its people in your scope, and its notifications and clocks",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Incident",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Add to or correct an incident (the classifier runs again)",
+        "description": "The person who raised it, or a holder of safety.incident.manage, may change an open incident whose people are all in their scope.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateIncident"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/incidents/{id}/review": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Move an incident under review, or back to open with a reason",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewIncident"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Moved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/incidents/{id}/close": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Close an incident (someone other than the person who raised it)",
+        "description": "Refused while a notification is a draft or ready, a classifier question is open or the candour record is open (incidentCloseProblems), and refused to the person who raised it (separation of duties, safety.md rule 11).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseIncident"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Closed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/incidents/{id}/classifier": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "The classifier's answers so far and its last result, with open questions",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Classifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassifierState"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Answer notification questions; returns the required outputs and their due times",
+        "description": "Answers are append-only (the latest per question counts). 'Not sure' drafts a provisional notification so its clock shows. Without safety.incident.manage only the point-of-care falls questions may be answered.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnswerClassifier"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Answered and classified",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassifierState"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/incidents/{id}/candour": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "The duty of candour record and its clocks (regulation 20)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Candour",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandourView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Record the candour threshold decision, notifications, enquiries and correspondence",
+        "description": "Version 0 starts the record. The threshold decision wins over the classifier's answers, so recording it classifies the incident again (ADR-0021 written target from the decision).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCandour"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandourView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/incidents/{id}/candour/step": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Take the next candour step (candourStepProblems says what each step needs)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CandourStep"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Moved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandourView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/incidents/{id}/investigation": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "The investigation: method, findings, actions and lessons",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Investigation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestigationView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Record the investigation; each action with an owner and date becomes a task",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateInvestigation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestigationView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/notifications/statutory": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Statutory notifications in your scope with their clocks, soonest due first",
+        "description": "Without-delay kinds are due when the incident happened and show as overdue until submitted or marked not required (safety.md rule 10).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/StatutoryNotificationStatus"
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/NotificationClock"
+            },
+            "required": false,
+            "name": "clock",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/StatutoryNotificationKind"
+            },
+            "required": false,
+            "name": "kind",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "locationId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "incidentId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "personId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notifications",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatutoryNotificationList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/notifications/statutory/{id}": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "One notification: its deadlines, reasons, required content and sources",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notification",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatutoryNotificationDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/notifications/statutory/{id}/prepare": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Prepare a draft: fill in the regulator's form and mark it ready (or back to draft)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrepareNotification"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Prepared",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatutoryNotificationDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/notifications/statutory/{id}/submit": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Record that a ready notification was submitted (step-up)",
+        "description": "Needs safety.notification.submit and a fresh sign-in, the submission time and the regulator's reference or the submitted form (submissionEvidenceProblems). Stops the overdue escalation and publishes safety.notification.submitted.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitNotification"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Submitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatutoryNotificationDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/notifications/statutory/{id}/not-required": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Decide a notification is not required, with the reason (step-up)",
+        "description": "Needs safety.notification.submit and a fresh sign-in; the reason is kept on the notification and in the audit trail (safety.md section 3). Stops the overdue escalation.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotRequiredNotification"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Marked not required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatutoryNotificationDetail"
                 }
               }
             }
