@@ -14,7 +14,7 @@ export interface SyncBannerProps {
   readonly staleAfterMs: number;
   readonly queuedChanges?: number;
   /** Entries the server refused: shown on every screen, never "Up to date" (HZ-006, C1). */
-  readonly refusedEntries?: number;
+  readonly refusedEntries?: number | null;
   /** Shown as a "Retry" action when the state is failed (HZ-006). */
   readonly onRetry?: () => void;
   /** Fixes the clock, for previews and tests. Otherwise the banner refreshes every 30 seconds. */

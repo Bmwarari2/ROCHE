@@ -148,6 +148,22 @@ describe("hazard HZ-006 refused entries on the banner (clinical review C1)", () 
     );
   });
 
+  it("hazard HZ-006 needs attention when the entries could not be counted (round 4, M4)", () => {
+    const content = describeSyncBanner({
+      state: "synced",
+      lastSyncedAt: minutesAgo(1),
+      now,
+      staleAfterMs,
+      refusedEntries: null,
+    });
+    expect(content.title).toBe(REFUSED_TITLE);
+    expect(content.detail).toBe(
+      "Last synced 1 minute ago. Some entries on this device could not be counted and need attention.",
+    );
+    expect(content.tone).toBe("danger");
+    expect(content.urgent).toBe(true);
+  });
+
   it("reads up to date again once none is left", () => {
     const content = describeSyncBanner({
       state: "synced",

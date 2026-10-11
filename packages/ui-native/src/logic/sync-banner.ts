@@ -29,8 +29,11 @@ export interface SyncBannerInput {
   readonly staleAfterMs: number;
   /** Local changes waiting to upload. */
   readonly queuedChanges?: number;
-  /** Entries the server refused, kept on the device as "needs attention". */
-  readonly refusedEntries?: number;
+  /**
+   * Entries kept on the device as "needs attention" (refused by the server, or still held). Null
+   * when they could not be counted, which needs attention too (clinical review round 4, M4).
+   */
+  readonly refusedEntries?: number | null;
 }
 
 export interface SyncBannerContent {
@@ -66,7 +69,12 @@ function queuedText(count: number): string | null {
 /** Title shown instead of "Up to date" while refused entries are on the device. */
 export const REFUSED_TITLE = "Not all saved";
 
-export function refusedText(count: number): string | null {
+/** Shown when the entries needing attention could not be counted (clinical review round 4, M4). */
+export const UNCOUNTED_TEXT =
+  "Some entries on this device could not be counted and need attention.";
+
+export function refusedText(count: number | null): string | null {
+  if (count === null) return UNCOUNTED_TEXT;
   if (count <= 0) return null;
   return count === 1
     ? "1 entry was not saved and needs attention."
@@ -82,7 +90,7 @@ export function describeSyncBanner(input: SyncBannerInput): SyncBannerContent {
   const detailParts = [`${formatLastSynced(lastSyncedAt, now)}.`];
   const queued = queuedText(input.queuedChanges ?? 0);
   if (queued) detailParts.push(queued);
-  const refused = refusedText(input.refusedEntries ?? 0);
+  const refused = refusedText(input.refusedEntries === undefined ? 0 : input.refusedEntries);
   if (refused) detailParts.push(refused);
   const detail = detailParts.join(" ");
 
