@@ -74,13 +74,13 @@ export const TaskTransitionRequest = z
       .optional(),
     evidenceId: uuid.optional(),
     /** The version the person saw, so two devices cannot silently overwrite each other. */
-    version: z.number().int().positive(),
+    version: z.number().int().min(1),
   })
   .meta({ id: "TaskTransitionRequest" });
 export type TaskTransitionRequest = z.infer<typeof TaskTransitionRequest>;
 
 export const TaskAssignRequest = z
-  .object({ assigneeTenantUserId: uuid.nullable(), version: z.number().int().positive() })
+  .object({ assigneeTenantUserId: uuid.nullable(), version: z.number().int().min(1) })
   .meta({ id: "TaskAssignRequest" });
 export type TaskAssignRequest = z.infer<typeof TaskAssignRequest>;
 
@@ -148,6 +148,6 @@ export const TaskSeriesItem = z
 export type TaskSeriesItem = z.infer<typeof TaskSeriesItem>;
 
 export const EndTaskSeries = z
-  .object({ reason: z.string().trim().min(3).max(500), version: z.number().int().positive() })
+  .object({ reason: z.string().trim().min(3).max(500), version: z.number().int().min(1) })
   .meta({ id: "EndTaskSeries" });
 export type EndTaskSeries = z.infer<typeof EndTaskSeries>;

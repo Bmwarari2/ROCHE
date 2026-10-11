@@ -10,7 +10,24 @@ const PASSWORD = process.env.HARBOUR_DEMO_PASSWORD ?? "correct horse battery sta
 const WCAG_AA = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 const UNKNOWN_PERSON = "/people/00000000-0000-4000-8000-000000000000";
 
+/**
+ * Waits for entry animations (a sheet or menu fading in) to finish, so axe measures contrast on
+ * what people see once it has settled, not a half-transparent frame. Endless animations, such as
+ * a spinner, are skipped.
+ */
+async function settleAnimations(page: Page) {
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity)
+        .map((animation) => animation.finished.catch(() => undefined)),
+    ),
+  );
+}
+
 async function expectAccessible(page: Page, name: string) {
+  await settleAnimations(page);
   const results = await new AxeBuilder({ page }).withTags(WCAG_AA).analyze();
   const blocking = results.violations
     .filter((v) => v.impact === "serious" || v.impact === "critical")
