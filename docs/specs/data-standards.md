@@ -92,7 +92,9 @@ names below are the concepts this contract carries and must be kept in step with
 | `legal_status` | enum | - | Harbour code list, defined in `docs/specs/people.md` | Legal frameworks that apply (for example DoLS, Mental Health Act, Court of Protection order). |
 | `photo_document_id` | UUIDv7 | - | Reference to `document` | Photo shown on every point-of-care screen (wrong-person hazard). Exported in `documents/`. |
 | `communication_needs` | JSON array | Accessible Information Standard; SNOMED CT | `[{ "code", "display", "preferredFormat" }]` (below) | Flags on every screen and print (section 5.4). |
-| `communication_needs_status` | code | Accessible Information Standard (identify and record) | `not_recorded`, `none_identified`, `recorded` | Phase 1. An empty list is never read as "no needs": `none_identified` is recorded positively with `communication_needs_confirmed_by` and `_at` (hazard HZ-023). |
+| `communication_needs_status` | code | Accessible Information Standard (identify and record) | `not_recorded`, `none_identified`, `recorded` | Phase 1. An empty list is never read as "no needs": `none_identified` is recorded positively, and `communication_needs_confirmed_by` and `_at` name who recorded the needs, or that there are none, on every change (hazard HZ-023). |
+| `allergy_status` | code | FHIR AllergyIntolerance (concept); "no known allergy" situation in SNOMED CT | `unknown`, `no_known_allergies`, `has_allergies` | `unknown` is never shown as "no allergies" (HZ-007). |
+| `allergy_status_confirmed_by`, `allergy_status_confirmed_at` | UUIDv7, timestamp | - | Reference to `tenant_user`; ISO 8601 UTC | Phase 1 (migration 0023). Who set the allergy status and when, kept by a database trigger whenever the status changes and cleared when it returns to `unknown`; never the last person to edit the row. Null for statuses set before the migration (printed as "who confirmed this is not recorded"). |
 | `national_data_opt_out` | boolean | National data opt-out | `true` when the person has opted out | Honoured when publicly funded care data is used beyond direct care. Checking against the national service is a Phase 5 item. |
 | `deceased_at` | timestamp | NHS Data Dictionary PERSON DEATH DATE (date part) | ISO 8601 UTC | Sets `status` to `deceased`. |
 | `discharged_at` | timestamp | MODS discharge date | ISO 8601 UTC | Sets `status` to `discharged`. |
@@ -196,8 +198,8 @@ illustrative: the display text is whatever the loaded concept's preferred term i
 | `severity` | Aligned to HL7 FHIR UK Core AllergyIntolerance reaction severity | `mild`, `moderate`, `severe` |
 | `status` | Aligned to FHIR AllergyIntolerance clinical status | `active`, `inactive`, `resolved` |
 
-"No known allergies" must be recorded explicitly (as a dated, attributed statement) so that an empty
-list is never displayed as "no allergies": this mitigates hazard HZ-007 (incorrect or missing allergy
+"No known allergies" must be recorded explicitly (as a dated, attributed statement: `person.allergy_status_confirmed_by`
+and `_at`) so that an empty list is never displayed as "no allergies": this mitigates hazard HZ-007 (incorrect or missing allergy
 display) in `docs/clinical-safety/hazard-log.md`. The coded form uses the SNOMED CT "no known allergy" situation
 concept from the loaded UK edition.
 
@@ -404,10 +406,11 @@ assurance pack.
 | `care_plan_change.kind` | Harbour | `return_from_hospital`, `fall`, `change_in_needs`, `new_diagnosis`, `safeguarding`, `end_of_life`, `other` | Raises the care plan review on change. |
 | `review_record.kind` | Harbour | `care_plan`, `la_review`, `family_involvement`, `trial_review` | |
 | `review_record` family involvement | Harbour | `attended_review`, `contributed`, `invited_declined`, `person_declines_involvement`, `no_family_or_representative` | The last two stop the family involvement clock. |
-| `hospital_transfer` pack sections | NHS England hospital transfer pathway (red bag) content; allergies as `allergy`; About Me as `about_me`; communication needs as AIS; resuscitation as the care module's advance care record (ReSPECT, DNACPR) | `photo`, `allergies`, `medicines`, `communication`, `resuscitation`, `about_me` (safety-critical); `reason_for_transfer`, `baseline`, `eating_and_drinking`, `capacity_and_legal`, `contacts`, `infection`, `items_sent`, `home_contact` | The snapshot is stored as JSON (`pack`) with the missing critical sections; the PDF is rendered from it on request (ADR-0040), never from the live record. Medicines are dm+d-coded from Phase 2. |
+| `hospital_transfer` pack sections | NHS England hospital transfer pathway (red bag) content; allergies as `allergy`; About Me as `about_me`; communication needs as AIS; resuscitation as the care module's advance care record (ReSPECT, DNACPR); IDDSI levels as the care profile | `photo`, `allergies`, `medicines`, `communication`, `resuscitation`, `about_me`, `eating_and_drinking` (safety-critical); `reason_for_transfer`, `baseline`, `capacity_and_legal`, `contacts`, `infection`, `items_sent`, `home_contact` | The snapshot is stored as JSON (`pack`) with the missing critical sections and `attention` (codes `resuscitation_conflict`, `resuscitation_review_overdue`, `medicines_need_checking`, `photo_not_printable`, `allergy_confirmation_not_recorded`); the resuscitation section holds the CPR `decision` in force, `conflicting`, the review date and the ReSPECT and DNACPR records; the PDF is rendered from it on request (ADR-0040), never from the live record. Packs stored before the review keep their older shape and print as they were. Medicines are dm+d-coded from Phase 2. |
 | `exit_record.kind` | Harbour | `discharge`, `transfer`, `death` | |
 | `exit_record` destination | MODS discharge destination (concept); NHS Data Dictionary discharge destination items to be checked | Destination type (`own_home`, `family_home`, `care_home`, `hospital`, `hospice`, `supported_living`, `other`) and the receiving provider's CQC location ID or ODS code | Sets `person.discharged_at`. |
 | `exit_record` death details | NHS Data Dictionary PERSON DEATH DATE (date part of `person.deceased_at`); place of death (concept) | Place `care_home`, `hospital`, `elsewhere`; expected or not; verified by (name, role) and at | Sets `person.deceased_at`. |
+| `exit_record.learning_disability_or_autism` | LeDeR (concept) | `true` or `false`, no default (migration 0023) | An explicit answer for every death, never assumed; a discharge or transfer that does not say records `false`. Decides the LeDeR notification. |
 | `exit_record.state` | Harbour (`DISCHARGE_WORKFLOW`, `TRANSFER_WORKFLOW`, `DEATH_WORKFLOW`) | `planned`, `left`, `recorded`, `awaiting_return`, `closed`, `cancelled` (with a reason) | Mirrors the exit workflow instance; `regulator` is `cqc`, `ciw`, `care_inspectorate` or `rqia`. |
 | `exit_checklist_item.status` | Harbour | `pending`, `done`, `not_required` (with a reason, only where allowed) | Item keys from `exitChecklist` in `packages/domain/src/people/exit.ts`. |
 | `sharing_decision.sections` | Harbour | `about_me`, `daily_updates`, `photos`, `activities_and_visits`, `care_plan`, `health_summary`, `medicines`, `appointments`, `finance`, `documents`; care plan domains as the PCSP domains | |
@@ -415,7 +418,7 @@ assurance pack.
 | `sharing_decision` authority role | Mental Capacity Act 2005 (Office of the Public Guardian registrations, Court of Protection orders); DWP appointeeship | `lpa_health_welfare`, `lpa_property_finance`, `deputy_personal_welfare`, `deputy_property_affairs`, `appointee` | From `contact.role` and `contact.authority_scope`, with reference, evidence document and end date. |
 | `sharing_decision` capacity | Mental Capacity Act 2005 s.1(2) (presumption of capacity) | `presumed`, `assessed_has_capacity`, `assessed_lacks_capacity` | Links the capacity assessment where one exists. |
 | `about_me_share_link.token_hash` | Harbour | Lower-case hex SHA-256 of the link token (64 characters) | The token itself is shown once and never stored; expiry no later than the sharing decision's end. |
-| `recorded_after_exit` on `care_note`, `observation`, `body_map_mark`, `assessment`, `activity_record` and `visit_log` | Harbour | `true` or `false` | Phase 1. True when an entry about an event at or before a discharge, death or move to hospital is accepted after it (people.md rule 3, HZ-006); shown with the late-entry flag. |
+| `recorded_after_exit` on `care_note`, `observation`, `body_map_mark`, `assessment`, `activity_record` and `visit_log` | Harbour | `true` or `false` | Phase 1. True when an entry about an event at or before a discharge, death or move to hospital, or within the clock tolerance after it (`sync.clock_drift_flag_minutes`), is accepted after it (people.md rule 3, HZ-006); shown with the late-entry flag. |
 | `break_glass_event.reason_code` | Harbour | `emergency_care`, `covering_another_area`, `safeguarding`, `incident_or_complaint`, `request_from_professional`, `other` | Phase 1; the typed justification is kept as well. |
 
 ## Platform operational tables (not part of the MODS export)
@@ -425,7 +428,11 @@ map to no national data standard: `audit_event` (hash-chained), `record_version`
 `notification`, `notification_delivery`, `escalation_chain`, `feature_flag`, `form_template`,
 `form_submission`, `integration_connection`, `integration_inbound`, `support_access_request`,
 `break_glass_event`, `person_assignment`, `role`, `role_assignment`, `access_grant`, and from
-Phase 1 `break_glass_weekly_report`, `about_me_share_link` and `welcome_checklist_template`. Field-level
+Phase 1 `break_glass_weekly_report`, `about_me_share_link` and `welcome_checklist_template`. The
+task engine's `task` and `task_series` are exported the same way; from migration 0023 they carry
+`cancel_code` and `inactive_code` (`paused_while_away`, `ended_at_exit`, `exit_recorded_in_error`,
+`planned_exit_cancelled`, `missed_before_return_recorded`: why the people lifecycle stopped them)
+and `task.evidence_after_close` (evidence that arrived after the task was cancelled). Field-level
 detail is in `packages/db/src/schema/`; purposes and lawful bases are in
 [records of processing](../compliance/records-of-processing.md).
 

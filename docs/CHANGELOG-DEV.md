@@ -137,3 +137,36 @@ then their schema and API.
 
 **Tests**: `packages/domain` 1,836, `packages/db` 142, `apps/api` 161, all passing locally.
 
+
+## 2026-10-11: Phase 1 slice 8 review fixes (people lifecycle schema and API)
+
+**What changed**
+
+- Security review: confirming residents' money or a deposit at exit needs `finance.ledger.approve`
+  with step-up and someone other than the recorder; rooms, the bed board and room clearance check
+  the caller's locations; `people.sharing.manage` is a care-record permission and a share link
+  needs step-up; About Me, the pre-admission assessment and property leave the PowerSync
+  publication (0023); the transfer pack preview takes its reason in a POST body; the PDF and the
+  transfer list need `people.movement.record` and the PDF is served sandboxed; 0024 audits the
+  0022 role changes; the break-glass review refuses a self-review and other locations; replays,
+  document and evidence ownership are checked and audited.
+- Clinical review: a corrected death or discharge brings back the rounds it ended; an exit ends
+  only rounds and point-of-care tasks; offline entries for a cancelled round are kept, linked and
+  flagged; rule 3 has a clock tolerance and a review task; the pack prints the CPR decision in
+  force with conflicts and overdue reviews on page 1, pre-admission medicines as needing checking,
+  IDDSI as safety-critical, with Noto Sans embedded (ADR-0040) and PNG photos; return checks are
+  tasks with an owner and a due time; death notifications belong to their exit record, and a
+  correction raises a task to tell the CQC; LeDeR needs an explicit answer.
+- Web: communication needs show "Not recorded" as a warning (icon and words) and "None
+  identified" only for a positive none, through the message catalogues.
+- API tests cover every review item, and every test the hazard log cites carries its hazard id.
+
+**Next**: slice 5's API (care plan actions, handover, rounds), then the web UI for the record
+(slice 9) and offline Care mode (slice 10), which brings the slice 8 tables back to devices with
+assignment-pinned streams.
+
+**Human actions logged**: H-82 to H-90 (CSO decisions from the clinical review and the ratings);
+H-81 reworded.
+
+**Tests**: `packages/domain` 1,917, `packages/db` 261, `packages/contracts` 16, `apps/api` 353,
+`apps/web` 108 unit, all passing locally.
