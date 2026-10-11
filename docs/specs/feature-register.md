@@ -9,9 +9,9 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 
 | Module | Prefix | Sections | Rows | todo | partial | done |
 | --- | --- | --- | --- | --- | --- | --- |
-| Platform core | `PLAT` | 9.1 | 23 | 13 | 10 | 0 |
-| Service-user lifecycle | `PEOP` | 9.2 | 13 | 11 | 2 | 0 |
-| Care planning and delivery | `CARE` | 10.1, 10.4 | 22 | 17 | 5 | 0 |
+| Platform core | `PLAT` | 9.1 | 23 | 10 | 13 | 0 |
+| Service-user lifecycle | `PEOP` | 9.2 | 13 | 4 | 9 | 0 |
+| Care planning and delivery | `CARE` | 10.1, 10.4 | 22 | 16 | 6 | 0 |
 | Medicines | `MEDS` | 10.2-10.3 | 14 | 14 | 0 | 0 |
 | Safety and notifications | `SAFE` | 11.1 | 16 | 16 | 0 | 0 |
 | Quality and governance | `QUAL` | 11.2 | 13 | 13 | 0 | 0 |
@@ -25,7 +25,7 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 | AI Management Copilot | `AI` | 16 | 11 | 11 | 0 | 0 |
 | Mobile apps | `MOB` | 17 | 13 | 11 | 2 | 0 |
 | Expansion (Phase 7) | `EXP` | 19 | 7 | 7 | 0 | 0 |
-| **Total** | | | **233** | **213** | **20** | **0** |
+| **Total** | | | **233** | **202** | **31** | **0** |
 
 | Phase | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -62,7 +62,7 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | PLAT-003 | Feature flags and module licensing per tenant and location, visible to Thapsus billing | 6, 9.1 | 0 | partial | [platform](platform.md#feature-flags-and-licensing-plat-003) | `packages/domain/src/platform/feature-flags.ts` | `packages/domain/src/platform/rules.test.ts` | - |
 | PLAT-004 | Users, roles and scopes (RBAC with attribute scoping, versioned roles, time-boxed grants), invitations, passkey and TOTP MFA with step-up, device and session management | 4, 5.3, 9.1 | 0 | partial | [platform](platform.md#identity-roles-and-scope-plat-004-plat-006) | `apps/api/src/auth`, `apps/api/src/http/context.ts`, `apps/api/src/routes/sessions.ts`, `packages/domain/src/platform/access.ts`, `apps/web/src/app/(shell)/settings/security` | `apps/api/test/api.test.ts`, `packages/domain/src/platform/access.test.ts`, `apps/web/e2e/security.spec.ts` | - |
 | PLAT-005 | Single sign-on (SAML and OIDC) for enterprise tenants | 6, 9.1 | 2 | todo | - | - | - | - |
-| PLAT-006 | Break-glass access with typed justification, alerts and weekly report | 4, 9.1 | 1 | partial | [platform](platform.md#identity-roles-and-scope-plat-004-plat-006) | `apps/api/src/routes/people.ts`, `break_glass_event` | `apps/api/test/api.test.ts`, `packages/db/test/scope.test.ts` | - |
+| PLAT-006 | Break-glass access with typed justification, alerts and weekly report | 4, 9.1 | 1 | partial | [platform](platform.md#identity-roles-and-scope-plat-004-plat-006), [people](people.md#4-rules-that-are-easy-to-get-wrong) | `apps/api/src/routes/people.ts`, `break_glass_event`, `packages/domain/src/people/break-glass-report.ts` | `apps/api/test/api.test.ts`, `packages/db/test/scope.test.ts`, `packages/domain/src/people/break-glass-report.test.ts` | - |
 | PLAT-007 | Immutable audit log (`audit_event`, pgAudit) and per-record history view with signed PDF export | 5.5, 9.1 | 0 | partial | [platform](platform.md#audit-trail-and-history-plat-007) | `audit_event`, `record_version`, `apps/api/src/http/audit.ts` | `packages/db/test/audit-and-history.test.ts` | - |
 | PLAT-008 | Notification centre (in-app, push, email, SMS, quiet hours) with escalation chains | 9.1 | 0 | partial | [platform](platform.md#notification-centre-plat-008) | `apps/api/src/jobs/tasks.ts`, `packages/domain/src/platform/notifications.ts` | `apps/api/test/jobs.test.ts` | - |
 | PLAT-009 | Versioned document store with categories, retention class, e-signature and merge-field templates | 9.1 | 1 | partial | [platform](platform.md#document-store-plat-009) | `packages/domain/src/platform/documents.ts`, `apps/api/src/routes/documents.ts`, `apps/api/src/services/documents.ts`, `apps/api/src/integrations/storage.ts`, `packages/db/src/schema/records.ts` | `packages/domain/src/platform/documents.test.ts`, `packages/db/test/documents-and-retention.test.ts`, `apps/api/test/documents.test.ts` | - |
@@ -82,17 +82,17 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | PLAT-023 | DPIA template prefill and in-app sign-off; records-of-processing and sub-processor registers | 5.1 | 1 | todo | - | - | - | - |
 | PEOP-001 | MODS-aligned person record with validated NHS number, demographics, lifestyle and preferences, key contacts and legal representatives with evidence and expiry, national data opt-out flag | 9.2, 10.4, 18 | 1 | partial | [people](people.md) | `packages/db/src/schema/people.ts`, `packages/domain/src/people/nhs-number.ts` | `packages/domain/src/people/nhs-number.test.ts`, `packages/db/test/scope.test.ts` | - |
 | PEOP-002 | Accessible Information Standard communication needs, flagged on every screen and print | 5.4, 9.2 | 1 | partial | [people](people.md) | `person.communication_needs`, `GET /v1/people` | `apps/api/test/api.test.ts` | - |
-| PEOP-003 | PRSB About Me, authored by the person or carer and shareable with consent | 9.2 | 1 | todo | - | - | - | - |
+| PEOP-003 | PRSB About Me, authored by the person or carer and shareable with consent | 9.2 | 1 | partial | [people](people.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/people/about-me.ts`, `packages/domain/src/people/sharing.ts` (share links) | `packages/domain/src/people/about-me.test.ts`, `packages/domain/src/people/sharing.test.ts` | - |
 | PEOP-004 | Enquiry and referral pipeline (sources, stages, follow-ups, conversion and time-to-admission, brochure and fee sending) | 9.2 | 3 | todo | - | - | - | - |
-| PEOP-005 | Pre-admission assessment and decision to admit with reasons | 9.2 | 1 | todo | - | - | - | - |
+| PEOP-005 | Pre-admission assessment and decision to admit with reasons | 9.2 | 1 | partial | [people](people.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/people/pre-admission.ts` | `packages/domain/src/people/pre-admission.test.ts` | - |
 | PEOP-006 | CMA-compliant contracts and fee transparency (indicative fees, fee review notice, deposits, fees after death, notice and trial periods) | 9.2, 13.1 | 3 | todo | - | - | - | - |
-| PEOP-007 | Admission, rooms and beds with move history, personal property inventory, keys and welcome checklist | 9.2 | 1 | todo | - | - | - | - |
-| PEOP-008 | Review scheduling (care plan reviews, LA review tracker, family involvement) | 9.2 | 1 | todo | - | - | - | - |
-| PEOP-009 | Hospital transfer pack (red bag summary generated in one click) | 9.2 | 1 | todo | - | - | - | - |
-| PEOP-010 | Discharge, transfer and death workflows (checklists, notifications, money and property return, archive state) | 9.2 | 1 | todo | - | - | - | - |
+| PEOP-007 | Admission, rooms and beds with move history, personal property inventory, keys and welcome checklist | 9.2 | 1 | partial | [people](people.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/people/admission.ts`, `packages/domain/src/people/occupancy.ts`, `packages/domain/src/people/property.ts` | `packages/domain/src/people/admission.test.ts`, `packages/domain/src/people/occupancy.test.ts`, `packages/domain/src/people/property.test.ts` | - |
+| PEOP-008 | Review scheduling (care plan reviews, LA review tracker, family involvement) | 9.2 | 1 | partial | [people](people.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/people/reviews.ts`, `packages/domain/src/people/rates.ts` | `packages/domain/src/people/reviews.test.ts` | - |
+| PEOP-009 | Hospital transfer pack (red bag summary generated in one click) | 9.2 | 1 | partial | [people](people.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/people/transfer-pack.ts` | `packages/domain/src/people/transfer-pack.test.ts` | - |
+| PEOP-010 | Discharge, transfer and death workflows (checklists, notifications, money and property return, archive state) | 9.2 | 1 | partial | [people](people.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/people/lifecycle.ts`, `packages/domain/src/people/exit.ts` | `packages/domain/src/people/lifecycle.test.ts`, `packages/domain/src/people/exit.test.ts` | - |
 | PEOP-011 | Domiciliary client variant (address, access, environment and lone-working risk assessment, package, visit plan, preferred carers) | 9.2 | 4 | todo | - | - | - | - |
 | PEOP-012 | Supported-living tenancy separation (tenancy and care and support records signed separately) | 9.2, 13.3 | 4 | todo | - | - | - | - |
-| PEOP-013 | Family and professional sharing rules (per section, consent or legal basis, access expiry) | 9.2, 15.1 | 1 | todo | - | - | - | - |
+| PEOP-013 | Family and professional sharing rules (per section, consent or legal basis, access expiry) | 9.2, 15.1 | 1 | partial | [people](people.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/people/sharing.ts` | `packages/domain/src/people/sharing.test.ts` | - |
 | CARE-001 | PRSB personalised care and support plan (needs by domain, outcomes in the person's words, actions, contingency, versioned sign-off) | 10.1 | 1 | todo | - | - | - | - |
 | CARE-002 | Positive risk assessments with templates (moving and handling, falls, choking, skin, bed rails and others) | 10.1 | 1 | todo | - | - | - | - |
 | CARE-003 | Locked validated tools: Waterlow, Braden and MUST | 10.1 | 1 | partial | [care](care.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/care/must.ts`, `waterlow.ts`, `braden.ts`, `tools.ts` | `packages/domain/src/care/must.test.ts`, `waterlow.test.ts`, `braden.test.ts` | - |
