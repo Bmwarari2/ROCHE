@@ -1,0 +1,66 @@
+{
+  "name": "@harbour/mobile",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Harbour iOS and Android app (Expo): Care mode, offline-first with PowerSync and SQLCipher",
+  "type": "module",
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start --dev-client",
+    "start:demo": "EXPO_PUBLIC_DEMO_MODE=1 expo start --dev-client",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "prebuild": "expo prebuild --clean",
+    "export:android": "expo export --platform android",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "e2e": "maestro test .maestro"
+  },
+  "dependencies": {
+    "@harbour/sync": "workspace:*",
+    "@harbour/ui-native": "workspace:*",
+    "@op-engineering/op-sqlite": "~18.2.5",
+    "@powersync/common": "^2.3.1",
+    "@powersync/react": "^2.0.2",
+    "@powersync/react-native": "^2.3.1",
+    "expo": "~57.0.27",
+    "expo-application": "~57.0.3",
+    "expo-constants": "~57.0.21",
+    "expo-crypto": "~57.0.3",
+    "expo-dev-client": "~57.0.19",
+    "expo-haptics": "~57.0.3",
+    "expo-linking": "~57.0.12",
+    "expo-local-authentication": "~57.0.3",
+    "expo-network": "~57.0.2",
+    "expo-router": "~57.0.25",
+    "expo-screen-capture": "~57.0.4",
+    "expo-secure-store": "~57.0.4",
+    "expo-status-bar": "~57.0.1",
+    "expo-system-ui": "~57.0.4",
+    "lucide-react-native": "^1.55.0",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-reanimated": "4.5.1",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
+    "react-native-svg": "15.15.4",
+    "react-native-worklets": "0.10.1"
+  },
+  "devDependencies": {
+    "@harbour/config": "workspace:*",
+    "@react-native/metro-config": "0.86.3",
+    "@types/react": "~19.2.18",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.11"
+  },
+  "op-sqlite": {
+    "sqlcipher": true
+  },
+  "expo": {
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "listUnknownPackages": false
+      }
+    }
+  }
+}

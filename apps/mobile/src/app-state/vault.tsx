@@ -1,0 +1,353 @@
+/**
+ * The vault: the encrypted on-device database and the lock in front of it.
+ *
+ * - Unlocking from cold start reads the per-install key from the keystore, which shows the
+ *   biometric prompt (or, where biometrics are unavailable, the device passcode prompt), then opens
+ *   the SQLCipher database and starts PowerSync (or seeds demo data).
+ * - Auto-lock after idle (2 minutes personal, 30 seconds to 2 minutes shared) covers the app with
+ *   the lock screen; the database stays open so sync carries on, and unlocking again needs strong
+ *   biometrics or the passcode.
+ * - Sign-out, or the API reporting the session revoked, wipes the device: the database is cleared,
+ *   closed and deleted, and the key destroyed, so nothing readable remains (remote wipe).
+ */
+import type { AbstractPowerSyncDatabase } from "@powersync/common";
+import * as Crypto from "expo-crypto";
+import * as ScreenCapture from "expo-screen-capture";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { AppState, Platform } from "react-native";
+import { authClient, platformFetch } from "../auth/clients";
+import { appEnv } from "../config/app-env";
+import { clearPhotoCache } from "../people/use-person-photo";
+import { keyOptions, preferredKeyProtection, secretStore } from "../platform/secure-store";
+import { resolveAutoLockMs } from "../security/auto-lock";
+import {
+  assertDeviceSecure,
+  authenticate,
+  DeviceNotSecureError,
+  unlockFailureMessages,
+} from "../security/biometric";
+import { databaseFilename, destroyDatabaseKey, loadOrCreateDatabaseKey } from "../security/db-key";
+import { type DeviceIntegrityResult, stubIntegrityChecker } from "../security/device-integrity";
+import { IdleTimer } from "../security/idle-timer";
+import { HarbourConnector } from "../sync/connector";
+import { deleteDatabaseFile, EncryptionUnavailableError, openDatabase } from "../sync/database";
+import { seedDemoDatabase } from "../sync/demo-seed";
+import { usePreferences } from "./preferences";
+import { useSession } from "./session";
+
+export type VaultStatus = "locked" | "unlocking" | "unlocked";
+
+export type ResyncResult = { readonly ok: true } | { readonly ok: false; readonly reason: string };
+
+interface VaultValue {
+  readonly status: VaultStatus;
+  readonly error: string | null;
+  readonly db: AbstractPowerSyncDatabase | null;
+  /** In demo mode, when the demo data was seeded (shown in place of a last sync time). */
+  readonly demoSeededAt: Date | null;
+  readonly integrity: DeviceIntegrityResult | null;
+  readonly autoLockMs: number;
+  /** Shown once after the data on the device had to be reset. */
+  readonly resetNotice: string | null;
+  unlock(): Promise<void>;
+  lock(): void;
+  /** Records user activity for the idle timer. */
+  touch(): void;
+  retrySync(): Promise<void>;
+  forceResync(): Promise<ResyncResult>;
+  signOutAndWipe(notice?: string): Promise<void>;
+  dismissResetNotice(): void;
+}
+
+const VaultContext = createContext<VaultValue | null>(null);
+
+export const REMOTE_WIPE_NOTICE =
+  "You were signed out of Harbour on this device, so the care records stored on it have been removed. Sign in again to continue.";
+
+const RESET_NOTICE =
+  "This device's security settings changed, so the data stored on it was reset. It will download again when you are online.";
+
+const SIGN_OUT_TIMEOUT_MS = 5_000;
+
+function errorMessage(error: unknown): string {
+  if (error instanceof DeviceNotSecureError || error instanceof EncryptionUnavailableError) {
+    return error.message;
+  }
+  const text = error instanceof Error ? error.message.toLowerCase() : "";
+  if (text.includes("cancel")) return unlockFailureMessages.cancelled;
+  return "Harbour could not be unlocked. Try again, or sign out and sign in again.";
+}
+
+export function VaultProvider({ children }: { readonly children: ReactNode }) {
+  const session = useSession();
+  const { preferences } = usePreferences();
+  const [status, setStatus] = useState<VaultStatus>("locked");
+  const [error, setError] = useState<string | null>(null);
+  const [db, setDb] = useState<AbstractPowerSyncDatabase | null>(null);
+  const [demoSeededAt, setDemoSeededAt] = useState<Date | null>(null);
+  const [integrity, setIntegrity] = useState<DeviceIntegrityResult | null>(null);
+  const [resetNotice, setResetNotice] = useState<string | null>(null);
+
+  const dbRef = useRef<AbstractPowerSyncDatabase | null>(null);
+  const filenameRef = useRef<string | null>(null);
+  const connectorRef = useRef<HarbourConnector | null>(null);
+  const tokenRef = useRef<string | null>(session.token);
+  const wipingRef = useRef(false);
+  const busyRef = useRef(false);
+  const signOutAndWipeRef = useRef<(notice?: string) => Promise<void>>(async () => undefined);
+
+  tokenRef.current = session.token;
+
+  const autoLockMs = resolveAutoLockMs(preferences.deviceMode, preferences.sharedAutoLockMs);
+
+  const lock = useCallback(() => {
+    setStatus((current) => (current === "unlocked" ? "locked" : current));
+  }, []);
+
+  const idleRef = useRef<IdleTimer | null>(null);
+  if (idleRef.current === null) {
+    idleRef.current = new IdleTimer({
+      timeoutMs: autoLockMs,
+      clock: { now: () => Date.now() },
+      scheduler: {
+        setTimeout: (callback, ms) => setTimeout(callback, ms),
+        clearTimeout: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+      },
+      onIdle: () => lock(),
+    });
+  }
+  const idle = idleRef.current;
+
+  useEffect(() => {
+    idle.setTimeoutMs(autoLockMs);
+  }, [idle, autoLockMs]);
+
+  useEffect(() => {
+    if (status === "unlocked") idle.start();
+    else idle.stop();
+  }, [idle, status]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (next) => {
+      if (next === "active") idle.foreground();
+      else if (next === "background") idle.background();
+    });
+    return () => subscription.remove();
+  }, [idle]);
+
+  // iOS: blur the app-switcher snapshot whenever someone is signed in (Android uses FLAG_SECURE).
+  useEffect(() => {
+    if (Platform.OS !== "ios" || session.phase !== "signedIn") return;
+    ScreenCapture.enableAppSwitcherProtectionAsync(1).catch(() => undefined);
+    return () => {
+      ScreenCapture.disableAppSwitcherProtectionAsync().catch(() => undefined);
+    };
+  }, [session.phase]);
+
+  const openVault = useCallback(async () => {
+    await assertDeviceSecure();
+    const { key, created, previousId } = await loadOrCreateDatabaseKey({
+      store: secretStore,
+      randomBytes: (length) => Crypto.getRandomBytes(length),
+      options: keyOptions,
+      preferredProtection: preferredKeyProtection(),
+    });
+    if (key.protection === "passcode") {
+      // The keystore read did not prompt, so ask for the passcode explicitly.
+      const result = await authenticate("Unlock Harbour");
+      if (!result.ok) throw new Error(unlockFailureMessages[result.reason]);
+    }
+    if (created && previousId) {
+      deleteDatabaseFile(databaseFilename(previousId, appEnv.demoMode));
+      setResetNotice(RESET_NOTICE);
+    }
+
+    const filename = databaseFilename(key.id, appEnv.demoMode);
+    const opened = await openDatabase({
+      filename,
+      encryptionKey: key.sqlcipherKey,
+      demo: appEnv.demoMode,
+    });
+    dbRef.current = opened;
+    filenameRef.current = filename;
+
+    if (appEnv.demoMode) {
+      setDemoSeededAt(await seedDemoDatabase(opened));
+    } else {
+      const connector = new HarbourConnector({
+        apiUrl: appEnv.apiUrl,
+        fetch: platformFetch,
+        getToken: async () => tokenRef.current,
+        onSessionRevoked: () => {
+          void signOutAndWipeRef.current(REMOTE_WIPE_NOTICE);
+        },
+      });
+      connectorRef.current = connector;
+      opened.connect(connector).catch(() => undefined);
+      session.refreshMe().then((result) => {
+        if (result === "ended") void signOutAndWipeRef.current(REMOTE_WIPE_NOTICE);
+      });
+    }
+    setDb(opened);
+    stubIntegrityChecker.check().then(setIntegrity, () => undefined);
+  }, [session.refreshMe]);
+
+  const unlock = useCallback(async () => {
+    if (busyRef.current || session.phase !== "signedIn") return;
+    busyRef.current = true;
+    setStatus("unlocking");
+    setError(null);
+    try {
+      if (!dbRef.current) {
+        await openVault();
+      } else {
+        const result = await authenticate("Unlock Harbour");
+        if (!result.ok) throw new Error(unlockFailureMessages[result.reason]);
+      }
+      setStatus("unlocked");
+    } catch (caught) {
+      setError(
+        caught instanceof Error && Object.values(unlockFailureMessages).includes(caught.message)
+          ? caught.message
+          : errorMessage(caught),
+      );
+      setStatus("locked");
+    } finally {
+      busyRef.current = false;
+    }
+  }, [openVault, session.phase]);
+
+  const closeAndDelete = useCallback(async (clear: boolean) => {
+    const current = dbRef.current;
+    const filename = filenameRef.current;
+    dbRef.current = null;
+    filenameRef.current = null;
+    connectorRef.current = null;
+    setDb(null);
+    if (current) {
+      if (clear) await current.disconnectAndClear({ clearLocal: true }).catch(() => undefined);
+      await current.close().catch(() => undefined);
+    }
+    if (filename) deleteDatabaseFile(filename);
+  }, []);
+
+  const signOutAndWipe = useCallback(
+    async (notice?: string) => {
+      if (wipingRef.current) return;
+      wipingRef.current = true;
+      try {
+        idle.stop();
+        setStatus("locked");
+        const token = tokenRef.current;
+        if (token && !notice) {
+          // Best effort: revoke the session on the server, but never wait long for it.
+          await Promise.race([
+            authClient.signOut(token),
+            new Promise((resolve) => setTimeout(resolve, SIGN_OUT_TIMEOUT_MS)),
+          ]);
+        }
+        await closeAndDelete(true);
+        await destroyDatabaseKey(secretStore, keyOptions);
+        clearPhotoCache();
+        setDemoSeededAt(null);
+        setIntegrity(null);
+        setError(null);
+        await session.clearSession(notice);
+      } finally {
+        wipingRef.current = false;
+      }
+    },
+    [closeAndDelete, idle, session.clearSession],
+  );
+  signOutAndWipeRef.current = signOutAndWipe;
+
+  const retrySync = useCallback(async () => {
+    const current = dbRef.current;
+    const connector = connectorRef.current;
+    if (!current || !connector) return;
+    await current.disconnect().catch(() => undefined);
+    current.connect(connector).catch(() => undefined);
+  }, []);
+
+  const forceResync = useCallback(async (): Promise<ResyncResult> => {
+    const current = dbRef.current;
+    if (!current) return { ok: false, reason: "Unlock Harbour first." };
+    const queue = await current.getUploadQueueStats();
+    if (queue.count > 0) {
+      return {
+        ok: false,
+        reason:
+          queue.count === 1
+            ? "1 change has not uploaded yet. Connect to the internet and wait for it to upload, then try again."
+            : `${queue.count} changes have not uploaded yet. Connect to the internet and wait for them to upload, then try again.`,
+      };
+    }
+    await current.disconnectAndClear({ clearLocal: appEnv.demoMode });
+    if (appEnv.demoMode) {
+      setDemoSeededAt(await seedDemoDatabase(current));
+    } else if (connectorRef.current) {
+      current.connect(connectorRef.current).catch(() => undefined);
+    }
+    return { ok: true };
+  }, []);
+
+  // A remote sign-out can arrive while locked; make sure nothing stays open after the session ends.
+  useEffect(() => {
+    if (session.phase === "signedOut" && dbRef.current) void closeAndDelete(true);
+  }, [session.phase, closeAndDelete]);
+
+  const touch = useCallback(() => idle.touch(), [idle]);
+  const dismissResetNotice = useCallback(() => setResetNotice(null), []);
+
+  const value = useMemo<VaultValue>(
+    () => ({
+      status,
+      error,
+      db,
+      demoSeededAt,
+      integrity,
+      autoLockMs,
+      resetNotice,
+      unlock,
+      lock,
+      touch,
+      retrySync,
+      forceResync,
+      signOutAndWipe,
+      dismissResetNotice,
+    }),
+    [
+      status,
+      error,
+      db,
+      demoSeededAt,
+      integrity,
+      autoLockMs,
+      resetNotice,
+      unlock,
+      lock,
+      touch,
+      retrySync,
+      forceResync,
+      signOutAndWipe,
+      dismissResetNotice,
+    ],
+  );
+
+  return <VaultContext.Provider value={value}>{children}</VaultContext.Provider>;
+}
+
+export function useVault(): VaultValue {
+  const value = useContext(VaultContext);
+  if (!value) throw new Error("useVault must be used inside VaultProvider");
+  return value;
+}

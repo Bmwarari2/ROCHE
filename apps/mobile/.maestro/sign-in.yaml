@@ -1,0 +1,63 @@
+# Sign in with email and password (and the authenticator code when the account has TOTP), unlock
+# the encrypted store and choose Care mode. Other flows reuse it with runFlow.
+#
+# Live API: HARBOUR_EMAIL, HARBOUR_PASSWORD and, for TOTP accounts, HARBOUR_TOTP (CI computes the
+# current code from the seeded test secret just before the run).
+# Demo build (EXPO_PUBLIC_DEMO_MODE=1): any email and password work; "+totp" emails take code 123456.
+appId: uk.co.thapsus.harbour
+name: Sign in
+tags:
+  - smoke
+env:
+  HARBOUR_EMAIL: ${HARBOUR_EMAIL || "carer@example.invalid"}
+  HARBOUR_PASSWORD: ${HARBOUR_PASSWORD || "correct horse battery staple"}
+  HARBOUR_TOTP: ${HARBOUR_TOTP || "123456"}
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- extendedWaitUntil:
+    visible:
+      id: "sign-in-screen"
+    timeout: 30000
+- tapOn:
+    id: "email-input"
+- inputText: ${HARBOUR_EMAIL}
+- tapOn:
+    id: "password-input"
+- inputText: ${HARBOUR_PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "sign-in-button"
+- runFlow:
+    when:
+      visible:
+        id: "totp-input"
+    commands:
+      - tapOn:
+          id: "totp-input"
+      - inputText: ${HARBOUR_TOTP}
+      - hideKeyboard
+      - tapOn:
+          id: "totp-continue-button"
+# Opening the encrypted store reads the device-bound key. CI enrols a fingerprint (Android) or
+# Face ID (iOS simulator) and answers the prompt from outside Maestro; see the README.
+- runFlow:
+    when:
+      visible:
+        id: "lock-screen"
+    commands:
+      - tapOn:
+          id: "unlock-button"
+- extendedWaitUntil:
+    visible:
+      id: "mode-screen"
+    timeout: 30000
+- tapOn:
+    id: "mode-care"
+- extendedWaitUntil:
+    visible:
+      id: "today-screen"
+    timeout: 15000
+- assertVisible:
+    id: "sync-banner"

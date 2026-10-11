@@ -1,0 +1,11 @@
+# Maestro workspace configuration. Flows run in this order in CI (see ../README.md, "End-to-end tests").
+flows:
+  - sign-in.yaml
+  - offline-people-list.yaml
+  - sync-recovery.yaml
+executionOrder:
+  continueOnFailure: false
+  flowsOrder:
+    - sign-in
+    - offline-people-list
+    - sync-recovery

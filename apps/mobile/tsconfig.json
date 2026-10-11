@@ -1,0 +1,9 @@
+{
+  "extends": "@harbour/config/tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "customConditions": ["react-native"],
+    "types": ["react-native"]
+  },
+  "include": ["src", "app.config.ts", "vitest.config.ts", "expo-env.d.ts", ".expo/types/**/*.ts"]
+}
