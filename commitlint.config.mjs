@@ -1,4 +1,4 @@
-// Conventional Commits with Harbour scopes: the 14 bounded contexts plus the apps, infra and docs
+// Conventional Commits with Harbour scopes: the 14 bounded contexts plus the apps, packages, infra and docs
 // (master prompt section 7).
 const contexts = [
   "platform",
@@ -31,6 +31,7 @@ export default {
         "infra",
         "docs",
         "ui",
+        "domain",
         "db",
         "contracts",
         "sync",
