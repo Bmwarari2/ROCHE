@@ -290,7 +290,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
   (H-58); the escalation goes to the Registered Manager, it is not a legal deadline.
 - `downtime_pack.valid_hours` (36), `downtime.back_entry_due_hours` (24) and
   `downtime.duplicate_match_minutes` (10): policy defaults for the downtime pack
-  ([operations.md](operations.md) rules 2, 11 and 14). A pack is in date for this many hours from
+  ([operations.md](operations.md) rules 2, 10 and 14). A pack is in date for this many hours from
   the time its information was read (the server's read time, or a kiosk's last sync). The figure is
   longer than the nightly interval, so one failed nightly job does not leave the home with only an
   out-of-date pack; after it, every page says in words that it is out of date, and during a

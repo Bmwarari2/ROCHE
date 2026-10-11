@@ -210,7 +210,7 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | OPS-025 | Appointments and transport | 13.6 | 3 | todo | - | - | - | - |
 | OPS-026 | Residents' and relatives' meetings | 13.6 | 3 | todo | - | - | - | - |
 | OPS-027 | Day-service sessions, attendance and session charging | 13.7 | 3 | todo | - | - | - | - |
-| OPS-028 | Nightly downtime pack with back-entry workflow | 13.4 | 1 | partial | [operations](operations.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/operations/downtime-pack.ts`, `outage.ts`, `rates.ts` | `packages/domain/src/operations/downtime-pack.test.ts`, `outage.test.ts` | - |
+| OPS-028 | Nightly downtime pack with back-entry workflow | 13.4 | 1 | partial | [operations](operations.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/operations/downtime-pack.ts`, `outage.ts`, `kiosk-cache.ts`, `rates.ts` | `packages/domain/src/operations/downtime-pack.test.ts`, `outage.test.ts`, `kiosk-cache.test.ts` | - |
 | FIN-001 | Per-person funding mix (LA, FNC, CHC, s.117, self, top-ups, DP, ISF, PHB) with versioned rates | 14.1 | 3 | todo | - | - | - | - |
 | FIN-002 | Regulated top-up agreements | 14.1 | 3 | todo | - | - | - | - |
 | FIN-003 | Commissioner contracts (block, spot, framework) | 14.1 | 3 | todo | - | - | - | - |
