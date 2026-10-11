@@ -109,6 +109,7 @@ const as = (
     method?: string;
     body?: unknown;
     raw?: { bytes: Uint8Array; contentType: string };
+    headers?: Record<string, string>;
   } = {},
 ) => h.request(path, { token: h.tokens[user], tenant: DEMO.tenantId, ...init });
 const code = async (response: Response) => (await json<ProblemDetails>(response)).code;
@@ -194,6 +195,7 @@ interface TaskRow {
   readonly cancel_code: string | null;
   readonly evidence_id: string | null;
   readonly evidence_after_close: boolean;
+  readonly restore_code: string | null;
   readonly assignee_role_key: string | null;
   readonly priority: string;
   readonly due_at: Date;
@@ -202,8 +204,8 @@ interface TaskRow {
 async function taskRow(id: string): Promise<TaskRow | undefined> {
   return asDemoTenant(async (c) => {
     const { rows } = await c.query<TaskRow>(
-      `SELECT kind, status, cancel_code, evidence_id, evidence_after_close, assignee_role_key,
-         priority, due_at FROM task WHERE id = $1`,
+      `SELECT kind, status, cancel_code, evidence_id, evidence_after_close, restore_code,
+         assignee_role_key, priority, due_at FROM task WHERE id = $1`,
       [id],
     );
     return rows[0];
@@ -978,7 +980,7 @@ describe("hazard HZ-023 the hospital transfer pack and the transfer", () => {
     expect(text).toContain(
       `DNACPR: Not for cardiopulmonary resuscitation. Dr Example, GP. Completed ${ukDate(completedOn)}.`,
     );
-    expect(text).not.toContain("THE RECORDS DISAGREE");
+    expect(text).not.toContain("the records disagree");
     await recordReturn(resident(2), sent);
   });
 
@@ -1004,7 +1006,7 @@ describe("hazard HZ-023 the hospital transfer pack and the transfer", () => {
     const pages = pdfPages(await printPack(resident(2), sent.id));
     const first = (pages[0] ?? []).join(" ");
     expect(pages[0] ?? []).toContain(
-      "CPR decision: THE RECORDS DISAGREE. Check the original documents before acting.",
+      "CPR decision: the records disagree. Check the original documents before acting.",
     );
     expect(first).toContain("CHECK BEFORE RELYING ON THIS PACK");
     expect(first).toContain("The resuscitation records disagree.");
@@ -1012,9 +1014,8 @@ describe("hazard HZ-023 the hospital transfer pack and the transfer", () => {
       `The resuscitation decision is past its review date. (${ukDate(completedOn)})`,
     );
     const text = pages.flat().join("\n");
-    expect(text).toContain(
-      "CPR decision: THE RECORDS DISAGREE. Check the original documents. Both are listed.",
-    );
+    // Said once (page 1), never shouted; the section lists both records.
+    expect(text.split("the records disagree").length - 1).toBe(1);
     expect(text).toContain("ReSPECT: For cardiopulmonary resuscitation.");
     expect(text).toContain("DNACPR: Not for cardiopulmonary resuscitation.");
     // A conflict is handed over only with a named acknowledgement.
@@ -2601,12 +2602,17 @@ describe("people.md rules 1 and 2: rounds after a correction or a late return (H
       status: "cancelled",
       cancel_code: "missed_before_return_recorded",
     });
-    expect(await taskRow(missedLatest)).toMatchObject({ status: "open", cancel_code: null });
+    // A later turn is open again, so the missed one is not caught up as well: two turns never
+    // fall due minutes apart (C1).
+    expect(await taskRow(missedLatest)).toMatchObject({
+      status: "cancelled",
+      cancel_code: "missed_before_return_recorded",
+    });
     expect(await taskRow(stillOpen)).toMatchObject({ status: "open", cancel_code: null });
     const [review] = await reviewTasks(who, "people.missed_rounds_review");
     expect(review?.details?.missedTasks).toEqual([
       expect.objectContaining({ taskId: missedFirst, kind: "care.reposition", reopened: false }),
-      expect.objectContaining({ taskId: missedLatest, kind: "care.reposition", reopened: true }),
+      expect.objectContaining({ taskId: missedLatest, kind: "care.reposition", reopened: false }),
     ]);
     // Without a transfer record the return still raises the checks, due a day after the return.
     const checks = await asDemoTenant((c) =>
@@ -2764,18 +2770,15 @@ describe("care.md rule 13: an entry and the task it names (HZ-004, HZ-006)", () 
   });
 
   it.each([
-    ["a medicines task its author may not complete", "carer", "open", "task_medicines_not_yours"],
-    [
-      "a medicines task already done (a second dose)",
-      "nurse",
-      "done",
-      "task_medicines_already_closed",
-    ],
+    ["a medicines task its author may not complete", "carer", "open"],
+    ["a medicines task already done (a second dose?)", "nurse", "done"],
   ] as const)(
-    "hazard HZ-004 refuses an entry for %s",
-    async (_label, user, taskStatus, problem) => {
+    "hazard HZ-004 keeps an entry for %s, never completing it, with an urgent conflict review (C2)",
+    async (_label, user, taskStatus) => {
+      // The care worker sees only the people they are assigned to.
+      const who = user === "carer" ? resident(3) : await newResident("Tomos");
       const medicines = await insertTask(
-        resident(3),
+        who,
         "medicines.round",
         new Date(Date.now() + HOUR),
         null,
@@ -2784,16 +2787,445 @@ describe("care.md rule 13: an entry and the task it names (HZ-004, HZ-006)", () 
           status: taskStatus,
         },
       );
-      const body = `Medicines round entry ${problem}`;
-      const refused = await note(user, medicines, body);
-      expect(refused.status).toBe(422);
-      expect(await code(refused)).toBe(problem);
-      const kept = await asDemoTenant((c) =>
-        c.query<{ n: number }>("SELECT count(*)::int AS n FROM care_note WHERE body = $1", [body]),
-      );
-      expect(kept.rows[0]?.n).toBe(0);
+      const saved = await as(user, `/v1/people/${who}/notes`, {
+        method: "POST",
+        body: {
+          category: "health",
+          body: "Medicines round entry",
+          occurredAt: ago(MIN),
+          taskId: medicines,
+        },
+      });
+      expect(saved.status).toBe(201);
+      const entry = await json<CareNoteItem>(saved);
+      expect(entry).toMatchObject({ taskId: medicines, taskOutcome: "medicines_conflict" });
+      expect((await taskRow(medicines))?.status).toBe(taskStatus);
+      const [review] = await reviewTasks(who, "care.entry_conflict_review");
+      expect(review).toMatchObject({ status: "open" });
+      expect((await taskRow(review?.id ?? ""))?.priority).toBe("urgent");
+      expect(review?.details?.entries).toEqual([
+        expect.objectContaining({ entryId: entry.id, outcome: "medicines_conflict" }),
+      ]);
     },
   );
+
+  it("hazard HZ-004 lets only one of two entries sent at once complete a round; the other is reviewed (C3)", async () => {
+    const who = await newResident("Wyn");
+    const turn = await insertTask(who, "care.reposition", new Date(Date.now() + HOUR));
+    const send = (body: string) =>
+      as("nurse", `/v1/people/${who}/notes`, {
+        method: "POST",
+        body: { category: "personal_care", body, occurredAt: ago(MIN), taskId: turn },
+      });
+    const [a, b] = await Promise.all([send("Turned left."), send("Turned left, again.")]);
+    expect([a.status, b.status]).toEqual([201, 201]);
+    const outcomes = [
+      (await json<CareNoteItem>(a)).taskOutcome,
+      (await json<CareNoteItem>(b)).taskOutcome,
+    ].sort();
+    expect(outcomes).toEqual(["completed", "task_already_closed"]);
+    expect((await taskRow(turn))?.status).toBe("done");
+    expect(await reviewTasks(who, "care.entry_review")).toHaveLength(1);
+  });
+
+  it("hazard HZ-004 sends a second medicines entry sent at once to the urgent conflict review (C3)", async () => {
+    const who = await newResident("Ynyr");
+    const dose = await insertTask(who, "medicines.round", new Date(Date.now() + HOUR), null, {
+      permission: "care.note.write",
+    });
+    const send = (body: string) =>
+      as("nurse", `/v1/people/${who}/notes`, {
+        method: "POST",
+        body: { category: "health", body, occurredAt: ago(MIN), taskId: dose },
+      });
+    const [a, b] = await Promise.all([send("Given."), send("Given (second device).")]);
+    const outcomes = [
+      (await json<CareNoteItem>(a)).taskOutcome,
+      (await json<CareNoteItem>(b)).taskOutcome,
+    ].sort();
+    expect(outcomes).toEqual(["completed", "medicines_conflict"]);
+    expect(await reviewTasks(who, "care.entry_conflict_review")).toHaveLength(1);
+  });
+
+  it("hazard HZ-004 reviews a second entry for a cancelled round that an entry already answered (C4)", async () => {
+    const who = await newResident("Zac");
+    const turn = await insertTask(who, "care.reposition", new Date(Date.now() + HOUR), null, {
+      status: "cancelled",
+    });
+    const send = (body: string) =>
+      as("nurse", `/v1/people/${who}/notes`, {
+        method: "POST",
+        body: { category: "personal_care", body, occurredAt: ago(MIN), taskId: turn },
+      });
+    expect((await json<CareNoteItem>(await send("Turned."))).taskOutcome).toBe("task_cancelled");
+    expect((await json<CareNoteItem>(await send("Turned again."))).taskOutcome).toBe(
+      "task_already_closed",
+    );
+    expect(await reviewTasks(who, "care.entry_review")).toHaveLength(1);
+  });
+
+  it("hazard HZ-004 returns a replayed medicines entry as it was stored, raising nothing again (S-L5)", async () => {
+    const who = await newResident("Elis");
+    const dose = await insertTask(who, "medicines.round", new Date(Date.now() + HOUR), null, {
+      permission: "care.note.write",
+    });
+    const id = newId();
+    const send = () =>
+      as("nurse", `/v1/people/${who}/observations`, {
+        method: "POST",
+        body: {
+          id,
+          occurredAt: ago(MIN),
+          taskId: dose,
+          values: { chart: "repositioning", position: "left", skinChecked: true },
+        },
+      });
+    const first = await json<ObservationItem>(await send());
+    expect(first.taskOutcome).toBe("completed");
+    const replay = await send();
+    expect(replay.status).toBe(201);
+    expect(await json<ObservationItem>(replay)).toMatchObject({ id, taskOutcome: "completed" });
+    expect(await reviewTasks(who, "care.entry_conflict_review")).toHaveLength(0);
+  });
+});
+
+// ------------------------------------------------------------------------------------------------
+
+describe("slice 8 review, round 4: rounds, assignments, exits and return checks", () => {
+  const exitDetails = {
+    deathExpected: true,
+    placeOfDeath: "care_home",
+    learningDisabilityOrAutism: false,
+  };
+  const hourlySeries = (personId: string, kind: string, materialisedHoursAgo: number) =>
+    asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ id: string }>(
+        `INSERT INTO task_series (person_id, location_id, kind, title, required_permission,
+           recurrence, starts_on, materialised_until)
+         VALUES ($1, $2, $3, 'Round', 'care.note.write',
+           '{"freq":"every_hours","hours":1,"anchorTime":"00:00"}', '2026-09-01',
+           now() - make_interval(hours => $4))
+         RETURNING id`,
+        [personId, DEMO.locationId, kind, materialisedHoursAgo],
+      );
+      return rows[0]?.id ?? "";
+    });
+  const seriesTasks = (seriesId: string) =>
+    asDemoTenant(async (c) => {
+      const { rows } = await c.query<{
+        id: string;
+        status: string;
+        cancel_code: string | null;
+        restore_code: string | null;
+        due_at: Date;
+        window_end: Date | null;
+      }>(
+        `SELECT id, status, cancel_code, restore_code, due_at, window_end FROM task
+         WHERE series_id = $1 ORDER BY due_at`,
+        [seriesId],
+      );
+      return rows;
+    });
+
+  it("hazard HZ-003 never makes a missed medicines dose due again after a late return: it is listed (C1)", async () => {
+    const who = await newResident("Mared");
+    const series = await hourlySeries(who, "medicines.round", -48);
+    const dose = await insertTask(who, "medicines.round", new Date(ago(2 * HOUR)), series, {
+      windowEnd: new Date(ago(1.5 * HOUR)),
+    });
+    expect(
+      (await status(who, { to: "in_hospital", effectiveAt: ago(5 * HOUR) }, "nurse")).status,
+    ).toBe(200);
+    expect((await status(who, { to: "active", effectiveAt: ago(3 * HOUR) }, "nurse")).status).toBe(
+      200,
+    );
+    expect(await taskRow(dose)).toMatchObject({
+      status: "cancelled",
+      cancel_code: "missed_before_return_recorded",
+    });
+    const [review] = await reviewTasks(who, "people.missed_rounds_review");
+    expect(review?.details?.missedTasks).toEqual([
+      expect.objectContaining({ taskId: dose, kind: "medicines.round", reopened: false }),
+    ]);
+  });
+
+  it("hazard HZ-003 makes the rounds a stay longer than the 48-hour horizon would have had, from the return, and catches up once (C5)", async () => {
+    const who = await newResident("Nest");
+    // The series stopped making tasks a day ago (the horizon ran out while the person was away).
+    const series = await hourlySeries(who, "care.reposition", 24);
+    expect(
+      (await status(who, { to: "in_hospital", effectiveAt: ago(72 * HOUR) }, "nurse")).status,
+    ).toBe(200);
+    const returnedAt = ago(3.5 * HOUR);
+    expect((await status(who, { to: "active", effectiveAt: returnedAt }, "nurse")).status).toBe(
+      200,
+    );
+    const tasks = await seriesTasks(series);
+    const past = tasks.filter((t) => t.due_at.getTime() < Date.now() - MIN);
+    // Every hour since the return has its round; nothing from before the return was made.
+    expect(past.length).toBeGreaterThanOrEqual(3);
+    expect(past.every((t) => t.due_at.getTime() >= new Date(returnedAt).getTime())).toBe(true);
+    // One round is caught up, with a fresh window; the others are missed and listed.
+    const caughtUp = tasks.filter((t) => t.restore_code === "caught_up");
+    expect(caughtUp).toHaveLength(1);
+    expect(caughtUp[0]?.status).toBe("open");
+    expect(caughtUp[0]?.due_at.getTime()).toBeGreaterThan(Date.now() - MIN);
+    expect(
+      past
+        .filter((t) => t.restore_code !== "caught_up")
+        .every((t) => t.cancel_code === "missed_before_return_recorded"),
+    ).toBe(true);
+    const [review] = await reviewTasks(who, "people.missed_rounds_review");
+    // The review lists every round of the gap: the missed ones and the one caught up.
+    expect(review?.details?.missedTasks?.length).toBe(past.length + 1);
+    // Nothing else in the past is open: no extra overdue round (C5).
+    expect(past.filter((t) => t.status === "open" && t.restore_code !== "caught_up")).toEqual([]);
+  });
+
+  it("hazard HZ-003 adds no extra overdue round to a correction made long after the exit (C5)", async () => {
+    const who = await newResident("Osian");
+    const series = await hourlySeries(who, "care.reposition", -48);
+    expect(
+      (
+        await status(
+          who,
+          { to: "deceased", effectiveAt: ago(60 * HOUR), exit: exitDetails },
+          "nurse",
+        )
+      ).status,
+    ).toBe(200);
+    // The horizon had run out 12 hours ago.
+    await asDemoTenant((c) =>
+      c.query(
+        "UPDATE task_series SET materialised_until = now() - interval '12 hours' WHERE id = $1",
+        [series],
+      ),
+    );
+    await setSessionAge("manager", 0);
+    expect(
+      (await status(who, { to: "active", reason: "Recorded against the wrong person" })).status,
+    ).toBe(200);
+    const tasks = await seriesTasks(series);
+    const pastOpen = tasks.filter(
+      (t) => t.status === "open" && t.due_at.getTime() < Date.now() - MIN,
+    );
+    expect(pastOpen).toEqual([]);
+    expect(tasks.filter((t) => t.restore_code === "caught_up")).toHaveLength(1);
+    const gap = tasks.filter(
+      (t) => t.due_at.getTime() >= Date.now() - 12 * HOUR && t.due_at.getTime() < Date.now() - MIN,
+    );
+    expect(gap.length).toBeGreaterThanOrEqual(11);
+    // The catch-up is due now with a fresh window; every other round of the gap is missed.
+    expect(gap.every((t) => t.cancel_code === "missed_before_return_recorded")).toBe(true);
+  });
+
+  it("hazard HZ-003 restores the status and the rounds when a death is corrected after its exit workflow has closed (C6)", async () => {
+    const who = await newResident("Pryderi");
+    const series = await insertRoundSeries(who);
+    const turn = await insertTask(who, "care.reposition", new Date(Date.now() + 2 * HOUR), series);
+    expect(
+      (
+        await status(
+          who,
+          { to: "deceased", effectiveAt: ago(30 * MIN), exit: exitDetails },
+          "nurse",
+        )
+      ).status,
+    ).toBe(200);
+    expect((await taskRow(turn))?.status).toBe("cancelled");
+    const exit = await asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ id: string }>(
+        `UPDATE exit_record SET state = 'closed', closed_at = now() WHERE person_id = $1
+         RETURNING id`,
+        [who],
+      );
+      return rows[0]?.id ?? "";
+    });
+    await setSessionAge("manager", 0);
+    const corrected = await status(who, {
+      to: "active",
+      reason: "Recorded against the wrong person",
+    });
+    expect(corrected.status).toBe(200);
+    expect((await summary(who)).status).toBe("active");
+    expect(await taskRow(turn)).toMatchObject({ status: "open", cancel_code: null });
+    const events = await asDemoTenant((c) =>
+      c.query<{ payload: { exitRecordId: string | null } }>(
+        `SELECT payload FROM outbox_event WHERE aggregate_id = $1
+         AND event_type = 'people.person.status_corrected'`,
+        [who],
+      ),
+    );
+    expect(events.rows[0]?.payload.exitRecordId).toBe(exit);
+  });
+
+  it("hazards HZ-004 and HZ-005 never gives a task to someone who cannot complete it, through the assign route itself (S1)", async () => {
+    const who = resident(1);
+    // A clinical return check: being its assignee would let someone record it (M2).
+    const dose = await insertTask(
+      who,
+      "people.return_check.medicines_reconciled",
+      new Date(Date.now() + HOUR),
+      null,
+      { permission: "care.plan.write" },
+    );
+    const assign = async (user: keyof Harness["tokens"], assignee: string) => {
+      const row = await asDemoTenant((c) =>
+        c.query<{ version: number }>("SELECT version FROM task WHERE id = $1", [dose]),
+      );
+      return as(user, `/v1/tasks/${dose}/assign`, {
+        method: "POST",
+        body: { assigneeTenantUserId: assignee, version: row.rows[0]?.version ?? 1 },
+      });
+    };
+    // A team leader may manage tasks but may not give themselves a check they may not complete.
+    const assignment = await asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ id: string }>(
+        `INSERT INTO role_assignment (tenant_user_id, role_id, location_id)
+         SELECT $1, id, $2 FROM role WHERE key = 'team_leader' AND is_builtin RETURNING id`,
+        [DEMO.users.carer.id, DEMO.locationId],
+      );
+      return rows[0]?.id ?? "";
+    });
+    try {
+      const self = await assign("carer", DEMO.users.carer.id);
+      expect(self.status).toBe(422);
+      expect(await auditCount("platform.task.assign", dose, "denied")).toBe(1);
+    } finally {
+      await asDemoTenant((c) =>
+        c.query("UPDATE role_assignment SET deleted_at = now() WHERE id = $1", [assignment]),
+      );
+    }
+    // Nor does anyone else give it to them.
+    expect((await assign("manager", DEMO.users.carer.id)).status).toBe(422);
+    expect(
+      (await taskRow(dose)) as unknown as { assignee_tenant_user_id?: string },
+    ).not.toMatchObject({
+      assignee_tenant_user_id: DEMO.users.carer.id,
+    });
+    // Someone who holds its permission there may be given it.
+    expect((await assign("manager", DEMO.users.nurse.id)).status).toBe(200);
+  });
+
+  it("hazard HZ-005 keeps belongings with whoever records movements when the check has no task (S-L8)", async () => {
+    const who = await newResident("Tegid");
+    const item = await asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ id: string }>(
+        `INSERT INTO property_item (person_id, description, category, received_on, recorded_by,
+           ack_signer, ack_name, ack_signed_at)
+         VALUES ($1, 'Glasses in a red case', 'sensory_aid', '2026-09-01', $2, 'person',
+           'Signed by the person', now() - interval '30 days') RETURNING id`,
+        [who, DEMO.users.manager.id],
+      );
+      return rows[0]?.id ?? "";
+    });
+    const sentResponse = await as("nurse", `/v1/people/${who}/hospital-transfers`, {
+      method: "POST",
+      body: {
+        leftAt: new Date().toISOString(),
+        hospitalName: "Example General Hospital",
+        reason: "A fall.",
+        sendItemIds: [item],
+        version: (await summary(who)).version,
+      },
+    });
+    expect(sentResponse.status).toBe(201);
+    let transfer = await json<HospitalTransferOut>(sentResponse);
+    const back = await as("nurse", `/v1/people/${who}/hospital-transfers/${transfer.id}/return`, {
+      method: "POST",
+      body: { returnedAt: new Date().toISOString(), version: transfer.version },
+    });
+    expect(back.status).toBe(200);
+    transfer = await json<HospitalTransferOut>(back);
+    // The checks' tasks are gone (a checklist made before the tasks existed, say).
+    await asDemoTenant((c) =>
+      c.query(
+        "UPDATE task SET deleted_at = now() WHERE source_type = 'hospital_transfer' AND source_id = $1",
+        [transfer.id],
+      ),
+    );
+    // The quality lead holds the care plan for a day, but does not record movements.
+    const grant = await asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ id: string }>(
+        `INSERT INTO access_grant (tenant_user_id, permissions, location_id, valid_from, valid_to,
+           reason, granted_by)
+         VALUES ($1, '{care.plan.write}', NULL, now() - interval '1 minute', now() + interval '1 day',
+           'Covering the nurse in charge', $2) RETURNING id`,
+        [LODGE.qualityLeadId, DEMO.users.manager.id],
+      );
+      return rows[0]?.id ?? "";
+    });
+    try {
+      const check = (key: string) =>
+        as("quality", `/v1/people/${who}/hospital-transfers/${transfer.id}/return-checks/${key}`, {
+          method: "POST",
+          body: { version: transfer.version },
+        });
+      const belongings = await check("belongings_returned");
+      expect(belongings.status).toBe(403);
+      expect(await auditCount("people.hospital_transfer.return_check", transfer.id, "denied")).toBe(
+        1,
+      );
+      const medicines = await check("medicines_reconciled");
+      expect(medicines.status).toBe(200);
+    } finally {
+      await asDemoTenant((c) =>
+        c.query("UPDATE access_grant SET revoked_at = now() WHERE id = $1", [grant]),
+      );
+    }
+  });
+
+  it("refuses, and audits, an exit item whose stored owner disagrees with its definition (S-L8)", async () => {
+    const who = await newResident("Urien");
+    expect(
+      (
+        await status(
+          who,
+          { to: "deceased", effectiveAt: ago(10 * MIN), exit: exitDetails },
+          "nurse",
+        )
+      ).status,
+    ).toBe(200);
+    const item = await asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ id: string; version: number }>(
+        `UPDATE exit_checklist_item SET owner = 'finance'
+         WHERE person_id = $1 AND item_key = 'gp_informed' RETURNING id, version`,
+        [who],
+      );
+      return rows[0];
+    });
+    expect(item).toBeDefined();
+    const response = await as("manager", `/v1/people/${who}/exit/items/gp_informed`, {
+      method: "PUT",
+      body: { status: "done", version: item?.version ?? 1 },
+    });
+    expect(response.status).toBe(403);
+    expect(await auditCount("people.exit.item", item?.id ?? "", "denied")).toBe(1);
+  });
+
+  it("keeps only an opaque device id from the request header (S-L6)", async () => {
+    const who = await newResident("Rhian");
+    const send = (device: string) =>
+      as("nurse", `/v1/people/${who}/notes`, {
+        method: "POST",
+        headers: { "x-harbour-device": device },
+        body: { category: "other", body: "A note.", occurredAt: ago(MIN) },
+      });
+    const opaque = await json<CareNoteItem>(await send("tablet-7"));
+    const prose = await json<CareNoteItem>(await send("Ada Example's phone <script>"));
+    const devices = await asDemoTenant((c) =>
+      c.query<{ id: string; device_id: string | null }>(
+        "SELECT id, device_id FROM care_note WHERE id = ANY ($1)",
+        [[opaque.id, prose.id]],
+      ),
+    );
+    expect(new Map(devices.rows.map((r) => [r.id, r.device_id]))).toEqual(
+      new Map([
+        [opaque.id, "tablet-7"],
+        [prose.id, null],
+      ]),
+    );
+  });
 });
 
 // ------------------------------------------------------------------------------------------------

@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { deflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { isPrintableImage, pdfImage, renderPdf, wrap } from "../src/services/pdf";
@@ -113,6 +114,72 @@ function withIdat(base: Uint8Array, size: number): Uint8Array {
   );
 }
 
+/** The PNG with its first row's filter byte replaced. */
+function withFilter(base: Uint8Array, filter: number): Uint8Array {
+  const raw = Buffer.alloc((2 * 3 + 1) * 2, 200);
+  raw[0] = filter;
+  raw[7] = 0;
+  return withIdatData(base, deflateSync(raw));
+}
+
+/** A 2 x 2 palette PNG with `entries` palette colours whose pixels all use index `index`. */
+function palettePng(entries: number, index: number): Uint8Array {
+  const chunk = (type: string, body: Buffer) => {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(body.length);
+    return Buffer.concat([length, Buffer.from(type, "latin1"), body, Buffer.alloc(4)]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(2, 0);
+  ihdr.writeUInt32BE(2, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 3;
+  const raw = Buffer.from([0, index, index, 0, index, index]);
+  return new Uint8Array(
+    Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      chunk("IHDR", ihdr),
+      ...(entries > 0 ? [chunk("PLTE", Buffer.alloc(entries * 3, 90))] : []),
+      chunk("IDAT", deflateSync(raw)),
+      chunk("IEND", Buffer.alloc(0)),
+    ]),
+  );
+}
+
+/** The PNG with its image data replaced. */
+function withIdatData(base: Uint8Array, data: Buffer): Uint8Array {
+  const chunk = (type: string, body: Buffer) => {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(body.length);
+    return Buffer.concat([length, Buffer.from(type, "latin1"), body, Buffer.alloc(4)]);
+  };
+  return new Uint8Array(
+    Buffer.concat([
+      Buffer.from(base.subarray(0, 8 + 25)),
+      chunk("IDAT", data),
+      chunk("IEND", Buffer.alloc(0)),
+    ]),
+  );
+}
+
+/** The PNG with its image data spread over `count` chunks (the first holds it, the rest empty). */
+function splitIdat(base: Uint8Array, count: number): Uint8Array {
+  const chunk = (type: string, body: Buffer) => {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(body.length);
+    return Buffer.concat([length, Buffer.from(type, "latin1"), body, Buffer.alloc(4)]);
+  };
+  const raw = Buffer.alloc((8 * 3 + 1) * 8, 0);
+  return new Uint8Array(
+    Buffer.concat([
+      Buffer.from(base.subarray(0, 8 + 25)),
+      chunk("IDAT", deflateSync(raw)),
+      ...Array.from({ length: count - 1 }, () => chunk("IDAT", Buffer.alloc(0))),
+      chunk("IEND", Buffer.alloc(0)),
+    ]),
+  );
+}
+
 describe("hazard HZ-001 the photo", () => {
   it.each([
     ["grey", 0],
@@ -137,6 +204,16 @@ describe("hazard HZ-001 the photo", () => {
     ["an interlaced PNG", () => png(2, 2, 2, { interlace: 1 })],
     ["a PNG claiming 20000 x 20000 pixels", () => png(6, 20_000, 20_000)],
     ["a PNG over the pixel limit", () => png(2, 4097, 4096)],
+    ["a PNG over 2048 pixels on a side", () => png(2, 2049, 2)],
+    ["a PNG with a row filter that does not exist", () => withFilter(png(2, 2, 2), 9)],
+    ["a palette PNG whose pixels point past its palette", () => palettePng(2, 5)],
+    ["a palette PNG without its palette", () => palettePng(0, 0)],
+    ["a PNG in more image chunks than the limit", () => splitIdat(png(2, 8, 8), 1025)],
+    [
+      "a PNG with more compressed image data than the limit",
+      () => withIdatData(png(2, 8, 8), randomBytes(8 * 1024 * 1024 + 1)),
+    ],
+    ["a PNG whose image data stops short of its header", () => withIdat(png(2, 2, 2), 3)],
     ["a 16-byte truncated PNG", () => png(2).subarray(0, 16)],
     ["a PNG whose chunk runs past the end", () => png(6).subarray(0, 40)],
     ["a PNG whose data inflates past its header", () => withIdat(png(6, 2, 2), 64 * 1024)],
@@ -164,8 +241,41 @@ describe("hazard HZ-001 the photo", () => {
         ...new Array(12).fill(0),
       ]);
     expect(pdfImage({ bytes: sof(20_000, 20_000), contentType: "image/jpeg" })).toBeNull();
+    expect(pdfImage({ bytes: sof(2049, 10), contentType: "image/jpeg" })).toBeNull();
     expect(pdfImage({ bytes: sof(2, 2), contentType: "image/jpeg" })).not.toBeNull();
     expect(pdfImage({ bytes: sof(2, 2).subarray(0, 8), contentType: "image/jpeg" })).toBeNull();
+  });
+
+  it("hazard HZ-023 prints a grey JPEG as grey and a colour one as colour, and refuses CMYK and 12-bit JPEGs", () => {
+    const sof = (components: number, precision = 8, marker = 0xc0) =>
+      new Uint8Array([
+        0xff,
+        0xd8,
+        0xff,
+        marker,
+        0,
+        8 + components * 3,
+        precision,
+        0,
+        2,
+        0,
+        2,
+        components,
+        ...new Array(components * 3).fill(0),
+        0,
+        0,
+      ]);
+    expect(pdfImage({ bytes: sof(1), contentType: "image/jpeg" })?.dict).toContain("/DeviceGray");
+    expect(pdfImage({ bytes: sof(3), contentType: "image/jpeg" })?.dict).toContain("/DeviceRGB");
+    expect(pdfImage({ bytes: sof(4), contentType: "image/jpeg" })).toBeNull();
+    expect(pdfImage({ bytes: sof(3, 12), contentType: "image/jpeg" })).toBeNull();
+    expect(pdfImage({ bytes: sof(3, 8, 0xc9), contentType: "image/jpeg" })).toBeNull();
+    expect(isPrintableImage({ bytes: sof(4), contentType: "image/jpeg" })).toBe(false);
+  });
+
+  it("hazard HZ-023 prints a palette PNG whose pixels are all in its palette", () => {
+    expect(pdfImage({ bytes: palettePng(2, 1), contentType: "image/png" })).not.toBeNull();
+    expect(isPrintableImage({ bytes: palettePng(2, 1), contentType: "image/png" })).toBe(true);
   });
 
   it("refuses an image it cannot print (WebP, or not what it claims to be)", () => {
@@ -297,16 +407,19 @@ describe("hazard HZ-023 the printed transfer pack", () => {
 
   it("hazard HZ-015 prints ReSPECT and DNACPR that disagree with both records, never resolved", () => {
     const text = print(PACK).flat().join("\n");
-    expect(text).toContain(
-      "CPR decision: THE RECORDS DISAGREE. Check the original documents. Both are listed.",
+    // Said once, in sentence case, on page 1; the section lists both records.
+    expect(text.split("the records disagree").length - 1).toBe(1);
+    expect(print(PACK)[0] ?? []).toContain(
+      "CPR decision: the records disagree. Check the original documents before acting.",
     );
+    expect(text).not.toMatch(/RECORDS DISAGREE/);
     expect(text).toContain("ReSPECT: For cardiopulmonary resuscitation.");
     expect(text).toContain("DNACPR: Not for cardiopulmonary resuscitation.");
     expect(text).not.toContain("CPR decision: Not for cardiopulmonary resuscitation.");
   });
 
-  it("hazard HZ-015 prints an ADRT alone as no CPR decision", () => {
-    const text = print({
+  it("hazard HZ-015 prints an ADRT alone as no CPR decision, and says on page 1 to read it", () => {
+    const pages = print({
       ...PACK,
       content: {
         ...PACK.content,
@@ -323,10 +436,12 @@ describe("hazard HZ-023 the printed transfer pack", () => {
           ],
         },
       },
-    })
-      .flat()
-      .join("\n");
-    expect(text).toContain("CPR decision: not recorded.");
+    });
+    const text = pages.flat().join("\n");
+    expect((pages[0] ?? []).join(" ")).toContain(
+      "CPR decision: not recorded on a ReSPECT or DNACPR form. An advance decision to refuse treatment is held (01/02/2025): read it before acting.",
+    );
+    expect(text).not.toContain("CPR decision: not recorded.");
     expect(text).toContain("Advance decision to refuse treatment: Refuses artificial ventilation.");
   });
 
@@ -407,9 +522,18 @@ describe("hazard HZ-023 the printed transfer pack", () => {
     [
       "records that disagree",
       PACK.content.resuscitation,
-      "CPR decision: THE RECORDS DISAGREE. Check the original documents before acting.",
+      "CPR decision: the records disagree. Check the original documents before acting.",
     ],
     ["none recorded", { status: "not_recorded", otherRecords: [] }, "CPR decision: not recorded."],
+    [
+      "no decision in place, with nobody recorded as confirming it",
+      {
+        status: "no_decision_in_place",
+        confirmedBy: null,
+        confirmedAt: "2026-10-01T09:00:00.000Z",
+      },
+      "CPR decision: no decision in place (who confirmed it is not recorded; recorded on 01/10/2026 10:00).",
+    ],
   ])("hazard HZ-015 says on page 1 when the CPR decision is %s", (_label, resuscitation, line) => {
     const first = print({ ...PACK, content: { ...PACK.content, resuscitation } })[0] ?? [];
     expect(first).toContain(line);
