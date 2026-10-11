@@ -91,8 +91,12 @@ const noteRow = (id = NOTE_ID): Record<string, string | number | null> => ({
   tags: "[]",
 });
 
+/** A 403 ends the session only with one of the API's session codes (security review H1). */
 const json = (status: number) =>
-  new Response("{}", { status, headers: { "content-type": "application/json" } });
+  new Response(status === 403 ? JSON.stringify({ status, code: "not_a_member" }) : "{}", {
+    status,
+    headers: { "content-type": status === 403 ? "application/problem+json" : "application/json" },
+  });
 
 function fakeFetch(statuses: number[]) {
   const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
