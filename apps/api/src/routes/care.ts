@@ -167,6 +167,16 @@ export const careRouter = createRouter()
         { kind: "care_note", clientId: body.id, occurredAt: body.occurredAt },
         () =>
           withTenant(c, async (tx) => {
+            // A replayed upload (the same device id) returns the stored entry before anything is
+            // planned or checked again, so a replay never raises a second review (S-L5).
+            if (body.id) {
+              const [replayed] = await tx.select().from(careNote).where(eq(careNote.id, body.id));
+              if (replayed) {
+                if (replayed.personId !== personId)
+                  throw problems.invalid("That id is already used.");
+                return noteItem(replayed, new Set());
+              }
+            }
             const { person, record, rates } = await writeContext(c, personId, tx);
             const times = entryTimes(body, c.req.header(SENT_AT_HEADER), now, rates);
             const recordedAfterExit = allowedAt(
@@ -332,6 +342,19 @@ export const careRouter = createRouter()
         { kind: "observation", clientId: body.id, occurredAt: body.occurredAt },
         () =>
           withTenant(c, async (tx) => {
+            // A replayed upload (the same device id) returns the stored entry before anything is
+            // planned or checked again, so a replay never raises a second review (S-L5).
+            if (body.id) {
+              const [replayed] = await tx
+                .select()
+                .from(observation)
+                .where(eq(observation.id, body.id));
+              if (replayed) {
+                if (replayed.personId !== personId)
+                  throw problems.invalid("That id is already used.");
+                return observationItem(replayed, new Set());
+              }
+            }
             const { person, record, rates } = await writeContext(c, personId, tx);
             const times = entryTimes(body, c.req.header(SENT_AT_HEADER), now, rates);
             const recordedAfterExit = allowedAt(
@@ -622,6 +645,19 @@ export const careRouter = createRouter()
         { kind: "body_map_mark", clientId: body.id, occurredAt: body.occurredAt },
         () =>
           withTenant(c, async (tx) => {
+            // A replayed upload (the same device id) returns the stored entry before anything is
+            // planned or checked again, so a replay never raises a second review (S-L5).
+            if (body.id) {
+              const [replayed] = await tx
+                .select()
+                .from(bodyMapMark)
+                .where(eq(bodyMapMark.id, body.id));
+              if (replayed) {
+                if (replayed.personId !== personId)
+                  throw problems.invalid("That id is already used.");
+                return markItem(replayed, new Set());
+              }
+            }
             const { person, record, rates } = await writeContext(c, personId, tx);
             const times = entryTimes(body, c.req.header(SENT_AT_HEADER), now, rates);
             const recordedAfterExit = allowedAt(
