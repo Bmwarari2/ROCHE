@@ -50,8 +50,11 @@
 | [HZ-025](#hz-025-bed-rail-entrapment-risk-not-identified) | Bed rail entrapment risk not identified | Major / Low / 3 | Major / Very low / 2 | Open | None (Phase 1) | Phase 1 |
 | [HZ-026](#hz-026-restrictive-or-covert-care-under-consent-or-authority-that-is-not-valid) | Restrictive or covert care under consent or authority that is not valid | Considerable / Medium / 3 | Considerable / Low / 2 | Open | None (Phase 1) | Phase 1 |
 | [HZ-027](#hz-027-head-injury-after-a-fall-not-observed-or-escalated) | Head injury after a fall not observed or escalated | Major / Medium / 3 | Major / Low / 3 | Open | None (Phase 1) | Phase 1 |
+| [HZ-070](#hz-070-full-tenant-export-disclosed-beyond-the-organisation) | Full tenant export disclosed beyond the organisation | Major / Low / 3 | Major / Very low / 2 | Open | None (Phase 1) | Phase 1 |
+| [HZ-071](#hz-071-full-tenant-export-incomplete-or-misread-when-a-provider-changes-system) | Full tenant export incomplete or misread when a provider changes system | Major / Medium / 3 | Major / Low / 3 | Open | None (Phase 1) | Phase 1, Phase 2 |
+| [HZ-072](#hz-072-sample-data-mistaken-for-or-mixed-with-real-records) | Sample data mistaken for, or mixed with, real records | Considerable / Medium / 3 | Considerable / Low / 2 | Open | None (Phase 1) | Phase 1 |
 
-Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
+Nine hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-071) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
 ---
 
@@ -77,6 +80,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 - A room move not yet recorded.
 - A notification deep link that opens a different person from the one named in the notification.
 - Duplicate person records created by data entry or import.
+- Choosing from search results a person with the same name, a former resident, or the near match for a mistyped NHS number.
 
 **Effects**
 
@@ -99,6 +103,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Probable duplicate check on create and import (same NHS number, or same date of birth and similar name) | Phase 1 |
 | Design | eMAR requires positive identification for each administration: wristband barcode scan or photo confirmation | Phase 2 |
 | Design | Shared and kiosk devices lock after 30 seconds by default and return to user sign-in, not to the last person ([kiosk.md](../compliance/kiosk.md)) | Phase 1 |
+| Design | Search results show photo, name, date of birth, NHS number, room and status (icon and word); people who have left are hidden unless the user may and does ask for them; an NHS number is matched exactly and a mistyped one is refused, never matched approximately ([platform-completions.md](../specs/platform-completions.md) rules 1, 3 and 6; ADR-0070 keeps fuzzy name matching out) | Phase 1 (domain rules built) |
 | Design | The room on the header comes from the dated bed history, which never puts two people in one bed; a death or discharge recorded against the wrong person is corrected with a reason (and a fresh sign-in for a death), cancelling the exit workflow and the death notification drafts ([people.md](../specs/people.md) rules 2 and 6) | Phase 1 (domain rules built) |
 | Test | See Verification | Phase 1, Phase 2 |
 | Training and user documentation | Care worker guide: check photo and date of birth before every administration and entry. Deployer control: photos taken at admission and refreshed under the tenant's policy | Phase 1 |
@@ -122,6 +127,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain/src/people/occupancy.test.ts`: `hazard HZ-001 two people in one bed on the same day`, `a bed someone else occupies`, `labels the room shown on the header from the history` | Passing (Phase 1) |
 | `packages/domain/src/people/lifecycle.test.ts` and `exit.test.ts`: `hazard HZ-001 a death recorded in error is corrected only with a reason and a fresh sign-in`, `cancels a death recorded in error only with a reason and step-up` | Passing (Phase 1) |
 | `packages/domain/src/people/transfer-pack.test.ts`: `hazard HZ-001 refuses a pack whose sections belong to someone else`, `hazard HZ-001 no photo`; `admission.test.ts`: `hazard HZ-001 accepts no photo with a reason` (welcome checklist) | Passing (Phase 1) |
+| `packages/domain/src/platform/search.test.ts`: `query normalisation (hazard HZ-001: an NHS number is exact, never a near match)`; `shows identity fields to care roles and only names and rooms to an administrator (HZ-001)`; `leaves people who have left out unless the user may and does ask (HZ-001)` | Passing (Phase 1) |
+| `apps/web` Playwright: `hazard HZ-001 search results show photo, date of birth and status before a record opens` | Planned, Phase 1 |
 
 ---
 
@@ -633,7 +640,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 
 **Description**: a user sees, or a device receives, records belonging to another tenant, or records in their own tenant outside their scope (location, team, assigned people, time window), or an external professional or agency worker keeps access after it should have expired.
 
-**Causes**: a missing `tenant_id` predicate; RLS disabled or bypassed (owner role, `BYPASSRLS`, `SECURITY DEFINER` functions); `app.tenant_id` leaking between pooled transactions; a PowerSync stream filter error (logical replication bypasses RLS); cache or search keys without the tenant; guessable or long-lived file URLs; export jobs; operator impersonation; scope grants that do not expire; stale token claims after a role change.
+**Causes**: a missing `tenant_id` predicate; RLS disabled or bypassed (owner role, `BYPASSRLS`, `SECURITY DEFINER` functions); `app.tenant_id` leaking between pooled transactions; a PowerSync stream filter error (logical replication bypasses RLS); cache or search keys without the tenant; a search index, query or result count that crosses the tenant or the user's scope, or a break-glass search used to browse; guessable or long-lived file URLs; export jobs (see HZ-070); operator impersonation; scope grants that do not expire; stale token claims after a role change.
 
 **Effects**: disclosure of special category data and resulting distress; safeguarding risk (for example disclosure of the whereabouts of a person at risk); a wrong-person decision if an out-of-scope record is mistaken for the right one (HZ-001); a reportable personal data breach.
 
@@ -650,7 +657,10 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Attribute-based scoping (location, assigned people, time window) enforced in the API and in RLS | Built in Phase 0 (team scope with rotas, Phase 2) |
 | Design | Break-glass access with typed justification, alerting the Registered Manager and quality lead, audited with the reason, lapsing after an hour; a weekly report by user, person and reason flags repeated use for the Registered Manager and data protection lead | Built in Phase 0 (weekly report aggregation built in Phase 1; job and screen with the people API) |
 | Design | Short-lived presigned file URLs with tenant-prefixed keys; remote wipe and device revocation | Phase 1 |
-| Design | Time-limited grants expire automatically (agency workers at shift end plus 2 hours; external professionals at their expiry) | Phase 1 (professionals), Phase 2 (agency, with rota) |
+| Design | Time-limited grants expire automatically (agency workers at shift end plus `access.agency.post_shift_hours`; external professionals at their expiry) | Phase 1 (professionals; the agency window rule is built in the domain and search refuses after it), Phase 2 (agency, with rota) |
+| Design | Search runs under the same forced RLS as the records (ADR-0070); the plan allows only the kinds of record the user can read, in their scope, while their access lasts, and only current people unless `platform.search.archived` is held and used; results are filtered again and counted only over what may be seen, so an out-of-scope match looks like no match, and a disagreement raises a security alarm ([platform-completions.md](../specs/platform-completions.md) rules 1 to 7) | Phase 1 (domain rules built; index and routes with the schema and API step) |
+| Design | Break-glass search: step-up, MFA, a reason code and a typed reason, a specific query (NHS number or full name), identity fields only, at most 10 people, audited with the opaque ids of the people shown (rule 9) | Phase 1 (domain rules built) |
+| Design | Search audit events record the kinds searched and the counts, never the words typed, which are usually a name (rule 8) | Phase 1 (domain rules built) |
 | Design | Operator support access only after the tenant owner approves a ticketed request with step-up; requests and decisions written to the tenant's audit chain | Request and approval built in Phase 0; read-only impersonation session, Phase 1 |
 | Test | See Verification; annual external penetration test `[Thapsus - human action]` | Phase 0 onwards |
 | Training and user documentation | Tenant role-design guidance (least privilege); deployer control: periodic access review by the tenant | Phase 1 |
@@ -671,7 +681,11 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `apps/api/test/operator-and-integrations.test.ts`: operator console cannot read people; support access needs the tenant owner's step-up approval and is audited in the tenant's chain | Passing (Phase 0) |
 | `packages/db/test/tasks-and-workflows.test.ts`: `hazard HZ-011 task scope`, `workflow scope and history` (tasks follow the person's scope, location tasks the location, append-only workflow history) | Passing (Phase 1) |
 | `apps/api/test/tasks.test.ts`: tasks about people outside a care worker's scope are hidden and cannot be completed; another tenant's person is not found | Passing (Phase 1) |
+| `packages/domain/src/platform/search.test.ts`: `hazard HZ-011 agency access expires at shift end plus 2 hours` (the rate-table window; search refuses after it and a plan made earlier shows nothing) | Passing (Phase 1) |
 | `apps/api`: `hazard HZ-011 agency access expires at shift end plus 2 hours` | Planned, Phase 2 |
+| `packages/domain/src/platform/search.test.ts`: `hazard HZ-011 search plan follows permission and scope`, `hazard HZ-011 search results and counts stay in scope` (an out-of-scope match looks exactly like no match), `hazard HZ-011 search audit events never hold the words typed` (break-glass searches keep the reason and the people shown) | Passing (Phase 1) |
+| `packages/db`: `hazard HZ-011 search returns nothing from another tenant or outside scope` | Planned, Phase 1 |
+| `apps/api`: `hazard HZ-011 search routes apply the plan, filter again and audit without the query` | Planned, Phase 1 |
 | `packages/db/test/care-record.test.ts` and `apps/api/test/care.test.ts`: notes, charts and marks follow the person's scope | Passing (Phase 1) |
 | `packages/domain/src/people/break-glass-report.test.ts`: `hazard HZ-011 weekly break-glass report` (UK weeks across clock changes; totals by user, person and reason; unreviewed openings; repeated use, the same person reopened and one person opened by many users flagged at the rate-table threshold) | Passing (Phase 1) |
 | `apps/api`: `hazard HZ-011 the weekly break-glass report reaches the Registered Manager and data protection lead every Monday` | Planned, Phase 1 |
@@ -1392,6 +1406,133 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain` (safety): `hazard HZ-013 open questions, provisional drafts and tasks` (a fall on anticoagulants raises urgent advice and timed observations) | Passing |
 | `apps/api`: `hazard HZ-027 a fall creates the post-fall tasks with the observation schedule` | Planned, Phase 1 |
 | Maestro `hazard-HZ-027-post-fall-observations.yaml` | Planned, Phase 1 |
+
+---
+
+## HZ-070 Full tenant export disclosed beyond the organisation
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-070 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]`; data protection lead consulted |
+| Engineering owner | `platform` module (lead engineer) |
+| Source | Master prompt 5.1 (free full export, delivered by expiring link), 5.3 (step-up for data export); [platform-completions.md](../specs/platform-completions.md) rules 10 to 15 |
+
+**Description**: the organisation's full export, which holds every person's record and documents and its staff data, reaches someone it should not: through a forwarded or leaked link, a download by someone other than the person who asked for it, a file kept long after its purpose, or a copy left on a shared or unmanaged computer.
+
+**Causes**: bearer links in emails or chat; links or files that never expire; downloads without signing in again; an owner who has left still able to download; long-lived or cached storage URLs; a stolen session; export files stored indefinitely; secrets or internal keys in the files; an export saved to a personal device.
+
+**Effects**: disclosure of special category data for every person, including the whereabouts of people at risk (a safeguarding risk, for example to someone who has fled domestic abuse); a reportable personal data breach; staff data disclosed.
+
+**Initial risk**: severity Major, likelihood Low, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Only holders of `platform.export.create` (the owner) can ask for an export, with a sign-in in the step-up window; every request is audited | Phase 1 (domain rules built) |
+| Design | Only the person who asked can download it, signed in again within the step-up window, while it is ready; the notification carries a pointer to that check, not a bearer link; the API streams the file or mints a storage URL that lasts minutes | Phase 1 (domain rules built; API) |
+| Design | The file is deleted `export.link_expiry_hours` after it is ready (tenant default 72, to verify); a new export is always free, so nothing is kept "in case" | Phase 1 (domain rules built; worker) |
+| Design | Passwords, sessions, authenticator secrets, secret references and storage keys are never exported; quarantined files are never handed out | Phase 1 (domain rules built) |
+| Design | Every download is audited and visible to the owners and the data protection lead | Phase 1 |
+| Test | See Verification | Phase 1 |
+| Training and user documentation | Deployer control: download only to a managed, encrypted device; delete local copies once used; the export guide says so | Phase 1 |
+
+**Target residual risk**: severity Major, likelihood Very low, **risk 2**.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/platform/export.test.ts`: `hazard HZ-070 the export link expires and works only for the requester`, `hazard HZ-070 export request: free, step-up, one at a time`; `export plan` never exports `document.storage_key`, `integration_connection.secret_ref` or `tenant_user.auth_user_id`, and leaves out the `auth` schema | Passing (Phase 1) |
+| `apps/api`: `hazard HZ-070 an export download needs the requester's fresh sign-in and stops at expiry` | Planned, Phase 1 |
+| `apps/api` (worker): `hazard HZ-070 an expired export's file is deleted` | Planned, Phase 1 |
+
+---
+
+## HZ-071 Full tenant export incomplete or misread when a provider changes system
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-071 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `platform` module (lead engineer) |
+| Source | Master prompt 5.1 (full export in a documented schema; DSCR data migration standard); DPA clause 9.1; [data-standards.md](../specs/data-standards.md); [platform-completions.md](../specs/platform-completions.md) rules 10, 11, 14 and 16 |
+
+**Description**: a provider moving to another system relies on Harbour's export, but records are silently missing from it or are misread, so the new system lacks some people's allergies, resuscitation decisions, medicines or care plans.
+
+**Causes**: a new table left out of the export; rows dropped by a fault; a truncated file; documents not copied or corrupted; held or deleted records handled inconsistently; codes whose meaning is not documented; destroyed records indistinguishable from missing ones; sample data mixed in; the receiving system's import mapping errors.
+
+**Effects**: care given without essential information after the move (as HZ-007 and HZ-015), for example an allergen given or a resuscitation decision not known; an incomplete legal record.
+
+**Initial risk**: severity Major, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | A typed table list describes every table; the schema description is generated from the same plan as the files; a table not yet described is still exported in full and flagged; a test fails the build when the list and the schema differ | Phase 1 (domain rules built; live-schema test with the schema step) |
+| Design | The manifest records row counts and SHA-256 for every file and document; a missing table or file, a row count that does not match, or a document whose bytes differ from the checksum recorded at upload marks the export incomplete, so it is failed and retried, never offered | Phase 1 (domain rules built) |
+| Design | Documented row rules: records under legal hold always in; soft-deleted and sample rows left out and counted; destroyed records listed with their certificate ids; quarantined files keep their rows | Phase 1 (domain rules built) |
+| Design | Field meanings and code lists in [data-standards.md](../specs/data-standards.md), versioned with `EXPORT_SCHEMA_VERSION` | Phase 1 |
+| Test | See Verification | Phase 1, Phase 2 |
+| Training and user documentation | Deployer control: the receiving provider reconciles row counts against the manifest and checks allergies, resuscitation decisions and medicines person by person before relying on the new system; the export guide gives the steps | Phase 1 |
+
+**Target residual risk**: severity Major, likelihood Low, **risk 3**.
+
+**Justification for level 3**: Harbour can make the export complete, checked and documented, but the receiving system's import and mapping are outside its control; the remaining risk is managed by the receiving provider's reconciliation (deployer control). `[CSO acceptance - human action]`
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/platform/export.test.ts`: `hazard HZ-071 the export catalogue names every table` (against the Drizzle schema), `hazard HZ-071 which rows go into the export`, `hazard HZ-071 an incomplete export is never offered` | Passing (Phase 1) |
+| `packages/db`: `hazard HZ-071 the export catalogue matches the live schema` (`checkExportCatalogue`) | Planned, Phase 1 |
+| `apps/api`: `hazard HZ-071 an export round-trips through the import wizard with matching counts` | Planned, Phase 2 (with PLAT-014) |
+
+---
+
+## HZ-072 Sample data mistaken for, or mixed with, real records
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-072 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `platform` module (lead engineer) |
+| Source | Master prompt 9.1 (sample data mode); [platform-completions.md](../specs/platform-completions.md) rules 29 to 32 |
+
+**Description**: while an organisation is getting started, invented sample people or records are taken for real ones, real care is recorded against a sample person, or a sample incident is treated as a real one.
+
+**Causes**: sample people who look real; sample and real people in the same lists; a real note, incident or document linked to a sample person; sample data left in place at go-live; a notification, clock, report or export that does not check the sample flag.
+
+**Effects**: a real person's note, observation or administration recorded against a sample person and missing from their record; a wrong-person decision (HZ-001); a false statutory notification; misleading reports.
+
+**Initial risk**: severity Considerable, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Sample people are plainly invented: family name "Example", 999-range NHS numbers, `example.invalid` email addresses | Phase 1 (domain rules built) |
+| Design | Sample data loads only before any real person exists, and the first real person can be added only once it has gone, so sample and real people never share a list | Phase 1 (domain rules built) |
+| Design | A record about sample people is sample; a record linking sample and real records is refused | Phase 1 (domain rules built) |
+| Design | Sample records take part in no statutory notification or clock, return, export, report, bill, message or integration | Phase 1 (domain list built; each module checks the flag) |
+| Design | Removal is one all-or-nothing step; "sample data removed" blocks go-live on the onboarding checklist; a banner shows on every screen while sample data exists | Phase 1 |
+| Test | See Verification | Phase 1 |
+| Training and user documentation | Onboarding guide: what sample data is and when to remove it | Phase 1 |
+
+**Target residual risk**: severity Considerable, likelihood Low, **risk 2**.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/platform/onboarding.test.ts`: `hazard HZ-072 sample data is flagged, never mixed with real people, and removable in one step` | Passing (Phase 1) |
+| `apps/api`: `hazard HZ-072 a real person cannot be added while sample data exists`, `hazard HZ-072 a sample incident drafts no statutory notification` | Planned, Phase 1 |
+| Maestro `hazard-HZ-072-sample-banner.yaml`: the sample data banner on every screen | Planned, Phase 1 |
 
 ---
 
