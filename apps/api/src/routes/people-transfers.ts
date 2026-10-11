@@ -24,6 +24,7 @@ import {
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, desc, eq, inArray, isNull, like } from "drizzle-orm";
 import type { Context } from "hono";
+import { writeAudit } from "../http/audit";
 import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
@@ -148,6 +149,34 @@ function transferOut(row: TransferRow, tasks: readonly CheckTask[] = []): Hospit
     }),
     version: row.version,
   };
+}
+
+/** Checking belongings back in is a movement, not a clinical check. */
+const MOVEMENT_RETURN_CHECKS = new Set(["belongings_returned"]);
+
+/** Whether the caller may record a return check: its task's permission, or being its assignee. */
+async function mayDoReturnCheck(
+  tx: Transaction,
+  access: TenantAccess,
+  transferId: string,
+  checkKey: string,
+): Promise<boolean> {
+  const held: ReadonlySet<string> = new Set(access.effective.permissions);
+  if (MOVEMENT_RETURN_CHECKS.has(checkKey) && held.has("people.movement.record")) return true;
+  const [carried] = await tx
+    .select({ permission: task.requiredPermission, assignee: task.assigneeTenantUserId })
+    .from(task)
+    .where(
+      and(
+        eq(task.sourceType, "hospital_transfer"),
+        eq(task.sourceId, transferId),
+        eq(task.kind, returnCheckTaskKind(checkKey)),
+        isNull(task.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (!carried) return held.has("care.plan.write");
+  return carried.assignee === access.tenantUserId || held.has(carried.permission);
 }
 
 /** A refused pack: 422 with the domain's words and the sections that belong to someone else. */
@@ -697,6 +726,20 @@ export const peopleTransfersRouter = createRouter()
         const check = Object.hasOwn(checks, checkKey) ? checks[checkKey] : undefined;
         if (!check) throw problems.notFound();
         if (check.doneAt) throw problems.invalid("This check has already been recorded.");
+        // Each check is done only by someone who may complete its task (a clinical check needs
+        // care.plan.write, or being its assignee); checking belongings back in stays with
+        // whoever records movements (HZ-005, HZ-015, HZ-016).
+        if (!(await mayDoReturnCheck(tx, access, transferId, checkKey))) {
+          await writeAudit(c.get("services").appPool, access, {
+            action: "people.hospital_transfer.return_check",
+            outcome: "denied",
+            resourceType: "hospital_transfer",
+            resourceId: transferId,
+            reason: "missing_permission",
+            requestId: c.get("requestId"),
+          });
+          throw problems.forbidden();
+        }
         checks[checkKey] = { ...check, doneBy: access.tenantUserId, doneAt: now.toISOString() };
         const [updated] = await tx
           .update(hospitalTransfer)
