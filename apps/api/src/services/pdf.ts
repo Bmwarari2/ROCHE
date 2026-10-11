@@ -90,6 +90,21 @@ export function wrap(
 // Images
 // ------------------------------------------------------------------------------------------------
 
+/**
+ * The largest photo the pack prints, in pixels (4096 x 4096). A photo for identification needs far
+ * less; anything larger is named on the first page rather than decoded, so a crafted file cannot
+ * take the API down for every tenant (HZ-023).
+ */
+export const MAX_IMAGE_PIXELS = 4096 * 4096;
+const MAX_IMAGE_SIDE = 8192;
+
+const sizeAllowed = (width: number, height: number) =>
+  width > 0 &&
+  height > 0 &&
+  width <= MAX_IMAGE_SIDE &&
+  height <= MAX_IMAGE_SIDE &&
+  width * height <= MAX_IMAGE_PIXELS;
+
 /** Reads a JPEG's pixel size from its start-of-frame marker, or null when it is not a JPEG. */
 export function jpegSize(bytes: Uint8Array): { width: number; height: number } | null {
   if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return null;
@@ -98,11 +113,12 @@ export function jpegSize(bytes: Uint8Array): { width: number; height: number } |
     if (bytes[i] !== 0xff) return null;
     const marker = bytes[i + 1] ?? 0;
     const length = ((bytes[i + 2] ?? 0) << 8) | (bytes[i + 3] ?? 0);
+    if (length < 2 || i + 2 + length > bytes.length) return null;
     const isFrame = marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker);
     if (isFrame) {
       const height = ((bytes[i + 5] ?? 0) << 8) | (bytes[i + 6] ?? 0);
       const width = ((bytes[i + 7] ?? 0) << 8) | (bytes[i + 8] ?? 0);
-      return width > 0 && height > 0 ? { width, height } : null;
+      return sizeAllowed(width, height) ? { width, height } : null;
     }
     i += 2 + length;
   }
@@ -155,9 +171,14 @@ function unfilter(data: Uint8Array, width: number, height: number, bpp: number):
   return out;
 }
 
-/** A PNG as a PDF image (8-bit, not interlaced), or null when the pack cannot print it. */
+/**
+ * A PNG as a PDF image, or null when the pack cannot print it. Only 8-bit, non-interlaced PNGs
+ * within `MAX_IMAGE_PIXELS` print; 16-bit and interlaced ones are not decoded and count as not
+ * printable, so the first page names them and the hand-over asks for an acknowledgement. Every
+ * chunk is bounds-checked and decompression is capped at the size the header promises.
+ */
 function pngImage(bytes: Uint8Array): ImageObject | null {
-  if (!PNG_SIGNATURE.every((b, i) => bytes[i] === b)) return null;
+  if (bytes.length < 8 || !PNG_SIGNATURE.every((b, i) => bytes[i] === b)) return null;
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let width = 0;
   let height = 0;
@@ -167,22 +188,38 @@ function pngImage(bytes: Uint8Array): ImageObject | null {
   let palette: Uint8Array | null = null;
   const idat: Uint8Array[] = [];
   let at = 8;
-  while (at + 8 <= bytes.length) {
+  let ended = false;
+  while (at + 12 <= bytes.length) {
     const length = view.getUint32(at);
+    if (at + 12 + length > bytes.length) return null;
     const type = String.fromCharCode(...bytes.subarray(at + 4, at + 8));
     const body = bytes.subarray(at + 8, at + 8 + length);
     if (type === "IHDR") {
+      if (length !== 13 || at !== 8) return null;
       width = view.getUint32(at + 8);
       height = view.getUint32(at + 12);
       depth = body[8] ?? 0;
       colourType = body[9] ?? 0;
       interlace = body[12] ?? 0;
-    } else if (type === "PLTE") palette = body;
-    else if (type === "IDAT") idat.push(body);
-    else if (type === "IEND") break;
+    } else if (width === 0) {
+      return null;
+    } else if (type === "PLTE") {
+      if (length % 3 !== 0 || length === 0 || length > 768) return null;
+      palette = body;
+    } else if (type === "IDAT") idat.push(body);
+    else if (type === "IEND") {
+      ended = true;
+      break;
+    }
     at += 12 + length;
   }
-  if (width === 0 || height === 0 || depth !== 8 || interlace !== 0 || idat.length === 0) {
+  if (
+    !ended ||
+    !sizeAllowed(width, height) ||
+    depth !== 8 ||
+    interlace !== 0 ||
+    idat.length === 0
+  ) {
     return null;
   }
   const compressed = Buffer.concat(idat.map((c) => Buffer.from(c)));
@@ -210,7 +247,10 @@ function pngImage(bytes: Uint8Array): ImageObject | null {
   if (colourType === 4 || colourType === 6) {
     // Colour with alpha: the colour and the alpha go in separate images (a soft mask).
     const colours = colourType === 4 ? 1 : 3;
-    const pixels = unfilter(inflateSync(compressed), width, height, colours + 1);
+    const expected = height * (width * (colours + 1) + 1);
+    const inflated = inflateSync(compressed, { maxOutputLength: expected });
+    if (inflated.length !== expected) return null;
+    const pixels = unfilter(inflated, width, height, colours + 1);
     const colour = new Uint8Array(width * height * colours);
     const alpha = new Uint8Array(width * height);
     for (let p = 0; p < width * height; p++) {
@@ -232,8 +272,24 @@ function pngImage(bytes: Uint8Array): ImageObject | null {
   return null;
 }
 
-/** The photo as a PDF image, or null when it is not a JPEG or PNG the pack can print. */
+/**
+ * The photo as a PDF image, or null when it is not a JPEG or PNG the pack can print. Never throws:
+ * a broken or hostile file means "cannot be printed", named on the first page (HZ-001, HZ-023).
+ */
 export function pdfImage(image: PdfImage): ImageObject | null {
+  try {
+    return decodeImage(image);
+  } catch {
+    return null;
+  }
+}
+
+/** Whether a stored photo will print on the pack (the same decoder the PDF uses). */
+export function isPrintableImage(image: PdfImage): boolean {
+  return pdfImage(image) !== null;
+}
+
+function decodeImage(image: PdfImage): ImageObject | null {
   if (image.contentType === "image/jpeg") {
     const size = jpegSize(image.bytes);
     if (!size) return null;
@@ -326,6 +382,20 @@ function infoString(text: string): string {
   return `<feff${utf16Hex(text)}>`;
 }
 
+/**
+ * Each embedded font file, compressed once per loaded font rather than once per pack (about
+ * 1.26 MB of fonts). Keyed by the font itself, so a font parsed again is compressed again.
+ */
+const compressedFonts = new WeakMap<TrueTypeFont, Buffer>();
+function compressedFont(font: TrueTypeFont): Buffer {
+  let file = compressedFonts.get(font);
+  if (!file) {
+    file = deflateSync(font.bytes);
+    compressedFonts.set(font, file);
+  }
+  return file;
+}
+
 /** Builds the PDF bytes: every page carries the footer (for example the person's identity). */
 export function renderPdf(input: {
   readonly title: string;
@@ -391,7 +461,7 @@ export function renderPdf(input: {
   for (const key of ["F1", "F2"] as const) {
     const font = fonts[key];
     const scale = 1000 / font.unitsPerEm;
-    const file = deflateSync(font.bytes);
+    const file = compressedFont(font);
     const fileId = add(
       `<< /Length ${file.length} /Length1 ${font.bytes.length} /Filter /FlateDecode >>`,
       file,

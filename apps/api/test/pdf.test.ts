@@ -1,6 +1,6 @@
 import { deflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import { pdfImage, renderPdf, wrap } from "../src/services/pdf";
+import { isPrintableImage, pdfImage, renderPdf, wrap } from "../src/services/pdf";
 import { packFont, unprintableCharacters } from "../src/services/pdf-font";
 import { renderTransferPackPdf, type StoredPack } from "../src/services/transfer-pack-pdf";
 import { pdfPages, pdfText } from "./support/pdf-text";
@@ -62,8 +62,13 @@ describe("hazard HZ-023 text prints as written", () => {
   });
 });
 
-/** A small PNG of the given colour type (8-bit, not interlaced). */
-function png(colourType: 0 | 2 | 6, width = 2, height = 2): Uint8Array {
+/** A small PNG of the given colour type (8-bit unless said, not interlaced unless said). */
+function png(
+  colourType: 0 | 2 | 6,
+  width = 2,
+  height = 2,
+  options: { depth?: number; interlace?: number } = {},
+): Uint8Array {
   const channels = colourType === 0 ? 1 : colourType === 2 ? 3 : 4;
   const raw = Buffer.alloc((width * channels + 1) * height);
   for (let y = 0; y < height; y++) {
@@ -78,13 +83,31 @@ function png(colourType: 0 | 2 | 6, width = 2, height = 2): Uint8Array {
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(width, 0);
   ihdr.writeUInt32BE(height, 4);
-  ihdr[8] = 8;
+  ihdr[8] = options.depth ?? 8;
   ihdr[9] = colourType;
+  ihdr[12] = options.interlace ?? 0;
   return new Uint8Array(
     Buffer.concat([
       Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
       chunk("IHDR", ihdr),
       chunk("IDAT", deflateSync(raw)),
+      chunk("IEND", Buffer.alloc(0)),
+    ]),
+  );
+}
+
+/** A PNG whose image data inflates to `size` bytes, far more than its 2 x 2 header allows. */
+function withIdat(base: Uint8Array, size: number): Uint8Array {
+  const chunk = (type: string, body: Buffer) => {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(body.length);
+    return Buffer.concat([length, Buffer.from(type, "latin1"), body, Buffer.alloc(4)]);
+  };
+  const header = Buffer.from(base.subarray(0, 8 + 25));
+  return new Uint8Array(
+    Buffer.concat([
+      header,
+      chunk("IDAT", deflateSync(Buffer.alloc(size, 7))),
       chunk("IEND", Buffer.alloc(0)),
     ]),
   );
@@ -107,6 +130,42 @@ describe("hazard HZ-001 the photo", () => {
     const text = Buffer.from(bytes).toString("latin1");
     expect(text).toContain("/Subtype /Image");
     expect(text.includes("/SMask")).toBe(type === 6);
+  });
+
+  it.each([
+    ["a 16-bit PNG", () => png(2, 2, 2, { depth: 16 })],
+    ["an interlaced PNG", () => png(2, 2, 2, { interlace: 1 })],
+    ["a PNG claiming 20000 x 20000 pixels", () => png(6, 20_000, 20_000)],
+    ["a PNG over the pixel limit", () => png(2, 4097, 4096)],
+    ["a 16-byte truncated PNG", () => png(2).subarray(0, 16)],
+    ["a PNG whose chunk runs past the end", () => png(6).subarray(0, 40)],
+    ["a PNG whose data inflates past its header", () => withIdat(png(6, 2, 2), 64 * 1024)],
+  ])("hazard HZ-023 treats %s as not printable, without decoding it", (_label, make) => {
+    const bytes = make();
+    expect(pdfImage({ bytes, contentType: "image/png" })).toBeNull();
+    expect(isPrintableImage({ bytes, contentType: "image/png" })).toBe(false);
+  });
+
+  it("hazard HZ-023 treats a JPEG over the pixel limit, or truncated, as not printable", () => {
+    const sof = (w: number, h: number) =>
+      new Uint8Array([
+        0xff,
+        0xd8,
+        0xff,
+        0xc0,
+        0,
+        17,
+        8,
+        h >> 8,
+        h & 0xff,
+        w >> 8,
+        w & 0xff,
+        3,
+        ...new Array(12).fill(0),
+      ]);
+    expect(pdfImage({ bytes: sof(20_000, 20_000), contentType: "image/jpeg" })).toBeNull();
+    expect(pdfImage({ bytes: sof(2, 2), contentType: "image/jpeg" })).not.toBeNull();
+    expect(pdfImage({ bytes: sof(2, 2).subarray(0, 8), contentType: "image/jpeg" })).toBeNull();
   });
 
   it("refuses an image it cannot print (WebP, or not what it claims to be)", () => {

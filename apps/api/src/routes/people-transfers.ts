@@ -186,6 +186,7 @@ async function itemsToSend(tx: Transaction, personId: string, ids: readonly stri
 }
 
 async function packFor(
+  c: Context<AppEnv>,
   tx: Transaction,
   p: PersonRecord,
   generatedBy: string,
@@ -198,6 +199,8 @@ async function packFor(
     sendItemIds,
     generatedBy,
     now,
+    // The photo is decoded as the PDF decodes it, so "printable" means it will print.
+    storage: c.get("services").storage,
   });
   if (!result.ok) refusePack(result);
   return result.pack;
@@ -235,6 +238,7 @@ async function previewPack(
     const p = await loadPerson(tx, id);
     await itemsToSend(tx, id, body.sendItemIds);
     const assembled = await packFor(
+      c,
       tx,
       p,
       access.tenantUserId,
@@ -385,6 +389,7 @@ export const peopleTransfersRouter = createRouter()
         }
         await itemsToSend(tx, id, body.sendItemIds);
         const pack = await packFor(
+          c,
           tx,
           p,
           access.tenantUserId,

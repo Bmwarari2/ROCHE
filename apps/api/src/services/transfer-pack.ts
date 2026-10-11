@@ -17,6 +17,7 @@ import {
   type AllergyStatement,
   assembleHospitalTransferPack,
   type CommunicationStatement,
+  type DocumentStoragePort,
   type HospitalTransferInput,
   type IddsiDrinkLevel,
   type IddsiFoodLevel,
@@ -29,7 +30,9 @@ import {
   ukIsoDate,
 } from "@harbour/domain";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { readDocumentContent } from "./documents";
 import { capacityViews } from "./mca";
+import { isPrintableImage } from "./pdf";
 import type { PersonRecord } from "./people";
 import { ukDate } from "./transfer-pack-pdf";
 
@@ -99,6 +102,11 @@ export interface TransferPackRequest {
   readonly sendItemIds: readonly string[];
   readonly generatedBy: string;
   readonly now: Date;
+  /**
+   * The document store, to check that the photo will actually print (decoded the way the PDF
+   * decodes it). Without it, only the content type is checked.
+   */
+  readonly storage?: DocumentStoragePort;
 }
 
 /** Gathers the record and assembles the pack (never interpreted; HZ-023). */
@@ -130,14 +138,21 @@ export async function transferPackInput(
       .from(document)
       .where(eq(document.id, p.photoDocumentId));
     if (doc) {
+      // A 16-bit or interlaced PNG, a truncated file or one over the size limit does not print:
+      // it counts as missing, so page 1 names it and the hand-over needs an acknowledgement.
+      let printable = PRINTABLE_PHOTO_TYPES.includes(doc.contentType);
+      if (printable && request.storage && doc.personId === p.id) {
+        const content = await readDocumentContent(tx, request.storage, p.photoDocumentId).catch(
+          () => null,
+        );
+        printable =
+          content !== null &&
+          isPrintableImage({ bytes: content.bytes, contentType: doc.contentType });
+      }
       photo = {
         personId: doc.personId ?? "",
         asOf: doc.createdAt,
-        data: {
-          documentId: p.photoDocumentId,
-          takenOn: ukIsoDate(doc.createdAt),
-          printable: PRINTABLE_PHOTO_TYPES.includes(doc.contentType),
-        },
+        data: { documentId: p.photoDocumentId, takenOn: ukIsoDate(doc.createdAt), printable },
       };
     }
   }
