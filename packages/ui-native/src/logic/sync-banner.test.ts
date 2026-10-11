@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { describeSyncBanner, NEVER_SYNCED_WARNING, STALE_WARNING } from "./sync-banner";
+import {
+  describeSyncBanner,
+  NEVER_SYNCED_WARNING,
+  REFUSED_TITLE,
+  STALE_WARNING,
+} from "./sync-banner";
 
 const now = new Date("2026-10-09T13:05:00Z");
 const staleAfterMs = 15 * 60_000;
@@ -107,5 +112,51 @@ describe("describeSyncBanner", () => {
     const syncing = describeSyncBanner({ state: "syncing", lastSyncedAt: null, now, staleAfterMs });
     expect(syncing.warning).toBeNull();
     expect(syncing.tone).toBe("info");
+  });
+});
+
+describe("hazard HZ-006 refused entries on the banner (clinical review C1)", () => {
+  it.each(["synced", "syncing", "offline", "failed"] as const)(
+    "never reads up to date while a refused entry is on the device (%s)",
+    (state) => {
+      const content = describeSyncBanner({
+        state,
+        lastSyncedAt: minutesAgo(1),
+        now,
+        staleAfterMs,
+        refusedEntries: 2,
+      });
+      expect(content.title).not.toBe("Up to date");
+      expect(content.detail).toContain("2 entries were not saved and need attention.");
+      expect(content.tone).toBe("danger");
+      expect(content.icon).toBe("cloud-alert");
+      expect(content.urgent).toBe(true);
+    },
+  );
+
+  it("says not all saved instead of up to date", () => {
+    const content = describeSyncBanner({
+      state: "synced",
+      lastSyncedAt: minutesAgo(1),
+      now,
+      staleAfterMs,
+      refusedEntries: 1,
+    });
+    expect(content.title).toBe(REFUSED_TITLE);
+    expect(content.detail).toBe(
+      "Last synced 1 minute ago. 1 entry was not saved and needs attention.",
+    );
+  });
+
+  it("reads up to date again once none is left", () => {
+    const content = describeSyncBanner({
+      state: "synced",
+      lastSyncedAt: minutesAgo(1),
+      now,
+      staleAfterMs,
+      refusedEntries: 0,
+    });
+    expect(content.title).toBe("Up to date");
+    expect(content.tone).toBe("success");
   });
 });
