@@ -1228,6 +1228,7 @@ export const SharingSection = z
     "medicines",
     "appointments",
     "finance",
+    "benefits",
     "documents",
   ])
   .meta({ id: "SharingSection" });
@@ -1252,16 +1253,24 @@ export const SharingAuthority = z
       "appointee",
     ]),
     contactId: uuid,
+    /** Taken from the contact's authority when left out. */
     reference: text(120).optional(),
+    /** Taken from the contact's authority when left out. */
     evidenceDocumentId: uuid.optional(),
+    /** Taken from the contact's authority when left out. */
     validUntil: isoDate.optional(),
+    /**
+     * For a deputy: the sections the Court of Protection order covers, as recorded from the order
+     * (required for deputies, and within the deputyship the contact holds).
+     */
+    orderSections: z.array(SharingSection).min(1).max(11).optional(),
   })
   .meta({ id: "SharingAuthority" });
 
 export const CreateSharingDecision = z
   .object({
     recipient: SharingRecipient,
-    sections: z.array(SharingSection).min(1).max(10),
+    sections: z.array(SharingSection).min(1).max(11),
     /** Care plan domains shared when `care_plan` is a section; every domain when left out. */
     carePlanDomains: z.array(text(60)).max(20).optional(),
     basis: z.enum(["consent", "legal_authority", "best_interests", "direct_care"]),
@@ -1269,7 +1278,10 @@ export const CreateSharingDecision = z
     capacity: z
       .enum(["presumed", "assessed_has_capacity", "assessed_lacks_capacity"])
       .default("presumed"),
-    /** The assessment of the person's capacity for this decision, when it was assessed. */
+    /**
+     * The assessment of the person's capacity for this decision (an assessment of the sharing
+     * decision, `decisionKind: "sharing"`), when it was assessed.
+     */
     capacityAssessmentId: uuid.optional(),
     bestInterestsDecisionId: uuid.optional(),
     authority: SharingAuthority.optional(),
@@ -1279,6 +1291,19 @@ export const CreateSharingDecision = z
   })
   .meta({ id: "CreateSharingDecision" });
 export type CreateSharingDecision = z.infer<typeof CreateSharingDecision>;
+
+export const SharingSuspensionOut = z
+  .object({
+    id: uuid,
+    suspendedAt: isoDateTime,
+    reason: z.string(),
+    /** Empty while the suspension lasts. */
+    liftedAt: isoDateTime.nullable(),
+    liftedBy: uuid.nullable(),
+    liftedReason: z.string().nullable(),
+  })
+  .meta({ id: "SharingSuspensionOut" });
+export type SharingSuspensionOut = z.infer<typeof SharingSuspensionOut>;
 
 export const SharingDecisionOut = z
   .object({
@@ -1297,9 +1322,15 @@ export const SharingDecisionOut = z
     validTo: isoDateTime,
     withdrawnAt: isoDateTime.nullable(),
     withdrawnReason: z.string().nullable(),
+    /** The suspension in force now, if any. */
     suspendedAt: isoDateTime.nullable(),
     suspendedReason: z.string().nullable(),
-    /** Started, not expired, not withdrawn or suspended, and the person still receiving care. */
+    /** Every period the decision was suspended, oldest first; what happened then stays closed. */
+    suspensions: z.array(SharingSuspensionOut),
+    /**
+     * Started, not expired, not withdrawn or suspended, the person still receiving care and, for a
+     * decision that rests on the person lacking capacity, the current finding still says so.
+     */
     inForce: z.boolean(),
     recordedBy: uuid.nullable(),
     version: z.number().int(),
@@ -1312,15 +1343,22 @@ export const SharingDecisionList = z
   .meta({ id: "SharingDecisionList" });
 export type SharingDecisionList = z.infer<typeof SharingDecisionList>;
 
-export const CloseSharingDecision = z
-  .object({ reason: text(1000).min(3), version })
-  .meta({ id: "CloseSharingDecision", description: "Withdraw or suspend, with the reason" });
+export const CloseSharingDecision = z.object({ reason: text(1000).min(3), version }).meta({
+  id: "CloseSharingDecision",
+  description: "Withdraw, suspend or lift a suspension, with the reason",
+});
 export type CloseSharingDecision = z.infer<typeof CloseSharingDecision>;
 
 export const SharingVisibility = z
   .object({
     personId: uuid,
     recipient: SharingRecipient,
+    /**
+     * The person's capacity for the sharing decision now, from the latest assessment of it
+     * (presumed without one): a decision resting on a lack of capacity applies only while it is
+     * `assessed_lacks_capacity`.
+     */
+    capacityForSharing: z.enum(["presumed", "assessed_has_capacity", "assessed_lacks_capacity"]),
     sections: z.array(
       z.object({
         section: SharingSection,

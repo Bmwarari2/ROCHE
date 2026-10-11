@@ -5,15 +5,26 @@ import {
   type SharingDecisionOut,
   SharingVisibility,
 } from "@harbour/contracts";
-import { aboutMeShareLink, capacityAssessment, sharingDecision, tenantUser } from "@harbour/db";
 import {
+  aboutMeShareLink,
+  capacityAssessment,
+  contact,
+  sharingDecision,
+  sharingDecisionSuspension,
+  type Transaction,
+  tenantUser,
+} from "@harbour/db";
+import {
+  type AuthorityRole,
   checkSectionVisibility,
   checkSharingDecision,
+  FINANCE_SECTIONS,
   type PersonStatus,
   SHARING_SECTIONS,
   type SharingDecision,
   type SharingDecisionProblem,
   type SharingRecipient,
+  type SharingSection,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, eq, isNull } from "drizzle-orm";
@@ -22,7 +33,12 @@ import { type AppEnv, requirePermission, type TenantAccess, withTenant } from ".
 import { problems } from "../http/problem";
 import { publish } from "../outbox";
 import { loadPerson, requireVersion, requireWrite } from "../services/people";
-import { decisionsWithLinks, personDecisions, sharingDecisionOut } from "../services/sharing";
+import {
+  decisionsWithLinks,
+  personDecisions,
+  sharingContext,
+  sharingDecisionOut,
+} from "../services/sharing";
 import {
   conflictResponse,
   createRouter,
@@ -61,9 +77,10 @@ const SHARING_MESSAGES: Record<SharingDecisionProblem, string> = {
   authority_evidence_required: "Record the reference or the evidence of the authority.",
   authority_expired: "The authority has ended.",
   authority_does_not_cover_section:
-    "A property and finance authority covers finance only; a welfare authority covers everything else.",
+    "The authority does not cover every section chosen: a property and finance authority covers finance and benefits, a DWP appointee benefits only, a welfare authority everything else, and a deputy only what their order covers.",
   authority_needs_lack_of_capacity:
     "A health and welfare attorney or deputy acts only when the person lacks capacity for the decision.",
+  deputy_order_scope_required: "Record the sections the deputy's Court of Protection order covers.",
   best_interests_decision_required: "Name the best-interests decision relied on.",
   best_interests_needs_lack_of_capacity:
     "A best-interests decision applies only when the person lacks capacity for the decision.",
@@ -71,7 +88,78 @@ const SHARING_MESSAGES: Record<SharingDecisionProblem, string> = {
   direct_care_section_not_clinical: "Direct care covers clinical sections only.",
   link_only_about_me: "A share link carries About Me only.",
   link_not_direct_care: "A share link cannot rest on direct care.",
+  suspension_ends_before_start: "A suspension must end after it starts.",
 };
+
+/** The contact role that holds each authority (people.md rule 13). */
+const AUTHORITY_CONTACT_ROLES: Record<AuthorityRole, string> = {
+  lpa_health_welfare: "lpa_health_welfare",
+  lpa_property_finance: "lpa_property_finance",
+  deputy_personal_welfare: "deputy",
+  deputy_property_affairs: "deputy",
+  appointee: "appointee",
+};
+
+/** The deputyships (`contact.authority_scope`) that allow each deputy role. */
+const DEPUTY_SCOPES: Partial<Record<AuthorityRole, readonly string[]>> = {
+  deputy_personal_welfare: ["personal_welfare", "both"],
+  deputy_property_affairs: ["property_affairs", "both"],
+};
+
+/**
+ * The authority as recorded on the contact who holds it: the contact must hold that kind of
+ * authority, a deputy's order must be of that kind (`contact.authority_scope`) and cover only
+ * sections of that kind, and a reference, evidence or end date left out is taken from the
+ * contact.
+ */
+async function authorityFromContact(
+  tx: Transaction,
+  personId: string,
+  authority: NonNullable<CreateSharingDecision["authority"]>,
+): Promise<NonNullable<SharingDecision["authority"]>> {
+  const [holder] = await tx
+    .select({
+      role: contact.role,
+      scope: contact.authorityScope,
+      reference: contact.authorityReference,
+      documentId: contact.authorityDocumentId,
+      validUntil: contact.validUntil,
+    })
+    .from(contact)
+    .where(
+      and(
+        eq(contact.id, authority.contactId),
+        eq(contact.personId, personId),
+        isNull(contact.deletedAt),
+      ),
+    );
+  if (!holder) throw problems.invalid("The contact who holds the authority was not found.");
+  if (holder.role !== AUTHORITY_CONTACT_ROLES[authority.role]) {
+    throw problems.invalid("The contact does not hold that kind of authority.");
+  }
+  const scopes = DEPUTY_SCOPES[authority.role];
+  if (scopes) {
+    if (!holder.scope || !scopes.includes(holder.scope)) {
+      throw problems.invalid("The deputy's order is not of that kind.");
+    }
+    const finance = authority.role === "deputy_property_affairs";
+    if (
+      (authority.orderSections ?? []).some(
+        (section) => FINANCE_SECTIONS.includes(section as SharingSection) !== finance,
+      )
+    ) {
+      throw problems.invalid("The order sections are outside the deputyship.");
+    }
+  }
+  return {
+    role: authority.role,
+    contactId: authority.contactId,
+    reference: authority.reference ?? holder.reference ?? null,
+    evidenceDocumentId: authority.evidenceDocumentId ?? holder.documentId ?? null,
+    validUntil: authority.validUntil ?? holder.validUntil ?? null,
+    orderSections: authority.orderSections ?? null,
+  };
+}
 
 export const peopleSharingRouter = createRouter()
   .openapi(
@@ -95,6 +183,7 @@ export const peopleSharingRouter = createRouter()
       const items = await withTenant(c, async (tx) => {
         const p = await loadPerson(tx, id);
         const rows = await personDecisions(tx, id);
+        const context = await sharingContext(tx, id, now);
         await audit(c, tx, access, {
           action: "people.sharing.list",
           resourceType: "person",
@@ -103,7 +192,7 @@ export const peopleSharingRouter = createRouter()
         });
         return rows
           .sort((a, b) => b.validFrom.getTime() - a.validFrom.getTime())
-          .map((r) => sharingDecisionOut(r, p.status as PersonStatus, now));
+          .map((r) => sharingDecisionOut(r, p.status as PersonStatus, now, context));
       });
       return c.json({ items }, 200);
     },
@@ -115,7 +204,7 @@ export const peopleSharingRouter = createRouter()
       tags: ["people"],
       summary: "Record a decision to share sections with one recipient (HZ-022)",
       description:
-        "checkSharingDecision: known sections, an expiry, and a valid basis: the person's consent (unless assessed as lacking capacity for it), consent by an attorney or deputy whose authority covers the sections, a legal authority held by the recipient with evidence, a best-interests decision, or direct care for professionals and clinical sections only. A capacity finding names the assessment it rests on. Publishes people.sharing.changed.",
+        "checkSharingDecision: known sections, an expiry, and a valid basis: the person's consent (unless assessed as lacking capacity for it), consent by an attorney or deputy whose authority covers the sections, a legal authority held by the recipient with evidence, a best-interests decision, or direct care for professionals and clinical sections only. The authority must be held by the contact named (a deputy within their deputyship and the sections their order covers; an appointee benefits only); a reference, evidence or end date left out is taken from the contact. A capacity finding names an assessment of the sharing decision. Publishes people.sharing.changed.",
       security,
       request: {
         params: PersonParam,
@@ -141,13 +230,23 @@ export const peopleSharingRouter = createRouter()
             throw problems.invalid("Name the capacity assessment for this decision.");
           }
           const [assessment] = await tx
-            .select({ personId: capacityAssessment.personId, outcome: capacityAssessment.outcome })
+            .select({
+              personId: capacityAssessment.personId,
+              outcome: capacityAssessment.outcome,
+              decisionKind: capacityAssessment.decisionKind,
+            })
             .from(capacityAssessment)
             .where(eq(capacityAssessment.id, body.capacityAssessmentId));
           const expected =
             body.capacity === "assessed_lacks_capacity" ? "lacks_capacity" : "has_capacity";
           if (assessment?.personId !== id || assessment.outcome !== expected) {
             throw problems.invalid("The capacity assessment named does not show that finding.");
+          }
+          // Capacity is decision-specific: only an assessment of the sharing decision counts.
+          if (assessment.decisionKind !== "sharing") {
+            throw problems.invalid(
+              "Name an assessment of the person's capacity to decide about sharing their information.",
+            );
           }
         }
         if (body.recipient.kind === "professional") {
@@ -159,6 +258,9 @@ export const peopleSharingRouter = createRouter()
         }
         const recipient: SharingRecipient =
           body.recipient.kind === "link" ? { kind: "link", linkId: "new" } : body.recipient;
+        const authority = body.authority
+          ? await authorityFromContact(tx, id, body.authority)
+          : null;
         const decision: SharingDecision = {
           id: "new",
           personId: id,
@@ -169,15 +271,7 @@ export const peopleSharingRouter = createRouter()
           consentGivenBy: body.consentGivenBy ?? null,
           capacity: body.capacity,
           bestInterestsDecisionId: body.bestInterestsDecisionId ?? null,
-          authority: body.authority
-            ? {
-                role: body.authority.role,
-                contactId: body.authority.contactId,
-                reference: body.authority.reference ?? null,
-                evidenceDocumentId: body.authority.evidenceDocumentId ?? null,
-                validUntil: body.authority.validUntil ?? null,
-              }
-            : null,
+          authority,
           validFrom,
           validTo: new Date(body.validTo),
           withdrawnAt: null,
@@ -195,7 +289,7 @@ export const peopleSharingRouter = createRouter()
         await requireOwnDocument(
           tx,
           id,
-          body.authority?.evidenceDocumentId,
+          authority?.evidenceDocumentId,
           "evidence of the authority",
         );
         const [row] = await tx
@@ -213,11 +307,12 @@ export const peopleSharingRouter = createRouter()
             capacity: body.capacity,
             capacityAssessmentId: body.capacityAssessmentId ?? null,
             bestInterestsDecisionId: body.bestInterestsDecisionId ?? null,
-            authorityRole: body.authority?.role ?? null,
-            authorityContactId: body.authority?.contactId ?? null,
-            authorityReference: body.authority?.reference ?? null,
-            authorityEvidenceDocumentId: body.authority?.evidenceDocumentId ?? null,
-            authorityValidUntil: body.authority?.validUntil ?? null,
+            authorityRole: authority?.role ?? null,
+            authorityContactId: authority?.contactId ?? null,
+            authorityReference: authority?.reference ?? null,
+            authorityEvidenceDocumentId: authority?.evidenceDocumentId ?? null,
+            authorityValidUntil: authority?.validUntil ?? null,
+            authorityOrderSections: authority?.orderSections ? [...authority.orderSections] : null,
             validFrom,
             validTo: decision.validTo,
           })
@@ -237,7 +332,12 @@ export const peopleSharingRouter = createRouter()
           type: "people.sharing.changed",
           payload: { personId: id, reason: "decision_recorded", decisionId: row.id },
         });
-        return sharingDecisionOut(row, p.status as PersonStatus, now);
+        return sharingDecisionOut(
+          row,
+          p.status as PersonStatus,
+          now,
+          await sharingContext(tx, id, now),
+        );
       });
       return c.json(out, 201);
     },
@@ -304,6 +404,39 @@ export const peopleSharingRouter = createRouter()
   )
   .openapi(
     createRoute({
+      method: "post",
+      path: "/v1/people/{id}/sharing-decisions/{decisionId}/lift-suspension",
+      tags: ["people"],
+      summary:
+        "Lift a suspension: the sections reopen, but what happened while suspended stays closed",
+      description:
+        "Ends the open suspension period with the reason. The decision covers only what happened while it was in force and not suspended (decisionInForceAt; comms.md rule 2).",
+      security,
+      request: {
+        params: DecisionParams,
+        body: { content: { "application/json": { schema: CloseSharingDecision } } },
+      },
+      responses: {
+        200: jsonBody(SharingDecisionList.shape.items.element, "Suspension lifted"),
+        ...errorResponses,
+        ...notFoundResponse,
+        ...conflictResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, "people.sharing.manage");
+      const out = await closeDecision(
+        c,
+        access,
+        c.req.valid("param"),
+        c.req.valid("json"),
+        "lift_suspension",
+      );
+      return c.json(out, 200);
+    },
+  )
+  .openapi(
+    createRoute({
       method: "get",
       path: "/v1/people/{id}/sharing-decisions/visibility",
       tags: ["people"],
@@ -337,7 +470,8 @@ export const peopleSharingRouter = createRouter()
       const now = new Date();
       const visibility = await withTenant(c, async (tx) => {
         const p = await loadPerson(tx, id);
-        const decisions = await decisionsWithLinks(tx, id);
+        const context = await sharingContext(tx, id, now);
+        const decisions = await decisionsWithLinks(tx, id, context);
         await audit(c, tx, access, {
           action: "people.sharing.visibility",
           resourceType: "person",
@@ -352,12 +486,14 @@ export const peopleSharingRouter = createRouter()
               : recipient.kind === "family"
                 ? ({ kind: "family", contactId: recipient.contactId } as const)
                 : ({ kind: "professional", tenantUserId: recipient.tenantUserId } as const),
+          capacityForSharing: context.capacityNow,
           sections: SHARING_SECTIONS.map((section) => {
             const result = checkSectionVisibility(decisions, {
               personId: id,
               personStatus: p.status as PersonStatus,
               recipient,
               section,
+              capacityNow: context.capacityNow,
               now,
             });
             return result.visible
@@ -387,7 +523,7 @@ async function closeDecision(
   access: TenantAccess,
   { id, decisionId }: { id: string; decisionId: string },
   body: CloseSharingDecision,
-  how: "withdraw" | "suspend",
+  how: "withdraw" | "suspend" | "lift_suspension",
 ): Promise<SharingDecisionOut> {
   const now = new Date();
   return withTenant(c, async (tx) => {
@@ -402,16 +538,61 @@ async function closeDecision(
     if (how === "suspend" && row.suspendedAt) {
       throw problems.invalid("This decision is already suspended.");
     }
+    if (how === "lift_suspension" && !row.suspendedAt) {
+      throw problems.invalid("This decision is not suspended.");
+    }
     const [updated] = await tx
       .update(sharingDecision)
       .set(
         how === "withdraw"
           ? { withdrawnAt: now, withdrawnReason: body.reason }
-          : { suspendedAt: now, suspendedReason: body.reason },
+          : how === "suspend"
+            ? { suspendedAt: now, suspendedReason: body.reason }
+            : { suspendedAt: null, suspendedReason: null },
       )
       .where(and(eq(sharingDecision.id, decisionId), eq(sharingDecision.version, body.version)))
       .returning();
     if (!updated) throw problems.conflict();
+    if (how === "suspend") {
+      // Each suspension is a period, so what happens while it lasts stays closed afterwards.
+      await tx.insert(sharingDecisionSuspension).values({
+        personId: id,
+        sharingDecisionId: decisionId,
+        suspendedAt: now,
+        reason: body.reason,
+      });
+    }
+    if (how === "lift_suspension") {
+      const [open] = await tx
+        .select()
+        .from(sharingDecisionSuspension)
+        .where(
+          and(
+            eq(sharingDecisionSuspension.sharingDecisionId, decisionId),
+            isNull(sharingDecisionSuspension.liftedAt),
+            isNull(sharingDecisionSuspension.deletedAt),
+          ),
+        );
+      const since = open?.suspendedAt ?? row.suspendedAt ?? now;
+      // A period ends after it starts, even when lifted within the same millisecond.
+      const liftedAt = new Date(Math.max(now.getTime(), since.getTime() + 1));
+      if (open) {
+        await tx
+          .update(sharingDecisionSuspension)
+          .set({ liftedAt, liftedBy: access.tenantUserId, liftedReason: body.reason })
+          .where(eq(sharingDecisionSuspension.id, open.id));
+      } else {
+        await tx.insert(sharingDecisionSuspension).values({
+          personId: id,
+          sharingDecisionId: decisionId,
+          suspendedAt: since,
+          reason: row.suspendedReason ?? "Suspended",
+          liftedAt,
+          liftedBy: access.tenantUserId,
+          liftedReason: body.reason,
+        });
+      }
+    }
     if (how === "withdraw") {
       await tx
         .update(aboutMeShareLink)
@@ -434,8 +615,18 @@ async function closeDecision(
       aggregateType: "person",
       aggregateId: id,
       type: "people.sharing.changed",
-      payload: { personId: id, reason: how === "withdraw" ? "withdrawn" : "suspended", decisionId },
+      payload: {
+        personId: id,
+        reason:
+          how === "withdraw" ? "withdrawn" : how === "suspend" ? "suspended" : "suspension_lifted",
+        decisionId,
+      },
     });
-    return sharingDecisionOut(updated, p.status as PersonStatus, now);
+    return sharingDecisionOut(
+      updated,
+      p.status as PersonStatus,
+      now,
+      await sharingContext(tx, id, now),
+    );
   });
 }

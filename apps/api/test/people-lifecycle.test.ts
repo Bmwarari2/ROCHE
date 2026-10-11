@@ -1688,6 +1688,222 @@ describe("hazard HZ-022 sharing is closed by default", () => {
   });
 });
 
+describe("people.md rule 13 on the slice 12 sharing rules (HZ-022)", () => {
+  const sharing = (personId: string) => `/v1/people/${personId}/sharing-decisions`;
+  const visibility = async (personId: string, contactId: string) =>
+    json<SharingVisibility>(
+      await as("manager", `${sharing(personId)}/visibility?contactId=${contactId}`),
+    );
+  const addContact = (
+    personId: string,
+    role: string,
+    scope: string | null,
+    reference: string | null = "OPG-EXAMPLE-1",
+  ) =>
+    asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ id: string }>(
+        `INSERT INTO contact (person_id, role, given_name, family_name, relationship,
+           authority_reference, authority_scope)
+         VALUES ($1, $2, 'Alex', 'Example', 'Child', $3, $4) RETURNING id`,
+        [personId, role, reference, scope],
+      );
+      return rows[0]?.id ?? "";
+    });
+  const assessCapacity = (
+    personId: string,
+    outcome: "has_capacity" | "lacks_capacity",
+    ago: number,
+  ) =>
+    asDemoTenant(async (c) => {
+      const lacks = outcome === "lacks_capacity";
+      const { rows } = await c.query<{ id: string }>(
+        `INSERT INTO capacity_assessment (person_id, decision, decision_kind, assessed_at,
+           assessor_tenant_user_id, stage1_impairment, stage1_description, stage2,
+           inability_because_of_impairment, outcome, unable_to, reason)
+         VALUES ($1, 'whether to share information with family', 'sharing',
+           now() - make_interval(hours => $2), $3, $4, 'Dementia', '{}', $5, $6, $7,
+           'Recorded for the test')
+         RETURNING id`,
+        [
+          personId,
+          ago,
+          DEMO.users.nurse.id,
+          lacks,
+          lacks ? true : null,
+          outcome,
+          lacks ? ["understand"] : [],
+        ],
+      );
+      return rows[0]?.id ?? "";
+    });
+  const validTo = () => new Date(Date.now() + 30 * DAY).toISOString();
+
+  it("hazard HZ-022 lets a DWP appointee see benefits only, never finance statements", async () => {
+    const who = await newResident("Gwen");
+    const appointee = await addContact(who, "appointee", null, "DWP-EXAMPLE-1");
+    const body = (sections: string[]) => ({
+      recipient: { kind: "family", contactId: appointee },
+      sections,
+      basis: "legal_authority",
+      authority: { role: "appointee", contactId: appointee },
+      validTo: validTo(),
+    });
+    const refused = await as("manager", sharing(who), { method: "POST", body: body(["finance"]) });
+    expect(refused.status).toBe(422);
+    const created = await as("manager", sharing(who), { method: "POST", body: body(["benefits"]) });
+    expect(created.status).toBe(201);
+    // The reference comes from the contact's authority when the decision leaves it out.
+    expect((await json<SharingDecisionOut>(created)).authority?.reference).toBe("DWP-EXAMPLE-1");
+    const seen = await visibility(who, appointee);
+    expect(seen.sections.filter((s) => s.visible).map((s) => s.section)).toEqual(["benefits"]);
+    // An authority held by someone else, or of another kind, is refused.
+    const nextOfKin = await addContact(who, "next_of_kin", null);
+    const wrongHolder = await as("manager", sharing(who), {
+      method: "POST",
+      body: {
+        ...body(["benefits"]),
+        recipient: { kind: "family", contactId: nextOfKin },
+        authority: { role: "appointee", contactId: nextOfKin },
+      },
+    });
+    expect(wrongHolder.status).toBe(422);
+  });
+
+  it("hazard HZ-022 lets a deputy see only what their order covers, and only while the person lacks capacity now", async () => {
+    const who = await newResident("Huw");
+    const deputy = await addContact(who, "deputy", "personal_welfare");
+    const assessment = await assessCapacity(who, "lacks_capacity", 48);
+    const body = (orderSections?: string[], role = "deputy_personal_welfare") => ({
+      recipient: { kind: "family", contactId: deputy },
+      sections: ["daily_updates"],
+      basis: "legal_authority",
+      capacity: "assessed_lacks_capacity",
+      capacityAssessmentId: assessment,
+      authority: {
+        role,
+        contactId: deputy,
+        ...(orderSections ? { orderSections } : {}),
+      },
+      validTo: validTo(),
+    });
+    for (const [label, refusal] of [
+      ["no order sections", body()],
+      ["a section outside the order", body(["care_plan"])],
+      [
+        "a property and affairs order the deputy does not hold",
+        body(["finance"], "deputy_property_affairs"),
+      ],
+    ] as const) {
+      const response = await as("manager", sharing(who), { method: "POST", body: refusal });
+      expect(response.status, label).toBe(422);
+    }
+    const created = await as("manager", sharing(who), {
+      method: "POST",
+      body: body(["daily_updates", "care_plan"]),
+    });
+    expect(created.status).toBe(201);
+    const decision = await json<SharingDecisionOut>(created);
+    expect(decision.authority?.orderSections).toEqual(["daily_updates", "care_plan"]);
+    expect(decision.inForce).toBe(true);
+    let seen = await visibility(who, deputy);
+    expect(seen.capacityForSharing).toBe("assessed_lacks_capacity");
+    expect(seen.sections.find((s) => s.section === "daily_updates")?.visible).toBe(true);
+    // A later assessment of the sharing decision finds capacity: the deputy's decision closes.
+    await assessCapacity(who, "has_capacity", 1);
+    seen = await visibility(who, deputy);
+    expect(seen.capacityForSharing).toBe("assessed_has_capacity");
+    expect(seen.sections.find((s) => s.section === "daily_updates")).toMatchObject({
+      visible: false,
+      reason: "capacity_regained",
+    });
+  });
+
+  it("hazard HZ-022 takes capacity only from an assessment of the sharing decision", async () => {
+    const who = await newResident("Iolo");
+    const deputy = await addContact(who, "deputy", "both");
+    const other = await asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ id: string }>(
+        `INSERT INTO capacity_assessment (person_id, decision, decision_kind, assessed_at,
+           assessor_tenant_user_id, stage1_impairment, stage1_description, stage2,
+           inability_because_of_impairment, outcome, unable_to, reason)
+         VALUES ($1, 'whether to have bed rails at night', 'bed_rails', now() - interval '1 day',
+           $2, true, 'Dementia', '{}', true, 'lacks_capacity', '{understand}', 'Recorded')
+         RETURNING id`,
+        [who, DEMO.users.nurse.id],
+      );
+      return rows[0]?.id ?? "";
+    });
+    const refused = await as("manager", sharing(who), {
+      method: "POST",
+      body: {
+        recipient: { kind: "family", contactId: deputy },
+        sections: ["daily_updates"],
+        basis: "legal_authority",
+        capacity: "assessed_lacks_capacity",
+        capacityAssessmentId: other,
+        authority: {
+          role: "deputy_personal_welfare",
+          contactId: deputy,
+          orderSections: ["daily_updates"],
+        },
+        validTo: validTo(),
+      },
+    });
+    expect(refused.status).toBe(422);
+  });
+
+  it("hazard HZ-022 keeps each suspension as a period and reopens the sections when it is lifted", async () => {
+    const who = await newResident("Jac");
+    const family = await addContact(who, "next_of_kin", null, null);
+    let decision = await json<SharingDecisionOut>(
+      await as("manager", sharing(who), {
+        method: "POST",
+        body: {
+          recipient: { kind: "family", contactId: family },
+          sections: ["activities_and_visits"],
+          basis: "consent",
+          consentGivenBy: "person",
+          validTo: validTo(),
+        },
+      }),
+    );
+    const move = async (how: string, reason: string) => {
+      const response = await as("manager", `${sharing(who)}/${decision.id}/${how}`, {
+        method: "POST",
+        body: { reason, version: decision.version },
+      });
+      if (response.status === 200) decision = await json<SharingDecisionOut>(response);
+      return response;
+    };
+    expect((await move("lift-suspension", "Nothing to lift")).status).toBe(422);
+    expect((await move("suspend", "Safeguarding enquiry opened")).status).toBe(200);
+    expect(decision.inForce).toBe(false);
+    expect(
+      (await visibility(who, family)).sections.find((s) => s.section === "activities_and_visits"),
+    ).toMatchObject({ visible: false, reason: "suspended" });
+    expect((await move("lift-suspension", "Enquiry closed with no concerns")).status).toBe(200);
+    expect(decision).toMatchObject({ suspendedAt: null, inForce: true });
+    expect(decision.suspensions).toEqual([
+      expect.objectContaining({
+        reason: "Safeguarding enquiry opened",
+        liftedReason: "Enquiry closed with no concerns",
+        liftedBy: DEMO.users.manager.id,
+      }),
+    ]);
+    const seen = await visibility(who, family);
+    expect(seen.sections.find((s) => s.section === "activities_and_visits")?.visible).toBe(true);
+    const audits = await asDemoTenant((c) =>
+      c.query<{ action: string }>(
+        `SELECT action FROM audit_event WHERE resource_id = $1 ORDER BY occurred_at`,
+        [decision.id],
+      ),
+    );
+    expect(audits.rows.map((r) => r.action)).toEqual(
+      expect.arrayContaining(["people.sharing.suspend", "people.sharing.lift_suspension"]),
+    );
+  });
+});
+
 // ------------------------------------------------------------------------------------------------
 
 describe("people.md rules 11 and 12: a transfer to another provider, to archive", () => {
@@ -2832,9 +3048,11 @@ describe("slice 8 review, round 3: refusals and records that belong elsewhere", 
   });
 
   it("hazard HZ-022 refuses authority evidence filed against another person, or deleted", async () => {
+    // The attorney for property and financial affairs, as the contact who holds the authority.
     const contactId = await asDemoTenant(async (c) => {
       const { rows } = await c.query<{ id: string }>(
-        "SELECT id FROM contact WHERE person_id = $1 LIMIT 1",
+        `INSERT INTO contact (person_id, role, given_name, family_name, relationship)
+         VALUES ($1, 'lpa_property_finance', 'Bryn', 'Example', 'Son') RETURNING id`,
         [resident(3)],
       );
       return rows[0]?.id ?? "";

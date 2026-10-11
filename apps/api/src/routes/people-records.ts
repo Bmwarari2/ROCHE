@@ -55,7 +55,7 @@ import {
   requireWrite,
   reviewScheduleFor,
 } from "../services/people";
-import { toSharingDecision } from "../services/sharing";
+import { type SharingContext, sharingContext, toSharingDecision } from "../services/sharing";
 import {
   conflictResponse,
   createRouter,
@@ -115,16 +115,21 @@ function linkOut(
   decision: DecisionRow | undefined,
   status: PersonStatus,
   now: Date,
+  context: SharingContext,
 ): AboutMeShareLinkOut {
   const visible =
     decision !== undefined &&
-    checkSectionVisibility([toSharingDecision(decision, row.id)], {
-      personId: row.personId,
-      personStatus: status,
-      recipient: { kind: "link", linkId: row.id },
-      section: "about_me",
-      now,
-    }).visible;
+    checkSectionVisibility(
+      [toSharingDecision(decision, row.id, context.suspensions.get(decision.id))],
+      {
+        personId: row.personId,
+        personStatus: status,
+        recipient: { kind: "link", linkId: row.id },
+        section: "about_me",
+        capacityNow: context.capacityNow,
+        now,
+      },
+    ).visible;
   return {
     id: row.id,
     personId: row.personId,
@@ -338,6 +343,7 @@ export const peopleRecordsRouter = createRouter()
           .select()
           .from(sharingDecision)
           .where(eq(sharingDecision.personId, id));
+        const context = await sharingContext(tx, id, now);
         await audit(c, tx, access, {
           action: "people.about_me_link.list",
           resourceType: "person",
@@ -350,6 +356,7 @@ export const peopleRecordsRouter = createRouter()
             decisions.find((d) => d.id === l.sharingDecisionId),
             p.status as PersonStatus,
             now,
+            context,
           ),
         );
       });
@@ -393,11 +400,16 @@ export const peopleRecordsRouter = createRouter()
             and(eq(sharingDecision.id, body.sharingDecisionId), eq(sharingDecision.personId, id)),
           );
         if (!decision) throw problems.invalid("The sharing decision was not found.");
-        const check = checkAboutMeShareLink(toSharingDecision(decision, "new"), {
-          personStatus: p.status as PersonStatus,
-          linkExpiresAt: expiresAt,
-          now,
-        });
+        const context = await sharingContext(tx, id, now);
+        const check = checkAboutMeShareLink(
+          toSharingDecision(decision, "new", context.suspensions.get(decision.id)),
+          {
+            personStatus: p.status as PersonStatus,
+            linkExpiresAt: expiresAt,
+            capacityNow: context.capacityNow,
+            now,
+          },
+        );
         if (!check.ok) {
           const messages: Record<(typeof check.problems)[number], string> = {
             not_a_link_decision: "The decision is not for a share link.",
@@ -428,7 +440,7 @@ export const peopleRecordsRouter = createRouter()
           type: "people.sharing.changed",
           payload: { personId: id, reason: "link_created", linkId: row.id },
         });
-        return { ...linkOut(row, decision, p.status as PersonStatus, now), token };
+        return { ...linkOut(row, decision, p.status as PersonStatus, now, context), token };
       });
       return c.json(created, 201);
     },
@@ -488,7 +500,13 @@ export const peopleRecordsRouter = createRouter()
           type: "people.sharing.changed",
           payload: { personId: id, reason: "link_revoked", linkId },
         });
-        return linkOut(updated, decision, p.status as PersonStatus, now);
+        return linkOut(
+          updated,
+          decision,
+          p.status as PersonStatus,
+          now,
+          await sharingContext(tx, id, now),
+        );
       });
       return c.json(out, 200);
     },

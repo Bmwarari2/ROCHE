@@ -4533,7 +4533,7 @@ export interface paths {
     put?: never;
     /**
      * Record a decision to share sections with one recipient (HZ-022)
-     * @description checkSharingDecision: known sections, an expiry, and a valid basis: the person's consent (unless assessed as lacking capacity for it), consent by an attorney or deputy whose authority covers the sections, a legal authority held by the recipient with evidence, a best-interests decision, or direct care for professionals and clinical sections only. A capacity finding names the assessment it rests on. Publishes people.sharing.changed.
+     * @description checkSharingDecision: known sections, an expiry, and a valid basis: the person's consent (unless assessed as lacking capacity for it), consent by an attorney or deputy whose authority covers the sections, a legal authority held by the recipient with evidence, a best-interests decision, or direct care for professionals and clinical sections only. The authority must be held by the contact named (a deputy within their deputyship and the sections their order covers; an appointee benefits only); a reference, evidence or end date left out is taken from the contact. A capacity finding names an assessment of the sharing decision. Publishes people.sharing.changed.
      */
     post: {
       parameters: {
@@ -4718,6 +4718,97 @@ export interface paths {
       };
       responses: {
         /** @description Suspended */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SharingDecisionOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/sharing-decisions/{decisionId}/lift-suspension": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Lift a suspension: the sections reopen, but what happened while suspended stays closed
+     * @description Ends the open suspension period with the reason. The decision covers only what happened while it was in force and not suspended (decisionInForceAt; comms.md rule 2).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          decisionId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CloseSharingDecision"];
+        };
+      };
+      responses: {
+        /** @description Suspension lifted */
         200: {
           headers: {
             [name: string]: unknown;
@@ -13617,6 +13708,7 @@ export interface components {
       /** Format: date-time */
       suspendedAt: string | null;
       suspendedReason: string | null;
+      suspensions: components["schemas"]["SharingSuspensionOut"][];
       inForce: boolean;
       /** Format: uuid */
       recordedBy: string | null;
@@ -13650,6 +13742,7 @@ export interface components {
       | "medicines"
       | "appointments"
       | "finance"
+      | "benefits"
       | "documents";
     SharingAuthority: {
       /** @enum {string} */
@@ -13666,7 +13759,20 @@ export interface components {
       evidenceDocumentId?: string;
       /** Format: date */
       validUntil?: string;
+      orderSections?: components["schemas"]["SharingSection"][];
     } | null;
+    SharingSuspensionOut: {
+      /** Format: uuid */
+      id: string;
+      /** Format: date-time */
+      suspendedAt: string;
+      reason: string;
+      /** Format: date-time */
+      liftedAt: string | null;
+      /** Format: uuid */
+      liftedBy: string | null;
+      liftedReason: string | null;
+    };
     CreateSharingDecision: {
       recipient: components["schemas"]["SharingRecipient"];
       sections: components["schemas"]["SharingSection"][];
@@ -13690,7 +13796,7 @@ export interface components {
       /** Format: date-time */
       validTo: string;
     };
-    /** @description Withdraw or suspend, with the reason */
+    /** @description Withdraw, suspend or lift a suspension, with the reason */
     CloseSharingDecision: {
       reason: string;
       version: number;
@@ -13700,6 +13806,8 @@ export interface components {
       /** Format: uuid */
       personId: string;
       recipient: components["schemas"]["SharingRecipient"];
+      /** @enum {string} */
+      capacityForSharing: "presumed" | "assessed_has_capacity" | "assessed_lacks_capacity";
       sections: {
         section: components["schemas"]["SharingSection"];
         visible: boolean;

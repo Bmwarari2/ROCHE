@@ -4812,6 +4812,12 @@
               "null"
             ]
           },
+          "suspensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SharingSuspensionOut"
+            }
+          },
           "inForce": {
             "type": "boolean"
           },
@@ -4844,6 +4850,7 @@
           "withdrawnReason",
           "suspendedAt",
           "suspendedReason",
+          "suspensions",
           "inForce",
           "recordedBy",
           "version"
@@ -4917,6 +4924,7 @@
           "medicines",
           "appointments",
           "finance",
+          "benefits",
           "documents"
         ]
       },
@@ -4951,11 +4959,63 @@
           "validUntil": {
             "type": "string",
             "format": "date"
+          },
+          "orderSections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SharingSection"
+            },
+            "minItems": 1,
+            "maxItems": 11
           }
         },
         "required": [
           "role",
           "contactId"
+        ]
+      },
+      "SharingSuspensionOut": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "suspendedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "liftedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "liftedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "liftedReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "suspendedAt",
+          "reason",
+          "liftedAt",
+          "liftedBy",
+          "liftedReason"
         ]
       },
       "CreateSharingDecision": {
@@ -4970,7 +5030,7 @@
               "$ref": "#/components/schemas/SharingSection"
             },
             "minItems": 1,
-            "maxItems": 10
+            "maxItems": 11
           },
           "carePlanDomains": {
             "type": "array",
@@ -5049,7 +5109,7 @@
           "reason",
           "version"
         ],
-        "description": "Withdraw or suspend, with the reason"
+        "description": "Withdraw, suspend or lift a suspension, with the reason"
       },
       "SharingVisibility": {
         "type": "object",
@@ -5060,6 +5120,14 @@
           },
           "recipient": {
             "$ref": "#/components/schemas/SharingRecipient"
+          },
+          "capacityForSharing": {
+            "type": "string",
+            "enum": [
+              "presumed",
+              "assessed_has_capacity",
+              "assessed_lacks_capacity"
+            ]
           },
           "sections": {
             "type": "array",
@@ -5106,6 +5174,7 @@
         "required": [
           "personId",
           "recipient",
+          "capacityForSharing",
           "sections"
         ],
         "description": "What one recipient may see now: closed unless a decision in force covers it"
@@ -20466,7 +20535,7 @@
           "people"
         ],
         "summary": "Record a decision to share sections with one recipient (HZ-022)",
-        "description": "checkSharingDecision: known sections, an expiry, and a valid basis: the person's consent (unless assessed as lacking capacity for it), consent by an attorney or deputy whose authority covers the sections, a legal authority held by the recipient with evidence, a best-interests decision, or direct care for professionals and clinical sections only. A capacity finding names the assessment it rests on. Publishes people.sharing.changed.",
+        "description": "checkSharingDecision: known sections, an expiry, and a valid basis: the person's consent (unless assessed as lacking capacity for it), consent by an attorney or deputy whose authority covers the sections, a legal authority held by the recipient with evidence, a best-interests decision, or direct care for professionals and clinical sections only. The authority must be held by the contact named (a deputy within their deputyship and the sections their order covers; an appointee benefits only); a reference, evidence or end date left out is taken from the contact. A capacity finding names an assessment of the sharing decision. Publishes people.sharing.changed.",
         "security": [
           {
             "bearerAuth": []
@@ -20702,6 +20771,114 @@
         "responses": {
           "200": {
             "description": "Suspended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharingDecisionOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/sharing-decisions/{decisionId}/lift-suspension": {
+      "post": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Lift a suspension: the sections reopen, but what happened while suspended stays closed",
+        "description": "Ends the open suspension period with the reason. The decision covers only what happened while it was in force and not suspended (decisionInForceAt; comms.md rule 2).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "decisionId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseSharingDecision"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Suspension lifted",
             "content": {
               "application/json": {
                 "schema": {
