@@ -5597,6 +5597,12 @@
           "evidenceAfterClose": {
             "type": "boolean"
           },
+          "catchUp": {
+            "type": "boolean"
+          },
+          "restoredDone": {
+            "type": "boolean"
+          },
           "completedAt": {
             "type": [
               "string",
@@ -5633,6 +5639,8 @@
           "evidenceType",
           "evidenceId",
           "evidenceAfterClose",
+          "catchUp",
+          "restoredDone",
           "completedAt",
           "escalated",
           "details",
@@ -5774,6 +5782,12 @@
                 "reopened"
               ]
             }
+          },
+          "entriesOmitted": {
+            "type": "integer"
+          },
+          "missedTasksOmitted": {
+            "type": "integer"
           }
         }
       },
@@ -6643,6 +6657,7 @@
               "task_cancelled",
               "task_already_closed",
               "not_linked",
+              "medicines_conflict",
               null
             ]
           },
@@ -6855,6 +6870,7 @@
               "task_cancelled",
               "task_already_closed",
               "not_linked",
+              "medicines_conflict",
               null
             ]
           },
@@ -7343,6 +7359,7 @@
               "task_cancelled",
               "task_already_closed",
               "not_linked",
+              "medicines_conflict",
               null
             ]
           },
@@ -9150,6 +9167,7 @@
               "task_cancelled",
               "task_already_closed",
               "not_linked",
+              "medicines_conflict",
               null
             ]
           },
@@ -10060,6 +10078,7 @@
               "task_cancelled",
               "task_already_closed",
               "not_linked",
+              "medicines_conflict",
               null
             ]
           },
@@ -10306,6 +10325,7 @@
               "task_cancelled",
               "task_already_closed",
               "not_linked",
+              "medicines_conflict",
               null
             ]
           },

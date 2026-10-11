@@ -13931,6 +13931,8 @@ export interface components {
       /** Format: uuid */
       evidenceId: string | null;
       evidenceAfterClose: boolean;
+      catchUp: boolean;
+      restoredDone: boolean;
       /** Format: date-time */
       completedAt: string | null;
       escalated: boolean;
@@ -13973,6 +13975,8 @@ export interface components {
         dueAt: string;
         reopened: boolean;
       }[];
+      entriesOmitted?: number;
+      missedTasksOmitted?: number;
     } | null;
     CreateTask: {
       title: string;
@@ -14210,7 +14214,13 @@ export interface components {
       /** Format: uuid */
       taskId: string | null;
       /** @enum {string|null} */
-      taskOutcome: "completed" | "task_cancelled" | "task_already_closed" | "not_linked" | null;
+      taskOutcome:
+        | "completed"
+        | "task_cancelled"
+        | "task_already_closed"
+        | "not_linked"
+        | "medicines_conflict"
+        | null;
       /** Format: uuid */
       supersedesId: string | null;
       correctionReason: string | null;
@@ -14273,7 +14283,13 @@ export interface components {
       /** Format: uuid */
       taskId: string | null;
       /** @enum {string|null} */
-      taskOutcome: "completed" | "task_cancelled" | "task_already_closed" | "not_linked" | null;
+      taskOutcome:
+        | "completed"
+        | "task_cancelled"
+        | "task_already_closed"
+        | "not_linked"
+        | "medicines_conflict"
+        | null;
       /** Format: uuid */
       supersedesId: string | null;
       correctionReason: string | null;
@@ -14404,7 +14420,13 @@ export interface components {
       /** Format: uuid */
       taskId: string | null;
       /** @enum {string|null} */
-      taskOutcome: "completed" | "task_cancelled" | "task_already_closed" | "not_linked" | null;
+      taskOutcome:
+        | "completed"
+        | "task_cancelled"
+        | "task_already_closed"
+        | "not_linked"
+        | "medicines_conflict"
+        | null;
       /** Format: uuid */
       supersedesId: string | null;
       correctionReason: string | null;
@@ -14884,7 +14906,13 @@ export interface components {
       /** Format: uuid */
       taskId: string | null;
       /** @enum {string|null} */
-      taskOutcome: "completed" | "task_cancelled" | "task_already_closed" | "not_linked" | null;
+      taskOutcome:
+        | "completed"
+        | "task_cancelled"
+        | "task_already_closed"
+        | "not_linked"
+        | "medicines_conflict"
+        | null;
       /** Format: uuid */
       supersedesId: string | null;
       correctionReason: string | null;
@@ -15152,7 +15180,13 @@ export interface components {
       /** Format: uuid */
       taskId: string | null;
       /** @enum {string|null} */
-      taskOutcome: "completed" | "task_cancelled" | "task_already_closed" | "not_linked" | null;
+      taskOutcome:
+        | "completed"
+        | "task_cancelled"
+        | "task_already_closed"
+        | "not_linked"
+        | "medicines_conflict"
+        | null;
       /** Format: uuid */
       supersedesId: string | null;
       correctionReason: string | null;
@@ -15222,7 +15256,13 @@ export interface components {
       /** Format: uuid */
       taskId: string | null;
       /** @enum {string|null} */
-      taskOutcome: "completed" | "task_cancelled" | "task_already_closed" | "not_linked" | null;
+      taskOutcome:
+        | "completed"
+        | "task_cancelled"
+        | "task_already_closed"
+        | "not_linked"
+        | "medicines_conflict"
+        | null;
       /** Format: uuid */
       supersedesId: string | null;
       correctionReason: string | null;
