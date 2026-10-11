@@ -1,10 +1,12 @@
 import { SyncToken, SyncUpload, SyncUploadResult } from "@harbour/contracts";
 import { location, roleAssignment } from "@harbour/db";
 import { hasClockDrift } from "@harbour/domain";
+import { OFFLINE_WINDOW_RATE_KEY, offlineWindowDays } from "@harbour/sync/streams";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, eq, isNull } from "drizzle-orm";
 import { auditInTx } from "../http/audit";
 import { requirePermission, withTenant } from "../http/context";
+import { rateNumber } from "../services/rates";
 import type { SyncTokenSigner } from "../sync/token";
 import { createRouter, errorResponses, jsonBody, security } from "./openapi";
 
@@ -66,9 +68,17 @@ export function createSyncRouter(signer: SyncTokenSigner) {
               : access.effective.scope === "locations"
                 ? [...access.effective.locationIds]
                 : [];
+          // The offline window comes from the rate table here, never from the device (care.md
+          // section 6): the streams read it from this claim and ignore connection parameters.
+          const windowDays = await rateNumber(tx, access.tenantId, OFFLINE_WINDOW_RATE_KEY);
+          const offlineDays = offlineWindowDays(new Date(), windowDays);
           await auditInTx(tx, access, {
             action: "sync.token.issue",
-            scope: { scope: access.effective.scope, peopleLocations: peopleLocationIds.length },
+            scope: {
+              scope: access.effective.scope,
+              peopleLocations: peopleLocationIds.length,
+              offlineWindowDays: windowDays,
+            },
             requestId: c.get("requestId"),
           });
           return {
@@ -76,6 +86,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             tenant_id: access.tenantId,
             location_ids: workIds,
             people_location_ids: peopleLocationIds,
+            offline_days: offlineDays,
           };
         });
         const { token, expiresAt } = await signer.sign(claims);

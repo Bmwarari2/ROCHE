@@ -10,7 +10,7 @@ import type {
   SyncUploadResult,
 } from "@harbour/contracts";
 import { DEMO } from "@harbour/db/seed";
-import { SYNC_TOKEN_AUDIENCE, SYNC_TOKEN_ISSUER } from "@harbour/sync/streams";
+import { offlineWindowDays, SYNC_TOKEN_AUDIENCE, SYNC_TOKEN_ISSUER } from "@harbour/sync/streams";
 import { jwtVerify } from "jose";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MOBILE_APP_ORIGIN } from "../src/auth/token-exposure";
@@ -424,6 +424,40 @@ describe("offline sync", () => {
       location_ids: [DEMO.locationId],
       people_location_ids: [],
     });
+  });
+
+  it("hazard HZ-028 puts the tenant's offline window from the rate table in the token", async () => {
+    const rate = await json<RateValue>(await demo("carer", "/v1/rates/mobile.offline_window_days"));
+    const { token } = await json<SyncToken>(
+      await demo("carer", "/v1/sync/token", { method: "POST" }),
+    );
+    const { payload } = await jwtVerify(token, h.handle.signer.verificationKey);
+    expect(payload.offline_days).toEqual(offlineWindowDays(new Date(), Number(rate.value)));
+  });
+
+  it("does not let a script with a normal session widen the offline window", async () => {
+    const everyDay = Array.from({ length: 400 }, (_, i) =>
+      new Date(Date.UTC(2025, 0, 1 + i)).toISOString().slice(0, 10),
+    );
+    const response = await h.request(
+      `/v1/sync/token?offline_days=${everyDay.join(",")}&offline_window_days=400`,
+      {
+        token: h.tokens.carer,
+        tenant: DEMO.tenantId,
+        method: "POST",
+        body: {
+          offline_days: everyDay,
+          offline_window_days: 400,
+          params: { offline_days: everyDay },
+        },
+      },
+    );
+    expect(response.status).toBe(200);
+    const { token } = await json<SyncToken>(response);
+    const { payload } = await jwtVerify(token, h.handle.signer.verificationKey);
+    const rate = await json<RateValue>(await demo("carer", "/v1/rates/mobile.offline_window_days"));
+    expect(payload.offline_days).toEqual(offlineWindowDays(new Date(), Number(rate.value)));
+    expect((payload.offline_days as string[]).length).toBe(Number(rate.value) + 1);
   });
 
   it("issues a manager a token for their location's people", async () => {
