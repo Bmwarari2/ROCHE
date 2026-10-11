@@ -112,6 +112,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | dsar.extension_months | 2 | months | 2018-05-25 | - | uk | master prompt 5.1 (extendable to three months in total) | master-prompt |
 | dp_complaint.acknowledge_days | 30 | days | 2026-06-19 | - | uk | master prompt 5.1 (Data (Use and Access) Act 2025 complaints duty) | master-prompt |
 | reg14.absence_notice_days | 28 | days | 2000-01-01 | - | england | master prompt 11.2 (CQC Registration Regulations 2009 reg 14) | master-prompt |
+| cqc.statement_of_purpose.revision_notice_days | 28 | days | 2010-04-01 | - | england | https://www.legislation.gov.uk/uksi/2009/3112/regulation/12 (reg 12(3): written details of any revision to the statement of purpose to the Commission within 28 days of the revision); master prompt 11.2 | verified |
 | riddor.report_days | 10 | days | 2013-10-01 | - | england | https://www.hse.gov.uk/riddor/when-do-i-report.htm; master prompt 11.1 | verified |
 | riddor.report_days | 10 | days | 2013-10-01 | - | wales | https://www.hse.gov.uk/riddor/when-do-i-report.htm; master prompt 11.1 | verified |
 | riddor.report_days | 10 | days | 2013-10-01 | - | scotland | https://www.hse.gov.uk/riddor/when-do-i-report.htm; master prompt 11.1 | verified |
@@ -167,6 +168,10 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | break_glass.weekly_repeat_threshold | 3 | count | 2000-01-01 | - | all | Harbour default for flagging repeated break-glass use in the weekly report (master prompt 4 requires the report but sets no number); tenant default | to-verify |
 | family_involvement.interval_months | 6 | months | 2000-01-01 | - | all | Harbour default for the family involvement record (master prompt 9.2 names the record but sets no interval); tenant default | to-verify |
 | exit.money_and_property_return_days | 28 | days | 2000-01-01 | - | all | Harbour default matching cma.deposit_return_days (master prompt 9.2); no statutory period for returning personal money and property; tenant default | to-verify |
+| downtime_pack.valid_hours | 24 | hours | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: a nightly downtime pack is in date for 24 hours from its information's time (master prompt 13.4 "nightly"); tenant default | to-verify |
+| downtime.back_entry_due_hours | 24 | hours | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: paper records from an outage are entered within 24 hours of its closure (master prompt 13.4 back-entry workflow); tenant default | to-verify |
+| evidence_pack.link_expiry_days.default | 7 | days | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: an inspector evidence pack link lasts 7 days unless the sender chooses otherwise (master prompt 11.2 "time-limited link"); tenant default | to-verify |
+| evidence_pack.link_expiry_days.max | 30 | days | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: the longest an evidence pack link may last (data minimisation, UK GDPR Art 5(1)(c) and (e)); tenant default | to-verify |
 | ecm.tolerance_minutes.high | 15 | minutes | 2000-01-01 | - | all | master prompt 13.2 (defaults 15, 30, 60 by client risk); tenant default | master-prompt |
 | ecm.tolerance_minutes.medium | 30 | minutes | 2000-01-01 | - | all | master prompt 13.2 (defaults 15, 30, 60 by client risk); tenant default | master-prompt |
 | ecm.tolerance_minutes.low | 60 | minutes | 2000-01-01 | - | all | master prompt 13.2 (defaults 15, 30, 60 by client risk); tenant default | master-prompt |
@@ -281,6 +286,17 @@ literals, and tests assert against the table, not a literal (section 7, section 
   property and keys after a discharge, transfer or death. No statute sets one; the default mirrors
   the CMA deposit-return period (`cma.deposit_return_days`) so the two clocks agree. Tenant default
   (H-58); the escalation goes to the Registered Manager, it is not a legal deadline.
+- `downtime_pack.valid_hours` (24) and `downtime.back_entry_due_hours` (24): policy defaults for the
+  downtime pack ([operations.md](operations.md) rules 2 and 7). A pack is in date for this many
+  hours from the time its information was read (the server's read time, or a kiosk's last sync);
+  after that every page says in words that it is out of date (HZ-050). Paper records from an outage
+  are due to be entered within this many hours of the outage's closure; overdue back-entry
+  escalates to the Registered Manager. No statute sets either figure; the tenant's business
+  continuity lead confirms them (human action H-98).
+- `evidence_pack.link_expiry_days.default` (7) and `.max` (30): policy defaults for the time-limited
+  link to an inspector evidence pack ([quality.md](quality.md) rule 6). The sender may choose a
+  shorter or longer expiry up to the maximum; a tenant may lower the maximum. No statute or CQC
+  guidance sets a period; the data protection lead confirms them (human action H-96).
 
 ## Other notes
 
@@ -326,4 +342,11 @@ literals, and tests assert against the table, not a literal (section 7, section 
   staff decision recorded on each case (human action H-65).
 - `pressure_ulcer.decision_guide_hours` (48): DHSC, "Pressure ulcers: how to safeguard adults"
   (January 2024, updated June 2025), which replaced the 2018 protocol withdrawn on 26 June 2023.
+- `cqc.statement_of_purpose.revision_notice_days` (28): CQC (Registration) Regulations 2009
+  regulation 12(3), "The registered person must provide written details of any revision to the
+  statement of purpose to the Commission within 28 days of any such revision", read on
+  legislation.gov.uk on 11 October 2026 (no outstanding effects listed). `valid_from` is the
+  regulations' commencement for the clock's purposes (1 April 2010, as the other `cqc.*` rows).
+  England only; Wales, Scotland and Northern Ireland have their own regulators and rules (Phase 7
+  nation packs).
 - Retention periods are not in this table; they live in `docs/specs/retention.md`.
