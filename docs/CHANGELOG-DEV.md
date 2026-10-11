@@ -359,3 +359,25 @@ locally.
 `apps/web` 306, `packages/ui` 342, `packages/ui-native` 134, `packages/i18n` 34, all passing
 locally (the fluid balance test in `apps/api` fails only in the half hour after midnight UK time,
 when its entries fall on two days).
+
+## 2026-10-11: #21 review round 6 (people lifecycle)
+
+**What changed**
+
+- Entries: whether an entry's author may complete the task it names is judged when the care was
+  recorded (`entryPermissionTime`), for the assignee and for anyone else: a carer acting up whose
+  grant ended before the device uploaded still completes the round they did, so it is not left
+  open inviting a second dose; a revoked grant never counts; the time is never earlier than the
+  task was made, so an entry backdated to an earlier grant completes nothing (HZ-004, HZ-006,
+  H-138). Done or skipped by hand is still judged at the server's time.
+- Audit: a refused completion by an entry is audited only by the upload that saved the entry, so a
+  duplicate upload that loses the race records nothing.
+- Tests: a care worker acting up completes a task by the task route and by an entry, and their own
+  roles and grants are read under row-level security.
+
+**Human actions logged**: H-138; H-132 updated.
+
+**Tests**: `packages/domain` 3,713, `packages/db` 278, `packages/contracts` 16, `apps/api` 427,
+`apps/web` 306, `packages/ui` 342, `packages/ui-native` 134, `packages/i18n` 34, all passing
+locally (run with `--concurrency=3`: under full parallel load a web time-zone test that reads every
+minute of a day can pass its 5-second limit).

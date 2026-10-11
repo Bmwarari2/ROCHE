@@ -26,7 +26,8 @@ only when they link spec, code, tests and user documentation; no user guides exi
    is done (catch-ups, medicines conflicts kept and reviewed, task assignment, photo limits decided
    at upload, migration 0026; CSO decisions H-131 to H-136); round 5 is done (the conflict
    review kept at exit, missed doses listed first, the ADRT named beside every CPR line, task
-   completion checked against the assignee's current permission; H-137). Then #15
+   completion checked against the assignee's current permission; H-137); round 6 is done (an
+   offline entry's permission judged when the care was recorded; H-138). Then #15
    after its round 5 (who sees and may close a device-hold task, what a failed deletion records,
    deletions without entry ids, and the cost of checking uploads against deletions).
 2. API follow-ups from the #15 reviews: the refused-entry server copy and review task; the IDDSI
@@ -62,7 +63,7 @@ only when they link spec, code, tests and user documentation; no user guides exi
 
 ## Human actions outstanding
 
-All of [human-actions.md](human-actions.md) is open (H-01 to H-137). The project owner has
+All of [human-actions.md](human-actions.md) is open (H-01 to H-138). The project owner has
 scheduled the accounts (H-01, H-02, H-04, H-10, H-11) and the named roles (H-20 Clinical Safety
 Officer, H-30 data protection lead, H-31 ICO registration) for after the build, and is choosing
 the UK SMS provider (H-09, which also settles H-105). Until then the build continues against the
@@ -72,14 +73,14 @@ mocks and contract tests (section 20 rule 2).
 
 | Package | Tests |
 | --- | --- |
-| `packages/domain` | 3,710 |
+| `packages/domain` | 3,713 |
 | `packages/db` | 278 (real Postgres: RLS coverage, isolation, scope, audit chain, seed, tasks, documents, care record, care planning, MCA and incidents, people lifecycle, bank holidays, pools, export catalogue) |
 | `packages/sync` | 10 (PowerSync rules engine) |
 | `packages/contracts` | 16 |
 | `packages/i18n` | 34 |
 | `packages/ui` | 342 (231 axe runs) |
 | `packages/ui-native` | 134 |
-| `apps/api` | 422 |
+| `apps/api` | 427 |
 | `apps/mobile` | 208 |
 | `apps/web` | 306 unit; Playwright journeys with axe (WCAG 2.2 AA) in CI |
 | `infra` | `terraform test` 3, TFLint, Trivy and Checkov clean |

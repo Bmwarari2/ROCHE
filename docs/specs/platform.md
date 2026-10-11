@@ -114,7 +114,8 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   clinical check, a medicines round) is given, on creation, on scheduling or by assignment, only
   to someone who holds that permission at the task's location, the person assigning included; and
   once that grant or role has ended the assignee may no longer complete it (by the task route, an
-  entry or a return check). An investigation action is the exception: its owner completes it
+  entry or a return check). For an entry, the permission is judged when the care was recorded, so
+  a grant that ended before the device uploaded still counts and a revoked one never does (H-138). An investigation action is the exception: its owner completes it
   without the permission. Every refusal is audited (HZ-004, HZ-005).
 - Overdue: once a task's window closes it is overdue; after `task.overdue_escalation_minutes` (rate
   table) the worker notifies the assignee and the clinical leads and team leaders at the location
