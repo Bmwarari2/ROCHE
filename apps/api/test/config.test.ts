@@ -9,6 +9,9 @@ const PRODUCTION = {
   DATABASE_AUTH_URL: "postgres://harbour_auth@db.internal/harbour",
   DATABASE_OPERATOR_URL: "postgres://harbour_operator@db.internal/harbour",
   DATABASE_WORKER_URL: "postgres://harbour_worker@db.internal/harbour",
+  DOCUMENT_STORAGE: "s3",
+  S3_DOCUMENTS_BUCKET: "harbour-dev-documents",
+  MALWARE_SCANNER: "clamd",
 } as const;
 
 describe("loadConfig", () => {
@@ -23,10 +26,18 @@ describe("loadConfig", () => {
     "DATABASE_AUTH_URL",
     "DATABASE_OPERATOR_URL",
     "DATABASE_WORKER_URL",
+    "S3_DOCUMENTS_BUCKET",
   ])("refuses to start in production without %s", (key) => {
     const env: Record<string, string> = { ...PRODUCTION };
     delete env[key];
     expect(() => loadConfig(env)).toThrow(key);
+  });
+
+  it.each([
+    ["local document storage", { DOCUMENT_STORAGE: "local" }, "DOCUMENT_STORAGE"],
+    ["the mock malware scanner", { MALWARE_SCANNER: "mock" }, "MALWARE_SCANNER"],
+  ])("refuses %s in production", (_label, change, message) => {
+    expect(() => loadConfig({ ...PRODUCTION, ...change })).toThrow(message);
   });
 
   it("uses local defaults outside production", () => {

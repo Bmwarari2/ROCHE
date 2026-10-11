@@ -47,6 +47,7 @@ const registeredManager: Permission[] = ALL_PERMISSIONS.filter(
   "platform.location.manage",
   "platform.grant.manage",
   "platform.task.manage",
+  "platform.document.manage",
 ]);
 
 export const BUILTIN_ROLES: readonly BuiltinRole[] = [
@@ -225,6 +226,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "safety.incident.report",
       "comms.message.send",
       "comms.letter.manage",
+      "platform.document.manage",
     ],
   },
   {
@@ -275,6 +277,8 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "safety.whistleblowing.read",
       "safety.complaint.manage",
       "platform.audit.read",
+      "platform.document.manage",
+      "platform.retention.manage",
       "insights.dashboard.read",
       "insights.report.manage",
     ],

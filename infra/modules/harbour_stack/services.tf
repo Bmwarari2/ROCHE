@@ -45,6 +45,7 @@ locals {
   )
 
   # Plain configuration for the API and the worker (one bundle, two commands). Never secrets.
+  # ClamAV runs beside the API (human action H-16); until it answers, uploads stay quarantined.
   app_environment = {
     NODE_ENV                = "production"
     HARBOUR_ENV             = var.environment
@@ -57,7 +58,10 @@ locals {
     TRUSTED_PROXY_CIDRS     = join(",", local.trusted_proxy_cidrs)
     POWERSYNC_URL           = "https://${local.hosts.sync}"
     SYNC_JWT_AUDIENCE       = var.sync_jwt_audience
+    DOCUMENT_STORAGE        = "s3"
     S3_DOCUMENTS_BUCKET     = module.bucket_documents.bucket_id
+    MALWARE_SCANNER         = "clamd"
+    CLAMD_HOST              = "127.0.0.1"
     S3_EXPORTS_BUCKET       = module.bucket_exports.bucket_id
     S3_AUDIT_ARCHIVE_BUCKET = module.bucket_audit_archive.bucket_id
     SES_CONFIGURATION_SET   = module.ses.configuration_set_name
@@ -84,12 +88,13 @@ locals {
   app_task_statements = [
     {
       sid       = "DocumentsAndExportsObjects"
-      actions   = ["s3:GetObject", "s3:GetObjectVersion", "s3:PutObject", "s3:DeleteObject", "s3:AbortMultipartUpload"]
+      actions   = ["s3:GetObject", "s3:GetObjectVersion", "s3:PutObject", "s3:DeleteObject", "s3:DeleteObjectVersion", "s3:AbortMultipartUpload"]
       resources = ["${module.bucket_documents.bucket_arn}/*", "${module.bucket_exports.bucket_arn}/*"]
     },
     {
+      # Versions are listed so destruction past retention removes every stored version.
       sid       = "DocumentsAndExportsList"
-      actions   = ["s3:ListBucket"]
+      actions   = ["s3:ListBucket", "s3:ListBucketVersions"]
       resources = [module.bucket_documents.bucket_arn, module.bucket_exports.bucket_arn]
     },
     {
