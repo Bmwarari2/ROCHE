@@ -356,4 +356,77 @@ describe("hazard HZ-023 the printed transfer pack", () => {
       'Some characters could not be printed and show as "?" in: About Me.',
     );
   });
+
+  it("hazard HZ-015 prints the CPR decision in force on page 1, however long the medicines list", () => {
+    const medicines = Array.from({ length: 25 }, (_, n) => ({
+      name: `Medicine number ${n + 1}, a modified-release preparation taken with food and plenty of water`,
+      dose: "1 tablet",
+      route: "oral",
+      frequency:
+        "08:00, 12:00, 16:00 and 20:00, and at night when needed for pain or breathlessness",
+      timeCritical: n === 0,
+    }));
+    const pages = print({
+      ...PACK,
+      content: {
+        ...PACK.content,
+        medicines: { status: "recorded", source: "emar", items: medicines },
+        resuscitation: {
+          status: "recorded",
+          decision: "do_not_attempt_cpr",
+          conflicting: false,
+          reviewDueOn: null,
+          reviewOverdue: false,
+          cprRecords: [
+            {
+              kind: "dnacpr",
+              summary: "Not for cardiopulmonary resuscitation",
+              clinician: "Dr Example, GP",
+              completedOn: "2026-05-01",
+              reviewOn: null,
+            },
+          ],
+          otherRecords: [],
+        },
+      },
+      missingCritical: [],
+      attention: [],
+    });
+    expect(pages.length).toBeGreaterThan(1);
+    const first = pages[0] ?? [];
+    expect(first).toContain(
+      "CPR decision: Not for cardiopulmonary resuscitation (DNACPR, 01/05/2026).",
+    );
+    // The section with the records comes after the medicines, on a later page.
+    expect(first.join(" ")).not.toContain(
+      "DNACPR: Not for cardiopulmonary resuscitation. Dr Example",
+    );
+  });
+
+  it.each([
+    [
+      "records that disagree",
+      PACK.content.resuscitation,
+      "CPR decision: THE RECORDS DISAGREE. Check the original documents before acting.",
+    ],
+    ["none recorded", { status: "not_recorded", otherRecords: [] }, "CPR decision: not recorded."],
+  ])("hazard HZ-015 says on page 1 when the CPR decision is %s", (_label, resuscitation, line) => {
+    const first = print({ ...PACK, content: { ...PACK.content, resuscitation } })[0] ?? [];
+    expect(first).toContain(line);
+  });
+
+  it("names the home or the hospital on page 1 when their names have characters it cannot print", () => {
+    const first =
+      pdfPages(
+        renderTransferPackPdf({
+          pack: PACK,
+          hospitalName: "Ysbyty 医院",
+          locationName: "Harbour House",
+          names: new Map(),
+          photo: null,
+          printedAt: new Date("2026-10-11T09:20:00Z"),
+        }),
+      )[0] ?? [];
+    expect(first.join(" ")).toContain('show as "?" in: Hospital name.');
+  });
 });

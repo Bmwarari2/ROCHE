@@ -283,6 +283,35 @@ function toContentKey(key: string): string {
   return out;
 }
 
+/**
+ * The CPR decision in force, for the identity block on page 1, so it is never pushed to a later
+ * page by a long medicines list (HZ-015). Copied from the stored pack, never resolved.
+ */
+export function cprDecisionLine(content: Record<string, unknown>, names: Names): string {
+  const c = content.resuscitation as Record<string, unknown> | null | undefined;
+  if (!c || c.status === "not_recorded") return "CPR decision: not recorded.";
+  if (c.status === "no_decision_in_place") {
+    return `CPR decision: no decision in place (confirmed by ${who(names, c.confirmedBy) ?? "a member of staff"} on ${ukDateTime(String(c.confirmedAt))}).`;
+  }
+  if (c.conflicting) {
+    return "CPR decision: THE RECORDS DISAGREE. Check the original documents before acting.";
+  }
+  if (c.decision === "do_not_attempt_cpr" || c.decision === "attempt_cpr") {
+    const current = ((c.cprRecords as AdvanceRecord[] | undefined) ?? [])[0];
+    const words =
+      c.decision === "do_not_attempt_cpr"
+        ? "Not for cardiopulmonary resuscitation"
+        : "For cardiopulmonary resuscitation";
+    const source = current
+      ? ` (${KIND_NAMES[current.kind] ?? current.kind}, ${ukDate(current.completedOn)})`
+      : "";
+    const review = c.reviewOverdue ? ` Review was due on ${ukDate(String(c.reviewDueOn))}.` : "";
+    return `CPR decision: ${words}${source}.${review}`;
+  }
+  // A pack stored before the decision in force was kept: the records are in the section.
+  return "CPR decision: see the resuscitation section.";
+}
+
 export interface PackPrint {
   readonly pack: StoredPack;
   readonly hospitalName: string;
@@ -322,6 +351,8 @@ export function renderTransferPackPdf(print: PackPrint): Uint8Array {
   );
   const unprintable = [
     ...(unprintableCharacters(name).length > 0 ? ["Name"] : []),
+    ...(unprintableCharacters(print.locationName).length > 0 ? ["Home name"] : []),
+    ...(unprintableCharacters(print.hospitalName).length > 0 ? ["Hospital name"] : []),
     ...body.filter((s) => unprintableCharacters(s.lines.join(" ")).length > 0).map((s) => s.title),
   ];
   const photoPrinted = print.photo !== null;
@@ -332,6 +363,7 @@ export function renderTransferPackPdf(print: PackPrint): Uint8Array {
     { text: name, bold: true, size: 13, gapBefore: 6 },
     { text: `Date of birth: ${ukDate(id.dateOfBirth)}` },
     { text: `NHS number: ${nhs}` },
+    { text: cprDecisionLine(pack.content, names), bold: true },
     { text: `From: ${print.locationName}. To: ${print.hospitalName}.` },
     {
       text: `Made from the record at ${ukDateTime(pack.generatedAt)}; printed at ${ukDateTime(print.printedAt)}.`,
