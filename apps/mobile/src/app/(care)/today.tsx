@@ -10,7 +10,7 @@ import {
   useHeldEntryCount,
   useQueuedChanges,
   useTenantId,
-  useUploadIssues,
+  useUploadIssueState,
 } from "../../care/hooks";
 import { resuscitationFlag } from "../../care/person-summary";
 import { type AdvanceCareRow, ALL_ADVANCE_CARE_SQL, byPerson } from "../../care/queries";
@@ -41,7 +41,7 @@ export default function TodayScreen() {
   const status = useStatus();
   const tenantId = useTenantId();
   const queued = useQueuedChanges();
-  const issues = useUploadIssues();
+  const issues = useUploadIssueState().count;
   const held = useHeldEntryCount();
 
   const peopleParams = useMemo(() => peopleListParams(tenantId), [tenantId]);
@@ -61,7 +61,7 @@ export default function TodayScreen() {
   const summary = syncSummary({
     lastSyncedAt: appEnv.demoMode ? vault.demoSeededAt : lastSyncedAtOf(status),
     queued,
-    issues: issues.length,
+    issues,
     held,
     demo: appEnv.demoMode,
     windowDays: vault.offlineWindowDays,

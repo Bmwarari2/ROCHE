@@ -118,6 +118,19 @@ describe("hazard HZ-040 deletions go to the API as audit events, one per stage",
     expect(SyncDiscard.safeParse(short).success).toBe(true);
   });
 
+  it("says why a deletion has no ids, and what its deletion left, only where it applies (round 5, C-M1 and C-M2)", () => {
+    const keyless = own(1, { entryIds: [], personIds: [], count: null, idsMissing: "key_absent" });
+    const requestedBody = discardBody({ ...keyless, leftover: ["file"] }, "requested");
+    expect(requestedBody).toMatchObject({ idsMissing: "key_absent" });
+    expect(requestedBody).not.toHaveProperty("leftover");
+    const deletedBody = discardBody({ ...keyless, leftover: ["file"] }, "deleted");
+    expect(deletedBody).toMatchObject({ idsMissing: "key_absent", leftover: ["file"] });
+    expect(SyncDiscard.safeParse(requestedBody).success).toBe(true);
+    expect(SyncDiscard.safeParse(deletedBody).success).toBe(true);
+    // Nothing else rides along: the contract refuses unknown keys (round 5, S-L6).
+    expect(SyncDiscard.safeParse({ ...deletedBody, reason: "words" }).success).toBe(false);
+  });
+
   it.each([
     [200, "acknowledged"],
     [400, "rejected"],

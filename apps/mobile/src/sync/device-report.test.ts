@@ -5,6 +5,7 @@ import { DEMO_TENANT_ID, demoPeople } from "../demo/demo-data";
 import { all, openLocalDatabase } from "../test-support/local-db";
 import {
   buildDeviceReport,
+  fallbackHoldReport,
   flushPendingReport,
   holdReport,
   oldestAgeSeconds,
@@ -27,6 +28,7 @@ const report = (overrides: Partial<SyncDeviceReport> = {}): SyncDeviceReport => 
   unsent: 2,
   refused: 1,
   held: 0,
+  blocked: 0,
   oldestAgeSeconds: 3600,
   reportedAt: NOW.toISOString(),
   ...overrides,
@@ -106,6 +108,7 @@ describe("hazard HZ-006 the device tells the server what it has not sent (queue 
       unsent: 3,
       refused: 1,
       held: 1,
+      blocked: 0,
       oldestAgeSeconds: 4 * 3600 + 20 * 60,
       // The hold started when its oldest entry was held (clinical review round 4, H2).
       heldSince: "2026-10-11T06:30:00.000Z",
@@ -128,6 +131,32 @@ describe("hazard HZ-006 the device tells the server what it has not sent (queue 
       "2026-10-11T07:00:00.000Z",
     );
     expect(holdReport(report(), "")).toEqual(report());
+  });
+
+  it("hazard HZ-040 counts the entries a failed deletion left, so the manager's task stays open (round 5, C-M3)", async () => {
+    const db = await openLocalDatabase();
+    for (const [id, code] of [
+      ["b1", "held_discard_failed"],
+      ["b2", "held_discard_failed"],
+      ["r1", "invalid"],
+    ]) {
+      db.prepare(
+        "INSERT INTO upload_issue (id, tenant_id, person_id, record_table, code, message, payload, rejected_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      ).run(id, DEMO_TENANT_ID, BEA, "care_note", code, "x", "{}", "2026-10-11T05:30:00.000Z");
+    }
+    const source: ReportDb = {
+      getUploadQueueStats: async () => ({ count: 0 }),
+      getOptional: async <T>(sql: string) => (all<T>(db, sql, [])[0] ?? null) as T | null,
+      getCrudBatch: async () => null,
+    };
+    expect(await buildDeviceReport(source, NOW)).toMatchObject({ refused: 3, blocked: 2 });
+  });
+
+  it("hazard HZ-040 still reports a hold whose entries could not be counted (round 5, C-M4)", () => {
+    const fallback = fallbackHoldReport(null, NOW);
+    expect(fallback).toMatchObject({ held: 1, unsent: 0, blocked: 0, oldestAgeSeconds: null });
+    expect(fallbackHoldReport(4, NOW).held).toBe(4);
+    expect(SyncDeviceReport.safeParse(holdReport(fallback, NOW.toISOString())).success).toBe(true);
   });
 
   it("has no age when nothing waits, and never a negative one", () => {

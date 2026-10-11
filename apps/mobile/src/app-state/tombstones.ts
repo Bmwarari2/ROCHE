@@ -42,6 +42,21 @@ export const DISCARD_STAGES = ["requested", "deleted", "failed"] as const;
 export type DiscardStage = (typeof DISCARD_STAGES)[number];
 export type DiscardOutcome = Exclude<DiscardStage, "requested">;
 
+/**
+ * Mirrors `SYNC_DISCARD_LEFTOVERS`: what of the database a deletion recorded as deleted left on
+ * the device, though its entries can no longer be read (clinical review round 5, C-M1).
+ */
+export const DISCARD_LEFTOVERS = ["file", "key"] as const;
+export type Leftover = (typeof DISCARD_LEFTOVERS)[number];
+
+/**
+ * Mirrors `SYNC_DISCARD_IDS_MISSING`: why a deletion has no entry ids, allowed only when the key
+ * is gone or not a valid one, so nothing on the device could be read (clinical review round 5,
+ * C-M2).
+ */
+export const DISCARD_IDS_MISSING = ["key_absent", "key_invalid"] as const;
+export type IdsMissing = (typeof DISCARD_IDS_MISSING)[number];
+
 export interface Tombstone {
   /** A UUID: also the discard's id at the API, so a replay of a stage is recorded once. */
   readonly id: string;
@@ -63,6 +78,10 @@ export interface Tombstone {
   /** How many entries were deleted; null when they could not be counted. */
   readonly count: number | null;
   readonly at: string;
+  /** Why there are no entry ids, when there are none. */
+  readonly idsMissing?: IdsMissing;
+  /** On "deleted": what was left on the device though the entries can no longer be read. */
+  readonly leftover?: readonly Leftover[];
 }
 
 export interface TombstoneStore {
@@ -127,6 +146,10 @@ export function cleanTombstone(value: unknown): Tombstone | null {
     typeof value.count === "number" && Number.isInteger(value.count) && value.count >= 0
       ? value.count
       : null;
+  const idsMissing = DISCARD_IDS_MISSING.find((r) => r === value.idsMissing);
+  const leftover = Array.isArray(value.leftover)
+    ? DISCARD_LEFTOVERS.filter((l) => (value.leftover as unknown[]).includes(l))
+    : [];
   return {
     id: value.id.toLowerCase(),
     kind,
@@ -140,6 +163,8 @@ export function cleanTombstone(value: unknown): Tombstone | null {
     personIds: opaqueList(value.personIds, MAX_TOMBSTONE_PERSON_IDS),
     count,
     at: value.at,
+    ...(idsMissing ? { idsMissing } : {}),
+    ...(leftover.length > 0 ? { leftover } : {}),
   };
 }
 
@@ -220,6 +245,14 @@ export async function recordTombstone(store: TombstoneStore, tombstone: Tombston
   } catch {
     throw new TombstoneWriteError(full);
   }
+}
+
+/**
+ * The ids of the tombstones kept, read strictly: throws when the keystore cannot be read, so a
+ * passing error is never taken for "none kept".
+ */
+export async function readTombstoneIndex(store: TombstoneStore): Promise<string[]> {
+  return parseIndex(await store.read(TOMBSTONE_INDEX_ITEM));
 }
 
 /** Reads one tombstone; null when it is not kept or cannot be read. */

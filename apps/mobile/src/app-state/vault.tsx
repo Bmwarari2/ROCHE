@@ -64,6 +64,7 @@ import {
 import {
   type DatabaseKey,
   DB_ID_ITEM,
+  DB_KEY_PROTECTION_ITEM,
   databaseFilename,
   databaseKeyRemains,
   destroyDatabaseKey,
@@ -83,6 +84,7 @@ import {
 import { seedDemoDatabase } from "../sync/demo-seed";
 import {
   buildDeviceReport,
+  fallbackHoldReport,
   flushPendingReport,
   holdReport,
   type LastReport,
@@ -115,9 +117,12 @@ import {
   checkDiscardReason,
   countPendingWork,
   DISCARD_NOTE_PREFIX,
+  DiscardIncompleteError,
   type DiscardReason,
   discardHeldWork,
+  forgetDiscardNotes,
   HeldDiscardNotAllowedError,
+  type HeldIds,
   HeldIdsUnreadableError,
   type HeldWork,
   HeldWorkOwnerError,
@@ -126,6 +131,7 @@ import {
   heldEntriesInTenant,
   holdUnsentWork,
   RestoreFailedError,
+  readHeldIds,
   readUnsentIds,
   restoreComplete,
   restoreProblem,
@@ -138,6 +144,7 @@ import { useSession } from "./session";
 import {
   type DiscardKind,
   type DiscardReasonCode,
+  type IdsMissing,
   purgeLegacyTombstones,
   type Tombstone,
 } from "./tombstones";
@@ -232,7 +239,7 @@ function newTombstone(
   fields: Pick<
     Tombstone,
     "tenantId" | "ownerTenantUserId" | "deletedByTenantUserId" | "entryIds" | "personIds" | "count"
-  >,
+  > & { readonly idsMissing?: IdsMissing },
 ): Tombstone {
   return requested({
     id: Crypto.randomUUID(),
@@ -273,60 +280,68 @@ function errorMessage(error: unknown): string {
   return "Harbour could not be unlocked. Try again, or sign out and sign in again.";
 }
 
-/**
- * The held database's entry, person and organisation ids, for the record of its deletion. Reading
- * the key shows the biometric prompt, which is the device authentication; a passcode-protected
- * key, or none, asks for the passcode explicitly.
- *
- * "absent": there is no key, so nothing on the device can be read and the deletion goes ahead
- * without ids. "unreadable": the key could not be read (for example the prompt was cancelled and
- * the passcode given instead). When the key is read but the entries cannot be, nothing is deleted
- * (clinical review round 4, M3).
- */
-async function readHeldIds(): Promise<UnsentIds | "absent" | "unreadable"> {
-  let key: DatabaseKey | null = null;
-  let keyError = false;
+/** Opens the database with its key, reads the unsent entries' ids, and closes it again. */
+async function readIdsWith(key: DatabaseKey): Promise<UnsentIds> {
+  const held = await openDatabase({
+    filename: databaseFilename(key.id, appEnv.demoMode),
+    encryptionKey: key.sqlcipherKey,
+    demo: appEnv.demoMode,
+  });
   try {
-    key = await readDatabaseKey(secretStore, keyOptions);
-  } catch {
-    keyError = true;
-  }
-  if (!key || key.protection === "passcode") await confirmIdentity();
-  if (!key) return keyError ? "unreadable" : "absent";
-  try {
-    const held = await openDatabase({
-      filename: databaseFilename(key.id, appEnv.demoMode),
-      encryptionKey: key.sqlcipherKey,
-      demo: appEnv.demoMode,
-    });
-    try {
-      return await readUnsentIds(held as unknown as HoldDb);
-    } finally {
-      await held.close().catch(() => undefined);
-    }
-  } catch {
-    throw new HeldIdsUnreadableError();
+    return await readUnsentIds(held as unknown as HoldDb);
+  } finally {
+    await held.close().catch(() => undefined);
   }
 }
 
 /**
+ * The held database's entry, person and organisation ids, for the record of its deletion
+ * (`readHeldIds`, clinical reviews round 4 M3 and round 5 C-M2). Reading the key shows the
+ * biometric prompt, which is the device authentication; a cancelled prompt refuses the deletion
+ * and asks to try again.
+ */
+function readDeviceHeldIds(): Promise<HeldIds> {
+  return readHeldIds({
+    readBookkeeping: async () => ({
+      id: await secretStore.getItem(DB_ID_ITEM, keyOptions.plainOptions),
+      protection: await secretStore.getItem(DB_KEY_PROTECTION_ITEM, keyOptions.plainOptions),
+    }),
+    readKey: () => readDatabaseKey(secretStore, keyOptions),
+    confirmIdentity,
+    readIds: readIdsWith,
+  });
+}
+
+/**
  * A hold's report, with the hold's start, sent now when the session allows (clinical review round
- * 4, H2); otherwise kept (counts and times only) for later. True when the server has it.
+ * 4, H2); otherwise kept (counts and times only) for later. A report that could not be built is
+ * replaced by one from the marker's count, so it is kept all the same (clinical review round 5,
+ * C-M4). True only when the server has it.
  */
 async function reportHold(
   held: HeldWork,
   report: SyncDeviceReport | null,
   token: string | null,
 ): Promise<boolean> {
-  if (!report || !held.tenantId || appEnv.demoMode) return true;
+  if (appEnv.demoMode) return true;
+  if (!held.tenantId) return false;
+  const built = report ?? fallbackHoldReport(held.entries, new Date());
   const options = token ? await apiFor(token, held.tenantId) : null;
-  const pending = { tenantId: held.tenantId, report: holdReport(report, held.heldAt) };
+  const pending = { tenantId: held.tenantId, report: holdReport(built, held.heldAt) };
   const result = await reportOrKeep(tombstoneStore, pending, options).catch(() => "kept" as const);
   return result === "sent";
 }
 
 /** How long to keep trying a hold's report with the session that ended, while the app runs. */
 const HOLD_REPORT_RETRY_MS = 60 * 60_000;
+
+/** Ends a session on the server; best effort, and never waits long (security review round 5, S-L3). */
+function revokeSession(token: string): void {
+  void Promise.race([
+    authClient.signOut(token),
+    new Promise((resolve) => setTimeout(resolve, SIGN_OUT_TIMEOUT_MS)),
+  ]).catch(() => undefined);
+}
 
 export function VaultProvider({ children }: { readonly children: ReactNode }) {
   const session = useSession();
@@ -402,6 +417,8 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
     afterSyncBusyRef.current = true;
     try {
       await flushTombstones(tombstoneStore, options, skippedRef.current.ids).catch(() => undefined);
+      // Words kept for a removed entry go once the server has the whole deletion (S-L4).
+      await forgetDiscardNotes(current as unknown as HoldDb, tombstoneStore).catch(() => undefined);
       await flushPendingReport(tombstoneStore, options).catch(() => undefined);
       const now = new Date();
       const report = await buildDeviceReport(current as unknown as ReportDb, now).catch(() => null);
@@ -423,14 +440,19 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
   const retryHoldReport = useCallback(async () => {
     const waiting = holdReportRef.current;
     if (!waiting) return;
-    // A new session sends it itself (the session provider), and an hour is enough.
+    // A new session sends it itself (the session provider), and an hour is enough. The ended
+    // session is then ended on the server too (security review round 5, S-L3).
     if (tokenRef.current || Date.now() > waiting.until) {
       holdReportRef.current = null;
+      revokeSession(waiting.token);
       return;
     }
     const options = await apiFor(waiting.token, waiting.held.tenantId);
     const result = await flushPendingReport(tombstoneStore, options).catch(() => "kept" as const);
-    if (result !== "kept") holdReportRef.current = null;
+    if (result !== "kept") {
+      holdReportRef.current = null;
+      revokeSession(waiting.token);
+    }
   }, []);
   const retryHoldReportRef = useRef(retryHoldReport);
   retryHoldReportRef.current = retryHoldReport;
@@ -597,7 +619,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
         // the marker stays so the next unlock tries again (clinical review M2). The person sees
         // that on every screen (clinical review round 4, M4).
         const complete = restoreComplete(outcome.restore);
-        setRestoreProblemText(restoreProblem(outcome.restore));
+        setRestoreProblemText(restoreProblem(outcome.restore, uploadBlocked));
         if (!complete && uploadBlocked) {
           // A deletion that did not finish: the device never connects while anything of it could
           // still be in the upload queue (clinical review round 4, H1).
@@ -676,14 +698,14 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
   closeAndDeleteRef.current = closeAndDelete;
 
   const signOutAndWipe = useCallback(
-    async (notice?: string, revoke = true) => {
+    async (notice?: string, revoke: boolean = !notice) => {
       if (wipingRef.current) return;
       wipingRef.current = true;
       try {
         idle.stop();
         setStatus("locked");
         const token = tokenRef.current;
-        if (token && !notice && revoke) {
+        if (token && revoke) {
           // Best effort: revoke the session on the server, but never wait long for it.
           await Promise.race([
             authClient.signOut(token),
@@ -750,7 +772,9 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
         now,
         expiresAt: heldDeadline(now, days),
         lastServerTime: current?.currentStatus.lastSyncedAt ?? null,
-        wipe: () => signOutAndWipe(REMOTE_WIPE_NOTICE),
+        // The session is ended on the server too: access withdrawn leaves it alive otherwise
+        // (security review round 5, S-L3).
+        wipe: () => signOutAndWipe(REMOTE_WIPE_NOTICE, true),
         hold: async (held: HeldWork) => {
           idle.stop();
           setStatus("locked");
@@ -769,9 +793,13 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
           setError(null);
           await session.holdSession(held);
           void scheduleHeldNotifications(planHeldNotifications(held, now));
-          // The server hears of the hold at once when it can, and again while the app runs.
-          if (!(await reportHold(held, report, token)) && token && held.tenantId) {
+          // The server hears of the hold at once when it can, and again while the app runs; then
+          // the ended session is ended on the server too (security review round 5, S-L3).
+          const sent = await reportHold(held, report, token);
+          if (token && !sent && held.tenantId) {
             holdReportRef.current = { token, held, until: Date.now() + HOLD_REPORT_RETRY_MS };
+          } else if (token) {
+            revokeSession(token);
           }
         },
       });
@@ -791,60 +819,129 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
   const signOutDiscarding = useCallback(
     async (choice: DiscardReason, count: number | null) => {
       const reasonCode = requireReason(choice);
-      await confirmIdentity();
       const me = meRef.current;
-      const current = dbRef.current;
-      const ids = current
-        ? await readUnsentIds(current as unknown as HoldDb).catch(() => null)
-        : null;
+      if (!me) throw new Error(t("mobile.discard.notOpen"));
+      // The database whose entries go: the open one, or, after a cold start behind the lock
+      // screen, opened now with its key (clinical review round 5, C-M2). The record always says
+      // which entries went, unless nothing on the device could ever be read; ids that cannot be
+      // read refuse the deletion.
+      const holder: { db: AbstractPowerSyncDatabase | null } = { db: dbRef.current };
+      let ids: HeldIds;
+      if (holder.db) {
+        await confirmIdentity();
+        try {
+          ids = { kind: "ids", ids: await readUnsentIds(holder.db as unknown as HoldDb) };
+        } catch {
+          throw new HeldIdsUnreadableError();
+        }
+      } else {
+        try {
+          ids = await readHeldIds({
+            readBookkeeping: async () => ({
+              id: await secretStore.getItem(DB_ID_ITEM, keyOptions.plainOptions),
+              protection: await secretStore.getItem(
+                DB_KEY_PROTECTION_ITEM,
+                keyOptions.plainOptions,
+              ),
+            }),
+            readKey: () => readDatabaseKey(secretStore, keyOptions),
+            confirmIdentity,
+            readIds: async (key) => {
+              holder.db = await openDatabase({
+                filename: databaseFilename(key.id, appEnv.demoMode),
+                encryptionKey: key.sqlcipherKey,
+                demo: appEnv.demoMode,
+              });
+              return readUnsentIds(holder.db as unknown as HoldDb);
+            },
+          });
+        } catch (error) {
+          const opened = holder.db as AbstractPowerSyncDatabase | null;
+          await opened?.close().catch(() => undefined);
+          throw error;
+        }
+      }
+      // Read through the holder: the open database, or the one opened above for the key.
+      const handle = holder.db as AbstractPowerSyncDatabase | null;
+      const openedHere = handle !== null && handle !== dbRef.current;
+      const counted =
+        count ?? (handle ? await countPendingWork(handle).then(totalPending, () => null) : null);
       const tombstone = newTombstone("signed_out_with_unsent", reasonCode, {
-        tenantId: me?.tenant.id ?? null,
-        ownerTenantUserId: me?.tenantUserId ?? null,
-        deletedByTenantUserId: me?.tenantUserId ?? null,
-        entryIds: ids?.entryIds ?? [],
-        personIds: ids?.personIds ?? [],
-        count,
+        tenantId: me.tenant.id,
+        ownerTenantUserId: me.tenantUserId,
+        deletedByTenantUserId: me.tenantUserId,
+        entryIds: ids.kind === "ids" ? ids.ids.entryIds : [],
+        personIds: ids.kind === "ids" ? ids.ids.personIds : [],
+        count: counted,
+        ...(ids.kind === "none" ? { idsMissing: ids.reason } : {}),
       });
       const token = tokenRef.current;
-      const filename = filenameRef.current;
       const send = senderFor(await currentApi());
-      // Requested, on record before anything is deleted; a failure refuses the sign-out (M1, M2,
-      // L4).
-      await putDiscardOnRecord({ store: tombstoneStore, tombstone, send });
-      // The session is ended on the server only after the outcome has had its chance to be sent.
-      await signOutAndWipe(undefined, false);
-      const gone =
-        (filename === null || (await databaseFileGone(filename).catch(() => false))) &&
-        !(await databaseKeyRemains(secretStore, keyOptions).catch(() => true));
-      await finishDiscard({
-        store: tombstoneStore,
-        tombstone,
-        outcome: gone ? "deleted" : "failed",
-        send,
-      }).catch(() => undefined);
-      if (!gone && me) {
-        // What is left is never uploaded; its owner deals with it after signing in (H1).
-        const now = new Date();
-        await session
-          .holdSession({
-            tenantId: me.tenant.id,
-            tenantUserId: me.tenantUserId,
-            userId: me.user.id,
-            ownerName: me.user.name || null,
-            entries: count,
-            heldAt: now.toISOString(),
-            expiresAt: heldDeadline(
-              now,
-              heldMaxDaysRef.current ?? HELD_FAIL_SAFE_DAYS,
-            ).toISOString(),
-            lastServerTime: null,
-            uploadBlocked: true,
-          })
-          .catch(() => undefined);
+      const now = new Date();
+      // Set before anything is deleted, so a sign-out cut short never uploads what it left (C-L1).
+      const marker: HeldWork = {
+        tenantId: me.tenant.id,
+        tenantUserId: me.tenantUserId,
+        userId: me.user.id,
+        ownerName: me.user.name || null,
+        entries: counted,
+        heldAt: now.toISOString(),
+        expiresAt: heldDeadline(now, heldMaxDaysRef.current ?? HELD_FAIL_SAFE_DAYS).toISOString(),
+        lastServerTime: null,
+        uploadBlocked: true,
+      };
+      try {
+        await discardHeldWork({
+          readDatabaseId: () => secretStore.getItem(DB_ID_ITEM, keyOptions.plainOptions),
+          // Sync stops and the rows inside go before the file (clinical review round 5, C-M1).
+          clearRows: async () => {
+            dbRef.current = null;
+            filenameRef.current = null;
+            connectorRef.current = null;
+            stopStatusListener();
+            setDb(null);
+            if (!handle) return false;
+            let cleared = false;
+            try {
+              await handle.disconnectAndClear({ clearLocal: true });
+              cleared = true;
+            } catch {
+              cleared = false;
+            }
+            await handle.close().catch(() => undefined);
+            return cleared;
+          },
+          deleteDatabaseFile,
+          destroyKey: () => destroyDatabaseKey(secretStore, keyOptions),
+          databaseGone: databaseFileGone,
+          keyRemains: () => databaseKeyRemains(secretStore, keyOptions),
+          // Requested, on record before anything is deleted; a failure refuses the sign-out.
+          putOnRecord: () => putDiscardOnRecord({ store: tombstoneStore, tombstone, send }),
+          recordOutcome: (outcome, leftover) =>
+            finishDiscard({ store: tombstoneStore, tombstone, outcome, leftover, send }),
+          blockUploads: () => session.blockHeld(marker),
+          // The sign-out below clears the marker.
+          clearHeld: async () => undefined,
+          demo: appEnv.demoMode,
+        });
+      } catch (error) {
+        if (error instanceof DiscardIncompleteError) {
+          // The entries can still be read: held and never uploaded, for their owner to deal with
+          // after signing in (clinical review round 4, H1).
+          await session.holdSession(marker, error.message).catch(() => undefined);
+          if (token) revokeSession(token);
+          return;
+        }
+        // Nothing was deleted: a database opened only for this closes again.
+        if (openedHere) await handle?.close().catch(() => undefined);
+        throw error;
       }
-      if (token) void authClient.signOut(token).catch(() => undefined);
+      // Deleted: the sign-out finishes, and the session is ended on the server only after the
+      // outcome has had its chance to be sent.
+      await signOutAndWipe(undefined, false);
+      if (token) revokeSession(token);
     },
-    [currentApi, signOutAndWipe, session.holdSession],
+    [currentApi, signOutAndWipe, stopStatusListener, session.blockHeld, session.holdSession],
   );
 
   const discardHeld = useCallback(
@@ -856,14 +953,12 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
         const signer = await authClient.getMe(signerToken);
         // The owner or a manager, signed in now: not the device passcode alone (M2).
         if (!canDiscardHeld(held, signer)) throw new HeldDiscardNotAllowedError();
-        // The key read but the entries not: nothing is deleted (clinical review round 4, M3).
-        const ids = await readHeldIds();
-        const known = typeof ids === "object" ? ids : null;
+        // Which entries go, read before anything is deleted; a key that could not be read this
+        // time, or entries that could not be read, refuse the deletion (round 5, C-M2).
+        const ids = await readDeviceHeldIds();
+        const known = ids.kind === "ids" ? ids.ids : null;
         // Entries whose owner is unknown must be the manager's organisation's (round 4, low).
-        if (
-          !held.tenantId &&
-          (ids === "unreadable" || (known && !heldEntriesInTenant(known, signer.tenant.id)))
-        ) {
+        if (!held.tenantId && known && !heldEntriesInTenant(known, signer.tenant.id)) {
           throw new HeldDiscardNotAllowedError();
         }
         const options = await apiFor(signerToken, signer.tenant.id);
@@ -876,6 +971,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
           entryIds: known?.entryIds ?? [],
           personIds: known?.personIds ?? [],
           count: held.entries ?? (known ? known.entryIds.length : null),
+          ...(ids.kind === "none" ? { idsMissing: ids.reason } : {}),
         });
         const send = senderFor(options);
         await closeKeepingData();
@@ -887,9 +983,10 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
           keyRemains: () => databaseKeyRemains(secretStore, keyOptions),
           // Someone else's entries, or an unknown owner's, need the server's acknowledgement.
           putOnRecord: () => putDiscardOnRecord({ store: tombstoneStore, tombstone, send }),
-          recordOutcome: (outcome) =>
-            finishDiscard({ store: tombstoneStore, tombstone, outcome, send }),
-          blockUploads: () => session.holdSession({ ...held, uploadBlocked: true }),
+          recordOutcome: (outcome, leftover) =>
+            finishDiscard({ store: tombstoneStore, tombstone, outcome, leftover, send }),
+          // Set before anything is deleted, and its failure refuses the deletion (C-L1).
+          blockUploads: () => session.blockHeld({ ...held, uploadBlocked: true }),
           clearHeld: session.clearHeld,
           demo: appEnv.demoMode,
         });
@@ -904,7 +1001,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
         void authClient.signOut(signerToken).catch(() => undefined);
       }
     },
-    [closeKeepingData, session.held, session.clearHeld, session.clearSession, session.holdSession],
+    [closeKeepingData, session.held, session.blockHeld, session.clearHeld, session.clearSession],
   );
 
   const removeRefused = useCallback(
@@ -928,10 +1025,10 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       });
       const send = senderFor(await currentApi());
       await putDiscardOnRecord({ store: tombstoneStore, tombstone, send });
-      let removed = false;
       try {
         await current.writeTransaction(async (tx) => {
-          // The person's own words stay in the encrypted database, never sent (round 4, M3).
+          // The person's own words stay in the encrypted database, never sent (round 4, M3), until
+          // the server has the whole deletion (round 5, S-L4).
           const words = choice.reason.trim();
           if (words) {
             await tx.execute("INSERT INTO sync_meta (id, key, value) VALUES (?, ?, ?)", [
@@ -942,18 +1039,22 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
           }
           await tx.execute(DELETE_UPLOAD_ISSUE_SQL, [me.tenant.id, id]);
         });
-        removed = !(await current.getOptional("SELECT id FROM upload_issue WHERE id = ?", [id]));
       } catch {
-        removed = false;
+        // Checked below.
       }
-      // Deleted, or failed superseding the request; a refused entry is never uploaded either way.
+      // "failed" only while the entry is still there to read (round 5, C-M1); a refused entry is
+      // never uploaded either way.
+      const remains = await current
+        .getOptional("SELECT id FROM upload_issue WHERE id = ?", [id])
+        .then((r) => r !== null)
+        .catch(() => true);
       await finishDiscard({
         store: tombstoneStore,
         tombstone,
-        outcome: removed ? "deleted" : "failed",
+        outcome: remains ? "failed" : "deleted",
         send,
       }).catch(() => undefined);
-      if (!removed) throw new Error(t("mobile.discard.removeFailed"));
+      if (remains) throw new Error(t("mobile.discard.removeFailed"));
     },
     [currentApi],
   );

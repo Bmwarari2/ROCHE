@@ -50,13 +50,18 @@ export function oldestAgeSeconds(
 
 /** Counts the unsent work and finds the oldest: the first queued entry, refusal or hold. */
 export async function buildDeviceReport(db: ReportDb, now: Date): Promise<SyncDeviceReport> {
-  const [stats, refused, held, first] = await Promise.all([
+  const [stats, refused, held, blocked, first] = await Promise.all([
     db.getUploadQueueStats(),
     db.getOptional<{ count: number; oldest: string | null }>(
       "SELECT COUNT(*) AS count, MIN(rejected_at) AS oldest FROM upload_issue",
     ),
     db.getOptional<{ count: number; oldest: string | null }>(
       "SELECT COUNT(*) AS count, MIN(held_at) AS oldest FROM held_entry",
+    ),
+    // Entries a failed deletion left, among the refused ones: they keep the manager's task open
+    // until someone deals with them (clinical review round 5, C-M3).
+    db.getOptional<{ count: number }>(
+      "SELECT COUNT(*) AS count FROM upload_issue WHERE code = 'held_discard_failed'",
     ),
     db.getCrudBatch(1),
   ]);
@@ -67,11 +72,28 @@ export async function buildDeviceReport(db: ReportDb, now: Date): Promise<SyncDe
     unsent: stats.count,
     refused: Number(refused?.count ?? 0),
     held: heldCount,
+    blocked: Number(blocked?.count ?? 0),
     oldestAgeSeconds: oldestAgeSeconds(
       [typeof queuedAt === "string" ? queuedAt : null, refused?.oldest, held?.oldest],
       now,
     ),
     heldSince: heldAt === null ? null : new Date(heldAt).toISOString(),
+    reportedAt: now.toISOString(),
+  };
+}
+
+/**
+ * A hold's report when the device could not count what it holds (clinical review round 5, C-M4):
+ * at least the entries the marker counted, or one, so the manager's task is raised all the same.
+ */
+export function fallbackHoldReport(entries: number | null, now: Date): SyncDeviceReport {
+  return {
+    unsent: 0,
+    refused: 0,
+    held: Math.max(1, entries ?? 1),
+    blocked: 0,
+    oldestAgeSeconds: null,
+    heldSince: null,
     reportedAt: now.toISOString(),
   };
 }
@@ -156,6 +178,7 @@ export function parsePendingReport(raw: string | null): PendingReport | null {
     const r = value.report ?? {};
     if (typeof value.tenantId !== "string" || !UUID.test(value.tenantId)) return null;
     if (!whole(r.unsent) || !whole(r.refused) || !whole(r.held)) return null;
+    if (r.blocked !== undefined && !whole(r.blocked)) return null;
     if (r.oldestAgeSeconds !== null && !whole(r.oldestAgeSeconds)) return null;
     if (typeof r.reportedAt !== "string" || instant(r.reportedAt) === null) return null;
     const heldSince = instant(r.heldSince);
@@ -165,6 +188,7 @@ export function parsePendingReport(raw: string | null): PendingReport | null {
         unsent: r.unsent,
         refused: r.refused,
         held: r.held,
+        blocked: whole(r.blocked) ? r.blocked : 0,
         oldestAgeSeconds: r.oldestAgeSeconds as number | null,
         heldSince: heldSince === null ? null : new Date(heldSince).toISOString(),
         reportedAt: r.reportedAt,

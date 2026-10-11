@@ -11,7 +11,8 @@ import { ukDateTimeParts } from "./time";
 export interface SyncSummaryInput {
   readonly lastSyncedAt: Date | null;
   readonly queued: number;
-  readonly issues: number;
+  /** Entries the server refused; null when they could not be counted (round 5, C-L7). */
+  readonly issues: number | null;
   /**
    * Entries still held after the owner signed in again, not yet back in the queue (M2); null when
    * they could not be counted, which needs attention too (clinical review round 4, M4).
@@ -50,8 +51,14 @@ export function syncSummary(input: SyncSummaryInput): SyncSummary {
   }
   const queued = input.demo ? null : t("mobile.sync.queued", { count: input.queued });
   // Held entries need attention as much as refused ones: Today never reads "Up to date" (M2).
-  const needsAttention = input.issues > 0 || input.held === null || input.held > 0;
-  const issues = input.issues > 0 ? t("mobile.sync.issues", { count: input.issues }) : null;
+  const needsAttention =
+    input.issues === null || input.issues > 0 || input.held === null || input.held > 0;
+  const issues =
+    input.issues === null
+      ? t("mobile.sync.issuesUnknown")
+      : input.issues > 0
+        ? t("mobile.sync.issues", { count: input.issues })
+        : null;
   const held =
     input.held === null
       ? t("mobile.sync.heldUnknown")

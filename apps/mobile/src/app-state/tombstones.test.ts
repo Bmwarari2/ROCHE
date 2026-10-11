@@ -1,5 +1,7 @@
 import {
+  SYNC_DISCARD_IDS_MISSING,
   SYNC_DISCARD_KINDS,
+  SYNC_DISCARD_LEFTOVERS,
   SYNC_DISCARD_REASON_CODES,
   SYNC_DISCARD_STAGES,
 } from "@harbour/contracts";
@@ -7,7 +9,9 @@ import { describe, expect, it } from "vitest";
 import {
   acknowledgeStage,
   cleanTombstone,
+  DISCARD_IDS_MISSING,
   DISCARD_KINDS,
+  DISCARD_LEFTOVERS,
   DISCARD_REASON_CODES,
   DISCARD_STAGES,
   MAX_TOMBSTONE_ENTRY_IDS,
@@ -62,6 +66,17 @@ describe("hazard HZ-040 tombstones hold no personal data (security review M1)", 
     expect([...DISCARD_KINDS]).toEqual([...SYNC_DISCARD_KINDS]);
     expect([...DISCARD_REASON_CODES]).toEqual([...SYNC_DISCARD_REASON_CODES]);
     expect([...DISCARD_STAGES]).toEqual([...SYNC_DISCARD_STAGES]);
+    expect([...DISCARD_LEFTOVERS]).toEqual([...SYNC_DISCARD_LEFTOVERS]);
+    expect([...DISCARD_IDS_MISSING]).toEqual([...SYNC_DISCARD_IDS_MISSING]);
+  });
+
+  it("keeps why ids are missing and what a deletion left, and nothing that is not a code (round 5)", () => {
+    expect(
+      cleanTombstone({ ...stone(1), idsMissing: "key_invalid", leftover: ["key", "photos"] }),
+    ).toMatchObject({ idsMissing: "key_invalid", leftover: ["key"] });
+    const odd = cleanTombstone({ ...stone(1), idsMissing: "cancelled", leftover: "file" });
+    expect(odd).not.toHaveProperty("idsMissing");
+    expect(odd).not.toHaveProperty("leftover");
   });
 
   it("keeps only codes, opaque ids, a count and a time", async () => {

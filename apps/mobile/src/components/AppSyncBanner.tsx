@@ -2,7 +2,7 @@ import { SyncBanner } from "@harbour/ui-native";
 import { useStatus } from "@powersync/react";
 import { useNetworkState } from "expo-network";
 import { useVault } from "../app-state/vault";
-import { useHeldEntryCount, useQueuedChanges, useUploadIssues } from "../care/hooks";
+import { useHeldEntryCount, useQueuedChanges, useUploadIssueState } from "../care/hooks";
 import { appEnv } from "../config/app-env";
 import { STALE_AFTER_MS } from "../config/constants";
 import { deriveConnectionState, lastSyncedAtOf } from "../sync/sync-state";
@@ -19,10 +19,10 @@ export function AppSyncBanner() {
   const queued = useQueuedChanges();
   // Refused entries (C1) and entries still held after sign-in (M2) show on every screen, and the
   // banner never reads "Up to date" while any exist, or while they cannot be counted (clinical
-  // review round 4, M4).
-  const issues = useUploadIssues().length;
+  // reviews round 4 M4 and round 5 C-L7).
+  const issues = useUploadIssueState().count;
   const held = useHeldEntryCount();
-  const refused = held === null ? null : issues + held;
+  const refused = held === null || issues === null ? null : issues + held;
 
   const state = appEnv.demoMode ? "offline" : deriveConnectionState(status, network);
   const lastSyncedAt = appEnv.demoMode ? vault.demoSeededAt : lastSyncedAtOf(status);

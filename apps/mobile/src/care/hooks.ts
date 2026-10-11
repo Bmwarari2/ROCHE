@@ -135,12 +135,23 @@ export function useQueuedChanges(): number {
   return queued;
 }
 
-/** Entries the server refused, kept on this device (HZ-006). */
-export function useUploadIssues(): readonly UploadIssueRow[] {
+/**
+ * Entries the server refused, kept on this device (HZ-006), and how many: null when they could not
+ * be read, never taken as none (clinical review round 5, C-L7).
+ */
+export function useUploadIssueState(): {
+  readonly rows: readonly UploadIssueRow[];
+  readonly count: number | null;
+} {
   const tenantId = useTenantId();
   const params = useMemo(() => [tenantId], [tenantId]);
-  const { data } = useQuery<UploadIssueRow>(UPLOAD_ISSUES_SQL, params);
-  return data;
+  const { data, error } = useQuery<UploadIssueRow>(UPLOAD_ISSUES_SQL, params);
+  return { rows: data, count: error ? null : data.length };
+}
+
+/** Entries the server refused, kept on this device (HZ-006). */
+export function useUploadIssues(): readonly UploadIssueRow[] {
+  return useUploadIssueState().rows;
 }
 
 /**

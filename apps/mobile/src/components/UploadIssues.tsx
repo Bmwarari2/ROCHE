@@ -2,7 +2,7 @@ import { Text, useTheme } from "@harbour/ui-native";
 import { View } from "react-native";
 import { useVault } from "../app-state/vault";
 import { issueItem } from "../care/entry-view";
-import { useUploadIssues } from "../care/hooks";
+import { useUploadIssueState } from "../care/hooks";
 import { t } from "../i18n/t";
 import { Card } from "./Card";
 import { DeleteWithReason } from "./DeleteWithReason";
@@ -18,8 +18,18 @@ import { DeleteWithReason } from "./DeleteWithReason";
 export function UploadIssues({ personId }: { readonly personId?: string }) {
   const theme = useTheme();
   const vault = useVault();
-  const rows = useUploadIssues();
+  const { rows, count } = useUploadIssueState();
   const items = rows.map(issueItem).filter((i) => !personId || i.personId === personId);
+  // Refused entries that could not be read are said to be there, never hidden (round 5, C-L7).
+  if (count === null) {
+    return (
+      <Card title={t("mobile.issues.title")} testID="upload-issues">
+        <Text tone="danger" accessibilityRole="alert" testID="upload-issues-unknown">
+          {t("mobile.sync.issuesUnknown")}
+        </Text>
+      </Card>
+    );
+  }
   if (items.length === 0) return null;
 
   return (

@@ -6,12 +6,14 @@ import { DEMO_TENANT_ID, demoPeople } from "../demo/demo-data";
 import { t } from "../i18n/t";
 import {
   DB_ID_ITEM,
+  DB_KEY_PROTECTION_ITEM,
   databaseFilename,
   databaseKeyRemains,
   destroyDatabaseKey,
   type KeyOptions,
   type KeyProtection,
   loadOrCreateDatabaseKey,
+  readDatabaseKey,
   type SecretStore,
 } from "../security/db-key";
 import { type CrudEntryLike, HarbourConnector, SessionRevokedError } from "../sync/connector";
@@ -44,7 +46,11 @@ import {
   DISCARD_OTHERS_PERMISSION,
   type DiscardDeps,
   DiscardIncompleteError,
+  deletionOutcome,
   discardHeldWork,
+  forgetDiscardNotes,
+  type HeldIdsDeps,
+  HeldIdsUnreadableError,
   type HeldWork,
   HeldWorkOwnerError,
   type HoldDb,
@@ -52,12 +58,15 @@ import {
   heldEntriesInTenant,
   holdUnsentWork,
   isHeldWorkOwner,
+  KeyNotReadError,
   loadHeldMarker,
   type OpenCheckDeps,
   OWNER_META_ID,
   ownerOf,
   parseHeldWork,
+  RestoreFailedError,
   readDeviceOwner,
+  readHeldIds,
   readHeldMarker,
   readUnsentIds,
   restoreComplete,
@@ -66,11 +75,12 @@ import {
   serialiseHeldWork,
   totalPending,
   UNKNOWN_OWNER,
+  UploadBlockError,
   VaultResetError,
   withDeadline,
   writeDeviceOwner,
 } from "./held-work";
-import { readTombstones, type Tombstone, TombstoneWriteError } from "./tombstones";
+import { readTombstones, recordTombstone, type Tombstone, TombstoneWriteError } from "./tombstones";
 
 const API = "https://api.example.invalid";
 const OTHER_TENANT = "00000000-0000-4000-8000-0000000000a2";
@@ -919,11 +929,16 @@ describe("deleting held entries (S4, S5, M1, M2, L4; clinical review round 4, H1
 
   function discardDeps(
     dev: Device,
-    overrides: Partial<DiscardDeps> & { gone?: boolean; answers?: DiscardSendResult[] } = {},
+    overrides: Partial<DiscardDeps> & {
+      gone?: boolean;
+      keyStays?: boolean;
+      answers?: DiscardSendResult[];
+    } = {},
   ) {
     const tombstones = memoryTombstones();
     const sent: Array<Record<string, unknown>> = [];
-    const { gone, answers = [], ...rest } = overrides;
+    const events: string[] = [];
+    const { gone, keyStays, answers = [], ...rest } = overrides;
     const send: DiscardSender = async (stone, stage) => {
       sent.push(discardBody(stone, stage));
       return answers.shift() ?? "acknowledged";
@@ -932,15 +947,25 @@ describe("deleting held entries (S4, S5, M1, M2, L4; clinical review round 4, H1
     const deps: DiscardDeps = {
       readDatabaseId: () => dev.store.getItem(DB_ID_ITEM, keyOptions.plainOptions),
       deleteDatabaseFile: (name: string) => {
+        events.push("delete file");
         dev.files.delete(name);
       },
-      destroyKey: () => destroyDatabaseKey(dev.store, keyOptions),
+      destroyKey: async () => {
+        events.push("destroy key");
+        if (!keyStays) await destroyDatabaseKey(dev.store, keyOptions);
+      },
       databaseGone: async (name: string) => gone ?? !dev.files.has(name),
       keyRemains: () => databaseKeyRemains(dev.store, keyOptions),
-      putOnRecord: () => putDiscardOnRecord({ store: tombstones.store, tombstone, send }),
-      recordOutcome: (outcome) =>
-        finishDiscard({ store: tombstones.store, tombstone, outcome, send }),
+      putOnRecord: async () => {
+        events.push("requested");
+        return putDiscardOnRecord({ store: tombstones.store, tombstone, send });
+      },
+      recordOutcome: (outcome, leftover) => {
+        events.push(outcome);
+        return finishDiscard({ store: tombstones.store, tombstone, outcome, leftover, send });
+      },
       blockUploads: async () => {
+        events.push("block uploads");
         blocked.value = true;
       },
       clearHeld: async () => {
@@ -949,14 +974,14 @@ describe("deleting held entries (S4, S5, M1, M2, L4; clinical review round 4, H1
       demo: false,
       ...rest,
     };
-    return { deps, tombstones, sent, blocked };
+    return { deps, tombstones, sent, blocked, events };
   }
 
-  it("hazard HZ-006 hazard HZ-040 the explicit discard wipes: requested first, deleted only once the file and key are gone", async () => {
+  it("hazard HZ-006 hazard HZ-040 the explicit discard wipes: requested and blocked first, deleted only once the entries cannot be read", async () => {
     const { dev } = await heldDevice();
     const filename = databaseFilename(dev.key.id);
-    const { deps, tombstones, sent, blocked } = discardDeps(dev);
-    await discardHeldWork(deps);
+    const { deps, tombstones, sent, events } = discardDeps(dev);
+    expect(await discardHeldWork(deps)).toEqual({ outcome: "deleted", leftover: [] });
 
     expect(dev.files.has(filename)).toBe(false);
     expect(dev.marker.value).toBeNull();
@@ -964,41 +989,60 @@ describe("deleting held entries (S4, S5, M1, M2, L4; clinical review round 4, H1
     const reopened = await dev.reopen();
     expect(reopened.created).toBe(true);
     expect(reopened.key.id).not.toBe(dev.key.id);
+    // The uploads are blocked together with the request, before anything is deleted (C-L1).
+    expect(events).toEqual(["requested", "block uploads", "delete file", "destroy key", "deleted"]);
     expect(sent.map((b) => b.stage)).toEqual(["requested", "deleted"]);
     // Only the coded reason is sent; no words anywhere (round 4, M3).
     expect(sent.some((b) => "reason" in b)).toBe(false);
-    expect(blocked.value).toBe(false);
     // The server has the whole deletion, so its record leaves the keystore.
     expect(await readTombstones(tombstones.store)).toEqual([]);
   });
 
-  it("hazard HZ-040 acknowledged, then the file remains: failed supersedes the request, the entries stay held and are never uploaded (round 4, H1)", async () => {
+  it("hazard HZ-040 records failed only while the entries can still be read: the file and its key both remain (round 5, C-M1)", async () => {
     const { dev } = await heldDevice();
     const before = dev.marker.value;
-    const { deps, tombstones, sent, blocked } = discardDeps(dev, { gone: false });
+    const { deps, tombstones, sent, blocked } = discardDeps(dev, { gone: false, keyStays: true });
     await expect(discardHeldWork(deps)).rejects.toBeInstanceOf(DiscardIncompleteError);
     // The server acknowledged the request, then heard that it failed.
     expect(sent.map((b) => b.stage)).toEqual(["requested", "failed"]);
     expect(blocked.value).toBe(true);
     expect(dev.marker.value).toBe(before);
-    // A retry finds the same file again: the key and its id are kept until the file is gone.
     expect((await dev.reopen()).created).toBe(false);
     expect(await readTombstones(tombstones.store)).toEqual([]);
   });
 
-  it("hazard HZ-040 records failed, and keeps it to send, when the file remains and the server cannot be reached", async () => {
+  it.each([
+    ["the file, with its key gone", { gone: false }, ["file"]],
+    ["the key, with its file gone", { keyStays: true }, ["key"]],
+  ] as const)(
+    "hazard HZ-040 records deleted when the entries cannot be read, reporting %s left behind (round 5, C-M1)",
+    async (_case, state, leftover) => {
+      const { dev } = await heldDevice();
+      const { deps, sent } = discardDeps(dev, state);
+      expect(await discardHeldWork(deps)).toEqual({ outcome: "deleted", leftover });
+      expect(sent.map((b) => [b.stage, b.leftover])).toEqual([
+        ["requested", undefined],
+        ["deleted", leftover],
+      ]);
+      expect(dev.marker.value).toBeNull();
+    },
+  );
+
+  it("hazard HZ-040 records failed, and keeps it to send, when the entries remain readable and the server cannot be reached", async () => {
     const { dev } = await heldDevice();
     const own = { ...tombstone, deletedByTenantUserId: sam.tenantUserId };
     const tombstones = memoryTombstones();
     const { deps } = discardDeps(dev, {
       gone: false,
+      keyStays: true,
       putOnRecord: () =>
         putDiscardOnRecord({ store: tombstones.store, tombstone: own, send: async () => "retry" }),
-      recordOutcome: (outcome) =>
+      recordOutcome: (outcome, leftover) =>
         finishDiscard({
           store: tombstones.store,
           tombstone: own,
           outcome,
+          leftover,
           send: async () => "retry",
         }),
     });
@@ -1008,15 +1052,62 @@ describe("deleting held entries (S4, S5, M1, M2, L4; clinical review round 4, H1
     ]);
   });
 
-  it("hazard HZ-040 records failed when the key is still in the keystore (S5)", async () => {
+  it("hazard HZ-040 deletes nothing when the entries cannot be marked never to be uploaded (round 5, C-L1)", async () => {
     const { dev } = await heldDevice();
-    const before = dev.marker.value;
-    const { deps, sent, blocked } = discardDeps(dev, { destroyKey: async () => undefined });
-    await expect(discardHeldWork(deps)).rejects.toBeInstanceOf(DiscardIncompleteError);
-    expect(dev.marker.value).toBe(before);
+    const { deps, sent, events } = discardDeps(dev, {
+      blockUploads: async () => {
+        throw new Error("keystore full");
+      },
+    });
+    await expect(discardHeldWork(deps)).rejects.toBeInstanceOf(UploadBlockError);
+    expect(events).toEqual(["requested", "failed"]);
     expect(sent.map((b) => b.stage)).toEqual(["requested", "failed"]);
-    expect(blocked.value).toBe(true);
+    expect(dev.files.size).toBe(1);
+    expect((await dev.reopen()).created).toBe(false);
   });
+
+  it("hazard HZ-040 signing out clears the rows before the file, so a file left behind holds no readable entries (round 5, C-M1)", async () => {
+    // Signed in, with two notes not yet uploaded.
+    const dev = await device({ queued: 2 });
+    const { deps, sent, events } = discardDeps(dev, {
+      gone: false,
+      keyStays: true,
+      clearRows: async () => {
+        events.push("clear rows");
+        await dev.db.disconnectAndClear({ clearLocal: true });
+        return true;
+      },
+    });
+    expect(await discardHeldWork(deps)).toEqual({ outcome: "deleted", leftover: ["file", "key"] });
+    expect(dev.count("care_note")).toBe(0);
+    expect(dev.queue).toEqual([]);
+    expect(events.slice(0, 3)).toEqual(["requested", "block uploads", "clear rows"]);
+    expect(sent.map((b) => b.stage)).toEqual(["requested", "deleted"]);
+  });
+
+  it("hazard HZ-040 signing out records failed when the rows could not be cleared and the file and key remain (round 5, C-M1)", async () => {
+    const dev = await device({ queued: 1 });
+    const { deps, sent } = discardDeps(dev, {
+      gone: false,
+      keyStays: true,
+      clearRows: async () => false,
+    });
+    await expect(discardHeldWork(deps)).rejects.toBeInstanceOf(DiscardIncompleteError);
+    expect(sent.map((b) => b.stage)).toEqual(["requested", "failed"]);
+  });
+
+  it.each([
+    [{ fileRemains: true, keyRemains: true, rowsRemain: true }, "failed", ["file", "key"]],
+    [{ fileRemains: true, keyRemains: true, rowsRemain: false }, "deleted", ["file", "key"]],
+    [{ fileRemains: true, keyRemains: false, rowsRemain: true }, "deleted", ["file"]],
+    [{ fileRemains: false, keyRemains: true, rowsRemain: true }, "deleted", ["key"]],
+    [{ fileRemains: false, keyRemains: false, rowsRemain: true }, "deleted", []],
+  ] as const)(
+    "hazard HZ-040 a deletion of %j ends %s (round 5, C-M1)",
+    (state, outcome, leftover) => {
+      expect(deletionOutcome(state)).toEqual({ outcome, leftover });
+    },
+  );
 
   it("hazard HZ-040 deletes nothing when the database id cannot be read (L4)", async () => {
     const { dev } = await heldDevice();
@@ -1119,6 +1210,140 @@ describe("deleting held entries (S4, S5, M1, M2, L4; clinical review round 4, H1
     expect(t("mobile.held.owner", { named: "no", name: "" })).toBe(
       "Entries from another member of staff are waiting to be sent.",
     );
+  });
+});
+
+describe("hazard HZ-040 which entries a deletion removes, read before anything is deleted (round 5, C-M2)", () => {
+  async function idsDeps(
+    dev: Device,
+    overrides: Partial<HeldIdsDeps> = {},
+  ): Promise<{ deps: HeldIdsDeps; asked: { identity: number } }> {
+    const asked = { identity: 0 };
+    const deps: HeldIdsDeps = {
+      readBookkeeping: async () => ({
+        id: await dev.store.getItem(DB_ID_ITEM, keyOptions.plainOptions),
+        protection: await dev.store.getItem(DB_KEY_PROTECTION_ITEM, keyOptions.plainOptions),
+      }),
+      readKey: () => readDatabaseKey(dev.store, keyOptions),
+      confirmIdentity: async () => {
+        asked.identity += 1;
+      },
+      readIds: () => readUnsentIds(dev.holdDb),
+      ...overrides,
+    };
+    return { deps, asked };
+  }
+
+  it("hazard HZ-040 reads the entry ids with the key, the prompt being the device authentication", async () => {
+    const { dev } = await heldDevice();
+    const { deps, asked } = await idsDeps(dev);
+    const ids = await readHeldIds(deps);
+    expect(ids.kind === "ids" ? ids.ids.entryIds : []).toContain(NOTE_ID);
+    expect(asked.identity).toBe(0);
+  });
+
+  it("hazard HZ-040 refuses, and asks to try again, when the key is there but could not be read (a cancelled prompt)", async () => {
+    const { dev } = await heldDevice();
+    const { deps, asked } = await idsDeps(dev, {
+      readKey: async () => {
+        throw new Error("User cancelled the authentication");
+      },
+    });
+    const attempt = readHeldIds(deps);
+    await expect(attempt).rejects.toBeInstanceOf(KeyNotReadError);
+    await expect(attempt).rejects.toThrow(t("mobile.held.keyNotRead"));
+    // The passcode is not offered instead: without the ids nothing may be deleted.
+    expect(asked.identity).toBe(0);
+  });
+
+  it("hazard HZ-040 refuses with HeldIdsUnreadableError when the key was read but the entries could not be", async () => {
+    const { dev } = await heldDevice();
+    const { deps } = await idsDeps(dev, {
+      readIds: async () => {
+        throw new Error("file is not a database");
+      },
+    });
+    const attempt = readHeldIds(deps);
+    await expect(attempt).rejects.toBeInstanceOf(HeldIdsUnreadableError);
+    await expect(attempt).rejects.toThrow(t("mobile.held.idsUnreadable"));
+  });
+
+  it("hazard HZ-040 goes ahead without ids only when nothing could ever be read, saying why", async () => {
+    const { dev } = await heldDevice();
+    // No key at all: device authentication, then no ids, recorded as key_absent.
+    const absent = await idsDeps(dev, {
+      readBookkeeping: async () => ({ id: null, protection: null }),
+    });
+    expect(await readHeldIds(absent.deps)).toEqual({ kind: "none", reason: "key_absent" });
+    expect(absent.asked.identity).toBe(1);
+    // A key kept that is not a valid key: recorded as key_invalid.
+    const invalid = await idsDeps(dev, { readKey: async () => null });
+    expect(await readHeldIds(invalid.deps)).toEqual({ kind: "none", reason: "key_invalid" });
+    expect(invalid.asked.identity).toBe(1);
+  });
+
+  it("hazard HZ-040 refuses when the keystore cannot be read at all", async () => {
+    const { dev } = await heldDevice();
+    const { deps } = await idsDeps(dev, {
+      readBookkeeping: async () => {
+        throw new Error("keystore unavailable");
+      },
+    });
+    await expect(readHeldIds(deps)).rejects.toBeInstanceOf(KeyNotReadError);
+  });
+});
+
+describe("hazard HZ-040 the words kept for a removed entry (round 5, S-L4)", () => {
+  it("are deleted once the server has the whole deletion, and kept while it waits", async () => {
+    const dev = await device();
+    const tombstones = memoryTombstones();
+    const waiting = requested({
+      id: "0199d000-0000-7000-8000-0000000000d7",
+      kind: "refused_removed",
+      reasonCode: "other",
+      tenantId: DEMO_TENANT_ID,
+      ownerTenantUserId: sam.tenantUserId,
+      deletedByTenantUserId: sam.tenantUserId,
+      entryIds: [],
+      personIds: [],
+      count: 1,
+      at: NOW.toISOString(),
+    });
+    await recordTombstone(tombstones.store, waiting);
+    for (const id of [waiting.id, "0199d000-0000-7000-8000-0000000000d8"]) {
+      await dev.execute("INSERT INTO sync_meta (id, key, value) VALUES (?, ?, ?)", [
+        `${DISCARD_NOTE_PREFIX}${id}`,
+        "discard_note",
+        '{"reasonCode":"other","words":"Recorded twice by mistake"}',
+      ]);
+    }
+    expect(await forgetDiscardNotes(dev.holdDb, tombstones.store)).toBe(1);
+    const left = all<{ id: string }>(
+      dev.sql,
+      "SELECT id FROM sync_meta WHERE id LIKE 'discard-note:%'",
+      [],
+    );
+    expect(left.map((r) => r.id)).toEqual([`${DISCARD_NOTE_PREFIX}${waiting.id}`]);
+    // A keystore that cannot be read deletes nothing.
+    const broken = {
+      ...tombstones.store,
+      read: async () => {
+        throw new Error("keystore unavailable");
+      },
+    };
+    await expect(forgetDiscardNotes(dev.holdDb, broken)).rejects.toThrow();
+  });
+});
+
+describe("hazard HZ-040 entries a failed deletion left, which could not be moved (round 5, C-L6)", () => {
+  it("say they will never be sent, apart from an ordinary restore", () => {
+    expect(restoreProblem("failed", true)).toBe(t("mobile.vault.restoreBlockedFailed"));
+    expect(restoreProblem({ restored: 0, parked: 1, remaining: 1 }, true)).toBe(
+      t("mobile.vault.restoreBlockedFailed"),
+    );
+    expect(restoreProblem({ restored: 0, parked: 2, remaining: 0 }, true)).toBeNull();
+    expect(restoreProblem("failed")).toBe(t("mobile.vault.restoreFailed"));
+    expect(new RestoreFailedError().message).toBe(t("mobile.vault.restoreBlockedFailed"));
   });
 });
 

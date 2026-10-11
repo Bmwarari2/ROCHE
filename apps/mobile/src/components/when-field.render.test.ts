@@ -27,8 +27,8 @@ function Harness({ initial, now }: { readonly initial: WhenChoice; readonly now:
 
 const earlier = (time: string): WhenChoice => ({ kind: "earlier", time, daysAgo: 0, zone: null });
 
-describe("hazard HZ-010 WhenField on the autumn clock change", () => {
-  it("names the time, normalised, in the question and in both options", async () => {
+describe("hazard HZ-009 hazard HZ-010 hazard HZ-017 WhenField on the autumn clock change", () => {
+  it("hazard HZ-009 hazard HZ-017 names the time, normalised, in the question and in both options", async () => {
     const view = await render(
       createElement(Harness, { initial: earlier("1:30"), now: AFTER_BOTH }),
     );

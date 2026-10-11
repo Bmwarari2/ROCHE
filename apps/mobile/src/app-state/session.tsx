@@ -57,6 +57,11 @@ interface SessionValue {
   /** Ends the session but keeps the device's unsent entries for their owner. */
   holdSession(held: HeldWork, notice?: string): Promise<void>;
   /**
+   * Writes the held marker without ending anything: used to mark entries never to be uploaded
+   * before a deletion starts (clinical review round 5, C-L1). Throws when it cannot be written.
+   */
+  blockHeld(held: HeldWork): Promise<void>;
+  /**
    * Forgets the held entries marker: once the vault has put the owner's entries back into the
    * upload queue, or after a deliberate, recorded delete.
    */
@@ -210,6 +215,11 @@ export function SessionProvider({ children }: { readonly children: ReactNode }) 
     setPhase("signedOut");
   }, []);
 
+  const blockHeld = useCallback(async (next: HeldWork) => {
+    await writePlain(HELD_WORK_ITEM, serialiseHeldWork(next));
+    setHeld(next);
+  }, []);
+
   const clearHeld = useCallback(async () => {
     await deletePlain(HELD_WORK_ITEM);
     setHeld(null);
@@ -230,6 +240,7 @@ export function SessionProvider({ children }: { readonly children: ReactNode }) 
       setMode,
       clearSession,
       holdSession,
+      blockHeld,
       clearHeld,
       dismissNotice,
     }),
@@ -245,6 +256,7 @@ export function SessionProvider({ children }: { readonly children: ReactNode }) 
       setMode,
       clearSession,
       holdSession,
+      blockHeld,
       clearHeld,
       dismissNotice,
     ],

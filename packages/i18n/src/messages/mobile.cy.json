@@ -286,7 +286,7 @@
   "mobile.sync.held": "{count, plural, one {# entry from before the session ended is still held on this device and not yet back in the upload queue.} other {# entries from before the session ended are still held on this device and not yet back in the upload queue.}} Harbour tries again each time it unlocks.",
   "mobile.discard.reasonCodeRequired": "Choose a reason.",
   "mobile.discard.wordsLabel": "The reason in your own words",
-  "mobile.discard.wordsHint": "Needed when the reason is Other. Kept only on this device, encrypted; Harbour records the reason chosen above.",
+  "mobile.discard.wordsHint": "Needed when the reason is Other. Kept only on this device, encrypted, until Harbour has recorded the deletion; Harbour records only the reason chosen above.",
   "mobile.discard.needsConnection": "Connect to the internet and try again. Deleting another member of staff's entries, or entries whose owner is not known, needs Harbour to record it first. Nothing has been deleted.",
   "mobile.discard.notRecorded": "The deletion could not be recorded, so nothing has been deleted. Try again.",
   "mobile.discard.code.recorded_elsewhere": "Recorded again elsewhere, for example on paper",
@@ -309,5 +309,9 @@
   "mobile.held.idsUnreadable": "The unsent entries could not be read, so the record of the deletion could not say which they were. Nothing has been deleted. Try again, or restart the device and try again.",
   "mobile.vault.restoreFailed": "Your unsent entries could not be put back to be sent. They are still on this device. Close Harbour, open it again and unlock to try again. If this keeps happening, tell the nurse in charge.",
   "mobile.vault.restoreIncomplete": "{count, plural, one {# unsent entry could not be put back to be sent. It is still on this device.} other {# unsent entries could not be put back to be sent. They are still on this device.}} Close Harbour, open it again and unlock to try again. If this keeps happening, tell the nurse in charge.",
-  "mobile.sync.heldUnknown": "Some entries on this device could not be counted and need attention. Harbour tries again each time it unlocks."
+  "mobile.sync.heldUnknown": "Some entries on this device could not be counted and need attention. Harbour tries again each time it unlocks.",
+  "mobile.vault.restoreBlockedFailed": "Entries left by a deletion that did not finish could not be moved to the entries that need attention. They are still on this device and will never be sent. Harbour will not connect until they have moved. Close Harbour, open it again and unlock to try again. If this keeps happening, tell the nurse in charge.",
+  "mobile.held.keyNotRead": "The entries could not be unlocked to record which ones are deleted, so nothing has been deleted. Try again, and confirm with your face, fingerprint or passcode when asked.",
+  "mobile.discard.blockFailed": "This device could not mark the entries as never to be sent, so nothing has been deleted. Try again, or restart the device and try again.",
+  "mobile.sync.issuesUnknown": "Entries the server refused could not be counted and need attention. Harbour tries again each time it unlocks."
 }
