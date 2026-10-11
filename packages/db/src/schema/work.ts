@@ -42,6 +42,9 @@ export const TASK_STOP_CODES = [
   "missed_before_return_recorded",
 ] as const;
 export type TaskStopCode = (typeof TASK_STOP_CODES)[number];
+/** How a return or correction brought a stopped task back (people.md rule 2). */
+export const TASK_RESTORE_CODES = ["caught_up", "answered_while_stopped"] as const;
+export type TaskRestoreCode = (typeof TASK_RESTORE_CODES)[number];
 const TASK_STOP_CODES_SQL = sql.raw(TASK_STOP_CODES.map((c) => `'${c}'`).join(", "));
 
 const personRef = (name: string, t: { tenantId: AnyPgColumn; personId: AnyPgColumn }) =>
@@ -142,6 +145,11 @@ export const task = pgTable(
     statusReason: text("status_reason"),
     /** Why the people lifecycle cancelled the task (`TASK_STOP_CODES`), to reopen it exactly. */
     cancelCode: text("cancel_code"),
+    /**
+     * How a return or correction brought the task back (`TASK_RESTORE_CODES`): caught up once with a
+     * fresh window, or done because an entry answered it while it was stopped (people.md rule 2).
+     */
+    restoreCode: text("restore_code"),
     /** The exit record that ended the task (`ended_at_exit`); see `task_series.stopped_by_exit_id`. */
     stoppedByExitId: uuid("stopped_by_exit_id"),
     completedAt: timestamp("completed_at", { withTimezone: true }),
@@ -185,6 +193,10 @@ export const task = pgTable(
     check(
       "task_cancel_code",
       sql`cancel_code IS NULL OR (status = 'cancelled' AND cancel_code IN (${TASK_STOP_CODES_SQL}))`,
+    ),
+    check(
+      "task_restore_code",
+      sql`restore_code IS NULL OR restore_code IN ('caught_up', 'answered_while_stopped')`,
     ),
   ],
 );

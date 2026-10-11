@@ -65,8 +65,9 @@ const entryColumns = () => ({
   taskId: uuid("task_id"),
   /**
    * What the entry did to that task (`TASK_LINK_OUTCOMES`): completed it, was kept as late evidence
-   * for a cancelled task, or was kept unlinked or after the task closed and flagged for review
-   * (HZ-004, HZ-006). Null when the entry named no task.
+   * for a cancelled task, or was kept unlinked or after the task closed and flagged for review;
+   * for a medicines task it could not complete, kept with an urgent conflict review (HZ-004,
+   * HZ-006). Null when the entry named no task.
    */
   taskOutcome: text("task_outcome"),
   supersedesId: uuid("supersedes_id"),
@@ -78,6 +79,7 @@ export const TASK_LINK_OUTCOMES = [
   "task_cancelled",
   "task_already_closed",
   "not_linked",
+  "medicines_conflict",
 ] as const;
 const TASK_LINK_OUTCOMES_SQL = sql.raw(TASK_LINK_OUTCOMES.map((o) => `'${o}'`).join(", "));
 

@@ -14,6 +14,7 @@ import {
   ROOM_STATUSES,
   SHARING_BASES,
   SHARING_SECTIONS,
+  TASK_LINK_OUTCOMES,
 } from "@harbour/domain";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -624,6 +625,8 @@ describe("code lists match the domain", () => {
     ["break_glass_reason_code", BREAK_GLASS_REASON_CODES],
     ["room_status", ROOM_STATUSES],
     ["pre_admission_assessment_sources", INFORMATION_SOURCES],
+    ["care_note_task_outcome", TASK_LINK_OUTCOMES],
+    ["observation_task_outcome", TASK_LINK_OUTCOMES],
   ] as const)("keeps %s in step with the domain package", async (constraint, expected) => {
     expect(await listed(constraint)).toEqual([...expected]);
   });

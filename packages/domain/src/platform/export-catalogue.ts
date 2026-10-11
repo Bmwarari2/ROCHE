@@ -334,9 +334,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
           task_cancelled:
             "The task had been cancelled (for example by a move); the entry is kept as late evidence and the task stays cancelled.",
           task_already_closed:
-            "The task was already done or skipped; the entry is kept, flagged and listed for the nurse in charge to review.",
+            "The task was already done, skipped or answered; the entry is kept, flagged and listed for the nurse in charge to review.",
           not_linked:
             "The author may not complete the task; the entry is kept unlinked, flagged and listed for review.",
+          medicines_conflict:
+            "A medicines task the entry could not complete (not the author's, or already closed or answered): kept, never completing it, with an urgent conflict review for the nurse in charge.",
         },
       },
       activity: { description: "The activity." },
@@ -513,9 +515,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
           task_cancelled:
             "The task had been cancelled (for example by a move); the entry is kept as late evidence and the task stays cancelled.",
           task_already_closed:
-            "The task was already done or skipped; the entry is kept, flagged and listed for the nurse in charge to review.",
+            "The task was already done, skipped or answered; the entry is kept, flagged and listed for the nurse in charge to review.",
           not_linked:
             "The author may not complete the task; the entry is kept unlinked, flagged and listed for review.",
+          medicines_conflict:
+            "A medicines task the entry could not complete (not the author's, or already closed or answered): kept, never completing it, with an urgent conflict review for the nurse in charge.",
         },
       },
       tool_key: { description: "Validated tool: must, waterlow, braden or ng249_falls." },
@@ -684,9 +688,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
           task_cancelled:
             "The task had been cancelled (for example by a move); the entry is kept as late evidence and the task stays cancelled.",
           task_already_closed:
-            "The task was already done or skipped; the entry is kept, flagged and listed for the nurse in charge to review.",
+            "The task was already done, skipped or answered; the entry is kept, flagged and listed for the nurse in charge to review.",
           not_linked:
             "The author may not complete the task; the entry is kept unlinked, flagged and listed for review.",
+          medicines_conflict:
+            "A medicines task the entry could not complete (not the author's, or already closed or answered): kept, never completing it, with an urgent conflict review for the nurse in charge.",
         },
       },
       view: { description: "Body view: front or back." },
@@ -923,9 +929,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
           task_cancelled:
             "The task had been cancelled (for example by a move); the entry is kept as late evidence and the task stays cancelled.",
           task_already_closed:
-            "The task was already done or skipped; the entry is kept, flagged and listed for the nurse in charge to review.",
+            "The task was already done, skipped or answered; the entry is kept, flagged and listed for the nurse in charge to review.",
           not_linked:
             "The author may not complete the task; the entry is kept unlinked, flagged and listed for review.",
+          medicines_conflict:
+            "A medicines task the entry could not complete (not the author's, or already closed or answered): kept, never completing it, with an urgent conflict review for the nurse in charge.",
         },
       },
       category: { description: "Note category." },
@@ -1305,6 +1313,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       scan_status: { description: "clean, infected, unavailable or not_scanned." },
       destroyed_at: "exported",
+      image_printable: {
+        description:
+          "For a JPEG or PNG: whether the hospital transfer pack can print it, decided once at upload; empty for other files.",
+      },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -2224,9 +2236,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
           task_cancelled:
             "The task had been cancelled (for example by a move); the entry is kept as late evidence and the task stays cancelled.",
           task_already_closed:
-            "The task was already done or skipped; the entry is kept, flagged and listed for the nurse in charge to review.",
+            "The task was already done, skipped or answered; the entry is kept, flagged and listed for the nurse in charge to review.",
           not_linked:
             "The author may not complete the task; the entry is kept unlinked, flagged and listed for review.",
+          medicines_conflict:
+            "A medicines task the entry could not complete (not the author's, or already closed or answered): kept, never completing it, with an urgent conflict review for the nurse in charge.",
         },
       },
       chart: {
@@ -3149,6 +3163,15 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         },
       },
       stopped_by_exit_id: { description: "The exit that cancelled the task (exit_record.id)." },
+      restore_code: {
+        description: "How a return or correction brought the task back, if it did.",
+        codes: {
+          caught_up:
+            "Missed while the return or correction was not recorded; made due once more, with a fresh window.",
+          answered_while_stopped:
+            "An entry answered it while it was stopped, so it was restored as done, never due again.",
+        },
+      },
       completed_at: "exported",
       completed_by: "exported",
       evidence_type: { description: "Kind of evidence record (table name)." },
@@ -3336,9 +3359,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
           task_cancelled:
             "The task had been cancelled (for example by a move); the entry is kept as late evidence and the task stays cancelled.",
           task_already_closed:
-            "The task was already done or skipped; the entry is kept, flagged and listed for the nurse in charge to review.",
+            "The task was already done, skipped or answered; the entry is kept, flagged and listed for the nurse in charge to review.",
           not_linked:
             "The author may not complete the task; the entry is kept unlinked, flagged and listed for review.",
+          medicines_conflict:
+            "A medicines task the entry could not complete (not the author's, or already closed or answered): kept, never completing it, with an urgent conflict review for the nurse in charge.",
         },
       },
       kind: { description: "facilitated_visit, visit_out or accompaniment." },

@@ -543,6 +543,12 @@ export const document = pgTable(
     /** `clean`, `infected`, `unavailable` (scanner down: kept quarantined) or `not_scanned`. */
     scanStatus: text("scan_status").notNull().default("not_scanned"),
     destroyedAt: timestamp("destroyed_at", { withTimezone: true }),
+    /**
+     * For a JPEG or PNG: whether the printed transfer pack can print it, decided once at upload with
+     * the decoder the PDF uses (HZ-001, HZ-023). Null for other files and for images uploaded before
+     * migration 0026, which are decided on first use and stored.
+     */
+    imagePrintable: boolean("image_printable"),
     ...mutableColumns(),
   },
   (t) => [
