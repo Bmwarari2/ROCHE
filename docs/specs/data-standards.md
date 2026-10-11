@@ -1,15 +1,15 @@
 # Data standards mapping
 
-**Status**: Phase 0 initial mapping (platform and people). **Owner**: whoever changes a mapped field
+**Status**: Phase 0 initial mapping (platform and people), extended in Phase 1 slice 4b (care planning). **Owner**: whoever changes a mapped field
 updates this file in the same PR (master prompt section 20, item 7).
 
 This document is the **contract for import and export**. The migration import wizard (PLAT-014) accepts
 data in this shape, and the free full tenant export (PLAT-015) produces it. It maps Harbour fields to
 the Minimum Operational Data Standard (MODS), the NHS Data Dictionary, SNOMED CT, the Organisation Data
-Service (ODS) and PRSB About Me (section 18, "Data-standard alignment"). A change to a mapped field, a
-code list or the export shape is a contract change: it bumps the export schema version and is listed in
-the release notes. Later phases extend this file with PRSB care plan (PCSP), dm+d and the DSCR data
-migration schema.
+Service (ODS), PRSB About Me and the PRSB personalised care and support plan (section 18, "Data-standard
+alignment"). A change to a mapped field, a code list or the export shape is a contract change: it bumps
+the export schema version and is listed in the release notes. Later phases extend this file with dm+d and
+the DSCR data migration schema.
 
 ## Export and import conventions
 
@@ -43,6 +43,7 @@ migration schema.
 | Accessible Information Standard (DAPB1605) | Communication and information needs | Identify, record, flag, share and meet needs |
 | Organisation Data Service (ODS) | GP practice and location organisation codes | Lookups through the ODS API arrive with the NHS adapters (Phase 5); Phase 0 validates format only |
 | PRSB About Me | `about_me` sections | v2.01 (May 2025), model downloaded from theprsb.org on 2026-10-11 |
+| PRSB Personalised Care and Support Plan | `care_plan`, `care_plan_section`, `care_plan_action`; additional support plans | v2.0 (December 2021), [theprsb.org](https://theprsb.org/standards/personalisedcareandsupportplan/); section list checked on 2026-10-11, element-level mapping still to verify |
 | ISO 639-1 and ISO 639-3 | `first_language` | Two-letter code where one exists, otherwise three-letter |
 | CQC identifiers | Provider and location IDs | Format `1-` followed by digits |
 
@@ -235,6 +236,107 @@ role and contact details of whoever helped) and **Date last updated**.
 
 Every section is optional. Media is stored as documents (never inline) and exported in `documents/`.
 
+## Care planning (Phase 1, slice 4b)
+
+### Personalised care and support plan (PRSB PCSP v2.0)
+
+The PRSB standard has four main sections (About Me, Care and support plan, Contingency plans and
+Additional support plans) and supporting sections (person demographics, GP practice, professional
+contacts, personal contacts and, where appropriate, formulation). Harbour maps them as follows. A plan
+version is one `care_plan` row: drafts are edited, publishing makes a draft `active` and the previous
+version `superseded`, and every change is kept in `record_version`.
+
+| PRSB PCSP section | Harbour | Notes |
+| --- | --- | --- |
+| About Me | `about_me` (PRSB About Me, above) | Linked by person, not copied into the plan |
+| Care and support plan | `care_plan` (status, `published_version`, `review_due_on`, sign-off) with one `care_plan_section` per need domain (`need`, `outcome` in the person's words, `strengths`) and its `care_plan_action` rows (`action`; who: `role_key`; when: `recurrence` or `when_text`) | "Who is responsible for delivery" is a role, so the plan survives staff changes; `generates_tasks` marks actions that become scheduled tasks |
+| Contingency plans | `care_plan_section.contingency` | Per need domain: what to do and whom to contact if things get worse |
+| Additional support plans | `risk_assessment`, `advance_care_record` and the stored validated tool results (`assessment`) | Linked by person; an action may name the risk assessment it controls (`risk_assessment_id`) |
+| Person demographics, GP practice, personal and professional contacts | `person`, `contact` | See Person and Related tables |
+| Formulation | Not held in Phase 1 | Mental health formulation; considered with the PBS and mental health work in Phase 5 |
+
+Need domains (`care_plan_section.domain`), from master prompt 10.1. SNOMED CT record headings for the
+domains are not hard-coded; they are mapped from the PRSB model loaded from TRUD before the Phase 5
+assurance pack (open item below).
+
+| Code | Display |
+| --- | --- |
+| `mobility` | Mobility |
+| `skin` | Skin |
+| `nutrition_and_hydration` | Nutrition and hydration |
+| `continence` | Continence |
+| `communication` | Communication |
+| `cognition` | Cognition |
+| `mood` | Mood |
+| `behaviour` | Behaviour |
+| `sleep` | Sleep |
+| `pain` | Pain |
+| `breathing` | Breathing |
+| `medicines` | Medicines |
+| `personal_care` | Personal care |
+| `social_and_spiritual` | Social and spiritual |
+| `sexuality_and_relationships` | Sexuality and relationships |
+| `end_of_life` | End of life |
+
+Sign-off (`care_plan.sign_off_kind`): `person` (the person agreed), `representative` (with
+`sign_off_representative_name`, `sign_off_authority` and optionally the `contact`), or `unable` (with
+`sign_off_unable_reason`). Authority codes: `lpa_health_welfare`, `deputy`, `imca`, `advocate`,
+`next_of_kin`, `other`. Plan status: `draft`, `active`, `superseded`.
+
+### `risk_assessment`
+
+| Field | Code list or format | Notes |
+| --- | --- | --- |
+| `template_key`, `template_version` | `moving_and_handling`, `falls`, `choking`, `skin`, `bed_rails`, `smoking`, `going_out_alone`, `financial`, `environmental`, `self_harm_and_suicide`, `sexual_safety`, `fire_setting`, `absconding`, `substance_and_alcohol_use`, `general`; version `harbour-2026-10` | Templates are code constants (`packages/domain/src/care/risk-assessment.ts`); `answers` is keyed by the template's question keys |
+| `likelihood`, `severity`, `residual_likelihood`, `residual_severity` | Whole numbers 1 to 5 | Assessor's judgements: likelihood rare, unlikely, possible, likely, almost certain; severity negligible, minor, moderate, major, catastrophic. Null for `falls` (never rated, NICE NG249 1.1.1) |
+| `risk_rating`, `residual_rating`, `risk_band`, `residual_band` | Product of the two; `low`, `moderate`, `high`, `extreme` | NPSA risk matrix (2008), [ADR-0032](../decisions/0032-risk-assessment-rating.md) |
+| `findings` | `[{ questionKey, valueMm, rateKey, limitMm, rule, withinLimit }]` | Bed rail gaps against the MHRA figures in the rate table |
+| `status` | `active`, `closed` (with `closed_reason`) | |
+
+### `assessment` (stored results of the validated tools)
+
+| Field | Code list or format | Notes |
+| --- | --- | --- |
+| `tool_key`, `tool_version` | `must` (`bapen-2011`), `waterlow` (`waterlow-2005`), `braden` (`braden-1988`), `ng249_falls` (`nice-ng249-2025`) | The version calculated is stored with every result |
+| `answers` | The tool's inputs as entered | JSON matching the `CreateAssessment` contract |
+| `score`, `band` | Whole number; the publisher's band | Both null for `ng249_falls`, which never scores |
+| `workings` | `[{ item, value, points }]` | The calculation as shown to staff |
+| `triggers` | The follow-ups raised (tasks, alerts, the next screening, the weighing interval) | |
+| `next_due_on` | `YYYY-MM-DD` | MUST from the screening interval; the others at the care plan review interval |
+
+SNOMED CT codes for the tools' findings are not exported in Phase 1 (open item below).
+
+### `activity_record` and `visit_log`
+
+| Field | Code list |
+| --- | --- |
+| `activity_record.format` | `group` (with `group_session_id`), `one_to_one` |
+| `activity_record.attendance` | `attended`, `partly_attended`, `declined`, `not_able` |
+| `activity_record.engagement` | `engaged_throughout`, `engaged_some_of_the_time`, `engaged_briefly`, `did_not_engage` (only when the person took part) |
+| `visit_log.kind` | `facilitated_visit`, `visit_out`, `accompaniment` (Regulation 9A of the 2014 Regulations) |
+| `visit_log` visitor | `contact_id` (one of the person's contacts) or `visitor_name` and `visitor_relationship` in free text |
+| `visit_log.restrictions_applied`, `restriction_reason` | A restriction always has its reason |
+
+### `advance_care_record`
+
+| Field | Code list or format | Notes |
+| --- | --- | --- |
+| `kind` | `respect`, `dnacpr`, `adrt`, `advance_care_plan` | At most one active record of each kind per person |
+| `status` | `active`, `withdrawn` (with `withdrawn_reason`), `superseded` (with `superseded_by_record_id`) | |
+| `cpr_decision` | `attempt_cpr`, `do_not_attempt_cpr` | ReSPECT and DNACPR only; a DNACPR record is always `do_not_attempt_cpr` |
+| `clinician_name`, `clinician_role`, `completed_on`, `review_due_on`, `document_id` | Free text; `YYYY-MM-DD`; reference to `document` | The scanned form is exported in `documents/` |
+
+CPR decisions map to the SNOMED CT concepts in the NHS "EOL CPR Status Code" value set (HL7 UK, FHIR
+STU3 assets), checked on 2026-10-11 and to be confirmed against the UK edition loaded from TRUD:
+
+| `cpr_decision` | SNOMED CT | Display |
+| --- | --- | --- |
+| `attempt_cpr` | 450475007 | For cardiopulmonary resuscitation (finding) |
+| `do_not_attempt_cpr` | 450476008 | Not for cardiopulmonary resuscitation (finding) |
+
+The point-of-care header shows the decision in force from an active ReSPECT or DNACPR record, or "not
+recorded" when there is none (hazard HZ-015).
+
 ## Platform operational tables (not part of the MODS export)
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but
@@ -253,3 +355,7 @@ detail is in `packages/db/src/schema/`; purposes and lawful bases are in
 - Current NHS Data Dictionary items for sex and gender (national revisions are in progress).
 - SNOMED CT concepts for Accessible Information Standard needs and "no known allergy", loaded from TRUD.
 - ODS code formats for Scottish and Northern Irish GP practices (Phase 7).
+- PRSB PCSP v2.0 element-level names and SNOMED CT record headings for the care plan sections and
+  need domains, from the PRSB viewer and TRUD (before the Phase 5 assurance pack).
+- SNOMED CT concepts for ReSPECT, ADRT and advance care plan documents, and for the validated tools'
+  findings.
