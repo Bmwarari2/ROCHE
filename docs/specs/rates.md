@@ -226,6 +226,9 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | mobile.auto_lock_seconds.shared | 30 | seconds | 2000-01-01 | - | all | master prompt 17.2, ADR-0011; tenant default | master-prompt |
 | mobile.auto_lock_seconds.shared_max | 120 | seconds | 2000-01-01 | - | all | master prompt 17.2 (configurable from 30 seconds to 2 minutes) | master-prompt |
 | account_deletion.confirmation_days | 30 | days | 2000-01-01 | - | all | master prompt 17.3 | master-prompt |
+| export.link_expiry_hours | 72 | hours | 2000-01-01 | - | all | Harbour default: how long a ready full tenant export can be downloaded before the file is deleted (master prompt 5.1 asks for delivery by expiring link but sets no period; platform-completions.md rule 12); policy value, not statutory; tenant default | to-verify |
+| dpia.review_interval_months | 12 | months | 2000-01-01 | - | all | DPIA template section 8 ("at least annually"); UK GDPR Art 35(11) requires a review at least when the risk changes but sets no interval, https://www.legislation.gov.uk/eur/2016/679/article/35 (platform-completions.md rule 22); tenant default | to-verify |
+| sub_processor.notice_days | 30 | days | 2000-01-01 | - | all | DPA template clause 6.2 (bracketed default, solicitor to confirm, H-32): notice before a new or replacement sub-processor, and the window for objecting (platform-completions.md rule 24); contractual, not statutory; tenant setting from the tenant's DPA | to-verify |
 | benchmark.occupancy_percentage.low | 86 | percent | 2000-01-01 | - | uk | master prompt 13.1 (sector context, about 86 to 89%) | master-prompt |
 | benchmark.occupancy_percentage.high | 89 | percent | 2000-01-01 | - | uk | master prompt 13.1 (sector context, about 86 to 89%) | master-prompt |
 | benchmark.staff_cost_percentage_of_income | 55 | percent | 2000-01-01 | - | uk | master prompt 14.4 (target band around 55%) | master-prompt |
@@ -281,6 +284,21 @@ literals, and tests assert against the table, not a literal (section 7, section 
   property and keys after a discharge, transfer or death. No statute sets one; the default mirrors
   the CMA deposit-return period (`cma.deposit_return_days`) so the two clocks agree. Tenant default
   (H-58); the escalation goes to the Registered Manager, it is not a legal deadline.
+
+- `export.link_expiry_hours` (72): how long a ready full tenant export stays downloadable before
+  the file is deleted (platform-completions.md rule 12). The master prompt asks for an expiring
+  link without a period. The link alone never opens the file (the requester signs in again with
+  step-up), so the period limits how long a copy sits in storage rather than how long a leaked
+  link works. A policy value, not a statutory figure: the tenant may shorten or lengthen it, and a
+  new export is always free. Confirmed by the tenant's data protection lead (H-118).
+- `dpia.review_interval_months` (12): the yearly re-review of a signed DPIA (platform-completions.md
+  rule 22). UK GDPR Art 35(11) requires a review "at least when there is a change of the risk"
+  and sets no interval; the yearly review comes from Harbour's DPIA template (section 8, "at least
+  annually") and common ICO practice. Tenant default, confirmed by the DPO (H-118).
+- `sub_processor.notice_days` (30): the notice Thapsus gives before a new or replacement
+  sub-processor processes a tenant's data, which is also the window in which the tenant may object
+  (DPA template clause 6.2, bracketed until the solicitor confirms it, H-32). It is contractual,
+  so a tenant whose signed DPA says otherwise has its own value; it is never a statutory period.
 
 ## Other notes
 

@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { type DolsNation, type DolsRates, resolveDolsRates } from "../src/care/mca/dols";
 import { type CareRates, resolveCareRates } from "../src/care/rates";
-import type { RateRow } from "../src/platform/rates";
+import { type PlatformRates, type RateRow, resolvePlatformRates } from "../src/platform/rates";
 import { resolveSafetyRates, type SafetyRates } from "../src/safety/rates";
 
 const RATES_PATH = fileURLToPath(new URL("../../../docs/specs/rates.md", import.meta.url));
@@ -78,4 +78,9 @@ export function tableSafetyRates(on = "2026-10-11"): SafetyRates {
 /** The DoLS figures for a location in England or Wales. */
 export function tableDolsRates(nation: DolsNation = "england", on = "2026-10-11"): DolsRates {
   return resolveDolsRates(readRateTable(), nation, on, null);
+}
+
+/** The platform completion figures (agency window, export expiry, DPIA review, sub-processor notice). */
+export function tablePlatformRates(on = "2026-10-11"): PlatformRates {
+  return resolvePlatformRates(readRateTable(), "england", on, null);
 }
