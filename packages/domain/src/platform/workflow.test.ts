@@ -127,6 +127,27 @@ describe("workflow service levels", () => {
     expect(due?.toISOString()).toBe("2026-10-26T11:00:00.000Z");
   });
 
+  it("counts working days to the end of the due day, skipping bank holidays", () => {
+    const written = defineWorkflow<"open" | "written" | "done">({
+      key: "test.written",
+      version: 1,
+      states: ["open", "written", "done"],
+      initial: "open",
+      terminal: ["done"],
+      transitions: [{ from: "open", to: "done", permission: "safety.incident.manage" }],
+      sla: { open: { rateKey: "test.working_days", unit: "working_days" } },
+    });
+    // Thursday 24 December 2026 plus 2 working days, with Christmas and the substitute Boxing Day.
+    const due = slaDueAt(
+      written,
+      "open",
+      new Date("2026-12-24T10:00:00Z"),
+      () => 2,
+      new Set(["2026-12-25", "2026-12-28"]),
+    );
+    expect(due?.toISOString()).toBe("2026-12-31T00:00:00.000Z");
+  });
+
   it("has no deadline for a state without an SLA", () => {
     expect(slaDueAt(incident, "closed", entered, () => 0)).toBeNull();
   });

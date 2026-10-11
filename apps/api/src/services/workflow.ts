@@ -6,7 +6,7 @@ import {
   type WorkflowTransitionProblem,
 } from "@harbour/domain";
 import { and, eq } from "drizzle-orm";
-import { rateNumber } from "./rates";
+import { bankHolidays, rateNumber } from "./rates";
 
 /**
  * Workflow service (section 9.1): starts a workflow for a subject and moves it, checking the rules
@@ -129,5 +129,8 @@ async function rateDue<S extends string>(
   if (!sla) return null;
   if ("hours" in sla) return slaDueAt(definition, state, now, () => 0);
   const value = await rateNumber(tx, tenantId, sla.rateKey);
-  return slaDueAt(definition, state, now, () => value);
+  // England, like the rate lookup above, until workflows carry their location's nation (slice 7).
+  const holidays =
+    sla.unit === "working_days" ? await bankHolidays(tx, "england") : new Set<string>();
+  return slaDueAt(definition, state, now, () => value, holidays);
 }

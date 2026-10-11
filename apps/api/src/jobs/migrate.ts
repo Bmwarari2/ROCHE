@@ -8,7 +8,13 @@ import {
   type RolePasswords,
   runMigrations,
 } from "@harbour/db/admin";
-import { findOverlaps, parseRates, parseRetention, seedReferenceData } from "@harbour/db/seed";
+import {
+  findOverlaps,
+  parseBankHolidays,
+  parseRates,
+  parseRetention,
+  seedReferenceData,
+} from "@harbour/db/seed";
 import pg from "pg";
 import { createLogger } from "../logger";
 
@@ -108,6 +114,7 @@ try {
     owner,
     rates,
     parseRetention(referenceDocument("retention.md")),
+    parseBankHolidays(referenceDocument("calendar.md")),
   );
   logger.info(result, "reference data loaded");
 } finally {

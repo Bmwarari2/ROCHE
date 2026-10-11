@@ -148,6 +148,16 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
 - Lookup: tenant override, then nation, then `uk`, then `all` (`resolveRate`); unverified figures
   are flagged. `GET /v1/rates/{key}?nation&on`.
 
+## Working days and bank holidays
+
+Clocks set in working days (the first care plan, written candour notifications, sponsor change
+reports) count Monday to Friday in UK local time and skip the bank holidays of the location's
+nation, from the global `bank_holiday` table seeded from [calendar.md](calendar.md) (GOV.UK). The
+due time is midnight at the end of the Nth working day after the event's day
+(`packages/domain/src/shared/working-days.ts`); workflow SLAs accept a `working_days` unit. Bank
+holidays have no tenant column: every role reads them and only the owner role writes them. Past the
+last year the calendar covers, no holiday is skipped, so a deadline can only fall early.
+
 ## Feature flags and licensing (PLAT-003)
 
 - Catalogue and defaults in `packages/domain/src/platform/feature-flags.ts` (AI off by default);

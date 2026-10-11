@@ -6,6 +6,7 @@ import { TENANT_HEADER } from "@harbour/contracts";
 import {
   DEMO,
   linkDemoUser,
+  parseBankHolidays,
   parseRates,
   parseRetention,
   seedDemoTenant,
@@ -89,6 +90,7 @@ export async function createHarness(): Promise<Harness> {
     owner,
     parseRates(readFileSync(`${specs}rates.md`, "utf8")),
     parseRetention(readFileSync(`${specs}retention.md`, "utf8")),
+    parseBankHolidays(readFileSync(`${specs}calendar.md`, "utf8")),
   );
   await seedDemoTenant(owner);
 

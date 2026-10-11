@@ -1,7 +1,13 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { findOverlaps, parseRates, parseRetention, ReferenceDataError } from "./reference-data";
+import {
+  findOverlaps,
+  parseBankHolidays,
+  parseRates,
+  parseRetention,
+  ReferenceDataError,
+} from "./reference-data";
 
 const RATES = `
 # Rates
@@ -105,6 +111,29 @@ describe("parseRetention", () => {
   });
 });
 
+describe("parseBankHolidays", () => {
+  const md = (rows: string) =>
+    `## Bank holidays\n\n| date | nation | name |\n| --- | --- | --- |\n${rows}\n`;
+
+  it("parses rows", () => {
+    expect(parseBankHolidays(md("| 2027-03-26 | england | Good Friday |"))).toEqual([
+      { date: "2027-03-26", nation: "england", name: "Good Friday" },
+    ]);
+  });
+
+  it.each([
+    ["| 2027-02-30 | england | x |", /bad date/],
+    ["| 27-03-26 | england | x |", /bad date/],
+    ["| 2027-13-01 | england | x |", /bad date/],
+    ["| 2027-03-26 | uk | x |", /unknown nation/],
+    ["| 2027-03-26 | england | |", /missing name/],
+    ["| 2027-03-26 | england |", /3 columns/],
+    ["| 2027-03-26 | england | a |\n| 2027-03-26 | england | b |", /listed twice/],
+  ])("rejects %s", (rows, message) => {
+    expect(() => parseBankHolidays(md(rows))).toThrow(message);
+  });
+});
+
 describe("findOverlaps", () => {
   it("reports overlapping periods for the same key and nation", () => {
     const rows = parseRates(RATES);
@@ -122,6 +151,26 @@ describe("the real documents", () => {
     const rows = parseRates(readFileSync(`${docs}rates.md`, "utf8"));
     expect(rows.length).toBeGreaterThan(20);
     expect(findOverlaps(rows)).toEqual([]);
+  });
+
+  it("calendar.md lists bank holidays for every nation in every year it covers", () => {
+    const rows = parseBankHolidays(readFileSync(`${docs}calendar.md`, "utf8"));
+    const years = [...new Set(rows.map((r) => r.date.slice(0, 4)))].sort();
+    expect(years.length).toBeGreaterThanOrEqual(3);
+    for (const nation of ["england", "wales", "scotland", "northern_ireland"]) {
+      for (const year of years) {
+        const count = rows.filter((r) => r.nation === nation && r.date.startsWith(year)).length;
+        // Every UK nation has at least eight bank holidays a year.
+        expect(count, `${nation} ${year}`).toBeGreaterThanOrEqual(8);
+      }
+    }
+    // England and Wales share one list.
+    const dates = (nation: string) =>
+      rows
+        .filter((r) => r.nation === nation)
+        .map((r) => r.date)
+        .join();
+    expect(dates("wales")).toBe(dates("england"));
   });
 
   it("retention.md parses and covers the section 5.1 classes", () => {
