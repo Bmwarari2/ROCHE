@@ -169,6 +169,18 @@ describe("rule 12: discharged and deceased people are read-only except post-even
     },
   );
 
+  it.each(["active", "on_leave", "in_hospital", "discharged", "deceased"] as const)(
+    "accepts a key or property return while the person is %s (rule 7)",
+    (status) => {
+      for (const kind of ["key_return", "property_return"] as const) {
+        expect(checkPersonRecordWrite({ status, statusChangedAt: died }, { kind })).toEqual({
+          ok: true,
+          recordedAfterStatusChange: false,
+        });
+      }
+    },
+  );
+
   it("refuses everything for archived and not-admitted records", () => {
     for (const kind of Object.keys(PERSON_RECORD_KINDS) as PersonRecordKind[]) {
       for (const status of ["archived", "not_admitted"] as const) {

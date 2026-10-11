@@ -158,7 +158,8 @@ export const PERSON_RECORD_KINDS = {
   statutory_notification: "post_event_records",
   exit_checklist_item: "post_event_records",
   money_return: "post_event_records",
-  key_return: "post_event_records",
+  // A key can be handed back at any time while the person lives here, and after they leave (rule 7).
+  key_return: "property_return",
   post_event_note: "post_event_records",
   document: "post_event_records",
   correspondence: "post_event_records",
