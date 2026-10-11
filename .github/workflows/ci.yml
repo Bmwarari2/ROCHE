@@ -214,9 +214,12 @@ jobs:
         with:
           fetch-depth: 0
       - name: Secrets (gitleaks)
+        env:
+          # A pull request is checked for the commits it adds; main for its whole history.
+          LOG_OPTS: ${{ github.event_name == 'pull_request' && format('{0}..{1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha) || 'HEAD' }}
         run: |
           docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.28.0 \
-            git /repo --config /repo/.gitleaks.toml --redact --verbose
+            git /repo --config /repo/.gitleaks.toml --redact --verbose --log-opts="$LOG_OPTS"
       - name: Vulnerabilities in dependencies and config (Trivy)
         run: |
           docker run --rm -v "$PWD:/src" -w /src aquasec/trivy:0.67.2 fs \
