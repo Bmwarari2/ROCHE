@@ -58,7 +58,7 @@ describe("exit workflows", () => {
   it.each<
     [
       string,
-      "planned" | "left" | "awaiting_return",
+      "planned" | "left" | "awaiting_return" | "closed",
       string,
       Partial<{ reason: string; stepUpFresh: boolean }>,
       string | null,
@@ -76,11 +76,19 @@ describe("exit workflows", () => {
     ["returns are awaited", "left", "awaiting_return", {}, null],
     ["the workflow closes", "awaiting_return", "closed", {}, null],
     [
-      "a discharge cannot be cancelled after the person left",
+      "a discharge recorded in error is cancelled with a reason (the lifecycle correction)",
       "left",
       "cancelled",
+      { reason: "Recorded against the wrong person" },
+      null,
+    ],
+    ["a correction needs a reason too", "awaiting_return", "cancelled", {}, "reason_required"],
+    [
+      "a closed discharge is never cancelled",
+      "closed",
+      "cancelled",
       { reason: "Mistake" },
-      "no_such_transition",
+      "terminal",
     ],
   ])("discharge: %s", (_label, from, to, extra, problem) => {
     const result = checkWorkflowTransition(

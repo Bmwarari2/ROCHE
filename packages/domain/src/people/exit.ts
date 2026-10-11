@@ -44,6 +44,14 @@ function leavingWorkflow(key: string): WorkflowDefinition<ExitState> {
       },
       { from: "left", to: "awaiting_return", permission: "people.admission.manage" },
       { from: ["left", "awaiting_return"], to: "closed", permission: "people.admission.manage" },
+      // A discharge or transfer recorded in error (the person never left) is cancelled with a
+      // reason alongside the lifecycle correction, which emits `cancel_exit_workflow`.
+      {
+        from: ["left", "awaiting_return"],
+        to: "cancelled",
+        permission: "people.admission.manage",
+        requiresReason: true,
+      },
     ],
     sla: RETURN_SLA,
   });
