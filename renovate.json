@@ -1,0 +1,30 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":semanticCommits", "group:monorepos"],
+  "timezone": "Europe/London",
+  "schedule": ["before 7am on Monday"],
+  "semanticCommitScope": "deps",
+  "labels": ["dependencies"],
+  "rangeStrategy": "bump",
+  "vulnerabilityAlerts": { "enabled": true, "schedule": ["at any time"], "labels": ["security"] },
+  "packageRules": [
+    {
+      "description": "TypeScript 7 waits until Next, Expo and Drizzle certify it (ADR-0001)",
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<7"
+    },
+    {
+      "description": "Expo SDK upgrades go through expo install, not Renovate",
+      "matchPackageNames": ["expo", "react-native", "/^expo-/", "/^@expo\\//"],
+      "enabled": false
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions"
+    },
+    {
+      "matchManagers": ["terraform"],
+      "groupName": "Terraform providers"
+    }
+  ]
+}

@@ -1,0 +1,70 @@
+/* Base element styles for the product shell. Loaded after Tailwind's preflight. */
+
+@layer base {
+  html {
+    font-family: var(--font-stack);
+    font-size: 100%;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--bg);
+    color: var(--text);
+    font-size: var(--type-body-size);
+    line-height: var(--type-body-line-height);
+    font-weight: var(--type-body-weight);
+    letter-spacing: var(--type-body-tracking);
+  }
+
+  /* Tabular numbers in tables so columns of figures line up (Inter feature tnum). */
+  table {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  a {
+    color: var(--link);
+    text-decoration: none;
+  }
+
+  a:hover {
+    text-decoration: underline;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: color-mix(in srgb, var(--accent) 25%, transparent);
+  }
+
+  /* Lucide icons at a 1.5 px stroke wherever they are used (section 8). */
+  svg.lucide {
+    stroke-width: 1.5px;
+    flex-shrink: 0;
+  }
+
+  svg.lucide * {
+    vector-effect: non-scaling-stroke;
+  }
+
+  /* Everything disabled under reduced motion; !important so no component animation survives. */
+  /* biome-ignore-start lint/complexity/noImportantStyles: a reduced-motion override must win over every animation and transition. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+  /* biome-ignore-end lint/complexity/noImportantStyles: end of the reduced-motion override. */
+}

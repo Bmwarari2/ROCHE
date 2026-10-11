@@ -1,0 +1,239 @@
+# Terraform for infra/: static checks on every pull request that touches infrastructure, a
+# dev plan posted to the pull request, and a dev apply from main.
+#
+# AWS access is by GitHub OIDC only (no long-lived keys). Until Brian provisions the dev
+# account and stores the AWS_DEPLOY_ROLE_ARN secret, the plan and apply jobs skip cleanly.
+# See infra/README.md for the secrets and repository variables this workflow reads.
+
+name: Terraform
+
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+      - ".github/workflows/terraform.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - ".github/workflows/terraform.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  TF_VERSION: "1.16.5"
+  TFLINT_VERSION: "v0.64.0"
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  AWS_REGION: eu-west-2
+
+jobs:
+  static:
+    name: Format, validate, test and lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: terraform fmt
+        working-directory: infra
+        run: terraform fmt -check -recursive -diff
+
+      - name: terraform init and validate (dev, staging, prod)
+        working-directory: infra/envs
+        run: |
+          for env in dev staging prod; do
+            echo "::group::${env}"
+            terraform -chdir="${env}" init -backend=false -lockfile=readonly
+            terraform -chdir="${env}" validate
+            echo "::endgroup::"
+          done
+
+      - name: terraform test (stack plan against mocked providers)
+        working-directory: infra/modules/harbour_stack
+        run: |
+          terraform init -backend=false
+          terraform test
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.tflint.d/plugins
+          key: tflint-${{ hashFiles('infra/.tflint.hcl') }}
+
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: ${{ env.TFLINT_VERSION }}
+
+      - name: tflint
+        working-directory: infra
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          tflint --init --config "${GITHUB_WORKSPACE}/infra/.tflint.hcl"
+          for env in dev staging prod; do
+            echo "::group::${env}"
+            tflint --chdir="envs/${env}" --config "${GITHUB_WORKSPACE}/infra/.tflint.hcl" --format=compact
+            echo "::endgroup::"
+          done
+
+  security:
+    name: Trivy configuration scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Trivy (misconfigurations, HIGH and CRITICAL fail the build)
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src aquasec/trivy:0.67.2 config \
+            --severity HIGH,CRITICAL --exit-code 1 infra
+
+  aws-gate:
+    name: Check for AWS access
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+    steps:
+      - id: check
+        env:
+          DEPLOY_ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+        run: |
+          if [ -n "${DEPLOY_ROLE_ARN}" ]; then
+            echo "enabled=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "enabled=false" >> "${GITHUB_OUTPUT}"
+            echo "::notice::AWS_DEPLOY_ROLE_ARN is not set, so plan and apply are skipped. Brian provisions the dev account and OIDC role (docs/plans/human-actions.md)."
+          fi
+
+  plan-dev:
+    name: Plan dev
+    if: github.event_name == 'pull_request' && needs.aws-gate.outputs.enabled == 'true'
+    needs: [static, security, aws-gate]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    env:
+      AWS_ACCOUNT_ID: ${{ vars.AWS_DEV_ACCOUNT_ID }}
+      DOMAIN_NAME: ${{ vars.DEV_DOMAIN_NAME }}
+      STATE_BUCKET: ${{ vars.TF_STATE_BUCKET_DEV }}
+      STATE_KMS_KEY_ARN: ${{ vars.TF_STATE_KMS_KEY_ARN_DEV }}
+      ROUTE53_ZONE_ID: ${{ vars.DEV_ROUTE53_ZONE_ID }}
+      ALERT_EMAILS: ${{ vars.DEV_ALERT_EMAILS }}
+      BUDGET_EMAILS: ${{ vars.DEV_BUDGET_EMAILS }}
+    steps:
+      - name: Check for the plan role
+        id: role
+        env:
+          PLAN_ROLE_ARN: ${{ secrets.AWS_PLAN_ROLE_ARN }}
+        run: |
+          if [ -n "${PLAN_ROLE_ARN}" ]; then
+            echo "present=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "present=false" >> "${GITHUB_OUTPUT}"
+            echo "::notice::AWS_PLAN_ROLE_ARN is not set (terraform output plan_role_arn after the first apply), so the plan is skipped."
+          fi
+
+      - uses: actions/checkout@v5
+        if: steps.role.outputs.present == 'true'
+
+      - uses: hashicorp/setup-terraform@v3
+        if: steps.role.outputs.present == 'true'
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      # Pull requests assume the read-only plan role, which trusts only the pull_request
+      # subject of this repository and cannot read secrets or data.
+      - uses: aws-actions/configure-aws-credentials@v5
+        if: steps.role.outputs.present == 'true'
+        with:
+          role-to-assume: ${{ secrets.AWS_PLAN_ROLE_ARN }}
+          role-session-name: harbour-plan-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Prepare dev backend and inputs
+        if: steps.role.outputs.present == 'true'
+        run: bash infra/scripts/ci-terraform-env.sh dev
+
+      - name: terraform plan
+        if: steps.role.outputs.present == 'true'
+        working-directory: infra/envs/dev
+        run: |
+          terraform init -backend-config=backend.hcl -lockfile=readonly
+          terraform plan -lock=false -no-color -out=tfplan
+          terraform show -no-color tfplan > plan.txt
+
+      - name: Post the plan to the pull request
+        if: steps.role.outputs.present == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require("node:fs");
+            const marker = "<!-- harbour-terraform-plan-dev -->";
+            let plan = fs.readFileSync("infra/envs/dev/plan.txt", "utf8");
+            const limit = 60000;
+            if (plan.length > limit) {
+              plan = `${plan.slice(0, limit)}\n\n(Plan truncated; the full plan is in the workflow log.)`;
+            }
+            const body = `${marker}\n### Terraform plan: dev\n\n<details><summary>Show plan</summary>\n\n\`\`\`text\n${plan}\n\`\`\`\n\n</details>\n`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const existing = comments.find((c) => c.body && c.body.startsWith(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+  apply-dev:
+    name: Apply dev
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && needs.aws-gate.outputs.enabled == 'true'
+    needs: [static, security, aws-gate]
+    runs-on: ubuntu-latest
+    # No GitHub `environment:` here on purpose: it would change the OIDC subject to
+    # repo:<owner>/<repo>:environment:dev, which the deploy role does not trust.
+    concurrency:
+      group: terraform-apply-dev
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_ACCOUNT_ID: ${{ vars.AWS_DEV_ACCOUNT_ID }}
+      DOMAIN_NAME: ${{ vars.DEV_DOMAIN_NAME }}
+      STATE_BUCKET: ${{ vars.TF_STATE_BUCKET_DEV }}
+      STATE_KMS_KEY_ARN: ${{ vars.TF_STATE_KMS_KEY_ARN_DEV }}
+      ROUTE53_ZONE_ID: ${{ vars.DEV_ROUTE53_ZONE_ID }}
+      ALERT_EMAILS: ${{ vars.DEV_ALERT_EMAILS }}
+      BUDGET_EMAILS: ${{ vars.DEV_BUDGET_EMAILS }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: harbour-apply-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Prepare dev backend and inputs
+        run: bash infra/scripts/ci-terraform-env.sh dev
+
+      - name: terraform plan and apply
+        working-directory: infra/envs/dev
+        run: |
+          terraform init -backend-config=backend.hcl -lockfile=readonly
+          terraform plan -no-color -out=tfplan
+          terraform apply -no-color tfplan

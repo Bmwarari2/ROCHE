@@ -1,0 +1,5 @@
+# Refuse environment files, private keys and commits to main; lint staged files; typecheck the
+# packages they belong to.
+echo '{"tool_input":{"command":"git commit"}}' | node .claude/hooks/guard-commit.mjs
+pnpm exec biome check --staged --no-errors-on-unmatched
+node scripts/typecheck-staged.mjs

@@ -1,0 +1,16 @@
+/*
+ * @harbour/ui stylesheet entry. In apps/web: `@import "@harbour/ui/styles.css";` once, in the global
+ * stylesheet, instead of importing "tailwindcss" directly. It brings Tailwind CSS 4, the Harbour
+ * theme and tokens, self-hosted Inter, base element styles, component styles and print styles.
+ */
+
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "./tokens.css";
+@import "./theme.css";
+@import "./base.css";
+@import "./components.css";
+@import "./print.css";
+
+/* Generate any Tailwind utilities used inside this package's source. */
+@source "../";

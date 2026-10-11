@@ -1,0 +1,72 @@
+{
+  "name": "harbour",
+  "private": true,
+  "description": "Harbour: multi-tenant platform for UK adult social care providers (Thapsus Cargo Ltd)",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "typecheck": "turbo run typecheck",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "test": "turbo run test",
+    "test:coverage": "turbo run test:coverage",
+    "test:db": "turbo run test:db",
+    "db:migrate": "pnpm --filter @harbour/db migrate",
+    "db:seed": "pnpm --filter @harbour/db seed",
+    "db:reset": "pnpm --filter @harbour/db reset",
+    "storybook": "pnpm --filter @harbour/ui storybook",
+    "check:licences": "node scripts/check-licences.mjs",
+    "check:docs-gate": "node scripts/check-docs-gate.mjs",
+    "check:medicines-tests": "node scripts/check-medicines-tests.mjs",
+    "changeset": "changeset",
+    "prepare": "husky",
+    "db:bootstrap": "pnpm --filter @harbour/db bootstrap",
+    "check:links": "node scripts/check-markdown-links.mjs"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@changesets/cli": "^2.29.0",
+    "@commitlint/cli": "^20.0.0",
+    "@commitlint/config-conventional": "^20.0.0",
+    "@types/node": "^22.15.0",
+    "husky": "^9.1.7",
+    "turbo": "^2.11.7",
+    "typescript": "~6.0.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "@biomejs/biome",
+      "unrs-resolver"
+    ],
+    "ignoredOptionalDependencies": [
+      "sharp"
+    ],
+    "packageExtensions": {
+      "next": {
+        "peerDependencies": {
+          "@types/react": "*"
+        },
+        "peerDependenciesMeta": {
+          "@types/react": {
+            "optional": true
+          }
+        }
+      }
+    },
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-86w9-cpqp-85rv",
+        "GHSA-vfj7-8cjw-p6xm"
+      ]
+    }
+  },
+  "op-sqlite": {
+    "sqlcipher": true
+  }
+}

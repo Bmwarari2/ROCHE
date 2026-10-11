@@ -1,0 +1,53 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# builds
+dist/
+build/
+.next/
+out/
+storybook-static/
+coverage/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+
+# expo
+.expo/
+apps/mobile/ios/
+apps/mobile/android/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# environment and secrets: only .env.example is committed
+.env
+.env.*
+!.env.example
+
+# terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+
+# test output
+playwright-report/
+test-results/
+blob-report/
+
+# editors and OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# local postgres used by tests
+.pgdata/
+
+# Claude Code local settings
+.claude/settings.local.json

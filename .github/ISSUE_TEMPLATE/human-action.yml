@@ -1,0 +1,18 @@
+name: Human action
+description: Something only a person can do (certification, sign-off, account, credential)
+labels: [human-action, blocking]
+body:
+  - type: textarea
+    id: action
+    attributes:
+      label: What is needed and from whom
+    validations:
+      required: true
+  - type: textarea
+    id: produced
+    attributes:
+      label: What the build has already produced for it
+  - type: textarea
+    id: unblocks
+    attributes:
+      label: What it unblocks

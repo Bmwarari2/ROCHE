@@ -1,0 +1,7 @@
+# Required reviewers (master prompt section 7). Replace the owner with the Thapsus team handle once
+# the GitHub organisation exists (human action).
+*                               @Bmwarari2
+/packages/db/                   @Bmwarari2
+/packages/domain/src/medicines/ @Bmwarari2
+/infra/                         @Bmwarari2
+/docs/clinical-safety/          @Bmwarari2

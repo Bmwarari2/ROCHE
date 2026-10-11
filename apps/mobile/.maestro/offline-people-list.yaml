@@ -1,0 +1,60 @@
+# Hazard HZ-002 (stale offline data) and the Phase 0 goal: once synced, the People list still
+# shows with no network after a relaunch, under an "Offline" banner with the last sync time.
+# Rows and the banner are single accessibility elements, so text matches use regular expressions
+# against their combined labels.
+#
+# setAirplaneMode is Android only in Maestro; on iOS CI runs this flow on a device farm or with the
+# simulator's network link conditioner set to 100% loss (see the README).
+appId: uk.co.thapsus.harbour
+name: People list works offline
+tags:
+  - offline
+env:
+  HARBOUR_EXPECTED_PERSON: ${HARBOUR_EXPECTED_PERSON || "Ada Example"}
+---
+- runFlow: sign-in.yaml
+- tapOn:
+    id: "tab-people"
+# Wait for the first sync to finish.
+- extendedWaitUntil:
+    visible:
+      text: "Up to date.*"
+    timeout: 60000
+- extendedWaitUntil:
+    visible:
+      text: "${HARBOUR_EXPECTED_PERSON}.*"
+    timeout: 30000
+- setAirplaneMode: enabled
+- stopApp
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "lock-screen"
+    timeout: 30000
+- tapOn:
+    id: "unlock-button"
+- extendedWaitUntil:
+    visible:
+      id: "today-screen"
+    timeout: 30000
+- tapOn:
+    id: "tab-people"
+- assertVisible:
+    id: "people-list"
+- assertVisible:
+    text: "${HARBOUR_EXPECTED_PERSON}.*"
+- assertVisible:
+    id: "sync-banner"
+- assertVisible:
+    text: "Offline.*"
+- assertVisible:
+    text: ".*Last synced.*"
+# Identifiers on the record screen are shown, not selectable.
+- tapOn:
+    text: "${HARBOUR_EXPECTED_PERSON}.*"
+- assertVisible:
+    id: "person-header"
+- assertVisible:
+    text: "Offline.*"
+- setAirplaneMode: disabled

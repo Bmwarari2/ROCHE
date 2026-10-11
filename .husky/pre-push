@@ -1,0 +1,2 @@
+# Full typecheck before anything leaves the machine.
+pnpm turbo run typecheck

@@ -1,0 +1,267 @@
+import { sql } from "drizzle-orm";
+import {
+  type AnyPgColumn,
+  boolean,
+  date,
+  foreignKey,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core";
+import { id, mutableColumns, tenantId } from "./_columns";
+import { allergyStatus, contactRole, personStatus, placementType } from "./enums";
+import { document, location, service, tenant, tenantUser } from "./platform";
+
+/**
+ * Service-user lifecycle (`people` bounded context, master prompt section 9.2).
+ *
+ * Besides tenant isolation, every table here is restricted by the person-scope policy: a user sees
+ * a person only if their role is tenant-wide, the person is at one of their locations, they are
+ * assigned to the person, or they hold an open break-glass record (section 4). See ADR-0002.
+ */
+
+export const room = pgTable(
+  "room",
+  {
+    id: id(),
+    tenantId: tenantId().references(() => tenant.id),
+    locationId: uuid("location_id").notNull(),
+    label: text("label").notNull(),
+    unitName: text("unit_name"),
+    floor: text("floor"),
+    beds: integer("beds").notNull().default(1),
+    ensuite: boolean("ensuite").notNull().default(false),
+    status: text("status").notNull().default("available"),
+    ...mutableColumns(),
+  },
+  (t) => [
+    unique("room_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("room_location_label_key").on(t.tenantId, t.locationId, t.label),
+    foreignKey({
+      name: "room_location_fk",
+      columns: [t.tenantId, t.locationId],
+      foreignColumns: [location.tenantId, location.id],
+    }),
+  ],
+);
+
+/** MODS-aligned person record (section 18 `person`). */
+export const person = pgTable(
+  "person",
+  {
+    id: id(),
+    tenantId: tenantId().references(() => tenant.id),
+    /** Primary location, used for location-scoped access. */
+    locationId: uuid("location_id").notNull(),
+    status: personStatus("status").notNull().default("enquiry"),
+    /** Validated with the modulus 11 check digit; the consistent identifier but never the only one. */
+    nhsNumber: text("nhs_number"),
+    localIdentifier: text("local_identifier"),
+    title: text("title"),
+    givenName: text("given_name").notNull(),
+    familyName: text("family_name").notNull(),
+    preferredName: text("preferred_name"),
+    dateOfBirth: date("date_of_birth"),
+    /** NHS Data Dictionary person stated sex/gender codes. */
+    sexCode: text("sex_code"),
+    genderIdentity: text("gender_identity"),
+    /** NHS Data Dictionary ethnic category code (A-Z, 99). */
+    ethnicCategoryCode: text("ethnic_category_code"),
+    religion: text("religion"),
+    firstLanguage: text("first_language"),
+    interpreterRequired: boolean("interpreter_required").notNull().default(false),
+    addressLine1: text("address_line1"),
+    addressLine2: text("address_line2"),
+    town: text("town"),
+    postcode: text("postcode"),
+    gpPracticeOdsCode: text("gp_practice_ods_code"),
+    legalStatus: text("legal_status"),
+    photoDocumentId: uuid("photo_document_id"),
+    /** Display cache of the current room, maintained by the admission workflow; synced to devices. */
+    roomLabel: text("room_label"),
+    /** Accessible Information Standard needs: [{ code (SNOMED CT), display, preferredFormat }]. */
+    communicationNeeds: jsonb("communication_needs").notNull().default(sql`'[]'::jsonb`),
+    allergyStatus: allergyStatus("allergy_status").notNull().default("unknown"),
+    nationalDataOptOut: boolean("national_data_opt_out").notNull().default(false),
+    deceasedAt: timestamp("deceased_at", { withTimezone: true }),
+    dischargedAt: timestamp("discharged_at", { withTimezone: true }),
+    ...mutableColumns(),
+  },
+  (t) => [
+    unique("person_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("person_tenant_nhs_number_key").on(t.tenantId, t.nhsNumber),
+    foreignKey({
+      name: "person_location_fk",
+      columns: [t.tenantId, t.locationId],
+      foreignColumns: [location.tenantId, location.id],
+    }),
+    foreignKey({
+      name: "person_photo_fk",
+      columns: [t.tenantId, t.photoDocumentId],
+      foreignColumns: [document.tenantId, document.id],
+    }),
+    index("person_tenant_location_idx").on(t.tenantId, t.locationId),
+    index("person_family_name_idx").on(t.tenantId, t.familyName),
+  ],
+);
+
+/** Composite (tenant_id, person_id) reference so a child row can never point across tenants. */
+const personFk = (name: string, t: { tenantId: AnyPgColumn; personId: AnyPgColumn }) =>
+  foreignKey({
+    name,
+    columns: [t.tenantId, t.personId],
+    foreignColumns: [person.tenantId, person.id],
+  });
+
+export const contact = pgTable(
+  "contact",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    personId: uuid("person_id").notNull(),
+    role: contactRole("role").notNull(),
+    givenName: text("given_name").notNull(),
+    familyName: text("family_name").notNull(),
+    relationship: text("relationship"),
+    phone: text("phone"),
+    email: text("email"),
+    addressLine1: text("address_line1"),
+    town: text("town"),
+    postcode: text("postcode"),
+    isNextOfKin: boolean("is_next_of_kin").notNull().default(false),
+    /** Office of the Public Guardian or court reference for LPAs and deputyships. */
+    authorityReference: text("authority_reference"),
+    authorityDocumentId: uuid("authority_document_id"),
+    validUntil: date("valid_until"),
+    notes: text("notes"),
+    ...mutableColumns(),
+  },
+  (t) => [personFk("contact_person_fk", t), index("contact_person_idx").on(t.tenantId, t.personId)],
+);
+
+export const allergy = pgTable(
+  "allergy",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    personId: uuid("person_id").notNull(),
+    substance: text("substance").notNull(),
+    snomedCode: text("snomed_code"),
+    category: text("category").notNull().default("other"),
+    reaction: text("reaction"),
+    severity: text("severity").notNull().default("unknown"),
+    status: text("status").notNull().default("active"),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+    verifiedBy: uuid("verified_by"),
+    ...mutableColumns(),
+  },
+  (t) => [personFk("allergy_person_fk", t), index("allergy_person_idx").on(t.tenantId, t.personId)],
+);
+
+/** One person, many placements over time (respite then permanent) under one record. */
+export const placement = pgTable(
+  "placement",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    personId: uuid("person_id").notNull(),
+    serviceId: uuid("service_id").notNull(),
+    roomId: uuid("room_id"),
+    type: placementType("type").notNull(),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date"),
+    endReason: text("end_reason"),
+    dependencyCategory: text("dependency_category"),
+    ...mutableColumns(),
+  },
+  (t) => [
+    personFk("placement_person_fk", t),
+    foreignKey({
+      name: "placement_service_fk",
+      columns: [t.tenantId, t.serviceId],
+      foreignColumns: [service.tenantId, service.id],
+    }),
+    foreignKey({
+      name: "placement_room_fk",
+      columns: [t.tenantId, t.roomId],
+      foreignColumns: [room.tenantId, room.id],
+    }),
+    index("placement_person_idx").on(t.tenantId, t.personId),
+  ],
+);
+
+/** PRSB About Me v2, authored by the person or their carer. */
+export const aboutMe = pgTable(
+  "about_me",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    personId: uuid("person_id").notNull(),
+    sections: jsonb("sections").notNull().default(sql`'{}'::jsonb`),
+    authoredByPerson: boolean("authored_by_person").notNull().default(false),
+    ...mutableColumns(),
+  },
+  (t) => [
+    unique("about_me_person_key").on(t.tenantId, t.personId),
+    personFk("about_me_person_fk", t),
+  ],
+);
+
+/** Care workers see assigned people only; agency assignments expire (section 4). */
+export const personAssignment = pgTable(
+  "person_assignment",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    tenantUserId: uuid("tenant_user_id").notNull(),
+    personId: uuid("person_id").notNull(),
+    validFrom: timestamp("valid_from", { withTimezone: true }).notNull().defaultNow(),
+    validTo: timestamp("valid_to", { withTimezone: true }),
+    ...mutableColumns(),
+  },
+  (t) => [
+    personFk("person_assignment_person_fk", t),
+    foreignKey({
+      name: "person_assignment_user_fk",
+      columns: [t.tenantId, t.tenantUserId],
+      foreignColumns: [tenantUser.tenantId, tenantUser.id],
+    }),
+    index("person_assignment_user_idx").on(t.tenantId, t.tenantUserId),
+  ],
+);
+
+/**
+ * Break-glass access: an authorised manager opens a record outside their scope with a typed
+ * justification. It alerts the Registered Manager and the data protection lead and is reported
+ * weekly (section 4). Access lapses at `expires_at`.
+ */
+export const breakGlassEvent = pgTable(
+  "break_glass_event",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    tenantUserId: uuid("tenant_user_id").notNull(),
+    personId: uuid("person_id").notNull(),
+    justification: text("justification").notNull(),
+    openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewedBy: uuid("reviewed_by"),
+    reviewOutcome: text("review_outcome"),
+    ...mutableColumns(),
+  },
+  (t) => [
+    personFk("break_glass_person_fk", t),
+    foreignKey({
+      name: "break_glass_user_fk",
+      columns: [t.tenantId, t.tenantUserId],
+      foreignColumns: [tenantUser.tenantId, tenantUser.id],
+    }),
+    index("break_glass_user_person_idx").on(t.tenantId, t.tenantUserId, t.personId),
+  ],
+);

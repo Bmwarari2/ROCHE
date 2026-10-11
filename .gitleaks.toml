@@ -1,0 +1,20 @@
+# Secret scanning (section 5.3). Extends the default rules; the allowlist covers documented local-only
+# defaults that are never used outside a developer's machine or CI.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Local and CI-only defaults"
+paths = [
+  '''pnpm-lock\.yaml''',
+  '''apps/api/openapi\.json''',
+]
+regexes = [
+  # Lowercase identifiers joined by dots or underscores (rate-table keys, permission names, tool
+  # keys such as nmw.hourly.21_plus or ng249_falls_question) trip the generic-api-key rule by
+  # entropy; they are names, never secrets. Provider tokens have their own rules and mixed case.
+  '''^[a-z][a-z0-9]*([._][a-z0-9]+)+$''',
+  '''harbour_[a-z]+_local''',
+  '''harbour_admin_ci''',
+  '''local-development-secret-change-me-[0-9]+''',
+]

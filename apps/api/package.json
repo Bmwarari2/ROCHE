@@ -1,0 +1,50 @@
+{
+  "name": "@harbour/api",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Harbour API: Hono modular monolith with Zod contracts, OpenAPI 3.1, Better Auth, audit and outbox",
+  "type": "module",
+  "exports": {
+    "./app": "./src/app.ts"
+  },
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../../.env src/server.ts",
+    "start": "node dist/server.js",
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:db": "vitest run",
+    "openapi": "tsx scripts/write-openapi.ts",
+    "worker": "tsx watch --env-file-if-exists=../../.env src/jobs/worker.ts",
+    "start:worker": "node dist/worker.js",
+    "seed:users": "tsx --env-file-if-exists=../../.env scripts/seed-users.ts"
+  },
+  "dependencies": {
+    "@better-auth/passkey": "^1.7.7",
+    "@harbour/contracts": "workspace:*",
+    "@harbour/db": "workspace:*",
+    "@harbour/domain": "workspace:*",
+    "@hono/node-server": "^2.1.4",
+    "@hono/zod-openapi": "^1.6.3",
+    "better-auth": "^1.7.7",
+    "drizzle-orm": "^0.45.4",
+    "hono": "^4.13.13",
+    "jose": "^6.2.12",
+    "pg": "^8.23.1",
+    "pg-boss": "^12.37.1",
+    "pino": "^10.4.0",
+    "zod": "^4.6.5",
+    "@harbour/sync": "workspace:*",
+    "@harbour/i18n": "workspace:*",
+    "@aws-sdk/client-sesv2": "^3.1149.0"
+  },
+  "devDependencies": {
+    "@harbour/config": "workspace:*",
+    "@types/node": "^22.15.0",
+    "@types/pg": "^8.15.0",
+    "esbuild": "^0.27.0",
+    "tsx": "^4.20.0",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.11"
+  }
+}

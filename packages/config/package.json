@@ -1,0 +1,13 @@
+{
+  "name": "@harbour/config",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shared TypeScript, Vitest and Playwright configuration for the Harbour monorepo",
+  "type": "module",
+  "exports": {
+    "./tsconfig.base.json": "./tsconfig.base.json",
+    "./tsconfig.node.json": "./tsconfig.node.json",
+    "./tsconfig.react.json": "./tsconfig.react.json",
+    "./vitest": "./vitest.shared.mjs"
+  }
+}

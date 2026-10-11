@@ -1,0 +1,35 @@
+{
+  "name": "@harbour/ui-native",
+  "version": "0.0.0",
+  "private": true,
+  "description": "React Native components for the Harbour mobile app, built only from the shared design tokens",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./logic": "./src/logic/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@harbour/ui": "workspace:*"
+  },
+  "peerDependencies": {
+    "lucide-react-native": "^1.55.0",
+    "react": "*",
+    "react-native": "*",
+    "react-native-svg": "^15.0.0"
+  },
+  "devDependencies": {
+    "@harbour/config": "workspace:*",
+    "@react-native/metro-config": "0.86.3",
+    "@types/react": "~19.2.18",
+    "lucide-react-native": "^1.55.0",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-svg": "15.15.4",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.11"
+  }
+}

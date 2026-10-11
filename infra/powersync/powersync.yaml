@@ -1,0 +1,70 @@
+# yaml-language-server: $schema=https://unpkg.com/@powersync/service-schema@latest/json-schema/powersync-config.json
+#
+# PowerSync service configuration for Harbour, shared by local Docker Compose
+# (docker-compose.yml mounts it at /config/powersync.yaml) and the ECS task in AWS (Terraform
+# passes it as POWERSYNC_CONFIG_B64). Every value that differs between the two comes from a
+# PS_* environment variable; PowerSync only substitutes variables with that prefix, and the
+# ::number and ::boolean suffixes cast the value.
+#
+# Sync streams live in packages/sync/src/streams/sync-config.yaml. Locally that file is
+# mounted read-only next to this one; in AWS it is passed as POWERSYNC_SYNC_CONFIG_B64, which
+# takes precedence over sync_config.path below.
+
+# Do not send anonymised usage metrics to PowerSync: nothing leaves our infrastructure.
+telemetry:
+  disable_telemetry_sharing: true
+
+# Source database. PowerSync connects as harbour_sync (logical replication, read only). In
+# AWS sslmode is verify-full; PowerSync ships the AWS RDS root certificates.
+replication:
+  connections:
+    - type: postgresql
+      hostname: !env PS_DATA_SOURCE_HOST
+      port: !env PS_DATA_SOURCE_PORT::number
+      database: !env PS_DATA_SOURCE_DATABASE
+      username: !env PS_DATA_SOURCE_USER
+      password: !env PS_DATA_SOURCE_PASSWORD
+      sslmode: !env PS_DATA_SOURCE_SSLMODE
+
+# Bucket storage: a separate Postgres (powersync-storage locally, the sync-storage RDS
+# instance in AWS). It holds copies of synced rows, so it is protected like the main database.
+storage:
+  type: postgresql
+  hostname: !env PS_STORAGE_HOST
+  port: !env PS_STORAGE_PORT::number
+  database: !env PS_STORAGE_DATABASE
+  username: !env PS_STORAGE_USER
+  password: !env PS_STORAGE_PASSWORD
+  sslmode: !env PS_STORAGE_SSLMODE
+
+port: !env PS_PORT::number
+
+sync_config:
+  path: sync-config.yaml
+
+# Clients present a JWT signed by the Harbour API. PowerSync fetches the public keys from the
+# API's JWKS endpoint and checks the audience. Stream filters use the tenant_id, location and
+# assignment claims (logical replication bypasses row-level security, so these filters are
+# the tenant boundary for synced data and are tested on their own).
+client_auth:
+  jwks_uri: !env PS_JWKS_URL
+  audience:
+    - !env PS_JWT_AUDIENCE
+  # true in AWS; false locally, where the API is reached through host.docker.internal.
+  block_local_jwks: !env PS_BLOCK_LOCAL_JWKS::boolean
+
+# Token for the PowerSync admin API (diagnostics). Never shipped to clients.
+api:
+  tokens:
+    - !env PS_API_TOKEN
+
+healthcheck:
+  probes:
+    use_http: true
+
+# JSON logs. PowerSync logs connection and replication events with opaque IDs; row data is
+# never logged at info level.
+system:
+  logging:
+    level: info
+    format: json

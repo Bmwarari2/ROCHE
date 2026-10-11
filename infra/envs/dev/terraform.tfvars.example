@@ -1,0 +1,13 @@
+# Copy to terraform.tfvars (git-ignored) and fill in. CI passes the same values as TF_VAR_*
+# environment variables from GitHub repository variables instead.
+
+aws_account_id    = "000000000000"
+domain_name       = "dev.harbour.example.invalid"
+route53_zone_id   = null
+state_bucket_name = "harbour-tfstate-000000000000"
+state_kms_key_arn = "arn:aws:kms:eu-west-2:000000000000:key/00000000-0000-0000-0000-000000000000"
+
+alert_email_addresses  = ["platform-alerts@example.invalid"]
+budget_email_addresses = ["finance-alerts@example.invalid"]
+
+enable_flagsmith = false

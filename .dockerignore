@@ -1,0 +1,16 @@
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+**/coverage
+**/storybook-static
+**/.expo
+apps/mobile/ios
+apps/mobile/android
+infra/**/.terraform
+.git
+.env
+.env.*
+!.env.example
+**/*.pem
+**/*.key

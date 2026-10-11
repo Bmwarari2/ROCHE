@@ -1,0 +1,33 @@
+# Hazard HZ-006 (silent sync failure): with no network the banner says so; when the network comes
+# back the app reconnects by itself and the banner returns to "Up to date" without a relaunch.
+appId: uk.co.thapsus.harbour
+name: Sync recovers after the network returns
+tags:
+  - offline
+env:
+  HARBOUR_EXPECTED_PERSON: ${HARBOUR_EXPECTED_PERSON || "Ada Example"}
+---
+- runFlow: sign-in.yaml
+- tapOn:
+    id: "tab-people"
+- extendedWaitUntil:
+    visible:
+      text: "Up to date.*"
+    timeout: 60000
+- setAirplaneMode: enabled
+- extendedWaitUntil:
+    visible:
+      text: "Offline.*"
+    timeout: 30000
+- assertVisible:
+    text: "${HARBOUR_EXPECTED_PERSON}.*"
+- setAirplaneMode: disabled
+# PowerSync retries on its own; the banner must reach "Up to date" again.
+- extendedWaitUntil:
+    visible:
+      text: "Up to date.*"
+    timeout: 90000
+- assertNotVisible:
+    text: "Sync failed.*"
+- assertVisible:
+    text: "${HARBOUR_EXPECTED_PERSON}.*"
