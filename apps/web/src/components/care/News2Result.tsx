@@ -45,7 +45,9 @@ export function News2Result({
       ) : null}
       {news2.redScore ? <p className="m-0">{t("care.news2.redScore")}</p> : null}
       <p className="m-0 text-callout text-text-secondary">
-        {t("care.news2.scale", { scale: news2.spo2Scale })}
+        {news2.spo2Scale === null
+          ? t("care.news2.scaleUnknown")
+          : t("care.news2.scale", { scale: news2.spo2Scale })}
       </p>
       <Workings workings={news2.workings} />
       <p className="m-0 text-callout text-text-secondary">

@@ -35,6 +35,30 @@ describe("body map regions", () => {
     }
   });
 
+  it("hazard HZ-019 reads the midline and either side of it the same way as the domain, on both views", () => {
+    // Chest (front) and spine (back) are central: on the centre line, and a little either side.
+    for (const [view, region, y] of [
+      ["front", "chest", 122],
+      ["back", "spine", 176],
+    ] as const) {
+      expect(nearestHotspot(view, DRAWING.centre, y)?.value, view).toBe(`${region}:midline`);
+      expect(personSideFromDrawing(view, "centre")).toBe("midline");
+      const placement = BODY_REGIONS[view].find((r) => r.region === region);
+      const dx = placement?.dx ?? 0;
+      const onYourRight = nearestHotspot(view, DRAWING.centre + dx, y);
+      const onYourLeft = nearestHotspot(view, DRAWING.centre - dx, y);
+      expect(onYourRight?.side, `${view} your right`).toBe(
+        personSideFromDrawing(view, "viewer_right"),
+      );
+      expect(onYourLeft?.side, `${view} your left`).toBe(
+        personSideFromDrawing(view, "viewer_left"),
+      );
+    }
+    // So the person's left is on your right on the front and on your left on the back.
+    expect(personSideFromDrawing("front", "viewer_right")).toBe("left");
+    expect(personSideFromDrawing("back", "viewer_left")).toBe("left");
+  });
+
   it("keeps every spot inside the drawing and gives each a unique value per view", () => {
     for (const view of ["front", "back"] as const) {
       const spots = hotspots(view);

@@ -1,8 +1,8 @@
 import type { AssessmentItem } from "@harbour/contracts";
 import { StatusChip } from "@harbour/ui";
-import { ClipboardCheck } from "lucide-react";
+import { ClipboardCheck, TriangleAlert } from "lucide-react";
 import type { Ref } from "react";
-import { bandChip, bandLabel, fallsDetails, TOOL_SOURCES, triggerTexts } from "@/lib/assessments";
+import { bandChip, bandLabel, fallsDetails, readTriggers, TOOL_SOURCES } from "@/lib/assessments";
 import { readWorkings } from "@/lib/charts";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -27,7 +27,7 @@ export function AssessmentResult({
   const Heading = `h${headingLevel}` as const;
   const band = bandLabel(item, t);
   const falls = item.toolKey === "ng249_falls" ? fallsDetails(item) : null;
-  const triggers = triggerTexts(item, t);
+  const triggers = readTriggers(item, t);
   return (
     <section
       aria-label={t("care.assessments.toolFull", { tool: item.toolKey })}
@@ -68,15 +68,30 @@ export function AssessmentResult({
       <Workings workings={readWorkings(item.workings)} />
       <div className="flex flex-col gap-1">
         <p className="m-0 text-callout font-semibold">{t("care.assessments.triggers.title")}</p>
-        {triggers.length === 0 ? (
-          <p className="m-0 text-callout">{t("care.assessments.triggers.none")}</p>
-        ) : (
-          <ul className="m-0 flex flex-col gap-1 ps-5 text-callout">
-            {triggers.map((text) => (
+        {triggers.texts.length === 0 && triggers.unknown.length === 0 ? (
+          <p className="m-0 text-body-dense">{t("care.assessments.triggers.none")}</p>
+        ) : null}
+        {triggers.texts.length > 0 ? (
+          <ul className="m-0 flex flex-col gap-1 ps-5 text-body-dense">
+            {triggers.texts.map((text) => (
               <li key={text}>{text}</li>
             ))}
           </ul>
-        )}
+        ) : null}
+        {triggers.unknown.length > 0 ? (
+          <p className="m-0 flex items-start gap-2 font-semibold" data-unknown-triggers="">
+            <TriangleAlert
+              size={18}
+              strokeWidth={1.5}
+              aria-hidden="true"
+              className="mt-0.5 shrink-0"
+            />
+            {t("care.assessments.triggers.unknown", {
+              count: triggers.unknown.length,
+              codes: triggers.unknown.join(", "),
+            })}
+          </p>
+        ) : null}
       </div>
       <p className="m-0 flex flex-wrap gap-x-4 text-callout text-text-secondary">
         {item.nextDueOn ? (

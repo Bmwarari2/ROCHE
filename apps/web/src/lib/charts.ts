@@ -32,35 +32,53 @@ export interface ScoreWorking {
   readonly points: number;
 }
 
+export interface Workings {
+  readonly rows: readonly ScoreWorking[];
+  /** Rows the web app could not read: the screen says so rather than hiding them (HZ-014). */
+  readonly unreadable: number;
+}
+
 export interface News2Flags {
   readonly toolVersion: string;
   readonly score: number;
   readonly band: string;
   readonly redScore: boolean;
-  readonly spo2Scale: number;
+  /** 1 or 2 as the API scored it; null when it did not say, so the screen says it is not known. */
+  readonly spo2Scale: 1 | 2 | null;
   /** The RCP's wording (chart 2), for example "Medium". */
   readonly clinicalRisk: string;
   /** The RCP's wording, for example "Key threshold for urgent response". */
   readonly response: string;
   /** The RCP's wording (chart 4), for example "Minimum 1 hourly". */
   readonly monitoring: string;
-  readonly workings: readonly ScoreWorking[];
+  readonly workings: Workings;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-/** Workings as the API returns them; anything malformed is left out rather than guessed. */
-export function readWorkings(value: unknown): ScoreWorking[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((row) =>
-    isRecord(row) &&
-    typeof row.item === "string" &&
-    typeof row.value === "string" &&
-    typeof row.points === "number"
-      ? [{ item: row.item, value: row.value, points: row.points }]
-      : [],
-  );
+/**
+ * Workings as the API returns them. A malformed row is never guessed at, and never dropped
+ * silently: it is counted, so the screen can say some of the workings could not be shown.
+ */
+export function readWorkings(value: unknown): Workings {
+  if (value === undefined || value === null) return { rows: [], unreadable: 0 };
+  if (!Array.isArray(value)) return { rows: [], unreadable: 1 };
+  const rows: ScoreWorking[] = [];
+  let unreadable = 0;
+  for (const row of value) {
+    if (
+      isRecord(row) &&
+      typeof row.item === "string" &&
+      typeof row.value === "string" &&
+      typeof row.points === "number"
+    ) {
+      rows.push({ item: row.item, value: row.value, points: row.points });
+    } else {
+      unreadable += 1;
+    }
+  }
+  return { rows, unreadable };
 }
 
 /** The NEWS2 result the API stored with a vital signs entry, or null when there is none. */
@@ -81,7 +99,7 @@ export function news2FromFlags(flags: Record<string, unknown>): News2Flags | nul
     score,
     band,
     redScore: news2.redScore === true,
-    spo2Scale: typeof news2.spo2Scale === "number" ? news2.spo2Scale : 1,
+    spo2Scale: news2.spo2Scale === 1 || news2.spo2Scale === 2 ? news2.spo2Scale : null,
     clinicalRisk,
     response,
     monitoring: typeof monitoring === "string" ? monitoring : "",

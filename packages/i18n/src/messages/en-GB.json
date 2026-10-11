@@ -575,7 +575,7 @@
   "care.overview.plan.draftOpen": "A draft is open and not yet in use.",
   "care.overview.plan.link": "View the care plan",
   "care.overview.vitals.title": "Latest vital signs",
-  "care.overview.vitals.none": "No vital signs in the last 3 days.",
+  "care.overview.vitals.none": "No vital signs in the last {days} days.",
   "care.overview.vitals.when": "Recorded for {dateTime}",
   "care.overview.vitals.link": "View the charts",
   "care.overview.fluid.title": "Fluid balance today",
@@ -894,5 +894,17 @@
   "care.charts.vitals.missing": "{reading, select, respirationRate {Enter the respiration rate in breaths per minute} spo2 {Enter the SpO2 as a percentage} systolic {Enter the systolic blood pressure in mmHg} pulse {Enter the pulse in beats per minute} temperature {Enter the temperature in °C} oxygen {Choose air or oxygen} consciousness {Choose the level of consciousness} other {Enter this reading}}",
   "care.plan.publish.unableHint": "In a sentence: why the person could not take part, and who was asked.",
   "care.refusal.iddsiAdvisedBy": "Say who advised the IDDSI level, for example the speech and language therapist.",
-  "care.refusal.scale2Clinician": "Write the name of the clinician who decided to use SpO2 scale 2."
+  "care.refusal.scale2Clinician": "Write the name of the clinician who decided to use SpO2 scale 2.",
+  "care.overview.vitals.unreadableChip": "Result cannot be shown",
+  "care.overview.vitals.unreadable": "Readings were recorded, but their NEWS2 result cannot be shown here. Open the chart and tell the nurse in charge.",
+  "care.overview.notes.when": "{dateTime}: {category}",
+  "care.charts.drinkLevelRequired": "Choose the drink level given: a drink level is prescribed",
+  "care.charts.prescribedUnavailable": "{reason, select, no_access {The prescribed level is not available to you. Check with the nurse in charge.} other {The prescribed level could not be read. Check the paper record.}}",
+  "care.charts.vitals.withheld.title": "Vital signs cannot be recorded here",
+  "care.charts.vitals.withheld.body": "{reason, select, no_access {NEWS2 scores oxygen saturation on the person's SpO2 scale, which is in a care profile that is not available to you. Ask the nurse in charge to record vital signs, or to check your access.} other {NEWS2 scores oxygen saturation on the person's SpO2 scale, which is in a care profile that could not be read. Use the paper chart and tell the nurse in charge.}}",
+  "care.news2.scaleUnknown": "SpO2 scale not known: check the result with the nurse in charge",
+  "care.news2.showWorkings": "How the score was worked out",
+  "care.news2.unreadable": "The NEWS2 result of this entry cannot be shown. Tell the nurse in charge.",
+  "care.workings.unreadable": "{count, plural, one {# row of the workings could not be shown.} other {# rows of the workings could not be shown.}} Check the result with the nurse in charge.",
+  "care.assessments.triggers.unknown": "{count, plural, one {# follow-up could not be shown} other {# follow-ups could not be shown}} ({codes}). Check what this result raised with the nurse in charge."
 }

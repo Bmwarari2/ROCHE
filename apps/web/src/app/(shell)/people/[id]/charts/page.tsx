@@ -179,7 +179,13 @@ async function ChartsTab({
 
       {canWrite ? (
         <Card as="section" title={t("care.charts.record.title", { chart })} headingLevel={3}>
-          <ChartEntryForm personId={id} chart={chart} profile={profile} name={names.preferred} />
+          <ChartEntryForm
+            personId={id}
+            chart={chart}
+            profile={profile}
+            profileKind={profileLoad.kind}
+            name={names.preferred}
+          />
         </Card>
       ) : null}
 

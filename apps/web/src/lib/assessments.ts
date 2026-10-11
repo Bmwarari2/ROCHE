@@ -152,11 +152,34 @@ export function triggerText(trigger: Record<string, unknown>, t: Translator): st
   }
 }
 
-export function triggerTexts(item: Pick<AssessmentItem, "triggers">, t: Translator): string[] {
-  return item.triggers.flatMap((trigger) => {
+export interface ReadTriggers {
+  /** What each follow-up the web app knows says, in words. */
+  readonly texts: readonly string[];
+  /**
+   * Follow-ups it does not know, by the API's own code: shown as a warning with the code, so a
+   * result that raised something is never shown as if it raised nothing (HZ-014).
+   */
+  readonly unknown: readonly string[];
+}
+
+export function readTriggers(item: Pick<AssessmentItem, "triggers">, t: Translator): ReadTriggers {
+  const texts: string[] = [];
+  const unknown: string[] = [];
+  for (const trigger of item.triggers) {
     const text = triggerText(trigger, t);
-    return text ? [text] : [];
-  });
+    if (text) {
+      texts.push(text);
+      continue;
+    }
+    // The API's own code, so the nurse in charge can look it up: "task" with its task name.
+    const code = typeof trigger.kind === "string" ? trigger.kind : "unknown";
+    unknown.push(typeof trigger.task === "string" ? `${code} (${trigger.task})` : code);
+  }
+  return { texts, unknown };
+}
+
+export function triggerTexts(item: Pick<AssessmentItem, "triggers">, t: Translator): string[] {
+  return [...readTriggers(item, t).texts];
 }
 
 /** NG249 falls: the recommendation and NICE's reason, as the API stored them. */

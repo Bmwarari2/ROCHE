@@ -1,16 +1,19 @@
 import type { ObservationItem } from "@harbour/contracts";
 import { StatusChip } from "@harbour/ui";
-import { Activity, History } from "lucide-react";
+import { Activity, History, TriangleAlert } from "lucide-react";
 import { entryAuthor } from "@/lib/care-record";
 import { iddsiOutcome, news2Chip, news2FromFlags, observationSummary } from "@/lib/charts";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { EntryBadges } from "./EntryBadges";
+import { Workings } from "./Workings";
 
 /**
  * Chart entries, newest first, as the API stored them: what was recorded in words, the NEWS2
- * result for vital signs, the IDDSI comparison for food and drink, late and corrected flags.
- * A corrected entry is struck through and stays readable.
+ * result for vital signs (score, the RCP's response and monitoring wording, and the workings one
+ * tap away), the IDDSI comparison for food and drink, late and corrected flags. A corrected entry
+ * is struck through and stays readable. A vital signs entry whose NEWS2 result cannot be read says
+ * so, rather than showing nothing (HZ-014).
  */
 export function ObservationList({
   items,
@@ -56,18 +59,44 @@ export function ObservationList({
               <p className="m-0">{summary}</p>
             )}
             {news2 && !item.superseded ? (
-              <p className="m-0 flex flex-wrap items-center gap-2">
-                <StatusChip
-                  status={news2Chip(news2.band)}
-                  label={t("care.news2.clinicalRisk", { risk: news2.clinicalRisk })}
-                  icon={Activity}
-                />
-                <span className="font-semibold">
+              <div className="flex flex-col gap-1" data-news2-score={news2.score}>
+                <p className="m-0 flex flex-wrap items-center gap-2">
+                  <span className="font-semibold">
+                    {t("care.news2.score", { score: news2.score })}
+                  </span>
+                  <StatusChip
+                    status={news2Chip(news2.band)}
+                    label={t("care.news2.clinicalRisk", { risk: news2.clinicalRisk })}
+                    icon={Activity}
+                  />
+                </p>
+                <p className="m-0 font-semibold">
                   {t("care.news2.response", { response: news2.response })}
-                </span>
+                </p>
                 {news2.monitoring ? (
-                  <span>{t("care.news2.monitoring", { frequency: news2.monitoring })}</span>
+                  <p className="m-0">
+                    {t("care.news2.monitoring", { frequency: news2.monitoring })}
+                  </p>
                 ) : null}
+                {news2.workings.rows.length > 0 || news2.workings.unreadable > 0 ? (
+                  <details>
+                    <summary className="inline-flex min-h-target cursor-pointer items-center text-link">
+                      {t("care.news2.showWorkings")}
+                    </summary>
+                    <Workings workings={news2.workings} />
+                  </details>
+                ) : null}
+              </div>
+            ) : null}
+            {item.chart === "vitals" && !news2 && !item.superseded ? (
+              <p className="m-0 flex items-start gap-2 font-semibold">
+                <TriangleAlert
+                  size={18}
+                  strokeWidth={1.5}
+                  aria-hidden="true"
+                  className="mt-0.5 shrink-0"
+                />
+                {t("care.news2.unreadable")}
               </p>
             ) : null}
             {iddsi === "mismatch" || iddsi === "unsafe_mismatch" ? (

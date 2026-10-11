@@ -1,5 +1,10 @@
 import { AssessmentToolKey, CarePlanStatus, PcspDomain } from "@harbour/contracts";
-import { VALIDATED_TOOLS } from "@harbour/domain";
+import {
+  type BradenBand,
+  type MustBand,
+  VALIDATED_TOOLS,
+  type WaterlowBand,
+} from "@harbour/domain";
 import { createTranslator } from "@harbour/i18n";
 import { describe, expect, it } from "vitest";
 import {
@@ -10,6 +15,7 @@ import {
   isToolKey,
   latestByTool,
   readNumber,
+  readTriggers,
   readWholeNumber,
   readYesNo,
   TOOL_KEYS,
@@ -84,6 +90,27 @@ describe("validated tools", () => {
     ).toEqual(["Alert to the nurse in charge: R"]);
   });
 
+  it("hazard HZ-014 never shows a result that raised something unknown as if it raised nothing", () => {
+    expect(
+      readTriggers(
+        {
+          triggers: [
+            { kind: "urgent_alert", reason: "R" },
+            { kind: "referral", task: "tissue_viability" },
+            { kind: "task" },
+          ],
+        },
+        t,
+      ),
+    ).toEqual({
+      texts: ["Alert to the nurse in charge: R"],
+      unknown: ["referral (tissue_viability)", "task"],
+    });
+    expect(t("care.assessments.triggers.unknown", { count: 2, codes: "referral, task" })).toMatch(
+      /^2 follow-ups could not be shown \(referral, task\)/,
+    );
+  });
+
   it("reads the NG249 recommendation and NICE's reason as stored", () => {
     expect(
       fallsDetails({ details: { recommendation: "1.1.7", reason: "In NICE's words" } }),
@@ -118,6 +145,47 @@ describe("validated tools", () => {
     expect(readYesNo("yes")).toBe(true);
     expect(readYesNo("no")).toBe(false);
     expect(readYesNo("maybe")).toBeNull();
+  });
+});
+
+describe("band wording against the domain's bands (care.md rule 5)", () => {
+  // Every band the domain can give, written out so that a new band fails to compile here.
+  const mustBands: Record<MustBand, string> = {
+    low: "Low risk",
+    medium: "Medium risk",
+    high: "High risk",
+  };
+  const waterlowBands: Record<WaterlowBand, string> = {
+    not_at_risk: "Not at risk",
+    at_risk: "At risk",
+    high_risk: "High risk",
+    very_high_risk: "Very high risk",
+  };
+
+  it("hazard HZ-012 words every MUST and Waterlow band in the catalogue, never by its code", () => {
+    for (const [band, words] of Object.entries(mustBands)) {
+      expect(bandLabel({ toolKey: "must", band, details: {} }, t)).toBe(words);
+    }
+    for (const [band, words] of Object.entries(waterlowBands)) {
+      expect(bandLabel({ toolKey: "waterlow", band, details: {} }, t)).toBe(words);
+    }
+  });
+
+  it("shows each band with the strength of chip its risk calls for", () => {
+    const bradenBands: Record<BradenBand, true> = {
+      severe_risk: true,
+      high_risk: true,
+      moderate_risk: true,
+      at_risk: true,
+      below_at_risk_threshold: true,
+    };
+    for (const band of [
+      ...Object.keys(mustBands),
+      ...Object.keys(waterlowBands),
+      ...Object.keys(bradenBands),
+    ]) {
+      expect(bandChip({ band }), band).not.toBe("neutral");
+    }
   });
 });
 

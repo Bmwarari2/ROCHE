@@ -9,9 +9,11 @@ import {
   NotebookPen,
   PencilLine,
   PersonStanding,
+  TriangleAlert,
 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { EntryBadges } from "@/components/care/EntryBadges";
 import { RecordFrame } from "@/components/care/RecordFrame";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { bandChip, bandLabel } from "@/lib/assessments";
@@ -34,6 +36,9 @@ export async function generateMetadata(): Promise<Metadata> {
 
 const planIcons = { "circle-check": CircleCheck, "pencil-line": PencilLine, history: History };
 
+/** The overview's window for vital signs and notes, as the API reads by default. */
+const VITALS_DAYS = 3;
+
 /**
  * The overview tab: what is in use and what was recorded lately, each a link into its section.
  * Every figure is the API's; nothing is calculated here.
@@ -48,7 +53,7 @@ async function PersonOverviewTab({ params }: { readonly params: Params }) {
   const api = await tenantApi();
   const path = tabHref(id, "overview");
   const today = ukToday();
-  const from = windowStart(3);
+  const from = windowStart(VITALS_DAYS);
 
   const [plans, assessments, vitals, fluid, marks, notes] = await Promise.all([
     readPlan
@@ -155,30 +160,44 @@ async function PersonOverviewTab({ params }: { readonly params: Params }) {
                   label={t("care.news2.clinicalRisk", { risk: news2.clinicalRisk })}
                   icon={Activity}
                 />
+              ) : latestVitals ? (
+                // Readings exist but their NEWS2 result cannot be read: never shown as calm.
+                <StatusChip
+                  status="overdue"
+                  label={t("care.overview.vitals.unreadableChip")}
+                  icon={TriangleAlert}
+                />
               ) : undefined
             }
             description={
-              latestVitals && news2 ? (
-                <>
-                  <span className="block font-semibold">
-                    {t("care.news2.response", { response: news2.response })}
-                  </span>
-                  <span className="block">
-                    {t("care.overview.vitals.when", {
-                      dateTime: formatDateTime(latestVitals.occurredAt) ?? "",
-                    })}
-                  </span>
-                </>
-              ) : (
-                t("care.overview.vitals.none")
-              )
+              latestVitals ? undefined : t("care.overview.vitals.none", { days: VITALS_DAYS })
             }
             link={{
               href: `${tabHref(id, "charts")}?record=vitals`,
               label: t("care.overview.vitals.link"),
             }}
             linkComponent={Link}
-          />
+          >
+            {latestVitals ? (
+              <div className="flex flex-col gap-1">
+                {news2 ? (
+                  <p className="m-0 font-semibold">
+                    {t("care.news2.response", { response: news2.response })}
+                  </p>
+                ) : (
+                  <p className="m-0 font-semibold">{t("care.overview.vitals.unreadable")}</p>
+                )}
+                <p className="m-0">
+                  {t("care.overview.vitals.when", {
+                    dateTime: formatDateTime(latestVitals.occurredAt) ?? "",
+                  })}
+                </p>
+                <p className="m-0 flex flex-wrap items-center gap-2">
+                  <EntryBadges entry={latestVitals} />
+                </p>
+              </div>
+            ) : null}
+          </Tile>
         ) : null}
         {fluid && fluidView ? (
           <Tile
@@ -250,10 +269,15 @@ async function PersonOverviewTab({ params }: { readonly params: Params }) {
             {recentNotes.length > 0 ? (
               <ul className="m-0 flex list-none flex-col gap-2 p-0">
                 {recentNotes.map(({ current }) => (
-                  <li key={current.id}>
-                    <span className="block text-callout text-text-secondary">
-                      {formatDateTime(current.occurredAt)}{" "}
-                      {t("care.notes.category", { category: current.category })}
+                  <li key={current.id} className="flex flex-col gap-1">
+                    <span className="flex flex-wrap items-center gap-2 text-body-dense text-text-secondary">
+                      <span>
+                        {t("care.overview.notes.when", {
+                          dateTime: formatDateTime(current.occurredAt) ?? "",
+                          category: t("care.notes.category", { category: current.category }),
+                        })}
+                      </span>
+                      <EntryBadges entry={current} />
                     </span>
                     <span className="line-clamp-2 block">{current.body}</span>
                   </li>

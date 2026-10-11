@@ -41,16 +41,25 @@ describe("NEWS2 from the API (never scored in the web app)", () => {
       monitoring: "Minimum 1 hourly",
       spo2Scale: 1,
     });
-    expect(news2?.workings).toEqual([
-      { item: "Respiration rate", value: "22 per minute", points: 2 },
-    ]);
+    expect(news2?.workings).toEqual({
+      rows: [{ item: "Respiration rate", value: "22 per minute", points: 2 }],
+      unreadable: 1,
+    });
+  });
+
+  it("hazard HZ-014 counts workings it cannot read, and never assumes SpO2 scale 1", () => {
+    expect(readWorkings("x")).toEqual({ rows: [], unreadable: 1 });
+    expect(readWorkings(undefined)).toEqual({ rows: [], unreadable: 0 });
+    const noScale = news2FromFlags({ news2: { ...storedNews2.news2, spo2Scale: undefined } });
+    expect(noScale?.spo2Scale).toBeNull();
+    const scale2 = news2FromFlags({ news2: { ...storedNews2.news2, spo2Scale: 2 } });
+    expect(scale2?.spo2Scale).toBe(2);
   });
 
   it("gives nothing rather than a guess when no result was stored", () => {
     expect(news2FromFlags({})).toBeNull();
     expect(news2FromFlags({ news2: { score: "6" } })).toBeNull();
     expect(news2FromFlags({ news2: [] })).toBeNull();
-    expect(readWorkings("x")).toEqual([]);
   });
 
   it("shows medium and high results as the strongest chip, and a single 3 as a warning", () => {

@@ -1,221 +1,65 @@
 "use client";
 
-import type { ObservationValues, PersonCareProfile } from "@harbour/contracts";
+import type { PersonCareProfile } from "@harbour/contracts";
 import { Button, Checkbox, RadioGroup, SelectField, TextField } from "@harbour/ui";
+import { Lock, TriangleAlert } from "lucide-react";
 import { type FormEvent, useRef, useState, useTransition } from "react";
 import { recordObservation } from "@/app/actions/care-record";
-import { readNumber, readWholeNumber } from "@/lib/assessments";
 import { IDDSI_DRINK_LEVELS, IDDSI_FOOD_LEVELS, iddsiLabel } from "@/lib/care-record";
+import {
+  AMOUNTS,
+  BRISTOL,
+  CHART_FIELDS,
+  type ChartField,
+  CONSCIOUSNESS,
+  MEALS,
+  OUTPUT_KINDS,
+  PORTIONS,
+  POSITIONS,
+  readChartValues,
+  WEIGHT_METHODS,
+} from "@/lib/chart-entry";
 import { type ChartKind, type News2Flags, news2FromFlags } from "@/lib/charts";
 import { t } from "@/lib/i18n";
-import {
-  type ActionResult,
-  errorFor,
-  type FieldErrors,
-  fieldErrors,
-  partsFor,
-  partsRefusal,
-} from "@/lib/outcome";
+import { type ActionResult, errorFor, partsFor, partsRefusal } from "@/lib/outcome";
+import type { CareProfileLoad } from "@/lib/record-data";
 import { readWhen } from "@/lib/uk-time";
 import { FormFeedback } from "./FormFeedback";
 import { useEntryId, useFieldIds } from "./form-state";
 import { News2Result } from "./News2Result";
+import { Notice } from "./Notice";
 import { WhenField } from "./WhenField";
 
 type Profile = Pick<PersonCareProfile, "iddsiFoodLevel" | "iddsiDrinkLevel" | "spo2Scale2">;
-
-const OUTPUT_KINDS = ["urine", "vomit", "drain", "other"] as const;
-const MEALS = ["breakfast", "lunch", "dinner", "supper", "snack"] as const;
-const PORTIONS = ["none", "quarter", "half", "three_quarters", "all"] as const;
-const POSITIONS = ["left", "right", "back", "front", "sitting"] as const;
-const BRISTOL = [1, 2, 3, 4, 5, 6, 7] as const;
-const AMOUNTS = ["small", "medium", "large"] as const;
-const WEIGHT_METHODS = ["standing", "chair", "hoist", "bed"] as const;
-const CONSCIOUSNESS = ["alert", "new_confusion", "voice", "pain", "unresponsive"] as const;
-
-const FIELDS = [
-  "ml",
-  "drink",
-  "iddsiLevel",
-  "overrideReason",
-  "kind",
-  "meal",
-  "portion",
-  "description",
-  "position",
-  "bristolType",
-  "amount",
-  "kg",
-  "method",
-  "respirationRate",
-  "spo2",
-  "systolic",
-  "pulse",
-  "temperature",
-  "oxygen",
-  "consciousness",
-  "occurredAt",
-] as const;
-type Field = (typeof FIELDS)[number];
+type Field = ChartField;
 type Ids = Readonly<Record<Field, string>>;
-
-const text = (form: FormData, name: string) => String(form.get(name) ?? "").trim();
-const optional = (value: string) => (value ? value : undefined);
-
-/** The amount in whole millilitres, 0 to 5,000, as the API accepts. */
-function readMl(form: FormData): number | null {
-  const ml = readWholeNumber(form.get("ml"));
-  return ml !== null && ml >= 0 && ml <= 5000 ? ml : null;
-}
-
-/** Each missing or unreadable field with the words to show at it, or null when none is. */
-function problems(checks: readonly (readonly [Field, boolean, string])[]): FieldErrors | null {
-  const errors: Record<string, string> = {};
-  for (const [field, bad, message] of checks) if (bad) errors[field] = message;
-  return Object.keys(errors).length > 0 ? errors : null;
-}
-
-/**
- * Builds the chart entry from the form, or says what to fix at each field. Limits here are only
- * the shape the API accepts; it checks IDDSI levels (HZ-016) and scores vital signs with NEWS2
- * itself.
- */
-function readValues(chart: ChartKind, form: FormData): ObservationValues | ActionResult<never> {
-  switch (chart) {
-    case "fluid_intake": {
-      const ml = readMl(form);
-      if (ml === null) return fieldErrors({ ml: t("care.charts.amountRequired") });
-      const level = text(form, "iddsiLevel");
-      return {
-        chart,
-        ml,
-        refused: form.get("refused") === "on",
-        ...(optional(text(form, "drink")) ? { drink: text(form, "drink") } : {}),
-        ...(level ? { iddsiLevel: level as (typeof IDDSI_DRINK_LEVELS)[number] } : {}),
-        ...(optional(text(form, "overrideReason"))
-          ? { overrideReason: text(form, "overrideReason") }
-          : {}),
-      };
-    }
-    case "fluid_output": {
-      const ml = readMl(form);
-      if (ml === null) return fieldErrors({ ml: t("care.charts.amountRequired") });
-      return { chart, ml, kind: text(form, "kind") as (typeof OUTPUT_KINDS)[number] };
-    }
-    case "food": {
-      const meal = text(form, "meal");
-      const portion = text(form, "portion");
-      const level = text(form, "iddsiLevel");
-      const missing = problems([
-        ["meal", !meal, t("care.charts.mealRequired")],
-        ["portion", !portion, t("care.charts.portionRequired")],
-        ["iddsiLevel", !level, t("care.charts.levelRequired")],
-      ]);
-      if (missing) return fieldErrors(missing);
-      return {
-        chart,
-        meal: meal as (typeof MEALS)[number],
-        portion: portion as (typeof PORTIONS)[number],
-        iddsiLevel: level as (typeof IDDSI_FOOD_LEVELS)[number],
-        refused: form.get("refused") === "on",
-        ...(optional(text(form, "description")) ? { description: text(form, "description") } : {}),
-        ...(optional(text(form, "overrideReason"))
-          ? { overrideReason: text(form, "overrideReason") }
-          : {}),
-      };
-    }
-    case "repositioning": {
-      const position = text(form, "position");
-      if (!position) return fieldErrors({ position: t("care.charts.positionRequired") });
-      return {
-        chart,
-        position: position as (typeof POSITIONS)[number],
-        skinChecked: form.get("skinChecked") === "on",
-        declined: form.get("declined") === "on",
-      };
-    }
-    case "bowel": {
-      const noMovement = form.get("noMovement") === "on";
-      const type = readWholeNumber(form.get("bristolType"));
-      if (!noMovement && type === null) {
-        return fieldErrors({ bristolType: t("care.charts.bristolRequired") });
-      }
-      const amount = text(form, "amount");
-      return {
-        chart,
-        bristolType: noMovement ? null : type,
-        noMovement,
-        ...(amount && !noMovement ? { amount: amount as (typeof AMOUNTS)[number] } : {}),
-      };
-    }
-    case "weight": {
-      const kg = readNumber(form.get("kg"));
-      if (kg === null || kg < 20 || kg > 300) {
-        return fieldErrors({ kg: t("care.charts.weightRequired") });
-      }
-      return { chart, kg, method: text(form, "method") as (typeof WEIGHT_METHODS)[number] };
-    }
-    case "vitals": {
-      const respirationRate = readWholeNumber(form.get("respirationRate"));
-      const spo2 = readWholeNumber(form.get("spo2"));
-      const systolic = readWholeNumber(form.get("systolic"));
-      const pulse = readWholeNumber(form.get("pulse"));
-      const temperature = readNumber(form.get("temperature"));
-      const oxygen = text(form, "oxygen");
-      const consciousness = text(form, "consciousness");
-      const reading = (name: Field) => t("care.charts.vitals.missing", { reading: name });
-      const missing = problems([
-        ["respirationRate", respirationRate === null, reading("respirationRate")],
-        ["spo2", spo2 === null, reading("spo2")],
-        ["systolic", systolic === null, reading("systolic")],
-        ["pulse", pulse === null, reading("pulse")],
-        ["temperature", temperature === null, reading("temperature")],
-        ["oxygen", !oxygen, reading("oxygen")],
-        ["consciousness", !consciousness, reading("consciousness")],
-      ]);
-      if (
-        missing ||
-        respirationRate === null ||
-        spo2 === null ||
-        systolic === null ||
-        pulse === null ||
-        temperature === null
-      ) {
-        return fieldErrors(missing ?? {});
-      }
-      return {
-        chart,
-        respirationRate,
-        spo2,
-        onOxygen: oxygen === "oxygen",
-        systolic,
-        pulse,
-        consciousness: consciousness as (typeof CONSCIOUSNESS)[number],
-        temperature,
-      };
-    }
-  }
-}
+const FIELDS = CHART_FIELDS;
 
 function isRefusal(value: unknown): value is ActionResult<never> {
   return typeof value === "object" && value !== null && "ok" in value;
 }
 
-/** A level select that shows the prescribed level beside it and asks for a reason on a mismatch. */
+/**
+ * The texture given (HZ-016). Nothing is chosen for anyone: the record must say what was given,
+ * not repeat the prescription. The prescribed level shows beside the choice (or that it is not
+ * available to the person viewing), and a different level asks for the reason.
+ */
 function IddsiChoice({
   kind,
   prescribed,
   required,
+  profileKind,
   ids,
   result,
 }: {
   readonly kind: "food" | "drink";
   readonly prescribed: string | null;
   readonly required: boolean;
+  readonly profileKind: CareProfileLoad["kind"];
   readonly ids: Ids;
   readonly result: ActionResult<unknown> | null;
 }) {
-  const [chosen, setChosen] = useState(prescribed ?? "");
+  const [chosen, setChosen] = useState("");
   const levels = kind === "food" ? IDDSI_FOOD_LEVELS : IDDSI_DRINK_LEVELS;
   const mismatch = prescribed !== null && chosen !== "" && chosen !== prescribed;
   return (
@@ -226,9 +70,11 @@ function IddsiChoice({
         name="iddsiLevel"
         label={kind === "food" ? t("care.charts.foodLevel") : t("care.charts.drinkLevel")}
         hint={
-          prescribed
-            ? t("care.charts.prescribed", { level: iddsiLabel(kind, prescribed, t) })
-            : t("care.iddsi.notPrescribed")
+          profileKind !== "ok"
+            ? t("care.charts.prescribedUnavailable", { reason: profileKind })
+            : prescribed
+              ? t("care.charts.prescribed", { level: iddsiLabel(kind, prescribed, t) })
+              : t("care.iddsi.notPrescribed")
         }
         value={chosen}
         onChange={(event) => setChosen(event.currentTarget.value)}
@@ -257,11 +103,14 @@ export function ChartEntryForm({
   personId,
   chart,
   profile,
+  profileKind,
   name,
 }: {
   readonly personId: string;
   readonly chart: ChartKind;
   readonly profile: Profile | null;
+  /** Whether the person viewing could read the care profile (levels and SpO2 scale). */
+  readonly profileKind: CareProfileLoad["kind"];
   /** The person's preferred name. */
   readonly name: string;
 }) {
@@ -280,7 +129,10 @@ export function ChartEntryForm({
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const values = readValues(chart, form);
+    const values = readChartValues(chart, form, t, {
+      food: profile?.iddsiFoodLevel ?? null,
+      drink: profile?.iddsiDrinkLevel ?? null,
+    });
     if (isRefusal(values)) {
       setResult(values);
       return;
@@ -307,6 +159,26 @@ export function ChartEntryForm({
     });
   };
 
+  // NEWS2 scores SpO2 on the person's scale. Without the care profile the person viewing cannot
+  // see which scale applies, so vital signs are not offered rather than guessed (HZ-012, HZ-014).
+  if (chart === "vitals" && profileKind !== "ok") {
+    return (
+      <Notice
+        tone="warning"
+        icon={
+          profileKind === "no_access" ? (
+            <Lock size={20} strokeWidth={1.5} />
+          ) : (
+            <TriangleAlert size={20} strokeWidth={1.5} />
+          )
+        }
+        title={t("care.charts.vitals.withheld.title")}
+      >
+        {t("care.charts.vitals.withheld.body", { reason: profileKind })}
+      </Notice>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <form key={`${chart}-${round}`} className="flex flex-col gap-4" onSubmit={submit} noValidate>
@@ -332,7 +204,8 @@ export function ChartEntryForm({
             <IddsiChoice
               kind="drink"
               prescribed={profile?.iddsiDrinkLevel ?? null}
-              required={false}
+              required={Boolean(profile?.iddsiDrinkLevel)}
+              profileKind={profileKind}
               ids={ids}
               result={result}
             />
@@ -397,6 +270,7 @@ export function ChartEntryForm({
               kind="food"
               prescribed={profile?.iddsiFoodLevel ?? null}
               required
+              profileKind={profileKind}
               ids={ids}
               result={result}
             />
@@ -481,7 +355,7 @@ export function ChartEntryForm({
         ) : null}
         {chart === "vitals" ? (
           <>
-            <p className="m-0 text-callout text-text-secondary">
+            <p className="m-0 text-body-dense text-text-secondary">
               {t("care.charts.vitals.scale", { scale: profile?.spo2Scale2 ? 2 : 1, name })}
             </p>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -525,7 +399,6 @@ export function ChartEntryForm({
               legend={t("care.charts.vitals.oxygen")}
               name="oxygen"
               layout="inline"
-              defaultValue="air"
               options={[
                 { value: "air", label: t("care.charts.vitals.air") },
                 { value: "oxygen", label: t("care.charts.vitals.onOxygen") },
@@ -536,7 +409,6 @@ export function ChartEntryForm({
               legend={t("care.charts.vitals.consciousness")}
               name="consciousness"
               layout="inline"
-              defaultValue="alert"
               options={CONSCIOUSNESS.map((level) => ({
                 value: level,
                 label: t("care.charts.vitals.consciousnessOption", { level }),

@@ -1,13 +1,65 @@
-import { CreateAssessment } from "@harbour/contracts";
+import { BradenAnswers, CreateAssessment, MustAnswers, WaterlowAnswers } from "@harbour/contracts";
 import { describe, expect, it } from "vitest";
 import {
+  BRADEN_SUBSCALES,
   type FormLike,
+  MUST_BMI_CATEGORIES,
+  MUST_BMI_JUDGEMENT,
+  MUST_HEIGHT_METHODS,
+  MUST_LOSS_CATEGORIES,
+  MUST_LOSS_JUDGEMENT,
+  MUST_WEIGHT_METHODS,
   messageKey,
   readBraden,
   readFalls,
   readMust,
   readWaterlow,
+  WATERLOW,
 } from "./assessment-answers";
+
+/** The choices a contract enum allows, sorted, to compare with the form's. */
+const sorted = (values: readonly string[]) => [...values].sort();
+
+describe("answer options match the API's contract (care.md rule 5)", () => {
+  it("offers exactly the MUST choices the contract accepts", () => {
+    const [calculated, judged] = MustAnswers.shape.bmi.options;
+    expect(sorted(MUST_WEIGHT_METHODS)).toEqual(sorted(calculated.shape.weightMethod.options));
+    expect(sorted(MUST_HEIGHT_METHODS)).toEqual(sorted(calculated.shape.heightMethod.options));
+    expect(sorted(MUST_BMI_CATEGORIES)).toEqual(sorted(judged.shape.category.options));
+    expect(sorted(MUST_BMI_JUDGEMENT)).toEqual(sorted(judged.shape.method.options));
+    const [, lossJudged] = MustAnswers.shape.weightLoss.options;
+    expect(sorted(MUST_LOSS_CATEGORIES)).toEqual(sorted(lossJudged.shape.category.options));
+    expect(sorted(MUST_LOSS_JUDGEMENT)).toEqual(sorted(lossJudged.shape.method.options));
+  });
+
+  it("offers exactly the Waterlow choices the contract accepts", () => {
+    const shape = WaterlowAnswers.shape;
+    const [, buildJudged] = shape.build.options;
+    expect(sorted(WATERLOW.build)).toEqual(sorted(buildJudged.shape.category.options));
+    expect(sorted(WATERLOW.skin)).toEqual(sorted(shape.skin.element.options));
+    expect(sorted(WATERLOW.sex)).toEqual(sorted(shape.sex.options));
+    expect(sorted(WATERLOW.recentWeightLoss)).toEqual(
+      sorted(shape.malnutrition.shape.recentWeightLoss.options),
+    );
+    expect(sorted(WATERLOW.weightLossAmount)).toEqual(
+      sorted(shape.malnutrition.shape.weightLossAmount.unwrap().unwrap().options),
+    );
+    expect(sorted(WATERLOW.continence)).toEqual(sorted(shape.continence.options));
+    expect(sorted(WATERLOW.mobility)).toEqual(sorted(shape.mobility.options));
+    expect(sorted(WATERLOW.tissue)).toEqual(sorted(shape.tissueMalnutrition.element.options));
+    expect(sorted(WATERLOW.neuro)).toEqual(
+      sorted(shape.neurologicalDeficit.element.shape.condition.options),
+    );
+    expect(sorted(WATERLOW.timeOnTable)).toEqual(
+      sorted(shape.majorSurgeryOrTrauma.shape.timeOnTable.options),
+    );
+    expect(sorted(WATERLOW.medication)).toEqual(sorted(shape.medication.element.options));
+  });
+
+  it("asks every Braden subscale the contract has", () => {
+    expect(sorted(BRADEN_SUBSCALES)).toEqual(sorted(Object.keys(BradenAnswers.shape)));
+  });
+});
 
 /** A form as the readers see it, from a plain map (lists for ticked boxes). */
 function form(entries: Record<string, string | string[]>): FormLike {
