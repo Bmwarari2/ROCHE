@@ -36,4 +36,8 @@ export const errorResponses = {
 
 export const notFoundResponse = { 404: problem("Not found or outside your access") } as const;
 
+export const conflictResponse = {
+  409: problem("Changed by someone else since you loaded it; reload and try again"),
+} as const;
+
 export const security: Record<string, string[]>[] = [{ bearerAuth: [] }, { cookieAuth: [] }];

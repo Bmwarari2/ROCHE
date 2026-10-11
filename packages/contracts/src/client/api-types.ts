@@ -1001,6 +1001,455 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/tasks": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Tasks in your scope: by default open tasks due from yesterday to tomorrow */
+    get: {
+      parameters: {
+        query?: {
+          view?: "all" | "mine";
+          personId?: string;
+          locationId?: string;
+          status?: "open" | "closed" | "any";
+          from?: string;
+          to?: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Tasks */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["TaskList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /** Create a one-off task */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateTask"];
+        };
+      };
+      responses: {
+        /** @description Task created */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["TaskItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/tasks/{id}/transition": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Start, complete, skip or cancel a task */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["TaskTransitionRequest"];
+        };
+      };
+      responses: {
+        /** @description Task updated */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["TaskItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/tasks/{id}/assign": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Assign or unassign a task */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["TaskAssignRequest"];
+        };
+      };
+      responses: {
+        /** @description Task assigned */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["TaskItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/task-series": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Schedule a recurring task (UK local times) */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateTaskSeries"];
+        };
+      };
+      responses: {
+        /** @description Series created */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["TaskSeriesItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/task-series/{id}/end": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** End a recurring task; open future tasks are cancelled with the reason */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["EndTaskSeries"];
+        };
+      };
+      responses: {
+        /** @description Series ended */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["TaskSeriesItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/rates/{key}": {
     parameters: {
       query?: never;
@@ -2154,6 +2603,149 @@ export interface components {
       kind: string;
       locked: boolean;
       global: boolean;
+    };
+    TaskList: {
+      items: components["schemas"]["TaskItem"][];
+    };
+    TaskItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      seriesId: string | null;
+      kind: string;
+      title: string;
+      /** Format: uuid */
+      personId: string | null;
+      /** Format: uuid */
+      locationId: string | null;
+      /** Format: uuid */
+      assigneeTenantUserId: string | null;
+      /** Format: date-time */
+      dueAt: string;
+      /** Format: date-time */
+      windowStart: string | null;
+      /** Format: date-time */
+      windowEnd: string | null;
+      priority: components["schemas"]["TaskPriority"];
+      status: components["schemas"]["TaskStatus"];
+      statusReason: string | null;
+      timeState: components["schemas"]["TaskTimeState"];
+      evidenceRequired: boolean;
+      evidenceType: string | null;
+      /** Format: uuid */
+      evidenceId: string | null;
+      /** Format: date-time */
+      completedAt: string | null;
+      escalated: boolean;
+      version: number;
+    };
+    /** @enum {string} */
+    TaskPriority: "routine" | "urgent";
+    /** @enum {string} */
+    TaskStatus: "open" | "in_progress" | "done" | "skipped" | "cancelled";
+    /**
+     * @description Where the task stands now, from its window and status
+     * @enum {string}
+     */
+    TaskTimeState: "closed" | "upcoming" | "due" | "overdue" | "escalated";
+    CreateTask: {
+      title: string;
+      /** Format: uuid */
+      personId?: string;
+      /** Format: uuid */
+      locationId?: string;
+      /** Format: uuid */
+      assigneeTenantUserId?: string;
+      /** Format: date-time */
+      dueAt: string;
+      /** Format: date-time */
+      windowStart?: string;
+      /** Format: date-time */
+      windowEnd?: string;
+      priority?: components["schemas"]["TaskPriority"];
+    };
+    TaskTransitionRequest: {
+      to: components["schemas"]["TaskStatus"];
+      reason?: string;
+      evidenceType?: string;
+      /** Format: uuid */
+      evidenceId?: string;
+      version: number;
+    };
+    TaskAssignRequest: {
+      /** Format: uuid */
+      assigneeTenantUserId: string | null;
+      version: number;
+    };
+    TaskSeriesItem: {
+      /** Format: uuid */
+      id: string;
+      kind: string;
+      title: string;
+      /** Format: uuid */
+      personId: string | null;
+      /** Format: uuid */
+      locationId: string | null;
+      recurrence: components["schemas"]["Recurrence"];
+      /** Format: date */
+      startsOn: string;
+      /** Format: date */
+      endsOn: string | null;
+      active: boolean;
+      version: number;
+    };
+    /** @description UK local times; every_hours counts elapsed hours */
+    Recurrence:
+      | {
+          /** @enum {string} */
+          freq: "daily";
+          interval?: number;
+          times: string[];
+        }
+      | {
+          /** @enum {string} */
+          freq: "weekly";
+          interval?: number;
+          weekdays: ("mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun")[];
+          times: string[];
+        }
+      | {
+          /** @enum {string} */
+          freq: "monthly";
+          interval?: number;
+          dayOfMonth: number;
+          times: string[];
+        }
+      | {
+          /** @enum {string} */
+          freq: "every_hours";
+          hours: number;
+          anchorTime: string;
+        };
+    CreateTaskSeries: {
+      title: string;
+      /** Format: uuid */
+      personId?: string;
+      /** Format: uuid */
+      locationId?: string;
+      /** Format: uuid */
+      assigneeTenantUserId?: string;
+      recurrence: components["schemas"]["Recurrence"];
+      /** Format: date */
+      startsOn: string;
+      /** Format: date */
+      endsOn?: string;
+      /** @default 0 */
+      windowBeforeMinutes: number;
+      /** @default 0 */
+      windowAfterMinutes: number;
+      priority?: components["schemas"]["TaskPriority"];
+      /** @default false */
+      evidenceRequired: boolean;
+    };
+    EndTaskSeries: {
+      reason: string;
+      version: number;
     };
     RateValue: {
       key: string;

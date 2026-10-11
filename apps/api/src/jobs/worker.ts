@@ -5,6 +5,8 @@ import { createAdapterResolver } from "../integrations/registry";
 import { createLogger } from "../logger";
 import {
   endExpiredAssignments,
+  escalateTasks,
+  materialiseTaskSeries,
   type OutboxHandler,
   processDeliveries,
   relayOutbox,
@@ -33,6 +35,8 @@ const QUEUES = {
   escalations: "notification-escalations",
   assignments: "end-expired-assignments",
   deliveries: "notification-deliveries",
+  taskSeries: "task-series-materialise",
+  taskEscalations: "task-escalations",
 } as const;
 
 for (const name of Object.values(QUEUES)) await boss.createQueue(name);
@@ -53,11 +57,20 @@ await boss.work(QUEUES.deliveries, async () => {
   await processDeliveries({ ...deps, adapterFor });
 });
 
+await boss.work(QUEUES.taskSeries, async () => {
+  await materialiseTaskSeries(deps);
+});
+await boss.work(QUEUES.taskEscalations, async () => {
+  await escalateTasks(deps);
+});
+
 // Every minute: escalations are measured in minutes (section 9.1, e.g. on-call after 10 minutes).
 await boss.schedule(QUEUES.outbox, "* * * * *");
 await boss.schedule(QUEUES.escalations, "* * * * *");
 await boss.schedule(QUEUES.assignments, "*/5 * * * *");
 await boss.schedule(QUEUES.deliveries, "* * * * *");
+await boss.schedule(QUEUES.taskSeries, "*/15 * * * *");
+await boss.schedule(QUEUES.taskEscalations, "* * * * *");
 
 logger.info("Harbour worker started");
 
