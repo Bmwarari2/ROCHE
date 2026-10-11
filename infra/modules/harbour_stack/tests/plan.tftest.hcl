@@ -84,12 +84,31 @@ run "flagsmith_and_route53" {
   }
 }
 
+run "prod_needs_waf_pins" {
+  command = plan
+
+  variables {
+    environment        = "prod"
+    nat_gateway_per_az = true
+  }
+
+  expect_failures = [terraform_data.waf_version_pins]
+}
+
 run "prod_like" {
   command = plan
 
   variables {
     environment        = "prod"
     nat_gateway_per_az = true
+
+    # Test values only: the real pins are read from the prod account (human action H-140).
+    waf_managed_rule_group_versions = {
+      AWSManagedRulesAmazonIpReputationList = "Version_1.0"
+      AWSManagedRulesCommonRuleSet          = "Version_1.0"
+      AWSManagedRulesKnownBadInputsRuleSet  = "Version_1.0"
+      AWSManagedRulesSQLiRuleSet            = "Version_1.0"
+    }
   }
 
   assert {

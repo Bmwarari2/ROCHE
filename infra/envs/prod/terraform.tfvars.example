@@ -11,3 +11,12 @@ alert_email_addresses  = ["platform-alerts@example.invalid"]
 budget_email_addresses = ["finance-alerts@example.invalid"]
 
 enable_flagsmith = false
+
+# Every AWS managed rule group that blocks must be pinned before a prod plan (human action H-140).
+# Read the versions in the prod account with aws wafv2 list-available-managed-rule-group-versions.
+# waf_managed_rule_group_versions = {
+#   AWSManagedRulesAmazonIpReputationList = "Version_x.y"
+#   AWSManagedRulesCommonRuleSet          = "Version_x.y"
+#   AWSManagedRulesKnownBadInputsRuleSet  = "Version_x.y"
+#   AWSManagedRulesSQLiRuleSet            = "Version_x.y"
+# }

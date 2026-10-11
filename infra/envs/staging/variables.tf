@@ -64,6 +64,12 @@ variable "image_tags" {
   default     = {}
 }
 
+variable "waf_managed_rule_group_versions" {
+  description = "Static versions for the AWS managed rule groups, by group name, from aws wafv2 list-available-managed-rule-group-versions. Required in prod for every group that blocks."
+  type        = map(string)
+  default     = {}
+}
+
 variable "enable_flagsmith" {
   description = "Run self-hosted Flagsmith behind flags.<domain>."
   type        = bool
