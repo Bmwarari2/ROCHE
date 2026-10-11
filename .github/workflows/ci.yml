@@ -153,6 +153,18 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo run build --filter=@harbour/api --filter=@harbour/web
 
+  images:
+    name: Container images build
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [api, web]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build harbour/${{ matrix.app }} (not pushed)
+        run: docker build -f apps/${{ matrix.app }}/Dockerfile -t harbour/${{ matrix.app }}:ci .
+
   e2e-web:
     name: Web journeys and accessibility (Playwright and axe)
     runs-on: ubuntu-24.04
