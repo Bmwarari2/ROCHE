@@ -270,6 +270,63 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
 | Tasks | Today and tomorrow for assigned people | Complete or skip with reason | Last writer wins on status, both actions kept in history; a task completed on two devices shows in the conflict review |
 | Assessments | Last result per tool | Yes | Append-only |
 
+**As built (Phase 1 slice 10 part 1, `packages/sync` and `apps/mobile`).**
+
+- **Streams** (`packages/sync/src/streams/sync-config.yaml`). The twelve care tables sync in the two
+  scopes the people streams use: people assigned to the user (`person_assignment`, not ended) and,
+  for managers and nurses, everyone at the token's `people_location_ids`. The tenant and the people
+  always come from the signed token; logical replication bypasses row-level security, so
+  `packages/sync/test/care-streams.test.ts` proves through the real sync-rules engine that a person
+  who is not assigned, an ended assignment, another tenant or a token without a tenant never reaches
+  the device (HZ-011).
+  - Reference data, never evicted while the person is in scope: `person_care_profile`, the active
+    `care_plan` only (no drafts or superseded versions, HZ-024) with the sections and actions of that
+    plan, active `risk_assessment` rows, every `assessment` result (summary columns only; the device
+    shows the latest per tool, because a stream cannot pick the latest row) and active
+    `advance_care_record` rows (HZ-015). Answers, workings and document ids are not sent.
+  - Point-of-care entries (`care_note`, `observation`, `body_map_mark`, `activity_record`,
+    `visit_log`) sync only for the days in the `offline_days` connection parameter, matched on the
+    UTC date of `occurred_at`. The device builds the list (tomorrow, today and the days before it,
+    `mobile.offline_window_days` days in all) from the rate table through `GET /v1/rates/{key}`,
+    caches the figure for offline starts, keeps today only until it has read the figure once, and
+    reconnects when the UTC day changes so the oldest day leaves the device. The parameter can only
+    narrow data: a device that sends no window gets no entries, and a longer list still reaches
+    nobody outside the token's scope. Entries for one person and day share a bucket across the five
+    tables. `observation.values` arrives as `chart_values` (a reserved word in SQLite).
+- **Writes** (`apps/mobile/src/care`, `apps/mobile/src/sync`). Every entry gets a UUIDv7 made on the
+  device and is inserted, never updated, into its synced table in its own transaction, so it enters
+  PowerSync's upload queue in the encrypted database and survives an app restart. The connector
+  sends each entry to its own endpoint (`POST /v1/people/{id}/notes`, `/observations`, `/body-map`,
+  `/activities`, `/visits`; `POST /v1/sync/upload` writes no care tables) with the id, `deviceTime`
+  (the device clock when the entry was written) and the headers `x-harbour-tenant`,
+  `x-harbour-device` (the PowerSync client id), `Idempotency-Key` (the entry id) and
+  `x-harbour-sent-at` stamped as each request leaves, so the API flags late entries from the time
+  written and clock drift from the time sent (HZ-010, HZ-017). A replay returns the saved copy and
+  is treated as success. Network failures, 408, 425, 429 and 5xx retry with backoff and stay queued;
+  401 wipes the device. Any other refusal moves the entry, with its content, to the local-only
+  `upload_issue` table and the queue moves on: Today and the person's record list it as "not saved:
+  needs attention" with the API's reason until someone removes it (HZ-006). The same applies to a
+  `rejected` operation inside a 200 from `/v1/sync/upload`, which used to be completed silently.
+- **Conflicts.** Entries are append-only, so they never conflict; a correction is a new entry with
+  `supersedes_id` and a reason, uploaded after the original because the queue keeps its order.
+  Reference data is read only on the phone. Tasks and the conflict review arrive with slice 10 part 2.
+- **Screens** (`apps/mobile/src/app/(care)`). Today lists the user's people with their resuscitation
+  status and spells out the last successful sync, the changes waiting to upload and any refused
+  entries (HZ-002). Every screen about a person starts with the point-of-care header: photo, names,
+  date of birth and NHS number, room, allergies, communication needs, the resuscitation status as
+  word and icon or "not recorded", and the prescribed IDDSI levels (HZ-001, HZ-015, HZ-016). A carer
+  writes or corrects a note; records fluid intake and output, food (IDDSI level given beside the
+  prescribed one, refused without a reason when they differ, HZ-016), repositioning, bowel (Bristol
+  scale), weight and vital signs, where NEWS2 is calculated on the device by `calculateNews2` from
+  `@harbour/domain` on the SpO2 scale the person's profile sets and shown with the published response
+  and workings as they type; adds a body map mark by tapping the drawing and choosing the side in
+  words, which must agree (HZ-019); and reads the care plan summary and current risk assessments with
+  the latest validated-tool results. Lists show each entry's state in words (waiting to upload, saved,
+  late entry, device clock wrong).
+- **Not yet on the device**: tasks, rounds and handover; writing assessments, activities and visits
+  (the upload path takes activities and visits already); photos; incidents; the conflict review.
+  Body-map marks and chart history older than the window are not on the device (HZ-028).
+
 ## 7. Clinical safety
 
 Hazards touched: HZ-001 (header on every screen), HZ-002 and HZ-006 (stale data and sync state on
@@ -278,7 +335,8 @@ HZ-012 (validated tools), and the Phase 1 hazards added with this spec: HZ-014 (
 screening trigger not acted on), HZ-015 (resuscitation decision not visible), HZ-016 (IDDSI level),
 HZ-017 (late entries), HZ-018 (handover omissions), HZ-019 (body-map side) and HZ-020 (DoLS
 lapses), and, with the consent and capacity rules, HZ-026 (restrictive or covert care under consent
-or authority that is not valid). Medical-device boundary: tools are calculated exactly as published and show the published
+or authority that is not valid), and with offline Care mode HZ-028 (the history on a device mistaken
+for the complete record). Medical-device boundary: tools are calculated exactly as published and show the published
 responses; no prediction or tenant-authored scoring (see
 [medical-device-boundary.md](../compliance/medical-device-boundary.md)).
 
@@ -302,7 +360,15 @@ through recorded sharing decisions ([people.md](people.md)).
 - API: contract tests and audit events for every route; idempotent replays of offline writes.
 - Web and mobile: Playwright journeys (care plan, notes, charts, body map, assessments, handover,
   capacity and DoLS) with axe; Maestro offline journey (notes and charts written offline, synced,
-  conflict reviewed).
+  conflict reviewed). Built in slice 10 part 1: `packages/sync/test/care-streams.test.ts` and
+  `window.test.ts` (stream isolation, the window and never-evicted reference data; HZ-011, HZ-002),
+  `apps/mobile/src/sync/*.test.ts` (UUIDv7, the upload mapping checked against the API's own
+  schemas, the connector's headers, retries and refusals; HZ-006, HZ-010, HZ-017),
+  `apps/mobile/src/care/*.test.ts` (notes, charts, IDDSI, NEWS2 on the device, body map sides,
+  the header's resuscitation status, Today's sync summary, the local SQL; HZ-001, HZ-002, HZ-015,
+  HZ-016, HZ-017, HZ-019), and the Maestro flow
+  `apps/mobile/.maestro/hazard-HZ-006-offline-note-and-vitals.yaml` (a note and vital signs written
+  offline survive a restart and upload when the network returns; the conflict review is part 2).
 
 ## 10. Open questions
 

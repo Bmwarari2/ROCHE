@@ -1,6 +1,6 @@
 # Data standards mapping
 
-**Status**: Phase 0 initial mapping (platform and people), extended in Phase 1 slice 4b (care planning). **Owner**: whoever changes a mapped field
+**Status**: Phase 0 initial mapping (platform and people), extended in Phase 1 slice 4b (care planning) and slice 10 (device copies). **Owner**: whoever changes a mapped field
 updates this file in the same PR (master prompt section 20, item 7).
 
 This document is the **contract for import and export**. The migration import wizard (PLAT-014) accepts
@@ -382,6 +382,22 @@ map to no national data standard: `audit_event` (hash-chained), `record_version`
 Phase 1 `break_glass_weekly_report`, `about_me_share_link` and `welcome_checklist_template`. Field-level
 detail is in `packages/db/src/schema/`; purposes and lawful bases are in
 [records of processing](../compliance/records-of-processing.md).
+
+## Device copies (offline sync, not part of the export)
+
+The mobile app keeps a subset of the care tables on the device (Phase 1 slice 10, [care.md](care.md)
+section 6). Device columns use the database column names, so this mapping applies unchanged, with
+three differences defined in `packages/sync/src/client/schema.ts`:
+
+- `observation.values` is `chart_values` on the device, because `values` is a reserved word in SQLite.
+- `body_map_mark.drawn_side` exists only on the device: the side where the mark was drawn, sent with
+  the upload as `drawnSide` so the API repeats the HZ-019 check. The database keeps `side` only.
+- `upload_issue` exists only on the device: an entry the API refused, with its content, until
+  someone removes it. It is never uploaded or exported.
+
+Timestamps arrive on the device as ISO 8601 in UTC with microseconds (`2026-10-11T09:30:00.000000Z`);
+booleans as `1` and `0`; JSON and array columns as JSON text. Entries written on the device carry a
+UUIDv7 made there, which the API keeps as the record's `id`.
 
 ## Open items to verify
 

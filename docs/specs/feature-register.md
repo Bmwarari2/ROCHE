@@ -23,9 +23,9 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 | Reporting and analytics | `INSI` | 15.2 | 6 | 6 | 0 | 0 |
 | Integrations | `INTG` | 15.3 | 13 | 12 | 1 | 0 |
 | AI Management Copilot | `AI` | 16 | 11 | 11 | 0 | 0 |
-| Mobile apps | `MOB` | 17 | 13 | 11 | 2 | 0 |
+| Mobile apps | `MOB` | 17 | 13 | 7 | 6 | 0 |
 | Expansion (Phase 7) | `EXP` | 19 | 7 | 7 | 0 | 0 |
-| **Total** | | | **233** | **187** | **46** | **0** |
+| **Total** | | | **233** | **183** | **50** | **0** |
 
 | Phase | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -270,16 +270,16 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | AI-009 | Guardrails: clinical scope lock and no automated decisions | 16.2 | 6 | todo | - | - | - | - |
 | AI-010 | Guardrails: pseudonymisation, UK or EU-geo inference and full audit | 16.2 | 6 | todo | - | - | - | - |
 | AI-011 | Guardrails: evaluation and red-team suite, fairness checks, kill switch and token budgets | 16.2 | 6 | todo | - | - | - | - |
-| MOB-001 | One Expo codebase for iOS and Android (expo-router, sign-in, assigned people available offline) | 17, 17.2 | 0 | partial | `apps/mobile/README.md` | `apps/mobile` | `apps/mobile` (208 unit tests), `.maestro/` | - |
-| MOB-002 | Care mode | 17 | 1 | todo | - | - | - | - |
+| MOB-001 | One Expo codebase for iOS and Android (expo-router, sign-in, assigned people available offline) | 17, 17.2 | 0 | partial | `apps/mobile/README.md` | `apps/mobile` | `apps/mobile` unit tests (Vitest), `.maestro/` | - |
+| MOB-002 | Care mode | 17 | 1 | partial | [care](care.md#6-offline-behaviour-section-171) | `apps/mobile/src/app/(care)`, `apps/mobile/src/care` | `apps/mobile/src/care/*.test.ts`, `.maestro/hazard-HZ-006-offline-note-and-vitals.yaml` | - |
 | MOB-003 | Manage mode | 17 | 4 | todo | - | - | - | - |
 | MOB-004 | Family mode | 17 | 4 | todo | - | - | - | - |
-| MOB-005 | Kiosk mode (shared tablets, PIN plus photo, fast user switching, auto sign-out) | 17, 17.2 | 1 | todo | - | - | - | - |
-| MOB-006 | Offline care record: notes, charts, body-map marks, incidents and tasks, with sync banner and conflict review | 17.1 | 1 | todo | - | - | - | - |
+| MOB-005 | Kiosk mode (shared tablets, PIN plus photo, fast user switching, auto sign-out) | 17, 17.2 | 1 | partial | [ADR-0025](../decisions/0025-shared-device-sign-in.md), [kiosk](../compliance/kiosk.md) | `apps/mobile/src/security/auto-lock.ts` (shared-device lock only) | `apps/mobile/src/security/auto-lock.test.ts` | - |
+| MOB-006 | Offline care record: notes, charts, body-map marks, incidents and tasks, with sync banner and conflict review | 17.1 | 1 | partial | [care](care.md#6-offline-behaviour-section-171) | `packages/sync/src/streams/sync-config.yaml`, `apps/mobile/src/sync`, `apps/mobile/src/care` | `packages/sync/test/care-streams.test.ts`, `apps/mobile/src/sync/*.test.ts`, `apps/mobile/src/care/*.test.ts` | - |
 | MOB-007 | Offline eMAR, rota and timesheets, and training | 17.1 | 2 | todo | - | - | - | - |
 | MOB-008 | Offline domiciliary visits and messaging | 17.1 | 4 | todo | - | - | - | - |
 | MOB-009 | Encrypted SQLCipher store with biometric lock and auto-lock | 5.3, 17.2 | 0 | partial | [ADR-0029](../decisions/0029-mobile-offline-stack.md) | `apps/mobile/src` | `apps/mobile` unit tests | - |
-| MOB-010 | Device protection: remote wipe, root and jailbreak detection, screenshot blocking | 5.3, 17.2 | 1 | todo | - | - | - | - |
+| MOB-010 | Device protection: remote wipe, root and jailbreak detection, screenshot blocking | 5.3, 17.2 | 1 | partial | [ADR-0029](../decisions/0029-mobile-offline-stack.md) | `apps/mobile/src/app-state/vault.tsx` (remote wipe), `apps/mobile/src/security` | `apps/mobile/src/sync/connector.test.ts` (wipe on a revoked session), `apps/mobile/src/security/device-integrity.test.ts` | - |
 | MOB-011 | Store compliance (privacy labels, data safety, health declarations, account deletion, iOS 26 SDK, API 36) | 17.3 | 1 | todo | - | - | - | - |
 | MOB-012 | Public or private distribution and phased rollouts | 17.3 | 1 | todo | - | - | - | - |
 | MOB-013 | Tablet split views and responsive web down to 360 px | 17.4 | 2 | todo | - | - | - | - |

@@ -68,7 +68,7 @@ MODS: [Minimum Operational Data Standard](https://standards.nhs.uk/published-sta
 | Processing | Data categories | Where |
 | --- | --- | --- |
 | Hosting and storage of the tenant's records | All categories above | AWS eu-west-2 (RDS, S3) |
-| Synchronisation to the tenant's devices for offline use | Assigned people's records and reference data; staff account | PowerSync self-hosted in AWS eu-west-2; encrypted device store |
+| Synchronisation to the tenant's devices for offline use | Staff account; for people assigned to the user (or at a manager's or nurse's locations): identity, allergies, communication needs, the care profile (IDDSI levels, fluid target, SpO2 scale decision, skin risk), the active care plan, active risk assessments, validated-tool results (summary only), active advance care records, kept while the person is in scope; notes, charts, body-map marks, activities and visits for the last `mobile.offline_window_days` days; entries the server refused, kept on the device with their content until someone removes them | PowerSync self-hosted in AWS eu-west-2; device store encrypted with SQLCipher (AES-256), wiped on sign-out or remote sign-out ([care.md](../specs/care.md) section 6) |
 | Backup and restore | All | AWS eu-west-2 (RDS snapshots and point-in-time recovery, 35 days) |
 | Delivery of email, push and SMS notifications | Staff contact details; notification content without personal data in push | SES London; Expo push via APNs and FCM; UK SMS gateway (TBC) |
 | Support, including impersonation with the tenant's approval ticket | Records the support case requires | Operator console; every action audited and visible to the tenant |
