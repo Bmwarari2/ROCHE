@@ -122,6 +122,34 @@ export function addUkDays(instant: Date, days: number): Date {
   );
 }
 
+/**
+ * Adds calendar months in UK local time, keeping the wall-clock time. The 31st plus a month, or
+ * 29 February plus a year, falls back to the last day of the shorter month, so a maximum period
+ * (for example a standard DoLS authorisation of up to a year) can only end early, never late.
+ */
+export function addUkMonths(instant: Date, months: number): Date {
+  if (!Number.isInteger(months)) throw new RangeError("Months must be a whole number.");
+  const w = toUkWallClock(instant);
+  const firstOfTarget = new Date(Date.UTC(w.year, w.month - 1 + months, 1));
+  const year = firstOfTarget.getUTCFullYear();
+  const month = firstOfTarget.getUTCMonth() + 1;
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return fromUkWallClock(year, month, Math.min(w.day, lastDay), w.hour, w.minute);
+}
+
+/** 00:00 UK time at the start of an ISO date (the first moment a dated period is in force). */
+export function ukStartOfDay(isoDate: string): Date {
+  const [year, month, day] = isoDate.split("-").map(Number) as [number, number, number];
+  return fromUkWallClock(year, month, day, 0, 0);
+}
+
+/** The first moment after an ISO date ends in UK time (the end of a period "to" that date). */
+export function ukEndOfDay(isoDate: string): Date {
+  const [year, month, day] = isoDate.split("-").map(Number) as [number, number, number];
+  const next = new Date(Date.UTC(year, month - 1, day + 1));
+  return fromUkWallClock(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate(), 0, 0);
+}
+
 /** Clock drift beyond this many minutes is flagged on synced records (section 10.3, HZ-010). */
 export const DEFAULT_CLOCK_DRIFT_TOLERANCE_MINUTES = 5;
 
