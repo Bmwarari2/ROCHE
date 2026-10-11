@@ -209,6 +209,7 @@ async function exitOut(tx: Transaction, exit: ExitRow): Promise<ExitOut> {
     kind: exit.kind as ExitOut["kind"],
     state: exit.state as ExitOut["state"],
     leftAt: iso(exit.leftAt),
+    statusBefore: (exit.statusBefore ?? null) as ExitOut["statusBefore"],
     context: {
       regulator: context.regulator,
       localAuthorityFunded: context.funding.localAuthority,
@@ -419,6 +420,8 @@ export const peopleExitRouter = createRouter()
         const state = await exitState(tx, exit);
         const row = state.rows.find((r) => r.itemKey === itemKey);
         if (!row) throw problems.notFound();
+        // The stored owner must agree with the definition the permission was checked against.
+        if ((row.owner === "finance") !== finance) throw problems.forbidden();
         requireVersion(row.version, body.version);
         if (finance && body.status !== "pending" && exit.createdBy === access.tenantUserId) {
           await writeAudit(c.get("services").appPool, access, {

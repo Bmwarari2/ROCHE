@@ -21,7 +21,6 @@ import {
   roleAssignment,
   room,
   sharingDecision,
-  type TaskStopCode,
   type Transaction,
   task,
   taskSeries,
@@ -47,6 +46,7 @@ import {
   type PersonStatusProblem,
   type PlacementType,
   planBedRelease,
+  planTaskRestore,
   type RateRow,
   type ReviewSchedule,
   type RoomView,
@@ -428,6 +428,8 @@ export async function applyStatusChange(
   now: Date,
 ): Promise<StatusChangeOutcome> {
   const from = p.status as PersonStatus;
+  // A discharge or death being corrected: the exit it cancels, and the status it returns to.
+  const correcting = from === "discharged" || from === "deceased" ? await openExit(tx, p.id) : null;
   let exitWorkflowClosed: boolean | undefined;
   if (req.to === "archived" && (from === "discharged" || from === "deceased")) {
     const [latest] = await tx
@@ -444,6 +446,7 @@ export async function applyStatusChange(
       createdBy: p.createdBy ?? "",
       statusChangedAt: p.statusChangedAt,
       deceasedAt: p.deceasedAt,
+      statusBeforeExit: (correcting?.statusBefore ?? null) as PersonStatus | null,
     },
     {
       to: req.to,
@@ -474,7 +477,12 @@ export async function applyStatusChange(
     .update(person)
     .set({
       status: req.to,
-      statusChangedAt: req.effectiveAt,
+      // A correction restores when the person's earlier status began (the time they went to
+      // hospital, say), so rule 3 keeps reading entries against it.
+      statusChangedAt:
+        check.correction && correcting?.statusBeforeSince
+          ? correcting.statusBeforeSince
+          : req.effectiveAt,
       ...(req.to === "discharged" ? { dischargedAt: req.effectiveAt } : {}),
       ...(req.to === "deceased" ? { deceasedAt: req.effectiveAt } : {}),
       ...(check.correction && from === "discharged" ? { dischargedAt: null } : {}),
@@ -487,11 +495,9 @@ export async function applyStatusChange(
   const exitDate = ukIsoDate(req.effectiveAt);
   let exitRecordId: string | null = null;
   let roomLabel: string | null | undefined;
-  // Tasks end before the exit workflow starts, so the exit checklist task is never cancelled.
-  const effects = [...check.effects].sort(
-    (a, b) => Number(b === "cancel_future_tasks") - Number(a === "cancel_future_tasks"),
-  );
-  for (const effect of effects) {
+  // The exit record starts before tasks end, so each task ended carries the exit that ended it
+  // (the exit checklist task is a people task, which an exit never ends).
+  for (const effect of check.effects) {
     if (ADMISSION_EFFECTS.has(effect)) continue;
     switch (effect) {
       case "start_pre_admission_assessment":
@@ -501,15 +507,18 @@ export async function applyStatusChange(
         await pauseRounds(tx, p.id, req.effectiveAt);
         break;
       case "resume_rounds":
-        // A correction brings back what the exit stopped; a return what the absence paused,
-        // from when the person actually came back.
+        // A correction brings back what that exit stopped, from when it was recorded; a return
+        // what the absence paused, from when the person actually came back.
         await resumeRounds(
           tx,
           p,
           check.correction ? exitTime(p) : req.effectiveAt,
           now,
-          check.correction,
+          check.correction ? (correcting?.id ?? null) : null,
         );
+        break;
+      case "restore_paused_rounds":
+        await restorePausedRounds(tx, p, correcting?.id ?? null, now);
         break;
       case "cancel_future_tasks":
         await cancelFutureTasks(
@@ -517,6 +526,7 @@ export async function applyStatusChange(
           p.id,
           req.effectiveAt,
           EXIT_REASONS[check.exitKind ?? "discharge"],
+          exitRecordId,
         );
         break;
       case "close_sharing":
@@ -638,65 +648,138 @@ async function pauseRounds(tx: Transaction, personId: string, from: Date) {
     );
 }
 
+/** The person's exit that is not yet closed or cancelled (the one a correction cancels). */
+async function openExit(tx: Transaction, personId: string) {
+  const [row] = await tx
+    .select()
+    .from(exitRecord)
+    .where(
+      and(
+        eq(exitRecord.personId, personId),
+        notInArray(exitRecord.state, ["closed", "cancelled", "planned"]),
+        isNull(exitRecord.deletedAt),
+      ),
+    )
+    .orderBy(desc(exitRecord.createdAt))
+    .limit(1);
+  return row ?? null;
+}
+
+export const RESTORED_DONE_REASON =
+  "Done before the exit was recorded: an entry answered it, so it is not due again";
+export const CATCH_UP_REASON =
+  "Reopened to catch up: its time passed before the return or correction was recorded";
+
 /**
- * Brings back the tasks the lifecycle stopped, by their code (people.md rules 1 and 2): after a
- * return, the rounds paused while the person was away and due from when they came back; after a
- * correction, also everything the exit ended, and the series start again. A task still in its
- * window reopens. One whose window passed before the return or correction was recorded stays
- * cancelled, coded as missed, and one review task goes to the nurse in charge (HZ-003, HZ-006).
+ * Brings back the tasks the lifecycle stopped, by their code (people.md rules 1 and 2;
+ * `planTaskRestore`): after a return, the rounds paused while the person was away; after a
+ * correction, what that exit ended, and its series start again. Only tasks still in their window
+ * at `since` count. A task an entry answered while it was stopped is done, never due again
+ * (HZ-003, HZ-004). One still in its window reopens. Of the rest, the latest occurrence of each
+ * series reopens as overdue so the round is caught up once; earlier ones stay cancelled, coded as
+ * missed. The nurse in charge gets one review task listing them all.
  */
 async function resumeRounds(
   tx: Transaction,
   p: PersonRow,
   since: Date,
   now: Date,
-  correction: boolean,
+  correctedExitId: string | null,
 ) {
-  const codes: TaskStopCode[] = correction
-    ? ["paused_while_away", "ended_at_exit"]
-    : ["paused_while_away"];
   const stopped = await tx
-    .select({ id: task.id, dueAt: task.dueAt, windowEnd: task.windowEnd })
+    .select({
+      id: task.id,
+      seriesId: task.seriesId,
+      kind: task.kind,
+      dueAt: task.dueAt,
+      windowEnd: task.windowEnd,
+      evidenceId: task.evidenceId,
+    })
     .from(task)
     .where(
       and(
         eq(task.personId, p.id),
         eq(task.status, "cancelled"),
-        inArray(task.cancelCode, codes),
-        gte(task.dueAt, since),
+        correctedExitId
+          ? and(eq(task.cancelCode, "ended_at_exit"), eq(task.stoppedByExitId, correctedExitId))
+          : eq(task.cancelCode, "paused_while_away"),
         isNull(task.deletedAt),
       ),
     );
-  const live = stopped.filter((t) => (t.windowEnd ?? t.dueAt).getTime() >= now.getTime());
-  const missed = stopped.filter((t) => !live.includes(t));
-  if (live.length > 0) {
+  const plan = planTaskRestore(
+    stopped.map((t) => ({
+      id: t.id,
+      seriesId: t.seriesId,
+      dueAt: t.dueAt,
+      windowEnd: t.windowEnd,
+      hasEvidence: t.evidenceId !== null,
+    })),
+    since,
+    now,
+  );
+  const cleared = { cancelCode: null, stoppedByExitId: null } as const;
+  if (plan.done.length > 0) {
     await tx
       .update(task)
-      .set({ status: "open", statusReason: null, cancelCode: null })
-      .where(
-        inArray(
-          task.id,
-          live.map((t) => t.id),
-        ),
-      );
+      .set({
+        status: "done",
+        completedAt: now,
+        completedBy: null,
+        statusReason: RESTORED_DONE_REASON,
+        ...cleared,
+      })
+      .where(inArray(task.id, [...plan.done]));
   }
-  if (missed.length > 0) {
+  if (plan.reopen.length > 0) {
     await tx
       .update(task)
-      .set({ statusReason: MISSED_ROUNDS_REASON, cancelCode: "missed_before_return_recorded" })
-      .where(
-        inArray(
-          task.id,
-          missed.map((t) => t.id),
-        ),
-      );
-    await raiseMissedRoundsReview(tx, p, now);
+      .set({ status: "open", statusReason: null, ...cleared })
+      .where(inArray(task.id, [...plan.reopen]));
   }
-  if (correction) {
+  if (plan.reopenOverdue.length > 0) {
+    await tx
+      .update(task)
+      .set({ status: "open", statusReason: CATCH_UP_REASON, ...cleared })
+      .where(inArray(task.id, [...plan.reopenOverdue]));
+  }
+  if (plan.missed.length > 0) {
+    await tx
+      .update(task)
+      .set({
+        statusReason: MISSED_ROUNDS_REASON,
+        cancelCode: "missed_before_return_recorded",
+        stoppedByExitId: null,
+      })
+      .where(inArray(task.id, [...plan.missed]));
+  }
+  const listed = [...plan.reopenOverdue, ...plan.missed];
+  if (listed.length > 0) {
+    await raiseMissedRoundsReview(
+      tx,
+      p,
+      now,
+      stopped
+        .filter((t) => listed.includes(t.id))
+        .sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime())
+        .map((t) => ({
+          taskId: t.id,
+          kind: t.kind,
+          dueAt: t.dueAt.toISOString(),
+          reopened: plan.reopenOverdue.includes(t.id),
+        })),
+    );
+  }
+  if (correctedExitId) {
     await tx
       .update(taskSeries)
-      .set({ active: true, inactiveCode: null })
-      .where(and(eq(taskSeries.personId, p.id), eq(taskSeries.inactiveCode, "ended_at_exit")));
+      .set({ active: true, inactiveCode: null, stoppedByExitId: null })
+      .where(
+        and(
+          eq(taskSeries.personId, p.id),
+          eq(taskSeries.inactiveCode, "ended_at_exit"),
+          eq(taskSeries.stoppedByExitId, correctedExitId),
+        ),
+      );
   }
   const series = await tx
     .select()
@@ -705,36 +788,99 @@ async function resumeRounds(
       and(eq(taskSeries.personId, p.id), eq(taskSeries.active, true), isNull(taskSeries.deletedAt)),
     );
   for (const s of series) await materialiseSeries(tx, s, now);
-  return { reopened: live.length, missed: missed.length };
+  return plan;
 }
 
-/** One open review of missed rounds for the nurse in charge per person. */
-async function raiseMissedRoundsReview(tx: Transaction, p: PersonRow, now: Date) {
+/**
+ * A correction back to on leave or in hospital (people.md rule 2): the person is still away, so
+ * what the exit ended waits for their return, paused, and its series stand again (nothing is
+ * materialised while they are away). A task an entry answered before they left is done.
+ */
+async function restorePausedRounds(
+  tx: Transaction,
+  p: PersonRow,
+  correctedExitId: string | null,
+  now: Date,
+) {
+  if (!correctedExitId) return;
+  const ended = and(
+    eq(task.personId, p.id),
+    eq(task.status, "cancelled"),
+    eq(task.cancelCode, "ended_at_exit"),
+    eq(task.stoppedByExitId, correctedExitId),
+  );
+  await tx
+    .update(task)
+    .set({
+      status: "done",
+      completedAt: now,
+      completedBy: null,
+      statusReason: RESTORED_DONE_REASON,
+      cancelCode: null,
+      stoppedByExitId: null,
+    })
+    .where(and(ended, isNotNull(task.evidenceId)));
+  await tx
+    .update(task)
+    .set({
+      statusReason: PAUSED_ROUNDS_REASON,
+      cancelCode: "paused_while_away",
+      stoppedByExitId: null,
+    })
+    .where(ended);
+  await tx
+    .update(taskSeries)
+    .set({ active: true, inactiveCode: null, stoppedByExitId: null })
+    .where(
+      and(
+        eq(taskSeries.personId, p.id),
+        eq(taskSeries.inactiveCode, "ended_at_exit"),
+        eq(taskSeries.stoppedByExitId, correctedExitId),
+      ),
+    );
+}
+
+export const MISSED_ROUNDS_REVIEW_KIND = "people.missed_rounds_review";
+
+/** One open review of missed rounds for the nurse in charge per person, listing each round. */
+async function raiseMissedRoundsReview(
+  tx: Transaction,
+  p: PersonRow,
+  now: Date,
+  missed: readonly { taskId: string; kind: string; dueAt: string; reopened: boolean }[],
+) {
   const [open] = await tx
     .select({ id: task.id })
     .from(task)
     .where(
       and(
         eq(task.personId, p.id),
-        eq(task.kind, "people.missed_rounds_review"),
+        eq(task.kind, MISSED_ROUNDS_REVIEW_KIND),
         inArray(task.status, ["open", "in_progress"]),
         isNull(task.deletedAt),
       ),
     )
     .limit(1);
-  if (open) return;
-  await tx.insert(task).values({
-    kind: "people.missed_rounds_review",
-    title: "Review rounds missed before a return or correction was recorded",
-    requiredPermission: "care.plan.write",
-    personId: p.id,
-    locationId: p.locationId,
-    sourceType: "person",
-    sourceId: p.id,
-    assigneeRoleKey: "clinical_lead",
-    dueAt: now,
-    priority: "urgent",
-  });
+  const id =
+    open?.id ??
+    (
+      await tx
+        .insert(task)
+        .values({
+          kind: MISSED_ROUNDS_REVIEW_KIND,
+          title: "Review rounds missed before a return or correction was recorded",
+          requiredPermission: "care.plan.write",
+          personId: p.id,
+          locationId: p.locationId,
+          sourceType: "person",
+          sourceId: p.id,
+          assigneeRoleKey: "clinical_lead",
+          dueAt: now,
+          priority: "urgent",
+        })
+        .returning({ id: task.id })
+    )[0]?.id;
+  if (id) await appendTaskDetail(tx, id, "missedTasks", missed);
 }
 
 /**
@@ -746,6 +892,8 @@ export const KEPT_AT_EXIT_TASK_KINDS = [
   "care.incident_report",
   "care.safeguarding_decision_guide",
   "care.dols.expiring",
+  // The review of an entry that did not complete its task (services/care.ts).
+  "care.entry_review",
 ] as const;
 
 const endsAtExit = () =>
@@ -763,10 +911,21 @@ const endsAtExit = () =>
  * checklist task stay. Tasks due before stay open, so an entry recorded offline before the exit
  * can still complete its task when it uploads (HZ-006).
  */
-async function cancelFutureTasks(tx: Transaction, personId: string, at: Date, reason: string) {
+async function cancelFutureTasks(
+  tx: Transaction,
+  personId: string,
+  at: Date,
+  reason: string,
+  exitRecordId: string | null,
+) {
   await tx
     .update(task)
-    .set({ status: "cancelled", statusReason: reason, cancelCode: "ended_at_exit" })
+    .set({
+      status: "cancelled",
+      statusReason: reason,
+      cancelCode: "ended_at_exit",
+      stoppedByExitId: exitRecordId,
+    })
     .where(
       and(
         eq(task.personId, personId),
@@ -1176,6 +1335,8 @@ async function startExit(
       .update(exitRecord)
       .set({
         leftAt,
+        statusBefore: p.status,
+        statusBeforeSince: p.statusChangedAt,
         ...exitColumns(context, req.exit ?? undefined),
         moneyAndPropertyDueAt: deadlines.moneyAndPropertyBy,
         depositDueAt: deadlines.depositBy,
@@ -1191,6 +1352,9 @@ async function startExit(
         kind,
         state: definition.initial,
         leftAt,
+        // What a correction returns the person to (people.md rule 2).
+        statusBefore: p.status,
+        statusBeforeSince: p.statusChangedAt,
         ...exitColumns(context, req.exit),
         moneyAndPropertyDueAt: deadlines.moneyAndPropertyBy,
         depositDueAt: deadlines.depositBy,

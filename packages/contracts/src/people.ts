@@ -1136,6 +1136,12 @@ export const ExitOut = z
     kind: z.enum(["discharge", "transfer", "death"]),
     state: ExitState,
     leftAt: isoDateTime.nullable(),
+    /**
+     * The person's status when the exit was recorded: correcting a discharge or death recorded in
+     * error returns them to it (`to` on the status change). Null for an exit only planned, or
+     * recorded before it was kept (a correction then returns to active).
+     */
+    statusBefore: z.enum(["active", "on_leave", "in_hospital"]).nullable(),
     context: z.object({
       regulator: z.enum(["cqc", "ciw", "care_inspectorate", "rqia"]),
       localAuthorityFunded: z.boolean(),
