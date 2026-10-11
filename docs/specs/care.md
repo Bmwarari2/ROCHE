@@ -166,7 +166,10 @@ the 02:00 turn), which completes that task with the entry as evidence. A NEWS2 r
 the nurse in charge and creates the response and repeat-observation tasks; a score of 0 schedules
 nothing outside the care plan (HZ-008). Body marks that prompt an incident or the safeguarding guide
 create those tasks for the manager. Charts and marks are refused for discharged, deceased and
-archived people; post-event notes are allowed.
+archived people; post-event notes are allowed. Slice 4a refuses them whatever the event time; the
+people lifecycle step changes this to [people.md](people.md#4-rules-that-are-easy-to-get-wrong)
+rule 3: an entry for an event at or before the exit (for example observations a phone recorded
+offline before a death) is accepted and flagged as recorded after the exit (HZ-006).
 
 
 Resources under `/v1/people/{personId}/...`: `care-plans`, `risk-assessments`, `assessments`,
