@@ -4279,6 +4279,18 @@
             ],
             "format": "date-time"
           },
+          "statusBefore": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "active",
+              "on_leave",
+              "in_hospital",
+              null
+            ]
+          },
           "context": {
             "type": "object",
             "properties": {
@@ -4440,6 +4452,7 @@
           "kind",
           "state",
           "leftAt",
+          "statusBefore",
           "context",
           "details",
           "checklist",
@@ -5512,6 +5525,9 @@
             ],
             "format": "uuid"
           },
+          "evidenceAfterClose": {
+            "type": "boolean"
+          },
           "completedAt": {
             "type": [
               "string",
@@ -5521,6 +5537,9 @@
           },
           "escalated": {
             "type": "boolean"
+          },
+          "details": {
+            "$ref": "#/components/schemas/TaskDetails"
           },
           "version": {
             "type": "integer"
@@ -5544,8 +5563,10 @@
           "evidenceRequired",
           "evidenceType",
           "evidenceId",
+          "evidenceAfterClose",
           "completedAt",
           "escalated",
+          "details",
           "version"
         ]
       },
@@ -5576,6 +5597,116 @@
           "escalated"
         ],
         "description": "Where the task stands now, from its window and status"
+      },
+      "TaskDetails": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string"
+                },
+                "clientId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "entryId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "occurredAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "taskId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "taskKind": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "outcome": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "deviceId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "recordedBy": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            }
+          },
+          "missedTasks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "taskId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "dueAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "reopened": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "taskId",
+                "kind",
+                "dueAt",
+                "reopened"
+              ]
+            }
+          }
+        }
       },
       "CreateTask": {
         "type": "object",
@@ -6426,13 +6557,24 @@
           "recordedAfterExit": {
             "type": "boolean"
           },
+          "taskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
           "taskOutcome": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "enum": [
               "completed",
               "task_cancelled",
               "task_already_closed",
-              "not_linked"
+              "not_linked",
+              null
             ]
           },
           "supersedesId": {
@@ -6488,6 +6630,8 @@
           "lateEntry",
           "clockDrift",
           "recordedAfterExit",
+          "taskId",
+          "taskOutcome",
           "supersedesId",
           "correctionReason",
           "superseded",
@@ -6625,13 +6769,24 @@
           "recordedAfterExit": {
             "type": "boolean"
           },
+          "taskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
           "taskOutcome": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "enum": [
               "completed",
               "task_cancelled",
               "task_already_closed",
-              "not_linked"
+              "not_linked",
+              null
             ]
           },
           "supersedesId": {
@@ -6679,6 +6834,8 @@
           "lateEntry",
           "clockDrift",
           "recordedAfterExit",
+          "taskId",
+          "taskOutcome",
           "supersedesId",
           "correctionReason",
           "superseded",
@@ -7100,13 +7257,24 @@
           "recordedAfterExit": {
             "type": "boolean"
           },
+          "taskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
           "taskOutcome": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "enum": [
               "completed",
               "task_cancelled",
               "task_already_closed",
-              "not_linked"
+              "not_linked",
+              null
             ]
           },
           "supersedesId": {
@@ -7212,6 +7380,8 @@
           "lateEntry",
           "clockDrift",
           "recordedAfterExit",
+          "taskId",
+          "taskOutcome",
           "supersedesId",
           "correctionReason",
           "superseded",
@@ -8894,13 +9064,24 @@
           "recordedAfterExit": {
             "type": "boolean"
           },
+          "taskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
           "taskOutcome": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "enum": [
               "completed",
               "task_cancelled",
               "task_already_closed",
-              "not_linked"
+              "not_linked",
+              null
             ]
           },
           "supersedesId": {
@@ -8983,6 +9164,8 @@
           "lateEntry",
           "clockDrift",
           "recordedAfterExit",
+          "taskId",
+          "taskOutcome",
           "supersedesId",
           "correctionReason",
           "superseded",
@@ -9791,13 +9974,24 @@
           "recordedAfterExit": {
             "type": "boolean"
           },
+          "taskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
           "taskOutcome": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "enum": [
               "completed",
               "task_cancelled",
               "task_already_closed",
-              "not_linked"
+              "not_linked",
+              null
             ]
           },
           "supersedesId": {
@@ -9869,6 +10063,8 @@
           "lateEntry",
           "clockDrift",
           "recordedAfterExit",
+          "taskId",
+          "taskOutcome",
           "supersedesId",
           "correctionReason",
           "superseded",
@@ -10024,13 +10220,24 @@
           "recordedAfterExit": {
             "type": "boolean"
           },
+          "taskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
           "taskOutcome": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "enum": [
               "completed",
               "task_cancelled",
               "task_already_closed",
-              "not_linked"
+              "not_linked",
+              null
             ]
           },
           "supersedesId": {
@@ -10111,6 +10318,8 @@
           "lateEntry",
           "clockDrift",
           "recordedAfterExit",
+          "taskId",
+          "taskOutcome",
           "supersedesId",
           "correctionReason",
           "superseded",

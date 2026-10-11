@@ -13493,6 +13493,8 @@ export interface components {
       state: components["schemas"]["ExitState"];
       /** Format: date-time */
       leftAt: string | null;
+      /** @enum {string|null} */
+      statusBefore: "active" | "on_leave" | "in_hospital" | null;
       context: {
         /** @enum {string} */
         regulator: "cqc" | "ciw" | "care_inspectorate" | "rqia";
@@ -13820,9 +13822,11 @@ export interface components {
       evidenceType: string | null;
       /** Format: uuid */
       evidenceId: string | null;
+      evidenceAfterClose: boolean;
       /** Format: date-time */
       completedAt: string | null;
       escalated: boolean;
+      details: components["schemas"]["TaskDetails"];
       version: number;
     };
     /** @enum {string} */
@@ -13834,6 +13838,34 @@ export interface components {
      * @enum {string}
      */
     TaskTimeState: "closed" | "upcoming" | "due" | "overdue" | "escalated";
+    TaskDetails: {
+      entries?: {
+        kind: string;
+        /** Format: uuid */
+        clientId?: string | null;
+        /** Format: uuid */
+        entryId?: string | null;
+        /** Format: date-time */
+        occurredAt?: string | null;
+        /** Format: uuid */
+        taskId?: string | null;
+        taskKind?: string | null;
+        outcome?: string | null;
+        deviceId?: string | null;
+        /** Format: uuid */
+        recordedBy?: string | null;
+        /** Format: date-time */
+        at?: string | null;
+      }[];
+      missedTasks?: {
+        /** Format: uuid */
+        taskId: string;
+        kind: string;
+        /** Format: date-time */
+        dueAt: string;
+        reopened: boolean;
+      }[];
+    } | null;
     CreateTask: {
       title: string;
       /** Format: uuid */
@@ -14067,8 +14099,10 @@ export interface components {
       lateEntry: boolean;
       clockDrift: boolean;
       recordedAfterExit: boolean;
-      /** @enum {string} */
-      taskOutcome?: "completed" | "task_cancelled" | "task_already_closed" | "not_linked";
+      /** Format: uuid */
+      taskId: string | null;
+      /** @enum {string|null} */
+      taskOutcome: "completed" | "task_cancelled" | "task_already_closed" | "not_linked" | null;
       /** Format: uuid */
       supersedesId: string | null;
       correctionReason: string | null;
@@ -14128,8 +14162,10 @@ export interface components {
       lateEntry: boolean;
       clockDrift: boolean;
       recordedAfterExit: boolean;
-      /** @enum {string} */
-      taskOutcome?: "completed" | "task_cancelled" | "task_already_closed" | "not_linked";
+      /** Format: uuid */
+      taskId: string | null;
+      /** @enum {string|null} */
+      taskOutcome: "completed" | "task_cancelled" | "task_already_closed" | "not_linked" | null;
       /** Format: uuid */
       supersedesId: string | null;
       correctionReason: string | null;
@@ -14257,8 +14293,10 @@ export interface components {
       lateEntry: boolean;
       clockDrift: boolean;
       recordedAfterExit: boolean;
-      /** @enum {string} */
-      taskOutcome?: "completed" | "task_cancelled" | "task_already_closed" | "not_linked";
+      /** Format: uuid */
+      taskId: string | null;
+      /** @enum {string|null} */
+      taskOutcome: "completed" | "task_cancelled" | "task_already_closed" | "not_linked" | null;
       /** Format: uuid */
       supersedesId: string | null;
       correctionReason: string | null;
@@ -14735,8 +14773,10 @@ export interface components {
       lateEntry: boolean;
       clockDrift: boolean;
       recordedAfterExit: boolean;
-      /** @enum {string} */
-      taskOutcome?: "completed" | "task_cancelled" | "task_already_closed" | "not_linked";
+      /** Format: uuid */
+      taskId: string | null;
+      /** @enum {string|null} */
+      taskOutcome: "completed" | "task_cancelled" | "task_already_closed" | "not_linked" | null;
       /** Format: uuid */
       supersedesId: string | null;
       correctionReason: string | null;
@@ -15001,8 +15041,10 @@ export interface components {
       lateEntry: boolean;
       clockDrift: boolean;
       recordedAfterExit: boolean;
-      /** @enum {string} */
-      taskOutcome?: "completed" | "task_cancelled" | "task_already_closed" | "not_linked";
+      /** Format: uuid */
+      taskId: string | null;
+      /** @enum {string|null} */
+      taskOutcome: "completed" | "task_cancelled" | "task_already_closed" | "not_linked" | null;
       /** Format: uuid */
       supersedesId: string | null;
       correctionReason: string | null;
@@ -15069,8 +15111,10 @@ export interface components {
       lateEntry: boolean;
       clockDrift: boolean;
       recordedAfterExit: boolean;
-      /** @enum {string} */
-      taskOutcome?: "completed" | "task_cancelled" | "task_already_closed" | "not_linked";
+      /** Format: uuid */
+      taskId: string | null;
+      /** @enum {string|null} */
+      taskOutcome: "completed" | "task_cancelled" | "task_already_closed" | "not_linked" | null;
       /** Format: uuid */
       supersedesId: string | null;
       correctionReason: string | null;
