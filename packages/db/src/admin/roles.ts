@@ -71,6 +71,18 @@ export async function createDatabase(client: Client, name: string): Promise<void
   await client.query(`GRANT CREATE ON DATABASE ${name} TO harbour_worker`);
 }
 
+/** Creates the database if it is missing and (re)applies database-level grants. Idempotent. */
+export async function ensureDatabase(client: Client, name: string): Promise<{ created: boolean }> {
+  const exists = await client.query("SELECT 1 FROM pg_database WHERE datname = $1", [name]);
+  if ((exists.rowCount ?? 0) === 0) {
+    await createDatabase(client, name);
+    return { created: true };
+  }
+  if (!/^[a-z_][a-z0-9_]{0,62}$/.test(name)) throw new Error(`Unsafe database name: ${name}`);
+  await client.query(`GRANT CREATE ON DATABASE ${name} TO harbour_worker`);
+  return { created: false };
+}
+
 export async function dropDatabase(client: Client, name: string): Promise<void> {
   if (!/^[a-z_][a-z0-9_]{0,62}$/.test(name)) {
     throw new Error(`Refusing to drop database with unsafe name: ${name}`);

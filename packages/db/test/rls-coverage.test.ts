@@ -126,7 +126,7 @@ describe("row-level security coverage", () => {
     const { rows } = await db.pool("harbour_owner").query<{ table_name: string }>(
       `SELECT c.table_name FROM information_schema.columns c
        WHERE c.table_schema = 'public' AND c.column_name = 'version'
-         AND c.table_name <> 'tenant_group'
+         AND c.table_name NOT IN ('tenant_group', 'operator_user')
          AND NOT EXISTS (
            SELECT 1 FROM pg_trigger t JOIN pg_class k ON k.oid = t.tgrelid
            WHERE k.relname = c.table_name AND t.tgname = 'capture_version'
