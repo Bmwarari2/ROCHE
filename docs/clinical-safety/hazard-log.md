@@ -44,8 +44,12 @@
 | [HZ-019](#hz-019-body-map-side-or-site-recorded-wrongly) | Body-map side or site recorded wrongly | Considerable / Medium / 3 | Considerable / Low / 2 | Open | None (Phase 1) | Phase 1 |
 | [HZ-020](#hz-020-deprivation-of-liberty-authorisation-lapses-unnoticed) | Deprivation-of-liberty authorisation lapses unnoticed | Considerable / Medium / 3 | Considerable / Low / 2 | Open | None (Phase 1) | Phase 1 |
 | [HZ-021](#hz-021-no-access-to-essential-information-during-an-it-outage) | No access to essential information during an IT outage | Major / Low / 3 | Major / Very low / 2 | Open | None (Phase 1) | Phase 1 |
+| [HZ-026](#hz-026-restrictive-or-covert-care-under-consent-or-authority-that-is-not-valid) | Restrictive or covert care under consent or authority that is not valid | Considerable / Medium / 3 | Considerable / Low / 2 | Open | None (Phase 1) | Phase 1 |
+| [HZ-027](#hz-027-head-injury-after-a-fall-not-observed-or-escalated) | Head injury after a fall not observed or escalated | Major / Medium / 3 | Major / Low / 3 | Open | None (Phase 1) | Phase 1 |
 
 Six hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
+
+HZ-027 (added with the slice 7 safety rules) also has a proposed target residual risk of 3, justified in its entry; HZ-026 and HZ-027 await CSO rating (human action H-61).
 
 ---
 
@@ -747,6 +751,8 @@ Six hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014) have a target resid
 | Design | An incident recorded offline is classified on sync with its clock started at the recorded event time and a flag if the clock is already running late | Phase 1 |
 | Design | A notification decision cannot close without submission evidence or a recorded "not notifiable" reason | Phase 1 |
 | Design | Weekly digest of open notification decisions to the Registered Manager and Nominated Individual | Phase 1 |
+| Design | An "unsure" answer drafts a provisional notification with its clock; an unanswered question raises a task due at the event time; outside England the classifier says notifications are not checked rather than giving a partial answer (`packages/domain/src/safety/classifier.ts`) | Phase 1 (domain rules built) |
+| Design | An incident cannot close while a notification is a draft or ready, a classifier question is open or the candour record is open (`incidentCloseProblems`) | Phase 1 (domain rules built) |
 | Design | Safeguarding log and outbreak register feed the same clocks | Phase 2 |
 | Test | See Verification | Phase 1, Phase 2 |
 | Training and user documentation | User guide states that the classifier supports, and never replaces, the Registered Manager's judgement. Deployer control: tenant notifications policy and acting-up arrangements for absences | Phase 1 |
@@ -759,13 +765,22 @@ Six hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014) have a target resid
 
 | Test | Status |
 | --- | --- |
-| `packages/domain` (safety): `hazard HZ-013 classifier produces the required notifications for each incident scenario` (table-driven across CQC, RIDDOR, safeguarding, candour) | Planned, Phase 1 |
-| `packages/domain` (safety): `hazard HZ-013 deadline clocks read their periods from the rate table` | Planned, Phase 1 |
+| `packages/domain` (safety): `hazard HZ-013 classifier produces the required notifications for each incident scenario` (`classifier.test.ts`: 21 scenarios that together produce every output kind across CQC, RIDDOR, safeguarding, candour, LeDeR, medical examiner, missing person and UKHSA) | Passing |
+| `packages/domain` (safety): `hazard HZ-013 classifier exclusions say why` (every exclusion with its reason) | Passing |
+| `packages/domain` (safety): `hazard HZ-013 RIDDOR asks the work-activity, premises or equipment question first` (a fall from the person's own condition is not reportable and the reasoning is recorded) | Passing |
+| `packages/domain` (safety): `hazard HZ-013 harm thresholds come from the rate table` (Reg 18 and candour thresholds at and below the figure; the threshold decision wins) | Passing |
+| `packages/domain` (safety): `hazard HZ-013 deadline clocks read their periods from the rate table` (without-delay kinds overdue at once; RIDDOR across the October and March clock changes; candour working days across the Christmas bank holidays) | Passing |
+| `packages/domain` (safety): `hazard HZ-013 an incident recorded offline starts its clock at the recorded event time` | Passing |
+| `packages/domain` (safety): `hazard HZ-013 open questions, provisional drafts and tasks` | Passing |
+| `packages/domain` (safety): `hazard HZ-013 nations and questions` (no partial answer outside England; answer validation) | Passing |
+| `packages/domain` (safety): `hazard HZ-013 safety figures come from the rate table` | Passing |
 | `packages/domain` (safety): `hazard HZ-013 an unacted clock escalates to the Nominated Individual before breach` | Planned, Phase 1 |
+| `packages/domain` (safety): `hazard HZ-013 only a holder of safety.notification.submit with step-up can submit` (`workflows.test.ts`, the workflow rules) | Passing |
 | `apps/api`: `hazard HZ-013 only a holder of safety.notification.submit with step-up can submit` | Planned, Phase 1 |
-| `packages/domain` (safety): `hazard HZ-013 an incident recorded offline starts its clock at the recorded event time` | Planned, Phase 1 |
-| `packages/domain` (safety): `hazard HZ-013 a decision cannot close without evidence or a not-notifiable reason` | Planned, Phase 1 |
-| `packages/domain` (safety): `hazard HZ-013 the outbreak rule fires for linked cases within the configured window` | Planned, Phase 2 |
+| `packages/domain` (safety): `hazard HZ-013 a decision cannot close without evidence or a not-notifiable reason` | Passing |
+| `packages/domain` (safety): `hazard HZ-013 incident workflow: the person who raised it cannot close it` | Passing |
+| `packages/domain` (safety): `hazard HZ-013 duty of candour steps follow regulation 20` | Passing |
+| `packages/domain` (safety): `hazard HZ-013 the outbreak rule fires for linked cases within the configured window` (`outbreak.test.ts`; the rule landed in Phase 1) | Passing |
 
 ---
 
@@ -1015,7 +1030,7 @@ Six hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014) have a target resid
 | Status | Open |
 | Clinical owner | `[CSO name - human action]` |
 | Engineering owner | `care` module (lead engineer) |
-| Source | Master prompt 10.4; [Mental Capacity Act 2005 Schedule A1](https://www.legislation.gov.uk/ukpga/2005/9/schedule/A1); DHSC interim guidance after the June 2026 Supreme Court judgment |
+| Source | Master prompt 10.4; [Mental Capacity Act 2005 Schedule A1](https://www.legislation.gov.uk/ukpga/2005/9/schedule/A1); [DHSC interim guidance after the June 2026 Supreme Court judgment](https://www.gov.uk/government/publications/changes-to-the-definition-of-deprivation-of-liberty/uk-supreme-court-2026-judgment-on-what-constitutes-a-deprivation-of-liberty) (updated 22 September 2026) |
 
 **Description**: an urgent or standard authorisation expires, or a review required by the 2026 legal change is not done, while the person is still deprived of their liberty.
 
@@ -1032,6 +1047,8 @@ Six hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014) have a target resid
 | Design | DoLS register with expiry clocks from the rate table; tasks at 28 and 7 days before expiry (configurable) to the Registered Manager | Phase 1 |
 | Design | The outcome of an application drafts the CQC notification (HZ-013) | Phase 1 |
 | Design | Tenant switch for the 2026 legal change turns on the review-of-existing-authorisations workflow and lists every authorisation awaiting review | Phase 1 |
+| Design | Authorisation dates are checked against Schedule A1 (urgent period, one extension request, extension period, standard period) before they are saved; the register shows status and days left; a reminder that would fall before an urgent authorisation starts fires at its start (`packages/domain/src/care/mca/dols.ts`) | Phase 1 (domain rules built) |
+| Design | The legal-change review records the DHSC guidance's multifactorial assessment, objection and consent signs, and cannot close without the local authority referral when the person is no longer deprived of liberty or there is doubt | Phase 1 (domain rules built) |
 
 **Target residual risk**: severity Considerable, likelihood Low, **risk 2**.
 
@@ -1039,8 +1056,11 @@ Six hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014) have a target resid
 
 | Test | Status |
 | --- | --- |
-| `packages/domain` (care): `hazard HZ-020 DoLS expiry tasks fire before the end of each authorisation type` | Planned, Phase 1 |
-| `packages/domain` (care): `hazard HZ-020 a DoLS outcome drafts the CQC notification` | Planned, Phase 1 |
+| `packages/domain` (care): `hazard HZ-020 DoLS expiry tasks fire before the end of each authorisation type` (`dols.test.ts`) | Passing |
+| `packages/domain` (care): `hazard HZ-020 a DoLS outcome drafts the CQC notification` | Passing |
+| `packages/domain` (care): `hazard HZ-020 DoLS periods stay within Schedule A1` | Passing |
+| `packages/domain` (care): `hazard HZ-020 DoLS status and clocks` | Passing |
+| `packages/domain` (care): `hazard HZ-020 review of existing authorisations after the June 2026 judgment` | Passing |
 
 ---
 
@@ -1077,6 +1097,95 @@ Six hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014) have a target resid
 | Test | Status |
 | --- | --- |
 | `apps/api`: `hazard HZ-021 the downtime pack contains every required section for every current resident` | Planned, Phase 1 |
+
+---
+
+## HZ-026 Restrictive or covert care under consent or authority that is not valid
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-026 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `care` module (lead engineer) |
+| Source | Master prompt 10.4; [Mental Capacity Act 2005](https://www.legislation.gov.uk/ukpga/2005/9) sections 1 to 4, 9, 11, 20 and 37 to 39; [NICE SC1](https://www.nice.org.uk/guidance/sc1) 1.15 (covert administration); care.md section 4 rules 9 and 10 |
+
+**Description**: bed rails, covert medicines or other restrictive care are given on the strength of a consent, capacity assessment or best-interests decision that does not meet the Mental Capacity Act: consent from someone without authority (a relative, a property and financial attorney, an unregistered attorney, a deputy outside their order), the person's own consent recorded while they lacked capacity, a "lacks capacity" outcome the two-stage test does not support, an assessment of "everything" rather than one decision, or an incomplete best-interests checklist.
+
+**Causes**: next of kin treated as decision makers; the two kinds of lasting power of attorney confused; capacity assessed once and reused for other decisions; no practicable steps recorded; consent relied on after it expired or was withdrawn, or after the person regained capacity; no IMCA where nobody could be consulted.
+
+**Effects**: covert medication or bed rails without lawful authority (entrapment, medicines given in an unsafe form, distress); the person's own decision overridden; unlawful restriction; regulatory action.
+
+**Initial risk**: severity Considerable, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Consent is checked by representative type: only a registered health and welfare attorney or a personal welfare deputy within their order may consent for a person who lacks capacity for the decision; relatives, appointees, IMCAs and advocates are refused with the reason; marketing and AI processing only from the person (`consent.ts`) | Phase 1 (domain rules built) |
+| Design | Bed rails need the restraint conditions (MCA s.11 and s.20); covert medicines need a lack of capacity and a best-interests decision (NICE SC1 1.15) | Phase 1 (domain rules built) |
+| Design | `consentStatus` decides at the time of use: expired, withdrawn, refused or superseded consent, and a representative's consent once the person has capacity, are not valid | Phase 1 (domain rules built) |
+| Design | Capacity assessments are decision- and time-specific; "lacks capacity" only when stage 1 is met, a stage 2 element is not and the inability is because of the impairment, with practicable steps recorded (`capacity.ts`) | Phase 1 (domain rules built) |
+| Design | The best-interests checklist is complete only when every item is answered, with reasons for "not applicable", a consultation or the reason there was none, and the IMCA prompt (`best-interests.ts`) | Phase 1 (domain rules built) |
+| Test | See Verification | Phase 1 |
+| Training and user documentation | User guide on consent, capacity and representatives with the Act's wording. Deployer control: the tenant's Mental Capacity Act policy and training | Phase 1 |
+
+**Target residual risk**: severity Considerable, likelihood Low, **risk 2**.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain` (care): `hazard HZ-026 consent authority by representative type` (`consent.test.ts`) | Passing |
+| `packages/domain` (care): `hazard HZ-026 whether a valid consent exists at a time` | Passing |
+| `packages/domain` (care): `hazard HZ-026 capacity: lacks capacity only when stage 1 is met and a stage 2 element is not` (`capacity.test.ts`) | Passing |
+| `packages/domain` (care): `hazard HZ-026 capacity is assumed unless an assessment of that decision says otherwise` | Passing |
+| `packages/domain` (care): `hazard HZ-026 best-interests checklist is complete only when every item is answered` | Passing |
+| `packages/domain` (care): `hazard HZ-026 IMCA prompt when nobody appropriate can be consulted (MCA s.37 to s.39)` | Passing |
+| `apps/api`: `hazard HZ-026 a consent without authority is refused` | Planned, Phase 1 |
+
+---
+
+## HZ-027 Head injury after a fall not observed or escalated
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-027 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `safety` module (lead engineer) |
+| Source | Master prompt 11.1 (falls protocol); [NICE NG232](https://www.nice.org.uk/guidance/ng232/chapter/Recommendations) 1.2.4 and 1.9.11; safety.md section 4 rule 12 |
+
+**Description**: after a fall, a person with a head injury, or on anticoagulant or antiplatelet treatment, is not observed closely enough or urgent medical advice is not sought, so an intracranial bleed is missed.
+
+**Causes**: a head injury not recognised (an unwitnessed fall); anticoagulant status not known at the point of care; no observation schedule created, or one not followed; tasks lost at handover (HZ-018); offline capture delays the tasks (HZ-006); the observation defaults not suited to the setting.
+
+**Effects**: delayed treatment of an intracranial haemorrhage; death or permanent disability.
+
+**Initial risk**: severity Major, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Every fall creates the post-fall checklist; a head injury or anticoagulant or antiplatelet treatment, or either not ruled out, prompts urgent medical advice under the tenant's post-fall policy and creates timed observation tasks (`packages/domain/src/safety/post-fall.ts`) | Phase 1 (domain rules built) |
+| Design | Observation intervals and the monitoring period come from the rate table (`falls.*`), defaulting to NICE NG232 1.9.11, to be confirmed by the CSO (human action H-66); observation times are elapsed time, so a clock change does not move them | Phase 1 (domain rules built) |
+| Design | The tasks are created on the device when a fall is recorded offline and escalate when overdue | Phase 1 |
+| Test | See Verification | Phase 1 |
+| Training and user documentation | Deployer control: the tenant's post-fall policy and escalation route linked from the task; staff trained in post-fall observations | Phase 1 |
+
+**Target residual risk**: severity Major, likelihood Low, **risk 3**.
+
+**Justification for level 3**: Harbour prompts, schedules and escalates, but recognising deterioration and seeking advice are clinical actions by the staff on shift; further reduction would mean automating a clinical judgement, which the medical-device boundary rules out. `[CSO acceptance - human action]`
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain` (safety): `hazard HZ-027 head injury or anticoagulants shorten the observation schedule` (`post-fall.test.ts`) | Passing |
+| `packages/domain` (safety): `hazard HZ-013 open questions, provisional drafts and tasks` (a fall on anticoagulants raises urgent advice and timed observations) | Passing |
+| `apps/api`: `hazard HZ-027 a fall creates the post-fall tasks with the observation schedule` | Planned, Phase 1 |
+| Maestro `hazard-HZ-027-post-fall-observations.yaml` | Planned, Phase 1 |
 
 ---
 
