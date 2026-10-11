@@ -41,10 +41,24 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild",
-      "sharp",
       "@biomejs/biome",
       "unrs-resolver"
-    ]
+    ],
+    "ignoredOptionalDependencies": [
+      "sharp"
+    ],
+    "packageExtensions": {
+      "next": {
+        "peerDependencies": {
+          "@types/react": "*"
+        },
+        "peerDependenciesMeta": {
+          "@types/react": {
+            "optional": true
+          }
+        }
+      }
+    }
   },
   "op-sqlite": {
     "sqlcipher": true
