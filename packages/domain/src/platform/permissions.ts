@@ -43,8 +43,10 @@ export const PERMISSIONS = {
   "platform.flag.manage": { description: "Switch modules on or off for the tenant and locations" },
   "platform.audit.read": { description: "Read the audit log and record history" },
   "platform.export.create": {
+    // The export holds every care record, so it needs MFA, and its step-up is an MFA sign-in.
     description: "Create and download the organisation's full data export (free, at any time)",
     stepUp: true,
+    careRecord: true,
   },
   "platform.import.run": { description: "Run the migration import wizard" },
   "platform.billing.read": { description: "See the tenant's Harbour subscription and invoices" },

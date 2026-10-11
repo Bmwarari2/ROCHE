@@ -90,6 +90,8 @@ export function resolveRate(
 export const PLATFORM_RATE_KEYS = {
   agencyPostShiftHours: "access.agency.post_shift_hours",
   exportLinkExpiryHours: "export.link_expiry_hours",
+  exportLinkExpiryHoursMax: "export.link_expiry_hours_max",
+  breakGlassSearchMaxPerDay: "break_glass.search_max_per_day",
   dpiaReviewIntervalMonths: "dpia.review_interval_months",
   subProcessorNoticeDays: "sub_processor.notice_days",
 } as const;

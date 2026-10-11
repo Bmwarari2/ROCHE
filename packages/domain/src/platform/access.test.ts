@@ -222,6 +222,8 @@ describe("permission catalogue", () => {
   it.each([
     ["care.note.read", true],
     ["operations.catering.manage", false],
+    // The full export holds every care record, so asking for it needs MFA (security review).
+    ["platform.export.create", true],
   ] as const)("%s touches care records: %s", (permission, expected) => {
     expect(touchesCareRecords(permission)).toBe(expected);
   });
