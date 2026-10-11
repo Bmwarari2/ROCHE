@@ -1,5 +1,6 @@
 import { Button, Card, SelectField } from "@harbour/ui";
 import type { Metadata } from "next";
+import { ArrivalNotice } from "@/components/care/ArrivalNotice";
 import { NoAccess } from "@/components/care/NoAccess";
 import { RecordFrame } from "@/components/care/RecordFrame";
 import { RiskCard } from "@/components/care/RiskCard";
@@ -71,11 +72,8 @@ async function RiskAssessmentsTab({
         </p>
       </div>
 
-      {first(query.saved) ? (
-        <p role="status" className="m-0 font-semibold">
-          {t("care.risk.form.saved")}
-        </p>
-      ) : null}
+      {first(query.saved) ? <ArrivalNotice>{t("care.risk.form.saved")}</ArrivalNotice> : null}
+      {first(query.closed) ? <ArrivalNotice>{t("care.risk.close.arrived")}</ArrivalNotice> : null}
 
       {canWrite && !formTemplate ? (
         <Card as="section" title={t("care.risk.add")} headingLevel={3}>

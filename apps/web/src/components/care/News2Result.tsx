@@ -1,5 +1,6 @@
 import { StatusChip } from "@harbour/ui";
 import { Activity } from "lucide-react";
+import type { Ref } from "react";
 import { TOOL_SOURCES } from "@/lib/assessments";
 import { type News2Flags, news2Chip } from "@/lib/charts";
 import { t } from "@/lib/i18n";
@@ -12,13 +13,18 @@ import { Workings } from "./Workings";
 export function News2Result({
   news2,
   headingLevel = 3,
+  ref,
 }: {
   readonly news2: News2Flags;
   readonly headingLevel?: 2 | 3 | 4;
+  /** Set to move focus here once vital signs are saved, so the result is read out. */
+  readonly ref?: Ref<HTMLElement>;
 }) {
   const Heading = `h${headingLevel}` as const;
   return (
     <section
+      ref={ref}
+      tabIndex={ref ? -1 : undefined}
       aria-label={t("care.news2.title")}
       className="flex flex-col gap-3 rounded-input border border-border p-4"
       data-news2-score={news2.score}

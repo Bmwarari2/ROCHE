@@ -3,7 +3,7 @@
 import { DateTimeInput, type DateTimePart, dateTimePartsAt, RadioGroup } from "@harbour/ui";
 import { useState } from "react";
 import { t } from "@/lib/i18n";
-import { dateTimeLabels, type FieldPart } from "@/lib/uk-time";
+import { boxesOf, dateTimeLabels } from "@/lib/uk-time";
 
 type Mode = "now" | "earlier";
 
@@ -26,11 +26,12 @@ export function WhenField({
   /** The id an error summary links to: the first choice, or the day box once it is shown. */
   readonly id?: string;
   readonly error?: string;
-  readonly errorParts?: readonly FieldPart[];
+  /** The boxes the error is about; all of them when not given. */
+  readonly errorParts?: readonly string[];
 }) {
   const [mode, setMode] = useState<Mode>("now");
   const [start, setStart] = useState<Record<DateTimePart, string> | null>(null);
-  const onTime = errorParts?.some((part) => part !== "mode") ?? false;
+  const boxes = boxesOf(errorParts);
   return (
     <div className="flex flex-col gap-4">
       <RadioGroup<Mode>
@@ -44,7 +45,7 @@ export function WhenField({
           setMode(next);
         }}
         {...(mode === "now" && id ? { id } : {})}
-        {...(error && !(mode === "earlier" && onTime) ? { error } : {})}
+        {...(mode === "now" && error ? { error } : {})}
         options={[
           { value: "now", label: t("care.when.now"), description: t("care.when.nowHint") },
           {
@@ -62,14 +63,7 @@ export function WhenField({
           defaultValue={start}
           labels={dateTimeLabels(t)}
           {...(id ? { id } : {})}
-          {...(error && onTime
-            ? {
-                error,
-                errorParts: errorParts?.filter(
-                  (part): part is DateTimePart | "fold" => part !== "mode",
-                ),
-              }
-            : {})}
+          {...(error ? { error, ...(boxes ? { errorParts: boxes } : {}) } : {})}
         />
       ) : null}
     </div>

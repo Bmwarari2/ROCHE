@@ -17,11 +17,20 @@ import { type FormEvent, useState, useTransition } from "react";
 import { publishCarePlan } from "@/app/actions/care-plan";
 import { SIGN_OFF_AUTHORITIES } from "@/lib/care-plan";
 import { characterCount, t } from "@/lib/i18n";
-import { type ActionResult, refused } from "@/lib/outcome";
-import { readDateField } from "@/lib/uk-time";
+import { type ActionResult, errorFor, partsFor, partsRefusal, refused } from "@/lib/outcome";
+import { dateBoxesOf, readDateField } from "@/lib/uk-time";
 import { FormFeedback } from "./FormFeedback";
+import { useFieldIds } from "./form-state";
 
 type AgreedBy = SignOffCarePlan["agreedBy"];
+
+const FIELDS = [
+  "agreedBy",
+  "representativeName",
+  "authority",
+  "unableReason",
+  "reviewDueOn",
+] as const;
 
 /**
  * "Publish the care plan" (care.md rule 2, hazard HZ-024): records who agreed the draft (the
@@ -44,17 +53,26 @@ export function PublishPlan({
   const [agreedBy, setAgreedBy] = useState<AgreedBy | null>(null);
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const [pending, startTransition] = useTransition();
+  const ids = useFieldIds(FIELDS);
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    if (!agreedBy) {
+      setResult(refused(t("care.plan.publish.agreedRequired"), "invalid", ["agreedBy"]));
+      return;
+    }
+    if (agreedBy === "unable" && String(form.get("unableReason") ?? "").trim().length < 10) {
+      setResult(refused(t("care.refusal.unableReason"), "invalid", ["unableReason"]));
+      return;
+    }
     const review = readDateField(form, "reviewDueOn", {
       subject: t("care.date.subject.reviewDueOn"),
       optional: true,
       t,
     });
     if (!review.ok) {
-      setResult(refused(review.message));
+      setResult(partsRefusal("reviewDueOn", review));
       return;
     }
     startTransition(async () => {
@@ -90,6 +108,8 @@ export function PublishPlan({
     >
       <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
         <RadioGroup<AgreedBy>
+          id={ids.agreedBy}
+          error={errorFor(result, "agreedBy")}
           legend={t("care.plan.publish.agreedBy")}
           name="agreedBy"
           value={agreedBy}
@@ -107,11 +127,15 @@ export function PublishPlan({
         {agreedBy === "representative" ? (
           <>
             <TextField
+              id={ids.representativeName}
+              error={errorFor(result, "representativeName")}
               name="representativeName"
               label={t("care.plan.publish.representativeName")}
               maxLength={200}
             />
             <SelectField
+              id={ids.authority}
+              error={errorFor(result, "authority")}
               name="authority"
               label={t("care.plan.publish.authority")}
               emptyOption={t("care.plan.publish.authorityEmpty")}
@@ -124,6 +148,9 @@ export function PublishPlan({
         ) : null}
         {agreedBy === "unable" ? (
           <TextArea
+            id={ids.unableReason}
+            error={errorFor(result, "unableReason")}
+            hint={t("care.plan.publish.unableHint")}
             name="unableReason"
             label={t("care.plan.publish.unableReason")}
             rows={3}
@@ -132,6 +159,9 @@ export function PublishPlan({
           />
         ) : null}
         <DateInput
+          id={ids.reviewDueOn}
+          error={errorFor(result, "reviewDueOn")}
+          errorParts={dateBoxesOf(partsFor(result, "reviewDueOn"))}
           legend={t("care.plan.publish.reviewDueOn")}
           hint={t("care.plan.publish.reviewHint")}
           name="reviewDueOn"
@@ -141,7 +171,7 @@ export function PublishPlan({
             year: t("care.date.year"),
           }}
         />
-        <FormFeedback result={result} success={t("care.plan.published.toast")} />
+        <FormFeedback result={result} success={t("care.plan.published.toast")} fieldIds={ids} />
         <div className="flex flex-wrap justify-end gap-2">
           <SheetClose asChild>
             <Button variant="secondary">{t("common.cancel")}</Button>

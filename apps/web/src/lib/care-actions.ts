@@ -34,8 +34,13 @@ export async function sendForPerson<T>(
   }
 }
 
-/** When an entry happened and when the form was sent, both from the form (lib/uk-time.ts). */
+/** An append-only entry's id, when it happened and when the form was sent. */
 export interface EntryTiming {
+  /**
+   * The entry's own UUIDv7, made by the form and sent with every attempt, so a retry after an
+   * unknown outcome cannot record it twice (hazard HZ-029).
+   */
+  readonly id: string;
   /** When it happened, as an ISO instant ("now" is the moment the form was sent). */
   readonly occurredAt: string;
   /** The device's clock when the form was sent, so the API can flag clock drift (HZ-010). */
@@ -48,9 +53,15 @@ export interface EntryTiming {
  */
 export function entryTime(
   timing: EntryTiming,
-): { readonly occurredAt: string; readonly headers: Record<string, string> } | ActionResult<never> {
-  if (!isIsoInstant(timing.occurredAt)) return refused(t("care.errors.whenRequired"));
+):
+  | { readonly id: string; readonly occurredAt: string; readonly headers: Record<string, string> }
+  | ActionResult<never> {
+  if (!isUuid(timing.id)) return refused(t("care.errors.invalid"));
+  if (!isIsoInstant(timing.occurredAt)) {
+    return refused(t("care.errors.whenRequired"), "invalid", ["occurredAt"]);
+  }
   return {
+    id: timing.id,
     occurredAt: timing.occurredAt,
     headers: isIsoInstant(timing.sentAt) ? { "x-harbour-sent-at": timing.sentAt } : {},
   };

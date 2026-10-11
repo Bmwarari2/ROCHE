@@ -5,14 +5,25 @@ import { Button, DateInput, RadioGroup, SelectField, TextArea, TextField } from 
 import { type FormEvent, useState, useTransition } from "react";
 import { recordAdvanceCare } from "@/app/actions/care-records";
 import { characterCount, t } from "@/lib/i18n";
-import { type ActionResult, refused } from "@/lib/outcome";
-import { readDateField } from "@/lib/uk-time";
+import { type ActionResult, errorFor, partsFor, partsRefusal } from "@/lib/outcome";
+import { dateBoxesOf, readDateField } from "@/lib/uk-time";
 import { FormFeedback } from "./FormFeedback";
+import { useFieldIds } from "./form-state";
 
 type Kind = CreateAdvanceCareRecord["kind"];
 type CprDecision = NonNullable<CreateAdvanceCareRecord["cprDecision"]>;
 
 const KINDS = ["respect", "dnacpr", "adrt", "advance_care_plan"] as const satisfies readonly Kind[];
+
+const FIELDS = [
+  "kind",
+  "cprDecision",
+  "clinicianName",
+  "clinicianRole",
+  "completedOn",
+  "reviewDueOn",
+  "details",
+] as const;
 
 const dateLabels = {
   day: t("care.date.day"),
@@ -36,6 +47,7 @@ export function AdvanceCareForm({
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const [round, setRound] = useState(0);
   const [pending, startTransition] = useTransition();
+  const ids = useFieldIds(FIELDS);
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -47,7 +59,7 @@ export function AdvanceCareForm({
       t,
     });
     if (!completed.ok) {
-      setResult(refused(completed.message));
+      setResult(partsRefusal("completedOn", completed));
       return;
     }
     const review = readDateField(form, "reviewDueOn", {
@@ -56,7 +68,7 @@ export function AdvanceCareForm({
       t,
     });
     if (!review.ok) {
-      setResult(refused(review.message));
+      setResult(partsRefusal("reviewDueOn", review));
       return;
     }
     const input: CreateAdvanceCareRecord = {
@@ -83,6 +95,8 @@ export function AdvanceCareForm({
     <div className="flex flex-col gap-4">
       <form key={round} className="flex flex-col gap-4" onSubmit={submit} noValidate>
         <SelectField
+          id={ids.kind}
+          error={errorFor(result, "kind")}
           name="kind"
           label={t("care.advance.form.kind")}
           hint={t("care.advance.form.supersedes")}
@@ -96,6 +110,8 @@ export function AdvanceCareForm({
         />
         {kind === "respect" ? (
           <RadioGroup<CprDecision>
+            id={ids.cprDecision}
+            error={errorFor(result, "cprDecision")}
             legend={t("care.advance.form.cprDecision")}
             name="cprDecision"
             layout="inline"
@@ -110,11 +126,15 @@ export function AdvanceCareForm({
         ) : null}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <TextField
+            id={ids.clinicianName}
+            error={errorFor(result, "clinicianName")}
             name="clinicianName"
             label={t("care.advance.form.clinicianName")}
             maxLength={200}
           />
           <TextField
+            id={ids.clinicianRole}
+            error={errorFor(result, "clinicianRole")}
             name="clinicianRole"
             label={t("care.advance.form.clinicianRole")}
             hint={t("care.advance.form.clinicianRoleHint")}
@@ -122,6 +142,9 @@ export function AdvanceCareForm({
           />
         </div>
         <DateInput
+          id={ids.completedOn}
+          error={errorFor(result, "completedOn")}
+          errorParts={dateBoxesOf(partsFor(result, "completedOn"))}
           legend={t("care.advance.form.completedOn")}
           hint={t("care.date.hint")}
           name="completedOn"
@@ -129,12 +152,16 @@ export function AdvanceCareForm({
           labels={dateLabels}
         />
         <DateInput
+          id={ids.reviewDueOn}
+          error={errorFor(result, "reviewDueOn")}
+          errorParts={dateBoxesOf(partsFor(result, "reviewDueOn"))}
           legend={t("care.advance.form.reviewDueOn")}
           hint={t("care.date.hint")}
           name="reviewDueOn"
           labels={dateLabels}
         />
         <TextArea
+          id={ids.details}
           name="details"
           label={t("care.advance.form.details")}
           rows={3}
@@ -147,7 +174,7 @@ export function AdvanceCareForm({
           </Button>
         </div>
       </form>
-      <FormFeedback result={result} success={t("care.advance.form.saved")} />
+      <FormFeedback result={result} success={t("care.advance.form.saved")} fieldIds={ids} />
     </div>
   );
 }

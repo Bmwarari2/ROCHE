@@ -143,7 +143,12 @@ export function RiskCard({
               >
                 {t("care.risk.review.open")}
               </ButtonLink>
-              <CloseRisk personId={personId} riskId={item.id} version={item.version} />
+              <CloseRisk
+                personId={personId}
+                riskId={item.id}
+                version={item.version}
+                title={template?.title ?? item.templateKey}
+              />
             </>
           ) : null}
         </div>

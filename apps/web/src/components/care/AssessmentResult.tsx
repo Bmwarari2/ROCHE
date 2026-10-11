@@ -1,6 +1,7 @@
 import type { AssessmentItem } from "@harbour/contracts";
 import { StatusChip } from "@harbour/ui";
 import { ClipboardCheck } from "lucide-react";
+import type { Ref } from "react";
 import { bandChip, bandLabel, fallsDetails, TOOL_SOURCES, triggerTexts } from "@/lib/assessments";
 import { readWorkings } from "@/lib/charts";
 import { formatDate, formatDateTime } from "@/lib/format";
@@ -16,9 +17,12 @@ import { Workings } from "./Workings";
 export function AssessmentResult({
   item,
   headingLevel = 3,
+  headingRef,
 }: {
   readonly item: AssessmentItem;
   readonly headingLevel?: 3 | 4;
+  /** Set to move focus to the heading, as the form does once a result is saved. */
+  readonly headingRef?: Ref<HTMLHeadingElement>;
 }) {
   const Heading = `h${headingLevel}` as const;
   const band = bandLabel(item, t);
@@ -31,7 +35,11 @@ export function AssessmentResult({
       data-assessment={item.toolKey}
     >
       <div className="flex flex-wrap items-center gap-3">
-        <Heading className="m-0 text-body font-semibold">
+        <Heading
+          ref={headingRef}
+          tabIndex={headingRef ? -1 : undefined}
+          className="m-0 text-body font-semibold"
+        >
           {t("care.assessments.toolFull", { tool: item.toolKey })}
         </Heading>
         <EntryBadges entry={item} />

@@ -42,13 +42,13 @@ export async function recordNote(
   input: NoteInput,
 ): Promise<ActionResult<CareNoteItem>> {
   const body = input.body.trim();
-  if (!body) return refused(t("care.notes.bodyRequired"));
+  if (!body) return refused(t("care.notes.bodyRequired"), "invalid", ["body"]);
   const when = entryTime(input);
   if (isRefusal(when)) return when;
   if (input.supersedesId !== undefined) {
     if (!isUuid(input.supersedesId)) return refused(t("errors.notFound"), "not_found");
     if ((input.correctionReason?.trim().length ?? 0) < 3) {
-      return refused(t("care.notes.correct.reasonRequired"));
+      return refused(t("care.notes.correct.reasonRequired"), "invalid", ["reason"]);
     }
   }
   return sendForPerson(personId, (api) =>
@@ -56,6 +56,7 @@ export async function recordNote(
       params: { path: { id: personId } },
       headers: when.headers,
       body: {
+        id: when.id,
         occurredAt: when.occurredAt,
         category: input.category,
         body,
@@ -82,7 +83,7 @@ export async function recordObservation(
     api.POST("/v1/people/{id}/observations", {
       params: { path: { id: personId } },
       headers: when.headers,
-      body: { occurredAt: when.occurredAt, values: input.values },
+      body: { id: when.id, occurredAt: when.occurredAt, values: input.values },
     }),
   );
 }
@@ -96,14 +97,19 @@ export async function recordBodyMark(
 ): Promise<ActionResult<BodyMapMarkItem>> {
   const when = entryTime(input);
   if (isRefusal(when)) return when;
-  const { occurredAt: _when, sentAt: _sent, description, ...mark } = input;
+  const { id: _id, occurredAt: _when, sentAt: _sent, description, ...mark } = input;
   const text = optionalText(description);
   // The API decides whether the side drawn and the side stated agree (HZ-019).
   return sendForPerson(personId, (api) =>
     api.POST("/v1/people/{id}/body-map", {
       params: { path: { id: personId } },
       headers: when.headers,
-      body: { ...mark, ...(text ? { description: text } : {}), occurredAt: when.occurredAt },
+      body: {
+        ...mark,
+        ...(text ? { description: text } : {}),
+        id: when.id,
+        occurredAt: when.occurredAt,
+      },
     }),
   );
 }

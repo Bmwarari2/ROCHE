@@ -3,7 +3,7 @@
 import type { CarePlanSectionItem, PcspDomain } from "@harbour/contracts";
 import { Button, Checkbox, SelectField, StatusChip, TextArea, TextField } from "@harbour/ui";
 import { CircleCheck, CircleMinus, Trash2 } from "lucide-react";
-import { type FormEvent, useState, useTransition } from "react";
+import { type FormEvent, useEffect, useRef, useState, useTransition } from "react";
 import {
   addCarePlanAction,
   removeCarePlanAction,
@@ -11,10 +11,75 @@ import {
 } from "@/app/actions/care-plan";
 import { ACTION_ROLES, roleLabel } from "@/lib/care-plan";
 import { characterCount, t } from "@/lib/i18n";
-import type { ActionResult } from "@/lib/outcome";
+import { type ActionResult, errorFor } from "@/lib/outcome";
 import { FormFeedback } from "./FormFeedback";
+import { useFieldIds } from "./form-state";
 
 const TEXT_MAX = 4000;
+
+const SECTION_FIELDS = ["need", "outcome", "strengths", "contingency"] as const;
+const ACTION_FIELDS = ["action", "roleKey", "whenText"] as const;
+
+/**
+ * "Remove action: Help Ada to stand", then a question with "Yes, remove it" and "Keep the action",
+ * so an action is never removed by one slip of the finger. Focus moves to the question and back to
+ * the button when the action is kept.
+ */
+function RemoveAction({
+  title,
+  disabled,
+  onRemove,
+}: {
+  readonly title: string;
+  readonly disabled: boolean;
+  readonly onRemove: () => void;
+}) {
+  const [asking, setAsking] = useState(false);
+  const question = useRef<HTMLParagraphElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const returnFocus = useRef(false);
+  useEffect(() => {
+    if (asking) question.current?.focus();
+    else if (returnFocus.current) {
+      returnFocus.current = false;
+      button.current?.focus();
+    }
+  }, [asking]);
+  if (!asking) {
+    return (
+      <Button
+        ref={button}
+        variant="secondary"
+        icon={<Trash2 size={16} strokeWidth={1.5} />}
+        disabled={disabled}
+        onClick={() => setAsking(true)}
+      >
+        {t("care.plan.edit.removeAction", { action: title })}
+      </Button>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      <p ref={question} tabIndex={-1} className="m-0 font-semibold">
+        {t("care.plan.edit.removeConfirm")}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="destructive" disabled={disabled} onClick={onRemove}>
+          {t("care.plan.edit.removeYes")}
+        </Button>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            returnFocus.current = true;
+            setAsking(false);
+          }}
+        >
+          {t("care.plan.edit.removeNo")}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 /**
  * One need domain of a draft care plan: the need, the outcome in the person's words, strengths and
@@ -39,6 +104,8 @@ export function SectionEditor({
   const [addedMessage, setAddedMessage] = useState(t("care.plan.edit.actionAdded"));
   const [addRound, setAddRound] = useState(0);
   const [pending, startTransition] = useTransition();
+  const sectionIds = useFieldIds(SECTION_FIELDS);
+  const actionIds = useFieldIds(ACTION_FIELDS);
   const domainName = t("care.plan.domain", { domain });
   const written = Boolean(section?.need?.trim() || section?.outcome?.trim());
 
@@ -99,6 +166,7 @@ export function SectionEditor({
       <div className="flex flex-col gap-6 border-t border-border p-4">
         <form className="flex flex-col gap-4" onSubmit={saveSection} noValidate>
           <TextArea
+            id={sectionIds.need}
             name="need"
             label={t("care.plan.section.need")}
             defaultValue={section?.need ?? ""}
@@ -107,6 +175,7 @@ export function SectionEditor({
             formatCount={(remaining) => characterCount(remaining)}
           />
           <TextArea
+            id={sectionIds.outcome}
             name="outcome"
             label={t("care.plan.section.outcome", { name })}
             hint={t("care.plan.edit.outcomeHint", { name })}
@@ -116,6 +185,7 @@ export function SectionEditor({
             formatCount={(remaining) => characterCount(remaining)}
           />
           <TextArea
+            id={sectionIds.strengths}
             name="strengths"
             label={t("care.plan.section.strengths")}
             defaultValue={section?.strengths ?? ""}
@@ -124,6 +194,7 @@ export function SectionEditor({
             formatCount={(remaining) => characterCount(remaining)}
           />
           <TextArea
+            id={sectionIds.contingency}
             name="contingency"
             label={t("care.plan.section.contingency")}
             defaultValue={section?.contingency ?? ""}
@@ -136,7 +207,11 @@ export function SectionEditor({
               {t("care.plan.edit.saveSection", { domain: domainName })}
             </Button>
           </div>
-          <FormFeedback result={saved} success={t("care.plan.edit.sectionSaved")} />
+          <FormFeedback
+            result={saved}
+            success={t("care.plan.edit.sectionSaved")}
+            fieldIds={sectionIds}
+          />
         </form>
 
         <section className="flex flex-col gap-3" aria-label={t("care.plan.section.actions")}>
@@ -162,14 +237,11 @@ export function SectionEditor({
                         ) : null}
                       </p>
                     </div>
-                    <Button
-                      variant="secondary"
-                      icon={<Trash2 size={16} strokeWidth={1.5} />}
+                    <RemoveAction
+                      title={action.action}
                       disabled={pending}
-                      onClick={() => removeAction(action.id, action.version)}
-                    >
-                      {t("care.plan.edit.removeAction")}
-                    </Button>
+                      onRemove={() => removeAction(action.id, action.version)}
+                    />
                   </li>
                 );
               })}
@@ -186,6 +258,8 @@ export function SectionEditor({
             >
               <p className="m-0 font-semibold">{t("care.plan.edit.addAction")}</p>
               <TextArea
+                id={actionIds.action}
+                error={errorFor(added, "action")}
                 name="action"
                 label={t("care.plan.edit.actionText")}
                 hint={t("care.plan.edit.actionHint")}
@@ -194,6 +268,7 @@ export function SectionEditor({
                 formatCount={(remaining) => characterCount(remaining)}
               />
               <SelectField
+                id={actionIds.roleKey}
                 name="roleKey"
                 label={t("care.plan.edit.role")}
                 emptyOption={t("care.plan.edit.roleEmpty")}
@@ -204,6 +279,7 @@ export function SectionEditor({
                 className="max-w-sm"
               />
               <TextField
+                id={actionIds.whenText}
                 name="whenText"
                 label={t("care.plan.edit.whenText")}
                 hint={t("care.plan.edit.whenHint")}
@@ -219,7 +295,7 @@ export function SectionEditor({
           ) : (
             <p className="m-0 text-callout text-text-secondary">{t("care.plan.edit.needFirst")}</p>
           )}
-          <FormFeedback result={added} success={addedMessage} />
+          <FormFeedback result={added} success={addedMessage} fieldIds={actionIds} />
         </section>
       </div>
     </details>

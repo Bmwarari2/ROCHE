@@ -8,10 +8,19 @@ import { readWholeNumber } from "@/lib/assessments";
 import { IDDSI_DRINK_LEVELS, IDDSI_FOOD_LEVELS, iddsiLabel } from "@/lib/care-record";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import { type ActionResult, refused } from "@/lib/outcome";
+import { type ActionResult, errorFor, refused } from "@/lib/outcome";
 import { FormFeedback } from "./FormFeedback";
+import { useFieldIds } from "./form-state";
 
 const SKIN_RISKS = ["not_at_risk", "at_risk", "high_risk"] as const;
+
+const FIELDS = [
+  "iddsiFoodLevel",
+  "iddsiDrinkLevel",
+  "iddsiAdvisedBy",
+  "fluidTargetMl",
+  "spo2Scale2Clinician",
+] as const;
 
 /**
  * The person's chart settings: prescribed IDDSI levels (a change records who advised it, HZ-016),
@@ -28,6 +37,7 @@ export function ChartSettingsForm({
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const [scale2, setScale2] = useState(profile.spo2Scale2);
   const [pending, startTransition] = useTransition();
+  const ids = useFieldIds(FIELDS);
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -36,12 +46,8 @@ export function ChartSettingsForm({
     const drink = String(form.get("iddsiDrinkLevel") ?? "");
     const targetText = String(form.get("fluidTargetMl") ?? "").trim();
     const target = targetText === "" ? null : readWholeNumber(targetText);
-    if (target !== null && (target < 500 || target > 4000)) {
-      setResult(refused(t("care.profile.fluidTargetHint")));
-      return;
-    }
-    if (targetText !== "" && target === null) {
-      setResult(refused(t("care.profile.fluidTargetHint")));
+    if ((target !== null && (target < 500 || target > 4000)) || (targetText && target === null)) {
+      setResult(refused(t("care.profile.fluidTargetHint"), "invalid", ["fluidTargetMl"]));
       return;
     }
     const advisedBy = String(form.get("iddsiAdvisedBy") ?? "").trim();
@@ -65,6 +71,7 @@ export function ChartSettingsForm({
     <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <SelectField
+          id={ids.iddsiFoodLevel}
           name="iddsiFoodLevel"
           label={t("care.profile.foodLevel")}
           defaultValue={profile.iddsiFoodLevel ?? ""}
@@ -75,6 +82,7 @@ export function ChartSettingsForm({
           }))}
         />
         <SelectField
+          id={ids.iddsiDrinkLevel}
           name="iddsiDrinkLevel"
           label={t("care.profile.drinkLevel")}
           defaultValue={profile.iddsiDrinkLevel ?? ""}
@@ -86,6 +94,8 @@ export function ChartSettingsForm({
         />
       </div>
       <TextField
+        id={ids.iddsiAdvisedBy}
+        error={errorFor(result, "iddsiAdvisedBy")}
         name="iddsiAdvisedBy"
         label={t("care.profile.advisedBy")}
         hint={
@@ -100,6 +110,8 @@ export function ChartSettingsForm({
       />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <TextField
+          id={ids.fluidTargetMl}
+          error={errorFor(result, "fluidTargetMl")}
           name="fluidTargetMl"
           label={t("care.profile.fluidTarget")}
           hint={t("care.profile.fluidTargetHint")}
@@ -126,6 +138,8 @@ export function ChartSettingsForm({
       />
       {scale2 && !profile.spo2Scale2 ? (
         <TextField
+          id={ids.spo2Scale2Clinician}
+          error={errorFor(result, "spo2Scale2Clinician")}
           name="spo2Scale2Clinician"
           label={t("care.profile.clinician")}
           hint={t("care.profile.clinicianHint")}
@@ -137,7 +151,7 @@ export function ChartSettingsForm({
           {pending ? t("common.saving") : t("care.profile.submit")}
         </Button>
       </div>
-      <FormFeedback result={result} success={t("care.profile.saved")} />
+      <FormFeedback result={result} success={t("care.profile.saved")} fieldIds={ids} />
     </form>
   );
 }

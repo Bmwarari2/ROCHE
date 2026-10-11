@@ -5,16 +5,29 @@ import { Button, DateTimeInput, RadioGroup, TextArea, TextField } from "@harbour
 import { type FormEvent, useState, useTransition } from "react";
 import { recordVisit } from "@/app/actions/care-records";
 import { characterCount, t } from "@/lib/i18n";
-import { type ActionResult, refused } from "@/lib/outcome";
-import { dateTimeLabels, readDateTimeField, readWhen } from "@/lib/uk-time";
+import { type ActionResult, errorFor, partsFor, partsRefusal, refused } from "@/lib/outcome";
+import { boxesOf, dateTimeLabels, readDateTimeField, readWhen } from "@/lib/uk-time";
 import { FormFeedback } from "./FormFeedback";
+import { useEntryId, useFieldIds } from "./form-state";
 import { WhenField } from "./WhenField";
 
 type Kind = CreateVisit["kind"];
 
+const FIELDS = [
+  "kind",
+  "visitorName",
+  "visitorRelationship",
+  "occurredAt",
+  "endedAt",
+  "restrictionsApplied",
+  "restrictionReason",
+  "notes",
+] as const;
+
 /**
  * Record a visit, a visit out or an accompanied appointment (Regulation 9A; register row
- * CARE-014). A restriction needs its reason every time; the API refuses one without.
+ * CARE-014). A restriction needs its reason every time; the API refuses one without, and the
+ * refusal is shown at the reason.
  */
 export function VisitForm({
   personId,
@@ -27,19 +40,21 @@ export function VisitForm({
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const [round, setRound] = useState(0);
   const [pending, startTransition] = useTransition();
+  const ids = useFieldIds(FIELDS);
+  const entry = useEntryId();
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const kind = String(form.get("kind") ?? "") as Kind | "";
     if (!kind) {
-      setResult(refused(t("care.assessments.form.answerAll")));
+      setResult(refused(t("care.visits.form.kindRequired"), "invalid", ["kind"]));
       return;
     }
     const text = (field: string) => String(form.get(field) ?? "");
     const started = readWhen(form, "occurredAt", t, { subject: t("care.visits.startedSubject") });
     if (!started.ok) {
-      setResult(refused(started.message));
+      setResult(partsRefusal("occurredAt", started));
       return;
     }
     const ended = readDateTimeField(form, "endedAt", {
@@ -48,11 +63,12 @@ export function VisitForm({
       t,
     });
     if (!ended.ok) {
-      setResult(refused(ended.message));
+      setResult(partsRefusal("endedAt", ended));
       return;
     }
     startTransition(async () => {
       const outcome = await recordVisit(personId, {
+        id: entry.id,
         kind,
         occurredAt: started.instant,
         sentAt: new Date().toISOString(),
@@ -67,6 +83,7 @@ export function VisitForm({
       if (outcome.ok) {
         setRound((n) => n + 1);
         setRestricted("no");
+        entry.next();
       }
     });
   };
@@ -75,6 +92,8 @@ export function VisitForm({
     <div className="flex flex-col gap-4">
       <form key={round} className="flex flex-col gap-4" onSubmit={submit} noValidate>
         <RadioGroup<Kind>
+          id={ids.kind}
+          error={errorFor(result, "kind")}
           legend={t("care.visits.form.kind")}
           name="kind"
           options={(["facilitated_visit", "visit_out", "accompaniment"] as const).map((kind) => ({
@@ -83,21 +102,37 @@ export function VisitForm({
           }))}
         />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <TextField name="visitorName" label={t("care.visits.form.visitorName")} maxLength={200} />
           <TextField
+            id={ids.visitorName}
+            error={errorFor(result, "visitorName")}
+            name="visitorName"
+            label={t("care.visits.form.visitorName")}
+            maxLength={200}
+          />
+          <TextField
+            id={ids.visitorRelationship}
             name="visitorRelationship"
             label={t("care.visits.form.relationship", { name })}
             maxLength={120}
           />
         </div>
-        <WhenField legend={t("care.visits.form.started")} />
+        <WhenField
+          id={ids.occurredAt}
+          legend={t("care.visits.form.started")}
+          error={errorFor(result, "occurredAt")}
+          errorParts={partsFor(result, "occurredAt")}
+        />
         <DateTimeInput
+          id={ids.endedAt}
           legend={t("care.visits.form.ended")}
           hint={t("care.visits.form.endedHint")}
           name="endedAt"
           labels={dateTimeLabels(t)}
+          error={errorFor(result, "endedAt")}
+          errorParts={boxesOf(partsFor(result, "endedAt"))}
         />
         <RadioGroup<"yes" | "no">
+          id={ids.restrictionsApplied}
           legend={t("care.visits.form.restrictions")}
           name="restrictionsApplied"
           layout="inline"
@@ -110,6 +145,8 @@ export function VisitForm({
         />
         {restricted === "yes" ? (
           <TextArea
+            id={ids.restrictionReason}
+            error={errorFor(result, "restrictionReason")}
             name="restrictionReason"
             label={t("care.visits.form.restrictionReason")}
             hint={t("care.visits.form.restrictionHint")}
@@ -119,6 +156,7 @@ export function VisitForm({
           />
         ) : null}
         <TextArea
+          id={ids.notes}
           name="notes"
           label={t("care.visits.form.notes")}
           rows={2}
@@ -131,7 +169,7 @@ export function VisitForm({
           </Button>
         </div>
       </form>
-      <FormFeedback result={result} success={t("care.visits.form.saved")} />
+      <FormFeedback result={result} success={t("care.visits.form.saved")} fieldIds={ids} />
     </div>
   );
 }

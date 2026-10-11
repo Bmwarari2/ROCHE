@@ -2,15 +2,23 @@
 
 import type { ObservationValues, PersonCareProfile } from "@harbour/contracts";
 import { Button, Checkbox, RadioGroup, SelectField, TextField } from "@harbour/ui";
-import { type FormEvent, useState, useTransition } from "react";
+import { type FormEvent, useRef, useState, useTransition } from "react";
 import { recordObservation } from "@/app/actions/care-record";
 import { readNumber, readWholeNumber } from "@/lib/assessments";
 import { IDDSI_DRINK_LEVELS, IDDSI_FOOD_LEVELS, iddsiLabel } from "@/lib/care-record";
 import { type ChartKind, type News2Flags, news2FromFlags } from "@/lib/charts";
 import { t } from "@/lib/i18n";
-import { type ActionResult, refused } from "@/lib/outcome";
+import {
+  type ActionResult,
+  errorFor,
+  type FieldErrors,
+  fieldErrors,
+  partsFor,
+  partsRefusal,
+} from "@/lib/outcome";
 import { readWhen } from "@/lib/uk-time";
 import { FormFeedback } from "./FormFeedback";
+import { useEntryId, useFieldIds } from "./form-state";
 import { News2Result } from "./News2Result";
 import { WhenField } from "./WhenField";
 
@@ -25,6 +33,32 @@ const AMOUNTS = ["small", "medium", "large"] as const;
 const WEIGHT_METHODS = ["standing", "chair", "hoist", "bed"] as const;
 const CONSCIOUSNESS = ["alert", "new_confusion", "voice", "pain", "unresponsive"] as const;
 
+const FIELDS = [
+  "ml",
+  "drink",
+  "iddsiLevel",
+  "overrideReason",
+  "kind",
+  "meal",
+  "portion",
+  "description",
+  "position",
+  "bristolType",
+  "amount",
+  "kg",
+  "method",
+  "respirationRate",
+  "spo2",
+  "systolic",
+  "pulse",
+  "temperature",
+  "oxygen",
+  "consciousness",
+  "occurredAt",
+] as const;
+type Field = (typeof FIELDS)[number];
+type Ids = Readonly<Record<Field, string>>;
+
 const text = (form: FormData, name: string) => String(form.get(name) ?? "").trim();
 const optional = (value: string) => (value ? value : undefined);
 
@@ -34,15 +68,23 @@ function readMl(form: FormData): number | null {
   return ml !== null && ml >= 0 && ml <= 5000 ? ml : null;
 }
 
+/** Each missing or unreadable field with the words to show at it, or null when none is. */
+function problems(checks: readonly (readonly [Field, boolean, string])[]): FieldErrors | null {
+  const errors: Record<string, string> = {};
+  for (const [field, bad, message] of checks) if (bad) errors[field] = message;
+  return Object.keys(errors).length > 0 ? errors : null;
+}
+
 /**
- * Builds the chart entry from the form, or says what to fix. Limits here are only the shape the
- * API accepts; it checks IDDSI levels (HZ-016) and scores vital signs with NEWS2 itself.
+ * Builds the chart entry from the form, or says what to fix at each field. Limits here are only
+ * the shape the API accepts; it checks IDDSI levels (HZ-016) and scores vital signs with NEWS2
+ * itself.
  */
 function readValues(chart: ChartKind, form: FormData): ObservationValues | ActionResult<never> {
   switch (chart) {
     case "fluid_intake": {
       const ml = readMl(form);
-      if (ml === null) return refused(t("care.charts.amountRequired"));
+      if (ml === null) return fieldErrors({ ml: t("care.charts.amountRequired") });
       const level = text(form, "iddsiLevel");
       return {
         chart,
@@ -57,14 +99,19 @@ function readValues(chart: ChartKind, form: FormData): ObservationValues | Actio
     }
     case "fluid_output": {
       const ml = readMl(form);
-      if (ml === null) return refused(t("care.charts.amountRequired"));
+      if (ml === null) return fieldErrors({ ml: t("care.charts.amountRequired") });
       return { chart, ml, kind: text(form, "kind") as (typeof OUTPUT_KINDS)[number] };
     }
     case "food": {
       const meal = text(form, "meal");
       const portion = text(form, "portion");
       const level = text(form, "iddsiLevel");
-      if (!meal || !portion || !level) return refused(t("care.assessments.form.answerAll"));
+      const missing = problems([
+        ["meal", !meal, t("care.charts.mealRequired")],
+        ["portion", !portion, t("care.charts.portionRequired")],
+        ["iddsiLevel", !level, t("care.charts.levelRequired")],
+      ]);
+      if (missing) return fieldErrors(missing);
       return {
         chart,
         meal: meal as (typeof MEALS)[number],
@@ -79,7 +126,7 @@ function readValues(chart: ChartKind, form: FormData): ObservationValues | Actio
     }
     case "repositioning": {
       const position = text(form, "position");
-      if (!position) return refused(t("care.assessments.form.answerAll"));
+      if (!position) return fieldErrors({ position: t("care.charts.positionRequired") });
       return {
         chart,
         position: position as (typeof POSITIONS)[number],
@@ -90,7 +137,9 @@ function readValues(chart: ChartKind, form: FormData): ObservationValues | Actio
     case "bowel": {
       const noMovement = form.get("noMovement") === "on";
       const type = readWholeNumber(form.get("bristolType"));
-      if (!noMovement && type === null) return refused(t("care.charts.bristolRequired"));
+      if (!noMovement && type === null) {
+        return fieldErrors({ bristolType: t("care.charts.bristolRequired") });
+      }
       const amount = text(form, "amount");
       return {
         chart,
@@ -101,7 +150,9 @@ function readValues(chart: ChartKind, form: FormData): ObservationValues | Actio
     }
     case "weight": {
       const kg = readNumber(form.get("kg"));
-      if (kg === null || kg < 20 || kg > 300) return refused(t("care.charts.weightRequired"));
+      if (kg === null || kg < 20 || kg > 300) {
+        return fieldErrors({ kg: t("care.charts.weightRequired") });
+      }
       return { chart, kg, method: text(form, "method") as (typeof WEIGHT_METHODS)[number] };
     }
     case "vitals": {
@@ -112,16 +163,25 @@ function readValues(chart: ChartKind, form: FormData): ObservationValues | Actio
       const temperature = readNumber(form.get("temperature"));
       const oxygen = text(form, "oxygen");
       const consciousness = text(form, "consciousness");
+      const reading = (name: Field) => t("care.charts.vitals.missing", { reading: name });
+      const missing = problems([
+        ["respirationRate", respirationRate === null, reading("respirationRate")],
+        ["spo2", spo2 === null, reading("spo2")],
+        ["systolic", systolic === null, reading("systolic")],
+        ["pulse", pulse === null, reading("pulse")],
+        ["temperature", temperature === null, reading("temperature")],
+        ["oxygen", !oxygen, reading("oxygen")],
+        ["consciousness", !consciousness, reading("consciousness")],
+      ]);
       if (
+        missing ||
         respirationRate === null ||
         spo2 === null ||
         systolic === null ||
         pulse === null ||
-        temperature === null ||
-        !oxygen ||
-        !consciousness
+        temperature === null
       ) {
-        return refused(t("care.charts.vitals.required"));
+        return fieldErrors(missing ?? {});
       }
       return {
         chart,
@@ -146,10 +206,14 @@ function IddsiChoice({
   kind,
   prescribed,
   required,
+  ids,
+  result,
 }: {
   readonly kind: "food" | "drink";
   readonly prescribed: string | null;
   readonly required: boolean;
+  readonly ids: Ids;
+  readonly result: ActionResult<unknown> | null;
 }) {
   const [chosen, setChosen] = useState(prescribed ?? "");
   const levels = kind === "food" ? IDDSI_FOOD_LEVELS : IDDSI_DRINK_LEVELS;
@@ -157,6 +221,8 @@ function IddsiChoice({
   return (
     <>
       <SelectField
+        id={ids.iddsiLevel}
+        error={errorFor(result, "iddsiLevel")}
         name="iddsiLevel"
         label={kind === "food" ? t("care.charts.foodLevel") : t("care.charts.drinkLevel")}
         hint={
@@ -172,6 +238,8 @@ function IddsiChoice({
       />
       {mismatch ? (
         <TextField
+          id={ids.overrideReason}
+          error={errorFor(result, "overrideReason")}
           name="overrideReason"
           label={t("care.charts.overrideReason")}
           hint={t("care.charts.mismatchHint")}
@@ -202,6 +270,12 @@ export function ChartEntryForm({
   const [round, setRound] = useState(0);
   const [noMovement, setNoMovement] = useState(false);
   const [pending, startTransition] = useTransition();
+  const ids = useFieldIds(FIELDS);
+  const entry = useEntryId();
+  // After vital signs are saved, focus moves to the NEWS2 result, so its score and the RCP's
+  // response are read out next.
+  const news2Ref = useRef<HTMLElement>(null);
+  const error = (field: Field) => ({ id: ids[field], error: errorFor(result, field) });
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -213,11 +287,12 @@ export function ChartEntryForm({
     }
     const when = readWhen(form, "occurredAt", t);
     if (!when.ok) {
-      setResult(refused(when.message));
+      setResult(partsRefusal("occurredAt", when));
       return;
     }
     startTransition(async () => {
       const outcome = await recordObservation(personId, {
+        id: entry.id,
         occurredAt: when.instant,
         sentAt: new Date().toISOString(),
         values,
@@ -227,6 +302,7 @@ export function ChartEntryForm({
       if (outcome.ok) {
         setRound((n) => n + 1);
         setNoMovement(false);
+        entry.next();
       }
     });
   };
@@ -237,6 +313,7 @@ export function ChartEntryForm({
         {chart === "fluid_intake" ? (
           <>
             <TextField
+              {...error("ml")}
               name="ml"
               label={t("care.charts.amountMl")}
               hint={t("care.charts.amountHint")}
@@ -245,6 +322,7 @@ export function ChartEntryForm({
               inputMode="numeric"
             />
             <TextField
+              {...error("drink")}
               name="drink"
               label={t("care.charts.drink")}
               hint={t("care.charts.drinkHint")}
@@ -255,6 +333,8 @@ export function ChartEntryForm({
               kind="drink"
               prescribed={profile?.iddsiDrinkLevel ?? null}
               required={false}
+              ids={ids}
+              result={result}
             />
             <Checkbox name="refused" label={t("care.charts.refusedDrink", { name })} />
           </>
@@ -262,6 +342,7 @@ export function ChartEntryForm({
         {chart === "fluid_output" ? (
           <>
             <TextField
+              {...error("ml")}
               name="ml"
               label={t("care.charts.amountMl")}
               hint={t("care.charts.amountHint")}
@@ -270,6 +351,7 @@ export function ChartEntryForm({
               inputMode="numeric"
             />
             <SelectField
+              {...error("kind")}
               name="kind"
               label={t("care.charts.outputKind")}
               defaultValue="urine"
@@ -284,6 +366,7 @@ export function ChartEntryForm({
         {chart === "food" ? (
           <>
             <SelectField
+              {...error("meal")}
               name="meal"
               label={t("care.charts.meal")}
               emptyOption={t("care.charts.choose")}
@@ -294,6 +377,7 @@ export function ChartEntryForm({
               className="max-w-xs"
             />
             <RadioGroup
+              {...error("portion")}
               legend={t("care.charts.portion")}
               name="portion"
               layout="inline"
@@ -303,18 +387,26 @@ export function ChartEntryForm({
               }))}
             />
             <TextField
+              {...error("description")}
               name="description"
               label={t("care.charts.foodDescription")}
               maxLength={200}
               className="max-w-md"
             />
-            <IddsiChoice kind="food" prescribed={profile?.iddsiFoodLevel ?? null} required />
+            <IddsiChoice
+              kind="food"
+              prescribed={profile?.iddsiFoodLevel ?? null}
+              required
+              ids={ids}
+              result={result}
+            />
             <Checkbox name="refused" label={t("care.charts.refusedFood", { name })} />
           </>
         ) : null}
         {chart === "repositioning" ? (
           <>
             <RadioGroup
+              {...error("position")}
               legend={t("care.charts.positionLegend")}
               name="position"
               layout="inline"
@@ -339,6 +431,7 @@ export function ChartEntryForm({
             {noMovement ? null : (
               <>
                 <RadioGroup
+                  {...error("bristolType")}
                   legend={t("care.charts.bristolLegend")}
                   name="bristolType"
                   layout="grid"
@@ -349,6 +442,7 @@ export function ChartEntryForm({
                   }))}
                 />
                 <SelectField
+                  {...error("amount")}
                   name="amount"
                   label={t("care.charts.amount")}
                   emptyOption={t("care.charts.levelNotRecorded")}
@@ -365,6 +459,7 @@ export function ChartEntryForm({
         {chart === "weight" ? (
           <>
             <TextField
+              {...error("kg")}
               name="kg"
               label={t("care.charts.weightKg")}
               hint={t("care.charts.weightHint")}
@@ -372,6 +467,7 @@ export function ChartEntryForm({
               {...numberField}
             />
             <SelectField
+              {...error("method")}
               name="method"
               label={t("care.charts.weightMethod")}
               defaultValue="standing"
@@ -390,36 +486,42 @@ export function ChartEntryForm({
             </p>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <TextField
+                {...error("respirationRate")}
                 name="respirationRate"
                 label={t("care.charts.vitals.respirationRate")}
                 {...numberField}
                 inputMode="numeric"
               />
               <TextField
+                {...error("spo2")}
                 name="spo2"
                 label={t("care.charts.vitals.spo2")}
                 {...numberField}
                 inputMode="numeric"
               />
               <TextField
+                {...error("systolic")}
                 name="systolic"
                 label={t("care.charts.vitals.systolic")}
                 {...numberField}
                 inputMode="numeric"
               />
               <TextField
+                {...error("pulse")}
                 name="pulse"
                 label={t("care.charts.vitals.pulse")}
                 {...numberField}
                 inputMode="numeric"
               />
               <TextField
+                {...error("temperature")}
                 name="temperature"
                 label={t("care.charts.vitals.temperature")}
                 {...numberField}
               />
             </div>
             <RadioGroup
+              {...error("oxygen")}
               legend={t("care.charts.vitals.oxygen")}
               name="oxygen"
               layout="inline"
@@ -430,6 +532,7 @@ export function ChartEntryForm({
               ]}
             />
             <RadioGroup
+              {...error("consciousness")}
               legend={t("care.charts.vitals.consciousness")}
               name="consciousness"
               layout="inline"
@@ -441,15 +544,24 @@ export function ChartEntryForm({
             />
           </>
         ) : null}
-        <WhenField />
+        <WhenField
+          id={ids.occurredAt}
+          error={errorFor(result, "occurredAt")}
+          errorParts={partsFor(result, "occurredAt")}
+        />
         <div>
           <Button type="submit" disabled={pending}>
             {pending ? t("common.saving") : t("care.charts.submit")}
           </Button>
         </div>
       </form>
-      <FormFeedback result={result} success={t("care.charts.saved")} />
-      {news2 && result?.ok ? <News2Result news2={news2} headingLevel={4} /> : null}
+      <FormFeedback
+        result={result}
+        success={t("care.charts.saved")}
+        fieldIds={ids}
+        {...(chart === "vitals" ? { focusOnSuccess: news2Ref } : {})}
+      />
+      {news2 && result?.ok ? <News2Result news2={news2} headingLevel={4} ref={news2Ref} /> : null}
     </div>
   );
 }

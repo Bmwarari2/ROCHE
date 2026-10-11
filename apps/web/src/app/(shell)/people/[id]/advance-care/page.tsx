@@ -4,6 +4,7 @@ import { CircleCheck, Clock, HeartOff, HeartPulse, History } from "lucide-react"
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AdvanceCareForm } from "@/components/care/AdvanceCareForm";
+import { ArrivalNotice } from "@/components/care/ArrivalNotice";
 import { NoAccess } from "@/components/care/NoAccess";
 import { RecordFrame } from "@/components/care/RecordFrame";
 import { ResuscitationStatus } from "@/components/care/ResuscitationStatus";
@@ -15,10 +16,11 @@ import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
 import { getPerson, readOrFail } from "@/lib/person-record";
 import { readResuscitation } from "@/lib/record-data";
-import { recordMetadata } from "@/lib/record-metadata";
+import { firstParam, recordMetadata } from "@/lib/record-metadata";
 import { ukToday } from "@/lib/uk-time";
 
 type Params = Promise<{ id: string }>;
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 function RecordCard({
   item,
@@ -78,7 +80,12 @@ function RecordCard({
           </p>
         ) : null}
         {canWrite && active ? (
-          <WithdrawAdvanceCare personId={personId} recordId={item.id} version={item.version} />
+          <WithdrawAdvanceCare
+            personId={personId}
+            recordId={item.id}
+            version={item.version}
+            kind={item.kind}
+          />
         ) : null}
         <p className="m-0 text-callout">
           <Link href={`/people/${personId}/history/advance_care_record/${item.id}`}>
@@ -100,8 +107,15 @@ export async function generateMetadata(): Promise<Metadata> {
  * as the header shows it, every ReSPECT plan, DNACPR decision, ADRT and advance care plan, and
  * for staff who may, a form to record one or withdraw one.
  */
-async function AdvanceCareTab({ params }: { readonly params: Params }) {
+async function AdvanceCareTab({
+  params,
+  searchParams,
+}: {
+  readonly params: Params;
+  readonly searchParams: SearchParams;
+}) {
   const { id } = await params;
+  const withdrawn = firstParam((await searchParams).withdrawn);
   const { person } = await getPerson(id);
   if (!person) return null;
   const { me } = await getShellContext();
@@ -127,6 +141,9 @@ async function AdvanceCareTab({ params }: { readonly params: Params }) {
           {t("care.advance.description", { name: names.preferred })}
         </p>
       </div>
+      {withdrawn ? (
+        <ArrivalNotice>{t("care.advance.withdraw.arrived", { kind: withdrawn })}</ArrivalNotice>
+      ) : null}
       <Card as="section" title={t("care.header.resuscitation")} headingLevel={3}>
         <ResuscitationStatus status={readResuscitation(list.resuscitation)} />
       </Card>
@@ -162,7 +179,10 @@ async function AdvanceCareTab({ params }: { readonly params: Params }) {
 }
 
 /** The tab inside the record's frame: the point-of-care header, read again on every tab, and the tabs. */
-export default async function AdvanceCarePage(props: { readonly params: Params }) {
+export default async function AdvanceCarePage(props: {
+  readonly params: Params;
+  readonly searchParams: SearchParams;
+}) {
   const { id } = await props.params;
   return (
     <RecordFrame personId={id} tab="advance-care">

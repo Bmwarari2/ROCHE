@@ -36,12 +36,12 @@ export async function recordAssessment(
 ): Promise<ActionResult<AssessmentItem>> {
   const when = entryTime(input);
   if (isRefusal(when)) return when;
-  const { occurredAt: _when, sentAt: _sent, ...assessment } = input;
+  const { id: _id, occurredAt: _when, sentAt: _sent, ...assessment } = input;
   return sendForPerson(personId, (api) =>
     api.POST("/v1/people/{id}/assessments", {
       params: { path: { id: personId } },
       headers: when.headers,
-      body: { ...assessment, occurredAt: when.occurredAt } as CreateAssessment,
+      body: { ...assessment, id: when.id, occurredAt: when.occurredAt } as CreateAssessment,
     }),
   );
 }
@@ -50,9 +50,11 @@ export async function recordAdvanceCare(
   personId: string,
   input: CreateAdvanceCareRecord,
 ): Promise<ActionResult<AdvanceCareItem>> {
-  if (!isIsoDate(input.completedOn)) return refused(t("care.advance.form.dateRequired"));
+  if (!isIsoDate(input.completedOn)) {
+    return refused(t("care.advance.form.dateRequired"), "invalid", ["completedOn"]);
+  }
   if (input.reviewDueOn !== undefined && !isIsoDate(input.reviewDueOn)) {
-    return refused(t("care.errors.invalid"));
+    return refused(t("care.errors.invalid"), "invalid", ["reviewDueOn"]);
   }
   const clinicianName = optionalText(input.clinicianName);
   const clinicianRole = optionalText(input.clinicianRole);
@@ -80,7 +82,9 @@ export async function withdrawAdvanceCare(
 ): Promise<ActionResult<AdvanceCareItem>> {
   if (!isUuid(recordId)) return refused(t("errors.notFound"), "not_found");
   const reason = input.reason.trim();
-  if (reason.length < 3) return refused(t("care.advance.withdraw.reasonRequired"));
+  if (reason.length < 3) {
+    return refused(t("care.advance.withdraw.reasonRequired"), "invalid", ["reason"]);
+  }
   return sendForPerson(personId, (api) =>
     api.PUT("/v1/people/{id}/advance-care/{recordId}", {
       params: { path: { id: personId, recordId } },
@@ -95,7 +99,7 @@ export async function recordActivity(
 ): Promise<ActionResult<ActivityRecordItem>> {
   const when = entryTime(input);
   if (isRefusal(when)) return when;
-  const { occurredAt: _when, sentAt: _sent, notes, ...activity } = input;
+  const { id: _id, occurredAt: _when, sentAt: _sent, notes, ...activity } = input;
   const text = optionalText(notes);
   return sendForPerson(personId, (api) =>
     api.POST("/v1/people/{id}/activities", {
@@ -107,6 +111,7 @@ export async function recordActivity(
         // A group session recorded from one person's record is a session of its own; recording
         // a whole group at once is a follow-up.
         ...(activity.format === "group" ? { groupSessionId: crypto.randomUUID() } : {}),
+        id: when.id,
         occurredAt: when.occurredAt,
       },
     }),
@@ -124,10 +129,10 @@ export async function recordVisit(
   const when = entryTime(input);
   if (isRefusal(when)) return when;
   if (input.endedAt !== null && !isIsoInstant(input.endedAt)) {
-    return refused(t("care.errors.whenRequired"));
+    return refused(t("care.errors.whenRequired"), "invalid", ["endedAt"]);
   }
   const endedAt = input.endedAt ?? undefined;
-  const { occurredAt: _when, sentAt: _sent, endedAt: _end, ...visit } = input;
+  const { id: _id, occurredAt: _when, sentAt: _sent, endedAt: _end, ...visit } = input;
   const visitorName = optionalText(visit.visitorName);
   const visitorRelationship = optionalText(visit.visitorRelationship);
   const restrictionReason = optionalText(visit.restrictionReason);
@@ -139,6 +144,7 @@ export async function recordVisit(
       body: {
         kind: visit.kind,
         restrictionsApplied: visit.restrictionsApplied,
+        id: when.id,
         occurredAt: when.occurredAt,
         ...(endedAt ? { endedAt } : {}),
         ...(visitorName ? { visitorName } : {}),

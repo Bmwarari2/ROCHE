@@ -1,16 +1,18 @@
 import { createTranslator } from "@harbour/i18n";
 import { describe, expect, it } from "vitest";
-import { problemMessage, refused } from "./outcome";
+import { errorFor, fieldErrors, outcomeUnknown, problemMessage, refused } from "./outcome";
 
 const t = createTranslator("en-GB");
 
 describe("problemMessage", () => {
-  it("hazard HZ-019 shows the API's own words when it refuses an entry by rule", () => {
+  it("hazard HZ-019 says a refusal by rule in the catalogue's words, tied to its fields", () => {
     const detail =
       "The mark is drawn on the person's left but the person's right was chosen. Check the side and try again.";
+    const words = t("care.refusal.sideMismatch");
     expect(problemMessage({ code: "invalid", detail }, t)).toEqual({
       code: "invalid",
-      message: detail,
+      message: words,
+      fields: { side: words, region: words },
     });
   });
 
@@ -60,5 +62,26 @@ describe("problemMessage", () => {
       code: "invalid",
       message: "Write the note",
     });
+  });
+
+  it("ties a refusal the form finds to its fields, and reads a field's error back", () => {
+    const result = refused("Write the note", "invalid", ["body"]);
+    expect(result).toEqual({
+      ok: false,
+      code: "invalid",
+      message: "Write the note",
+      fields: { body: "Write the note" },
+    });
+    expect(errorFor(result, "body")).toBe("Write the note");
+    expect(errorFor(result, "category")).toBeUndefined();
+    expect(errorFor(null, "body")).toBeUndefined();
+    expect(fieldErrors({ spo2: "Enter the SpO2", pulse: "Enter the pulse" })).toEqual({
+      ok: false,
+      code: "invalid",
+      message: "Enter the SpO2",
+      fields: { spo2: "Enter the SpO2", pulse: "Enter the pulse" },
+    });
+    expect(outcomeUnknown({ ok: false, code: "unavailable", message: "x" })).toBe(true);
+    expect(outcomeUnknown(result)).toBe(false);
   });
 });

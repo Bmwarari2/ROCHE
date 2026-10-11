@@ -6,10 +6,25 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useState, useTransition } from "react";
 import { recordRiskAssessment, reviewRiskAssessment } from "@/app/actions/care-plan";
 import { characterCount, t } from "@/lib/i18n";
-import { type ActionResult, refused } from "@/lib/outcome";
+import { type ActionResult, errorFor, fieldErrors, partsFor, partsRefusal } from "@/lib/outcome";
 import { answerField, type RiskTemplate, readRiskFields, splitControls } from "@/lib/risk";
-import { readDateField } from "@/lib/uk-time";
+import { dateBoxesOf, readDateField } from "@/lib/uk-time";
 import { FormFeedback } from "./FormFeedback";
+import { useFieldIds } from "./form-state";
+
+const FIELDS = [
+  "hazard",
+  "whoAtRisk",
+  "likelihood",
+  "severity",
+  "residualLikelihood",
+  "residualSeverity",
+  "otherControls",
+  "positiveRiskStatement",
+  "personViews",
+  "assessedOn",
+  "reviewDueOn",
+] as const;
 
 const dateLabels = {
   day: t("care.date.day"),
@@ -22,14 +37,20 @@ function Scale({
   name,
   labels,
   defaultValue,
+  id,
+  error,
 }: {
   readonly legend: string;
   readonly name: string;
   readonly labels: readonly string[];
   readonly defaultValue: number | null;
+  readonly id: string;
+  readonly error: string | undefined;
 }) {
   return (
     <RadioGroup
+      id={id}
+      error={error}
       legend={legend}
       name={name}
       layout="inline"
@@ -67,6 +88,7 @@ export function RiskForm({
   const router = useRouter();
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const [pending, startTransition] = useTransition();
+  const ids = useFieldIds(FIELDS);
   const controls = existing ? splitControls(existing.controls, template) : null;
   const answer = (key: string) => existing?.answers[key];
 
@@ -78,7 +100,7 @@ export function RiskForm({
       t,
     });
     if (!assessed.ok) {
-      setResult(refused(assessed.message));
+      setResult(partsRefusal("assessedOn", assessed));
       return;
     }
     const review = readDateField(form, "reviewDueOn", {
@@ -87,13 +109,23 @@ export function RiskForm({
       t,
     });
     if (!review.ok) {
-      setResult(refused(review.message));
+      setResult(partsRefusal("reviewDueOn", review));
       return;
     }
     const fields = readRiskFields(form, template, {
       assessedOn: assessed.date ?? "",
       reviewDueOn: review.date,
     });
+    // The required words are checked here first, so each error shows at its field at once.
+    const missing = {
+      ...(fields.hazard ? {} : { hazard: t("care.refusal.hazard") }),
+      ...(fields.whoAtRisk ? {} : { whoAtRisk: t("care.refusal.whoAtRisk") }),
+      ...(fields.controls.length > 0 ? {} : { otherControls: t("care.refusal.controls") }),
+    };
+    if (Object.keys(missing).length > 0) {
+      setResult(fieldErrors(missing));
+      return;
+    }
     startTransition(async () => {
       const outcome = existing
         ? await reviewRiskAssessment(personId, existing.id, {
@@ -112,6 +144,8 @@ export function RiskForm({
         {t("care.risk.templateSource", { source: template.source, version: template.version })}
       </p>
       <TextField
+        id={ids.hazard}
+        error={errorFor(result, "hazard")}
         name="hazard"
         label={t("care.risk.form.hazard")}
         hint={t("care.risk.form.hazardHint")}
@@ -119,6 +153,8 @@ export function RiskForm({
         maxLength={500}
       />
       <TextField
+        id={ids.whoAtRisk}
+        error={errorFor(result, "whoAtRisk")}
         name="whoAtRisk"
         label={t("care.risk.form.whoAtRisk")}
         hint={t("care.risk.form.whoAtRiskHint")}
@@ -193,24 +229,32 @@ export function RiskForm({
             name="likelihood"
             labels={matrix.likelihood}
             defaultValue={existing?.likelihood ?? null}
+            id={ids.likelihood}
+            error={errorFor(result, "likelihood")}
           />
           <Scale
             legend={t("care.risk.form.severity")}
             name="severity"
             labels={matrix.severity}
             defaultValue={existing?.severity ?? null}
+            id={ids.severity}
+            error={errorFor(result, "severity")}
           />
           <Scale
             legend={t("care.risk.form.residualLikelihood")}
             name="residualLikelihood"
             labels={matrix.likelihood}
             defaultValue={existing?.residualLikelihood ?? null}
+            id={ids.residualLikelihood}
+            error={errorFor(result, "residualLikelihood")}
           />
           <Scale
             legend={t("care.risk.form.residualSeverity")}
             name="residualSeverity"
             labels={matrix.severity}
             defaultValue={existing?.residualSeverity ?? null}
+            id={ids.residualSeverity}
+            error={errorFor(result, "residualSeverity")}
           />
         </fieldset>
       ) : (
@@ -229,12 +273,16 @@ export function RiskForm({
         ))}
       </fieldset>
       <TextArea
+        id={ids.otherControls}
+        error={errorFor(result, "otherControls")}
         name="otherControls"
         label={t("care.risk.form.otherControls")}
         defaultValue={controls?.other.join("\n") ?? ""}
         rows={3}
       />
       <TextArea
+        id={ids.positiveRiskStatement}
+        error={errorFor(result, "positiveRiskStatement")}
         name="positiveRiskStatement"
         label={t("care.risk.form.positiveRisk")}
         hint={t("care.risk.form.positiveRiskHint", { name })}
@@ -244,6 +292,7 @@ export function RiskForm({
         formatCount={(remaining) => characterCount(remaining)}
       />
       <TextArea
+        id={ids.personViews}
         name="personViews"
         label={t("care.risk.form.personViews", { name })}
         defaultValue={existing?.personViews ?? ""}
@@ -252,6 +301,9 @@ export function RiskForm({
         formatCount={(remaining) => characterCount(remaining)}
       />
       <DateInput
+        id={ids.assessedOn}
+        error={errorFor(result, "assessedOn")}
+        errorParts={dateBoxesOf(partsFor(result, "assessedOn"))}
         legend={t("care.risk.form.assessedOn")}
         hint={t("care.date.hint")}
         name="assessedOn"
@@ -259,12 +311,15 @@ export function RiskForm({
         labels={dateLabels}
       />
       <DateInput
+        id={ids.reviewDueOn}
+        error={errorFor(result, "reviewDueOn")}
+        errorParts={dateBoxesOf(partsFor(result, "reviewDueOn"))}
         legend={t("care.risk.form.reviewDueOn")}
         hint={t("care.risk.form.reviewDueHint")}
         name="reviewDueOn"
         labels={dateLabels}
       />
-      <FormFeedback result={result} success={t("care.risk.form.saved")} />
+      <FormFeedback result={result} success={t("care.risk.form.saved")} fieldIds={ids} />
       <div>
         <Button type="submit" disabled={pending}>
           {pending

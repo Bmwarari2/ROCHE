@@ -2,6 +2,7 @@ import { ButtonLink, Card, EmptyState, StatusChip } from "@harbour/ui";
 import { ClipboardList, PencilLine, TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ArrivalNotice } from "@/components/care/ArrivalNotice";
 import { CarePlanView } from "@/components/care/CarePlanView";
 import { NoAccess } from "@/components/care/NoAccess";
 import { Notice } from "@/components/care/Notice";
@@ -65,11 +66,7 @@ async function CarePlanTab({
   return (
     <>
       <h2 className="m-0 text-eyebrow">{t("care.plan.title")}</h2>
-      {published ? (
-        <p role="status" className="m-0 font-semibold">
-          {t("care.plan.published.toast")}
-        </p>
-      ) : null}
+      {published ? <ArrivalNotice>{t("care.plan.published.toast")}</ArrivalNotice> : null}
       {list.due ? (
         <p className="m-0 flex flex-wrap items-center gap-2">
           {list.due.overdue ? (

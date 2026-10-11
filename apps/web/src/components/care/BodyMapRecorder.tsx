@@ -21,10 +21,11 @@ import {
   regionValue,
 } from "@/lib/body-map";
 import { characterCount, t } from "@/lib/i18n";
-import { type ActionResult, refused } from "@/lib/outcome";
+import { type ActionResult, errorFor, partsFor, partsRefusal, refused } from "@/lib/outcome";
 import { readWhen } from "@/lib/uk-time";
 import { BodyDrawing, type DrawnMark } from "./BodyDrawing";
 import { FormFeedback } from "./FormFeedback";
+import { useEntryId, useFieldIds } from "./form-state";
 import { WhenField } from "./WhenField";
 
 type MarkType = CreateBodyMapMark["markType"];
@@ -52,6 +53,16 @@ const CATEGORIES = [
 
 const SIDES: readonly BodySide[] = ["left", "right", "midline"];
 
+const FIELDS = [
+  "region",
+  "side",
+  "markType",
+  "pressureCategory",
+  "deviceRelated",
+  "bruiseExplained",
+  "occurredAt",
+] as const;
+
 function placeLabel(view: BodyView, value: string): string | null {
   const parsed = parseRegionValue(view, value);
   return parsed
@@ -65,8 +76,8 @@ function placeLabel(view: BodyView, value: string): string | null {
 /**
  * Record a body-map mark (care.md rule 7, hazard HZ-019). The place is chosen on the drawing or
  * from the list (which match), and the side is then confirmed in words. The two are sent as they
- * are: the API refuses a mark whose stated side differs from the drawing, and that refusal is
- * shown word for word.
+ * are: the API refuses a mark whose stated side differs from the drawing, and the refusal is shown
+ * at the side question and the body area list, with a summary that links to them.
  */
 export function BodyMapRecorder({
   personId,
@@ -83,15 +94,19 @@ export function BodyMapRecorder({
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const [round, setRound] = useState(0);
   const [pending, startTransition] = useTransition();
+  const ids = useFieldIds(FIELDS);
+  const entry = useEntryId();
   const marked = place ? placeLabel(view, place) : null;
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const drawn = place ? parseRegionValue(view, place) : null;
-    if (!drawn) return setResult(refused(t("care.bodyMap.regionRequired")));
-    if (!side) return setResult(refused(t("care.bodyMap.sideRequired")));
-    if (!markType) return setResult(refused(t("care.bodyMap.markTypeRequired")));
+    if (!drawn) return setResult(refused(t("care.bodyMap.regionRequired"), "invalid", ["region"]));
+    if (!side) return setResult(refused(t("care.bodyMap.sideRequired"), "invalid", ["side"]));
+    if (!markType) {
+      return setResult(refused(t("care.bodyMap.markTypeRequired"), "invalid", ["markType"]));
+    }
     const size = (key: string) => {
       const value = readNumber(form.get(key));
       return value === null ? {} : { [key]: value };
@@ -100,9 +115,10 @@ export function BodyMapRecorder({
     const deviceRelated = readYesNo(form.get("deviceRelated"));
     const bruiseExplained = readYesNo(form.get("bruiseExplained"));
     const when = readWhen(form, "occurredAt", t);
-    if (!when.ok) return setResult(refused(when.message));
+    if (!when.ok) return setResult(partsRefusal("occurredAt", when));
     startTransition(async () => {
       const outcome = await recordBodyMark(personId, {
+        id: entry.id,
         occurredAt: when.instant,
         sentAt: new Date().toISOString(),
         view,
@@ -127,6 +143,7 @@ export function BodyMapRecorder({
         setPlace(null);
         setSide(null);
         setMarkType("");
+        entry.next();
       }
     });
   };
@@ -155,6 +172,8 @@ export function BodyMapRecorder({
           </div>
           <div className="flex min-w-0 flex-1 flex-col gap-4">
             <SelectField
+              id={ids.region}
+              error={errorFor(result, "region")}
               name="region"
               label={t("care.bodyMap.region.label")}
               hint={t("care.bodyMap.region.hint")}
@@ -172,10 +191,12 @@ export function BodyMapRecorder({
                 })),
               }))}
             />
-            <p role="status" className="m-0 font-semibold empty:hidden">
+            <p role="status" className="m-0 font-semibold">
               {marked ? t("care.bodyMap.marked", { place: marked }) : null}
             </p>
             <RadioGroup<BodySide>
+              id={ids.side}
+              error={errorFor(result, "side")}
               legend={t("care.bodyMap.side.legend")}
               hint={t("care.bodyMap.side.hint")}
               name="side"
@@ -188,6 +209,8 @@ export function BodyMapRecorder({
               }))}
             />
             <SelectField
+              id={ids.markType}
+              error={errorFor(result, "markType")}
               name="markType"
               label={t("care.bodyMap.markType")}
               emptyOption={t("care.bodyMap.markTypeEmpty")}
@@ -201,6 +224,8 @@ export function BodyMapRecorder({
             {markType === "pressure_ulcer" ? (
               <>
                 <SelectField
+                  id={ids.pressureCategory}
+                  error={errorFor(result, "pressureCategory")}
                   name="pressureCategory"
                   label={t("care.bodyMap.category")}
                   emptyOption={t("care.bodyMap.categoryEmpty")}
@@ -210,6 +235,8 @@ export function BodyMapRecorder({
                   }))}
                 />
                 <RadioGroup
+                  id={ids.deviceRelated}
+                  error={errorFor(result, "deviceRelated")}
                   legend={t("care.bodyMap.deviceRelated")}
                   name="deviceRelated"
                   layout="inline"
@@ -222,6 +249,8 @@ export function BodyMapRecorder({
             ) : null}
             {markType === "bruise" ? (
               <RadioGroup
+                id={ids.bruiseExplained}
+                error={errorFor(result, "bruiseExplained")}
                 legend={t("care.bodyMap.bruiseExplained")}
                 name="bruiseExplained"
                 layout="inline"
@@ -276,14 +305,18 @@ export function BodyMapRecorder({
             label: t("care.bodyMap.statusOption", { status }),
           }))}
         />
-        <WhenField />
+        <WhenField
+          id={ids.occurredAt}
+          error={errorFor(result, "occurredAt")}
+          errorParts={partsFor(result, "occurredAt")}
+        />
         <div>
           <Button type="submit" disabled={pending}>
             {pending ? t("common.saving") : t("care.bodyMap.submit")}
           </Button>
         </div>
       </form>
-      <FormFeedback result={result} success={t("care.bodyMap.saved")} />
+      <FormFeedback result={result} success={t("care.bodyMap.saved")} fieldIds={ids} />
     </div>
   );
 }

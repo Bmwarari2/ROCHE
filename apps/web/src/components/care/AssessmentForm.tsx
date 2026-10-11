@@ -2,7 +2,7 @@
 
 import type { AssessmentItem, AssessmentToolKey } from "@harbour/contracts";
 import { Button, Checkbox, RadioGroup, SelectField, TextField } from "@harbour/ui";
-import { type FormEvent, type ReactNode, useState, useTransition } from "react";
+import { type FormEvent, type ReactNode, useRef, useState, useTransition } from "react";
 import { recordAssessment } from "@/app/actions/care-records";
 import {
   BRADEN_SUBSCALES,
@@ -24,10 +24,11 @@ import {
   WATERLOW,
 } from "@/lib/assessment-answers";
 import { t } from "@/lib/i18n";
-import { type ActionResult, refused } from "@/lib/outcome";
+import { type ActionResult, errorFor, partsFor, partsRefusal, refused } from "@/lib/outcome";
 import { readWhen } from "@/lib/uk-time";
 import { AssessmentResult } from "./AssessmentResult";
 import { FormFeedback } from "./FormFeedback";
+import { useEntryId, useFieldIds } from "./form-state";
 import { WhenField } from "./WhenField";
 
 const yesNo = [
@@ -428,6 +429,8 @@ function WaterlowFields({ name }: { readonly name: string }) {
   );
 }
 
+const FIELDS = ["occurredAt"] as const;
+
 function readAnswers(tool: AssessmentToolKey, form: FormLike) {
   switch (tool) {
     case "must":
@@ -457,6 +460,10 @@ export function AssessmentForm({
   const [result, setResult] = useState<ActionResult<AssessmentItem> | null>(null);
   const [round, setRound] = useState(0);
   const [pending, startTransition] = useTransition();
+  const ids = useFieldIds(FIELDS);
+  const entry = useEntryId();
+  // After saving, focus moves to the result's heading, so the score and band are read out next.
+  const resultHeading = useRef<HTMLHeadingElement>(null);
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -468,17 +475,21 @@ export function AssessmentForm({
     }
     const when = readWhen(form, "occurredAt", t);
     if (!when.ok) {
-      setResult(refused(when.message));
+      setResult(partsRefusal("occurredAt", when));
       return;
     }
     startTransition(async () => {
       const outcome = await recordAssessment(personId, {
+        id: entry.id,
         ...(read as Exclude<typeof read, { answers: null }>),
         occurredAt: when.instant,
         sentAt: new Date().toISOString(),
       } as Parameters<typeof recordAssessment>[1]);
       setResult(outcome);
-      if (outcome.ok) setRound((n) => n + 1);
+      if (outcome.ok) {
+        setRound((n) => n + 1);
+        entry.next();
+      }
     });
   };
 
@@ -489,17 +500,27 @@ export function AssessmentForm({
         {tool === "ng249_falls" ? <FallsFields name={name} /> : null}
         {tool === "braden" ? <BradenFields /> : null}
         {tool === "waterlow" ? <WaterlowFields name={name} /> : null}
-        <WhenField legend={t("care.assessments.form.when")} />
+        <WhenField
+          id={ids.occurredAt}
+          legend={t("care.assessments.form.when")}
+          error={errorFor(result, "occurredAt")}
+          errorParts={partsFor(result, "occurredAt")}
+        />
         <div>
           <Button type="submit" disabled={pending}>
             {pending ? t("common.saving") : t("care.assessments.form.submit")}
           </Button>
         </div>
       </form>
-      <FormFeedback result={result} success={t("care.assessments.form.saved")} />
+      <FormFeedback
+        result={result}
+        success={t("care.assessments.form.saved")}
+        fieldIds={ids}
+        focusOnSuccess={resultHeading}
+      />
       {result?.ok ? (
         <div className="rounded-input border border-border p-4">
-          <AssessmentResult item={result.data} headingLevel={4} />
+          <AssessmentResult item={result.data} headingLevel={4} headingRef={resultHeading} />
         </div>
       ) : null}
     </div>

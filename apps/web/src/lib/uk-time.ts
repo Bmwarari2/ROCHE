@@ -94,8 +94,24 @@ const text = (form: FormLike, name: string) => {
 
 export type FieldPart = DateTimePart | "fold" | "mode";
 
-export const isDatePart = (part: FieldPart): part is DatePart =>
+export const isDatePart = (part: string): part is DatePart =>
   part === "day" || part === "month" || part === "year";
+
+const BOXES: readonly string[] = ["day", "month", "year", "hour", "minute", "fold"];
+
+/** The boxes of a date and time field an error is about, for DateTimeInput's errorParts. */
+export function boxesOf(
+  parts: readonly string[] | undefined,
+): (DateTimePart | "fold")[] | undefined {
+  const boxes = parts?.filter((part): part is DateTimePart | "fold" => BOXES.includes(part));
+  return boxes && boxes.length > 0 ? boxes : undefined;
+}
+
+/** The boxes of a date field an error is about, for DateInput's errorParts. */
+export function dateBoxesOf(parts: readonly string[] | undefined): DatePart[] | undefined {
+  const boxes = parts?.filter(isDatePart);
+  return boxes && boxes.length > 0 ? boxes : undefined;
+}
 
 /** A date or time that could not be used: what to say and which boxes it is about. */
 export interface TimeProblem {

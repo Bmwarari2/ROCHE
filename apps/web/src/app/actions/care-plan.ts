@@ -81,7 +81,7 @@ export async function addCarePlanAction(
 ): Promise<ActionResult<CarePlanActionItem>> {
   if (!checkIds(planId) || !isPcspDomain(domain)) return refused(t("errors.notFound"), "not_found");
   const action = input.action.trim();
-  if (action.length < 3) return refused(t("care.plan.edit.actionRequired"));
+  if (action.length < 3) return refused(t("care.plan.edit.actionRequired"), "invalid", ["action"]);
   const roleKey = optionalText(input.roleKey);
   const whenText = optionalText(input.whenText);
   return sendForPerson(personId, (api) =>
@@ -134,9 +134,13 @@ export async function publishCarePlan(
   input: PublishInput,
 ): Promise<ActionResult<CarePlanDetail>> {
   if (!checkIds(planId)) return refused(t("errors.notFound"), "not_found");
-  if (!input.agreedBy) return refused(t("care.plan.publish.agreedRequired"));
+  if (!input.agreedBy) {
+    return refused(t("care.plan.publish.agreedRequired"), "invalid", ["agreedBy"]);
+  }
   const reviewDueOn = input.reviewDueOn.trim();
-  if (reviewDueOn && !isIsoDate(reviewDueOn)) return refused(t("care.errors.invalid"));
+  if (reviewDueOn && !isIsoDate(reviewDueOn)) {
+    return refused(t("care.errors.invalid"), "invalid", ["reviewDueOn"]);
+  }
   const representativeName = optionalText(input.representativeName);
   const unableReason = optionalText(input.unableReason);
   const signedOff = await sendForPerson(personId, (api) =>
@@ -200,7 +204,9 @@ export async function closeRiskAssessment(
   input: CloseRiskAssessment,
 ): Promise<ActionResult<RiskAssessmentItem>> {
   if (!checkIds(riskId)) return refused(t("errors.notFound"), "not_found");
-  if (input.reason.trim().length < 3) return refused(t("care.risk.close.reasonRequired"));
+  if (input.reason.trim().length < 3) {
+    return refused(t("care.risk.close.reasonRequired"), "invalid", ["reason"]);
+  }
   return sendForPerson(personId, (api) =>
     api.POST("/v1/people/{id}/risk-assessments/{riskId}/close", {
       params: { path: { id: personId, riskId } },
