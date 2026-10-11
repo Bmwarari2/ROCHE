@@ -47,3 +47,12 @@ does not settle.
   the count says how many characters are too many, and a polite live region reads it once typing
   pauses. On phones the app bar's organisation and location names shorten with an ellipsis so the
   actions stay on screen.
+- Added for the web care record (Phase 1 slice 9): `TabNav` (links styled as tabs, not an ARIA
+  tablist, so each record section has its own address and the back button works; the current tab
+  shows a bar and bold text as well as `aria-current`), `RadioGroup` (native radios in a fieldset,
+  each a card at least 44 px tall, named by its label and described by its description), `Checkbox`,
+  `SelectField` (native select with label, hint and error) and `Meter` (one amount against a limit;
+  a visually hidden native `meter` is what assistive technology reads, and the drawn bar is
+  decorative). `StatusChip` takes an `icon` for states with their own symbol, such as a care plan
+  draft; `Timeline` takes translated correction words, status chips beside the time and a footer
+  for actions and earlier versions.

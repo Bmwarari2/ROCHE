@@ -26,6 +26,12 @@ export type StatusChipStatus = ClinicalStatus | "neutral" | "info";
 
 interface StatusChipBaseProps extends Omit<HTMLAttributes<HTMLSpanElement>, "children"> {
   className?: string;
+  /**
+   * A Lucide icon that replaces the default one, for states that need their own symbol, such as
+   * a care plan "Draft" (a pencil) or "Superseded" (a clock turned back). Always shown beside the
+   * word.
+   */
+  icon?: LucideIcon;
 }
 
 interface ClinicalStatusChipProps extends StatusChipBaseProps {
@@ -62,8 +68,10 @@ function chipContent(status: StatusChipStatus, label: string | undefined) {
  * Status shown as an icon plus a word, never colour alone. Clinical statuses are filled with their
  * fixed colour and white text in both themes.
  */
-export function StatusChip({ status, label, className, ...rest }: StatusChipProps) {
-  const { Icon, text } = chipContent(status, label);
+export function StatusChip({ status, label, icon, className, ...rest }: StatusChipProps) {
+  const content = chipContent(status, label);
+  const Icon = icon ?? content.Icon;
+  const { text } = content;
   return (
     <span
       className={cx("hb-status-chip", `hb-status-chip--${status}`, className)}

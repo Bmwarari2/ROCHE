@@ -34,6 +34,7 @@ export {
   buttonClassName,
 } from "./components/Button/buttonStyles";
 export { Card, type CardProps } from "./components/Card/Card";
+export { Checkbox, type CheckboxProps } from "./components/Checkbox/Checkbox";
 export {
   DataTable,
   type DataTableColumn,
@@ -48,12 +49,24 @@ export {
   InspectorPanel,
   type InspectorPanelProps,
 } from "./components/InspectorPanel/InspectorPanel";
+export { Meter, type MeterProps } from "./components/Meter/Meter";
 export { PageHeader, type PageHeaderProps } from "./components/PageHeader/PageHeader";
+export {
+  RadioGroup,
+  type RadioGroupProps,
+  type RadioOption,
+} from "./components/RadioGroup/RadioGroup";
 export {
   SegmentedControl,
   type SegmentedControlOption,
   type SegmentedControlProps,
 } from "./components/SegmentedControl/SegmentedControl";
+export {
+  SelectField,
+  type SelectFieldProps,
+  type SelectOption,
+  type SelectOptionGroup,
+} from "./components/SelectField/SelectField";
 export { Sheet, SheetClose, type SheetProps } from "./components/Sheet/Sheet";
 export { Sidebar, type SidebarItem, type SidebarProps } from "./components/Sidebar/Sidebar";
 export {
@@ -68,6 +81,7 @@ export {
   type StepperFormStep,
   type StepperFormStepContext,
 } from "./components/StepperForm/StepperForm";
+export { TabNav, type TabNavItem, type TabNavProps } from "./components/TabNav/TabNav";
 export {
   CHARACTER_COUNT_ANNOUNCE_DELAY,
   defaultCharacterCount,
@@ -80,6 +94,7 @@ export {
   Timeline,
   type TimelineCorrection,
   type TimelineEntry,
+  type TimelineLabels,
   type TimelineProps,
 } from "./components/Timeline/Timeline";
 export {
