@@ -218,6 +218,12 @@ export interface PersonRecordContext {
   readonly status: PersonStatus;
   /** When the person entered their current status (for discharged or deceased: when they left or died). */
   readonly statusChangedAt: Date | null;
+  /**
+   * Minutes after the status change within which a care event is still accepted, flagged: a
+   * phone's clock may run a little fast (rate table `sync.clock_drift_flag_minutes`, the same
+   * tolerance `resolveRecordedUkTime` gives a typed time). Zero when not supplied.
+   */
+  readonly clockToleranceMinutes?: number;
 }
 
 export interface PersonRecordWrite {
@@ -237,8 +243,19 @@ export type PersonRecordCheck =
       readonly ok: true;
       /** True when a care event is accepted after the person left or died; show it as such. */
       readonly recordedAfterStatusChange: boolean;
+      /** Present when the event is timed after the change but within the clock tolerance. */
+      readonly withinClockTolerance?: true;
     }
-  | { readonly ok: false; readonly problem: PersonRecordProblem; readonly message: string };
+  | {
+      readonly ok: false;
+      readonly problem: PersonRecordProblem;
+      readonly message: string;
+      /**
+       * Present when a care event was refused because it is timed after the person left, died
+       * or went away: the caller raises a review task rather than losing it (HZ-006).
+       */
+      readonly careEventAfterChange?: true;
+    };
 
 const RECORD_MESSAGES: Record<PersonRecordProblem, string> = {
   record_closed: "This record is closed. Nothing more can be added to it.",
@@ -248,7 +265,7 @@ const RECORD_MESSAGES: Record<PersonRecordProblem, string> = {
   death_only: "This record is only used after a person has died.",
 };
 
-function recordProblem(problem: PersonRecordProblem): PersonRecordCheck {
+function recordProblem(problem: PersonRecordProblem): Extract<PersonRecordCheck, { ok: false }> {
   return { ok: false, problem, message: RECORD_MESSAGES[problem] };
 }
 
@@ -268,14 +285,19 @@ export function checkPersonRecordWrite(
   if (EVENTS_BEFORE_CHANGE_STATUSES.includes(status) && CARE_EVENT_KINDS.includes(write.kind)) {
     const occurredAt = write.occurredAt ?? null;
     const changedAt = person.statusChangedAt;
+    const tolerance = Math.max(0, person.clockToleranceMinutes ?? 0) * 60_000;
     if (occurredAt && changedAt && occurredAt.getTime() <= changedAt.getTime()) {
       return { ok: true, recordedAfterStatusChange: true };
     }
-    return recordProblem(
+    if (occurredAt && changedAt && occurredAt.getTime() <= changedAt.getTime() + tolerance) {
+      return { ok: true, recordedAfterStatusChange: true, withinClockTolerance: true };
+    }
+    const refused = recordProblem(
       status === "discharged" || status === "deceased"
         ? "occurred_after_status_change"
         : "not_allowed_in_status",
     );
+    return occurredAt ? { ...refused, careEventAfterChange: true } : refused;
   }
   return recordProblem("not_allowed_in_status");
 }

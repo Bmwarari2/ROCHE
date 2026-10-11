@@ -1,4 +1,10 @@
+import {
+  type AdvanceCareRecordState,
+  type CprDecision,
+  resuscitationStatus,
+} from "../care/advance-care";
 import type { IddsiDrinkLevel, IddsiFoodLevel } from "../care/iddsi";
+import { ukIsoDate } from "../shared/working-days";
 import { type AboutMeDocument, type AboutMeSummary, summariseAboutMe } from "./about-me";
 import { hasReason } from "./dates";
 import { LIVE_PERSON_STATUSES, type PersonStatus } from "./lifecycle";
@@ -56,8 +62,9 @@ export const TRANSFER_PACK_SECTIONS = [
   {
     key: "eating_and_drinking",
     title: "Eating and drinking (IDDSI levels)",
-    critical: false,
-    hazardIds: ["HZ-016"],
+    // Safety-critical: a wrong texture can choke the person (HZ-016); the CSO confirms (H-86).
+    critical: true,
+    hazardIds: ["HZ-016", "HZ-023"],
   },
   {
     key: "capacity_and_legal",
@@ -102,8 +109,9 @@ export type AllergyStatement =
   | { readonly status: "unknown" }
   | {
       readonly status: "no_known_allergies";
-      readonly recordedBy: string;
-      readonly recordedAt: Date;
+      /** Who confirmed it and when; null for a statement recorded before that was kept. */
+      readonly recordedBy: string | null;
+      readonly recordedAt: Date | null;
     }
   | { readonly status: "has_allergies"; readonly allergies: readonly TransferAllergy[] };
 
@@ -122,7 +130,11 @@ export type MedicinesStatement =
   | { readonly status: "none"; readonly confirmedBy: string; readonly confirmedAt: Date }
   | {
       readonly status: "recorded";
-      readonly source: "emar" | "medicines_list" | "pharmacy_mar";
+      /**
+       * `pre_admission_assessment` until the eMAR (Phase 2): the list from before admission, which
+       * the pack marks as needing checking against the MAR.
+       */
+      readonly source: "emar" | "medicines_list" | "pharmacy_mar" | "pre_admission_assessment";
       readonly items: readonly TransferMedicine[];
     };
 
@@ -138,7 +150,10 @@ export type CommunicationStatement =
   | { readonly status: "recorded"; readonly needs: readonly TransferCommunicationNeed[] };
 
 export interface AdvanceCareSummary {
+  readonly id: string;
   readonly kind: "respect" | "dnacpr" | "adrt" | "advance_care_plan";
+  /** The CPR recommendation a ReSPECT form or DNACPR records; null for ADRT and care plans. */
+  readonly cprDecision: CprDecision | null;
   /** The recorded recommendation in the clinician's words. */
   readonly summary: string;
   readonly clinician: string;
@@ -149,7 +164,7 @@ export interface AdvanceCareSummary {
   readonly active: boolean;
 }
 
-/** HZ-015: a missing decision reads "not recorded", never blank. */
+/** HZ-015: a missing decision reads "not recorded", never blank. The records as held. */
 export type ResuscitationStatement =
   | { readonly status: "not_recorded" }
   | {
@@ -158,6 +173,34 @@ export type ResuscitationStatement =
       readonly confirmedAt: Date;
     }
   | { readonly status: "recorded"; readonly records: readonly AdvanceCareSummary[] };
+
+/**
+ * What the pack prints for resuscitation (HZ-015), from `resuscitationStatus`: the CPR decision
+ * in force from ReSPECT and DNACPR records only. An ADRT or advance care plan alone leaves the CPR
+ * decision "not recorded" (those records still print). Records that disagree print together as a
+ * conflict, never resolved by the pack.
+ */
+export type TransferResuscitation =
+  | {
+      readonly status: "not_recorded";
+      /** Advance care records in force that make no CPR decision (ADRT, advance care plan). */
+      readonly otherRecords: readonly AdvanceCareSummary[];
+    }
+  | {
+      readonly status: "no_decision_in_place";
+      readonly confirmedBy: string;
+      readonly confirmedAt: Date;
+    }
+  | {
+      readonly status: "recorded";
+      readonly decision: CprDecision;
+      readonly conflicting: boolean;
+      readonly reviewDueOn: string | null;
+      readonly reviewOverdue: boolean;
+      /** Every ReSPECT and DNACPR record in force, most recent first (both when they conflict). */
+      readonly cprRecords: readonly AdvanceCareSummary[];
+      readonly otherRecords: readonly AdvanceCareSummary[];
+    };
 
 export interface TransferBaseline {
   readonly description: string;
@@ -191,6 +234,14 @@ export interface TransferContact {
   readonly phone: string | null;
 }
 
+export interface TransferPhoto {
+  readonly documentId: string;
+  /** yyyy-mm-dd */
+  readonly takenOn: string;
+  /** False when the stored image cannot go on the printed pack (a format the printer lacks). */
+  readonly printable: boolean;
+}
+
 export interface TransferPropertyItem extends PropertyItemRecord {
   readonly description: string;
 }
@@ -200,7 +251,7 @@ export interface HospitalTransferInput {
   readonly identity: TransferIdentity;
   readonly generatedAt: Date;
   readonly generatedBy: string;
-  readonly photo: SectionSource<{ readonly documentId: string; readonly takenOn: string }> | null;
+  readonly photo: SectionSource<TransferPhoto> | null;
   readonly allergies: SectionSource<AllergyStatement>;
   readonly medicines: SectionSource<MedicinesStatement>;
   readonly communication: SectionSource<CommunicationStatement>;
@@ -228,6 +279,60 @@ export interface TransferPackSectionStatus {
   readonly asOf: Date | null;
 }
 
+export type TransferPackAttentionCode =
+  | "resuscitation_conflict"
+  | "resuscitation_review_overdue"
+  | "medicines_need_checking"
+  | "photo_not_printable"
+  | "allergy_confirmation_not_recorded";
+
+/**
+ * Something recorded that still needs checking before anyone relies on it, printed on the first
+ * page with the missing sections. `acknowledge` items need the named acknowledgement at hand-over.
+ */
+export interface TransferPackAttention {
+  readonly key: TransferPackSectionKey;
+  readonly code: TransferPackAttentionCode;
+  readonly message: string;
+  readonly acknowledge: boolean;
+  /** A date the message refers to (yyyy-mm-dd), for the printed page to show in UK form. */
+  readonly onDate: string | null;
+}
+
+const ATTENTION_MESSAGES: Record<TransferPackAttentionCode, string> = {
+  resuscitation_conflict:
+    "The resuscitation records disagree. Both are printed; check the original documents before acting on either.",
+  resuscitation_review_overdue: "The resuscitation decision is past its review date.",
+  medicines_need_checking:
+    "This medicines list is from the pre-admission assessment, not the MAR. Check it against the MAR before relying on it.",
+  photo_not_printable:
+    "A photo is held in the record but cannot be printed. Confirm the person's identity another way.",
+  allergy_confirmation_not_recorded:
+    "No known allergies is recorded, but not who confirmed it or when. Check before relying on it.",
+};
+
+const ATTENTION_NEEDS_ACKNOWLEDGEMENT: Record<TransferPackAttentionCode, boolean> = {
+  resuscitation_conflict: true,
+  resuscitation_review_overdue: false,
+  medicines_need_checking: false,
+  photo_not_printable: false,
+  allergy_confirmation_not_recorded: false,
+};
+
+function attention(
+  key: TransferPackSectionKey,
+  code: TransferPackAttentionCode,
+  onDate: string | null = null,
+): TransferPackAttention {
+  return {
+    key,
+    code,
+    message: ATTENTION_MESSAGES[code],
+    acknowledge: ATTENTION_NEEDS_ACKNOWLEDGEMENT[code],
+    onDate,
+  };
+}
+
 export interface HospitalTransferPack {
   readonly personId: string;
   readonly generatedAt: Date;
@@ -235,11 +340,11 @@ export interface HospitalTransferPack {
   readonly identity: TransferIdentity;
   readonly sections: readonly TransferPackSectionStatus[];
   readonly content: {
-    readonly photo: { readonly documentId: string; readonly takenOn: string } | null;
+    readonly photo: TransferPhoto | null;
     readonly allergies: AllergyStatement;
     readonly medicines: MedicinesStatement;
     readonly communication: CommunicationStatement;
-    readonly resuscitation: ResuscitationStatement;
+    readonly resuscitation: TransferResuscitation;
     readonly aboutMe: {
       readonly document: AboutMeDocument;
       readonly summary: AboutMeSummary;
@@ -256,6 +361,8 @@ export interface HospitalTransferPack {
   /** Safety-critical sections not recorded, in pack order; shown on the first page. */
   readonly missingCritical: readonly TransferPackSectionKey[];
   readonly missingExpected: readonly TransferPackSectionKey[];
+  /** Recorded but needing a check (conflicts, overdue reviews, lists from before admission). */
+  readonly attention: readonly TransferPackAttention[];
   /** Items of the kinds that travel with the person, held at the home and not being sent. */
   readonly itemsLeftBehind: readonly TransferPropertyItem[];
   readonly complete: boolean;
@@ -313,10 +420,43 @@ function normaliseCommunication(statement: CommunicationStatement): Communicatio
   return statement;
 }
 
-function normaliseResuscitation(statement: ResuscitationStatement): ResuscitationStatement {
-  if (statement.status !== "recorded") return statement;
-  const active = statement.records.filter((r) => r.active);
-  return active.length === 0 ? { status: "not_recorded" } : { status: "recorded", records: active };
+/** The CPR decision in force from the active records, by the care module's rule (HZ-015). */
+function resuscitationFor(statement: ResuscitationStatement, today: string): TransferResuscitation {
+  if (statement.status === "no_decision_in_place") return statement;
+  const active = statement.status === "recorded" ? statement.records.filter((r) => r.active) : [];
+  const cpr = active
+    .filter((r) => (r.kind === "respect" || r.kind === "dnacpr") && r.cprDecision !== null)
+    .sort((a, b) =>
+      a.completedOn === b.completedOn
+        ? b.id.localeCompare(a.id)
+        : b.completedOn.localeCompare(a.completedOn),
+    );
+  const otherRecords = active.filter((r) => !cpr.includes(r));
+  const status = resuscitationStatus(
+    cpr.map(
+      (r): AdvanceCareRecordState => ({
+        id: r.id,
+        kind: r.kind,
+        status: "active",
+        cprDecision: r.cprDecision,
+        completedOn: r.completedOn,
+        clinicianName: r.clinician,
+        clinicianRole: null,
+        reviewDueOn: r.reviewOn,
+      }),
+    ),
+    today,
+  );
+  if (status.status === "not_recorded") return { status: "not_recorded", otherRecords };
+  return {
+    status: "recorded",
+    decision: status.status,
+    conflicting: status.conflicting,
+    reviewDueOn: status.reviewDueOn,
+    reviewOverdue: status.reviewOverdue,
+    cprRecords: cpr,
+    otherRecords,
+  };
 }
 
 /** Assembles the hospital transfer pack from supplied record data. */
@@ -361,7 +501,8 @@ export function assembleHospitalTransferPack(input: HospitalTransferInput): Tran
   const allergies = normaliseAllergies(input.allergies.data);
   const medicines = normaliseMedicines(input.medicines.data);
   const communication = normaliseCommunication(input.communication.data);
-  const resuscitation = normaliseResuscitation(input.resuscitation.data);
+  const resuscitation = resuscitationFor(input.resuscitation.data, ukIsoDate(input.generatedAt));
+  const photoPrintable = input.photo?.data.printable === true;
   const aboutMeSummary = input.aboutMe ? summariseAboutMe(input.aboutMe.data) : null;
   const reason = input.reasonForTransfer?.trim() ? input.reasonForTransfer.trim() : null;
   const itemsSent = input.property.filter((p) => input.sendItemIds.includes(p.id));
@@ -370,7 +511,7 @@ export function assembleHospitalTransferPack(input: HospitalTransferInput): Tran
   );
 
   const recorded: Record<TransferPackSectionKey, { included: boolean; asOf: Date | null }> = {
-    photo: { included: input.photo !== null, asOf: input.photo?.asOf ?? null },
+    photo: { included: photoPrintable, asOf: input.photo?.asOf ?? null },
     allergies: { included: allergies.status !== "unknown", asOf: input.allergies.asOf },
     medicines: { included: medicines.status !== "not_recorded", asOf: input.medicines.asOf },
     communication: {
@@ -416,6 +557,33 @@ export function assembleHospitalTransferPack(input: HospitalTransferInput): Tran
     .filter((s) => !s.critical && s.status === "not_recorded")
     .map((s) => s.key);
 
+  const checks: TransferPackAttention[] = [];
+  if (input.photo !== null && !photoPrintable)
+    checks.push(attention("photo", "photo_not_printable"));
+  if (
+    allergies.status === "no_known_allergies" &&
+    (!allergies.recordedBy || !allergies.recordedAt)
+  ) {
+    checks.push(attention("allergies", "allergy_confirmation_not_recorded"));
+  }
+  if (medicines.status === "recorded" && medicines.source === "pre_admission_assessment") {
+    checks.push(
+      attention(
+        "medicines",
+        "medicines_need_checking",
+        input.medicines.asOf ? ukIsoDate(input.medicines.asOf) : null,
+      ),
+    );
+  }
+  if (resuscitation.status === "recorded" && resuscitation.conflicting) {
+    checks.push(attention("resuscitation", "resuscitation_conflict"));
+  }
+  if (resuscitation.status === "recorded" && resuscitation.reviewOverdue) {
+    checks.push(
+      attention("resuscitation", "resuscitation_review_overdue", resuscitation.reviewDueOn),
+    );
+  }
+
   return {
     ok: true,
     pack: {
@@ -445,8 +613,9 @@ export function assembleHospitalTransferPack(input: HospitalTransferInput): Tran
       },
       missingCritical,
       missingExpected,
+      attention: checks,
       itemsLeftBehind,
-      complete: missingCritical.length === 0 && missingExpected.length === 0,
+      complete: missingCritical.length === 0 && missingExpected.length === 0 && checks.length === 0,
     },
   };
 }
@@ -467,24 +636,33 @@ export type TransferPackHandoverCheck =
       readonly problem: "acknowledgement_required" | "reason_required";
       readonly message: string;
       readonly missingCritical: readonly TransferPackSectionKey[];
+      /** Recorded sections that need acknowledging too (records that disagree). */
+      readonly toAcknowledge: readonly TransferPackAttentionCode[];
     };
 
 /**
- * Recording that the pack went with the person. A pack missing a safety-critical section can still
- * be printed and sent, but the hand-over is recorded only with a named acknowledgement and reason.
+ * Recording that the pack went with the person. A pack missing a safety-critical section, or with
+ * resuscitation records that disagree, can still be printed and sent, but the hand-over is
+ * recorded only with a named acknowledgement and reason.
  */
 export function checkTransferPackHandover(
-  pack: HospitalTransferPack,
+  pack: Pick<HospitalTransferPack, "missingCritical" | "complete"> & {
+    readonly attention?: readonly TransferPackAttention[];
+  },
   acknowledgement: TransferPackAcknowledgement | null,
 ): TransferPackHandoverCheck {
-  if (pack.missingCritical.length === 0) return { ok: true, incomplete: !pack.complete };
+  const toAcknowledge = (pack.attention ?? []).filter((a) => a.acknowledge).map((a) => a.code);
+  if (pack.missingCritical.length === 0 && toAcknowledge.length === 0) {
+    return { ok: true, incomplete: !pack.complete };
+  }
   if (!acknowledgement) {
     return {
       ok: false,
       problem: "acknowledgement_required",
       message:
-        "Some safety-critical information is not recorded. Confirm that the pack is going without it, and why.",
+        "Some safety-critical information is not recorded or needs checking. Confirm that the pack is going as it is, and why.",
       missingCritical: pack.missingCritical,
+      toAcknowledge,
     };
   }
   if (!hasReason(acknowledgement.reason, MIN_INCOMPLETE_PACK_REASON_LENGTH)) {
@@ -493,6 +671,7 @@ export function checkTransferPackHandover(
       problem: "reason_required",
       message: "Say why the pack is going without this information.",
       missingCritical: pack.missingCritical,
+      toAcknowledge,
     };
   }
   return { ok: true, incomplete: true };

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  type AdvanceCareSummary,
   assembleHospitalTransferPack,
   checkTransferPackHandover,
   type HospitalTransferInput,
@@ -17,6 +18,21 @@ function source<T>(data: T, personId = ADA) {
   return { personId, asOf: AS_OF, data };
 }
 
+function record(overrides: Partial<AdvanceCareSummary> = {}): AdvanceCareSummary {
+  return {
+    id: "r-respect",
+    kind: "respect",
+    cprDecision: "do_not_attempt_cpr",
+    summary: "For ward-based care; not for CPR",
+    clinician: "Dr Example",
+    completedOn: "2026-06-01",
+    reviewOn: "2027-06-01",
+    documentId: "doc-respect",
+    active: true,
+    ...overrides,
+  };
+}
+
 function input(overrides: Partial<HospitalTransferInput> = {}): HospitalTransferInput {
   return {
     personStatus: "active",
@@ -31,7 +47,7 @@ function input(overrides: Partial<HospitalTransferInput> = {}): HospitalTransfer
     },
     generatedAt: NOW,
     generatedBy: "nurse-1",
-    photo: source({ documentId: "doc-photo", takenOn: "2026-09-01" }),
+    photo: source({ documentId: "doc-photo", takenOn: "2026-09-01", printable: true }),
     allergies: source({
       status: "has_allergies",
       allergies: [
@@ -68,24 +84,16 @@ function input(overrides: Partial<HospitalTransferInput> = {}): HospitalTransfer
     resuscitation: source({
       status: "recorded",
       records: [
-        {
+        record({
+          id: "r-old",
           kind: "dnacpr",
           summary: "Old decision",
-          clinician: "Dr Example",
           completedOn: "2025-01-01",
           reviewOn: null,
           documentId: null,
           active: false,
-        },
-        {
-          kind: "respect",
-          summary: "For ward-based care; not for CPR",
-          clinician: "Dr Example",
-          completedOn: "2026-06-01",
-          reviewOn: "2027-06-01",
-          documentId: "doc-respect",
-          active: true,
-        },
+        }),
+        record({ id: "r-respect" }),
       ],
     }),
     aboutMe: source({ what_is_most_important_to_me: { text: "My cat, Biscuit." } }),
@@ -139,7 +147,7 @@ function pack(overrides: Partial<HospitalTransferInput> = {}): HospitalTransferP
 }
 
 describe("transfer pack sections", () => {
-  it("marks the six safety-critical sections from the spec", () => {
+  it("marks the safety-critical sections, with eating and drinking (HZ-016)", () => {
     expect(TRANSFER_PACK_SECTIONS.filter((s) => s.critical).map((s) => s.key)).toEqual([
       "photo",
       "allergies",
@@ -147,6 +155,7 @@ describe("transfer pack sections", () => {
       "communication",
       "resuscitation",
       "about_me",
+      "eating_and_drinking",
     ]);
   });
 
@@ -154,6 +163,7 @@ describe("transfer pack sections", () => {
     const complete = pack();
     expect(complete.complete).toBe(true);
     expect(complete.missingCritical).toEqual([]);
+    expect(complete.attention).toEqual([]);
     expect(complete.sections.every((s) => s.status === "included")).toBe(true);
     expect(complete.sections.find((s) => s.key === "allergies")?.asOf).toEqual(AS_OF);
     expect(complete.content.itemsSent.map((i) => i.id)).toEqual(["i1", "i2"]);
@@ -200,21 +210,27 @@ describe("hazard HZ-023 missing safety-critical information is flagged, never le
       {
         resuscitation: source({
           status: "recorded",
-          records: [
-            {
-              kind: "dnacpr",
-              summary: "Withdrawn",
-              clinician: "Dr Example",
-              completedOn: "2025-01-01",
-              reviewOn: null,
-              documentId: null,
-              active: false,
-            },
-          ],
+          records: [record({ kind: "dnacpr", summary: "Withdrawn", active: false })],
         }),
       },
       "resuscitation",
     ],
+    [
+      "hazard HZ-015 an advance decision to refuse treatment alone makes no CPR decision",
+      {
+        resuscitation: source({
+          status: "recorded",
+          records: [record({ id: "r-adrt", kind: "adrt", cprDecision: null })],
+        }),
+      },
+      "resuscitation",
+    ],
+    [
+      "hazard HZ-001 a photo that cannot be printed",
+      { photo: source({ documentId: "doc-photo", takenOn: "2026-09-01", printable: false }) },
+      "photo",
+    ],
+    ["hazard HZ-016 no IDDSI levels", { eatingAndDrinking: null }, "eating_and_drinking"],
     ["no About Me", { aboutMe: null }, "about_me"],
     [
       "an About Me with nothing in it",
@@ -238,11 +254,10 @@ describe("hazard HZ-023 missing safety-critical information is flagged, never le
       infection: null,
       homeContact: null,
     });
-    expect(result.missingCritical).toEqual([]);
+    expect(result.missingCritical).toEqual(["eating_and_drinking"]);
     expect(result.missingExpected).toEqual([
       "reason_for_transfer",
       "baseline",
-      "eating_and_drinking",
       "capacity_and_legal",
       "contacts",
       "infection",
@@ -288,9 +303,114 @@ describe("pack content", () => {
     const resuscitation = pack().content.resuscitation;
     expect(resuscitation).toMatchObject({
       status: "recorded",
-      records: [{ kind: "respect", active: true }],
+      decision: "do_not_attempt_cpr",
+      conflicting: false,
+      cprRecords: [{ kind: "respect", active: true }],
     });
-    expect(resuscitation.status === "recorded" && resuscitation.records).toHaveLength(1);
+    expect(resuscitation.status === "recorded" && resuscitation.cprRecords).toHaveLength(1);
+  });
+
+  it("hazard HZ-015 keeps an ADRT beside the CPR decision but never as one", () => {
+    const resuscitation = pack({
+      resuscitation: source({
+        status: "recorded",
+        records: [record(), record({ id: "r-adrt", kind: "adrt", cprDecision: null })],
+      }),
+    }).content.resuscitation;
+    expect(resuscitation).toMatchObject({
+      status: "recorded",
+      decision: "do_not_attempt_cpr",
+      otherRecords: [{ kind: "adrt" }],
+    });
+    const alone = pack({
+      resuscitation: source({
+        status: "recorded",
+        records: [record({ id: "r-acp", kind: "advance_care_plan", cprDecision: null })],
+      }),
+    });
+    expect(alone.content.resuscitation).toEqual({
+      status: "not_recorded",
+      otherRecords: [expect.objectContaining({ kind: "advance_care_plan" })],
+    });
+    expect(alone.missingCritical).toEqual(["resuscitation"]);
+  });
+
+  it("hazard HZ-015 prints ReSPECT and DNACPR that disagree as a conflict, with both, never resolved", () => {
+    const conflicting = pack({
+      resuscitation: source({
+        status: "recorded",
+        records: [
+          record({ cprDecision: "attempt_cpr", summary: "For CPR", completedOn: "2026-06-01" }),
+          record({ id: "r-dnacpr", kind: "dnacpr", completedOn: "2026-05-01" }),
+        ],
+      }),
+    });
+    expect(conflicting.content.resuscitation).toMatchObject({
+      status: "recorded",
+      conflicting: true,
+      cprRecords: [{ id: "r-respect" }, { id: "r-dnacpr" }],
+    });
+    expect(conflicting.attention).toEqual([
+      expect.objectContaining({ code: "resuscitation_conflict", acknowledge: true }),
+    ]);
+    expect(conflicting.complete).toBe(false);
+    expect(checkTransferPackHandover(conflicting, null)).toMatchObject({
+      ok: false,
+      problem: "acknowledgement_required",
+      missingCritical: [],
+      toAcknowledge: ["resuscitation_conflict"],
+    });
+  });
+
+  it("hazard HZ-015 shows a resuscitation decision past its review date", () => {
+    const overdue = pack({
+      resuscitation: source({ status: "recorded", records: [record({ reviewOn: "2026-10-01" })] }),
+    });
+    expect(overdue.attention).toEqual([
+      expect.objectContaining({ code: "resuscitation_review_overdue", onDate: "2026-10-01" }),
+    ]);
+  });
+
+  it("marks a medicines list from the pre-admission assessment as needing checking", () => {
+    const fromAssessment = pack({
+      medicines: source({
+        status: "recorded",
+        source: "pre_admission_assessment",
+        items: [
+          {
+            name: "Paracetamol 500 mg tablets",
+            dose: "1 g",
+            route: "oral",
+            frequency: "four times a day",
+            lastGivenAt: null,
+            timeCritical: false,
+          },
+        ],
+      }),
+    });
+    expect(fromAssessment.missingCritical).toEqual([]);
+    expect(fromAssessment.attention).toEqual([
+      expect.objectContaining({ code: "medicines_need_checking", onDate: "2026-10-11" }),
+    ]);
+    expect(fromAssessment.complete).toBe(false);
+  });
+
+  it("hazard HZ-007 asks for a check when no known allergies has no confirmer", () => {
+    const unattributed = pack({
+      allergies: source({ status: "no_known_allergies", recordedBy: null, recordedAt: null }),
+    });
+    expect(unattributed.missingCritical).toEqual([]);
+    expect(unattributed.attention.map((a) => a.code)).toEqual([
+      "allergy_confirmation_not_recorded",
+    ]);
+  });
+
+  it("hazard HZ-001 flags a photo it cannot print on the first page", () => {
+    const unprintable = pack({
+      photo: source({ documentId: "doc-photo", takenOn: "2026-09-01", printable: false }),
+    });
+    expect(unprintable.attention.map((a) => a.code)).toEqual(["photo_not_printable"]);
+    expect(unprintable.sections.find((s) => s.key === "photo")?.status).toBe("not_recorded");
   });
 
   it("names belongings that usually travel but are not being sent", () => {

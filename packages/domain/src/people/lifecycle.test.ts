@@ -181,6 +181,36 @@ describe("rule 12: discharged and deceased people are read-only except post-even
     },
   );
 
+  it.each<[string, string, boolean, boolean]>([
+    ["at the death", "2026-10-10T03:00:00Z", true, false],
+    ["two minutes after (a fast phone clock)", "2026-10-10T03:02:00Z", true, true],
+    ["exactly at the tolerance", "2026-10-10T03:05:00Z", true, true],
+    ["a minute beyond the tolerance", "2026-10-10T03:06:00Z", false, false],
+  ])(
+    "hazard HZ-006 an observation timed %s is accepted within the clock tolerance: %s",
+    (_label, occurredAt, accepted, tolerated) => {
+      const result = checkPersonRecordWrite(
+        { ...deceased, clockToleranceMinutes: 5 },
+        { kind: "observation", occurredAt: new Date(occurredAt) },
+      );
+      if (!accepted) {
+        expect(result).toMatchObject({
+          ok: false,
+          problem: "occurred_after_status_change",
+          careEventAfterChange: true,
+        });
+      } else if (tolerated) {
+        expect(result).toEqual({
+          ok: true,
+          recordedAfterStatusChange: true,
+          withinClockTolerance: true,
+        });
+      } else {
+        expect(result).toEqual({ ok: true, recordedAfterStatusChange: true });
+      }
+    },
+  );
+
   it("refuses everything for archived and not-admitted records", () => {
     for (const kind of Object.keys(PERSON_RECORD_KINDS) as PersonRecordKind[]) {
       for (const status of ["archived", "not_admitted"] as const) {

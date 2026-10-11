@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readRateTable } from "../../test/rate-table";
 import { resolveRate } from "../platform/rates";
 import { checkWorkflowTransition, slaDueAt } from "../platform/workflow";
+import { NOTIFICATION_KINDS } from "../safety/notifications";
 import { addUkDays } from "../shared/time";
 import {
   checkExitWorkflowMove,
@@ -201,13 +202,29 @@ describe("death checklist", () => {
 
   it("hazard HZ-013 lists the statutory notifications first", () => {
     const notifications = exitNotifications(context({ learningDisabilityOrAutism: true }));
-    expect(notifications.filter((n) => n.statutory).map((n) => n.recipient)).toEqual([
-      "CQC",
-      "Medical examiner office",
-      "LeDeR programme",
-    ]);
+    expect(notifications.filter((n) => n.statutory).map((n) => n.recipient)).toEqual(["CQC"]);
     expect(notifications[0]?.statutory).toBe(true);
     expect(notifications.at(-1)?.statutory).toBe(false);
+  });
+
+  it("hazard HZ-013 drafts the regulator, medical examiner and LeDeR notifications in safety, labelled as the safety module labels them", () => {
+    const notifications = exitNotifications(context({ learningDisabilityOrAutism: true }));
+    const drafted = notifications.filter((n) => n.safetyKind !== null);
+    expect(drafted.map((n) => [n.itemKey, n.safetyKind])).toEqual([
+      ["regulator_death_notification", "cqc_reg16_death"],
+      ["medical_examiner_information", "medical_examiner"],
+      ["leder_notification", "leder"],
+    ]);
+    for (const n of drafted) {
+      expect(n.statutory, n.itemKey).toBe(NOTIFICATION_KINDS[n.safetyKind ?? "leder"].statutory);
+    }
+  });
+
+  it("drafts nothing in the safety module for a regulator outside England, but still names the duty", () => {
+    const item = exitChecklist(context({ regulator: "ciw" })).find(
+      (i) => i.key === "regulator_death_notification",
+    );
+    expect(item?.notification).toMatchObject({ statutory: true, safetyKind: null });
   });
 
   it("names the nation's regulator", () => {
