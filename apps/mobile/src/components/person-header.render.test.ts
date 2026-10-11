@@ -103,7 +103,9 @@ describe("hazard HZ-001 the point-of-care header renders who this is", () => {
 
   it("hazard HZ-016 says the food and drink levels are not recorded when the profile is not on the device (C3)", async () => {
     const { texts } = await renderHeaderFor(ADA, { dropProfile: true });
-    expect(texts).toContain("Food and drink levels not recorded");
+    expect(texts).toContain(
+      "Food and drink levels are not on this device. Check with the nurse in charge.",
+    );
     expect(texts.some((x) => x.startsWith("Food: Level"))).toBe(false);
   });
 

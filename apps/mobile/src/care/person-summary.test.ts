@@ -105,7 +105,7 @@ describe("hazard HZ-016 prescribed IDDSI levels in the header", () => {
         key: "iddsi-not-recorded",
         tone: "warning",
         icon: "circle-help",
-        label: "Food and drink levels not recorded",
+        label: "Food and drink levels are not on this device. Check with the nurse in charge.",
       },
     ]);
     // Never while the profile is still loading.
