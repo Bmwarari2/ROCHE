@@ -3,9 +3,12 @@ import { createTranslator } from "@harbour/i18n";
 import { describe, expect, it } from "vitest";
 import {
   allergySummary,
+  BREAK_GLASS_MAX_LENGTH,
+  BREAK_GLASS_MIN_LENGTH,
   canBreakGlass,
   communicationSummary,
   initials,
+  justificationProblem,
   type PersonRow,
   personNames,
   toPersonListItem,
@@ -174,5 +177,20 @@ describe("canBreakGlass", () => {
   it("needs people.person.break_glass", () => {
     expect(canBreakGlass(["people.person.read", "people.person.break_glass"])).toBe(true);
     expect(canBreakGlass(["people.person.read"])).toBe(false);
+  });
+});
+
+describe("justificationProblem", () => {
+  it.each([
+    ["", "too-short"],
+    ["Covering tonight", "too-short"],
+    // Spaces around the reason do not count towards the minimum.
+    [`  ${"a".repeat(BREAK_GLASS_MIN_LENGTH - 1)}  `, "too-short"],
+    ["a".repeat(BREAK_GLASS_MIN_LENGTH), null],
+    ["Covering Rowan House tonight for the night nurse", null],
+    ["a".repeat(BREAK_GLASS_MAX_LENGTH), null],
+    ["a".repeat(BREAK_GLASS_MAX_LENGTH + 1), "too-long"],
+  ])("%j is %s", (justification, expected) => {
+    expect(justificationProblem(justification)).toBe(expected);
   });
 });

@@ -32,16 +32,31 @@ const pointOfCare: Permission[] = [
   "workforce.self.read",
   "comms.message.send",
   "insights.dashboard.read",
+  "platform.search.use",
 ];
+
+/**
+ * Permissions only the portal roles hold: a family member's or the person's own access, never a
+ * member of staff's (comms.md section 3).
+ */
+export const PORTAL_ONLY_PERMISSIONS: readonly Permission[] = [
+  "comms.portal.family",
+  "comms.portal.self",
+  "comms.feed.read",
+  "comms.notification.subscribe",
+  "comms.visit_booking.request",
+];
+
+const staffPermission = (p: Permission) => !PORTAL_ONLY_PERMISSIONS.includes(p);
 
 const registeredManager: Permission[] = ALL_PERMISSIONS.filter(
   (p) =>
     !p.startsWith("platform.") &&
     !p.startsWith("ai.copilot.manage") &&
     p !== "insights.group.read" &&
-    p !== "comms.portal.family" &&
-    p !== "comms.portal.self" &&
-    p !== "finance.ledger.record",
+    staffPermission(p) &&
+    p !== "finance.ledger.record" &&
+    p !== "quality.evidence.read",
 ).concat([
   "platform.user.manage",
   "platform.audit.read",
@@ -49,6 +64,11 @@ const registeredManager: Permission[] = ALL_PERMISSIONS.filter(
   "platform.grant.manage",
   "platform.task.manage",
   "platform.document.manage",
+  "platform.search.use",
+  "platform.search.archived",
+  "platform.onboarding.read",
+  "platform.dpia.read",
+  "platform.dpia.prepare",
 ]);
 
 export const BUILTIN_ROLES: readonly BuiltinRole[] = [
@@ -57,9 +77,9 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
     name: "Owner",
     description: "Founder, director or Nominated Individual. Everything, including billing.",
     scopeKind: "tenant",
-    permissions: ALL_PERMISSIONS.filter(
-      (p) => p !== "comms.portal.family" && p !== "comms.portal.self",
-    ),
+    // Least privilege: opening a released evidence pack by its link is for the inspector it was
+    // sent to; providers see their packs through `quality.evidence_pack.compose`.
+    permissions: ALL_PERMISSIONS.filter((p) => staffPermission(p) && p !== "quality.evidence.read"),
   },
   {
     key: "group_executive",
@@ -75,11 +95,12 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "workforce.training.manage",
       "workforce.supervision.manage",
       "quality.audit.manage",
-      "quality.evidence.read",
       "insights.dashboard.read",
       "insights.report.manage",
       "insights.group.read",
       "platform.audit.read",
+      "platform.dpia.read",
+      "platform.search.use",
       "scheduling.rota.read",
       "comms.message.send",
     ],
@@ -97,8 +118,14 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
     description:
       "As Registered Manager minus tenant settings; submits notifications only under an acting-up grant.",
     scopeKind: "location",
+    // The statement of purpose is approved by the registered provider or manager (CQC
+    // Registration Regulations 2009 reg 12), not by a deputy.
     permissions: registeredManager.filter(
-      (p) => p !== "safety.notification.submit" && p !== "platform.grant.manage",
+      (p) =>
+        p !== "safety.notification.submit" &&
+        p !== "platform.grant.manage" &&
+        p !== "platform.dpia.prepare" &&
+        p !== "quality.statement_of_purpose.approve",
     ),
   },
   {
@@ -122,6 +149,10 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "platform.task.manage",
       "people.movement.record",
       "people.property.manage",
+      "comms.feed.publish",
+      "comms.feed.withdraw",
+      "operations.downtime.read",
+      "operations.downtime.manage",
     ],
   },
   {
@@ -138,6 +169,10 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "platform.task.manage",
       "people.movement.record",
       "people.property.manage",
+      "comms.feed.publish",
+      "comms.feed.withdraw",
+      "operations.downtime.read",
+      "operations.downtime.manage",
     ],
   },
   {
@@ -163,6 +198,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "safety.incident.read",
       "comms.message.send",
       "insights.dashboard.read",
+      "platform.search.use",
     ],
   },
   {
@@ -232,7 +268,11 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "safety.incident.report",
       "comms.message.send",
       "comms.letter.manage",
+      "comms.notification.manage",
+      "comms.visit_booking.manage",
+      "comms.template.write",
       "platform.document.manage",
+      "platform.search.use",
     ],
   },
   {
@@ -263,6 +303,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "workforce.casework.manage",
       "workforce.competence.observe",
       "insights.dashboard.read",
+      "platform.search.use",
     ],
   },
   {
@@ -278,7 +319,11 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "quality.audit.manage",
       "quality.policy.manage",
       "quality.evidence.manage",
-      "quality.evidence.read",
+      "quality.evidence_pack.compose",
+      "quality.evidence_pack.release",
+      "quality.statement_of_purpose.write",
+      "comms.template.write",
+      "comms.template.approve",
       "quality.dsar.manage",
       "safety.whistleblowing.read",
       "safety.complaint.manage",
@@ -286,6 +331,12 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "platform.audit.read",
       "platform.document.manage",
       "platform.retention.manage",
+      "platform.search.use",
+      "platform.search.archived",
+      "platform.onboarding.read",
+      "platform.dpia.read",
+      "platform.dpia.prepare",
+      "platform.dpia.sign",
       "insights.dashboard.read",
       "insights.report.manage",
     ],
@@ -304,7 +355,12 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
     description:
       "Portal for one person: updates, consented care plan sections, invoices, messages.",
     scopeKind: "assigned",
-    permissions: ["comms.portal.family"],
+    permissions: [
+      "comms.portal.family",
+      "comms.feed.read",
+      "comms.notification.subscribe",
+      "comms.visit_booking.request",
+    ],
   },
   {
     key: "person_receiving_care",

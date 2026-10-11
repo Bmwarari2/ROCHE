@@ -232,6 +232,11 @@
     --type-headline-size: 32px;
     --type-headline-line-height: 1.08;
     --content-width: 87.5%;
+    /* On a phone nothing a carer reads is smaller than 15 px; badges and step numbers 13 px. */
+    --type-callout-size: 15px;
+    --type-callout-line-height: 1.47;
+    --type-caption-size: 13px;
+    --type-caption-line-height: 1.38;
   }
 }
 

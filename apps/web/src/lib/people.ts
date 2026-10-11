@@ -101,7 +101,7 @@ export function initials(person: Pick<PersonSummary, "givenName" | "familyName">
   return `${first}${last}`.toLocaleUpperCase("en-GB");
 }
 
-export function roomLabel(person: PersonRow): string | null {
+export function roomLabel(person: Pick<PersonSummary, "roomLabel">): string | null {
   return person.roomLabel?.trim() || null;
 }
 
@@ -111,6 +111,20 @@ export function canBreakGlass(permissions: readonly string[]): boolean {
 
 /** The shortest justification the break-glass form accepts (section 4). */
 export const BREAK_GLASS_MIN_LENGTH = 20;
+
+/** The longest justification the break-glass form accepts. */
+export const BREAK_GLASS_MAX_LENGTH = 1000;
+
+/**
+ * Checks a break-glass justification after trimming. The form and the server action both use it,
+ * so the person sees the same rule before and after sending.
+ */
+export function justificationProblem(justification: string): "too-short" | "too-long" | null {
+  const length = justification.trim().length;
+  if (length < BREAK_GLASS_MIN_LENGTH) return "too-short";
+  if (length > BREAK_GLASS_MAX_LENGTH) return "too-long";
+  return null;
+}
 
 /** What the people list needs for one row, prepared on the server so the table stays light. */
 export interface PersonListItem {

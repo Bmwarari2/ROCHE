@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { FileClock, NotebookPen, ShieldCheck } from "lucide-react";
+import { Clock, FileClock, NotebookPen, ShieldCheck } from "lucide-react";
 import { iconProps } from "../../lib/icon";
+import { StatusChip } from "../StatusChip/StatusChip";
 import { Timeline, type TimelineEntry } from "./Timeline";
 
 const careNotes: TimelineEntry[] = [
@@ -72,4 +73,35 @@ export const CareNotes: Story = {};
 
 export const AuditHistory: Story = {
   args: { entries: auditHistory, label: "Record history" },
+};
+
+/** Apps pass translated words for the parts the timeline adds itself, and chips and actions. */
+export const WithAppWordsAndActions: Story = {
+  args: {
+    label: "Care notes for Ada Example",
+    labels: { originalEntry: "Original entry, now corrected:", correction: "Correction" },
+    entries: [
+      {
+        id: "n-5",
+        author: "Recorded by you",
+        time: "2026-10-03T13:05:00Z",
+        title: "Nutrition",
+        badges: <StatusChip status="due" label="Late entry" icon={Clock} />,
+        body: "Ada ate a small breakfast.",
+        correction: {
+          body: "Ada ate all of her breakfast.",
+          author: "Recorded by you",
+          time: "2026-10-03T14:10:00Z",
+          meta: "Corrected by you on 03/10/2026 15:10",
+          reasonText: "Reason: Portion recorded wrongly",
+        },
+        footer: (
+          <details>
+            <summary>Show 2 earlier versions</summary>
+            <p>Ada ate a small breakfast.</p>
+          </details>
+        ),
+      },
+    ],
+  },
 };

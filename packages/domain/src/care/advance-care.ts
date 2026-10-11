@@ -153,17 +153,27 @@ export interface ResuscitationStatus {
   readonly reviewOverdue: boolean;
 }
 
-export function resuscitationStatus(
+/**
+ * The ReSPECT and DNACPR records with a CPR decision in force, newest first: the records the
+ * header and every summary read (`resuscitationStatus`, the export's current summary).
+ */
+export function cprRecordsInForce(
   records: readonly AdvanceCareRecordState[],
-  today: string,
-): ResuscitationStatus {
-  const inForce = records
+): AdvanceCareRecordState[] {
+  return records
     .filter((r) => r.status === "active" && CPR_KINDS.includes(r.kind) && r.cprDecision !== null)
     .sort((a, b) =>
       a.completedOn === b.completedOn
         ? b.id.localeCompare(a.id)
         : b.completedOn.localeCompare(a.completedOn),
     );
+}
+
+export function resuscitationStatus(
+  records: readonly AdvanceCareRecordState[],
+  today: string,
+): ResuscitationStatus {
+  const inForce = cprRecordsInForce(records);
   const current = inForce[0];
   if (!current?.cprDecision) {
     return {

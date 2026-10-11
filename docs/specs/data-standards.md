@@ -13,16 +13,42 @@ the DSCR data migration schema.
 
 ## Export and import conventions
 
-- **Files**: one CSV file and one JSON Lines file per table, named after the table (`person.csv`,
-  `person.jsonl`), plus a `documents/` folder keyed by document ID and a `manifest.json` holding the export
-  schema version, tenant ID, export time (UTC), row counts and SHA-256 checksums.
+- **Files**: one CSV file and one JSON Lines file per table under `tables/`, named after the table
+  (`tables/person.csv`, `tables/person.jsonl`), plus a `documents/` folder keyed by document ID
+  (`documents/<id>.<extension>`, never the title or file name), `destroyed.csv` (records destroyed past
+  retention, with their certificate ids), `current_summary.csv` (one row per person with the essentials
+  as Harbour shows them, below), `schema.json` (JSON Schema 2020-12 for every table, generated from the
+  same plan as the files, with a description for every column, a unit for every number and the codes of
+  every coded column) and a `manifest.json` holding the export schema version (1.1.0), tenant ID, the
+  snapshot instant, row counts and SHA-256 checksums (fields below). Only columns the export catalogue
+  classifies as exported are written. Rules for held, deleted, destroyed, quarantined and sample
+  records: [platform-completions.md](platform-completions.md) rule 11.
+- **Snapshot**: every file is read in one transaction, so all tables are from the same moment
+  (`snapshotAt` in the manifest, in UTC and UK time). A "changes since" export (manifest `kind`
+  `changes_since`, `since` the earlier snapshot) holds only rows created, changed, recorded, deleted or
+  destroyed at or after it, and has no current summary.
 - **Encoding**: UTF-8, no byte order mark; CSV per RFC 4180 with a header row of column names.
+- **CSV formulas**: in CSV files only, a text cell starting with `=`, `+`, `-`, `@`, a tab, a carriage
+  return or an apostrophe gets one leading apostrophe so a spreadsheet does not run it as a formula;
+  remove that one apostrophe when importing (`csvTextValue`). Numbers are never changed, and the JSON
+  Lines files hold the exact values.
 - **Column names**: identical to the database column names (`snake_case`); JSON uses the same names.
 - **Identifiers**: `id` is a UUIDv7 string. Foreign keys keep their column names (`location_id`). On
   import, source IDs are kept in an `import_source_id` mapping and Harbour assigns new IDs and the
   importing tenant's `tenant_id`; an imported file's `tenant_id` is ignored.
-- **Dates and times**: dates as `YYYY-MM-DD`; timestamps as ISO 8601 in UTC with `Z`
-  (`2026-10-11T09:30:00Z`). The UI shows dd/mm/yyyy and 24-hour time in Europe/London.
+- **Dates and times**: dates as `YYYY-MM-DD` and always UK calendar dates; timestamps as ISO 8601 in
+  UTC with `Z` (`2026-10-11T09:30:00Z`). UK local time is the instant converted to Europe/London
+  (+00:00 GMT, +01:00 BST); convert from UTC, never the other way, because the autumn clock change
+  repeats an hour. Where an instant stands for a date (`person.deceased_at`, `person.discharged_at`) the
+  export adds a derived `<column>_uk_date` column with the UK date, because the UTC date is a day early
+  for anything after 23:00 in summer. Recurrence times and quiet hours are Europe/London wall-clock times
+  (`HH:MM`), not instants. The UI shows dd/mm/yyyy and 24-hour time in Europe/London.
+- **Corrections**: clinical and money entries are never edited. A correction is a new row whose
+  `supersedes_id` names the row it corrects; the original and its correction are not two live facts, and
+  the current value is the row no other row supersedes.
+- **Units**: every numeric column has its unit in `schema.json` (`x-unit`). Observation `values` follow
+  a schema per chart (`OBSERVATION_VALUES_SCHEMA`: ml, kg, breaths per minute, % oxygen saturation,
+  mmHg, beats per minute, degrees Celsius, Bristol stool type).
 - **Codes**: coded values are stored as the code (`ethnic_category_code = "A"`). Where the code system is
   not implied by the column, the JSON carries `{ "code", "display", "system" }` with `system` as a URI
   (`http://snomed.info/sct` for SNOMED CT).
@@ -93,11 +119,11 @@ names below are the concepts this contract carries and must be kept in step with
 | `photo_document_id` | UUIDv7 | - | Reference to `document` | Photo shown on every point-of-care screen (wrong-person hazard). Exported in `documents/`. |
 | `communication_needs` | JSON array | Accessible Information Standard; SNOMED CT | `[{ "code", "display", "preferredFormat" }]` (below) | Flags on every screen and print (section 5.4). |
 | `communication_needs_status` | code | Accessible Information Standard (identify and record) | `not_recorded`, `none_identified`, `recorded` | Phase 1. An empty list is never read as "no needs": `none_identified` is recorded positively, and `communication_needs_confirmed_by` and `_at` name who recorded the needs, or that there are none, on every change (hazard HZ-023). |
-| `allergy_status` | code | FHIR AllergyIntolerance (concept); "no known allergy" situation in SNOMED CT | `unknown`, `no_known_allergies`, `has_allergies` | `unknown` is never shown as "no allergies" (HZ-007). |
+| `allergy_status` | code | MODS allergies and adverse reactions (the "no known allergies" statement; see `allergy` below) | `unknown` (nobody has recorded whether the person has allergies), `no_known_allergies` (checked and recorded: none known), `has_allergies` (one or more rows in `allergy`) | Defaults to `unknown`, which never means none (hazard HZ-007). Read with the `allergy` rows; go-live waits until no current person is `unknown` ([platform-completions.md](platform-completions.md) rule 26). |
 | `allergy_status_confirmed_by`, `allergy_status_confirmed_at` | UUIDv7, timestamp | - | Reference to `tenant_user`; ISO 8601 UTC | Phase 1 (migration 0023). Who set the allergy status and when, kept by a database trigger on every write that touches the status or either of these columns: always the signed-in user (`app.current_user_id()`) and the time of the write, never values the client sends, and null when no user is signed in; cleared when the status returns to `unknown`; never the last person to edit the row. Null for statuses set before the migration (printed as "who confirmed this is not recorded"). |
 | `national_data_opt_out` | boolean | National data opt-out | `true` when the person has opted out | Honoured when publicly funded care data is used beyond direct care. Checking against the national service is a Phase 5 item. |
-| `deceased_at` | timestamp | NHS Data Dictionary PERSON DEATH DATE (date part) | ISO 8601 UTC | Sets `status` to `deceased`. |
-| `discharged_at` | timestamp | MODS discharge date | ISO 8601 UTC | Sets `status` to `discharged`. |
+| `deceased_at` | timestamp | NHS Data Dictionary PERSON DEATH DATE (the UK date of this instant) | ISO 8601 UTC | Sets `status` to `deceased`. The export adds `deceased_at_uk_date`. |
+| `discharged_at` | timestamp | MODS discharge date (the UK date of this instant) | ISO 8601 UTC | Sets `status` to `discharged`. The export adds `discharged_at_uk_date`. |
 
 ### Sex codes (`sex_code`, NHS Data Dictionary PERSON PHENOTYPIC SEX)
 
@@ -414,14 +440,103 @@ assurance pack.
 | `exit_record.status_before`, `status_before_since` | Harbour | `active`, `on_leave`, `in_hospital`; ISO 8601 UTC | Phase 1 (migration 0023). The person's status when the exit was recorded and when it began: a correction of the exit as recorded in error returns the person to it (people.md rule 2). Null for exits recorded before the migration, which return to `active`. |
 | `exit_record.state` | Harbour (`DISCHARGE_WORKFLOW`, `TRANSFER_WORKFLOW`, `DEATH_WORKFLOW`) | `planned`, `left`, `recorded`, `awaiting_return`, `closed`, `cancelled` (with a reason) | Mirrors the exit workflow instance; `regulator` is `cqc`, `ciw`, `care_inspectorate` or `rqia`. |
 | `exit_checklist_item.status` | Harbour | `pending`, `done`, `not_required` (with a reason, only where allowed) | Item keys from `exitChecklist` in `packages/domain/src/people/exit.ts`. |
-| `sharing_decision.sections` | Harbour | `about_me`, `daily_updates`, `photos`, `activities_and_visits`, `care_plan`, `health_summary`, `medicines`, `appointments`, `finance`, `documents`; care plan domains as the PCSP domains | |
+| `sharing_decision.sections` | Harbour | `about_me`, `daily_updates`, `photos`, `activities_and_visits`, `care_plan`, `health_summary`, `medicines`, `appointments`, `finance`, `benefits`, `documents`; care plan domains as the PCSP domains | `benefits` is the only section a DWP appointee covers; `finance` and `benefits` need a property and financial affairs authority. |
 | `sharing_decision.basis` | UK GDPR and Caldicott principle 7 (direct care) | `consent`, `legal_authority`, `best_interests`, `direct_care` | Consent covers optional processing only (records of processing B8). |
 | `sharing_decision` authority role | Mental Capacity Act 2005 (Office of the Public Guardian registrations, Court of Protection orders); DWP appointeeship | `lpa_health_welfare`, `lpa_property_finance`, `deputy_personal_welfare`, `deputy_property_affairs`, `appointee` | From `contact.role` and `contact.authority_scope`, with reference, evidence document and end date. |
+| `sharing_decision` deputy order sections | Court of Protection order (Mental Capacity Act 2005 s.16 and s.20) | `sharing_decision.sections` codes, as recorded from the order | Required for `deputy_personal_welfare` and `deputy_property_affairs`; a deputy is never shown a section outside it. |
+| `sharing_decision_suspension` | Harbour | `from`, `to` (UTC; `to` empty while it lasts), reason | Periods, not a single flag: an update from a suspension period stays closed after it ends (comms.md rule 2). `to` after `from`. |
 | `sharing_decision` capacity | Mental Capacity Act 2005 s.1(2) (presumption of capacity) | `presumed`, `assessed_has_capacity`, `assessed_lacks_capacity` | Links the capacity assessment where one exists. |
 | `about_me_share_link.token_hash` | Harbour | Lower-case hex SHA-256 of the link token (64 characters) | The token itself is shown once and never stored; expiry no later than the sharing decision's end. |
 | `recorded_after_exit` on `care_note`, `observation`, `body_map_mark`, `assessment`, `activity_record` and `visit_log` | Harbour | `true` or `false` | Phase 1. True when an entry about an event at or before a discharge, death or move to hospital, or within the clock tolerance after it (`sync.clock_drift_flag_minutes`), is accepted after it (people.md rule 3, HZ-006); shown with the late-entry flag. |
 | `task_id`, `task_outcome` on `care_note`, `observation`, `body_map_mark`, `assessment`, `activity_record` and `visit_log` | Harbour (`TASK_LINK_OUTCOMES`) | UUIDv7; `completed`, `task_cancelled`, `task_already_closed`, `not_linked` | Phase 1 (migration 0023). The task the entry named and what the entry did to it (care.md rule 13, HZ-004, HZ-006): set together or not at all (check `<table>_task_outcome`). `task_already_closed` and `not_linked` are listed for review by the nurse in charge. |
 | `break_glass_event.reason_code` | Harbour | `emergency_care`, `covering_another_area`, `safeguarding`, `incident_or_complaint`, `request_from_professional`, `other` | Phase 1; the typed justification is kept as well. |
+
+## Packs and governance (Phase 1, slice 11)
+
+Code lists for [operations.md](operations.md), [quality.md](quality.md) and [comms.md](comms.md).
+None of these fields has a national standard; they are Harbour's, and are exported in the full
+tenant export with these names.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `downtime_pack.source` | Harbour | `server_nightly`, `server_on_demand`, `kiosk_cache` | |
+| `downtime_pack.generated_at`, `as_at`, `valid_until` | Harbour | ISO 8601 UTC; shown dd/mm/yyyy hh:mm UK time | `valid_until` = `as_at` + `downtime_pack.valid_hours` |
+| `downtime_pack` content sections | Harbour; allergies as `allergy`, communication needs as AIS, resuscitation as `advance_care_record`, IDDSI levels as the care profile (IDDSI framework codes, food and drink separately), care plan domains as the PRSB PCSP domains | `identity`, `allergies`, `resuscitation`, `iddsi_food`, `iddsi_drink`, `communication`, `evacuation`, `medicines_due`, `contacts`, `care_plan`, `risks`, each with status `included`, `not_recorded`, `held_elsewhere`, `withheld`, `conflicting` (resuscitation records that disagree) or `unreadable` (a stored value that is not a valid code) | The snapshot is stored as JSON with its rendered PDF. The resuscitation section lists every active ReSPECT and DNACPR record. Medicines due list scheduled doses (`due`, `given`, `not_given`) and PRN medicines with their last-given time, dm+d-coded from Phase 2 |
+| Location settings `downtime.mar_location`, `downtime.peep_location` | Harbour | Plain text, worded for the printed page | Where the paper MAR and the PEEPs are kept until the eMAR (Phase 2) and PEEPs (Phase 3) |
+| `outage.kind` | Harbour | `power`, `network`, `harbour_unavailable`, `device_failure`, `planned_maintenance`, `other` | With a free-text description |
+| `outage.started_at`, `ended_at`, `declared_at`, `closed_at`, `back_entry_due_at` | Harbour | ISO 8601 UTC | `ended_at` null while open; the outage window used by back-entry |
+| `outage` state | Harbour | `declared`, `closed`, `reconciled`, `cancelled` | |
+| `late_entry_reason` (care events) | Harbour | `downtime` or null | With `outage_id`, `outside_outage_reason` (free text, only outside the window), `paper_reference` and `not_from_paper_reason` (free text, for an entry inside an outage that was not copied from paper) |
+| `paper_date`, `paper_time`, `paper_occurrence` (care events) | Harbour | `YYYY-MM-DD` and `HH:MM` as written on the form, UK wall-clock time; `only`, `earlier` (BST) or `later` (GMT) for the repeated autumn hour | Kept beside the resolved event instant (`resolvePaperTime`) |
+| `outage` reconciliation | Harbour | reconciled by and at, statement (free text), reviewed entry ids, forms entered (count) | The reconciler cannot have entered records for the outage |
+| `evidence_pack.recipient` | Harbour | name, organisation, work email (lower case) | The recipient is personal data (records of processing) |
+| `evidence_pack.purpose`, date range, locations, statements | Harbour; statements as the CQC quality statement ids of the framework model (QUAL-001, Phase 2) | Free text; `YYYY-MM-DD` inclusive; location ids; statement ids | |
+| `evidence_pack_item` field outcome | Harbour | key; kind `organisational`, `care_content`, `direct_identifier`, `staff_name`, `third_party`, `free_text` (from `EVIDENCE_FIELD_KIND_MAP` by record type, [quality.md](quality.md) rule 3); `included`, `redacted`, `withheld`, with reason `third_party`, `staff_role_only`, `free_text_redacted_by_hand`, `person_not_in_scope`, `person_unknown`, `identifier_not_needed`, `free_text_not_reviewed`, `redaction_incomplete`; redacted by (user id) | Roles printed in place of names come from `EVIDENCE_PARTY_ROLES` and `EVIDENCE_STAFF_ROLES` |
+| `evidence_pack_item` record type | Harbour | `incident`, `care_note`, `observation`, `body_map_mark`, `assessment`, `care_plan_section`, `risk_assessment`, `activity_record`, `visit_log`, `advance_care_record` | |
+| `evidence_pack_item` exclusion | Harbour | `restricted_record`, `outside_date_range`, `location_not_requested`, `not_tagged`, `statement_not_requested`, `person_not_in_scope` | Internal manifest only |
+| `evidence_pack_link` | Harbour | token hash (SHA-256, never the token), issued by and at, replaces link, `expires_at`, `revoked_at`, failed code attempts (never decreases) | ADR-0050 |
+| `evidence_pack_link_code` | Harbour | code hash (never the code), `issued_at`, `used_at` | Six digits, single use, valid `evidence_pack.code_valid_minutes`; verification lives in an HttpOnly session cookie per link, not in the database |
+| `statement_of_purpose_version` sections | CQC (Registration) Regulations 2009 Schedule 3 | `aims_and_objectives`, `services_and_needs`, `contact_details`, `legal_status`, `locations` | Contact details are business details of the provider and registered managers |
+| `statement_of_purpose_version.legal_status` | Harbour | `individual`, `partnership`, `limited_company`, `limited_liability_partnership`, `charitable_incorporated_organisation`, `community_interest_company`, `nhs_body`, `local_authority`, `other` (with detail) | |
+| `statement_of_purpose_version` kind and state | Harbour | kind `baseline`, `revision`; state `draft`, `approved`, `superseded`, `discarded` | |
+| `letter_template.kind`, `channel` | Harbour | kind `admission`, `fee_review`, `incident_follow_up`, `duty_of_candour`, `general`; channel `letter`, `email` | |
+| Merge fields | Harbour (`MERGE_FIELDS` in `packages/domain/src/comms/templates.ts`) | `{{field.name}}`; types `text`, `date` (`YYYY-MM-DD`), `datetime` (ISO 8601), `money` (whole pence), `number`; data classes `none`, `personal`, `special_category`; flags `multiLine` (never in a subject), `notInEmail` (NHS number, date of birth), `allowsResultsToFollow` (`candour.results` only) | ADR-0051 |
+| `letter` | Harbour | template version, person, recipient (`person` or `contact` with contact id), channel, personal-data fields used, special category flag, results to follow (candour), incident and its grade | The rendered letter is a document about the person; retention by `letterRetentionClass` |
+| Candour relevant person | Harbour; Health and Social Care Act 2008 (Regulated Activities) Regulations 2014 regulation 20(7) | `service_user`, or `representative` with contact id and basis `death`, `under_16_not_competent`, `lacks_capacity` | Held on the candour record ([safety.md](safety.md)); the letter goes to this person |
+
+`downtime_pack`, `outage` and `evidence_pack_link` are operational records; they are exported in the
+full tenant export but map to no national standard.
+
+## Family feed and communications (Phase 1, slice 12)
+
+Code lists for the tables in [comms.md](comms.md) section 2. No national data standard covers a
+family feed; addresses follow the internet and telephone standards named below.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `feed_item.kind` | Harbour | `activity`, `visit`, `appointment`, `shared_note`, `photo`, `care_plan_update`, `finance_statement` | Section from `FEED_ITEM_SECTIONS` (the `sharing_decision.sections` codes); `finance_statement` is a placeholder until Phase 3. |
+| `feed_item.text` | Harbour | Plain text, at most 1,000 characters; an approved phrase (`phrase_key`) or a member of staff's words | Never a clinical note: shared notes come from `care_note_share`. |
+| `feed_item.carePlanDomain` | PRSB PCSP need domains (as `care_plan_section.domain`) | `PCSP_DOMAINS` marked `may_appear` in `FEED_CARE_PLAN_DOMAINS` | Required for `care_plan_update` and empty otherwise (CHECK constraint); the CSO confirms the allow-list (H-110). |
+| `feed_item` confirmation | Harbour | Confirmed by (tenant user id) and reason (plain text, at least `FEED_CONFIRMATION_MIN_REASON_LENGTH` characters) | Only when staff words carry an event or wellbeing term (comms.md rule 12); both set or both empty. |
+| `feed_item.photoDocumentId` | Harbour | Document id | Only for `kind = 'photo'` (CHECK constraint). |
+| `feed_item_withdrawal.reason` | Harbour | `source_corrected`, `published_in_error`, `person_asked`, `photo_consent_withdrawn` | |
+| `feed_view` | Harbour | Item, contact, decision, section, care plan domain, person status, capacity for sharing (`presumed`, `assessed_has_capacity`, `assessed_lacks_capacity`), `viewed_at` (UTC) | The exposure history (comms.md rule 4). |
+| `family_portal_user` | Harbour | Tenant user id and contact id, unique together | The link a portal session is resolved from (ADR-0061); never paired with a `person_assignment`. |
+| `family_channel.kind` | Harbour | `email`, `sms`, `push` | |
+| `family_channel.address` | Email: RFC 5321 and 5322 (at most 254 characters); SMS: ITU-T E.164 (`+` and 8 to 15 digits); push: the Expo push token | Text | Proof of the address is the verification, not the format check. |
+| `family_channel.opted_out_via` | Harbour | `sms_reply`, `email_link`, `portal` | SMS replies STOP, STOPALL, UNSUBSCRIBE, CANCEL, END, QUIT opt out; START or UNSTOP opt back in. |
+| `family_channel.suspended_reason` | Harbour | `hard_bounce`, `complaint`, `device_not_registered` | Cleared when the address changes. |
+| `family_notification.status` | Harbour | `planned`, `held`, `sent`, `failed`, `cancelled` | Held until quiet hours end (UK time). |
+| `family_notification_setting` quiet hours | Harbour | `HH:MM` to `HH:MM`, UK local time; a window may cross midnight | The tenant's window comes from the rate table (`comms.family_notifications.*`). |
+| `visit_booking.status` | Harbour | `confirmed`, `cancelled` | With `sequence` for the calendar file. |
+| `visit_booking_setting` hours | Harbour | Minutes after midnight, UK time (`minute_of_day`); end up to 1440 (midnight) | No product default. |
+| `location_visit_restriction.kind` | Harbour | `outbreak`, `other`; with `from`, `to` (UTC) and a reason for staff only | Refuses online booking at the location with the usual "call the home" message. |
+| `visit_log.accompaniment_purpose` | Harbour (Regulation 9A accompanying) | `planned_appointment`, `unplanned_appointment`, `emergency` (`ACCOMPANIMENT_PURPOSES`) | Required for `visit_log.kind = 'accompaniment'`; only planned appointments reach the feed. |
+| Visit calendar file | iCalendar, RFC 5545 | `text/calendar`; UID `visit-{booking id}@{portal domain}`; DTSTART and DTEND with `TZID=Europe/London` and a VTIMEZONE, UTC in the repeated autumn hour | Names the home, never the person. |
+| Click-to-call | RFC 3966 `tel:` URI with an E.164 number | `tel:+441632960001` | The home's own number only. |
+| `consent_record.decision = photos` | Harbour (care consent kinds) | As `CONSENT_DECISION_KINDS` | The basis for photos in the feed, with `best_interests_decision` (decision kind `photos`, a yes or no outcome) where the person lacks capacity. |
+
+## Platform completions (Phase 1, slice 13)
+
+Code lists for [platform-completions.md](platform-completions.md). None maps to a national standard.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `manifest.json` | Harbour export contract | `format` (`harbour-tenant-export`), `schemaVersion` (semantic version, `EXPORT_SCHEMA_VERSION`, 1.1.0), `kind` (`full`, `changes_since`), `since` (UTC or empty), `exportId`, `tenantId`, `requestedBy`, `generatedAt` (UTC), `snapshotAt` (UTC) and `snapshotAtUk` (local time with offset, zone `BST` or `GMT`), `schema` (path, SHA-256, bytes), `tables` (name as `schema.table`, rows, legal-hold rows, excluded soft-deleted and sample, files with path, format `csv` or `jsonl`, SHA-256, bytes, rows), `currentSummary` (path, SHA-256, bytes, rows; empty for a changes-since export), `notExported` (name, reason), `documents` (included, bytes, quarantined, excluded, destroyed, files with id, path, SHA-256, bytes), `destroyed` (path, count, by table, certificate ids), `auditChain` (verified, first broken position), `complete`, `problems` (`table_missing`, `unexpected_table`, `unclassified`, `file_missing`, `row_count_mismatch`, `foreign_tenant_rows`, `summary_missing`, `summary_row_count_mismatch`, `document_not_written`, `document_checksum_mismatch`), `warnings` (`audit_chain_broken`, `destroyed_without_certificate`) | An export with any problem is never offered (HZ-070, HZ-071). Version 1.1.0 added `kind`, `since`, the snapshot, the current summary, the `_uk_date` columns, units, codes and the CSV guard. |
+| `current_summary.csv` | Harbour export contract | `person_id`, `allergy_status`, `allergies` (substance and severity, most severe first, separated by semicolons), `cpr_decision` (`attempt_cpr`, `do_not_attempt_cpr`, `not_recorded`, `conflicting`), `cpr_record_ids`, `cpr_review_overdue`, `iddsi_food` and `iddsi_drink` (level with name and colour, or `not recorded`), `communication_needs_status`, `communication_needs` (need and preferred format), `as_of` (UTC), `as_of_uk` | One row per exported person, worked out by the same functions as the point-of-care header and the transfer pack. `conflicting` lists every record in force. Check these first when moving a person to another system (HZ-071). |
+| Export column classification | Harbour (`EXPORT_TABLES`) | `exported`, `internal`, `secret` | Only `exported` columns are written; only the `public` schema is read. Internal and secret columns (`document.storage_key`, `tenant_user.auth_user_id`, `integration_connection.secret_ref`) never leave (HZ-070). |
+| `destroyed.csv` | Harbour | `table`, `id`, `destroyed_at` (UTC), `certificate_id` | Records destroyed past retention; their rows are not in the table files. |
+| `tenant_export.status` | Harbour | `queued`, `running`, `ready`, `failed`, `expired`, `revoked` | A ready export past its expiry reads as `expired`. |
+| `dpia.status` | Harbour | `draft`, `prepared`, `signed`, `superseded` | The onboarding state adds `not_started` and `review_due`. |
+| DPIA risk ratings | ICO DPIA template terms | Likelihood `remote`, `possible`, `probable`; severity `minimal`, `significant`, `severe`; overall and residual `low`, `medium`, `high` | Risk ids R1 to R12 as the DPIA template. |
+| DPIA review triggers | Harbour | `new_purpose`, `new_sub_processor`, `new_data_category`, `feature_enabled`, `yearly_review` | |
+| `retention_decision.kind` | Harbour | `accepted`, `lengthened`, `period_set`, `not_used` | The last two only for classes set by tenant policy. |
+| `sub_processor_notice.kind` | Harbour | `new`, `replacement` | |
+| Sub-processor objection resolution | Harbour (DPA clause 6.2) | `objection_withdrawn`, `not_used_for_tenant`, `services_ended` | |
+| Sample flag | Harbour | `is_sample` (boolean), `sample_batch_id` (UUID) | Sample people: family name `Example`, 999-range NHS numbers that pass the check digit, `example.invalid` emails, Ofcom drama telephone numbers (to verify, H-123), invented addresses (an "Example" street, no postcode or `ZZ99`). Shown with a "Sample" badge; prints carry the watermark "SAMPLE DATA: NOT A REAL PERSON" (HZ-072). |
+| `person.national_data_opt_out_checked_at` | Harbour; NHS national data opt-out | Timestamp (UTC) or empty for "not checked" | The existing boolean cannot say "not checked". |
+| Search audit scope | Harbour | `queryKind` (`text`, `nhs_number`), `termCount`, `entityTypes` (`person`, `staff`, `document`, `note`), `omitted` (kind and reason `not_permitted`, `no_scope`, `mfa_required`, `not_applicable`), `includeArchived`, `personScope` (`tenant`, `locations`, `assigned`, or empty when no person record was searched), `locationIds`, `validUntil` (UTC), `resultCounts`, `total`, `resultIds`, `personIds`, `careRecordView`; break-glass: `breakGlassRecordId`, `reasonCode` | Never the words typed or the typed break-glass reason, which stays in the break-glass record (HZ-011). |
+| Search match quality | Harbour | `exact` (every term a whole word), `prefix` | Ranks results; a break-glass search shows only `exact` matches. |
 
 ## Platform operational tables (not part of the MODS export)
 
@@ -430,15 +545,19 @@ map to no national data standard: `audit_event` (hash-chained), `record_version`
 `notification`, `notification_delivery`, `escalation_chain`, `feature_flag`, `form_template`,
 `form_submission`, `integration_connection`, `integration_inbound`, `support_access_request`,
 `break_glass_event`, `person_assignment`, `role`, `role_assignment`, `access_grant`, and from
-Phase 1 `break_glass_weekly_report`, `about_me_share_link` and `welcome_checklist_template`. The
-task engine's `task` and `task_series` are exported the same way; from migration 0023 they carry
-`cancel_code` and `inactive_code` (`paused_while_away`, `ended_at_exit`, `exit_recorded_in_error`,
-`planned_exit_cancelled`, `missed_before_return_recorded`: why the people lifecycle stopped them)
-and `task.evidence_after_close` (evidence that arrived after the task was cancelled), and
-`stopped_by_exit_id` on both (the exit record that ended the task or series, so a correction brings
-back only what that exit stopped). `task.details` is JSON a review task carries: `missedTasks`
-(task id, kind, due time and whether it was reopened) and `entries` (entry kind, client id, device
-id, user id and times; opaque ids only, never clinical text). Field-level
+Phase 1 `break_glass_weekly_report`, `about_me_share_link`, `welcome_checklist_template`,
+`tenant_export`, `dpia`, `sub_processor_response`, `tenant_setting_decision`, `retention_decision`,
+`family_notification`, `visit_booking_setting` and `family_portal_user` (the global
+`sub_processor_notice` table is Thapsus's and is not exported). Every exported table is described in
+`EXPORT_TABLES` (`packages/domain/src/platform/export.ts`), which a test keeps in step with the
+schema. The task engine's `task` and `task_series` are exported the same way; from migration 0023
+they carry `cancel_code` and `inactive_code` (`paused_while_away`, `ended_at_exit`,
+`exit_recorded_in_error`, `planned_exit_cancelled`, `missed_before_return_recorded`: why the people
+lifecycle stopped them) and `task.evidence_after_close` (evidence that arrived after the task was
+cancelled), and `stopped_by_exit_id` on both (the exit record that ended the task or series, so a
+correction brings back only what that exit stopped). `task.details` is JSON a review task carries:
+`missedTasks` (task id, kind, due time and whether it was reopened) and `entries` (entry kind,
+client id, device id, user id and times; opaque ids only, never clinical text). Field-level
 detail is in `packages/db/src/schema/`; purposes and lawful bases are in
 [records of processing](../compliance/records-of-processing.md).
 

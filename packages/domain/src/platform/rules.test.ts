@@ -282,6 +282,8 @@ describe("separation of duties", () => {
     ["incident_close", "u1", "u1", false],
     ["ledger_approval", "u1", "u3", true],
     ["residents_money_second_signature", "u1", undefined, false],
+    ["dpia_sign_off", "u1", "u1", false],
+    ["dpia_sign_off", "u1", "u2", true],
   ] as const)("%s by %s and %s -> %s", (rule, first, second, ok) => {
     const result = checkDistinctActors(rule, first, second);
     expect(result.ok).toBe(ok);

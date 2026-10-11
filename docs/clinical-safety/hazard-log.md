@@ -50,8 +50,16 @@
 | [HZ-025](#hz-025-bed-rail-entrapment-risk-not-identified) | Bed rail entrapment risk not identified | Major / Low / 3 | Major / Very low / 2 | Open | None (Phase 1) | Phase 1 |
 | [HZ-026](#hz-026-restrictive-or-covert-care-under-consent-or-authority-that-is-not-valid) | Restrictive or covert care under consent or authority that is not valid | Considerable / Medium / 3 | Considerable / Low / 2 | Open | None (Phase 1) | Phase 1 |
 | [HZ-027](#hz-027-head-injury-after-a-fall-not-observed-or-escalated) | Head injury after a fall not observed or escalated | Major / Medium / 3 | Major / Low / 3 | Open | None (Phase 1) | Phase 1 |
+| [HZ-029](#hz-029-an-entry-recorded-twice-when-a-save-is-tried-again) | An entry recorded twice when a save is tried again | Considerable / Medium / 3 | Considerable / Low / 2 | Open | Append-only entries with client UUIDs (Phase 0 conflict model) | Phase 1 |
+| [HZ-050](#hz-050-an-inspector-evidence-pack-exposes-a-third-party-or-a-person-outside-its-scope) | An inspector evidence pack exposes a third party or a person outside its scope | Considerable / Medium / 3 | Considerable / Very low / 2 | Open | None (Phase 1) | Phase 1 |
+| [HZ-051](#hz-051-a-letter-or-email-carries-another-persons-details-or-wording-that-was-not-approved) | A letter or email carries another person's details, or wording that was not approved | Considerable / Medium / 3 | Considerable / Low / 2 | Open | None (Phase 1) | Phase 1 |
+| [HZ-060](#hz-060-health-details-in-an-email-sms-or-push-notification-to-a-family-member) | Health details in an email, SMS or push notification to a family member | Considerable / Medium / 3 | Considerable / Very low / 2 | Open | Outbound title guard on every adapter (Phase 0) | Phase 1 |
+| [HZ-061](#hz-061-family-reassured-by-a-stale-or-misleading-update) | Family reassured by a stale or misleading update | Considerable / Medium / 3 | Considerable / Medium / 3 (until the CSO reviews it) | Open | None (Phase 1) | Phase 1 |
+| [HZ-070](#hz-070-full-tenant-export-disclosed-beyond-the-organisation) | Full tenant export disclosed beyond the organisation | Major / Low / 3 | Major / Very low / 2 | Open | None (Phase 1) | Phase 1 |
+| [HZ-071](#hz-071-full-tenant-export-incomplete-or-misread-when-a-provider-changes-system) | Full tenant export incomplete or misread when a provider changes system | Catastrophic / Medium / 4 | Catastrophic / Very low / 3 (4 until the CSO accepts, H-119) | Open | None (Phase 1) | Phase 1, Phase 2 |
+| [HZ-072](#hz-072-sample-data-mistaken-for-or-mixed-with-real-records) | Sample data mistaken for, or mixed with, real records | Considerable / Medium / 3 | Considerable / Low / 2 | Open | None (Phase 1) | Phase 1 |
 
-Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
+Ten hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-061, HZ-071) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
 ---
 
@@ -77,6 +85,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 - A room move not yet recorded.
 - A notification deep link that opens a different person from the one named in the notification.
 - Duplicate person records created by data entry or import.
+- Choosing from search results a person with the same name, a former resident, or the near match for a mistyped NHS number.
 
 **Effects**
 
@@ -91,6 +100,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Type | Control | When |
 | --- | --- | --- |
 | Design | Point-of-care header on every person screen shows photo, full and preferred name, date of birth, room, allergies and communication needs (master prompt 10). The offline person table carries photo and communication needs (`packages/sync`) | Built in Phase 0 |
+| Design | The web record shows the point-of-care header above every tab of the person's record (overview, care plan, assessments, risk assessments, notes, charts, body map, advance care, activities and visits, history), with the resuscitation status and IDDSI levels (HZ-015, HZ-016). Each tab renders the header itself, so every tab move reads it again (HZ-002); its data is checked against the API's schema when it arrives, and a person who cannot be read safely shows a warning instead of details that may be wrong | Built in Phase 1 slice 9 (web) |
 | Design | A missing photo shows a labelled placeholder ("No photo on record", icon plus words), never a silhouette that could be mistaken for a photo; the photo's date is shown and an old photo prompts an update | Phase 1 |
 | Design | "Similar name" flag (icon plus words) in the header of every active person at a location who shares a family name or has a similar name with another | Phase 1 |
 | Design | No automatic advance after saving: the app confirms the save naming the person and returns to that person or the list | Phase 1 |
@@ -100,6 +110,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | eMAR requires positive identification for each administration: wristband barcode scan or photo confirmation | Phase 2 |
 | Design | Shared and kiosk devices lock after 30 seconds by default and return to user sign-in, not to the last person ([kiosk.md](../compliance/kiosk.md)) | Phase 1 |
 | Design | The room on the header comes from the dated bed history, which never puts two people in one bed; a death or discharge recorded against the wrong person is corrected with a reason (and a fresh sign-in for a death), cancelling the exit workflow and the death notification drafts ([people.md](../specs/people.md) rules 2 and 6) | Built in Phase 1 (slice 8 API) |
+| Design | Search results show care roles the photo, name, preferred name, date of birth, NHS number, location, room and status (icon and word); names-and-rooms roles (such as the administrator) see the photo and age instead of the date of birth and NHS number, so two people of the same name can still be told apart. People come first, whole-word matches before prefix matches, then people receiving care before those being assessed or who have left, then name and date of birth; two people of the same name in the results are each flagged with a same-name warning. People who have left are hidden unless the user may and does ask for them; an NHS number is matched exactly, and a mistyped, 9- or 11-digit or dotted one is refused, never matched approximately ([platform-completions.md](../specs/platform-completions.md) rules 1, 3, 6 and 7; ADR-0070 keeps fuzzy name matching out) | Phase 1 (domain rules built) |
+| Design | Go-live waits until every current person has a photo on record and every active shared or kiosk device is enrolled in device management (onboarding items `people_ready` and `shared_devices_enrolled`, [platform-completions.md](../specs/platform-completions.md) rule 26) | Phase 1 (domain rules built) |
 | Test | See Verification | Phase 1, Phase 2 |
 | Training and user documentation | Care worker guide: check photo and date of birth before every administration and entry. Deployer control: photos taken at admission and refreshed under the tenant's policy | Phase 1 |
 
@@ -125,6 +137,12 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-001 shows the room from the bed history on the header`, `hazard HZ-001 refuses a pack when a section belongs to someone else` (a photo filed against another person), `hazard HZ-001 corrects a death recorded in error only with a reason and step-up` | Passing (Phase 1) |
 | `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-001 refuses to send an item that does not exist with the person (422)` and `another person's item`, `hazard HZ-001 refuses evidence from another person's record on the checklist`, `hazard HZ-001 refuses a review document filed against another person` | Passing (Phase 1) |
 | `packages/db/test/people-lifecycle.test.ts`: `hazard HZ-001 a bed holds one person and a person holds one bed` (both exclusion constraints, including an occupant the writer cannot see; half-open ranges; a bed the room does not have) | Passing (Phase 1) |
+| `packages/domain/src/platform/search.test.ts`: `query normalisation (hazard HZ-001: an NHS number is exact, never a near match)` (9- and 11-digit, dotted and wrong check digit numbers refused); `shows identity fields to care roles, and the photo and age (never the date of birth) to an administrator (HZ-001)`; `leaves people who have left out unless the user may and does ask (HZ-001)` | Passing (Phase 1) |
+| `packages/domain/src/platform/search.test.ts`: `hazard HZ-001 search ranking puts the right person first` (people first, whole-word before prefix, current before former, then name and date of birth; a same-name warning on each person who shares a name, none for one person found twice) | Passing (Phase 1) |
+| `packages/domain/src/platform/onboarding.test.ts`: `hazard HZ-001 no photo for identification` (person readiness); `an active shared device not enrolled` (go-live items) | Passing (Phase 1) |
+| `apps/web` Playwright: `hazard HZ-001 search results show photo, date of birth and status before a record opens` | Planned, Phase 1 |
+| `apps/web/e2e/care-record.spec.ts` (Playwright with axe, WCAG 2.2 AA): `hazard HZ-001 hazard HZ-015 the header shows the resuscitation status, allergies and IDDSI levels on every tab, and 'not recorded' as a warning` (on each of the ten tabs: the name, the allergies in words, the resuscitation status, the food and drink IDDSI levels and when the header was read; axe on each tab in the light and the dark theme); `the record reflows at 320 px` (header and tabs fit, only the tab row scrolls) | Passing (local run; CI e2e-web on the PR) |
+| `apps/web/src/lib/care-record.test.ts`: `hazard HZ-001 refuses a person whose identity or allergies cannot be read` | Passing (Phase 1 slice 9) |
 
 ---
 
@@ -149,6 +167,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 - PowerSync service outage.
 - An assignment change not yet reflected on the device.
 - A server restore to a point in time earlier than data the device already holds ([restore runbook](../runbooks/restore.md)).
+- On the web, a header drawn once and kept while the person moves between tabs (a shared layout), or a page left open, so a colleague's change (a withdrawn DNACPR, a new allergy) does not show.
 
 **Effects**
 
@@ -164,12 +183,14 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Type | Control | When |
 | --- | --- | --- |
 | Design | Sync status banner on every Care-mode screen showing online or offline state, the time of the last successful sync and the number of queued changes | Built in Phase 0 |
+| Design | The web point-of-care header is read again from the API on every tab move, every two minutes while the page is in view and when the person comes back to the window; it says when it was read ("Checked at 14:05") and has a "Check again" button. The interval is a product constant (`HEADER_REFRESH_INTERVAL_MS`), not a rate-table figure | Built in Phase 1 slice 9 (web) |
 | Design | Stale-data warning: when the last successful sync is older than the threshold the banner switches to a warning state (icon plus words, for example "Last updated 3 hours ago. Information may be out of date"). The threshold is a named constant in `packages/sync`; the CSO confirms its value `[CSO decision - human action]` | Built in Phase 0 |
 | Design | Reference data for assigned people (care plan summary, allergies, medicines, photo, communication needs) is never evicted while the assignment stands (`NEVER_EVICT_TABLES` in `packages/sync`) | Built in Phase 0 |
 | Design | Safety-critical panels (allergies, medicines, resuscitation decision) show when that data was last confirmed from the server | Phase 1 |
 | Design | Last-given time for every dose shows its source (this device, or synced from the server at a stated time) | Phase 2 |
 | Design | High-priority changes (new allergy, medicine stopped, resuscitation decision changed) travel on a priority sync stream and a push that prompts the app to sync; the push content carries no personal data | Phase 2 |
 | Design | Sync stream filters are tested separately from RLS, because logical replication bypasses RLS (shared with HZ-011) | Phase 0 gate |
+| Design | Offline, search covers only what the device has synced and labels its results "This device only, last synced at HH:MM" ([platform-completions.md](../specs/platform-completions.md) rule 7; ADR-0070) | Phase 1 (mobile step) |
 | Test | See Verification | Phase 1, Phase 2 |
 | Training and user documentation | Care worker guide explains the banner states. Deployer control: critical changes (allergy, medicine stopped, resuscitation decision) are also handed over verbally at shift change; the nightly downtime pack (Phase 1) is kept where connectivity is poor | Phase 1 |
 
@@ -182,6 +203,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Test | Status |
 | --- | --- |
 | `packages/ui-native/src/logic/sync-banner.test.ts`: `warns that offline data may be out of date past the threshold (HZ-002)`; stale warning kept until caught up (threshold 15 minutes, ADR-0029; CSO to confirm) | Passing (Phase 0) |
+| `apps/web/e2e/care-record.spec.ts` (Playwright with axe, WCAG 2.2 AA): `hazard HZ-002 hazard HZ-015 a colleague's change to the CPR decision shows in the header after one tab move` (a second browser context records and then withdraws a DNACPR decision; the first sees each change after one tab move, and after "Check again") | Passing (local run; CI e2e-web on the PR) |
 | `packages/sync`: `hazard HZ-002 banner state is stale when the last successful sync exceeds the threshold` | Planned, Phase 1 |
 | `packages/sync`: `hazard HZ-002 reference data for assigned people is never evicted while the assignment stands` | Planned, Phase 1 |
 | `packages/ui-native`: `hazard HZ-002 allergy, medicines and resuscitation panels show when data was last confirmed` | Planned, Phase 1 |
@@ -241,6 +263,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | The tasks and series the people lifecycle stops carry a code (`task.cancel_code`, `task_series.inactive_code`: paused while away, ended at exit) and, when an exit stopped them, that exit (`stopped_by_exit_id`). Migration 0023 codes existing rows only from the lifecycle event that stopped them (the outbox event written in the same transaction), never from reason text. A return brings back the rounds paused while the person was away; correcting a discharge or death recorded in error brings back only what that exit ended and starts its series again ([people.md](../specs/people.md) rules 1 and 2). Whether rounds restart without a person confirming them is for the CSO (H-89) | Built in Phase 1 slice 8 |
 | Design | Of the tasks brought back (`planTaskRestore`), only those whose window ends at or after the return count. A task an entry answered while it was stopped is restored as done, never due again (HZ-004; H-91). One still in its window reopens. Of those whose window passed, the latest occurrence of each series (and each one-off task) reopens as overdue so the round is caught up once, unless a later occurrence was done; the earlier ones stay cancelled, coded as missed (H-92). One urgent review task goes to the nurse in charge and lists every round, its due time and whether it was reopened (`task.details.missedTasks`) | Built in Phase 1 slice 8 (review round 3) |
 | Design | A correction returns the person to the status recorded on the exit (active, on leave or in hospital, `exit_record.status_before`) from when that status began; back to on leave or in hospital, what the exit ended waits for the return, paused, and nothing is due while the person is away (HZ-008; H-93) | Built in Phase 1 slice 8 (review round 3) |
+| Design | Downtime pack medicines section (OPS-028): until the eMAR exists it names where the location keeps the paper MAR (set per location); with the eMAR it lists the scheduled doses still due while the pack is in use, time-critical first and in time order, never doses already given, and every PRN medicine with when it was last given ([operations.md](../specs/operations.md) rules 1 and 7) | Domain interface built in Phase 1 slice 11; data in Phase 2 |
 | Test | See Verification | Phase 2 |
 | Training and user documentation | eMAR training and competency assessment; deployer control: tenant policy on time-critical medicines and round allocation | Phase 2 |
 
@@ -264,6 +287,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain/src/platform/tasks.test.ts`: `hazards HZ-003 and HZ-004 tasks brought back after a return or a correction` (table-driven: a round answered offline restored as done at 10:05 and 10:10; a round still in its window; a window closed before the return; the latest missed round of each series caught up once; a series whose later occurrence was done) | Passing (Phase 1) |
 | `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-003 restores a round an offline entry answered as done, never due again, when a death recorded in error is corrected (10:05, 10:08, 10:15, 10:20)`, `hazard HZ-003 codes the rounds missed during a late-recorded return, catches each series up once and lists them for review` and `hazards HZ-003 and HZ-008 correct a death recorded in error while the person was in hospital back to in hospital, with rounds still paused` | Passing (Phase 1) |
 | `packages/domain/src/people/lifecycle.test.ts`: `hazards HZ-003 and HZ-008 correct ...` (table-driven: back to active, on leave or in hospital as recorded on the exit; any other status refused; an exit with no recorded status returns to active) | Passing (Phase 1) |
+| `packages/domain/src/operations/downtime-pack.test.ts`: `hazard HZ-003 lists doses still due while the pack is in use, in time order, time-critical first, never doses already given` (PRN medicines with their last-given time) | Passing (Phase 1, slice 11) |
 
 ---
 
@@ -490,10 +514,12 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Every print and export (including the printed MAR) carries the allergy section | Phase 1 (care exports), Phase 2 (MAR) |
 | Design | The administration screen displays the person's recorded allergies next to the medicine being given. Any automatic matching of allergen to medicine ingredient needs a medical-device boundary decision first ([medical-device-boundary.md](../compliance/medical-device-boundary.md)) | Phase 2 |
 | Design | Catering allergen flags read the same allergy record (single source) | Phase 3 |
+| Design | The downtime pack lists allergies most severe first, with allergies of unknown severity among the severe, and reads "not recorded" with what to do when no allergy status is recorded ([operations.md](../specs/operations.md) rule 1) | Phase 1 (domain rules built, slice 11) |
 | Design | Import dry run lists people without an allergy status | Phase 2 |
 | Design | The printed transfer pack embeds Noto Sans (SIL Open Font Licence), so substances and reactions print as written in Latin, Greek and Cyrillic scripts (β-lactam, μg, Welsh ŵ and ŷ); a section holding a character the font lacks is named on the first page ([ADR-0040](../decisions/0040-transfer-pack-pdf-writer.md)) | Built in Phase 1 slice 8 |
 | Design | Who set the allergy status and when is kept on the person by a trigger on every write that touches the status or the confirmer columns (`allergy_status_confirmed_by`, `_at`): always the signed-in user and the time of the write, never values the client sends and never the last person to edit the row; both are cleared when the status is unknown. "No known allergies" prints with them, and one without a confirmer is listed on the pack's first page to check | Built in Phase 1 slice 8 (review round 3) |
 | Design | "Not recorded" is one shared status in `@harbour/ui` (`notRecorded`: the warning colour, a question mark and the words, never the clock of a due task), used for allergies and communication needs, and a link to where they are recorded when that screen is given. The design is for the CSO (H-130) | Built in Phase 1 slice 8 (review round 3; the links with the record screens) |
+| Design | Go-live waits until every current person has an allergy status other than unknown; the full export's current summary gives each person's allergy status and allergies, and documents that `unknown` never means none ([platform-completions.md](../specs/platform-completions.md) rules 10 and 26) | Phase 1 (domain rules built) |
 | Test | See Verification | Phase 1, Phase 2 |
 | Training and user documentation | Deployer control: allergy status recorded at admission and at medicines reconciliation | Phase 1 |
 
@@ -505,6 +531,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | --- | --- |
 | `packages/ui-native/src/logic/person.test.ts`: `allergy flag (HZ-007)` (unknown is never shown as calm; three states) | Passing (Phase 0) |
 | `packages/db`: `allergy_status` enum distinguishes `unknown`, `no_known_allergies` and `has_allergies`; `apps/api/test/api.test.ts` returns `unknown` for a person never asked | Passing (Phase 0) |
+| `apps/web/src/lib/people.test.ts`: `allergySummary` (unknown, and recorded as having allergies with none active, both read "Allergies not recorded", never "No known allergies") | Passing (Phase 0) |
+| `packages/i18n/src/i18n.test.ts`: `names allergy severities and shows one it does not know as recorded, never blank (HZ-007)` (web point-of-care header) | Passing (Phase 0) |
 | `packages/ui-native`: `hazard HZ-007 header shows allergy status not recorded when no allergy record exists` | Planned, Phase 1 |
 | `packages/ui`: `hazard HZ-007 web header shows allergy status not recorded when no allergy record exists` | Planned, Phase 1 |
 | `packages/domain` (people): `hazard HZ-007 no known allergies can only be recorded positively with author and time` | Planned, Phase 1 |
@@ -512,6 +540,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/ui-native`: `hazard HZ-007 header shows the count and most severe reactions first when allergies exceed the space` | Planned, Phase 1 |
 | `apps/web` Playwright: `hazard HZ-007 printed MAR includes the allergy section` | Planned, Phase 2 |
 | `packages/domain` (medicines): `hazard HZ-007 administration view includes the person's recorded allergies` | Planned, Phase 2 |
+| `packages/domain/src/platform/onboarding.test.ts`: `hazard HZ-007 allergy status unknown` (person readiness blocks go-live) | Passing (Phase 1) |
 | `packages/domain/src/people/pre-admission.test.ts`: `hazard HZ-007 never lets allergies be marked not applicable`; `admission.test.ts`: `hazard HZ-007 refuses allergies as not applicable` (welcome checklist) | Passing (Phase 1) |
 | `packages/domain/src/people/transfer-pack.test.ts`: `hazard HZ-007 allergy status never recorded`, `allergies said to exist but none listed`, `lists the most severe allergies first` | Passing (Phase 1) |
 | `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-007 refuses 'not applicable' for allergies, and an unexplained one for equipment` (pre-admission); `hazard HZ-007 ticks the welcome checklist, refusing 'not applicable' for allergies and a stale version` | Passing (Phase 1) |
@@ -519,6 +548,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/db/test/people-lifecycle.test.ts`: `hazard HZ-007 records who set the allergy status and when, not who last edited the person`; `packages/domain/src/people/transfer-pack.test.ts`: `hazard HZ-007 asks for a check when no known allergies has no confirmer` | Passing (Phase 1) |
 | `packages/db/test/people-lifecycle.test.ts`: `hazard HZ-007 never takes the allergy confirmer from the writer` (a write of the confirmer columns alone is replaced with the signed-in user and the time) | Passing (Phase 1) |
 | `packages/ui/src/components/StatusChip/StatusChip.test.tsx`: `hazard HZ-007 shows not recorded as a warning with a question mark, never the clock of a due task`, `hazard HZ-007 links not recorded to the action that records it, with the words as the link text`; the `NotRecorded` and `NotRecordedWithAction` stories pass axe (`stories.a11y.test.tsx`) | Passing (Phase 1) |
+| `packages/domain/src/operations/downtime-pack.test.ts`: `hazard HZ-007 lists the most severe allergies first, with unknown severity among the severe`; `hazard HZ-021 missing safety-critical information reads not recorded, never blank` (allergies) | Passing (Phase 1, slice 11) |
 
 ---
 
@@ -610,6 +640,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Schedules defined as wall-clock times in the location's time zone (Europe/London in England) and expanded to instants with the IANA time-zone database, never by adding 24 hours | Phase 2 |
 | Design | Transition rule (proposed; CSO to confirm `[CSO decision - human action]`): a dose in the skipped spring hour moves later by the length of the gap (01:30 becomes 02:30 BST) and is flagged on the round; a dose in the repeated autumn hour happens once, at the first occurrence | Phase 2 |
 | Design | Recorded event times (proposed; CSO to confirm `[CSO decision - human action]`): one domain rule, `resolveRecordedUkTime`, for every screen where a person types when something happened, web and mobile. A time in the skipped spring hour is refused; a time in the repeated autumn hour is asked about (BST before the clocks went back, or GMT after) when both have passed, with no default; a time ahead of the clock beyond the drift tolerance is refused and never rolled back to an earlier day. Computed times (schedules, deadlines) keep `fromUkWallClock` | Built in Phase 1 (domain) |
+| Design | Times written on paper during an outage are resolved with the same rule (`resolvePaperTime` in `packages/domain/src/operations/outage.ts`, using `resolveRecordedUkTime`): a time in the skipped spring hour is refused, a time in the repeated autumn hour must say which one, a time ahead of the clock is refused, and the back-entry keeps the time as written beside the instant ([operations.md](../specs/operations.md) rule 11) | Phase 1 (domain rules built, slice 11) |
+| Design | The web record reads every typed event time through `resolveRecordedUkTime`, in separate day, month, year, hour and minute boxes (so the browser's language cannot swap the day and month); in the repeated hour a required question asks which time, with nothing chosen; the skipped hour and future times are refused. "Now" is the instant the form is sent, not when the page was drawn. Times on the two clock-change days show BST or GMT beside them | Built in Phase 1 slice 9 (web) |
 | Design | Minimum intervals and maximum-in-24-hours computed on elapsed time between UTC instants | Phase 2 |
 | Design | Times always displayed in the location's time zone, 24-hour clock; on transition days the round view states that the clocks changed | Phase 2 |
 | Design | A device whose time zone differs from the location's shows a warning; displayed times stay in the location's zone | Phase 1 |
@@ -625,6 +657,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | --- | --- |
 | `packages/domain/src/shared/time.test.ts`: `hazard HZ-009 UK offset`, `fromUkWallClock` (spring-forward gap and autumn overlap), `addUkDays keeps the wall-clock time across a clock change` | Passing (Phase 0) |
 | `packages/domain/src/shared/time.test.ts`: `hazard HZ-009 ukWallClockOccurrences on every minute of the clock-change days` (every minute of 29/03/2026, 25/10/2026, 28/03/2027 and 31/10/2027) and `hazards HZ-009, HZ-010 and HZ-017 resolveRecordedUkTime` (skipped, ambiguous, one past occurrence, future beyond tolerance, impossible dates), run under `TZ=Europe/London`, `TZ=UTC` and `TZ=America/New_York` | Passing (Phase 1) |
+| `apps/web/src/lib/uk-time.test.ts`: `hazard HZ-009 hazard HZ-017 reads every minute of 29/3/2026`, `25/10/2026`, `28/3/2027` and `31/10/2027` `through the form, by the domain rule`; `says the clocks went forward, and asks which time when they went back`; `does not ask when only the first 01:30 has happened yet`; `takes 'now' when the form is sent, not when the page was drawn` (each run with the process in Europe/London, America/New_York and UTC); `packages/ui/src/lib/zoned-time.test.ts`: `hazard HZ-009 hazard HZ-017 shows UK time on every device, across both clock changes`; `packages/ui/src/components/DateInput/DateInput.test.tsx`: `hazard HZ-009 hazard HZ-017 asks which time was meant only when the app's rule says it happened twice`; `apps/web/src/lib/format.test.ts`: `hazard HZ-009 hazard HZ-017 names the zone only on the days the clocks change` | Passing (Phase 1 slice 9) |
 | `packages/domain/src/platform/tasks.test.ts`: `hazard HZ-009 recurring tasks keep UK local times across clock changes` (daily times stay local; a time in the spring gap moves an hour later; hourly intervals count elapsed time) | Passing (Phase 1) |
 | `packages/domain` (medicines): `hazard HZ-009 a 01:30 dose on a spring-forward day moves to 02:30 BST and is flagged` | Planned, Phase 2 |
 | `packages/domain` (medicines): `hazard HZ-009 a 01:30 dose on a clocks-back day occurs once` | Planned, Phase 2 |
@@ -634,7 +667,9 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain` (care): `hazard HZ-009 fluid balance days run from 00:00 to 24:00 UK time` (23- and 25-hour days) | Passing |
 | `packages/domain` (care): `hazard HZ-009 counts elapsed hours across the autumn clock change` (repositioning) | Passing |
 | `packages/domain` (care): `hazard HZ-009 keeps the prompt at the same UK time across the autumn clock change` (bowel) | Passing |
+| Not medicines, family communications (slice 12): `packages/domain/src/comms/notify-plan.test.ts`: `hazard HZ-009 quiet hours always apply to family updates, on the UK clock` (both clock changes), `hazard HZ-009 ends a window in the repeated autumn hour at the right occurrence` (00:00 to 01:30 checked at 01:15 GMT on 25/10/2026 ends at 01:30 GMT, and at 01:15 BST ends at the first 01:30), `hazard HZ-009 ends a window whose end is skipped when the clocks go forward an hour later`; `notify-calendar.test.ts`: `hazard HZ-009 visit times read the same on either side of a clock change`; `visit-booking.test.ts`: `hazard HZ-009 reads booking hours on the UK clock` | Passing (Phase 1, slice 12) |
 | `apps/mobile` Maestro `hazard-HZ-009-device-zone.yaml`: a device in another zone shows location time and a warning | Planned, Phase 1 |
+| `packages/domain/src/operations/outage.test.ts`: `hazard HZ-009 hazard HZ-017 a time in the hour skipped on 29/03/2026 is refused`; `hazard HZ-009 hazard HZ-017 a time in the hour repeated on 25/10/2026 asks which one`; `hazard HZ-009 hazard HZ-017 resolves the repeated hour to the earlier time the person chose` (and the later); the hours after each change; `hazard HZ-009 a time before the autumn change resolves to summer time` | Passing (Phase 1, slice 11) |
 
 ---
 
@@ -665,6 +700,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Drift over 5 minutes is flagged on the device and on every record written while drifted (master prompt 10.3) | Phase 1 |
 | Design | A record whose device time is later than its server-received time, or far earlier, raises a manager review flag; a note written more than 2 hours after the event carries the late-entry flag | Phase 1 |
 | Design | The history view shows both device and server times | Phase 1 |
+| Design | The web sends the device's clock reading with every entry (`x-harbour-sent-at`), so the API flags an entry from a browser whose clock is wrong; the entry shows "Device clock differed" in words and an icon | Built in Phase 1 slice 9 (web) |
 | Design | Interval checks on the device use a drift-corrected clock when drift is known | Phase 2 |
 | Test | See Verification | Phase 1, Phase 2 |
 | Training and user documentation | Care worker guide: never change the device time. Deployer control: MDM policy enforces automatic network time on shared devices ([kiosk.md](../compliance/kiosk.md)) | Phase 1 |
@@ -676,6 +712,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Test | Status |
 | --- | --- |
 | `packages/domain/src/shared/time.test.ts`: `hazard HZ-010 clock drift` (5-minute tolerance) | Passing (Phase 0) |
+| `apps/web/src/components/care/EntryBadges.test.ts`: `hazard HZ-010 says when the device clock differed from the server's`; `apps/web/src/lib/uk-time.test.ts`: `hazard HZ-010 hazard HZ-017 refuses a time later than now, beyond the clock tolerance` | Passing (Phase 1 slice 9) |
 | `packages/db`: append-only event columns keep device time, device offset and server-received time | Built in Phase 0 |
 | `apps/api`: `hazard HZ-010 every uploaded event is stamped with server-received time` | Planned, Phase 1 |
 | `packages/sync`: `hazard HZ-010 drift over 5 minutes between device and server is flagged` | Planned, Phase 1 |
@@ -697,7 +734,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 
 **Description**: a user sees, or a device receives, records belonging to another tenant, or records in their own tenant outside their scope (location, team, assigned people, time window), or an external professional or agency worker keeps access after it should have expired.
 
-**Causes**: a missing `tenant_id` predicate; RLS disabled or bypassed (owner role, `BYPASSRLS`, `SECURITY DEFINER` functions); `app.tenant_id` leaking between pooled transactions; a PowerSync stream filter error (logical replication bypasses RLS); cache or search keys without the tenant; guessable or long-lived file URLs; export jobs; operator impersonation; scope grants that do not expire; stale token claims after a role change.
+**Causes**: a missing `tenant_id` predicate; RLS disabled or bypassed (owner role, `BYPASSRLS`, `SECURITY DEFINER` functions); `app.tenant_id` leaking between pooled transactions; a PowerSync stream filter error (logical replication bypasses RLS); cache or search keys without the tenant; a search index, query or result count that crosses the tenant or the user's scope; a break-glass search used to browse, or to find where a person at risk lives; an agency worker with no shift recorded given open-ended access; guessable or long-lived file URLs; export jobs (see HZ-070); operator impersonation; scope grants that do not expire; stale token claims after a role change.
 
 **Effects**: disclosure of special category data and resulting distress; safeguarding risk (for example disclosure of the whereabouts of a person at risk); a wrong-person decision if an out-of-scope record is mistaken for the right one (HZ-001); a reportable personal data breach.
 
@@ -714,7 +751,10 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Attribute-based scoping (location, assigned people, time window) enforced in the API and in RLS | Built in Phase 0 (team scope with rotas, Phase 2) |
 | Design | Break-glass access with typed justification, alerting the Registered Manager and quality lead, audited with the reason, lapsing after an hour; a weekly report by user, person and reason flags repeated use for the Registered Manager and data protection lead | Built in Phase 0 (weekly report job, storage and API built in Phase 1 slice 8; screen with the web work) |
 | Design | Short-lived presigned file URLs with tenant-prefixed keys; remote wipe and device revocation | Phase 1 |
-| Design | Time-limited grants expire automatically (agency workers at shift end plus 2 hours; external professionals at their expiry) | Phase 1 (professionals), Phase 2 (agency, with rota) |
+| Design | Time-limited grants expire automatically (agency workers at shift end plus `access.agency.post_shift_hours`, and an agency worker with no shift recorded gets no access at all; external professionals at their expiry) | Phase 1 (professionals; the agency window rule is built in the domain and search refuses after it), Phase 2 (agency, with rota) |
+| Design | Search runs under the same forced RLS as the records (ADR-0070); the plan allows only the kinds of record the user can read, in their scope, while their access lasts, and only current people unless `platform.search.archived` is held and used; results are filtered again and counted only over what may be seen, so an out-of-scope match looks like no match, and a disagreement raises a security alarm ([platform-completions.md](../specs/platform-completions.md) rules 1 to 7) | Phase 1 (domain rules built; index and routes with the schema and API step) |
+| Design | Break-glass search: step-up (a sign-in with the second step within the window), MFA, a reason code and a typed reason, a specific query (an NHS number, or at least two name words) matched on whole words of names only (no prefixes, no room labels), identity fields only with location and room withheld until the record is opened, at most 10 people. The search itself alerts the Registered Manager of each location whose people were shown and the data protection lead; `break_glass.search_max_per_day` searches per user in 24 hours, after which further searches are refused and the data protection lead is told (rule 9) | Phase 1 (domain rules built; alert delivery and the weekly report with the API) |
+| Design | Search audit events record the kinds searched and left out, the counts, the person scope, location ids, when the user's access ends and the opaque ids shown; people shown count as views of their care records. Never the words typed, which are usually a name; a break-glass search refers to its break-glass record, which holds the typed reason, instead of copying it (rule 8) | Phase 1 (domain rules built) |
 | Design | Operator support access only after the tenant owner approves a ticketed request with step-up; requests and decisions written to the tenant's audit chain | Request and approval built in Phase 0; read-only impersonation session, Phase 1 |
 | Test | See Verification; annual external penetration test `[Thapsus - human action]` | Phase 0 onwards |
 | Training and user documentation | Tenant role-design guidance (least privilege); deployer control: periodic access review by the tenant | Phase 1 |
@@ -735,7 +775,12 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `apps/api/test/operator-and-integrations.test.ts`: operator console cannot read people; support access needs the tenant owner's step-up approval and is audited in the tenant's chain | Passing (Phase 0) |
 | `packages/db/test/tasks-and-workflows.test.ts`: `hazard HZ-011 task scope`, `workflow scope and history` (tasks follow the person's scope, location tasks the location, append-only workflow history) | Passing (Phase 1) |
 | `apps/api/test/tasks.test.ts`: tasks about people outside a care worker's scope are hidden and cannot be completed; another tenant's person is not found | Passing (Phase 1) |
+| `packages/domain/src/platform/search.test.ts`: `hazard HZ-011 agency access expires at shift end plus 2 hours` (the rate-table window; search refuses after it and a plan made earlier shows nothing) | Passing (Phase 1) |
 | `apps/api`: `hazard HZ-011 agency access expires at shift end plus 2 hours` | Planned, Phase 2 |
+| `packages/domain/src/platform/search.test.ts`: `hazard HZ-011 search plan follows permission and scope`, `hazard HZ-011 search results and counts stay in scope` (an out-of-scope match looks exactly like no match), `hazard HZ-011 search audit events record what was shown, never the words typed` (scope, location ids, access end, ids shown, care-record views; a break-glass search refers to its record instead of copying the reason) | Passing (Phase 1) |
+| `packages/domain/src/platform/search.test.ts`: `hazard HZ-011 break-glass search` (step-up, MFA, reason, specific whole-word query, no prefix match, location and room withheld, the alert to Registered Managers and the data protection lead, the daily limit); `fails closed for an agency worker with no shift recorded` | Passing (Phase 1) |
+| `packages/db`: `hazard HZ-011 search returns nothing from another tenant or outside scope` | Planned, Phase 1 |
+| `apps/api`: `hazard HZ-011 search routes apply the plan, filter again and audit without the query` | Planned, Phase 1 |
 | `packages/db/test/care-record.test.ts` and `apps/api/test/care.test.ts`: notes, charts and marks follow the person's scope | Passing (Phase 1) |
 | `packages/db/test/mca-and-incidents.test.ts`: `hazard HZ-011 consent, capacity and DoLS records follow the person's scope` and `hazard HZ-011 incident scope across people and locations (ADR-0033)` (an incident is visible through any of its people, to its reporter, and by location only when nobody using the service is on it; per-person notifications and staff rows follow their own scope; location drafts follow location scope; another tenant sees nothing) | Passing (Phase 1) |
 | `apps/api/test/incidents.test.ts`: `hazard HZ-011 incident scope across people (ADR-0033)` (a reader who can see only some of the people gets the header and their own people, with no narrative or reasoning, and cannot change it) | Passing (Phase 1) |
@@ -760,7 +805,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 
 **Description**: a NEWS2, MUST or Waterlow score (and later Braden, Abbey, PAINAD and the other tools in master prompt 10.1) is calculated, banded or displayed wrongly, or the wrong version or scale is used (for example NEWS2 SpO2 Scale 2 for a person who has no clinical decision for it).
 
-**Causes**: transcription errors in scoring tables; boundary errors (less than versus less than or equal); unit conversions (weight, height, temperature); rounding of BMI; a missing value treated as zero; a tenant editing a locked template; new confusion not scored as the published value; supplemental oxygen not scored; MUST weight-loss percentage over the wrong period; Waterlow multi-select categories summed wrongly; mixing observations taken at different times.
+**Causes**: transcription errors in scoring tables; boundary errors (less than versus less than or equal); unit conversions (weight, height, temperature); rounding of BMI; a missing value treated as zero; a form that pre-selects an answer (for example "Air" and "Alert" on the NEWS2 form), so an unanswered question is scored as normal; a tenant editing a locked template; new confusion not scored as the published value; supplemental oxygen not scored; MUST weight-loss percentage over the wrong period; Waterlow multi-select categories summed wrongly; mixing observations taken at different times.
 
 **Effects**: under-scoring leads to missed deterioration (for example sepsis), missed malnutrition referral or pressure-ulcer prevention not started, causing severe harm or death; over-scoring leads to unnecessary escalation.
 
@@ -773,6 +818,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Validated tools are locked templates implemented exactly as published, with the publisher, edition and source cited in code and on screen; tenants cannot edit scoring | Phase 1 |
 | Design | The screen shows every parameter's sub-score, the total and the published banding table, so the user can check the arithmetic | Phase 1 |
 | Design | Missing inputs produce no total ("Score incomplete: 2 values missing"), never a partial total | Phase 1 |
+| Design | Nothing is pre-selected on the web forms for validated tools; an unanswered question is refused at its own field (NEWS2 air or oxygen, and consciousness). Without the care profile the SpO2 scale is unknown, so vital signs are not offered | Built in Phase 1 slice 9 (web) |
 | Design | NEWS2 SpO2 Scale 2 is available only when a registered clinician has recorded that decision and target range on the person's record | Phase 1 |
 | Design | The result links to the tenant's escalation policy; Harbour adds no recommendation of its own | Phase 1 |
 | Design | Each stored score records the tool edition and the code version that calculated it | Built in Phase 1 slice 4b: the server runs the tool by key and stores the version, answers, score, band and workings; the client never sends a score |
@@ -804,7 +850,9 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain/src/care/validated-assessment.test.ts`: `hazard HZ-012 the tool runs on the server by its key` (MUST, Waterlow, Braden and the NG249 pathway stored with tool version, score, band and workings; the falls pathway with no score and no band; no result for incomplete answers) | Passing |
 | `apps/api/test/care-planning.test.ts`: `hazard HZ-012 refuses Braden where its licence flag is off (H-25), and allows it in the demo tenant` | Passing |
 | `packages/domain` (platform): `hazard HZ-012 tenants cannot edit locked validated templates` | Planned, Phase 1 |
-| `apps/web` Playwright: `hazard HZ-012 the score screen shows sub-scores and the banding table` | Planned, Phase 1 |
+| `apps/web/e2e/care-record.spec.ts` (Playwright with axe, WCAG 2.2 AA): `hazard HZ-012 a nurse runs MUST and sees the API's score, band, workings, follow-ups and source` (the web sends answers only; the test checks each step's points in the workings, the total, the band in the publisher's words and the source link); `hazard HZ-014 vital signs show the NEWS2 result and the RCP response the API returns` (saving with air or oxygen and consciousness unanswered is refused at those fields) | Passing (local run; CI e2e-web on the PR) |
+| `apps/web/src/lib/assessments.test.ts`: `hazard HZ-012 names the publisher, edition and source the API calculates from`; `hazard HZ-012 words every MUST and Waterlow band in the catalogue, never by its code` (against the domain's band types); `apps/web/src/lib/assessment-answers.test.ts`: `answer options match the API's contract`; `apps/web/src/lib/chart-entry.test.ts`: `hazard HZ-012 hazard HZ-014 refuses vital signs until air or oxygen and consciousness are chosen` | Passing (Phase 1 slice 9) |
+| `apps/web` Playwright: `hazard HZ-012 the score screen shows the full published banding table beside the band` | Planned, Phase 1 |
 
 ---
 
@@ -914,6 +962,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Stored MUST results schedule the next screening (`must.care_home.screening_interval_months`) and weighing (weekly at medium or high risk, otherwise monthly, from the rate table) as tasks, one open task of each kind at a time; a recorded weight answers the weight check; a correction raises only the follow-ups the original did not | Built in Phase 1 slice 4b |
 | Design | Results entered offline raise the task on the device immediately and the alert on sync, with the original time | Phase 1 |
 | Design | Handover always includes NEWS2 above the low band (an aggregate of 5 or more, or a single parameter scoring 3) and MUST follow-ups raised in the shift (HZ-018) | Phase 1 |
+| Design | Go-live waits until a working deterioration escalation chain exists and every validated tool switched on links the tenant's escalation policy (onboarding items `escalation_chains_set` and `escalation_policies_linked`, [platform-completions.md](../specs/platform-completions.md) rule 26) | Phase 1 (domain rules built) |
 | Training and user documentation | User guide: the score supports clinical judgement and the published response, never replaces it; deployer control: escalation policy and on-shift nurse in charge set per location | Phase 1 |
 
 **Target residual risk**: severity Major, likelihood Low, **risk 3**.
@@ -931,6 +980,9 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `apps/api/test/care-planning.test.ts`: `hazard HZ-014 MUST high raises the dietitian referral and sets next_due_on` (the rescreen and weight-check tasks are scheduled, one open at a time, and the next result answers the rescreen); `a weight answers the weight check and schedules the next at the MUST interval` | Passing |
 | `apps/api`: `hazard HZ-014 an urgent assessment alert escalates until acknowledged` | Planned, Phase 1 |
 | `apps/api/test/care.test.ts`: `hazard HZ-012 and HZ-014 NEWS2 vital signs` (a high score alerts the nurse in charge and creates the urgent response and continuous-monitoring tasks; a score of 0 schedules nothing outside the care plan) | Passing |
+| `packages/domain/src/platform/onboarding.test.ts` (go-live clinical items): `hazard HZ-014 a deterioration alert with no escalation chain`, `hazard HZ-014 NEWS2 switched on with no escalation policy linked` | Passing (Phase 1) |
+| `apps/web/src/lib/charts.test.ts`: `hazard HZ-014 reads the score, band and the RCP's response wording as stored`; `hazard HZ-014 counts workings it cannot read, and never assumes SpO2 scale 1`; `apps/web/src/lib/assessments.test.ts`: `hazard HZ-014 never shows a result that raised something unknown as if it raised nothing`; `apps/web/src/lib/assessments.test.ts`: `hazard HZ-014 says what a result raised in the API's words, and leaves out what it cannot read` | Passing (Phase 1 slice 9) |
+| `apps/web/e2e/care-record.spec.ts` (Playwright with axe, WCAG 2.2 AA): `hazard HZ-014 vital signs show the NEWS2 result and the RCP response the API returns` (score 6, clinical risk Medium, "Key threshold for urgent response", minimum 1 hourly, with the workings) | Passing (local run; CI e2e-web on the PR) |
 
 ---
 
@@ -947,6 +999,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 **Description**: staff cannot see, at the moment they need it, whether the person has a ReSPECT plan, DNACPR decision or advance decision to refuse treatment, or they see one that has been withdrawn or replaced.
 
 **Causes**: the document is filed but not flagged; an old version is shown; the record is not available offline or in the downtime pack; the hospital transfer pack omits it, or prints it on a later page behind a long medicines list (slice 8 review round 3, clinical finding M5); a check of resuscitation decisions made in hospital recorded by someone who may not review the care plan (round 3, security finding M2).
+**Causes**: the document is filed but not flagged; an old version is shown; the record is not available offline or in the downtime pack; the hospital transfer pack omits it; on the web, a header kept from an earlier tab after a colleague withdrew or recorded a decision (HZ-002); a status the screen does not know shown as if it were "Attempt CPR".
 
 **Effects**: resuscitation attempted against the person's wishes, or not attempted when it should have been; distress to the person and family.
 
@@ -956,13 +1009,16 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 
 | Type | Control | When |
 | --- | --- | --- |
-| Design | The point-of-care header shows the current resuscitation status (word and icon) with the date and clinician; a missing record shows as 'Not recorded', never as blank | Phase 1 |
+| Design | The point-of-care header shows the current resuscitation status (word and icon) with the date and clinician; a missing record shows as 'Not recorded', never as blank | Built in Phase 1 slice 9 (web: a warning chip that says to check the paper record; records that disagree are the strongest warning; an overdue review keeps the decision and says it still stands); mobile in slice 10 |
 | Design | The person summary every point-of-care header reads carries the resuscitation status in force from an active ReSPECT or DNACPR record, with the clinician and dates, or `not_recorded`; records in force that disagree are flagged; a passed review date never hides a decision | Built in Phase 1 slice 4b (screens in slice 9) |
+| Design | Go-live waits until every current person has a resuscitation status, either a decision in force or a recorded "no decision in place"; the full export's current summary gives the decision in force, or `conflicting` with every record in force ([platform-completions.md](../specs/platform-completions.md) rules 10 and 26) | Phase 1 (domain rules built) |
 | Design | Only one active record per kind; recording a new one supersedes the old; review dates raise tasks | Built in Phase 1 slice 4b (database partial unique index; hourly review job) |
+| Design | The web header is read again on every tab move and says when (HZ-002); the resuscitation status is checked against the API's schema, and one that cannot be read, or that this version does not know, shows "CPR decision could not be read" as the strongest warning, never "Attempt CPR". Withdrawing a ReSPECT plan or DNACPR decision says first that the header will then show "CPR decision not recorded" unless another record is in force | Built in Phase 1 slice 9 (web) |
 | Design | Advance care records are reference data on the device (never evicted while assigned), in the downtime pack and in the hospital transfer pack | Phase 1 |
 | Design | The transfer pack prints the CPR decision in force by the same rule as the header (`resuscitationStatus`), from ReSPECT and DNACPR records only; an ADRT or advance care plan alone leaves it "not recorded" and still prints. Records that disagree print together as a conflict on the first page and need the named acknowledgement at hand-over; an overdue review is shown on the first page | Built in Phase 1 slice 8 |
 | Design | The identity block on page 1 of the pack carries a "CPR decision:" line in bold, copied from the stored pack and never resolved: the decision in force with its record and date, "not recorded", "no decision in place" with who confirmed it, or that the records disagree. A long medicines list cannot push it to a later page. The wording is for the CSO (H-94) | Built in Phase 1 slice 8 (review round 3) |
 | Design | The return check on resuscitation decisions made in hospital is recorded only by someone who may complete its task (HZ-005) | Built in Phase 1 slice 8 (review round 3) |
+| Design | On the downtime pack, every active ReSPECT and DNACPR record prints, newest first, with its clinician and dates. Records that disagree mark the section itself as conflicting, with the words "Resuscitation records disagree. Every record in force is listed here. Harbour does not choose between them: check the signed forms and follow the home's policy." A passed review date is noted and never hides the decision ([operations.md](../specs/operations.md) rule 5; wording for the CSO to confirm, H-100) | Phase 1 (domain rules built, slice 11) |
 | Training and user documentation | Deployer control: the original signed form stays with the person as the home's policy requires; Harbour shows the record, it is not the legal document | Phase 1 |
 
 **Target residual risk**: severity Major, likelihood Very low, **risk 2**.
@@ -974,6 +1030,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain/src/care/advance-care.test.ts`: `hazard HZ-015 a missing resuscitation record shows as not recorded`; `hazard HZ-015 the current resuscitation status` (latest decision, conflicts flagged, withdrawn and superseded records ignored, overdue review keeps the decision) | Passing |
 | `packages/db/test/care-planning.test.ts`: `hazard HZ-015 only one advance care record of each kind is active` | Passing |
 | `packages/contracts/src/contracts.test.ts`: `hazard HZ-015 needs a resuscitation status on every point-of-care summary` | Passing |
+| `packages/domain/src/platform/onboarding.test.ts`: `hazard HZ-015 no resuscitation status`, `hazard HZ-015 a recorded 'no decision in place' counts` (person readiness) | Passing (Phase 1) |
 | `apps/api/test/care-planning.test.ts`: `hazard HZ-015 advance care records and the resuscitation status` (a DNACPR shows on the person summary and list; superseding and withdrawal) | Passing |
 | `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-015 prints the current resuscitation record in the pack` (reads the printed PDF: the CPR decision in force and the DNACPR with its clinician and date) and `hazard HZ-015 prints ReSPECT and DNACPR that disagree, and an overdue review, on the first page` (both records printed, the hand-over refused without an acknowledgement) | Passing (Phase 1) |
 | `packages/domain/src/people/transfer-pack.test.ts`: `hazard HZ-015 keeps an ADRT beside the CPR decision but never as one`, `hazard HZ-015 prints ReSPECT and DNACPR that disagree as a conflict, with both, never resolved`, `hazard HZ-015 shows a resuscitation decision past its review date`; `apps/api/test/pdf.test.ts`: `hazard HZ-015 prints ReSPECT and DNACPR that disagree with both records, never resolved`, `hazard HZ-015 prints an ADRT alone as no CPR decision` | Passing (Phase 1) |
@@ -981,6 +1038,9 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain/src/people/pre-admission.test.ts`: `hazard HZ-015 requires the resuscitation and advance care section` | Passing (Phase 1) |
 | `packages/domain/src/people/transfer-pack.test.ts`: `hazard HZ-015 no resuscitation record`, `only a withdrawn resuscitation record`, `prints only the active resuscitation record` | Passing (Phase 1) |
 | `apps/api/test/pdf.test.ts`: `hazard HZ-015 prints the CPR decision in force on page 1, however long the medicines list` (25 long medicines) and `hazard HZ-015 says on page 1 when the CPR decision is ...` (none recorded, records that disagree); the two HZ-015 pack tests in `apps/api/test/people-lifecycle.test.ts` read the line from page 1; `hazards HZ-005 and HZ-015 let only someone who may complete a return check's task record it` | Passing (Phase 1) |
+| `packages/domain/src/operations/downtime-pack.test.ts`: `hazard HZ-015 resuscitation status on the downtime pack` (`prints the decision in force`; `marks a conflict between ReSPECT and DNACPR in the section itself, and prints every record in force`; `prints two records that agree without a conflict`; `notes a decision past its review date without hiding it`; `puts safety-critical gaps and conflicts first on the front sheet`) | Passing (Phase 1, slice 11) |
+| `apps/web/src/lib/care-record.test.ts`: `hazard HZ-015 a missing decision reads as a warning, never blank or calm`; `a DNACPR decision shows the word, icon, source and clinician`; `an overdue review keeps the decision and says it still stands`; `records that disagree are the strongest warning`; `a status that could not be read, or is unknown, is a warning, never 'Attempt CPR'`; `keeps the person but marks a resuscitation status it cannot read` | Passing (Phase 1 slice 9) |
+| `apps/web/e2e/care-record.spec.ts` (Playwright with axe, WCAG 2.2 AA): `hazard HZ-001 hazard HZ-015 the header shows the resuscitation status, allergies and IDDSI levels on every tab, and 'not recorded' as a warning`; `hazard HZ-015 a DNACPR decision recorded on the advance care tab shows in the header on every tab`; `hazard HZ-002 hazard HZ-015 a colleague's change to the CPR decision shows in the header after one tab move` | Passing (local run; CI e2e-web on the PR) |
 
 ---
 
@@ -996,36 +1056,43 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 
 **Description**: the person's prescribed IDDSI food or drink level is shown wrongly, or food or fluid of a different level is recorded as given without challenge.
 
-**Causes**: levels shown as numbers only; the prescribed level is out of date after a speech and language therapy review; the food chart accepts any level silently.
+**Causes**: levels shown as numbers only; the prescribed level is out of date after a speech and language therapy review; the food chart accepts any level silently; a form that pre-selects the prescribed level, so the record says the right texture was given without anyone choosing it; a drink level left optional when one is prescribed; a viewer who cannot read the care profile told "No level prescribed". Added in slice 11: food and drink levels merged on a printout, so a missing drink level hides behind a recorded food level; a stored code that is not an IDDSI level printed as if it were one.
 
 **Effects**: choking, aspiration pneumonia, death.
 
 **Initial risk**: severity Major, likelihood Low, **risk 3**.
 
+| Design | Go-live waits until every current person has IDDSI food and drink levels recorded ([platform-completions.md](../specs/platform-completions.md) rule 26) | Phase 1 (domain rules built) |
 **Controls**
 
 | Type | Control | When |
 | --- | --- | --- |
-| Design | The prescribed food and drink levels show with their IDDSI number, name and colour in the header and on the food and fluid charts | Phase 1 |
+| Design | The prescribed food and drink levels show with their IDDSI number, name and colour in the header and on the food and fluid charts | Built in Phase 1 slice 9 (web: the header, and beside the level chosen on the food and drink forms, which ask for a reason on a mismatch); mobile in slice 10 |
 | Design | Recording a level that does not match the prescribed level needs an override reason and raises an alert to the nurse in charge | Phase 1 |
+| Design | The web food and drink forms pre-select no level: the texture given is chosen every time, with the prescribed level shown beside it. A drink level is required when one is prescribed (the API to require it too: a planned API change, listed in care.md section 10). A viewer who cannot read the care profile is told the prescribed level is not available to them; the header says so too | Built in Phase 1 slice 9 (web) |
 | Design | A change of prescribed level records who changed it, on whose advice, and shows as new for 72 hours | Phase 1 |
 | Design | Eating and drinking (IDDSI levels) is a safety-critical section of the hospital transfer pack: printed with the level's number and name, and "not recorded" on the first page when missing. Whether it stays safety-critical is for the CSO (H-86) | Built in Phase 1 slice 8 |
+| Design | The downtime pack shows the food level and the drink level as two separate safety-critical sections, each with number, name and colour. A missing level reads "not recorded" with "check before giving food or drink"; a stored code that is not an IDDSI level reads "This could not be read from the record. Check the record before giving food or drink." and never stops the pack ([operations.md](../specs/operations.md) rules 1 and 6) | Phase 1 (domain rules built, slice 11) |
 | Training and user documentation | Deployer control: kitchen and dietary profiles are kept in step (Phase 3 catering links them) | Phase 1 |
 
 **Target residual risk**: severity Major, likelihood Very low, **risk 2**.
 
 **Verification**
+| `packages/domain/src/platform/onboarding.test.ts`: `hazard HZ-016 no IDDSI drink level`, `hazard HZ-016 no IDDSI food level` (person readiness) | Passing (Phase 1) |
 
 | Test | Status |
 | --- | --- |
 | `packages/domain` (care): `hazard HZ-016 a food entry at a different IDDSI level needs an override reason` | Passing |
 | `packages/domain` (care): `hazard HZ-016 recorded IDDSI levels are checked against the prescribed level` | Passing |
 | `packages/domain` (care): `hazard HZ-016 IDDSI levels show number, name and colour` | Passing |
-| `apps/web`: `hazard HZ-016 the header shows the prescribed IDDSI levels with number and name` | Planned, Phase 1 |
+| `apps/web/src/lib/care-record.test.ts`: `hazard HZ-016 food level 5 shows number, name and colour` (and the other levels, and no level prescribed); `apps/web/src/lib/charts.test.ts`: `hazard HZ-016 shows IDDSI levels with number, name and colour` | Passing (Phase 1 slice 9) |
+| `apps/web/e2e/care-record.spec.ts` (Playwright with axe, WCAG 2.2 AA): `hazard HZ-016 food at a texture other than the prescribed level is refused without a reason` (the header shows the prescribed level; the form shows it beside the choice with nothing chosen; saving without a level is refused at the level; the API's refusal is shown in the catalogue's words at the level and the reason, then the entry with its reason is saved) | Passing (local run; CI e2e-web on the PR) |
+| `apps/web/src/lib/chart-entry.test.ts`: `hazard HZ-016 needs the texture given for food, and for a drink when a level is prescribed`; `apps/web/src/lib/refusals.test.ts`: `hazard HZ-016 puts a texture without its reason at the reason and the level`; `apps/web/src/lib/care-record.test.ts`: `hazard HZ-016 marks a care profile it cannot read` | Passing (Phase 1 slice 9) |
 | `apps/api/test/care.test.ts`: `hazard HZ-016 IDDSI levels` (a level change needs who advised it; food above the prescribed level needs a reason and alerts) | Passing |
 | `packages/domain/src/people/pre-admission.test.ts`: `hazard HZ-016 never lets eating, drinking and swallowing be marked not applicable`; `transfer-pack.test.ts`: `hazard HZ-016 re-checks allergies, resuscitation decisions and IDDSI levels on return` | Passing (Phase 1) |
 | `packages/domain/src/people/transfer-pack.test.ts`: `hazard HZ-016 copies the IDDSI codes exactly, including easy to chew (7EC)` | Passing (Phase 1) |
 | `apps/api/test/pdf.test.ts`: `hazard HZ-016 prints the IDDSI levels with their names` | Passing (Phase 1) |
+| `packages/domain/src/operations/downtime-pack.test.ts`: `hazard HZ-016 tells staff to check before giving food or drink when a level is missing`; `hazard HZ-016 an unreadable IDDSI code says check the record and never stops the pack` (food, drink, both); `hazard HZ-016 shows IDDSI levels with number, name and colour` | Passing (Phase 1, slice 11) |
 
 ---
 
@@ -1037,11 +1104,11 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Status | Open |
 | Clinical owner | `[CSO name - human action]` |
 | Engineering owner | `care` module (lead engineer) |
-| Source | Master prompt 10.1 (late-entry flag), 18 (times); [NMC record keeping](https://www.nmc.org.uk/standards/code/read-the-code-online/) |
+| Source | Master prompt 10.1 (late-entry flag), 13.4 (downtime forms and back-entry workflow), 18 (times); [NMC record keeping](https://www.nmc.org.uk/standards/code/read-the-code-online/) |
 
 **Description**: a note, chart entry or incident written long after the event, or backdated, reads as if it were written at the time, so decisions or investigations rely on it wrongly.
 
-**Causes**: only one time stored; device clock wrong (HZ-010); offline entries synced days later; edits overwrite the original.
+**Causes**: only one time stored; device clock wrong (HZ-010); offline entries synced days later; edits overwrite the original. Added in slice 11: care written on paper during an outage and entered hours later (back-entry) without saying so; the paper time mistyped, or outside the outage it belongs to; the same paper form entered twice by two staff (a fluid chart double-counted); paper forms never entered at all. Added in the slice 11 review: a paper time written in the hour the clocks skip or repeat (HZ-009); a paper record typed in through the normal care screen, so it looks contemporaneous; the same event recorded on paper and on a device that stayed online (paper against digital); the person who entered the forms also signing off the reconciliation.
 
 **Effects**: misleading care history; unsafe decisions based on charts that look complete; investigations and inquests misled.
 
@@ -1054,6 +1121,10 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Every entry stores the event time, the device time and the server-received time; entries recorded more than the rate-table late-entry threshold after the event are flagged late everywhere they appear | Phase 1 |
 | Design | Entries are append-only; a correction supersedes the original with a reason and both remain readable | Phase 1 |
 | Design | Future event times beyond the clock-drift tolerance are refused | Phase 1 |
+| Design | Paper times (`resolvePaperTime` in `packages/domain/src/operations/outage.ts`, using `resolveRecordedUkTime`): the date and time written on the form are kept as written; a time in the skipped spring hour is refused, a time in the repeated autumn hour must say which one, and a time ahead of the clock is refused ([operations.md](../specs/operations.md) rule 11; HZ-009) | Phase 1 (domain rules built, slice 11) |
+| Design | Back-entry from paper (`checkBackEntry`): the resolved paper time is the event time, the late-entry reason is `downtime` and the entry names its declared outage at the person's location; a paper time outside the outage window is refused unless a reason is given, which is shown with the entry; every back-entry carries the words "Written on paper ... during the outage ... Entered in Harbour ... on the device, received ..." (the device time and the server-received time) wherever it appears (operations.md rule 12) | Phase 1 (domain rules built, slice 11; columns and routes with the schema and API step) |
+| Design | Through the normal route (`checkEntryAgainstOutages`): any care entry whose event time falls inside a declared outage at its location, but which was written after the outage ended or past the late-entry threshold, must carry back-entry details or say why it is not from paper; entries made at the time on a device that kept working offline are allowed (operations.md rule 13) | Phase 1 (domain rules built, slice 11) |
+| Design | Possible duplicates (`possibleDuplicateBackEntries`, `checkOutageReconciliation`): entries for the same person and kind within `downtime.duplicate_match_minutes` of each other are grouped, paper against paper and paper against digital, unless their form references differ; an outage cannot be reconciled until each group is reviewed and a manager says what was checked; the reconciler cannot be anyone who entered records for that outage; the summary counts forms entered and entries without a form reference; overdue back-entry escalates after `downtime.back_entry_due_hours` (operations.md rules 10 and 14) | Phase 1 (domain rules built, slice 11) |
 
 **Target residual risk**: severity Considerable, likelihood Low, **risk 2**.
 
@@ -1070,6 +1141,13 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain/src/care/validated-assessment.test.ts`: `hazard HZ-017 corrections supersede with a reason` | Passing |
 | `apps/api/test/care-planning.test.ts`: `hazard HZ-017 corrects a result by superseding it with a reason, and reads the latest per tool`; `hazard HZ-017 ignores a replayed upload with the same device id` | Passing |
 | `packages/db/test/people-lifecycle.test.ts`: `hazard HZ-017 refuses to ...` (admission decisions, review records and weekly reports cannot be updated or deleted; a correction supersedes once) | Passing (Phase 1) |
+| `packages/domain/src/operations/outage.test.ts`: `hazard HZ-017 a back-entry carries the paper time, the downtime reason and its outage` (accepted inside the window with its label; refused with no outage, an unknown or cancelled outage, an outage at another location, a future paper time, an entry before the outage began, or a time outside the window without a reason) | Passing (Phase 1, slice 11) |
+| `packages/domain/src/operations/outage.test.ts`: `hazard HZ-017 a back-entry outside the outage window needs a reason, and shows it` | Passing (Phase 1, slice 11) |
+| `packages/domain/src/operations/outage.test.ts`: `hazard HZ-009 hazard HZ-017 a time in the hour skipped on 29/03/2026 is refused`; `hazard HZ-009 hazard HZ-017 a time in the hour repeated on 25/10/2026 asks which one`; `hazard HZ-009 hazard HZ-017 resolves the repeated hour to the earlier time the person chose` (and the later) | Passing (Phase 1, slice 11) |
+| `packages/domain/src/operations/outage.test.ts`: `hazard HZ-017 an entry through the normal route for a time inside an outage must say whether it is from paper` | Passing (Phase 1, slice 11) |
+| `packages/domain/src/operations/outage.test.ts`: `hazard HZ-017 possible duplicates are listed for review, paper against paper and paper against digital`; `hazard HZ-017 reconciling an outage` (duplicates unreviewed, a reconciler who entered records, no statement, the forms count) | Passing (Phase 1, slice 11) |
+| `apps/api`: `hazard HZ-017 a back-entry through each care route keeps the paper time and shows the label` | Planned, Phase 1 (schema and API step) |
+| `apps/web/src/components/care/EntryBadges.test.ts`: `hazard HZ-017 says an entry was written late, with when it was recorded, in words and an icon`; `apps/web/src/lib/uk-time.test.ts`: the HZ-009 and HZ-017 entry time tests (a time later than now is refused; a note correction keeps the original instant) | Passing (Phase 1 slice 9) |
 
 ---
 
@@ -1135,7 +1213,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 
 | Type | Control | When |
 | --- | --- | --- |
-| Design | Side and region are chosen in words as well as on the drawing, and must agree before saving; front and back views label the person's left and right | Phase 1 |
+| Design | Side and region are chosen in words as well as on the drawing, and must agree before saving; front and back views label the person's left and right | Built in Phase 1 slice 9 (web: front and back drawings labelled with the person's left and right, a list of the same areas for keyboard and screen reader users, the side confirmed in words, and the API's refusal shown word for word); mobile in slice 10 |
 | Design | Wound photos are linked to the mark, with a ruler prompt | Phase 1 |
 
 **Target residual risk**: severity Considerable, likelihood Low, **risk 2**.
@@ -1148,6 +1226,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain` (care): `hazard HZ-019 body map sides are the person's own left and right` | Passing |
 | `apps/api/test/care.test.ts`: `hazard HZ-019 body map` (a mark whose stated side differs from the drawing is refused; a category 3 ulcer prompts an incident and the safeguarding guide) | Passing |
 | `apps/api/test/incidents.test.ts`: `hazard HZ-019 links a mark recorded for the incident and refuses one for someone not on it` (marks keep the body map's checks; linked pressure ulcers reach the classifier) | Passing (Phase 1) |
+| `apps/web/src/lib/body-map.test.ts`: `hazard HZ-019 match the API's regions and the sides each allows, on both views`; `hazard HZ-019 places the person's left on your right on the front view and on your left on the back`; `hazard HZ-019 reads the midline and either side of it the same way as the domain, on both views`; `apps/web/src/lib/refusals.test.ts`: `hazard HZ-019 says a side mismatch in the catalogue's words, at the side and the area` (the rule run in the domain package) | Passing (Phase 1 slice 9) |
+| `apps/web/e2e/care-record.spec.ts` (Playwright with axe, WCAG 2.2 AA): `hazard HZ-019 a body map mark whose side in words differs from the drawing is refused` (a tap on the front view's knee on your right, the person's left, with "Right" chosen in words, is refused, with the error at the side question and the body area list; the list then records the person's right knee); `keyboard only: move between tabs and record a body map mark with the area list and the side in words` | Passing (local run; CI e2e-web on the PR) |
 
 ---
 
@@ -1210,9 +1290,9 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 
 **Description**: during a power cut, network failure or Harbour outage, staff cannot see allergies, resuscitation status, IDDSI levels, care plan summaries, PEEPs or contacts.
 
-**Causes**: no downtime pack; the pack is out of date; it is printed but not where staff can find it; no way to back-enter records made on paper.
+**Causes**: no downtime pack; the pack is out of date; it is printed but not where staff can find it; no way to back-enter records made on paper. Added in slice 11, for the out-of-date pack: an allergy, resuscitation decision or IDDSI level changed after the pack was made; the nightly job failed, or a kiosk's cache was not refreshed; the outage lasts longer than the pack's life; an old printed pack is kept beside the new one; a kiosk builds the pack from a cache synced long ago; a person admitted, or a section recorded for the wrong person (HZ-001), after the last pack; resuscitation records that disagree; PEEPs and the MAR not yet held in Harbour. Added in the slice 11 review: a pack used during an outage that says nothing about what has changed since; a device clock behind the pack's time, so an old pack reads as current; food and drink levels merged so one hides the other; a stored value that cannot be read; the paper MAR or PEEPs kept somewhere other than the pack says; the kiosk's cached pack opened by someone who should not see every person at the location, or left on a withdrawn device.
 
-**Effects**: wrong care given during the outage; records lost; evacuation without PEEPs.
+**Effects**: wrong care given during the outage (an allergen given, resuscitation against a recorded decision, food or drink of an unsafe texture); records lost; evacuation without PEEPs.
 
 **Initial risk**: severity Major, likelihood Low, **risk 3**.
 
@@ -1221,16 +1301,31 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Type | Control | When |
 | --- | --- | --- |
 | Design | A downtime pack per location is generated nightly (allergies, resuscitation status, IDDSI levels, care plan summaries, PEEPs, contacts) and cached on kiosk devices; each page shows when it was generated | Phase 1 |
-| Design | Back-entry workflow for paper records made during downtime, flagged as late entries (HZ-017) | Phase 1 |
-| Training and user documentation | Deployer control: business continuity plan says where the printed pack is kept and who prints it | Phase 1 |
+| Design | Every person receiving care at the location gets a page (on leave and in hospital included), never left out for an incomplete record; the safety-critical sections (identity, allergies, resuscitation, IDDSI food, IDDSI drink, communication, evacuation, medicines due) are never blank: missing ones read "not recorded" with what to do (`assembleDowntimePack` in `packages/domain/src/operations/downtime-pack.ts`; [operations.md](../specs/operations.md) rules 1 and 3) | Phase 1 (domain rules built, slice 11) |
+| Design | Until PEEPs and the eMAR are in Harbour, the evacuation and medicines sections say where this location keeps the PEEPs and the paper MAR (location settings `downtime.mar_location` and `downtime.peep_location`; a placeholder with no place set is refused). With the eMAR, the medicines section lists doses still due and PRN last-given times (HZ-003) (`paperMarMedicinesPort`, `fireFileEvacuationPort`; operations.md rule 7) | Phase 1 (domain rules built, slice 11); data in Phase 2 and 3 |
+| Design | Freshness on every page: each pack carries its generation time, the time its information was read and a "use until" time (`downtime_pack.valid_hours`, 36 hours so one failed nightly run still leaves a pack in date; CSO to confirm, H-101). Every page's header, worked out when printed or shown, says one of four things: current ("Information as at ... Use until ..."); out of date, in words, with what to check; during a declared outage, "Latest available pack: information as at X. Anything recorded since X is on paper or not shown here: check the downtime forms and ask the nurse in charge about changes."; or that the device clock is behind the pack, so the time cannot be trusted. A kiosk-built pack counts from its last sync (`downtimePackFreshness`, `downtimePageHeader`; operations.md rule 2) | Phase 1 (domain rules built, slice 11; PDF and kiosk with the API and mobile steps) |
+| Design | A section from another person's record is withheld with words saying so, never printed (HZ-001); resuscitation records that disagree mark the section as conflicting and print every record in force (HZ-015); food and drink levels print separately and an unreadable value says to check the record (HZ-016) (operations.md rules 4 to 6) | Phase 1 (domain rules built, slice 11) |
+| Design | The kiosk's cached pack is encrypted under a key released only to a PIN session of a holder of `operations.downtime.read`; every print and open is queued as an audit event; it is evicted when the device key is revoked and when its retention ends (`kiosk-cache.ts`; operations.md rule 8; [kiosk.md](../compliance/kiosk.md) section 3.5) | Phase 1 (domain rules built, slice 11; device storage with the mobile step) |
+| Design | Back-entry workflow for paper records made during downtime, flagged as late entries (HZ-017) | Phase 1 (domain rules built, slice 11) |
+| Training and user documentation | Deployer control: business continuity plan says where the printed pack is kept and who prints it, and that a superseded printed pack is shredded when the new one arrives | Phase 1 |
+| Training and user documentation | Deployer control: until the eMAR and PEEPs are in Harbour, the paper MAR and the fire file are kept current and where the location settings say | Phase 1 |
 
 **Target residual risk**: severity Major, likelihood Very low, **risk 2**.
+
+**Residual risk while the MAR and PEEPs are pointers only**: until Phase 2 (eMAR) and Phase 3 (PEEPs), the pack cannot show medicines due or evacuation needs; it can only say where the paper copies are. The risk then rests on the paper MAR and the fire file being current, which is a deployer control. The CSO decides whether that residual risk is acceptable for go-live or needs a further control (H-102). `[CSO acceptance - human action]`
 
 **Verification**
 
 | Test | Status |
 | --- | --- |
+| `packages/domain/src/operations/downtime-pack.test.ts`: `hazard HZ-021 the downtime pack has a page with every section for every person receiving care at the location` (people away included, discharged, deceased and other locations left out, incomplete records never left out, room order) | Passing (Phase 1, slice 11) |
+| `packages/domain/src/operations/downtime-pack.test.ts`: `hazard HZ-021 missing safety-critical information reads not recorded, never blank` (photo, allergies, resuscitation, IDDSI food and drink, communication) | Passing (Phase 1, slice 11) |
+| `packages/domain/src/operations/downtime-pack.test.ts`: `hazard HZ-021 every page says when its information is from and whether it is out of date` (`says out of date in words at the moment it expires` and later; `during a declared outage says it is the latest available and that anything since is on paper`; `flags a device clock behind the pack instead of calling it current`; `marks a pack built on a kiosk from an old sync as out of date from the start`) | Passing (Phase 1, slice 11) |
+| `packages/domain/src/operations/downtime-pack.test.ts`: `keeps a pack in date for longer than the nightly interval, so one failed night still leaves a pack`; `points to the location's own MAR and PEEP places until medicines and PEEPs are in Harbour`; `refuses a placeholder with no place set` | Passing (Phase 1, slice 11) |
+| `packages/domain/src/operations/downtime-pack.test.ts`: `hazard HZ-001 information from another person's record is withheld, never printed`; `hazard HZ-015 resuscitation status on the downtime pack` (conflicting section listing every record in force); `hazard HZ-016 an unreadable IDDSI code says check the record and never stops the pack` | Passing (Phase 1, slice 11) |
+| `packages/domain/src/operations/kiosk-cache.test.ts`: `hazard HZ-021 the kiosk opens its cached pack only in a PIN session of a downtime reader`; `hazard HZ-021 the kiosk evicts its cached pack on revocation and at the end of retention`; `hazard HZ-021 the kiosk queues an audit event for every print and open` | Passing (Phase 1, slice 11) |
 | `apps/api`: `hazard HZ-021 the downtime pack contains every required section for every current resident` | Planned, Phase 1 |
+| `apps/mobile` Maestro `hazard-HZ-021-kiosk-downtime-pack.yaml`: print the cached pack offline with the freshness words | Planned, Phase 1 |
 
 ---
 
@@ -1246,7 +1341,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 
 **Description**: a section of a person's record (updates, photos, care plan, health summary, medicines, finance, About Me) is shown to a family member, representative, external professional or share-link holder when no sharing decision in force covers that section for that recipient: there was never a decision, it has expired, consent was withdrawn, an attorney's authority has lapsed, sharing was suspended during a safeguarding enquiry, or the person has died or left the service.
 
-**Causes**: a feed that is open by default; a decision that covers "the person" rather than named sections; decisions with no expiry; a withdrawal or suspension not applied at once (including on devices that synced earlier); a decision for one recipient applied to another (contact ids confused, a shared family account); a lasting power of attorney or deputyship accepted without evidence or after it ended, or a health and welfare attorney treated as having authority while the person has capacity; share links that outlive their decision; sharing left open after a death.
+**Causes**: a feed that is open by default; a decision that covers "the person" rather than named sections; decisions with no expiry; a withdrawal or suspension not applied at once (including on devices that synced earlier); a decision for one recipient applied to another (contact ids confused, a shared family account); a lasting power of attorney or deputyship accepted without evidence or after it ended, or a health and welfare attorney treated as having authority while the person has capacity; share links that outlive their decision; sharing left open after a death. In the family feed (slice 12): an update composed for one person shown in another person's feed; updates from before a decision started, or from a gap after a withdrawal, shown once a later decision exists; an update taken down still shown to people who never saw it; a property and financial affairs attorney shown care updates, or a welfare attorney shown finance; a photo shared without consent or a best-interests decision, or one in which other residents can be recognised; another resident named, or a phone or NHS number written, in a shared note or caption; a visit booking refusal that reveals a hospital stay, a safeguarding suspension or a restriction; a staff role holding the family feed permission. Found in review: an update from a suspension period shown once the suspension is lifted; a welfare attorney's or representative's decision still honoured after the person regains capacity; a deputy acting outside the sections their order covers; an appointee shown finance statements; another resident's name written in lower case, with a zero-width space or with lookalike Cyrillic or Greek letters; a phone number written with brackets or points, or an email address with a full-width at sign; a photo attached to another kind of update, or a care plan update with no section; a family member given a person assignment, which would open every staff table through `app.person_visible`; a portal permission in a staff role or grant, or a staff permission in a portal session.
 
 **Effects**: a person's whereabouts, health or money disclosed to someone who may harm them (safeguarding risk, financial abuse); a person with capacity overridden; distress and loss of trust; a reportable personal data breach; a family member relying on information they should no longer see.
 
@@ -1258,13 +1353,21 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | --- | --- | --- |
 | Design | Closed by default: every section is hidden from every family member, professional and share link until a sharing decision in force covers that section (and, for the care plan, that domain) for that recipient (`checkSectionVisibility` in `packages/domain/src/people/sharing.ts`) | Built in Phase 1 slice 8 (family feed in slice 12) |
 | Design | Every decision records its basis and is checked: no consent from a person assessed as lacking capacity for it; an authority needs evidence, must cover the section, and a welfare authority applies only when the person lacks capacity; a best-interests decision must be recorded; direct care only for professionals and clinical sections | Built in Phase 1 slice 8 |
-| Design | Every decision expires; withdrawal, suspension (for example during a safeguarding enquiry) and the end of an authority close the section at once; a stored decision that breaks the rules is never honoured | Built in Phase 1 slice 8 |
+| Design | Every decision expires; withdrawal, suspension (for example during a safeguarding enquiry) and the end of an authority close the section at once; suspensions are stored as periods (`isSharingSuspendedAt`); a stored decision that breaks the rules is never honoured | Built in Phase 1 slice 8 |
 | Design | Sharing closes when the person is discharged, dies or is archived; correcting a discharge or death does not reopen it without a manager | Built in Phase 1 slice 8 |
 | Design | About Me share links carry About Me only, store only a hash of the token, and cannot outlive their decision | Phase 1 (links issued and revoked in slice 8; the link viewer with the portal) |
-| Design | Every view by a family member, professional or link holder is audited with the decision that allowed it | Phase 1 (slice 12) |
+| Design | Every view by a family member, professional or link holder is audited with the decision that allowed it (`buildFamilyFeed` names the decision for each entry; the API writes `feed_view`) | Phase 1 (domain rule built; API in slice 12's API step) |
+| Design | The family feed adds nothing to the sharing rules: each update belongs to one section (`FEED_ITEM_SECTIONS`) and is shown only when `checkSectionVisibility` finds a decision in force for that person, section, care plan domain and family contact; an update about another person is never shown; only decisions in force and not suspended when the thing happened count (`decisionInForceAt`), so earlier updates, gaps after a withdrawal and suspension periods stay closed even after a suspension is lifted; a care plan update with no section, and a photo on another kind of update unless the photos section is open and the photo basis holds, are hidden (`checkFeedItemVisibility` in `packages/domain/src/comms/feed-visibility.ts`); the schema step adds CHECK constraints for both | Phase 1 (domain rule built, slice 12) |
+| Design | Attorneys, deputies and appointees see only what their authority covers through the same rules: welfare authorities, a representative's consent and a best-interests decision only while the current capacity finding says the person lacks capacity for the decision (presumed otherwise, `capacity_regained`); deputies only within the sections their order covers (`orderSections`); property and finance authorities the finance placeholder; appointees the benefits section only; a decision naming a section outside the authority is never honoured (`packages/domain/src/people/sharing.ts`) | Phase 1 (domain rule built, slice 12) |
+| Design | Photos need their own basis (`feedPhotoBasis`): the person's consent or a representative's with authority, or a best-interests decision after an assessment of the photos decision; a refusal or an overdue review stops them; only photos where nobody else can be recognised are composed, and photo updates are taken down when the basis ends | Phase 1 (domain rule built, slice 12) |
+| Design | Composition normalises staff-written words first (Unicode NFKC, invisible format and direction characters removed, lookalike Cyrillic and Greek letters folded) and refuses words naming another resident (full names with given, preferred or known-as first names, and surnames, in any case), an email address (including a full-width at sign) or a run of ten or more digits across spaces, points, hyphens or brackets; it strips staff surnames in any case when the tenant asks; visitors are never named; withdrawn updates disappear for anyone who had not seen them (`composeFeedItem`, `checkFeedText` in `feed-compose.ts`, `feed-text.ts`) | Phase 1 (domain rule built, slice 12) |
+| Design | What a family member saw cannot be unseen: `feedExposure` lists what was seen under a decision and flags any view after it closed as a breach candidate | Phase 1 (domain rule built, slice 12) |
+| Design | A visit booking refusal about the person, a sharing decision, a restriction or a location restriction (an outbreak) always reads "We cannot book this visit online. Please call the home to arrange it."; the decision is checked before the person's status, and the refusal code and restriction id are typed staff-only (`checkVisitBooking`); confirmed bookings are re-checked when the person's status, a decision or a restriction changes (`visitBookingsToReview`) | Phase 1 (domain rule built, slice 12) |
+| Design | Family-only permissions (`PORTAL_ONLY_PERMISSIONS`) are never given to staff roles; a role that mixes portal and staff permissions, or a grant carrying a portal permission, is refused (`checkRoleDefinition`, `checkGrantPermissions`) and ignored if stored; a portal session is resolved from portal roles only, with no grants and no person scope, and a staff session never carries a portal permission (`resolveAccess` in `packages/domain/src/platform/access.ts`); reading the feed needs MFA (`comms.feed.read` touches care records) | Phase 1 (built, slice 12) |
+| Design | Database: family members get no `person_assignment`, so `app.person_visible` is false for every person in a family session; feed tables carry a restrictive policy calling `app.family_can_see(person_id, section, care_plan_domain, occurred_at)`, which mirrors the domain rule; family-owned rows are keyed on the caller's contacts (ADR-0061, [comms.md](../specs/comms.md) section 2.1) | Phase 1 (schema step) |
 | Design | Family device sync streams carry only the sections a decision covers, tested on their own (replication bypasses RLS) | Phase 4 (family app mode) |
 | Test | See Verification | Phase 1 |
-| Training and user documentation | Deployer control: the Registered Manager reviews sharing decisions at each care plan review and suspends sharing when a safeguarding concern involves a family member | Phase 1 |
+| Training and user documentation | Deployer control: the Registered Manager reviews sharing decisions at each care plan review and suspends sharing when a safeguarding concern involves a family member; staff check a photo shows only the person before choosing it for the feed | Phase 1 |
 
 **Target residual risk**: severity Major, likelihood Very low, **risk 2**.
 
@@ -1274,8 +1377,18 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | --- | --- |
 | `packages/domain/src/people/sharing.test.ts`: `hazard HZ-022 a section is visible only under a sharing decision in force` (no decision; a section or care plan domain the decision does not name; another recipient; another person; expired; not yet started; withdrawn; suspended; lapsed authority; a stored decision that breaks the rules; a person who has died or left) | Passing (Phase 1) |
 | `packages/domain/src/people/sharing.test.ts`: recording a sharing decision (capacity, authority evidence and coverage, best interests, direct-care limits, share-link limits, expiry) and About Me share links | Passing (Phase 1) |
+| `packages/domain/src/comms/feed-visibility.test.ts`: `hazard HZ-022 the family feed shows an item only under a sharing decision in force` (no decision; another family member; a professional's decision with the same id; a section or care plan domain not covered; expired, withdrawn, suspended, not yet started; another person's item; an item from before the decision started; a withdrawn item never seen; a photo without a basis; the lifecycle statuses; a gap between a withdrawal and a later decision) | Passing (Phase 1, slice 12) |
+| `packages/domain/src/comms/feed-visibility.test.ts`: `hazard HZ-022 attorneys and deputies see what their authority covers` (welfare attorney and deputy with the current capacity finding, finance attorney and deputy, deputies within their order, appointees and benefits, decisions naming sections outside the authority, an ended order, a lapsed authority); `hazard HZ-022 suspensions and data that should never exist stay closed` (an update from a safeguarding suspension after it is lifted, an open suspension, a care plan update with no section, a photo on another kind of update) | Passing (Phase 1, slice 12) |
+| `packages/domain/src/people/sharing-scope.test.ts`: `hazard HZ-022 authorities cover only what the law gives them`, `hazard HZ-022 a decision that needs a lack of capacity follows the current finding`, `hazard HZ-022 suspensions are periods` | Passing (Phase 1, slice 12) |
+| `packages/domain/src/platform/access-portal.test.ts`: `hazard HZ-022 portal and staff permissions never mix` (built-in roles, mixed roles and grants refused, staff and portal sessions resolved apart, stored mixed roles ignored) | Passing (Phase 1, slice 12) |
+| `packages/domain/src/comms/feed-text-review.test.ts`: `hazard HZ-022 names in any case, with hidden characters or lookalike letters` ("robert sample", "ROBERT SAMPLE", "Bob", a Cyrillic o, a zero-width space), `hazard HZ-022 clinical words hidden by hyphens, plurals, case or lookalikes` ("COVID-19", "anti-depressants", "pre-diabetic", "UTIs"), contact details with brackets, points and a full-width at sign; `feed-compose-review.test.ts`: `hazard HZ-022 other residents however their names are written` | Passing (Phase 1, slice 12) |
+| `packages/domain/src/comms/feed-visibility.test.ts`: `hazard HZ-022 photos with ...` (consent, an attorney's consent, best interests, refusals, expired or withdrawn consent, overdue reviews, an older assessment); `hazard HZ-022 is empty with no decision`; `hazard HZ-022 flags views after the decision closed for the breach register` | Passing (Phase 1, slice 12) |
+| `packages/domain/src/comms/feed-compose.test.ts`: `hazard HZ-022 refuses another resident's name`, `... keeps staff surnames out when the tenant asks`, `... refuses a staff surname used on its own`, `... refuses an email address`, `... an NHS number`, `... a phone number`, `hazard HZ-022 refuses a photo ...`, `hazard HZ-022 nothing is composed for the wrong person or a closed record` | Passing (Phase 1, slice 12) |
+| `packages/domain/src/comms/visit-booking.test.ts`: `hazard HZ-022 a refusal never says why when the reason is about the person` (including an outbreak and the decision checked before status), `hazard HZ-022 booked visits are checked again when something changes` | Passing (Phase 1, slice 12) |
+| `packages/domain/src/comms/feed-permissions.test.ts`: `hazard HZ-022 never gives a member of staff a portal-only permission`, `hazard HZ-022 asks for MFA wherever the feed or its sources are read or published` | Passing (Phase 1, slice 12) |
 | `apps/api`: `hazard HZ-022 the family feed returns nothing without a sharing decision in force` | Planned, Phase 1 (slice 12) |
 | `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-022 withdrawing or suspending a decision closes the section on the next request` | Passing (Phase 1) |
+| `packages/db/test`: the family isolation tests in [comms.md](../specs/comms.md) section 2.1 (a family session reaches no table with a person column except the feed and its own rows; own contact's decisions only; suspension periods and closed records hidden; no writes to staff tables; `app.family_can_see` tenant-bound with a fixed search path and agreeing with the domain rule on the same fixtures; no portal user with a `person_assignment`; the CHECK constraints) | Planned, Phase 1 (slice 12 schema step) |
 | `packages/sync`: `hazard HZ-022 family streams carry only shared sections` | Planned, Phase 4 |
 | `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-022 shows a family member nothing without a decision in force`, `hazard HZ-022 closes the sections once the decision expires`, `hazard HZ-022 opens only the sections a decision in force covers`, `hazard HZ-022 refuses a decision without a valid basis`; at exit, sharing decisions are withdrawn and links revoked (`hazard HZ-022 starts the transfer workflow and closes sharing, the bed and future tasks`) | Passing (Phase 1) |
 | `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-022 makes an About Me link that stores only the token's hash and never outlives its decision` (making a link needs a fresh sign-in); `hazard HZ-022 treats managing sharing as care-record access: MFA first`; `packages/db/test/people-lifecycle.test.ts`: `share links store the token's hash only` | Passing (Phase 1) |
@@ -1315,6 +1428,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | The pack decides whether the photo is printable with the decoder the PDF uses: only 8-bit, non-interlaced PNGs and JPEGs up to 4096 x 4096 pixels (8192 on a side) print; every PNG chunk is bounds-checked, decompression is capped at the size the header promises and decoding never throws. Anything else counts as missing: page 1 names it and the hand-over needs the acknowledgement. The home and hospital names are checked for characters the font lacks, as the person's name and the sections are ([ADR-0040](../decisions/0040-transfer-pack-pdf-writer.md)) | Built in Phase 1 slice 8 (review round 3) |
 | Design | Until the eMAR (Phase 2) the pack's medicines come from the pre-admission assessment and are marked on the first page as needing checking against the MAR; an empty list reads "not recorded since admission". Whether that list may be printed at all is for the CSO (H-82) | Built in Phase 1 slice 8 |
 | Design | The pre-admission assessment and the welcome checklist require allergies, medicines, communication needs and resuscitation status at admission, so the pack rarely lacks them | Built in Phase 1 slice 8 |
+| Design | Go-live waits until every current person has a communication-needs status recorded ([platform-completions.md](../specs/platform-completions.md) rule 26) | Phase 1 (domain rules built) |
 | Test | See Verification | Phase 1 |
 | Training and user documentation | Deployer control: the transfer procedure names who prints the pack and checks the red bag, agreed with the local hospital trust | Phase 1 |
 
@@ -1335,6 +1449,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `apps/web/src/lib/people.test.ts`: `communicationSummary (HZ-023)` (the people list and the person header show "Not recorded" as a warning with an icon and words, and "None identified" only for a positive none) | Passing (Phase 1) |
 | `apps/api/test/pdf.test.ts`: `hazard HZ-023 treats ... as not printable, without decoding it` (a 16-bit PNG, an interlaced PNG, one claiming 20000 x 20000 pixels, one over the pixel limit, a truncated one, a chunk running past the end, image data that inflates past its header), `hazard HZ-023 treats a JPEG over the pixel limit, or truncated, as not printable`, `names the home or the hospital on page 1 when their names have characters it cannot print` | Passing (Phase 1) |
 | `apps/api/test/people-lifecycle.test.ts`: `hazards HZ-001 and HZ-023 count ... photo as missing, so page 1 names it and the hand-over needs an acknowledgement` (16-bit and truncated PNGs), `hazard HZ-023 never sets a return check due in the past for a return recorded more than a day late` (a return with no transfer record still raises the checks) | Passing (Phase 1) |
+| `packages/domain/src/platform/onboarding.test.ts`: `hazard HZ-023 communication needs not recorded` (person readiness) | Passing (Phase 1) |
 
 ---
 
@@ -1364,7 +1479,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | The first plan is due within `care_plan.initial_working_days` working days of admission, skipping the nation's bank holidays; plans are reviewed every `care_plan.review_interval_months` months; the plan list shows what is due and whether it is overdue | Built in Phase 1 slice 4b |
 | Design | A changed screening band, a fall or a new advance care record brings the review forward to that day and raises the review task at once | Built in Phase 1 slice 4b |
 | Design | An hourly job raises one task and one alert to the nurse in charge for each overdue first plan, plan review, risk assessment review and advance care record review, and never two for the same record (HZ-008) | Built in Phase 1 slice 4b |
-| Design | Draft and superseded versions are labelled with word and icon, with the active version one tap away | Phase 1 (slice 9) |
+| Design | Draft and superseded versions are labelled with word and icon, with the active version one tap away | Built in Phase 1 slice 9 (web: "Draft, not in use" with a pencil, "Superseded, not in use" with a clock turned back, "In use" with a tick; a draft or superseded version opens under a notice with a link to the plan in use) |
+| Design | The downtime pack summarises the active care plan only, need by need in the plan's domain order, never a draft or superseded version ([operations.md](../specs/operations.md) rule 1) | Phase 1 (domain rules built, slice 11) |
 | Training and user documentation | Deployer control: the provider's care planning policy names who reviews plans and how changes in need are reported | Phase 1 |
 
 **Target residual risk**: severity Considerable, likelihood Low, **risk 2**.
@@ -1377,7 +1493,9 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain/src/care/validated-assessment.test.ts`: `hazard HZ-024 rule 1: a change in the result brings the care plan review forward` | Passing |
 | `packages/db/test/care-planning.test.ts`: integrity rules (a second active care plan is refused; child rows cannot claim another person) | Passing |
 | `apps/api/test/care-planning.test.ts`: `hazard HZ-024 raises one review task to the nurse in charge for an overdue first plan or review`; `hazard HZ-024 publishes a draft, supersedes it with the next version and keeps both` | Passing |
-| `apps/web` Playwright: `hazard HZ-024 a draft or superseded plan is labelled and never shown as the current plan` | Planned, Phase 1 |
+| `apps/web/src/lib/assessments.test.ts`: `hazard HZ-024 labels every version in word and icon, and only the active one as in use` | Passing (Phase 1 slice 9) |
+| `packages/domain/src/operations/downtime-pack.test.ts`: `hazard HZ-024 summarises the active care plan by need, in the plan's domain order` | Passing (Phase 1, slice 11) |
+| `apps/web/e2e/care-record.spec.ts` (Playwright with axe, WCAG 2.2 AA): `hazard HZ-024 a draft care plan is labelled as not in use until it is published with sign-off` (the draft shows its status and the draft notice; once published with who agreed it, the plan in use and the versions table show one version in use and no draft) | Passing (local run; CI e2e-web on the PR) |
 
 ---
 
@@ -1487,6 +1605,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 
 **Initial risk**: severity Major, likelihood Medium, **risk 3**.
 
+| Design | Go-live waits until a working post-fall observation escalation chain exists and the clinical lead has reviewed the post-fall observation settings (`falls.*`) apart from the other defaults (onboarding items `escalation_chains_set` and `clinical_settings_reviewed`, [platform-completions.md](../specs/platform-completions.md) rule 26) | Phase 1 (domain rules built) |
 **Controls**
 
 | Type | Control | When |
@@ -1512,6 +1631,382 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `apps/api/test/incidents.test.ts`: `hazard HZ-027 ruling out both risks replaces the timed observations with general monitoring` and `counts the observations from when an unwitnessed fall was found` | Passing |
 | `packages/domain` (safety): `hazard HZ-027 counts post-fall observations from when the person was found` (`classifier.test.ts`; the found time was dropped before slice 7 stored it) | Passing |
 | Maestro `hazard-HZ-027-post-fall-observations.yaml` | Planned, Phase 1 |
+| `packages/domain/src/platform/onboarding.test.ts` (go-live clinical items): `hazard HZ-027 a post-fall chain with no steps`, `hazard HZ-027 post-fall observation figures not reviewed by the clinical lead` | Passing (Phase 1) |
+
+---
+
+## HZ-029 An entry recorded twice when a save is tried again
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-029 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `care` module and `apps/web` (lead engineer) |
+| Source | Clinical review of the slice 9 web screens (finding M4); master prompt 6 (client UUIDs and idempotent inserts) |
+
+**Description**: a note, chart entry, body-map mark, assessment, activity or visit is recorded twice because a save was tried again after its outcome was unknown, so the record shows two events where there was one.
+
+**Causes**: the connection drops after the server saved the entry but before the reply arrived; the person presses Save again after an error message; a form that makes a new id on every attempt; a record type whose create route takes no client id (advance care records, risk assessments and care plan actions today).
+
+**Effects**: a fluid intake counted twice overstates the day's total and hides a shortfall (dehydration); a repeated NEWS2 or repositioning entry misrepresents the observations or turns given; a duplicated body-map mark or incident note misleads a review; a duplicated advance care record could confuse which decision is in force.
+
+**Initial risk**: severity Considerable, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Every append-only entry carries a client UUIDv7 made by the form; the same id is sent with every attempt and a new one is made only after a confirmed save (`useEntryId`, `apps/web/src/lib/entry-id.ts`) | Built in Phase 1 slice 9 (web) |
+| Design | The API inserts with the client id and ignores a replay with the same id for the same person, returning the entry already saved; an id used for another person is refused | Built in Phase 1 slices 4a and 4b |
+| Design | Mutable records (care plans, risk assessment reviews, closing and withdrawing) carry the version read, so a repeated update is refused as a conflict rather than applied twice | Built in Phase 1 slice 4b |
+| Design | Advance care records, risk assessments and care plan actions take a client id on create (an API gap, listed in care.md section 10) | Planned, Phase 1 |
+| Test | See Verification | Phase 1 |
+
+**Target residual risk**: severity Considerable, likelihood Low, **risk 2**.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `apps/web/src/lib/entry-id.test.ts`: `uuidv7 (hazard HZ-029) makes RFC 9562 version 7 ids that the API's contracts accept`; `orders ids by time and makes a new one each time` | Passing (Phase 1 slice 9) |
+| `packages/db/test/care-record.test.ts`: corrections supersede; replayed device ids are ignored | Passing |
+| `apps/api/test/care-planning.test.ts`: `hazard HZ-017 ignores a replayed upload with the same device id` | Passing |
+| `apps/api`: `hazard HZ-029 an advance care record, risk assessment or care plan action sent twice with the same client id is recorded once` | Planned, Phase 1 |
+
+---
+
+## HZ-050 An inspector evidence pack exposes a third party or a person outside its scope
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-050 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]`; data protection lead consulted |
+| Engineering owner | `quality` module (lead engineer) |
+| Source | Master prompt 11.2 (evidence library: "inspector evidence pack export (PDF bundle, watermarked, time-limited link)"), 4 (inspector role: read-only, time-boxed, watermarked exports), 5.1 (data minimisation); [quality.md](../specs/quality.md) rules 1 to 10; [ADR-0050](../decisions/0050-evidence-pack-links.md) |
+
+**Description**: an evidence pack sent to an inspector or commissioner contains the name or details of someone it should not: a relative, visitor, witness or other resident named in a record; a person receiving care who is not in the pack's scope; a whistleblower; or identifiers not needed for the assessment; or the pack reaches someone other than its recipient, or stays open after it should have closed.
+
+**Causes**: records selected by location or date only, without the people in scope; free-text notes that name other residents or family members; incident records about several people; witness and visitor fields copied as written; speak-up or employee relations records tagged as evidence; NHS numbers and addresses copied by default; one person both composing and releasing without a second check; a link forwarded to a colleague; a link with no expiry, or one that cannot be withdrawn; a bundle left in storage after the link ends. Added in the slice 11 review: a field's kind taken from the caller rather than the record type, so a typed column is treated as safe; a hand redaction that misses a name or an NHS number; the person who redacted the text releasing it; a new link issued after a lock-out by someone who shaped the pack, or to a different address; a code guessed by alternating with the real recipient, reused, or verified in one browser and used in another; the permission to open packs held by roles that do not need it.
+
+**Effects**: a person's health, whereabouts or safeguarding history disclosed to someone they did not expect (distress, loss of trust, risk from an alleged abuser who learns of a concern); a whistleblower identified; a reportable personal data breach; the provider's relationship with the regulator harmed.
+
+**Initial risk**: severity Considerable, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Selection by rule: restricted silos never included; date range in UK time; requested locations and statements only; items about nobody in scope excluded, with the reason kept in the internal manifest (`evidenceItemExclusion` in `packages/domain/src/quality/evidence-pack.ts`) | Phase 1 (domain rules built, slice 11) |
+| Design | Minimisation field by field: the kind of every field comes from a typed map per record type (`EVIDENCE_FIELD_KIND_MAP`), never from the caller, and a field the map does not name is free text; every column a person types into is free text; care content only about people in scope; identifiers withheld; third parties and (by default) staff replaced by a role from a closed list; free text withheld until a person has redacted it by hand; every redaction says why in words (`minimiseEvidenceField`, `evidenceFieldKind`; [quality.md](../specs/quality.md) rule 3) | Phase 1 (domain rules built, slice 11) |
+| Design | A hand-redacted copy is withheld again when it still holds a third party's name, a staff name while roles are shown, the name of a person on the record outside the pack's scope, or a run of ten digits (`redactionLeaks`; quality.md rule 4) | Phase 1 (domain rules built, slice 11) |
+| Design | Release, and any new link, by someone who did not shape the pack (not the composer, a hand redactor or any other editor), with step-up; a new link goes to the same recipient only and revokes the old one (`evidencePackContributors`, `checkEvidencePackRelease`, `checkEvidencePackLinkReissue`; quality.md rules 6 and 9) | Phase 1 (domain rules built, slice 11) |
+| Design | One link per recipient: a hashed random token, opened only after a six-digit one-time code from a cryptographic source, stored hashed, used once and valid for at most 10 minutes, sent to the bound address; verification held in an HttpOnly session for that link, never on the link row; a failed-code count that never resets and locks the link for good; expiry at a tenant default up to a maximum; revocable at once; the bundle deleted when the link ends; every page watermarked with the recipient, purpose, time and pack id (`checkEvidencePackCode`, `evidencePackLinkAccess`, `evidencePackWatermark`, `evidencePackBundleDeletable`; quality.md rules 7, 8 and 10; ADR-0050) | Phase 1 (domain rules built, slice 11; routes with the API step) |
+| Design | `quality.evidence.read` is a care-record permission (MFA) held by the inspector role alone | Phase 1 (built, slice 11) |
+| Design | Every open, code attempt and revocation is audited | Phase 1 (API step) |
+| Test | See Verification | Phase 1 |
+| Training and user documentation | Deployer control: the quality lead reviews the redaction preview before asking a second person to release; the DPO confirms the redaction rules (H-96) | Phase 1 |
+
+**Target residual risk**: severity Considerable, likelihood Very low, **risk 2**.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/quality/evidence-pack.test.ts`: `hazard HZ-050 fields are minimised and redacted by rule` (third parties' names removed, care content about people outside the pack withheld, free text withheld until a person has redacted it, identifiers withheld, staff by role) | Passing (Phase 1, slice 11) |
+| `packages/domain/src/quality/evidence-pack.test.ts`: `hazard HZ-050 items outside the request are excluded` (restricted records, dates in UK time, locations, statements, people outside the pack's scope) | Passing (Phase 1, slice 11) |
+| `packages/domain/src/quality/evidence-pack.test.ts`: `hazard HZ-050 the field-to-kind map decides how every field is treated` (`covers every evidence record type`; `treats every field a person types as free text`; `ignores any kind the caller tries to give a field`) | Passing (Phase 1, slice 11) |
+| `packages/domain/src/quality/evidence-pack.test.ts`: `hazard HZ-050 hand-redacted text that still names someone is withheld` | Passing (Phase 1, slice 11) |
+| `packages/domain/src/quality/evidence-pack.test.ts`: `hazard HZ-050 releasing a pack: nobody who shaped it may release it`; `hazard HZ-050 issuing a new link is a release` | Passing (Phase 1, slice 11) |
+| `packages/domain/src/quality/evidence-pack.test.ts`: `hazard HZ-050 one-time codes` (six digits only, wrong link, malformed, used, expired, wrong code; `never resets the failed-attempt count, even after a correct code`); `hazard HZ-050 the link opens only for its recipient's own session, before expiry and revocation`; `lets a tenant shorten the code lifetime but never lengthen it` | Passing (Phase 1, slice 11) |
+| `packages/domain/src/quality/evidence-pack.test.ts`: `gives opening a released pack to the inspector role alone (least privilege)` | Passing (Phase 1, slice 11) |
+| `apps/api`: `hazard HZ-050 the rendered pack contains no third party's name and no person outside its scope` (snapshot of a rendered fixture pack) | Planned, Phase 1 (API step) |
+
+---
+
+## HZ-051 A letter or email carries another person's details, or wording that was not approved
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-051 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]`; data protection lead consulted |
+| Engineering owner | `comms` module (lead engineer) |
+| Source | Master prompt 15.1 (templates and letters: "merge-field letters and emails (admission, fee review, incident follow-up, duty of candour) with approval and audit"); regulation 20 of the 2014 Regulations (candour letters); [comms.md](../specs/comms.md) rules 18 to 26; [ADR-0051](../decisions/0051-personal-data-in-template-emails.md) |
+
+**Description**: a letter or email generated from a template merges details that belong to a different person (another resident's name, fees, incident or candour account), goes to another person's contact, leaves a blank where a fact should be, carries health details by email, or uses wording that nobody with authority approved, so a family acts on wrong information or learns about someone else.
+
+**Causes**: values gathered for the wrong person or from a stale screen; a recipient picked from another person's contacts; a missing value merged as an empty string; a template edited after approval; the author approving their own template; an unknown or mistyped merge field rendered as text; special category fields allowed in email; markup in a value breaking an HTML email; a duty of candour letter missing the apology or the account required by regulation 20(4). Added in the slice 11 review: a line break or hidden character in an email subject (header injection, or a subject that reads differently from what it says); an address field merged into a subject; an incident or candour letter set up as an email; the NHS number or date of birth in an email; a candour letter sent to someone who is not the relevant person under regulation 20(7); a first candour letter with the results left blank, or no follow-up once they are known; letter text treated as markup by the PDF renderer.
+
+**Effects**: a family told the wrong fee, the wrong account of an incident or the wrong apology; another person's health details disclosed (breach, distress); a candour obligation not met; decisions (for example about a fee or a complaint) taken on wrong information.
+
+**Initial risk**: severity Considerable, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Every person-bound merge value must belong to the person the letter is about, and the recipient must be that person's contact, or the letter is refused (`renderTemplate` in `packages/domain/src/comms/templates.ts`) | Phase 1 (domain rules built, slice 11) |
+| Design | A missing or blank value refuses the letter; values are type-checked and formatted (dates, pounds and pence); unknown or malformed fields are refused at authoring | Phase 1 (domain rules built, slice 11) |
+| Design | Only an approved version renders; nobody who wrote or edited a version approves it; approved versions never change, so any change is approved again (`checkTemplateApproval`, `checkTemplateEdit`, `TEMPLATE_WORKFLOW`) | Phase 1 (domain rules built, slice 11) |
+| Design | No personal data in email subjects and no special category data in email bodies; every value and the template's text escaped for HTML; a duty of candour template must contain the regulation 20(4) contents (`checkTemplateDefinition`; ADR-0051) | Phase 1 (domain rules built, slice 11) |
+| Design | Email subjects refuse C0 and C1 control characters, U+2028 and U+2029 and bidirectional controls, in the template and again after merging, and refuse multi-line fields such as `{{location.address}}`; incident follow-up and duty of candour templates are letters only; the NHS number and date of birth never go in an email body (`hasUnsafeHeaderCharacter`, `LETTER_ONLY_KINDS`, `checkTemplateDefinition`; [comms.md](../specs/comms.md) rule 20) | Phase 1 (domain rules built, slice 11) |
+| Design | A duty of candour letter renders only for the relevant person on the candour record, and a representative only on a regulation 20(7) basis (`checkCandourRelevantPerson`); `candour.results` alone may say the results are to follow, with standard words, and the letter is marked so the follow-up stays due (`resultsToFollowText`; comms.md rule 21; wording and reading for the CSO and a solicitor, H-103) | Phase 1 (domain rules built, slice 11) |
+| Design | Letter text is passed to the PDF renderer (Typst) as data, never as markup (comms.md rule 24) | Phase 1 (API step) |
+| Design | Before sending, the sender sees the person's name and photo (HZ-001), the recipient and the flagged personal-data fields; the letter, template version and fields used are stored and audited | Phase 1 (API and web steps) |
+| Test | See Verification | Phase 1 |
+| Training and user documentation | Deployer control: starter wording reviewed by the provider's adviser; candour letters signed off by the Registered Manager | Phase 1 |
+
+**Target residual risk**: severity Considerable, likelihood Low, **risk 2**.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/comms/templates.test.ts`: `hazard HZ-051 refuses to merge details that belong to another person`; `hazard HZ-051 refuses a recipient who is another person's contact`; `hazard HZ-051 refuses a person-bound value with no person`; `hazard HZ-051 needs the person the letter is about` | Passing (Phase 1, slice 11) |
+| `packages/domain/src/comms/templates.test.ts`: `hazard HZ-051 refuses a letter with a missing value rather than leaving it blank`; `hazard HZ-051 only an approved version can be used` | Passing (Phase 1, slice 11) |
+| `packages/domain/src/comms/templates.test.ts`: approval and separation of duties, fixed approved versions, email data classes, HTML escaping, the regulation 20(4) contents | Passing (Phase 1, slice 11) |
+| `packages/domain/src/comms/templates.test.ts`: `hazard HZ-051 email subjects cannot carry hidden characters or several lines` (`refuses a rendered subject whose value smuggles in a line break`); `hazard HZ-051 health details and identifiers stay out of email` | Passing (Phase 1, slice 11) |
+| `packages/domain/src/comms/templates.test.ts`: `hazard HZ-051 duty of candour letters` (results to follow with and without a date; only in `candour.results`; the recipient must be the relevant person; the regulation 20(7) bases) | Passing (Phase 1, slice 11) |
+| `apps/api`: `hazard HZ-051 a letter's values print as text in the PDF` (a value full of Typst syntax) | Planned, Phase 1 (API step) |
+| `apps/api`: `hazard HZ-051 a letter cannot be made with another person's details` | Planned, Phase 1 (API step) |
+
+---
+
+## HZ-060 Health details in an email, SMS or push notification to a family member
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-060 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]`; data protection lead consulted |
+| Engineering owner | `comms` module (family notifications); `integrations` (adapters) |
+| Source | Master prompt 9.1 (push, email and SMS bodies never carry personal data), 15.1, 15.3 (communications); [comms.md](../specs/comms.md) section 4 rules 13 to 15 |
+
+**Description**: a notification telling a family member about a new update carries something about the person's health or care (a fall, an infection, a score, a hospital visit, the person's name with an event) in an email subject, an SMS or a push notification, where it can be read on a lock screen, a shared phone or tablet, a work inbox, a smartwatch or by the SMS gateway and push services, before or without the family member signing in.
+
+**Causes**: a notification built from the update's text ("Ada had a fall today"); a template with merge fields for the person's name or the update; a template edited by staff without approval; a link that carries the person's id, name or the update in its query; a stale phone number or email address now held by someone else; an urgent-feeling event (a fall, a hospital admission) sent as a notification instead of a phone call; a mobile number shared by several family members.
+
+**Effects**: the person's health or circumstances disclosed to someone who should not know (a safeguarding or financial abuse risk, loss of dignity and trust); a family member learning of a fall or a deterioration from a lock screen without support; a reportable personal data breach.
+
+**Initial risk**: severity Considerable, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Content-free by construction: the planner is given the ids of new updates, never their content, so nothing an update says can reach a message (`planFamilyNotification` in `packages/domain/src/comms/notify-plan.ts`) | Phase 1 (domain rule built, slice 12) |
+| Design | The words are the latest approved template for the channel, the same for everyone: no placeholders; refused when not approved or withdrawn, when the outbound guard objects (NHS numbers, dates, email addresses, phone numbers, more than 80 characters), when it contains a clinical, event or wellbeing term, or when it names the person in any case or with lookalike letters (`checkFamilyNotificationTemplate`) | Phase 1 (domain rule built, slice 12) |
+| Design | The link is the portal's updates page with no id, name, query or fragment (`familyUpdatesLink`); the detail is shown only after sign-in with MFA and under the sharing rules (HZ-022) | Phase 1 (domain rule built, slice 12) |
+| Design | Every adapter rechecks the title with `outboundTitleProblem` before sending | Built in Phase 0 |
+| Design | Channels are opt-in and verified; a bounce, complaint, unregistered device or opt-out stops the channel; a new address must be verified again (`channels.ts`) | Phase 1 (domain rule built, slice 12) |
+| Design | No notification ever carries an event: it holds only the approved template. The feed has no kind for deaths, discharges, falls or hospital admissions; staff-written words that announce one (`FEED_EVENT_TERMS`: a fall, hospital or A&E, an ambulance, a death, a stroke and similar) are refused unless a member of staff holding `comms.feed.publish` confirms with a reason (HZ-061), and nothing is published while the person is in hospital or an incident waits for next-of-kin contact. A held notification is re-checked before it goes and cancelled when nothing is left to tell (`recheckPendingNotification`) | Phase 1 (domain rule built, slice 12) |
+| Test | See Verification | Phase 1 |
+| Training and user documentation | Deployer control: staff tell next of kin about incidents, hospital admissions, deterioration and deaths by phone or in person under the tenant's policy; template approvers are trained to keep templates generic | Phase 1 |
+
+**Target residual risk**: severity Considerable, likelihood Very low, **risk 2**.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/comms/notify-plan.test.ts`: `hazard HZ-060 sends only the approved words and a link with no ids, whatever the updates are` | Passing (Phase 1, slice 12) |
+| `packages/domain/src/comms/notify-plan.test.ts`: `hazard HZ-060 refuses a template with ...` (a score and the person's name, a diagnosis, a prognosis, the surname in lower case, a merge field, an NHS number, a date, a phone number, an email address, a long message, an event, a wellbeing claim) | Passing (Phase 1, slice 12) |
+| `packages/domain/src/comms/feed-text-review.test.ts`: `hazards HZ-060 and HZ-061 events and wellbeing claims need a manager's confirmation`; `notify-plan.test.ts`: `a waiting notification is checked again before it goes` | Passing (Phase 1, slice 12) |
+| `packages/domain/src/comms/notify-plan.test.ts`: `hazard HZ-060 skips a channel whose template is not allowed, and says why`; `hazard HZ-060 keeps every validated tool name out of templates` | Passing (Phase 1, slice 12) |
+| `apps/api/test/adapters.test.ts`: `refuses a title that looks like personal data` (the port contract every adapter passes) | Passing (Phase 0) |
+| `apps/api`: `hazard HZ-060 the notification worker sends the approved template only` | Planned, Phase 1 (slice 12 API step) |
+
+---
+
+## HZ-061 Family reassured by a stale or misleading update
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-061 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `comms` module (family feed) |
+| Source | Master prompt 15.1 (family portal feed), 8 (plain English for family surfaces); [comms.md](../specs/comms.md) section 4 rules 3, 4, 7 and 12. HZ-002 covers staff reading stale data on an offline device; this hazard is about families reading the feed |
+
+**Description**: a family member or representative reads the feed as a current, complete picture of how the person is, when it is old, selective or wrong: an update from days ago read as today's, routine activity updates while the person is unwell or in hospital, a cheerful sentence that says more than the record does, or an update later found to be wrong. They do not visit, ask questions or raise a concern, or an attorney does not take part in a decision, because the feed reassured them.
+
+**Causes**: updates without the time they happened; an update written days later shown as new; phrasing that claims wellbeing ("Ada had a lovely day", "settled and happy"); a feed that looks like the whole record; a corrected or withdrawn update left showing, or silently removed after being read; few updates read as "all is well"; events that matter (a fall, a hospital admission, a change in needs) missing from a feed that only carries everyday items. Found in review: staff-written words that announce an event ("had a fall", "went to A&E", "died", "had a stroke") or claim how the person is ("settled and happy"), published before the family has been told by a person; everyday updates published while the person is in hospital, an incident waits for next-of-kin contact or a duty of candour step is open; a care plan update announcing end of life or a medicines change; an accompaniment to an emergency or unplanned appointment, or a visit still under way, shown as routine; a feed that empties without a word after a death or discharge.
+
+**Effects**: concerns about neglect or deterioration raised late; an attorney or deputy not involved when they should be; distress and loss of trust when the family learns more; complaints.
+
+**Initial risk**: severity Considerable, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Every entry shows when the thing happened, and when it was written if that was on a later UK day; the feed shows when the newest update happened; newest first (`buildFamilyFeed`) | Phase 1 (domain rule built, slice 12) |
+| Design | Every feed says: "These are everyday updates. They are not the full care record. The home will phone you about anything important." (`FEED_NOT_FULL_RECORD_STATEMENT`) | Phase 1 (domain rule built, slice 12) |
+| Design | Approved phrases say what happened, never how the person is, and are tested over every care plan section the feed announces (`FEED_PHRASES`) | Phase 1 (domain rule built, slice 12) |
+| Design | Staff-written words (shared notes, captions, activity names) that announce an event (`FEED_EVENT_TERMS`) or claim how the person is (`FEED_WELLBEING_TERMS`) are refused unless a member of staff holding `comms.feed.publish` confirms with a reason of at least `FEED_CONFIRMATION_MIN_REASON_LENGTH` characters; the update records who confirmed and why; clinical terms are refused whatever is confirmed (`checkFeedText`). The lists are a backstop behind the staff member's decision to share, not a complete vocabulary | Phase 1 (domain rule built, slice 12) |
+| Design | Publishing holds: nothing is published for the person while they are in hospital, while an incident waits for their next of kin to be told, or while a duty of candour step is open (`feedPublishingHolds`, reading the candour workflow in `packages/domain/src/safety/candour.ts`) | Phase 1 (domain rule built, slice 12; safety exposes the next-of-kin state in its schema step) |
+| Design | Care plan sections outside a typed allow-list are never announced (`FEED_CARE_PLAN_DOMAINS`: end of life, medicines, skin, continence, cognition, mood, behaviour, pain, breathing, sexuality and relationships); accompaniments are composed only with a recorded purpose and only for planned appointments; a visit still under way is never composed (`ACCOMPANIMENT_PURPOSES`) | Phase 1 (domain rule built, slice 12) |
+| Design | After a discharge or death, a family member who had a decision sees "Updates are paused. The home will be in touch." (`FEED_PAUSED_STATEMENT`), never a feed that suddenly empties | Phase 1 (domain rule built, slice 12) |
+| Design | A wrong update is taken down with a reason; a family member who saw it sees that it was taken down, and a corrected update names the one it replaces (`checkFeedWithdrawal`, `FEED_WITHDRAWN_NOTICE`) | Phase 1 (domain rule built, slice 12) |
+| Design | The family app mode shows its last sync time (as HZ-002 for staff) | Phase 4 (MOB-004) |
+| Test | See Verification | Phase 1 |
+| Training and user documentation | Deployer control: the tenant's communication policy says what families are told by phone (incidents, hospital admissions, changes in needs, deterioration, deaths) and by whom; the family guide explains what the feed is and is not | Phase 1 |
+
+**Target residual risk**: severity Considerable, likelihood Medium, **risk 3** (kept at the initial rating until the CSO reviews the lists, holds and wording, H-110).
+
+**Justification for level 3**: the feed exists to share everyday staff-written news (master prompt 15.1), and no word list can recognise every way of announcing an event or reassuring a family ("had a tumble", "a good day"); a manager may confirm wording that reassures more than the record supports; the publishing holds depend on the incident, candour and lifecycle records being up to date; and families may still read a run of everyday updates as all being well. The controls make the feed's limits visible and keep the commonest events and claims behind a deliberate, recorded decision; removing staff-written words altogether would remove what families value most. `[CSO acceptance - human action]`
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/comms/feed-visibility.test.ts`: `hazard HZ-061 lists open items newest first with when they happened and when they were added`; `hazard HZ-061 tells a viewer who saw an update that it was taken down, without its content`; `hazard HZ-061 does not count a withdrawn notice as the last update` | Passing (Phase 1, slice 12) |
+| `packages/domain/src/comms/feed-compose.test.ts`: `hazard HZ-061 approved phrases say what happened, never how the person is` (every phrase over every announced care plan section: no clinical, event or wellbeing words; the reading-age lint on one sample section); `hazard HZ-061 care plan sections announced in the feed` (every section against the allow-list; never end of life or medicines); `hazard HZ-061 holds every update while the person is in hospital` | Passing (Phase 1, slice 12) |
+| `packages/domain/src/comms/feed-compose-review.test.ts`: `hazard HZ-061 a fall`, `hazard HZ-061 an A&E visit`, `hazard HZ-061 a death`, `hazard HZ-061 a stroke`, `hazard HZ-061 pressure sores` (a clinical term, refused outright), `hazard HZ-061 settled and happy`, an ambulance and the police; `hazard HZ-061 publishes flagged words once a manager confirms, and records who and why`; `hazard HZ-061 refuses a confirmation ...` (without the permission, with a short reason, by nobody); `hazard HZ-061 never lets a confirmation publish a clinical term`; `hazard HZ-061 publishing holds` (in hospital, an incident waiting for next-of-kin contact, an open candour step); `hazard HZ-061 visits and accompaniments` | Passing (Phase 1, slice 12) |
+| `packages/domain/src/comms/feed-text-review.test.ts`: `hazards HZ-060 and HZ-061 events and wellbeing claims need a manager's confirmation` (and ordinary words that are not flagged: falling asleep, happy birthday, hospitality) | Passing (Phase 1, slice 12) |
+| `packages/domain/src/comms/feed-visibility.test.ts`: `hazard HZ-061 pauses the feed with a neutral statement when the person is ..., never an empty feed` (discharged, deceased) | Passing (Phase 1, slice 12) |
+| `apps/web`: `hazard HZ-061 the family feed shows the statement, the last update time and each entry's times` (Playwright with axe) | Planned, Phase 1 (slice 12 web step) |
+
+---
+
+## HZ-070 Full tenant export disclosed beyond the organisation
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-070 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]`; data protection lead consulted |
+| Engineering owner | `platform` module (lead engineer) |
+| Source | Master prompt 5.1 (free full export, delivered by expiring link), 5.3 (step-up for data export); [platform-completions.md](../specs/platform-completions.md) rules 10 to 15 |
+
+**Description**: the organisation's full export, which holds every person's record and documents and its staff data, reaches someone it should not: through a forwarded or leaked link, a download by someone other than the person who asked for it, a file kept long after its purpose, or a copy left on a shared or unmanaged computer; or the export holds another organisation's records.
+
+**Causes**: bearer links in emails or chat; links or files that never expire; downloads without signing in again; an owner who has left still able to download; long-lived or cached storage URLs; a stolen session; export files stored indefinitely; secrets or internal keys in the files; an export saved to a personal device; an export job that reads another organisation's rows (a query or role that bypasses row-level security, a missing tenant predicate, a shared storage path), so one organisation receives another's records; a cell that a spreadsheet runs as a formula when the file is opened.
+
+**Effects**: disclosure of special category data for every person, including the whereabouts of people at risk (a safeguarding risk, for example to someone who has fled domestic abuse); a reportable personal data breach; staff data disclosed.
+
+**Initial risk**: severity Major, likelihood Low, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Only holders of `platform.export.create` (the owner) can ask for an export; it is a care-record permission, so MFA is required, and the request needs a sign-in completed with the second step within the step-up window; every request is audited | Phase 1 (domain rules built) |
+| Design | Only the person who asked can download it, while they still hold the permission and have stepped up with MFA, while it is ready; the notification carries a pointer to that check, not a bearer link; the API streams the file or mints a storage URL that lasts 5 minutes | Phase 1 (domain rules built; API) |
+| Design | The file is deleted `export.link_expiry_hours` after it is ready (tenant default 72, to verify) and never later than the ceiling `export.link_expiry_hours_max` (168, to verify), whatever the tenant sets; a new export is always free, so nothing is kept "in case" | Phase 1 (domain rules built; worker) |
+| Design | Every column is classified `exported`, `internal` or `secret` in the catalogue keyed by `schema.table`; only the `public` schema and only exported columns are read, so passwords, sessions, authenticator secrets, secret references, storage keys and sign-in ids never leave; an unclassified table or column is never written and makes the export incomplete; quarantined files are never handed out | Phase 1 (domain rules built) |
+| Design | The export worker runs as `harbour_app` inside `withRequestContext` for the exporting organisation, so forced row-level security applies to every read; the manifest counts any row whose `tenant_id` differs from the exporting organisation's, which fails the export and raises a security alarm | Phase 1 (domain rules built; worker with the API step) |
+| Design | Files are stored in the eu-west-2 export bucket with SSE-KMS under the organisation's own prefix (`tenants/<tenant>/exports/<export>/`) | Phase 1 (domain rules built; infrastructure) |
+| Design | In CSV files a text cell starting with `=`, `+`, `-`, `@`, a tab, a carriage return or an apostrophe gets a leading apostrophe so a spreadsheet does not run it; `schema.json` documents the guard and JSON Lines keep the exact value | Phase 1 (domain rules built) |
+| Design | Every download is audited and visible to the owners and the data protection lead | Phase 1 |
+| Test | See Verification | Phase 1 |
+| Training and user documentation | Deployer control: download only to a managed, encrypted device; delete local copies once used; the export guide says so | Phase 1 |
+
+**Target residual risk**: severity Major, likelihood Very low, **risk 2**.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/platform/export.test.ts`: `hazard HZ-070 the export link expires and works only for the requester` (MFA step-up, expiry ceiling, 5-minute storage URL), `hazard HZ-070 export request: free, MFA step-up, one at a time`, `hazard HZ-070 export plan reads only what may leave` (internal and secret columns, the `auth` schema and unclassified tables never planned), `hazard HZ-070 CSV cells cannot run as spreadsheet formulas`, `stores each export under the organisation's own prefix (HZ-070)`; `hazard HZ-071 an incomplete export is never offered` (a row from another organisation fails the export) | Passing (Phase 1) |
+| `packages/domain/src/platform/access.test.ts`: `platform.export.create` touches care records, so MFA is required | Passing (Phase 1) |
+| `packages/db`: `hazard HZ-070 the export reads only the exporting tenant` (the worker's reads as `harbour_app` inside `withRequestContext` return no other organisation's rows) | Planned, Phase 1 (schema step) |
+| `apps/api`: `hazard HZ-070 an export download needs the requester's fresh sign-in and stops at expiry` | Planned, Phase 1 |
+| `apps/api` (worker): `hazard HZ-070 an expired export's file is deleted` | Planned, Phase 1 |
+
+---
+
+## HZ-071 Full tenant export incomplete or misread when a provider changes system
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-071 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `platform` module (lead engineer) |
+| Source | Master prompt 5.1 (full export in a documented schema; DSCR data migration standard); DPA clause 9.1; [data-standards.md](../specs/data-standards.md); [platform-completions.md](../specs/platform-completions.md) rules 10, 11, 14 and 16 |
+
+**Description**: a provider moving to another system relies on Harbour's export, but records are silently missing from it or are misread, so the new system lacks some people's allergies, resuscitation decisions, medicines or care plans.
+
+**Causes**: a new table or column left out of the export; rows dropped by a fault; a truncated file; documents not copied or corrupted; held or deleted records handled inconsistently; codes whose meaning is not documented; destroyed records indistinguishable from missing ones; sample data mixed in; files read at different moments, so one table disagrees with another; a correction and the entry it corrects read as two current facts; a date-only fact (a date of death or discharge) read from its UTC instant, a day early after 23:00 in summer; numbers without units (millilitres or litres, kilograms or stones); an allergy status of unknown read as no allergies; resuscitation records that conflict reduced to one; the receiving system's import mapping errors.
+
+**Effects**: care given without essential information after the move (as HZ-007 and HZ-015), for example an allergen given or a resuscitation decision not known; an incomplete legal record. The export covers every person the organisation cares for, so one misread file can affect many people at once.
+
+**Initial risk**: severity Catastrophic, likelihood Medium, **risk 4**. Re-rated after the clinical review: a fault in a tenant-wide export can harm multiple people, which the plan's severity scale rates Catastrophic, not Major.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | The catalogue (`EXPORT_TABLES`) keys every table by `schema.table` and classifies every column, with a description and a unit for every number; tables holding care records describe every column explicitly; `schema.json` is generated from the same plan as the files; a test against the Drizzle schema fails the build when a table or column is unclassified or has gone, and at run time an unclassified one makes the export incomplete | Phase 1 (domain rules and catalogue test built) |
+| Design | The manifest records row counts and SHA-256 for every file and document; a missing table or file, a row count that does not match, a current summary without one row per exported person, or a document whose bytes differ from the checksum recorded at upload marks the export incomplete, so it is failed and retried, never offered | Phase 1 (domain rules built) |
+| Design | Every file is read in one `REPEATABLE READ` read-only transaction, so all tables are from one moment, recorded in the manifest as `snapshotAt` in UTC and UK time; a "changes since this export" export holds only rows created, changed, recorded, deleted or destroyed at or after an earlier snapshot | Phase 1 (domain rules built; worker with the API step) |
+| Design | `schema.json` carries the conventions a reader needs: a correction is a new row naming the row it corrects and the current value is the row nothing supersedes; instants are UTC with the UK offset stated; a date-only fact stored as an instant gets a `<column>_uk_date` column; recurrence times are Europe/London wall-clock times; every number has its unit, and observation values have a schema per chart; allergy status codes with their meaning (`unknown` never means none) | Phase 1 (domain rules built) |
+| Design | `current_summary.csv` gives one row per person with the essentials as Harbour shows them, worked out by the same functions as the point-of-care header and the transfer pack: allergy status and allergies most severe first, the resuscitation decision in force (or `conflicting` with every record in force), IDDSI levels and communication needs | Phase 1 (domain rules built) |
+| Design | Documented row rules: records under legal hold always in; soft-deleted and sample rows left out and counted; destroyed records listed with their certificate ids; quarantined files keep their rows | Phase 1 (domain rules built) |
+| Design | Field meanings and code lists in [data-standards.md](../specs/data-standards.md), versioned with `EXPORT_SCHEMA_VERSION` (1.1.0) | Phase 1 (built) |
+| Test | See Verification | Phase 1, Phase 2 |
+| Training and user documentation | Deployer control: the receiving provider reconciles row counts against the manifest and checks allergies, resuscitation decisions and medicines person by person before relying on the new system; the export guide gives the steps | Phase 1 |
+
+**Target residual risk**: severity Catastrophic, likelihood Very low, **risk 3**. Until the CSO accepts that the controls bring the likelihood to Very low (H-119), the residual risk is recorded as Catastrophic / Low / **4**, which blocks a production release.
+
+**Justification for level 3**: severity stays Catastrophic, because one bad import still reaches every person. The new controls lower the likelihood: an export that is incomplete, mixes moments or holds an unclassified column is never offered; the meaning of every column, correction, date and unit is in the export itself; and the essentials (allergies, resuscitation, IDDSI, communication) arrive pre-computed, one row per person, so misreading them needs the receiving system to ignore both the schema and the current summary. Level 3 is the lowest the matrix gives a Catastrophic hazard, and further reduction is impractical because the receiving system's import and mapping are outside Harbour's control; that remaining risk is managed by the receiving provider's reconciliation (deployer control). `[CSO acceptance - human action]`
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/platform/export.test.ts`: `hazard HZ-071 the export catalogue describes every table and column`, `hazard HZ-071 which rows go into the export` (including changes since a snapshot), `hazard HZ-071 an incomplete export is never offered` (missing files, row counts, current summary, document checksums, foreign rows), `hazard HZ-071 schema.json gives every column its meaning` (conventions, units, codes, derived UK dates) | Passing (Phase 1) |
+| `packages/domain/src/platform/export.test.ts`: `hazard HZ-071 UK dates and times in the export` (dates of death after 23:00 in summer, the autumn overlap), `hazard HZ-071 observation values carry their units and a schema per chart`, `hazard HZ-071 the current summary is worked out as Harbour shows it` (unknown allergy status, conflicting resuscitation records, IDDSI, communication needs) | Passing (Phase 1) |
+| `packages/db/src/export-catalogue.test.ts`: `hazard HZ-071 the export catalogue matches the Drizzle schema` (every public table and column classified, nothing stale, every exported column described and every number given a unit, nothing planned outside `public`) | Passing (Phase 1) |
+| `apps/api` (worker): `hazard HZ-071 every file of an export is read in one snapshot` | Planned, Phase 1 |
+| `apps/api`: `hazard HZ-071 an export round-trips through the import wizard with matching counts` | Planned, Phase 2 (with PLAT-014) |
+
+---
+
+## HZ-072 Sample data mistaken for, or mixed with, real records
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-072 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `platform` module (lead engineer) |
+| Source | Master prompt 9.1 (sample data mode); [platform-completions.md](../specs/platform-completions.md) rules 29 to 32 |
+
+**Description**: while an organisation is getting started, invented sample people or records are taken for real ones, real care is recorded against a sample person, or a sample incident is treated as a real one.
+
+**Causes**: sample people who look real; a sample telephone number or address that belongs to a real person; sample and real people in the same lists; real records arriving by import, integration, enquiry or TUPE transfer while sample data exists; a real note, incident or document linked to a sample person; sample data left in place at go-live; a notification, alert, escalation, handover, downtime pack, print, clock, report or export that does not check the sample flag; a removal that deletes real rows.
+
+**Effects**: a real person's note, observation or administration recorded against a sample person and missing from their record; a wrong-person decision (HZ-001); a false statutory notification; misleading reports.
+
+**Initial risk**: severity Considerable, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Sample people are plainly invented: family name "Example", 999-range NHS numbers that pass the check digit, `example.invalid` email addresses, telephone numbers in Ofcom's drama ranges (to verify, H-123) and invented addresses (an "Example" street, no postcode or the ZZ99 pseudo-postcode area) | Phase 1 (domain rules built) |
+| Design | A sample person carries a "Sample" badge on every screen, and any print showing sample data carries the watermark "SAMPLE DATA: NOT A REAL PERSON" | Phase 1 (domain rules built; screens and prints) |
+| Design | Sample data loads only before any real person exists, and real records wait until it has gone by every creation path (manual entry, enquiry, import, integration, TUPE transfer), so sample and real people never share a list | Phase 1 (domain rules built) |
+| Design | A record about sample people is sample; a record linking sample and real records is refused | Phase 1 (domain rules built) |
+| Design | Sample records take part in no statutory notification or clock, return, export, report, bill, message, integration, in-app alert, escalation chain, handover, downtime pack or bulk print (`SAMPLE_DATA_TREATMENT`, `forSurface`); a central outbound guard refuses any email, SMS, push, webhook or partner message about a sample record | Phase 1 (domain rules built; each module calls them) |
+| Design | Removal is one all-or-nothing step through a narrow security-definer function owned by a no-login role, deleting only the organisation's rows flagged sample in that batch in one transaction; the application role never holds DELETE; "sample data removed" blocks go-live on the onboarding checklist; a banner shows on every screen while sample data exists | Phase 1 (domain checks built; function with the schema step) |
+| Test | See Verification | Phase 1 |
+| Training and user documentation | Onboarding guide: what sample data is and when to remove it | Phase 1 |
+
+**Target residual risk**: severity Considerable, likelihood Low, **risk 2**.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/platform/onboarding.test.ts`: `hazard HZ-072 sample data is flagged, never mixed with real people, and removable in one step` (invented names, numbers, telephone numbers and addresses; every surface's treatment; badge and watermark; the outbound guard; every creation path refused while sample data exists; all-or-nothing removal) | Passing (Phase 1) |
+| `packages/db`: `hazard HZ-072 sample removal leaves real rows` (the function deletes only the batch's sample rows of the current organisation; `harbour_app` has no DELETE) | Planned, Phase 1 (schema step) |
+| `apps/api`: `hazard HZ-072 a real person cannot be added while sample data exists`, `hazard HZ-072 a sample incident drafts no statutory notification` | Planned, Phase 1 |
+| Maestro `hazard-HZ-072-sample-banner.yaml`: the sample data banner on every screen | Planned, Phase 1 |
 
 ---
 

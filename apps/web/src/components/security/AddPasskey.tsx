@@ -7,6 +7,7 @@ import { type FormEvent, useState } from "react";
 import { refreshSecurity } from "@/app/actions/security";
 import { authClient } from "@/lib/auth-client";
 import { authMessages } from "@/lib/auth-messages";
+import { t } from "@/lib/i18n";
 
 /** Registers a passkey (FIDO2) on this device or a security key, for sign-in without a password. */
 export function AddPasskey() {
@@ -26,13 +27,10 @@ export function AddPasskey() {
     try {
       const result = await authClient().passkey.addPasskey(name ? { name } : {});
       if (result?.error) {
-        setMessage({
-          kind: "error",
-          text: "The passkey was not added. You can try again, or use an authenticator app instead.",
-        });
+        setMessage({ kind: "error", text: authMessages.passkeyNotAdded });
         return;
       }
-      setMessage({ kind: "done", text: "Passkey added" });
+      setMessage({ kind: "done", text: t("security.passkeys.added") });
       await refreshSecurity();
       router.refresh();
     } catch {
@@ -46,8 +44,8 @@ export function AddPasskey() {
     <form className="flex flex-col gap-4" onSubmit={add} noValidate>
       <TextField
         name="name"
-        label="Name this passkey (optional)"
-        hint="For example, Work laptop. It helps you recognise it later."
+        label={t("security.passkeys.name")}
+        hint={t("security.passkeys.nameHint")}
         maxLength={60}
         autoComplete="off"
       />
@@ -71,7 +69,7 @@ export function AddPasskey() {
           disabled={busy}
           icon={<KeyRound size={18} strokeWidth={1.5} />}
         >
-          Add a passkey
+          {t("security.passkeys.add")}
         </Button>
       </div>
     </form>

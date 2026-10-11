@@ -64,4 +64,38 @@ describe("Timeline", () => {
     // The original author stays on the entry.
     expect(corrected).toHaveTextContent("Dina Testcase");
   });
+
+  it("uses the app's words for the correction, and shows badges and a footer", () => {
+    render(
+      <Timeline
+        label="Care notes"
+        labels={{ originalEntry: "Gwreiddiol, wedi'i gywiro:", correction: "Cywiriad" }}
+        entries={[
+          {
+            id: "n-9",
+            author: "Recorded by you",
+            time: "2026-10-03T09:40:00Z",
+            badges: <span>Late entry</span>,
+            body: "Small breakfast.",
+            correction: {
+              body: "Full breakfast.",
+              author: "Recorded by you",
+              time: "2026-10-03T10:12:00Z",
+              meta: "Corrected by you on 03/10/2026 11:12",
+              reasonText: "Reason: Portion recorded wrongly",
+            },
+            footer: <button type="button">Correct this note</button>,
+          },
+        ]}
+      />,
+    );
+    const entry = screen.getByRole("listitem");
+    expect(entry).toHaveTextContent("Gwreiddiol, wedi'i gywiro:");
+    expect(within(entry).getByText("Cywiriad")).toBeVisible();
+    expect(within(entry).getByText("Corrected by you on 03/10/2026 11:12")).toBeVisible();
+    expect(within(entry).getByText("Reason: Portion recorded wrongly")).toBeVisible();
+    expect(within(entry).queryByText(/Corrected by Recorded/)).toBeNull();
+    expect(within(entry).getByText("Late entry")).toBeVisible();
+    expect(within(entry).getByRole("button", { name: "Correct this note" })).toBeVisible();
+  });
 });
