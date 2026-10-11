@@ -108,7 +108,7 @@ export const PlaceLegalHold = z
 export type PlaceLegalHold = z.infer<typeof PlaceLegalHold>;
 
 export const ReleaseLegalHold = z
-  .object({ reason: z.string().trim().min(10).max(500), version: z.number().int().positive() })
+  .object({ reason: z.string().trim().min(10).max(500), version: z.number().int().min(1) })
   .meta({ id: "ReleaseLegalHold" });
 export type ReleaseLegalHold = z.infer<typeof ReleaseLegalHold>;
 

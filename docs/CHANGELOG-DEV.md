@@ -77,3 +77,33 @@ Braden. The CSO should review the readings listed in the medical-device boundary
 
 **Tests**: `packages/domain` 687 passing, 99.9% line coverage; `packages/db` 78 passing (rate table
 seed).
+
+## 2026-10-11: Phase 1 slices 2 and 4a, working days
+
+**What changed**
+
+- Task and workflow engine (PLAT-011): tasks with owner, due window, evidence and states; recurring
+  series in UK local time materialised 48 hours ahead; overdue escalation to the nurse in charge;
+  workflows with permissions, reasons, step-up, separation of duties and SLAs from the rate table.
+- Document store and retention core (PLAT-009, PLAT-012): versioned documents with categories,
+  content sniffing, ClamAV scanning (mock in development), typed-name signatures, person photos;
+  legal holds; destruction with certificates that deletes every S3 version (ADR-0031).
+- Point-of-care record (slice 4a; CARE-009, CARE-010, CARE-012 partial): append-only notes,
+  observations and body-map marks with device-generated ids, late-entry and clock-drift flags
+  measured from when the entry was made on the device, corrections by supersede; vital signs
+  scored with NEWS2 and escalated to the nurse in charge; IDDSI checks; fluid balance by UK day;
+  body-map side agreement and safeguarding prompts; the person's care profile.
+- Working days (`docs/specs/calendar.md`, `bank_holiday`): GOV.UK bank holidays 2024 to 2028 per
+  nation, a working-day deadline helper, and a `working_days` SLA unit for workflows.
+- Web copy moved into the i18n catalogues, and `TextArea` and `AccountMenu` added to `@harbour/ui`
+  (pull request #7).
+- CI on the Phase 0 pull request is green: gitleaks scoped to a pull request's commits, CodeQL
+  gated locally from SARIF, unfixable audit advisories recorded as exceptions.
+
+**Next**: slice 4b and the domain rules for slices 6, 7 and 8 (in progress on their own branches),
+then their schema and API.
+
+**Human actions logged**: H-16 (ClamAV sidecar), H-17 (enable code scanning), H-21 updated.
+
+**Tests**: `packages/domain` 813, `packages/db` 112, `apps/api` 131, all passing locally.
+
