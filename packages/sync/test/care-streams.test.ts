@@ -365,7 +365,7 @@ describe("offline window (ADR-0011)", () => {
     }
   });
 
-  it("takes entries off the device when their day leaves the window", async () => {
+  it("hazard HZ-028 takes entries off the device when their day leaves the window", async () => {
     const withOldDay = { offline_days: [TODAY, OLD.slice(0, 10)] };
     const before = await syncFor(
       hydrated,
