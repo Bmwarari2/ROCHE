@@ -1,3 +1,4 @@
+import type { IddsiDrinkLevel, IddsiFoodLevel } from "../care/iddsi";
 import { type AboutMeDocument, type AboutMeSummary, summariseAboutMe } from "./about-me";
 import { hasReason } from "./dates";
 import { LIVE_PERSON_STATUSES, type PersonStatus } from "./lifecycle";
@@ -167,9 +168,13 @@ export interface TransferBaseline {
   }[];
 }
 
+/**
+ * IDDSI levels as the care profile records them (care/iddsi.ts): food "3" to "7" with "7EC" (easy
+ * to chew), drink "0" to "4". Codes, not numbers, so "7EC" is never lost or misprinted (HZ-016).
+ */
 export interface TransferEatingAndDrinking {
-  readonly foodLevel: number | null;
-  readonly drinkLevel: number | null;
+  readonly foodLevel: IddsiFoodLevel | null;
+  readonly drinkLevel: IddsiDrinkLevel | null;
   readonly notes: string | null;
 }
 

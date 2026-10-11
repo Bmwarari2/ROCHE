@@ -91,7 +91,7 @@ function input(overrides: Partial<HospitalTransferInput> = {}): HospitalTransfer
     aboutMe: source({ what_is_most_important_to_me: { text: "My cat, Biscuit." } }),
     reasonForTransfer: "Fall at 07:30; hip pain; unable to weight-bear.",
     baseline: source({ description: "Walks with a frame; oriented; continent.", observations: [] }),
-    eatingAndDrinking: source({ foodLevel: 6, drinkLevel: 0, notes: null }),
+    eatingAndDrinking: source({ foodLevel: "7EC", drinkLevel: "0", notes: null }),
     capacityAndLegal: source({ summary: "Has capacity for daily decisions.", dolsInPlace: false }),
     contacts: [
       {
@@ -403,5 +403,13 @@ describe("return from hospital", () => {
       { id: "i1", category: "dentures", receivedOn: "2026-09-01", status: "sent_with_person" },
     ]).map((c) => c.key);
     expect(keys.at(-1)).toBe("belongings_returned");
+  });
+});
+
+describe("eating and drinking in the pack", () => {
+  it("hazard HZ-016 copies the IDDSI codes exactly, including easy to chew (7EC)", () => {
+    const content = pack().content.eatingAndDrinking;
+    expect(content).toEqual({ foodLevel: "7EC", drinkLevel: "0", notes: null });
+    expect(pack().sections.find((s) => s.key === "eating_and_drinking")?.status).toBe("included");
   });
 });
