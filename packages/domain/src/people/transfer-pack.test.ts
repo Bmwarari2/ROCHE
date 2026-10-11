@@ -385,7 +385,7 @@ describe("hand-over of the pack", () => {
 });
 
 describe("return from hospital", () => {
-  it("re-checks allergies, resuscitation and IDDSI levels on return", () => {
+  it("hazard HZ-016 re-checks allergies, resuscitation decisions and IDDSI levels on return", () => {
     const keys = returnFromHospitalChecks([]).map((c) => c.key);
     expect(keys).toEqual(RETURN_FROM_HOSPITAL_CHECKS.map((c) => c.key));
     expect(keys).toEqual(

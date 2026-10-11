@@ -84,6 +84,25 @@ describe("pre-admission sections", () => {
     ]);
   });
 
+  it("hazard HZ-016 never lets eating, drinking and swallowing be marked not applicable", () => {
+    const result = preAdmissionCompleteness(
+      assessment({
+        sections: {
+          ...completeSections(),
+          eating_drinking_and_swallowing: {
+            status: "not_applicable",
+            reason: "Normal diet",
+            completedBy: "n",
+            completedAt: DONE_AT,
+          },
+        },
+      }),
+    );
+    expect(result.outstanding).toEqual([
+      { key: "eating_drinking_and_swallowing", problem: "not_applicable_not_allowed" },
+    ]);
+  });
+
   it("hazard HZ-015 requires the resuscitation and advance care section", () => {
     const sections = completeSections();
     delete sections.resuscitation_and_advance_care;

@@ -262,6 +262,26 @@ describe("hazard HZ-022 a section is visible only under a sharing decision in fo
     });
   });
 
+  it("names the decision that runs longest when two are in force", () => {
+    const later = new Date("2027-09-01T00:00:00Z");
+    expect(
+      checkSectionVisibility([decision(), decision({ id: "d2", validTo: later })], request()),
+    ).toEqual({ visible: true, decisionId: "d2", expiresAt: later });
+  });
+
+  it("hazard HZ-022 never applies a professional's decision to a family member with the same id", () => {
+    const sameId = decision({
+      recipient: { kind: "professional", tenantUserId: "contact-ben" },
+      basis: "direct_care",
+      sections: ["health_summary"],
+      consentGivenBy: null,
+    });
+    expect(checkSectionVisibility([sameId], request({ section: "health_summary" }))).toEqual({
+      visible: false,
+      reason: "no_decision",
+    });
+  });
+
   it.each<[string, readonly SharingDecision[], Partial<SectionVisibilityRequest>, string]>([
     ["hazard HZ-022 no decision at all", [], {}, "no_decision"],
     [

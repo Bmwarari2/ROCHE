@@ -166,7 +166,7 @@ describe("death checklist", () => {
       true,
     ],
     [
-      "a DoLS authorisation is closed with the supervisory body",
+      "hazard HZ-020 a DoLS authorisation is closed with the supervisory body",
       { dolsInPlace: true },
       "dols_supervisory_body_informed",
       true,
