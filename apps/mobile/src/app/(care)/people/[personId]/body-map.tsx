@@ -9,7 +9,7 @@ import {
 } from "@harbour/domain";
 import { Text } from "@harbour/ui-native";
 import { useQuery } from "@powersync/react";
-import { Stack, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import {
   BODY_VIEWS,
@@ -116,15 +116,13 @@ export default function BodyMapScreen() {
   return (
     <FormScreen
       personId={id}
+      title={t(correctId ? "mobile.bodyMap.correctTitle" : "mobile.bodyMap.title")}
       testID="body-map-screen"
       showErrors={Object.keys(errors).length > 0}
       saveFailed={saveFailed}
       saving={saving}
       onSave={save}
     >
-      <Stack.Screen
-        options={{ title: t(correctId ? "mobile.bodyMap.correctTitle" : "mobile.bodyMap.title") }}
-      />
       {correctId ? (
         <CorrectionField
           original={original ? markSummary(original) : ""}

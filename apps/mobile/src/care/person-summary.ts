@@ -136,8 +136,22 @@ function level(kind: "food" | "drink", code: string | null): string | null {
   }
 }
 
-/** HZ-016: the prescribed IDDSI levels, number, name and colour in words. */
-export function iddsiFlags(profile: ProfileLevels | null): HeaderFlag[] {
+/**
+ * HZ-016: the prescribed IDDSI levels, number, name and colour in words. When the care profile
+ * has loaded and is not on the device, a warning says the levels are not recorded (C3), never a
+ * blank that reads as "no restriction".
+ */
+export function iddsiFlags(profile: ProfileLevels | null, loaded = true): HeaderFlag[] {
+  if (!profile && loaded) {
+    return [
+      {
+        key: "iddsi-not-recorded",
+        tone: "warning",
+        icon: "circle-help",
+        label: t("mobile.header.iddsiNotRecorded"),
+      },
+    ];
+  }
   const food = level("food", profile?.iddsi_food_level ?? null);
   const drink = level("drink", profile?.iddsi_drink_level ?? null);
   return [

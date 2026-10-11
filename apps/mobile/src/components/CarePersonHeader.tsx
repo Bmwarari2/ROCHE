@@ -9,8 +9,8 @@ import { PersonHeader, Text, useTheme } from "@harbour/ui-native";
 import { useQuery } from "@powersync/react";
 import { useMemo } from "react";
 import { View } from "react-native";
-import { useCareProfile, useTenantId } from "../care/hooks";
-import { iddsiFlags, resuscitationDetails, resuscitationFlag } from "../care/person-summary";
+import { useCareProfileState, useTenantId } from "../care/hooks";
+import { carePersonHeaderModel } from "../care/person-header";
 import { type AdvanceCareRow, PERSON_ADVANCE_CARE_SQL } from "../care/queries";
 import { t } from "../i18n/t";
 import { type PersonView, toPersonView } from "../people/person-view";
@@ -36,12 +36,9 @@ export function CarePersonHeader({ personId }: { readonly personId: string }) {
   const tenantId = useTenantId();
   const { person, loading } = useCarePerson(personId);
   const photo = usePersonPhoto(personId, person?.photoDocumentId ?? null);
-  const profile = useCareProfile(personId);
+  const { profile, loaded: profileLoaded } = useCareProfileState(personId);
   const params = useMemo(() => [tenantId, personId], [tenantId, personId]);
   const { data: advanceCare } = useQuery<AdvanceCareRow>(PERSON_ADVANCE_CARE_SQL, params);
-  const { flag, status } = resuscitationFlag(advanceCare, ukIsoDate(new Date()));
-  const flags = [flag, ...iddsiFlags(profile)];
-  const details = resuscitationDetails(status);
 
   if (!person) {
     return (
@@ -50,21 +47,16 @@ export function CarePersonHeader({ personId }: { readonly personId: string }) {
       </Text>
     );
   }
+  const { props, details } = carePersonHeaderModel({
+    person,
+    advanceCare,
+    profile,
+    profileLoaded,
+    today: ukIsoDate(new Date()),
+  });
   return (
     <View style={{ gap: theme.space[1] }}>
-      <PersonHeader
-        photo={photo}
-        preferredName={person.preferredName}
-        givenName={person.givenName}
-        familyName={person.familyName}
-        room={person.room}
-        dateOfBirth={person.dateOfBirth}
-        nhsNumber={person.nhsNumber}
-        allergyStatus={person.allergyStatus}
-        allergyCount={person.allergyCount}
-        communicationNeeds={person.communicationNeeds}
-        additionalFlags={flags}
-      />
+      <PersonHeader photo={photo} {...props} />
       {details.length > 0 ? (
         <Text
           variant="bodyDense"

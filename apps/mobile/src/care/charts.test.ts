@@ -1,5 +1,5 @@
 import { CreateObservation, ObservationValues } from "@harbour/contracts";
-import { calculateNews2 } from "@harbour/domain";
+import { NEWS2_REFERENCE_VECTORS } from "@harbour/domain";
 import { describe, expect, it } from "vitest";
 import { toCareUpload } from "../sync/care-upload";
 import {
@@ -169,10 +169,10 @@ describe("hazard HZ-016 IDDSI levels on food and drink", () => {
     expect(!result.ok && result.errors.iddsiLevel?.key).toBe("mobile.iddsi.levelRequired");
   });
 
-  it("accepts any level when no level is prescribed", () => {
+  it("accepts any level when the profile says no level is prescribed", () => {
     const result = checkChart(
       draft("food", { choice: { meal: "lunch", portion: "all", iddsiLevel: "7" } }),
-      null,
+      { iddsi_food_level: null, iddsi_drink_level: null, spo2_scale2: 0 },
       context,
       NOW,
     );
@@ -192,27 +192,102 @@ describe("hazard HZ-016 IDDSI levels on food and drink", () => {
   });
 });
 
-describe("NEWS2 on the device (HZ-012, HZ-014)", () => {
-  it("scores exactly as the server's calculator does", () => {
-    const input = vitals(
-      { respirationRate: "23", spo2: "93", systolic: "105", pulse: "112", temperature: "38.6" },
-      true,
-      "voice",
+describe("hazard HZ-016 food and drink levels on the device (C3)", () => {
+  it("needs the level given when a drink level is prescribed", () => {
+    const result = checkChart(
+      draft("fluid_intake", { text: { ml: "200" } }),
+      profile,
+      context,
+      NOW,
     );
-    const preview = previewNews2(input, profile);
-    const server = calculateNews2({
-      respirationRate: 23,
-      spo2: 93,
-      supplementalOxygen: true,
-      systolicBp: 105,
-      pulse: 112,
-      consciousness: "voice",
-      temperature: 38.6,
-      spo2Scale2Decision: false,
-    });
-    expect(preview.status).toBe("scored");
-    expect(server.ok).toBe(true);
-    expect(preview.status === "scored" && preview.result).toEqual(server.ok && server.result);
+    expect(!result.ok && result.errors.iddsiLevel?.key).toBe("mobile.iddsi.levelRequired");
+  });
+
+  it("records a drink without a level when none is prescribed", () => {
+    const result = checkChart(
+      draft("fluid_intake", { text: { ml: "200" } }),
+      { iddsi_food_level: null, iddsi_drink_level: null, spo2_scale2: 0 },
+      context,
+      NOW,
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it.each([
+    ["food", draft("food", { choice: { meal: "lunch", portion: "all", iddsiLevel: "7" } })],
+    ["fluid_intake", draft("fluid_intake", { text: { ml: "200" }, choice: { iddsiLevel: "0" } })],
+  ] as const)(
+    "blocks a %s level when the profile is not on the device, until the carer confirms they checked it",
+    (_chart, entry) => {
+      const blocked = checkChart(entry, null, context, NOW);
+      expect(!blocked.ok && blocked.errors.levelChecked?.key).toBe(
+        "mobile.iddsi.confirmUnrecorded",
+      );
+      const confirmed = checkChart(
+        { ...entry, yesNo: { ...entry.yesNo, levelChecked: true } },
+        null,
+        context,
+        NOW,
+      );
+      expect(confirmed.ok).toBe(true);
+    },
+  );
+});
+
+describe("hazard HZ-012 NEWS2 on the device against the reference vectors (C6)", () => {
+  it.each(NEWS2_REFERENCE_VECTORS.map((v) => [v.name, v] as const))(
+    "%s, typed on the device",
+    (_name, vector) => {
+      const input = vector.input;
+      const typed = vitals(
+        {
+          respirationRate: String(input.respirationRate),
+          spo2: String(input.spo2),
+          systolic: String(input.systolicBp),
+          pulse: String(input.pulse),
+          temperature: input.temperature.toFixed(1),
+        },
+        input.supplementalOxygen,
+        input.consciousness,
+      );
+      const preview = previewNews2(typed, {
+        ...profile,
+        spo2_scale2: input.spo2Scale2Decision ? 1 : 0,
+      });
+      if (preview.status !== "scored") throw new Error(preview.status);
+      expect({
+        score: preview.result.score,
+        band: preview.result.band,
+        threshold: preview.result.threshold,
+        redScore: preview.result.redScore,
+      }).toEqual(vector.expected);
+    },
+  );
+});
+
+describe("NEWS2 on the device (HZ-012, HZ-014)", () => {
+  it.each([
+    ["no care profile on the device", null],
+    ["a profile without the SpO2 scale", { ...profile, spo2_scale2: null }],
+  ])("gives no total with %s, and keeps the readings for the server (C6)", (_case, known) => {
+    expect(previewNews2(vitals(), known)).toEqual({ status: "noScale" });
+    const result = checkChart(vitals(), known, context, NOW);
+    expect(result.ok && result.news2).toBeNull();
+    expect(result.ok && JSON.parse(String(result.row.flags))).toEqual({});
+    expect(result.ok && JSON.parse(String(result.row.chart_values))).toMatchObject({ spo2: 97 });
+  });
+
+  it("keeps the RCP chart 4 clinical response with the score", () => {
+    const result = checkChart(
+      vitals({ respirationRate: "25", pulse: "131" }),
+      profile,
+      context,
+      NOW,
+    );
+    const stored = result.ok ? readNews2(String(result.row.flags)) : null;
+    expect(stored?.clinicalResponse[0]).toBe(
+      "Registered nurse to immediately inform the medical team caring for the patient",
+    );
   });
 
   it("shows a raised score at once, with the published response", () => {

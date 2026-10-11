@@ -1,7 +1,7 @@
 import { BRISTOL_STOOL_SCALE, describeIddsiLevel } from "@harbour/domain";
-import { Button, Text, useTheme } from "@harbour/ui-native";
+import { Button, FlagChip, iconByName, Text, useTheme } from "@harbour/ui-native";
 import { useQuery } from "@powersync/react";
-import { Stack, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import { View } from "react-native";
 import { useVault } from "../../../../app-state/vault";
@@ -79,7 +79,7 @@ export default function ChartScreen() {
     typeof params.chart === "string" && isChartKind(params.chart) ? params.chart : null;
   const tenantId = useTenantId();
   const context = useEntryContext(id);
-  const { profile } = useCareProfileState(id);
+  const { profile, loaded: profileLoaded } = useCareProfileState(id);
   const { submit, saving, saveFailed } = useSaveAndReturn();
 
   const [chart, setChart] = useState<ChartKind | null>(initialChart);
@@ -163,8 +163,17 @@ export default function ChartScreen() {
     const prescribed = prescribedLevel(kind, careProfile);
     const codes = kind === "food" ? IDDSI_FOOD_CODES : IDDSI_DRINK_CODES;
     const chosen = choice.iddsiLevel ?? null;
+    const unrecorded = profileLoaded && !careProfile;
     return (
       <View style={{ gap: theme.space[1] }}>
+        {unrecorded ? (
+          <FlagChip
+            tone="warning"
+            icon={iconByName("circle-help")}
+            label={t("mobile.header.iddsiNotRecorded")}
+            testID="chart-iddsi-not-recorded"
+          />
+        ) : null}
         <ChoiceGroup
           label={t(kind === "food" ? "mobile.iddsi.food" : "mobile.iddsi.drink")}
           hint={
@@ -194,6 +203,15 @@ export default function ChartScreen() {
             maxLength={CHART_LIMITS.overrideReason.max}
             errorText={errorText(errors.overrideReason)}
             testID="chart-iddsi-reason"
+          />
+        ) : null}
+        {chosen && !careProfile ? (
+          <YesNoField
+            label={t("mobile.iddsi.confirmLabel")}
+            value={yesNo.levelChecked ?? null}
+            onChange={setYesNoField("levelChecked")}
+            error={errors.levelChecked}
+            testID="chart-iddsi-checked"
           />
         ) : null}
       </View>
@@ -381,6 +399,10 @@ export default function ChartScreen() {
             {numberField("temperature", t("mobile.vitals.temperature"), true)}
             {preview?.status === "scored" ? (
               <News2Panel news2={toStoredNews2(preview.result)} />
+            ) : preview?.status === "noScale" ? (
+              <Text tone="warning" emphasis accessibilityRole="alert" testID="news2-no-scale">
+                {t("mobile.news2.noScale")}
+              </Text>
             ) : (
               <Text tone="secondary" testID="news2-incomplete">
                 {t("mobile.news2.incomplete")}
@@ -397,12 +419,12 @@ export default function ChartScreen() {
     return (
       <FormScreen
         personId={id}
+        title={t("mobile.chart.choose")}
         testID="chart-screen"
         showErrors={false}
         saveFailed={false}
         saving={false}
       >
-        <Stack.Screen options={{ title: t("mobile.chart.choose") }} />
         <Card title={t("mobile.chart.choose")}>
           {CHART_KINDS.map((kind) => (
             <Button
@@ -421,13 +443,13 @@ export default function ChartScreen() {
   return (
     <FormScreen
       personId={id}
+      title={t("mobile.chart.name", { chart })}
       testID={`chart-screen-${chart}`}
       showErrors={Object.keys(errors).length > 0}
       saveFailed={saveFailed}
       saving={saving}
       onSave={save}
     >
-      <Stack.Screen options={{ title: t("mobile.chart.name", { chart }) }} />
       {correctId ? (
         <CorrectionField
           original={original ? `${original.title}: ${original.summary}` : ""}
@@ -444,18 +466,20 @@ export default function ChartScreen() {
         windowDays={context.windowDays ?? null}
         original={correctId ? (originals[0]?.occurred_at ?? null) : null}
       />
-      {earlier.length > 0 ? (
-        <Card title={t("mobile.chart.recentEntries")}>
-          {earlier.map((item) => (
-            <EntryRow key={item.id} item={item} />
-          ))}
-          {vault.offlineWindowDays !== null && !appEnv.demoMode ? (
-            <Text variant="bodyDense" tone="secondary">
-              {t("mobile.sync.window", { days: vault.offlineWindowDays })}
-            </Text>
-          ) : null}
-        </Card>
-      ) : null}
+      <Card title={t("mobile.chart.recentEntries")}>
+        {earlier.length > 0 ? (
+          earlier.map((item) => <EntryRow key={item.id} item={item} />)
+        ) : (
+          <Text variant="bodyDense" testID="chart-no-entries">
+            {t("mobile.chart.noEntries")}
+          </Text>
+        )}
+        {vault.offlineWindowDays !== null && !appEnv.demoMode ? (
+          <Text variant="bodyDense" tone="secondary" testID="chart-window">
+            {t("mobile.sync.window", { days: vault.offlineWindowDays })}
+          </Text>
+        ) : null}
+      </Card>
     </FormScreen>
   );
 }

@@ -153,7 +153,7 @@
   "mobile.bodyMap.view": "Which view?",
   "mobile.bodyMap.viewName": "{view, select, front {Front of the body} back {Back of the body} other {Other}}",
   "mobile.bodyMap.drawing": "Tap where the mark is on the drawing",
-  "mobile.bodyMap.drawingHint": "{view, select, front {The drawing faces you, so the person's left is on your right.} back {The drawing shows the back, so the person's left is on your left.} other {}}",
+  "mobile.bodyMap.drawingHint": "{view, select, front {Tap where the mark is, or choose a side below. The drawing faces you, so the person's left is on your right.} back {Tap where the mark is, or choose a side below. The drawing shows the back, so the person's left is on your left.} other {Tap where the mark is, or choose a side below.}}",
   "mobile.bodyMap.zone": "Drawing: {side}",
   "mobile.bodyMap.drawnAt": "Marked on the drawing: {side}",
   "mobile.bodyMap.drawingRequired": "Tap the drawing where the mark is.",
@@ -267,5 +267,16 @@
   "mobile.when.dayOn": "{date}",
   "mobile.when.resolved": "This will be recorded as {date} at {time}.",
   "mobile.when.outsideWindow": "Choose a day within the days this device keeps entries for.",
-  "mobile.when.skipped": "That time did not happen on that day, because the clocks went forward. Check the time."
+  "mobile.when.skipped": "That time did not happen on that day, because the clocks went forward. Check the time.",
+  "mobile.iddsi.confirmUnrecorded": "Food and drink levels are not on this device. Confirm you checked this level with the nurse in charge.",
+  "mobile.iddsi.confirmLabel": "Food and drink levels are not on this device. Have you checked this level with the nurse in charge?",
+  "mobile.header.iddsiNotRecorded": "Food and drink levels not recorded",
+  "mobile.news2.noScale": "NEWS2 is not totalled here: this person's SpO2 scale is not on this device. The score is calculated when the entry uploads. Follow your organisation's escalation policy for these readings.",
+  "mobile.news2.clinicalResponse": "Clinical response (RCP chart 4):",
+  "mobile.news2.clinicalResponseLine": "{line}",
+  "mobile.news2.formula": "Total = respiration rate + SpO2 + air or oxygen + systolic blood pressure + pulse + consciousness + temperature, each scored from the published chart.",
+  "mobile.news2.bands": "Published bands: total 0 to 4, low; 3 in any single reading, low to medium; total 5 to 6, medium; total 7 or more, high.",
+  "mobile.news2.sourceLink": "Open the RCP NEWS2 page",
+  "mobile.form.titleFor": "{title}: {name}",
+  "mobile.chart.noEntries": "No entries for this chart on this device."
 }

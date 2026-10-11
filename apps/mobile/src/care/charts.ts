@@ -10,8 +10,13 @@
  *   `@harbour/domain`, the one the API runs.
  * - Vital signs: NEWS2 is calculated on the device with `calculateNews2` from `@harbour/domain`,
  *   the server's calculator, on the SpO2 scale the person's record sets, so a raised score shows at
- *   once with no signal (HZ-012, HZ-014). The server recalculates on upload and raises the alert
- *   and tasks; the device shows the published response and the tenant's escalation policy only.
+ *   once with no signal (HZ-012, HZ-014). Without the care profile on the device the scale is
+ *   unknown, so no total is shown: it says so, and the server calculates it on upload (C6). The
+ *   server recalculates every score on upload and raises the alert and tasks; the device shows the
+ *   published banding and RCP chart 4 response, with the source, and the tenant's escalation policy.
+ * - Food and drink: with no care profile on the device the prescribed levels are unknown, so a
+ *   level is accepted only after the carer confirms they checked it; with a drink level prescribed
+ *   a drink needs its level (C3).
  */
 import type { ObservationValues } from "@harbour/contracts";
 import {
@@ -216,6 +221,19 @@ export function checkIddsi(
   };
 }
 
+/**
+ * C3: with no care profile on the device the prescribed levels are unknown ("Food and drink levels
+ * not recorded"), so a level is accepted only once the carer confirms they checked it with the
+ * nurse in charge. A profile with no level set means no level is prescribed, which is different.
+ */
+export function checkUnrecordedLevel(
+  profile: CareProfile | null,
+  draft: Pick<ChartDraft, "yesNo">,
+): FieldError | null {
+  if (profile) return null;
+  return draft.yesNo.levelChecked === true ? null : { key: "mobile.iddsi.confirmUnrecorded" };
+}
+
 function iddsiLevelKnown(kind: IddsiKind, code: string): boolean {
   return (kind === "food" ? IDDSI_FOOD_CODES : IDDSI_DRINK_CODES).includes(code);
 }
@@ -231,7 +249,18 @@ const NEWS2_FIELDS = [
 export type News2Preview =
   | { readonly status: "incomplete" }
   | { readonly status: "invalid"; readonly errors: ChartErrors }
+  /**
+   * C6: every reading is there, but the person's SpO2 scale is not on this device (no care
+   * profile, or the scale not recorded), so no total is calculated here; the server calculates it
+   * on upload with the scale on the record.
+   */
+  | { readonly status: "noScale" }
   | { readonly status: "scored"; readonly result: News2Result };
+
+/** True when the device knows which SpO2 scale the person's record sets. */
+export function knowsSpo2Scale(profile: CareProfile | null): boolean {
+  return profile !== null && (profile.spo2_scale2 === 0 || profile.spo2_scale2 === 1);
+}
 
 /** Reads the vital signs and scores NEWS2 as the carer types: incomplete until every reading. */
 export function previewNews2(draft: ChartDraft, profile: CareProfile | null): News2Preview {
@@ -253,6 +282,7 @@ export function previewNews2(draft: ChartDraft, profile: CareProfile | null): Ne
   if (!consciousness || onOxygen === null || onOxygen === undefined) missing = true;
   if (Object.keys(errors).length > 0) return { status: "invalid", errors };
   if (missing) return { status: "incomplete" };
+  if (!knowsSpo2Scale(profile)) return { status: "noScale" };
   const outcome = calculateNews2({
     respirationRate: readings.respirationRate,
     spo2: readings.spo2,
@@ -308,6 +338,7 @@ export function toStoredNews2(result: News2Result): StoredNews2 {
     clinicalRisk: result.clinicalRisk,
     response: result.response,
     monitoring: result.monitoring.text,
+    clinicalResponse: [...result.clinicalResponse],
     workings: result.workings,
   };
 }
@@ -338,7 +369,13 @@ export function checkChart(
       if (isError(ml)) errors.ml = ml;
       const level = draft.choice.iddsiLevel ?? undefined;
       const reason = optionalText(text.overrideReason, CHART_LIMITS.overrideReason.max);
+      // C3: with a drink level prescribed, a drink is recorded with the level given.
+      if (!level && profile?.iddsi_drink_level) {
+        errors.iddsiLevel = { key: "mobile.iddsi.levelRequired" };
+      }
       if (level) {
+        const unchecked = checkUnrecordedLevel(profile, draft);
+        if (unchecked) errors.levelChecked = unchecked;
         const iddsi = checkIddsi("drink", level, reason, profile);
         if (iddsi.ok) flags = iddsi.flags;
         else errors[iddsi.field] = iddsi.error;
@@ -369,6 +406,8 @@ export function checkChart(
       const reason = optionalText(text.overrideReason, CHART_LIMITS.overrideReason.max);
       if (!level) errors.iddsiLevel = { key: "mobile.iddsi.levelRequired" };
       else {
+        const unchecked = checkUnrecordedLevel(profile, draft);
+        if (unchecked) errors.levelChecked = unchecked;
         const iddsi = checkIddsi("food", level, reason, profile);
         if (iddsi.ok) flags = iddsi.flags;
         else errors[iddsi.field] = iddsi.error;
@@ -438,9 +477,12 @@ export function checkChart(
           errors.onOxygen = { key: "mobile.form.required" };
         }
       }
-      if (preview.status === "scored") {
-        news2 = preview.result;
-        flags = news2Flags(preview.result);
+      if (preview.status === "scored" || preview.status === "noScale") {
+        // With the scale unknown on the device, the readings go without a score (C6).
+        if (preview.status === "scored") {
+          news2 = preview.result;
+          flags = news2Flags(preview.result);
+        }
         values = {
           chart: "vitals",
           respirationRate: Number(text.respirationRate),
@@ -483,6 +525,8 @@ export interface StoredNews2 {
   readonly monitoring: string;
   readonly redScore: boolean;
   readonly toolVersion: string;
+  /** RCP chart 4, word for word; empty for a result stored without it. */
+  readonly clinicalResponse: readonly string[];
   readonly workings: ReadonlyArray<{ item: string; value: string; points: number }>;
 }
 
@@ -500,6 +544,9 @@ export function readNews2(flagsJson: string | null | undefined): StoredNews2 | n
       monitoring: typeof n.monitoring === "string" ? n.monitoring : "",
       redScore: n.redScore === true,
       toolVersion: typeof n.toolVersion === "string" ? n.toolVersion : "",
+      clinicalResponse: Array.isArray(n.clinicalResponse)
+        ? n.clinicalResponse.filter((line): line is string => typeof line === "string")
+        : [],
       workings: Array.isArray(n.workings) ? n.workings : [],
     };
   } catch {

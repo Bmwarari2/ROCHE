@@ -1,6 +1,6 @@
 import { Text, useTheme } from "@harbour/ui-native";
 import { useQuery } from "@powersync/react";
-import { Stack, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, View } from "react-native";
 import type { FieldError } from "../../../../care/entries";
@@ -78,15 +78,13 @@ export default function NoteScreen() {
   return (
     <FormScreen
       personId={id}
+      title={t(correctId ? "mobile.note.correctTitle" : "mobile.note.title")}
       testID="note-screen"
       showErrors={Object.keys(errors).length > 0}
       saveFailed={saveFailed}
       saving={saving}
       onSave={save}
     >
-      <Stack.Screen
-        options={{ title: t(correctId ? "mobile.note.correctTitle" : "mobile.note.title") }}
-      />
       {correctId ? (
         <CorrectionField
           original={original?.body ?? ""}

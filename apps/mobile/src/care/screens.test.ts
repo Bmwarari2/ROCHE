@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 /**
- * Screens cannot be rendered in these Node tests (no React Native runtime), so these checks read
- * the screen files: every Care mode screen about a person shows the point-of-care header and blocks
- * screen capture, and Today shows the sync status. The Maestro flows exercise them on a device.
+ * Wiring checks on the screen files: every Care mode screen about a person uses the header (or the
+ * form layout that carries it) and blocks screen capture, and Today shows the sync status. They
+ * check wiring only. That the header actually draws who the person is, is proved by rendering it
+ * (`../components/person-header.render.test.ts`, HZ-001), and the Maestro flows exercise the
+ * screens on a device.
  */
 
 interface Fs {
@@ -26,7 +28,7 @@ async function screenSources(): Promise<Array<{ file: string; source: string }>>
 }
 
 describe("Care mode screens", () => {
-  it("hazard HZ-001 every screen about a person shows the point-of-care header", async () => {
+  it("every screen about a person uses the point-of-care header", async () => {
     const screens = await screenSources();
     expect(screens.map((s) => s.file).sort()).toEqual([
       "body-map.tsx",
@@ -61,14 +63,18 @@ describe("Care mode screens", () => {
     expect(today).toContain("<UploadIssues");
   });
 
-  it("hazard HZ-001 the form layout itself starts with the header", async () => {
+  it("the form layout pins the identity bar and opens with the header, before the form", async () => {
     const fsName = "node:fs";
     const fs = (await import(/* @vite-ignore */ fsName)) as Fs;
     const form = fs.readFileSync(
       decodeURIComponent(new URL("../components/FormScreen.tsx", import.meta.url).pathname),
       "utf8",
     );
+    expect(form.indexOf("<IdentityBar")).toBeGreaterThan(-1);
+    expect(form.indexOf("<IdentityBar")).toBeLessThan(form.indexOf("<ScrollView"));
     expect(form.indexOf("<CarePersonHeader")).toBeGreaterThan(-1);
     expect(form.indexOf("<CarePersonHeader")).toBeLessThan(form.indexOf("{children}"));
+    // Save only once the person has loaded (C7).
+    expect(form).toContain("onSave && person ?");
   });
 });

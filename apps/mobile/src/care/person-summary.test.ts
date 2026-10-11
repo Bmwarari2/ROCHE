@@ -99,8 +99,21 @@ describe("hazard HZ-016 prescribed IDDSI levels in the header", () => {
     ).toEqual(["Food: Level 5 Minced and moist (orange)", "Drinks: Level 2 Mildly thick (pink)"]);
   });
 
-  it("shows nothing when no level is prescribed, and an unknown code as recorded", () => {
-    expect(iddsiFlags(null)).toEqual([]);
+  it("warns that the levels are not recorded when the profile is not on the device (C3)", () => {
+    expect(iddsiFlags(null)).toEqual([
+      {
+        key: "iddsi-not-recorded",
+        tone: "warning",
+        icon: "circle-help",
+        label: "Food and drink levels not recorded",
+      },
+    ]);
+    // Never while the profile is still loading.
+    expect(iddsiFlags(null, false)).toEqual([]);
+  });
+
+  it("shows nothing when the profile says no level is prescribed, and an unknown code as recorded", () => {
+    expect(iddsiFlags({ iddsi_food_level: null, iddsi_drink_level: null })).toEqual([]);
     expect(
       iddsiFlags({ iddsi_food_level: "9", iddsi_drink_level: null }).map((f) => f.label),
     ).toEqual(["Food: 9"]);
