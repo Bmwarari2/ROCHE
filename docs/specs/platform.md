@@ -35,12 +35,17 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
 - MFA: required for every permission that touches care records (`mfa_enrolment_required` otherwise).
 - Step-up: controlled drugs, residents' money approval, data export, break-glass, statutory
   notifications and support-access approval need a sign-in within 10 minutes.
-- Break-glass: `POST /v1/people/break-glass` with a justification of at least 20 characters; access
-  lapses after 60 minutes; the Registered Manager for the location and quality leads are notified;
-  the reason is audited. Weekly break-glass report: the aggregation by user, person and reason
-  with repeated-use flags is `breakGlassWeeklyReport` (`packages/domain/src/people/break-glass-report.ts`,
-  [people.md](people.md) rule 14); the Monday job, the stored report and the screen come with the
-  people API step.
+- Break-glass: `POST /v1/people/break-glass` with a justification of at least 20 characters and an
+  optional `reasonCode`; access lapses after 60 minutes; the Registered Manager for the location and
+  quality leads are notified; the reason is audited. Weekly break-glass report: the aggregation by
+  user, person and reason with repeated-use flags is `breakGlassWeeklyReport`
+  (`packages/domain/src/people/break-glass-report.ts`, [people.md](people.md) rule 14). Built in
+  slice 8: a daily worker job stores the report for the UK week before once per location
+  (`break_glass_weekly_report`, counts and opaque ids only; a missed Monday catches up) and alerts
+  the location's Registered Manager and the data protection lead (holders of the quality lead role
+  until the DPO confirms, H-80) with a generic title; `GET /v1/break-glass/weekly-report?week=`
+  (`platform.audit.read`, the locations in the reader's access) and `POST
+  .../weekly-report/{reportId}/review` (the actions taken, once). The screen comes with the web work.
 - Devices: `GET /v1/me/sessions` lists where the person is signed in (this device marked);
   `POST /v1/me/sessions/{id}/revoke` and `POST /v1/me/sessions/revoke-others` sign devices out.
   Identity-level, so no organisation header. Session tokens reach only the mobile app (`Origin:

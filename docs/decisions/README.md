@@ -53,6 +53,7 @@ for an answer.
 | [0031](0031-document-storage-scanning-and-destruction.md) | Document storage, malware scanning and destruction past retention | accepted | 2026-10-11 | Phase 1 |
 | [0032](0032-risk-assessment-rating.md) | Risk assessment ratings: the NPSA matrix on the assessor's judgements, and no falls rating | proposed | 2026-10-11 | Phase 1 |
 | [0033](0033-incident-scope.md) | Incident scope: visible through any of its people, and classified with tenant-wide scope | proposed | 2026-10-11 | Phase 1 |
+| [0040](0040-transfer-pack-pdf-writer.md) | Hospital transfer pack PDF: a small in-house writer until the document renderer lands | proposed | 2026-10-11 | Phase 1 |
 
 ## Open items carried by these ADRs
 
