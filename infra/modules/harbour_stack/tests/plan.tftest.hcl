@@ -121,3 +121,55 @@ run "prod_like" {
     error_message = "prod secrets should have a 30-day recovery window."
   }
 }
+
+# A group AWS publishes no versions for is left out of the pin check by name, with its reason;
+# the others still need pins (security review round 6; human action H-140).
+run "prod_exempts_an_unversioned_group_by_name" {
+  command = plan
+
+  variables {
+    environment        = "prod"
+    nat_gateway_per_az = true
+
+    waf_managed_rule_group_versions = {
+      AWSManagedRulesCommonRuleSet         = "Version_1.0"
+      AWSManagedRulesKnownBadInputsRuleSet = "Version_1.0"
+      AWSManagedRulesSQLiRuleSet           = "Version_1.0"
+    }
+    waf_managed_rule_groups_unversioned = {
+      AWSManagedRulesAmazonIpReputationList = "Test value: AWS lists no static versions for this group."
+    }
+  }
+
+  assert {
+    condition     = length(local.waf_unpinned_groups) == 0
+    error_message = "the named group should be the only one left unpinned."
+  }
+}
+
+run "prod_still_needs_the_other_pins" {
+  command = plan
+
+  variables {
+    environment        = "prod"
+    nat_gateway_per_az = true
+
+    waf_managed_rule_groups_unversioned = {
+      AWSManagedRulesAmazonIpReputationList = "Test value: AWS lists no static versions for this group."
+    }
+  }
+
+  expect_failures = [terraform_data.waf_version_pins]
+}
+
+run "an_exemption_needs_a_reason" {
+  command = plan
+
+  variables {
+    waf_managed_rule_groups_unversioned = {
+      AWSManagedRulesAmazonIpReputationList = ""
+    }
+  }
+
+  expect_failures = [var.waf_managed_rule_groups_unversioned]
+}

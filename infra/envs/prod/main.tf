@@ -39,7 +39,8 @@ module "stack" {
   use_fargate_spot = false
 
   # Pinned AWS managed rule group versions; required in prod (human action H-140).
-  waf_managed_rule_group_versions = var.waf_managed_rule_group_versions
+  waf_managed_rule_group_versions     = var.waf_managed_rule_group_versions
+  waf_managed_rule_groups_unversioned = var.waf_managed_rule_groups_unversioned
 
   service_sizes = {
     api       = { cpu = 1024, memory = 2048, min = 2, max = 10 }

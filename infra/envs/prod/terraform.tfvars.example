@@ -20,3 +20,9 @@ enable_flagsmith = false
 #   AWSManagedRulesKnownBadInputsRuleSet  = "Version_x.y"
 #   AWSManagedRulesSQLiRuleSet            = "Version_x.y"
 # }
+
+# Only for a group the account lists no versions for (check AWSManagedRulesAmazonIpReputationList
+# first; human action H-140): leave it out of the pins above and give the reason here.
+# waf_managed_rule_groups_unversioned = {
+#   AWSManagedRulesAmazonIpReputationList = "AWS lists no static versions for this group (checked dd/mm/yyyy)."
+# }

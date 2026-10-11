@@ -280,6 +280,17 @@ variable "waf_managed_rule_group_versions" {
   default     = {}
 }
 
+variable "waf_managed_rule_groups_unversioned" {
+  description = "AWS managed rule groups that block but cannot take a static version, by group name, each with the reason (for example, AWS publishes no versions for it). They are left out of the prod pin check, and nothing else is. Used only when the account shows the group has no versions (human action H-140)."
+  type        = map(string)
+  default     = {}
+
+  validation {
+    condition     = alltrue([for reason in values(var.waf_managed_rule_groups_unversioned) : length(trimspace(reason)) >= 10])
+    error_message = "Give each unversioned rule group a reason of at least 10 characters."
+  }
+}
+
 variable "alb_deletion_protection" {
   description = "Deletion protection on the load balancer."
   type        = bool

@@ -56,7 +56,8 @@ module "waf_cloudfront" {
 }
 
 # Prod pins every managed rule group whose rules block with the edge_blocked body (security
-# review round 5, S-L5): a plan without the pins fails here.
+# review round 5, S-L5): a plan without the pins fails here. A group AWS publishes no static
+# versions for is exempted only by name, with its reason (security review round 6; H-140).
 locals {
   waf_groups_needing_pins = setunion(
     module.waf_regional.managed_rule_groups_with_blocks,
@@ -65,16 +66,20 @@ locals {
   waf_unpinned_groups = sort([
     for group in local.waf_groups_needing_pins : group
     if !contains(keys(var.waf_managed_rule_group_versions), group)
+    && !contains(keys(var.waf_managed_rule_groups_unversioned), group)
   ])
 }
 
 resource "terraform_data" "waf_version_pins" {
-  input = var.waf_managed_rule_group_versions
+  input = {
+    versions    = var.waf_managed_rule_group_versions
+    unversioned = var.waf_managed_rule_groups_unversioned
+  }
 
   lifecycle {
     precondition {
       condition     = var.environment != "prod" || length(local.waf_unpinned_groups) == 0
-      error_message = "Pin these AWS managed rule groups in waf_managed_rule_group_versions before a prod plan: ${join(", ", local.waf_unpinned_groups)}."
+      error_message = "Pin these AWS managed rule groups in waf_managed_rule_group_versions before a prod plan (or, only for a group with no versions, name it with a reason in waf_managed_rule_groups_unversioned): ${join(", ", local.waf_unpinned_groups)}."
     }
   }
 }
