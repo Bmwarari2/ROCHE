@@ -1,6 +1,6 @@
 import { BUILTIN_ROLES } from "@harbour/domain";
 import type pg from "pg";
-import type { RateSeedRow, RetentionSeedRow } from "./reference-data";
+import type { BankHolidaySeedRow, RateSeedRow, RetentionSeedRow } from "./reference-data";
 
 /**
  * Seed data: global reference tables and the demo tenant used on dev and staging. Every person is
@@ -164,12 +164,16 @@ async function inTenant<T>(
   }
 }
 
-/** Upserts the global (NULL tenant) statutory figures and retention schedule. Runs as the owner. */
+/**
+ * Upserts the global (NULL tenant) statutory figures, the retention schedule and the bank holidays.
+ * Runs as the owner.
+ */
 export async function seedReferenceData(
   ownerPool: pg.Pool,
   rates: readonly RateSeedRow[],
   retention: readonly RetentionSeedRow[],
-): Promise<{ rates: number; retention: number }> {
+  bankHolidays: readonly BankHolidaySeedRow[] = [],
+): Promise<{ rates: number; retention: number; bankHolidays: number }> {
   const client = await ownerPool.connect();
   try {
     return await inTenant(client, null, async () => {
@@ -199,7 +203,19 @@ export async function seedReferenceData(
           [r.recordClass, r.period, r.unit, r.trigger, r.source, r.notes],
         );
       }
-      return { rates: rates.length, retention: retention.length };
+      await client.query("DELETE FROM bank_holiday");
+      for (const h of bankHolidays) {
+        await client.query("INSERT INTO bank_holiday (nation, date, name) VALUES ($1, $2, $3)", [
+          h.nation,
+          h.date,
+          h.name,
+        ]);
+      }
+      return {
+        rates: rates.length,
+        retention: retention.length,
+        bankHolidays: bankHolidays.length,
+      };
     });
   } finally {
     client.release();

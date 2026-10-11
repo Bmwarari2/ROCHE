@@ -25,4 +25,5 @@ await build({ ...shared, entryPoints: ["src/jobs/migrate.ts"], outfile: "dist/mi
 mkdirSync("dist/drizzle", { recursive: true });
 cpSync("../../packages/db/drizzle", "dist/drizzle", { recursive: true });
 copyFileSync("../../docs/specs/rates.md", "dist/rates.md");
+copyFileSync("../../docs/specs/calendar.md", "dist/calendar.md");
 copyFileSync("../../docs/specs/retention.md", "dist/retention.md");

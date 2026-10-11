@@ -26,6 +26,13 @@ export interface RetentionSeedRow {
   readonly notes: string | null;
 }
 
+export interface BankHolidaySeedRow {
+  /** ISO date. */
+  readonly date: string;
+  readonly nation: "england" | "wales" | "scotland" | "northern_ireland";
+  readonly name: string;
+}
+
 export class ReferenceDataError extends Error {
   constructor(message: string) {
     super(message);
@@ -150,6 +157,33 @@ export function parseRetention(markdown: string): RetentionSeedRow[] {
       source,
       notes: notes === "" || notes === "-" ? null : notes,
     };
+  });
+}
+
+/** An ISO date that exists (not 30 February or month 13). */
+function isCalendarDate(value: string): boolean {
+  if (!ISO_DATE.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+const HOLIDAY_NATIONS = new Set(["england", "wales", "scotland", "northern_ireland"]);
+
+export function parseBankHolidays(markdown: string): BankHolidaySeedRow[] {
+  const seen = new Set<string>();
+  return tableUnderHeading(markdown, "## Bank holidays").map((cells, index) => {
+    const where = `calendar.md row ${index + 1}`;
+    if (cells.length !== 3)
+      throw new ReferenceDataError(`${where}: expected 3 columns, got ${cells.length}`);
+    const [date, nation, name] = cells as [string, string, string];
+    if (!isCalendarDate(date)) throw new ReferenceDataError(`${where}: bad date ${date}`);
+    if (!HOLIDAY_NATIONS.has(nation))
+      throw new ReferenceDataError(`${where}: unknown nation ${nation}`);
+    if (!name) throw new ReferenceDataError(`${where}: missing name`);
+    if (seen.has(`${nation}|${date}`))
+      throw new ReferenceDataError(`${where}: ${date} is listed twice for ${nation}`);
+    seen.add(`${nation}|${date}`);
+    return { date, nation: nation as BankHolidaySeedRow["nation"], name };
   });
 }
 

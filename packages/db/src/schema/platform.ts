@@ -496,6 +496,22 @@ export const retentionClass = pgTable(
   (t) => [unique("retention_class_key").on(t.tenantId, t.recordClass).nullsNotDistinct()],
 );
 
+/**
+ * UK bank holidays by nation for working-day clocks, seeded from docs/specs/calendar.md. National
+ * facts, not tenant data: there is no tenant column, everyone reads them and only the owner role
+ * maintains them.
+ */
+export const bankHoliday = pgTable(
+  "bank_holiday",
+  {
+    id: id(),
+    nation: text("nation").notNull(),
+    date: date("date").notNull(),
+    name: text("name").notNull(),
+  },
+  (t) => [unique("bank_holiday_nation_date").on(t.nation, t.date)],
+);
+
 /** Versioned document store (section 9.1); content lives in S3 under SSE-KMS. */
 export const document = pgTable(
   "document",
