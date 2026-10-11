@@ -63,18 +63,17 @@ describe("Care mode screens", () => {
     expect(today).toContain("<UploadIssues");
   });
 
-  it("the form layout pins the identity bar and opens with the header, before the form", async () => {
+  it("the form screen hands the identity bar, the header and the loaded person to the layout", async () => {
+    // Wiring only: the order and the hidden Save are proved by rendering the layout
+    // (`../components/identity-bar.render.test.ts`, HZ-001).
     const fsName = "node:fs";
     const fs = (await import(/* @vite-ignore */ fsName)) as Fs;
     const form = fs.readFileSync(
       decodeURIComponent(new URL("../components/FormScreen.tsx", import.meta.url).pathname),
       "utf8",
     );
-    expect(form.indexOf("<IdentityBar")).toBeGreaterThan(-1);
-    expect(form.indexOf("<IdentityBar")).toBeLessThan(form.indexOf("<ScrollView"));
-    expect(form.indexOf("<CarePersonHeader")).toBeGreaterThan(-1);
-    expect(form.indexOf("<CarePersonHeader")).toBeLessThan(form.indexOf("{children}"));
-    // Save only once the person has loaded (C7).
-    expect(form).toContain("onSave && person ?");
+    expect(form).toContain("identityBar={<IdentityBar personId={personId} />}");
+    expect(form).toContain("header={<CarePersonHeader personId={personId} />}");
+    expect(form).toContain("personLoaded={person !== null}");
   });
 });

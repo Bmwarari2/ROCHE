@@ -153,6 +153,8 @@
     "mobile.held.title",
     "mobile.held.titleUnknown",
     "mobile.iddsi.confirmLabel",
+    "mobile.iddsi.confirmNoLevel",
+    "mobile.iddsi.confirmNoLevelLabel",
     "mobile.iddsi.confirmUnrecorded",
     "mobile.iddsi.drink",
     "mobile.iddsi.food",

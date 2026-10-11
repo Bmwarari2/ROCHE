@@ -43,7 +43,7 @@ import {
 } from "../../../../care/queries";
 import { useSaveAndReturn } from "../../../../care/use-save";
 import { Card } from "../../../../components/Card";
-import { EntryRow } from "../../../../components/EntryRow";
+import { ChartEntries } from "../../../../components/ChartEntries";
 import { FormScreen } from "../../../../components/FormScreen";
 import {
   ChoiceGroup,
@@ -205,9 +205,9 @@ export default function ChartScreen() {
             testID="chart-iddsi-reason"
           />
         ) : null}
-        {chosen && !careProfile ? (
+        {(chosen || kind === "drink") && !careProfile ? (
           <YesNoField
-            label={t("mobile.iddsi.confirmLabel")}
+            label={t(chosen ? "mobile.iddsi.confirmLabel" : "mobile.iddsi.confirmNoLevelLabel")}
             value={yesNo.levelChecked ?? null}
             onChange={setYesNoField("levelChecked")}
             error={errors.levelChecked}
@@ -467,20 +467,7 @@ export default function ChartScreen() {
         toleranceMinutes={context.clockToleranceMinutes ?? 0}
         original={correctId ? (originals[0]?.occurred_at ?? null) : null}
       />
-      <Card title={t("mobile.chart.recentEntries")}>
-        {earlier.length > 0 ? (
-          earlier.map((item) => <EntryRow key={item.id} item={item} />)
-        ) : (
-          <Text variant="bodyDense" testID="chart-no-entries">
-            {t("mobile.chart.noEntries")}
-          </Text>
-        )}
-        {vault.offlineWindowDays !== null && !appEnv.demoMode ? (
-          <Text variant="bodyDense" tone="secondary" testID="chart-window">
-            {t("mobile.sync.window", { days: vault.offlineWindowDays })}
-          </Text>
-        ) : null}
-      </Card>
+      <ChartEntries items={earlier} windowDays={appEnv.demoMode ? null : vault.offlineWindowDays} />
     </FormScreen>
   );
 }

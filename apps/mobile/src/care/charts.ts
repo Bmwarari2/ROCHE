@@ -15,8 +15,9 @@
  *   server recalculates every score on upload and raises the alert and tasks; the device shows the
  *   published banding and RCP chart 4 response, with the source, and the tenant's escalation policy.
  * - Food and drink: with no care profile on the device the prescribed levels are unknown, so a
- *   level is accepted only after the carer confirms they checked it; with a drink level prescribed
- *   a drink needs its level (C3).
+ *   level, or a drink given with no level, is accepted only after the carer confirms they checked
+ *   it with the nurse in charge (C3, round 3 M3); with a drink level prescribed a drink needs its
+ *   level (C3).
  */
 import type { ObservationValues } from "@harbour/contracts";
 import {
@@ -377,6 +378,12 @@ export function checkChart(
       // C3: with a drink level prescribed, a drink is recorded with the level given.
       if (!level && profile?.iddsi_drink_level) {
         errors.iddsiLevel = { key: "mobile.iddsi.levelRequired" };
+      }
+      // Clinical review round 3, M3: with no care profile on the device a drink level may be
+      // prescribed without the device knowing, so a drink given with no level needs the same
+      // confirmation as one given at a level.
+      if (!level && !profile && draft.yesNo.levelChecked !== true) {
+        errors.levelChecked = { key: "mobile.iddsi.confirmNoLevel" };
       }
       if (level) {
         const unchecked = checkUnrecordedLevel(profile, draft);

@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { calculateNews2, NEWS2_TOOL_VERSION, type News2Input, type News2Result } from "./news2";
-import { NEWS2_REFERENCE_VECTORS } from "./news2-vectors";
+import { NEWS2_REFERENCE_VECTORS, news2PointsOf } from "./news2-vectors";
 
 describe("hazard HZ-012 NEWS2 matches the reference vectors worked by hand from RCP chart 1", () => {
   it.each(NEWS2_REFERENCE_VECTORS.map((v) => [v.name, v] as const))("%s", (_name, vector) => {
     const outcome = calculateNews2(vector.input);
     if (!outcome.ok) throw new Error(outcome.message);
     expect({
+      points: news2PointsOf(outcome.result.workings),
       score: outcome.result.score,
       band: outcome.result.band,
       threshold: outcome.result.threshold,

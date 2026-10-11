@@ -1,9 +1,8 @@
-import { Button, Text, useTheme } from "@harbour/ui-native";
 import { Stack } from "expo-router";
 import type { ReactNode } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
 import { t } from "../i18n/t";
 import { CarePersonHeader, useCarePerson } from "./CarePersonHeader";
+import { FormLayout } from "./FormLayout";
 import { IdentityBar } from "./IdentityBar";
 import { Screen } from "./Screen";
 
@@ -24,22 +23,13 @@ interface FormScreenProps {
 
 /**
  * Layout for the Care mode forms (HZ-001, clinical review C7): the title names the person, a
- * compact identity bar (photo, name, allergies, resuscitation status) stays pinned while the form
- * scrolls, the full point-of-care header opens the form, and the save button sits in the lower
- * part of the screen. Save appears only once the person has loaded, so nothing is recorded against
- * a person the screen has not shown. Saving writes to the device; the upload follows.
+ * compact identity bar (photo, name, allergies, communication needs, resuscitation status) stays
+ * pinned while the form scrolls, the full point-of-care header opens the form, and the save button
+ * sits in the lower part of the screen. Save appears only once the person has loaded, so nothing
+ * is recorded against a person the screen has not shown. Saving writes to the device; the upload
+ * follows. The order is `FormLayout`, rendered in tests.
  */
-export function FormScreen({
-  personId,
-  title,
-  testID,
-  children,
-  showErrors,
-  saveFailed,
-  saving,
-  onSave,
-}: FormScreenProps) {
-  const theme = useTheme();
+export function FormScreen({ personId, title, testID, children, ...form }: FormScreenProps) {
   const { person } = useCarePerson(personId);
   return (
     <Screen testID={testID}>
@@ -48,41 +38,14 @@ export function FormScreen({
           title: person ? t("mobile.form.titleFor", { title, name: person.displayName }) : title,
         }}
       />
-      <IdentityBar personId={personId} />
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      <FormLayout
+        identityBar={<IdentityBar personId={personId} />}
+        header={<CarePersonHeader personId={personId} />}
+        personLoaded={person !== null}
+        {...form}
       >
-        <ScrollView
-          contentContainerStyle={{ padding: theme.space[2], gap: theme.space[2] }}
-          keyboardShouldPersistTaps="handled"
-        >
-          <CarePersonHeader personId={personId} />
-          {showErrors ? (
-            <Text tone="danger" accessibilityRole="alert" testID="form-errors">
-              {t("mobile.form.checkErrors")}
-            </Text>
-          ) : null}
-          {saveFailed ? (
-            <Text tone="danger" accessibilityRole="alert" testID="form-save-failed">
-              {t("mobile.form.saveFailed")}
-            </Text>
-          ) : null}
-          {children}
-          <View style={{ paddingTop: theme.space[1], paddingBottom: theme.space[4] }}>
-            {onSave && person ? (
-              <Button
-                label={t("common.save")}
-                onPress={onSave}
-                loading={saving}
-                fullWidth
-                haptic="success"
-                testID="save-entry"
-              />
-            ) : null}
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        {children}
+      </FormLayout>
     </Screen>
   );
 }

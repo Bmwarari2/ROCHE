@@ -1,5 +1,5 @@
 import { CreateObservation, ObservationValues } from "@harbour/contracts";
-import { NEWS2_REFERENCE_VECTORS } from "@harbour/domain";
+import { NEWS2_REFERENCE_VECTORS, news2PointsOf } from "@harbour/domain";
 import { describe, expect, it } from "vitest";
 import { toCareUpload } from "../sync/care-upload";
 import {
@@ -232,6 +232,19 @@ describe("hazard HZ-016 food and drink levels on the device (C3)", () => {
       expect(confirmed.ok).toBe(true);
     },
   );
+
+  it("hazard HZ-016 asks the same confirmation for a drink with no level when the profile is not on the device (round 3 M3)", () => {
+    const entry = draft("fluid_intake", { text: { ml: "200" } });
+    const blocked = checkChart(entry, null, context, NOW);
+    expect(!blocked.ok && blocked.errors.levelChecked?.key).toBe("mobile.iddsi.confirmNoLevel");
+    const confirmed = checkChart(
+      { ...entry, yesNo: { ...entry.yesNo, levelChecked: true } },
+      null,
+      context,
+      NOW,
+    );
+    expect(confirmed.ok).toBe(true);
+  });
 });
 
 describe("hazard HZ-012 NEWS2 on the device against the reference vectors (C6)", () => {
@@ -256,6 +269,7 @@ describe("hazard HZ-012 NEWS2 on the device against the reference vectors (C6)",
       });
       if (preview.status !== "scored") throw new Error(preview.status);
       expect({
+        points: news2PointsOf(preview.result.workings),
         score: preview.result.score,
         band: preview.result.band,
         threshold: preview.result.threshold,
