@@ -29,10 +29,14 @@ only when they link spec, code, tests and user documentation; no user guides exi
    user guides per role for the Phase 0 features (moves PLAT and MOB rows to `done`).
 4. Open engineering decisions: certificate pinning (ADR-0028), shared-device sign-in (ADR-0025, needs
    CSO and DPO).
-5. Web follow-ups: move the web shell's literal strings (offline message, table headers, security
-   page, break-glass hints, dashboard tiles, sign-in errors) into the i18n catalogues; move the
-   shortened-name header fix, a textarea field and the account menu into `@harbour/ui`; the person
-   photo route returns 404 until photo upload lands (Phase 1), so initials show.
+5. Web follow-ups: the person photo route returns 404 until photo upload lands (Phase 1), so
+   initials show. A few `@harbour/ui` defaults have no prop yet and stay English in a Welsh shell:
+   the sidebar's expand and collapse labels, the data table's density control ("Row density",
+   "Comfortable", "Compact") and the app bar's "None selected"; add label props before Welsh
+   tenants (Phase 7). Done on
+   `feat/web-i18n-and-ui`: every word in the web app's own code comes from the catalogues (guarded by
+   `apps/web/src/copy.test.ts`); `TextArea` and `AccountMenu` are in `@harbour/ui` and the
+   phone-width header fix lives in the app bar styles.
 
 ## Human actions outstanding
 
@@ -49,10 +53,10 @@ Apple and Google accounts).
 | `packages/db` | 78 (real Postgres: RLS coverage, isolation, scope, audit chain, seed) |
 | `packages/sync` | 10 (PowerSync rules engine) |
 | `packages/contracts` | 4 |
-| `packages/i18n` | 14 |
-| `packages/ui` | 190 (136 axe runs) |
+| `packages/i18n` | 34 |
+| `packages/ui` | 233 (160 axe runs) |
 | `packages/ui-native` | 133 |
 | `apps/api` | 88 (incl. session tokens, devices and production config) |
 | `apps/mobile` | 208 |
-| `apps/web` | 101 unit; 8 Playwright journeys with axe (WCAG 2.2 AA), passkey sign-in, nonce CSP |
+| `apps/web` | 142 unit (incl. the no-literal-copy check); 8 Playwright journeys with axe (WCAG 2.2 AA), passkey sign-in, nonce CSP |
 | `infra` | `terraform test` 3, TFLint, Trivy and Checkov clean |

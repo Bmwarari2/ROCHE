@@ -73,7 +73,7 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | PLAT-014 | Migration import wizard (CSV and JSON mapping, dry run, validation report) | 9.1 | 2 | todo | - | - | - | - |
 | PLAT-015 | Free full tenant export (CSV and JSON with documents, documented schema) | 5.1, 9.1 | 1 | todo | - | - | - | - |
 | PLAT-016 | Public API and signed webhooks (OpenAPI 3.1, OAuth2 client credentials, scoped tokens, sandbox tenant) | 9.1, 15.3 | 6 | todo | - | - | - | - |
-| PLAT-017 | Localisation framework (ICU messages, en-GB, Welsh-ready catalogues, per-tenant terminology) | 5.4, 9.1 | 0 | partial | [platform](platform.md#localisation-plat-017) | `packages/i18n` | `packages/i18n/src/i18n.test.ts` | - |
+| PLAT-017 | Localisation framework (ICU messages, en-GB, Welsh-ready catalogues, per-tenant terminology) | 5.4, 9.1 | 0 | partial | [platform](platform.md#localisation-plat-017) | `packages/i18n`, `apps/web/src/lib/i18n.ts` | `packages/i18n/src/i18n.test.ts`, `apps/web/src/copy.test.ts` | - |
 | PLAT-018 | In-app help and onboarding (guides, tenant onboarding checklist, sample data mode, status page link) | 9.1 | 1 | todo | - | - | - | - |
 | PLAT-019 | Thapsus operator console: tenant provisioning, support impersonation with approval, platform and integration health | 9.1, 15.3 | 0 | partial | [platform](platform.md#operator-console-plat-019) | `apps/api/src/routes/operator.ts` | `apps/api/test/operator-and-integrations.test.ts` | - |
 | PLAT-020 | Thapsus operator console: plan and seat metering, invoices to tenants | 9.1 | 6 | todo | - | - | - | - |

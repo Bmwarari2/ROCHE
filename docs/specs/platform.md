@@ -100,6 +100,14 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
 - `packages/i18n`: ICU catalogues for en-GB and cy with key parity, British spelling and no-emoji
   tests; Welsh falls back to English until professionally translated (Phase 7). Per-tenant
   terminology (resident, client, person we support) drives navigation labels.
+- Every Welsh entry still in English is listed in `cy.status.json` (a test fails otherwise), and
+  English messages keep sentence case.
+- The web app reads every word from the catalogues through `apps/web/src/lib/i18n.ts`; plurals,
+  terminology and regulator names are ICU `plural` and `select` messages, never strings built in
+  code. `apps/web/src/copy.test.ts` fails on literal copy in JSX text or in attributes people read
+  or hear. Default copy inside `@harbour/ui` components is the English fallback; the web shell passes
+  translated words through component props (skip link, switcher menus, sidebar, account menu,
+  sheet close, character count).
 
 ## Integrations framework (INTG-001)
 
