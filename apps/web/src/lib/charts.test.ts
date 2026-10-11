@@ -60,12 +60,21 @@ describe("NEWS2 from the API (never scored in the web app)", () => {
     expect(news2Chip("low")).toBe("neutral");
   });
 
-  it("summarises a vital signs entry with the API's response", () => {
-    expect(observationSummary({ chart: "vitals", values: {}, flags: storedNews2 }, t)).toEqual([
-      "NEWS2 6: Key threshold for urgent response",
+  it("summarises a vital signs entry by its readings; the NEWS2 result has its own line", () => {
+    const values = {
+      respirationRate: 22,
+      spo2: 95,
+      onOxygen: false,
+      systolic: 105,
+      pulse: 95,
+      consciousness: "alert",
+      temperature: 38.2,
+    };
+    expect(observationSummary({ chart: "vitals", values, flags: storedNews2 }, t)).toEqual([
+      "Respiration rate 22, SpO2 95% on air, systolic 105 mmHg, pulse 95, alert, temperature 38.2 °C",
     ]);
     expect(observationSummary({ chart: "vitals", values: {}, flags: {} }, t)).toEqual([
-      "Vital signs, no NEWS2 result stored",
+      "Chart entry",
     ]);
   });
 });

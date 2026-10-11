@@ -239,11 +239,33 @@ export function observationSummary(
         }),
       ];
     case "vitals": {
-      const news2 = news2FromFlags(item.flags);
+      // The readings as recorded; the NEWS2 result is shown on its own line from the flags.
+      const rr = num(v.respirationRate);
+      const spo2 = num(v.spo2);
+      const systolic = num(v.systolic);
+      const pulse = num(v.pulse);
+      const temperature = num(v.temperature);
+      const consciousness = str(v.consciousness);
+      if (
+        rr === null ||
+        spo2 === null ||
+        systolic === null ||
+        pulse === null ||
+        temperature === null ||
+        consciousness === null
+      ) {
+        return [t("care.charts.entry")];
+      }
       return [
-        news2
-          ? t("care.news2.summary", { score: news2.score, response: news2.response })
-          : t("care.charts.vitalsNoScore"),
+        t("care.charts.vitalsReadings", {
+          rr,
+          spo2,
+          oxygen: v.onOxygen === true ? "yes" : "no",
+          systolic,
+          pulse,
+          consciousness,
+          temperature,
+        }),
       ];
     }
     default:

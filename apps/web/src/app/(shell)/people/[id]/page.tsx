@@ -108,11 +108,16 @@ export default async function PersonOverviewPage({ params }: { readonly params: 
             icon={<ClipboardList size={24} strokeWidth={1.5} />}
             title={t("care.overview.plan.title")}
             status={
-              planChip && PlanIcon ? (
-                <StatusChip status={planChip.status} label={planChip.label} icon={PlanIcon} />
-              ) : (
-                <StatusChip status="due" label={t("care.plan.none.title")} />
-              )
+              <span className="flex flex-wrap gap-2">
+                {planChip && PlanIcon ? (
+                  <StatusChip status={planChip.status} label={planChip.label} icon={PlanIcon} />
+                ) : (
+                  <StatusChip status="due" label={t("care.plan.none.title")} />
+                )}
+                {plans?.due?.overdue ? (
+                  <StatusChip status="overdue" label={t("care.plan.due.overdue")} />
+                ) : null}
+              </span>
             }
             description={
               <>
@@ -180,18 +185,17 @@ export default async function PersonOverviewPage({ params }: { readonly params: 
             headingLevel={3}
             icon={<Droplets size={24} strokeWidth={1.5} />}
             title={t("care.overview.fluid.title")}
-            description={
-              <Meter
-                label={t("care.charts.fluid.meter", { date: formatDate(fluid.date) ?? fluid.date })}
-                value={fluid.intakeMl}
-                max={fluidView.meterMax}
-                valueText={fluidView.valueText}
-                description={<StatusChip status={fluidView.status} label={fluidView.statusText} />}
-              />
-            }
             link={{ href: tabHref(id, "charts"), label: t("care.overview.fluid.link") }}
             linkComponent={Link}
-          />
+          >
+            <Meter
+              label={t("care.charts.fluid.meter", { date: formatDate(fluid.date) ?? fluid.date })}
+              value={fluid.intakeMl}
+              max={fluidView.meterMax}
+              valueText={fluidView.valueText}
+              description={<StatusChip status={fluidView.status} label={fluidView.statusText} />}
+            />
+          </Tile>
         ) : null}
         {assessments ? (
           <Tile
@@ -199,30 +203,30 @@ export default async function PersonOverviewPage({ params }: { readonly params: 
             icon={<ClipboardCheck size={24} strokeWidth={1.5} />}
             title={t("care.overview.assessments.title")}
             description={
-              assessments.items.length === 0 ? (
-                t("care.overview.assessments.none")
-              ) : (
-                <ul className="m-0 flex list-none flex-col gap-2 p-0">
-                  {assessments.items.map((item) => {
-                    const band = bandLabel(item, t);
-                    return (
-                      <li key={item.id} className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold">
-                          {t("care.assessments.tool", { tool: item.toolKey })}
-                        </span>
-                        {band ? <StatusChip status={bandChip(item)} label={band} /> : null}
-                        <span className="text-text-secondary">
-                          {formatDate(ukToday(new Date(item.occurredAt))) ?? ""}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )
+              assessments.items.length === 0 ? t("care.overview.assessments.none") : undefined
             }
             link={{ href: tabHref(id, "assessments"), label: t("care.overview.assessments.link") }}
             linkComponent={Link}
-          />
+          >
+            {assessments.items.length > 0 ? (
+              <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                {assessments.items.map((item) => {
+                  const band = bandLabel(item, t);
+                  return (
+                    <li key={item.id} className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold">
+                        {t("care.assessments.tool", { tool: item.toolKey })}
+                      </span>
+                      {band ? <StatusChip status={bandChip(item)} label={band} /> : null}
+                      <span className="text-text-secondary">
+                        {formatDate(ukToday(new Date(item.occurredAt))) ?? ""}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+          </Tile>
         ) : null}
         {marks ? (
           <Tile
@@ -239,26 +243,24 @@ export default async function PersonOverviewPage({ params }: { readonly params: 
             headingLevel={3}
             icon={<NotebookPen size={24} strokeWidth={1.5} />}
             title={t("care.overview.notes.title")}
-            description={
-              recentNotes.length === 0 ? (
-                t("care.overview.notes.none")
-              ) : (
-                <ul className="m-0 flex list-none flex-col gap-2 p-0">
-                  {recentNotes.map(({ current }) => (
-                    <li key={current.id}>
-                      <span className="block text-callout text-text-secondary">
-                        {formatDateTime(current.occurredAt)}{" "}
-                        {t("care.notes.category", { category: current.category })}
-                      </span>
-                      <span className="line-clamp-2 block">{current.body}</span>
-                    </li>
-                  ))}
-                </ul>
-              )
-            }
+            description={recentNotes.length === 0 ? t("care.overview.notes.none") : undefined}
             link={{ href: tabHref(id, "notes"), label: t("care.overview.notes.link") }}
             linkComponent={Link}
-          />
+          >
+            {recentNotes.length > 0 ? (
+              <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                {recentNotes.map(({ current }) => (
+                  <li key={current.id}>
+                    <span className="block text-callout text-text-secondary">
+                      {formatDateTime(current.occurredAt)}{" "}
+                      {t("care.notes.category", { category: current.category })}
+                    </span>
+                    <span className="line-clamp-2 block">{current.body}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </Tile>
         ) : null}
       </div>
     </>

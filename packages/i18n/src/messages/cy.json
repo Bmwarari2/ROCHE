@@ -291,7 +291,6 @@
   "care.charts.bristol": "Bristol type {type}",
   "care.charts.bristolWithAmount": "Bristol type {type}, {amount, select, small {small} medium {medium} large {large} other {amount not recorded}}",
   "care.charts.weightSummary": "{kg, number} kg, {method, select, standing {standing scales} chair {chair scales} hoist {hoist scales} bed {bed scales} other {method not recorded}}",
-  "care.charts.vitalsNoScore": "Vital signs, no NEWS2 result stored",
   "care.charts.amountMl": "Amount (ml)",
   "care.charts.amountHint": "Whole millilitres, up to 5,000.",
   "care.charts.amountRequired": "Enter the amount in whole millilitres, from 0 to 5,000",
@@ -350,7 +349,6 @@
   "care.news2.redScore": "One reading scored 3 on its own.",
   "care.news2.scale": "SpO2 scale {scale}",
   "care.news2.source": "Calculated by Harbour exactly as published in NEWS2 (Royal College of Physicians, 2017). The response is the RCP's wording. Follow your organisation's escalation policy.",
-  "care.news2.summary": "NEWS2 {score}: {response}",
   "care.profile.title": "Chart settings",
   "care.profile.description": "Prescribed IDDSI levels, the daily fluid target, skin risk and the NEWS2 SpO2 scale for {name}.",
   "care.profile.foodLevel": "Prescribed food level (IDDSI)",
@@ -657,7 +655,7 @@
   "care.bodyMap.view": "View",
   "care.bodyMap.viewOption": "{view, select, front {Front} other {Back}}",
   "care.bodyMap.drawing": "{view, select, front {Body drawing, front view. The person faces you: their right is on your left.} other {Body drawing, back view. The person faces away: their left is on your left.}}",
-  "care.bodyMap.drawingHint": "Tap the drawing, or use the list of body areas below the drawing. Dots show marks already recorded.",
+  "care.bodyMap.drawingHint": "Tap the drawing, or choose from the list of body areas. Dots show marks already recorded.",
   "care.bodyMap.personRight": "Person's right",
   "care.bodyMap.personLeft": "Person's left",
   "care.bodyMap.region.label": "Body area, as marked on the drawing",
@@ -796,5 +794,6 @@
   "care.history.field": "Field",
   "care.history.value": "Value",
   "care.charts.overrideGiven": "Not the prescribed level. Reason given: {reason}",
-  "care.charts.settingsTitle": "Chart settings"
+  "care.charts.settingsTitle": "Chart settings",
+  "care.charts.vitalsReadings": "Respiration rate {rr}, SpO2 {spo2}% on {oxygen, select, yes {oxygen} other {air}}, systolic {systolic} mmHg, pulse {pulse}, {consciousness, select, alert {alert} new_confusion {new confusion} voice {responds to voice} pain {responds to pain} other {unresponsive}}, temperature {temperature} °C"
 }
