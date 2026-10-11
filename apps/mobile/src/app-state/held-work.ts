@@ -37,10 +37,17 @@ import { AppSchema, DEVICE_WRITABLE_TABLES } from "@harbour/sync/client";
 import type { Me } from "../auth/auth-client";
 import type { FieldError } from "../care/entries";
 import { type MessageKey, t } from "../i18n/t";
-import { databaseFilename } from "../security/db-key";
+import { type DatabaseKey, databaseFilename } from "../security/db-key";
 import { buildDeviceReport } from "../sync/device-report";
 import { HELD_FAIL_SAFE_DAYS, heldDeadline } from "../sync/held-limit";
-import type { DiscardOutcome, DiscardReasonCode } from "./tombstones";
+import {
+  type DiscardOutcome,
+  type DiscardReasonCode,
+  type IdsMissing,
+  type Leftover,
+  readTombstoneIndex,
+  type TombstoneStore,
+} from "./tombstones";
 
 // -------------------------------------------------------------------------------------------------
 // The marker in the keystore: who owns the held entries, how many, and until when
@@ -396,6 +403,31 @@ export const KEPT_META_IDS = [OWNER_META_ID, "meta:held-entries-max-days"] as co
 export const DISCARD_NOTE_PREFIX = "discard-note:";
 
 /**
+ * Deletes the words kept for deletions the server now has in full: their tombstones have left the
+ * keystore (security review round 5, S-L4; retention class in docs/specs/data-standards.md). Words
+ * for a deletion still waiting stay. Nothing is deleted when the keystore cannot be read.
+ */
+export async function forgetDiscardNotes(
+  db: {
+    getAll<T>(sql: string, params?: unknown[]): Promise<T[]>;
+    execute(sql: string, params?: unknown[]): Promise<unknown>;
+  },
+  store: TombstoneStore,
+): Promise<number> {
+  const kept = new Set(await readTombstoneIndex(store));
+  const notes = await db.getAll<{ id: string }>("SELECT id FROM sync_meta WHERE id LIKE ?", [
+    `${DISCARD_NOTE_PREFIX}%`,
+  ]);
+  let forgotten = 0;
+  for (const note of notes) {
+    if (kept.has(note.id.slice(DISCARD_NOTE_PREFIX.length))) continue;
+    await db.execute("DELETE FROM sync_meta WHERE id = ?", [note.id]);
+    forgotten += 1;
+  }
+  return forgotten;
+}
+
+/**
  * Copies the upload queue into `held_entry`, then clears every synced table and the queue
  * (`disconnectAndClear` without the local-only tables) and the bookkeeping except the owner. What
  * is left is the unsent work only: held entries and refused entries. Idempotent: a copy repeated
@@ -683,16 +715,19 @@ export async function admitToDatabase(deps: OpenCheckDeps): Promise<OpenOutcome>
  */
 export class RestoreFailedError extends Error {
   constructor() {
-    super(t("mobile.vault.restoreFailed"));
+    // Its own words: these entries will never be sent (clinical review round 5, C-L6).
+    super(t("mobile.vault.restoreBlockedFailed"));
     this.name = "RestoreFailedError";
   }
 }
 
 /**
  * What the person sees when held entries could not all be put back (clinical review round 4, M4):
- * a whole restore that failed, or entries still held. Null when everything is back.
+ * a whole restore that failed, or entries still held. Null when everything is back. Entries a
+ * failed deletion left are never sent, so their failure says so (clinical review round 5, C-L6).
  */
-export function restoreProblem(restore: RestoreResult | "failed"): string | null {
+export function restoreProblem(restore: RestoreResult | "failed", blocked = false): string | null {
+  if (blocked && !restoreComplete(restore)) return t("mobile.vault.restoreBlockedFailed");
   if (restore === "failed") return t("mobile.vault.restoreFailed");
   if (restore.remaining > 0) {
     return t("mobile.vault.restoreIncomplete", { count: restore.remaining });
@@ -861,7 +896,7 @@ export class DiscardIncompleteError extends Error {
 
 /**
  * The key could be read but the entries could not, so the record of the deletion could not say
- * which entries it removed: nothing is deleted (clinical review round 4, M3).
+ * which entries it removed: nothing is deleted (clinical reviews round 4 M3 and round 5 C-M2).
  */
 export class HeldIdsUnreadableError extends Error {
   constructor() {
@@ -870,9 +905,116 @@ export class HeldIdsUnreadableError extends Error {
   }
 }
 
+/**
+ * The key is there but could not be read this time (for example the face or fingerprint prompt was
+ * cancelled): nothing is deleted, and the person is asked to try again (clinical review round 5,
+ * C-M2).
+ */
+export class KeyNotReadError extends Error {
+  constructor() {
+    super(t("mobile.held.keyNotRead"));
+    this.name = "KeyNotReadError";
+  }
+}
+
+/**
+ * The entries could not be marked never to be uploaded, so nothing is deleted (clinical review
+ * round 5, C-L1).
+ */
+export class UploadBlockError extends Error {
+  constructor() {
+    super(t("mobile.discard.blockFailed"));
+    this.name = "UploadBlockError";
+  }
+}
+
+/** The ids a deletion records, or why there are none (clinical review round 5, C-M2). */
+export type HeldIds =
+  | { readonly kind: "ids"; readonly ids: UnsentIds }
+  | { readonly kind: "none"; readonly reason: IdsMissing };
+
+export interface HeldIdsDeps {
+  /** The key's plain bookkeeping (database id and protection), read without a prompt. */
+  readonly readBookkeeping: () => Promise<{
+    readonly id: string | null;
+    readonly protection: string | null;
+  }>;
+  /** Reads the key, which shows the face or fingerprint prompt; null when it is not a valid key. */
+  readonly readKey: () => Promise<DatabaseKey | null>;
+  /** Device authentication when reading the key did not prompt (passcode keys, or no key). */
+  readonly confirmIdentity: () => Promise<void>;
+  /** Opens the database with the key and reads the unsent entries' ids. */
+  readonly readIds: (key: DatabaseKey) => Promise<UnsentIds>;
+}
+
+/**
+ * The ids of the entries a deletion removes, read before anything is deleted (clinical reviews
+ * round 4 M3 and round 5 C-M2). Reading the key is the device authentication; a key that could not
+ * be read this time refuses the deletion and asks to try again, and so does a key that was read
+ * when the entries could not be. A deletion goes ahead without ids only when nothing could ever be
+ * read: there is no key at all, or the key kept is not a valid one; the reason is recorded.
+ */
+export async function readHeldIds(deps: HeldIdsDeps): Promise<HeldIds> {
+  let book: { readonly id: string | null; readonly protection: string | null };
+  try {
+    book = await deps.readBookkeeping();
+  } catch {
+    throw new KeyNotReadError();
+  }
+  if (book.id === null && book.protection === null) {
+    await deps.confirmIdentity();
+    return { kind: "none", reason: "key_absent" };
+  }
+  let key: DatabaseKey | null;
+  try {
+    key = await deps.readKey();
+  } catch {
+    throw new KeyNotReadError();
+  }
+  if (!key) {
+    await deps.confirmIdentity();
+    return { kind: "none", reason: "key_invalid" };
+  }
+  if (key.protection === "passcode") await deps.confirmIdentity();
+  try {
+    return { kind: "ids", ids: await deps.readIds(key) };
+  } catch {
+    throw new HeldIdsUnreadableError();
+  }
+}
+
+/** How a deletion ended, and what of the database it left on the device. */
+export interface DeletionOutcome {
+  readonly outcome: DiscardOutcome;
+  readonly leftover: readonly Leftover[];
+}
+
+/**
+ * "failed" only while the entries can still be read: the file, its key and the rows inside all
+ * remain. Otherwise the entries are gone for good, so "deleted", naming any part of the database
+ * left behind, which is reported as a security event of its own (clinical review round 5, C-M1).
+ */
+export function deletionOutcome(state: {
+  readonly fileRemains: boolean;
+  readonly keyRemains: boolean;
+  readonly rowsRemain: boolean;
+}): DeletionOutcome {
+  const leftover: Leftover[] = [];
+  if (state.fileRemains) leftover.push("file");
+  if (state.keyRemains) leftover.push("key");
+  const readable = state.fileRemains && state.keyRemains && state.rowsRemain;
+  return { outcome: readable ? "failed" : "deleted", leftover };
+}
+
 export interface DiscardDeps {
   /** The database id from the keystore's plain bookkeeping (no biometric prompt needed). */
   readonly readDatabaseId: () => Promise<string | null>;
+  /**
+   * Clears the rows inside the open database and closes it, before its file goes; true when the
+   * rows were cleared. Absent for held entries, whose database is already closed and whose rows go
+   * with the file.
+   */
+  readonly clearRows?: () => Promise<boolean>;
   readonly deleteDatabaseFile: (filename: string) => void;
   readonly destroyKey: () => Promise<void>;
   /** True once nothing of the file is left. */
@@ -884,25 +1026,36 @@ export interface DiscardDeps {
    * when it cannot, and then nothing is deleted.
    */
   readonly putOnRecord: () => Promise<unknown>;
-  /** Records how the deletion ended: "deleted", or "failed" superseding the request. Never throws. */
-  readonly recordOutcome: (outcome: DiscardOutcome) => Promise<unknown>;
-  /** Marks the entries left behind as never to be uploaded (the held marker). */
+  /** Records how the deletion ended, with what it left behind. Never throws. */
+  readonly recordOutcome: (
+    outcome: DiscardOutcome,
+    leftover: readonly Leftover[],
+  ) => Promise<unknown>;
+  /**
+   * Marks the entries as never to be uploaded (the held marker), before anything is deleted, so a
+   * deletion cut short never uploads what it left. Throws when the marker cannot be written.
+   */
   readonly blockUploads: () => Promise<void>;
   readonly clearHeld: () => Promise<void>;
   readonly demo: boolean;
 }
 
 /**
- * Deletes held entries for good, checked at each step (S5, clinical review round 4, H1):
+ * Deletes unsent entries for good, checked at each step (S5; clinical reviews round 4 H1 and round
+ * 5 C-M1 and C-L1). Used for held entries and for signing out with entries unsent:
  *
  * 1. the database id is read; if it cannot be, nothing is deleted (L4: the file is never skipped);
  * 2. the deletion is put on record as requested; if it cannot be, nothing is deleted (M1, M2);
- * 3. the file is deleted and the key destroyed, each checked;
- * 4. only when both are gone is it recorded as deleted and the marker cleared. If either remains,
- *    it is recorded as failed (superseding the request), the entries stay held and are marked
- *    never to be uploaded, and the deletion can be tried again.
+ * 3. the entries are marked never to be uploaded; if they cannot be, "failed" is recorded and
+ *    nothing is deleted;
+ * 4. the rows are cleared (when the database is open), the file deleted and the key destroyed,
+ *    each checked;
+ * 5. while the file, the key and the rows all remain, the entries can still be read: "failed" is
+ *    recorded, superseding the request, and the entries stay held and blocked for a retry.
+ *    Otherwise "deleted" is recorded, with any part of the database left behind, and the marker
+ *    clears.
  */
-export async function discardHeldWork(deps: DiscardDeps): Promise<void> {
+export async function discardHeldWork(deps: DiscardDeps): Promise<DeletionOutcome> {
   let id: string | null;
   try {
     id = await deps.readDatabaseId();
@@ -918,25 +1071,28 @@ export async function discardHeldWork(deps: DiscardDeps): Promise<void> {
     }
   }
   await deps.putOnRecord();
-  let gone = true;
+  try {
+    await deps.blockUploads();
+  } catch {
+    await deps.recordOutcome("failed", []).catch(() => undefined);
+    throw new UploadBlockError();
+  }
+  const rowsCleared = deps.clearRows ? await deps.clearRows().catch(() => false) : false;
+  let fileRemains = false;
   if (filename) {
     try {
       deps.deleteDatabaseFile(filename);
     } catch {
       // Checked below.
     }
-    gone = await deps.databaseGone(filename).catch(() => false);
+    fileRemains = !(await deps.databaseGone(filename).catch(() => false));
   }
-  if (gone) {
-    // The entries are gone; the key goes too, checked (S5).
-    await deps.destroyKey().catch(() => undefined);
-    gone = !(await deps.keyRemains().catch(() => true));
-  }
-  if (!gone) {
-    await deps.recordOutcome("failed").catch(() => undefined);
-    await deps.blockUploads().catch(() => undefined);
-    throw new DiscardIncompleteError();
-  }
-  await deps.recordOutcome("deleted").catch(() => undefined);
+  // The key goes even when the file stays: without it the file cannot be read (S5).
+  await deps.destroyKey().catch(() => undefined);
+  const keyRemains = await deps.keyRemains().catch(() => true);
+  const result = deletionOutcome({ fileRemains, keyRemains, rowsRemain: !rowsCleared });
+  await deps.recordOutcome(result.outcome, result.leftover).catch(() => undefined);
+  if (result.outcome === "failed") throw new DiscardIncompleteError();
   await deps.clearHeld();
+  return result;
 }

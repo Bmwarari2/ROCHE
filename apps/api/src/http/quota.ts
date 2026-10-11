@@ -1,35 +1,38 @@
 import { HttpProblem } from "./problem";
 
 /**
- * A per-user quota on routes a device calls on its own (security review round 4, M4): deletion
- * records and device reports. The API has no shared rate limiter for /v1 routes (Better Auth
- * throttles only its own sign-in routes, and the web application firewall limits each address), so
- * this is a sliding window kept in the process: with several API tasks a user may reach the limit
- * once per task, which still bounds the audit rows a stolen token can write. A refusal is a 429 with
- * Retry-After, which the device reads as "try again later".
+ * A per-user quota on routes a device calls on its own (security reviews round 4, M4 and round 5,
+ * S-M2): deletion records and device reports. The API has no shared rate limiter for /v1 routes
+ * (Better Auth throttles only its own sign-in routes, and the web application firewall limits each
+ * address), so this is a sliding window kept in the process: with several API tasks a user may
+ * reach the limit once per task, which still bounds the audit rows a stolen token can write. A
+ * refusal is a 429 with Retry-After, which the device reads as "try again later".
+ *
+ * Each request counts as one, or as `amount` (for example the entry ids a deletion lists).
  */
 export class PerUserQuota {
-  private readonly hits = new Map<string, number[]>();
+  private readonly hits = new Map<string, Array<{ readonly at: number; readonly amount: number }>>();
 
   constructor(
     readonly max: number,
     readonly windowMs: number,
   ) {}
 
-  /** Counts one request for `key`; throws a 429 problem when the window is full. */
-  take(key: string, now = Date.now()): void {
+  /** Counts `amount` for `key`; throws a 429 problem when it would pass the window's limit. */
+  take(key: string, amount = 1, now = Date.now()): void {
     const since = now - this.windowMs;
-    const recent = (this.hits.get(key) ?? []).filter((t) => t > since);
-    if (recent.length >= this.max) {
-      const oldest = recent[0] ?? now;
+    const recent = (this.hits.get(key) ?? []).filter((h) => h.at > since);
+    const used = recent.reduce((sum, h) => sum + h.amount, 0);
+    if (used + amount > this.max) {
+      const oldest = recent[0]?.at ?? now;
       throw new QuotaExceeded(Math.max(1, Math.ceil((oldest + this.windowMs - now) / 1000)));
     }
-    recent.push(now);
+    if (amount > 0) recent.push({ at: now, amount });
     this.hits.set(key, recent);
     // Keep the map small: forget keys whose window has passed.
     if (this.hits.size > 10_000) {
-      for (const [k, times] of this.hits) {
-        if ((times.at(-1) ?? 0) <= since) this.hits.delete(k);
+      for (const [k, entries] of this.hits) {
+        if ((entries.at(-1)?.at ?? 0) <= since) this.hits.delete(k);
       }
     }
   }

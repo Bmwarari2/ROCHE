@@ -21,6 +21,7 @@ import {
   type DiscardOutcome,
   type DiscardStage,
   isOpaqueId,
+  type Leftover,
   readTombstone,
   readTombstones,
   recordTombstone,
@@ -76,6 +77,11 @@ export function discardBody(tombstone: Tombstone, stage: DiscardStage) {
     personIds,
     count: tombstone.count === null ? null : Math.max(tombstone.count, entryIds.length),
     discardedAt: tombstone.at,
+    // Why there are no ids, and what a deletion left behind (clinical review round 5, C-M1, C-M2).
+    ...(tombstone.idsMissing ? { idsMissing: tombstone.idsMissing } : {}),
+    ...(stage === "deleted" && tombstone.leftover && tombstone.leftover.length > 0
+      ? { leftover: [...tombstone.leftover] }
+      : {}),
   };
 }
 
@@ -204,8 +210,13 @@ export interface FinishDeps {
   readonly store: TombstoneStore;
   /** The same deletion that was put on record, with all its ids. */
   readonly tombstone: Tombstone;
-  /** "deleted" once the file and its key are gone; "failed" when they are not. */
+  /**
+   * "failed" only while the entries can still be read (the file, its key and the rows all remain);
+   * otherwise "deleted" (clinical review round 5, C-M1).
+   */
   readonly outcome: DiscardOutcome;
+  /** On "deleted": what was left on the device though the entries can no longer be read. */
+  readonly leftover?: readonly Leftover[];
   readonly send: DiscardSender;
 }
 
@@ -221,6 +232,9 @@ export async function finishDiscard(deps: FinishDeps): Promise<DiscardSendResult
     ...deps.tombstone,
     stage: deps.outcome,
     unsent: [...before.filter((s) => s !== deps.outcome), deps.outcome],
+    ...(deps.outcome === "deleted" && deps.leftover && deps.leftover.length > 0
+      ? { leftover: [...deps.leftover] }
+      : {}),
   };
   await recordTombstone(deps.store, next).catch(() => undefined);
   return sendWaitingStages(deps.store, deps.send, next);
