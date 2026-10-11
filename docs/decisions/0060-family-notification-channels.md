@@ -24,7 +24,10 @@ provider, and so that the SMS gateway can be chosen later without changing the d
 - No health details or names in any message (HZ-060; master prompt 9.1: push, email and SMS
   bodies never carry personal data).
 - UK residency for personal data (master prompt 6); a provider receiving family contact details
-  joins the sub-processor register and the DPIA.
+  joins the sub-processor register and the DPIA. The SMS gateway must process and route numbers
+  and messages in the UK only; a provider outside the UK is not eligible (H-105). Push tokens go to
+  Expo, APNs and FCM in the United States, so push for family members waits for the DPO to confirm
+  the transfer safeguard (H-112).
 - The SMS gateway is undecided; build against a contract-tested mock (section 20 rule 2).
 - Opt-outs must take effect at once, whichever route the family member used.
 - Every integration is an adapter behind a domain interface with a mock and a contract test
@@ -100,5 +103,5 @@ adapter's event mapping.
 
 [comms.md](../specs/comms.md) section 4 rules 13 to 15; [platform.md](../specs/platform.md)
 integrations framework; [sub-processors.md](../compliance/sub-processors.md) pending entries;
-human actions H-09 and H-105 (SMS gateway), H-106 (DPO). Revisit when the SMS gateway is chosen or
+human actions H-09 and H-105 (SMS gateway), H-106 (DPO), H-112 (push transfer safeguard). Revisit when the SMS gateway is chosen or
 if NHS Notify becomes available to social care providers.

@@ -76,11 +76,14 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `document_signature` | the class of the signed document |
 | `legal_hold`, `destruction_certificate` | kept permanently (proof of records management); never destroyed by the engine |
 | `task`, `task_series`, `workflow_instance`, `workflow_transition` | the class of the record they concern (care_record for tasks about a person) |
-| `feed_item`, `feed_item_withdrawal`, `care_note_share`, `visit_booking` ([comms.md](comms.md)) | care_record |
+| `feed_item`, `feed_item_withdrawal`, `care_note_share`, `visit_booking` ([comms.md](comms.md)) | care_record; photo updates and their photo documents stay care_record after photo consent is withdrawn (taken down from the feed, kept as the history of what was shared) |
 | `feed_view` (what a family member saw, under which decision) | audit_event.care_record |
 | `family_channel`, `family_notification_setting` | care_record, with the contact; push tokens are deleted when the device signs out, not retained |
 | `family_notification` and its deliveries | the class of the record they relate to (care_record) until the DPO sets a shorter period (H-106) |
 | `visit_booking_setting` | tenant configuration, kept while current |
+| `family_portal_user` | care_record, with the contact |
+| `location_visit_restriction` | care_record |
+| `sharing_decision_suspension` ([people.md](people.md)) | care_record, with the decision |
 
 ## Gaps to settle before the module that needs them ships
 
