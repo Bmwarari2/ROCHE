@@ -1,0 +1,38 @@
+{
+  "name": "@harbour/db",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Drizzle schema, migrations, row-level security policies and seed data for Harbour",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema/index.ts",
+    "./testing": "./test/support/database.ts",
+    "./seed": "./src/seed/demo.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:db": "vitest run",
+    "generate": "drizzle-kit generate",
+    "generate:custom": "drizzle-kit generate --custom",
+    "bootstrap": "tsx scripts/bootstrap.ts",
+    "migrate": "tsx scripts/migrate.ts",
+    "seed": "tsx scripts/seed.ts",
+    "reset": "tsx scripts/reset.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.4",
+    "pg": "^8.23.1",
+    "@harbour/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "@harbour/config": "workspace:*",
+    "@types/node": "^22.15.0",
+    "@types/pg": "^8.15.0",
+    "drizzle-kit": "^0.31.11",
+    "tsx": "^4.20.0",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.11"
+  }
+}
