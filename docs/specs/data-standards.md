@@ -16,17 +16,39 @@ the DSCR data migration schema.
 - **Files**: one CSV file and one JSON Lines file per table under `tables/`, named after the table
   (`tables/person.csv`, `tables/person.jsonl`), plus a `documents/` folder keyed by document ID
   (`documents/<id>.<extension>`, never the title or file name), `destroyed.csv` (records destroyed past
-  retention, with their certificate ids), `schema.json` (JSON Schema 2020-12 for every table, generated
-  from the same plan as the files) and a `manifest.json` holding the export schema version, tenant ID,
-  export time (UTC), row counts and SHA-256 checksums (fields below). Rules for held, deleted, destroyed,
-  quarantined and sample records: [platform-completions.md](platform-completions.md) rule 11.
+  retention, with their certificate ids), `current_summary.csv` (one row per person with the essentials
+  as Harbour shows them, below), `schema.json` (JSON Schema 2020-12 for every table, generated from the
+  same plan as the files, with a description for every column, a unit for every number and the codes of
+  every coded column) and a `manifest.json` holding the export schema version (1.1.0), tenant ID, the
+  snapshot instant, row counts and SHA-256 checksums (fields below). Only columns the export catalogue
+  classifies as exported are written. Rules for held, deleted, destroyed, quarantined and sample
+  records: [platform-completions.md](platform-completions.md) rule 11.
+- **Snapshot**: every file is read in one transaction, so all tables are from the same moment
+  (`snapshotAt` in the manifest, in UTC and UK time). A "changes since" export (manifest `kind`
+  `changes_since`, `since` the earlier snapshot) holds only rows created, changed, recorded, deleted or
+  destroyed at or after it, and has no current summary.
 - **Encoding**: UTF-8, no byte order mark; CSV per RFC 4180 with a header row of column names.
+- **CSV formulas**: in CSV files only, a text cell starting with `=`, `+`, `-`, `@`, a tab, a carriage
+  return or an apostrophe gets one leading apostrophe so a spreadsheet does not run it as a formula;
+  remove that one apostrophe when importing (`csvTextValue`). Numbers are never changed, and the JSON
+  Lines files hold the exact values.
 - **Column names**: identical to the database column names (`snake_case`); JSON uses the same names.
 - **Identifiers**: `id` is a UUIDv7 string. Foreign keys keep their column names (`location_id`). On
   import, source IDs are kept in an `import_source_id` mapping and Harbour assigns new IDs and the
   importing tenant's `tenant_id`; an imported file's `tenant_id` is ignored.
-- **Dates and times**: dates as `YYYY-MM-DD`; timestamps as ISO 8601 in UTC with `Z`
-  (`2026-10-11T09:30:00Z`). The UI shows dd/mm/yyyy and 24-hour time in Europe/London.
+- **Dates and times**: dates as `YYYY-MM-DD` and always UK calendar dates; timestamps as ISO 8601 in
+  UTC with `Z` (`2026-10-11T09:30:00Z`). UK local time is the instant converted to Europe/London
+  (+00:00 GMT, +01:00 BST); convert from UTC, never the other way, because the autumn clock change
+  repeats an hour. Where an instant stands for a date (`person.deceased_at`, `person.discharged_at`) the
+  export adds a derived `<column>_uk_date` column with the UK date, because the UTC date is a day early
+  for anything after 23:00 in summer. Recurrence times and quiet hours are Europe/London wall-clock times
+  (`HH:MM`), not instants. The UI shows dd/mm/yyyy and 24-hour time in Europe/London.
+- **Corrections**: clinical and money entries are never edited. A correction is a new row whose
+  `supersedes_id` names the row it corrects; the original and its correction are not two live facts, and
+  the current value is the row no other row supersedes.
+- **Units**: every numeric column has its unit in `schema.json` (`x-unit`). Observation `values` follow
+  a schema per chart (`OBSERVATION_VALUES_SCHEMA`: ml, kg, breaths per minute, % oxygen saturation,
+  mmHg, beats per minute, degrees Celsius, Bristol stool type).
 - **Codes**: coded values are stored as the code (`ethnic_category_code = "A"`). Where the code system is
   not implied by the column, the JSON carries `{ "code", "display", "system" }` with `system` as a URI
   (`http://snomed.info/sct` for SNOMED CT).
@@ -97,9 +119,10 @@ names below are the concepts this contract carries and must be kept in step with
 | `photo_document_id` | UUIDv7 | - | Reference to `document` | Photo shown on every point-of-care screen (wrong-person hazard). Exported in `documents/`. |
 | `communication_needs` | JSON array | Accessible Information Standard; SNOMED CT | `[{ "code", "display", "preferredFormat" }]` (below) | Flags on every screen and print (section 5.4). |
 | `communication_needs_status` | code | Accessible Information Standard (identify and record) | `not_recorded`, `none_identified`, `recorded` | Phase 1. An empty list is never read as "no needs": `none_identified` is recorded positively with `communication_needs_confirmed_by` and `_at` (hazard HZ-023). |
+| `allergy_status` | code | MODS allergies and adverse reactions (the "no known allergies" statement; see `allergy` below) | `unknown` (nobody has recorded whether the person has allergies), `no_known_allergies` (checked and recorded: none known), `has_allergies` (one or more rows in `allergy`) | Defaults to `unknown`, which never means none (hazard HZ-007). Read with the `allergy` rows; go-live waits until no current person is `unknown` ([platform-completions.md](platform-completions.md) rule 26). |
 | `national_data_opt_out` | boolean | National data opt-out | `true` when the person has opted out | Honoured when publicly funded care data is used beyond direct care. Checking against the national service is a Phase 5 item. |
-| `deceased_at` | timestamp | NHS Data Dictionary PERSON DEATH DATE (date part) | ISO 8601 UTC | Sets `status` to `deceased`. |
-| `discharged_at` | timestamp | MODS discharge date | ISO 8601 UTC | Sets `status` to `discharged`. |
+| `deceased_at` | timestamp | NHS Data Dictionary PERSON DEATH DATE (the UK date of this instant) | ISO 8601 UTC | Sets `status` to `deceased`. The export adds `deceased_at_uk_date`. |
+| `discharged_at` | timestamp | MODS discharge date (the UK date of this instant) | ISO 8601 UTC | Sets `status` to `discharged`. The export adds `discharged_at_uk_date`. |
 
 ### Sex codes (`sex_code`, NHS Data Dictionary PERSON PHENOTYPIC SEX)
 
@@ -382,7 +405,9 @@ Code lists for [platform-completions.md](platform-completions.md). None maps to 
 
 | Harbour field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `manifest.json` | Harbour export contract | `format` (`harbour-tenant-export`), `schemaVersion` (semantic version, `EXPORT_SCHEMA_VERSION`, 1.0.0), `exportId`, `tenantId`, `requestedBy`, `generatedAt` (UTC), `schema` (path, SHA-256, bytes), `tables` (name, documented, rows, legal-hold rows, excluded soft-deleted and sample, files with path, format `csv` or `jsonl`, SHA-256, bytes, rows), `notExported` (name, reason), `documents` (included, bytes, quarantined, excluded, destroyed, files with id, path, SHA-256, bytes), `destroyed` (path, count, by table, certificate ids), `auditChain` (verified, first broken position), `complete`, `problems`, `warnings` | An export with any problem is never offered (HZ-071). |
+| `manifest.json` | Harbour export contract | `format` (`harbour-tenant-export`), `schemaVersion` (semantic version, `EXPORT_SCHEMA_VERSION`, 1.1.0), `kind` (`full`, `changes_since`), `since` (UTC or empty), `exportId`, `tenantId`, `requestedBy`, `generatedAt` (UTC), `snapshotAt` (UTC) and `snapshotAtUk` (local time with offset, zone `BST` or `GMT`), `schema` (path, SHA-256, bytes), `tables` (name as `schema.table`, rows, legal-hold rows, excluded soft-deleted and sample, files with path, format `csv` or `jsonl`, SHA-256, bytes, rows), `currentSummary` (path, SHA-256, bytes, rows; empty for a changes-since export), `notExported` (name, reason), `documents` (included, bytes, quarantined, excluded, destroyed, files with id, path, SHA-256, bytes), `destroyed` (path, count, by table, certificate ids), `auditChain` (verified, first broken position), `complete`, `problems` (`table_missing`, `unexpected_table`, `unclassified`, `file_missing`, `row_count_mismatch`, `foreign_tenant_rows`, `summary_missing`, `summary_row_count_mismatch`, `document_not_written`, `document_checksum_mismatch`), `warnings` (`audit_chain_broken`, `destroyed_without_certificate`) | An export with any problem is never offered (HZ-070, HZ-071). Version 1.1.0 added `kind`, `since`, the snapshot, the current summary, the `_uk_date` columns, units, codes and the CSV guard. |
+| `current_summary.csv` | Harbour export contract | `person_id`, `allergy_status`, `allergies` (substance and severity, most severe first, separated by semicolons), `cpr_decision` (`attempt_cpr`, `do_not_attempt_cpr`, `not_recorded`, `conflicting`), `cpr_record_ids`, `cpr_review_overdue`, `iddsi_food` and `iddsi_drink` (level with name and colour, or `not recorded`), `communication_needs_status`, `communication_needs` (need and preferred format), `as_of` (UTC), `as_of_uk` | One row per exported person, worked out by the same functions as the point-of-care header and the transfer pack. `conflicting` lists every record in force. Check these first when moving a person to another system (HZ-071). |
+| Export column classification | Harbour (`EXPORT_TABLES`) | `exported`, `internal`, `secret` | Only `exported` columns are written; only the `public` schema is read. Internal and secret columns (`document.storage_key`, `tenant_user.auth_user_id`, `integration_connection.secret_ref`) never leave (HZ-070). |
 | `destroyed.csv` | Harbour | `table`, `id`, `destroyed_at` (UTC), `certificate_id` | Records destroyed past retention; their rows are not in the table files. |
 | `tenant_export.status` | Harbour | `queued`, `running`, `ready`, `failed`, `expired`, `revoked` | A ready export past its expiry reads as `expired`. |
 | `dpia.status` | Harbour | `draft`, `prepared`, `signed`, `superseded` | The onboarding state adds `not_started` and `review_due`. |
@@ -391,9 +416,10 @@ Code lists for [platform-completions.md](platform-completions.md). None maps to 
 | `retention_decision.kind` | Harbour | `accepted`, `lengthened`, `period_set`, `not_used` | The last two only for classes set by tenant policy. |
 | `sub_processor_notice.kind` | Harbour | `new`, `replacement` | |
 | Sub-processor objection resolution | Harbour (DPA clause 6.2) | `objection_withdrawn`, `not_used_for_tenant`, `services_ended` | |
-| Sample flag | Harbour | `is_sample` (boolean), `sample_batch_id` (UUID) | Sample people: family name `Example`, 999-range NHS numbers, `example.invalid` emails. |
+| Sample flag | Harbour | `is_sample` (boolean), `sample_batch_id` (UUID) | Sample people: family name `Example`, 999-range NHS numbers that pass the check digit, `example.invalid` emails, Ofcom drama telephone numbers (to verify, H-123), invented addresses (an "Example" street, no postcode or `ZZ99`). Shown with a "Sample" badge; prints carry the watermark "SAMPLE DATA: NOT A REAL PERSON" (HZ-072). |
 | `person.national_data_opt_out_checked_at` | Harbour; NHS national data opt-out | Timestamp (UTC) or empty for "not checked" | The existing boolean cannot say "not checked". |
-| Search audit scope | Harbour | `queryKind` (`text`, `nhs_number`), `termCount`, `entityTypes` (`person`, `staff`, `document`, `note`), `omitted` (kind and reason `not_permitted`, `no_scope`, `mfa_required`, `not_applicable`), `includeArchived`, `resultCounts`, `total`; break-glass: `personIds`, `reasonCode` | Never the words typed. |
+| Search audit scope | Harbour | `queryKind` (`text`, `nhs_number`), `termCount`, `entityTypes` (`person`, `staff`, `document`, `note`), `omitted` (kind and reason `not_permitted`, `no_scope`, `mfa_required`, `not_applicable`), `includeArchived`, `personScope` (`tenant`, `locations`, `assigned`, or empty when no person record was searched), `locationIds`, `validUntil` (UTC), `resultCounts`, `total`, `resultIds`, `personIds`, `careRecordView`; break-glass: `breakGlassRecordId`, `reasonCode` | Never the words typed or the typed break-glass reason, which stays in the break-glass record (HZ-011). |
+| Search match quality | Harbour | `exact` (every term a whole word), `prefix` | Ranks results; a break-glass search shows only `exact` matches. |
 
 ## Platform operational tables (not part of the MODS export)
 

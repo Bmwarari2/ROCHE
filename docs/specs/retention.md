@@ -78,7 +78,10 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `task`, `task_series`, `workflow_instance`, `workflow_transition` | the class of the record they concern (care_record for tasks about a person) |
 | `tenant_export` ([platform-completions.md](platform-completions.md)) | audit_event; the export file itself is deleted at `export.link_expiry_hours` and never kept as a record |
 | `dpia`, `sub_processor_response`, `tenant_setting_decision`, `retention_decision` | audit_event (interim: accountability evidence; H-115) |
-| Search audit events, sample data load and removal events | audit_event; sample records themselves are removed on demand, never retained |
+| Search audit events that showed people | audit_event.care_record: they record views of those people's care records, so they are kept as long as those records |
+| Other search audit events (staff, organisation documents, no results, refusals) | audit_event for now; whether they may use security_log is for the DPO (H-121) |
+| Break-glass search records (the typed reason) | audit_event, as other break-glass records |
+| Sample data load and removal events | audit_event; sample records themselves are removed on demand, never retained |
 
 ## Gaps to settle before the module that needs them ships
 
