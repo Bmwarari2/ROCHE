@@ -8,16 +8,27 @@ import {
   type OnboardingItemKey,
   type OnboardingState,
   onboardingChecklist,
+  type PersonReadinessGap,
+  type PersonReadinessInput,
+  personReadinessGaps,
   tenantDefaultRateKeys,
 } from "./onboarding";
 import { builtinRole } from "./roles";
 import {
-  checkRealPersonCreation,
+  checkOutboundForSample,
+  checkRealRecordCreation,
   checkSampleDataLoad,
   checkSampleDataRemoval,
   checkSamplePerson,
-  SAMPLE_DATA_EXCLUSIONS,
+  forSurface,
+  isOfcomDramaNumber,
+  REAL_RECORD_CREATION_PATHS,
+  SAMPLE_BADGE,
+  SAMPLE_WATERMARK,
+  type SampleDataSurface,
   sampleFlagForNewRecord,
+  samplePersonBadge,
+  samplePrintWatermark,
 } from "./sample-data";
 
 const SET_UP = new Date("2026-10-01T09:00:00Z");
@@ -42,6 +53,25 @@ function accessFor(roleKey: string): EffectiveAccess {
     LATER,
   );
 }
+
+function person(extra: Partial<PersonReadinessInput> = {}): PersonReadinessInput {
+  return {
+    id: "p-1",
+    status: "active",
+    sample: false,
+    hasPhoto: true,
+    allergyStatus: "no_known_allergies",
+    resuscitation: "recorded",
+    communicationNeedsStatus: "none_identified",
+    iddsiFoodLevel: "7",
+    iddsiDrinkLevel: "0",
+    ...extra,
+  };
+}
+
+const CHAIN_STEPS = [
+  { afterMinutes: 10, targetRoleKey: "registered_manager", channels: ["in_app", "push"] as const },
+];
 
 /** An organisation ready to go live. */
 function ready(): OnboardingState {
@@ -106,6 +136,23 @@ function ready(): OnboardingState {
     subProcessorChangedAt: { sentry: SET_UP },
     dataOptOut: { usesDataBeyondDirectCare: true, peopleNotChecked: 0 },
     sampleDataPresent: false,
+    devices: [
+      { id: "d-1", mode: "shared", active: true, mdmEnrolled: true },
+      { id: "d-2", mode: "kiosk", active: false, mdmEnrolled: false },
+    ],
+    escalationChains: [
+      "deterioration",
+      "overdue_task",
+      "statutory_notification",
+      "post_fall_observation",
+    ].map((key) => ({ key, steps: CHAIN_STEPS })),
+    validatedTools: [
+      { key: "news2", enabled: true, escalationPolicyDocumentId: "doc-policy-1" },
+      { key: "waterlow", enabled: false, escalationPolicyDocumentId: null },
+    ],
+    people: [person()],
+    dcb0160: { recordedAt: LATER, safetyCaseVersion: "0.1" },
+    currentSafetyCaseVersion: "0.1",
   };
 }
 
@@ -123,7 +170,12 @@ describe("onboarding checklist from the organisation's state", () => {
     const list = onboardingChecklist(ready());
     expect(list.items.map((i) => i.key)).toEqual(ONBOARDING_ITEMS.map((i) => i.key));
     expect(list.items.filter((i) => !i.done)).toEqual([]);
-    expect(list).toMatchObject({ done: 9, total: 9, readyForGoLive: true, blockers: [] });
+    expect(list).toMatchObject({
+      done: ONBOARDING_ITEMS.length,
+      total: ONBOARDING_ITEMS.length,
+      readyForGoLive: true,
+      blockers: [],
+    });
     for (const item of list.items) expect(item.reason.length).toBeGreaterThan(10);
   });
 
@@ -391,44 +443,263 @@ describe("identifier checks", () => {
   });
 });
 
+describe("go-live clinical items worked out from state", () => {
+  it("lists the clinical go-live items as blocking", () => {
+    const blocking = ONBOARDING_ITEMS.filter((i) => i.requiredForGoLive).map((i) => i.key);
+    expect(blocking).toEqual(
+      expect.arrayContaining([
+        "shared_devices_enrolled",
+        "escalation_chains_set",
+        "escalation_policies_linked",
+        "clinical_settings_reviewed",
+        "people_ready",
+        "dcb0160_recorded",
+      ]),
+    );
+  });
+
+  it.each<[string, (s: OnboardingState) => OnboardingState, OnboardingItemKey, string[]]>([
+    [
+      "an active shared device not enrolled",
+      (s) => ({
+        ...s,
+        devices: [...s.devices, { id: "d-9", mode: "kiosk", active: true, mdmEnrolled: false }],
+      }),
+      "shared_devices_enrolled",
+      ["d-9"],
+    ],
+    [
+      "hazard HZ-014 a deterioration alert with no escalation chain",
+      (s) => ({
+        ...s,
+        escalationChains: s.escalationChains.filter((c) => c.key !== "deterioration"),
+      }),
+      "escalation_chains_set",
+      ["deterioration"],
+    ],
+    [
+      "hazard HZ-027 a post-fall chain with no steps",
+      (s) => ({
+        ...s,
+        escalationChains: s.escalationChains.map((c) =>
+          c.key === "post_fall_observation" ? { ...c, steps: [] } : c,
+        ),
+      }),
+      "escalation_chains_set",
+      ["post_fall_observation"],
+    ],
+    [
+      "an escalation chain that is not valid",
+      (s) => ({
+        ...s,
+        escalationChains: s.escalationChains.map((c) =>
+          c.key === "overdue_task"
+            ? { ...c, steps: [{ afterMinutes: 10, channels: ["in_app"] }] }
+            : c,
+        ),
+      }),
+      "escalation_chains_set",
+      ["overdue_task"],
+    ],
+    [
+      "hazard HZ-014 NEWS2 switched on with no escalation policy linked",
+      (s) => ({
+        ...s,
+        validatedTools: [{ key: "news2", enabled: true, escalationPolicyDocumentId: null }],
+      }),
+      "escalation_policies_linked",
+      ["news2"],
+    ],
+    [
+      "hazard HZ-027 post-fall observation figures not reviewed by the clinical lead",
+      (s) => ({
+        ...s,
+        tenantDefaults: [...s.tenantDefaults, { key: "falls.monitoring_hours", changedAt: SET_UP }],
+      }),
+      "clinical_settings_reviewed",
+      ["falls.monitoring_hours"],
+    ],
+    [
+      "the shared-device auto-lock not reviewed",
+      (s) => ({
+        ...s,
+        tenantDefaults: [
+          ...s.tenantDefaults,
+          { key: "mobile.auto_lock_seconds.shared", changedAt: SET_UP },
+        ],
+      }),
+      "clinical_settings_reviewed",
+      ["mobile.auto_lock_seconds.shared"],
+    ],
+    [
+      "no DCB0160 assessment",
+      (s) => ({ ...s, dcb0160: { recordedAt: null, safetyCaseVersion: null } }),
+      "dcb0160_recorded",
+      [],
+    ],
+    [
+      "a DCB0160 assessment for an earlier safety case",
+      (s) => ({ ...s, dcb0160: { recordedAt: LATER, safetyCaseVersion: "0.0" } }),
+      "dcb0160_recorded",
+      ["0.1"],
+    ],
+  ])("not done with %s", (_label, change, key, outstanding) => {
+    const list = onboardingChecklist(change(ready()));
+    const item = list.items.find((i) => i.key === key);
+    expect(item?.done).toBe(false);
+    expect(item?.outstanding).toEqual(outstanding);
+    expect(list.blockers).toContain(key);
+  });
+
+  it("is done with no shared devices registered, and with a disabled tool lacking a policy", () => {
+    const s = ready();
+    const state = {
+      ...s,
+      devices: [{ id: "d-1", mode: "personal" as const, active: true, mdmEnrolled: false }],
+      validatedTools: [{ key: "waterlow", enabled: false, escalationPolicyDocumentId: null }],
+    };
+    expect(itemOf(state, "shared_devices_enrolled")?.done).toBe(true);
+    expect(itemOf(state, "escalation_policies_linked")?.done).toBe(true);
+    expect(itemOf({ ...s, devices: [] }, "shared_devices_enrolled")?.reason).toContain("No shared");
+  });
+
+  it("keeps clinical settings out of the non-blocking settings review", () => {
+    const s = ready();
+    const state = {
+      ...s,
+      tenantDefaults: [...s.tenantDefaults, { key: "falls.monitoring_hours", changedAt: SET_UP }],
+    };
+    expect(itemOf(state, "rates_reviewed")?.done).toBe(true);
+    expect(itemOf(state, "clinical_settings_reviewed")?.done).toBe(false);
+  });
+});
+
+describe("person readiness before go-live", () => {
+  it.each<[string, Partial<PersonReadinessInput>, PersonReadinessGap[]]>([
+    ["a person with everything recorded", {}, []],
+    ["hazard HZ-001 no photo for identification", { hasPhoto: false }, ["photo"]],
+    ["hazard HZ-007 allergy status unknown", { allergyStatus: "unknown" }, ["allergy_status"]],
+    ["no known allergies is a recorded fact", { allergyStatus: "no_known_allergies" }, []],
+    ["hazard HZ-015 no resuscitation status", { resuscitation: "not_recorded" }, ["resuscitation"]],
+    [
+      "hazard HZ-015 a recorded 'no decision in place' counts",
+      { resuscitation: "no_decision_in_place" },
+      [],
+    ],
+    [
+      "hazard HZ-023 communication needs not recorded",
+      { communicationNeedsStatus: "not_recorded" },
+      ["communication_needs"],
+    ],
+    ["hazard HZ-016 no IDDSI drink level", { iddsiDrinkLevel: null }, ["iddsi_levels"]],
+    ["hazard HZ-016 no IDDSI food level", { iddsiFoodLevel: null }, ["iddsi_levels"]],
+    [
+      "nothing recorded at all",
+      {
+        hasPhoto: false,
+        allergyStatus: "unknown",
+        resuscitation: "not_recorded",
+        communicationNeedsStatus: "not_recorded",
+        iddsiFoodLevel: null,
+        iddsiDrinkLevel: null,
+      },
+      ["photo", "allergy_status", "resuscitation", "communication_needs", "iddsi_levels"],
+    ],
+  ])("%s", (_label, extra, gaps) => {
+    expect(personReadinessGaps(person(extra))).toEqual(gaps);
+  });
+
+  it("blocks go-live while a current person lacks something, naming what", () => {
+    const s = ready();
+    const state = {
+      ...s,
+      people: [
+        person({ id: "p-1" }),
+        person({ id: "p-2", hasPhoto: false, resuscitation: "not_recorded" }),
+        person({ id: "p-3", status: "discharged", hasPhoto: false }),
+        person({ id: "p-4", sample: true, hasPhoto: false }),
+      ],
+    };
+    const item = itemOf(state, "people_ready");
+    expect(item).toMatchObject({
+      done: false,
+      outstanding: ["p-2"],
+      people: [{ personId: "p-2", gaps: ["photo", "resuscitation"] }],
+    });
+    expect(onboardingChecklist(state).blockers).toContain("people_ready");
+    expect(itemOf(ready(), "people_ready")).toMatchObject({ done: true, people: [] });
+  });
+});
+
 describe("hazard HZ-072 sample data is flagged, never mixed with real people, and removable in one step", () => {
-  it.each<[string, Parameters<typeof checkSamplePerson>[0], string[]]>([
+  const invented = {
+    familyName: "Example",
+    nhsNumber: "999 000 0018",
+    emails: ["ada@example.invalid"],
+    phones: ["07700 900123", "+44 20 7946 0123"],
+    address: { line1: "1 Example Street", postcode: "ZZ99 3AA" },
+  };
+
+  it.each<[string, Partial<Parameters<typeof checkSamplePerson>[0]>, string[]]>([
+    ["an invented person", {}, []],
     [
-      "an invented person",
-      { familyName: "Example", nhsNumber: "999 000 0018", emails: ["ada@example.invalid"] },
+      "a person with no identifiers, phones or address",
+      { familyName: " example ", nhsNumber: null, emails: [], phones: [], address: null },
       [],
     ],
     [
-      "a person with no NHS number or email",
-      { familyName: " example ", nhsNumber: null, emails: [] },
+      "an invented address with no postcode",
+      { address: { line1: "2 Example Road", postcode: null } },
       [],
     ],
-    [
-      "a realistic surname",
-      { familyName: "Smith", nhsNumber: null, emails: [] },
-      ["family_name_not_example"],
-    ],
+    ["a realistic surname", { familyName: "Smith" }, ["family_name_not_example"]],
     [
       "an NHS number outside the test range",
-      { familyName: "Example", nhsNumber: "401 023 2137", emails: [] },
-      ["nhs_number_not_test_range"],
+      { nhsNumber: "123 456 7890" },
+      ["nhs_number_not_valid_test_number"],
     ],
     [
-      "an NHS number with a wrong check digit",
-      { familyName: "Example", nhsNumber: "999 000 0019", emails: [] },
-      ["nhs_number_invalid"],
+      "a 999 NHS number with a wrong check digit",
+      { nhsNumber: "999 000 0019" },
+      ["nhs_number_not_valid_test_number"],
     ],
     [
       "a real email domain",
-      {
-        familyName: "Example",
-        nhsNumber: null,
-        emails: ["ada@example.invalid", "ada@example.com"],
-      },
+      { emails: ["ada@example.invalid", "ada@example.com"] },
       ["email_not_example_invalid"],
     ],
-  ])("checks %s", (_label, person, problems) => {
-    expect(checkSamplePerson(person)).toEqual(problems);
+    [
+      "a telephone number outside Ofcom's drama ranges",
+      { phones: ["07700 123456"] },
+      ["phone_not_drama_number"],
+    ],
+    ["a telephone number with letters", { phones: ["07700 9001AB"] }, ["phone_not_drama_number"]],
+    [
+      "a street that could be real",
+      { address: { line1: "1 High Street", postcode: null } },
+      ["address_not_invented"],
+    ],
+    [
+      "a real-looking postcode",
+      { address: { line1: "1 Example Street", postcode: "LS1 1AA" } },
+      ["address_not_invented"],
+    ],
+  ])("checks %s", (_label, extra, problems) => {
+    expect(checkSamplePerson({ ...invented, ...extra })).toEqual(problems);
+  });
+
+  it.each<[string, boolean]>([
+    ["07700 900000", true],
+    ["07700900999", true],
+    ["+44 7700 900500", true],
+    ["0113 496 0123", true],
+    ["(01632) 960 001", true],
+    ["028 9649 6123", true],
+    ["07700 901000", false],
+    ["0113 496 1000", false],
+    ["07700 90012", false],
+  ])("Ofcom drama number %s: %s", (phone, ok) => {
+    expect(isOfcomDramaNumber(phone)).toBe(ok);
   });
 
   it.each<[string, boolean[], boolean | "refused"]>([
@@ -441,6 +712,41 @@ describe("hazard HZ-072 sample data is flagged, never mixed with real people, an
     if (expected === "refused")
       expect(result).toMatchObject({ ok: false, problem: "mixes_sample_and_real" });
     else expect(result).toEqual({ ok: true, sample: expected });
+  });
+
+  const items = [
+    { id: "p-real", sample: false },
+    { id: "p-sample", sample: true },
+  ];
+  it.each<[SampleDataSurface, string[]]>([
+    ["in_app_alerts", ["p-real"]],
+    ["escalation_chains", ["p-real"]],
+    ["handover", ["p-real"]],
+    ["downtime_pack", ["p-real"]],
+    ["bulk_prints", ["p-real"]],
+    ["statutory_notifications", ["p-real"]],
+    ["full_export", ["p-real"]],
+    ["reports_and_dashboards", ["p-real"]],
+    ["billing_and_seats", ["p-real"]],
+    ["outbound_messages", ["p-real"]],
+    ["integrations", ["p-real"]],
+    ["regulatory_returns", ["p-real"]],
+    ["record_print", ["p-real", "p-sample"]],
+    ["screens", ["p-real", "p-sample"]],
+  ])("%s gets only %j", (surface, ids) => {
+    expect(forSurface(surface, items).map((i) => i.id)).toEqual(ids);
+  });
+
+  it("badges a sample person on screen and watermarks any print that shows one", () => {
+    expect(samplePersonBadge({ sample: true })).toEqual(SAMPLE_BADGE);
+    expect(samplePersonBadge({ sample: false })).toBeNull();
+    expect(samplePrintWatermark(items)).toBe(SAMPLE_WATERMARK);
+    expect(samplePrintWatermark([{ sample: false }])).toBeNull();
+  });
+
+  it("stops anything about a sample record leaving Harbour", () => {
+    expect(checkOutboundForSample(items)).toMatchObject({ ok: false, problem: "sample_data" });
+    expect(checkOutboundForSample([{ sample: false }])).toEqual({ ok: true });
   });
 
   it.each<[string, Parameters<typeof checkSampleDataLoad>[0], string | null]>([
@@ -466,14 +772,16 @@ describe("hazard HZ-072 sample data is flagged, never mixed with real people, an
     else expect(result).toMatchObject({ ok: false, problem });
   });
 
-  it.each<[boolean, string | null]>([
-    [true, "remove_sample_data_first"],
-    [false, null],
-  ])("adding a real person while sample data is present (%s)", (samplePresent, problem) => {
-    const result = checkRealPersonCreation({ samplePresent });
-    if (problem === null) expect(result).toEqual({ ok: true });
-    else expect(result).toMatchObject({ ok: false, problem });
-  });
+  it.each(REAL_RECORD_CREATION_PATHS)(
+    "refuses real records by %s while sample data exists",
+    (path) => {
+      expect(checkRealRecordCreation({ path, samplePresent: true })).toMatchObject({
+        ok: false,
+        problem: "remove_sample_data_first",
+      });
+      expect(checkRealRecordCreation({ path, samplePresent: false })).toEqual({ ok: true });
+    },
+  );
 
   const rows = [
     { sample: true, legalHold: false },
@@ -518,16 +826,5 @@ describe("hazard HZ-072 sample data is flagged, never mixed with real people, an
     const result = checkSampleDataRemoval(input);
     if (problem === null) expect(result).toEqual({ ok: true });
     else expect(result).toMatchObject({ ok: false, problem });
-  });
-
-  it("keeps sample data out of notifications, exports, reports and bills", () => {
-    expect(SAMPLE_DATA_EXCLUSIONS).toEqual(
-      expect.arrayContaining([
-        "statutory_notifications",
-        "full_export",
-        "reports_and_dashboards",
-        "billing_and_seats",
-      ]),
-    );
   });
 });

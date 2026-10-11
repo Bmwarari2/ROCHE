@@ -1,11 +1,16 @@
+import { LIVE_PERSON_STATUSES, type PersonStatus } from "../people/lifecycle";
 import type { DpiaReviewTrigger, DpiaState } from "./dpia";
+import { type EscalationStep, validateChain } from "./notifications";
 
 /**
  * Tenant onboarding checklist (master prompt section 9.1, "Help and onboarding";
- * platform-completions.md rules 26 to 28). Every item is worked out from the organisation's
- * configuration and records, never from a box someone ticks, so the list cannot say "done" while
- * the state says otherwise. Each item gives its reason from the same state and links an in-app
- * guide. Items marked required must be done before go-live.
+ * platform-completions.md rules 26 to 28; clinical-risk-management-plan.md section 7). Every item
+ * is worked out from the organisation's configuration and records, never from a box someone ticks,
+ * so the list cannot say "done" while the state says otherwise. Each item gives its reason from the
+ * same state and links an in-app guide. Items marked required must be done before go-live,
+ * including the clinical ones: the DCB0160 assessment, escalation for validated tools and alerts,
+ * shared devices enrolled, the clinical settings reviewed, and every person's safety-critical
+ * facts recorded (hazards HZ-001, HZ-007, HZ-014, HZ-015, HZ-016, HZ-023, HZ-027).
  */
 
 export const ONBOARDING_ITEMS = [
@@ -28,8 +33,38 @@ export const ONBOARDING_ITEMS = [
     guide: "invite-staff",
   },
   {
+    key: "shared_devices_enrolled",
+    title: "Shared and kiosk devices are enrolled in device management",
+    requiredForGoLive: true,
+    guide: "shared-devices",
+  },
+  {
+    key: "escalation_chains_set",
+    title: "Escalation chains are set for urgent alerts",
+    requiredForGoLive: true,
+    guide: "escalation-chains",
+  },
+  {
+    key: "escalation_policies_linked",
+    title: "Each validated tool in use links your escalation policy",
+    requiredForGoLive: true,
+    guide: "escalation-policies",
+  },
+  {
+    key: "clinical_settings_reviewed",
+    title: "Clinical settings are reviewed by your clinical lead",
+    requiredForGoLive: true,
+    guide: "clinical-settings",
+  },
+  {
+    key: "people_ready",
+    title: "Every person has a photo and their safety-critical facts recorded",
+    requiredForGoLive: true,
+    guide: "person-readiness",
+  },
+  {
     key: "rates_reviewed",
-    title: "Settings Harbour chose for you are reviewed",
+    title: "Other settings Harbour chose for you are reviewed",
     requiredForGoLive: false,
     guide: "review-settings",
   },
@@ -38,6 +73,12 @@ export const ONBOARDING_ITEMS = [
     title: "How long records are kept is reviewed",
     requiredForGoLive: true,
     guide: "retention",
+  },
+  {
+    key: "dcb0160_recorded",
+    title: "Your DCB0160 clinical safety assessment is recorded",
+    requiredForGoLive: true,
+    guide: "dcb0160",
   },
   { key: "dpia_signed", title: "The DPIA is signed", requiredForGoLive: true, guide: "dpia" },
   {
@@ -81,6 +122,75 @@ export function isOdsCode(value: string | null): boolean {
 }
 
 export type RetentionDecisionKind = "accepted" | "lengthened" | "period_set" | "not_used";
+
+/**
+ * Rate-table settings with clinical meaning (device auto-lock, post-fall observations, shift
+ * handover, repositioning, bowel and weight prompts, DoLS reminders): the clinical lead reviews
+ * them before go-live, apart from the other defaults (HZ-027, HZ-018, HZ-009).
+ */
+export const CLINICAL_SETTING_PREFIXES: readonly string[] = [
+  "mobile.auto_lock_seconds.",
+  "falls.",
+  "handover.",
+  "repositioning.",
+  "bowel.",
+  "weight.",
+  "dols.expiry_reminder_days.",
+];
+
+export function isClinicalSetting(key: string): boolean {
+  return CLINICAL_SETTING_PREFIXES.some((prefix) => key.startsWith(prefix));
+}
+
+/**
+ * Escalation chains every organisation needs before go-live: deterioration from a validated tool
+ * (HZ-014), overdue care tasks (HZ-008), statutory notifications due (HZ-013) and post-fall
+ * observations (HZ-027).
+ */
+export const REQUIRED_ESCALATION_CHAINS: readonly string[] = [
+  "deterioration",
+  "overdue_task",
+  "statutory_notification",
+  "post_fall_observation",
+];
+
+export const PERSON_READINESS_GAPS = [
+  "photo",
+  "allergy_status",
+  "resuscitation",
+  "communication_needs",
+  "iddsi_levels",
+] as const;
+export type PersonReadinessGap = (typeof PERSON_READINESS_GAPS)[number];
+
+export interface PersonReadinessInput {
+  readonly id: string;
+  readonly status: PersonStatus;
+  readonly sample: boolean;
+  readonly hasPhoto: boolean;
+  readonly allergyStatus: "unknown" | "no_known_allergies" | "has_allergies";
+  /** A CPR decision in force, a positive "no decision in place" statement, or nothing recorded. */
+  readonly resuscitation: "recorded" | "no_decision_in_place" | "not_recorded";
+  readonly communicationNeedsStatus: "not_recorded" | "none_identified" | "recorded";
+  readonly iddsiFoodLevel: string | null;
+  readonly iddsiDrinkLevel: string | null;
+}
+
+/**
+ * What a person receiving care still needs before go-live, from their record: a photo for
+ * identification (HZ-001); an allergy status other than unknown (HZ-007); a resuscitation status,
+ * either a decision in force or a recorded "no decision in place" (HZ-015); a communication-needs
+ * status (HZ-023); and IDDSI food and drink levels (HZ-016).
+ */
+export function personReadinessGaps(person: PersonReadinessInput): PersonReadinessGap[] {
+  const gaps: PersonReadinessGap[] = [];
+  if (!person.hasPhoto) gaps.push("photo");
+  if (person.allergyStatus === "unknown") gaps.push("allergy_status");
+  if (person.resuscitation === "not_recorded") gaps.push("resuscitation");
+  if (person.communicationNeedsStatus === "not_recorded") gaps.push("communication_needs");
+  if (person.iddsiFoodLevel === null || person.iddsiDrinkLevel === null) gaps.push("iddsi_levels");
+  return gaps;
+}
 
 export interface OnboardingState {
   readonly locations: readonly {
@@ -129,6 +239,30 @@ export interface OnboardingState {
     readonly peopleNotChecked: number;
   };
   readonly sampleDataPresent: boolean;
+  readonly devices: readonly {
+    readonly id: string;
+    readonly mode: "personal" | "shared" | "kiosk";
+    readonly active: boolean;
+    readonly mdmEnrolled: boolean;
+  }[];
+  readonly escalationChains: readonly {
+    readonly key: string;
+    readonly steps: readonly EscalationStep[];
+  }[];
+  /** Validated tools switched on, with the tenant escalation policy document each links. */
+  readonly validatedTools: readonly {
+    readonly key: string;
+    readonly enabled: boolean;
+    readonly escalationPolicyDocumentId: string | null;
+  }[];
+  readonly people: readonly PersonReadinessInput[];
+  /** The DCB0160 assessment the tenant's CSO or clinical lead recorded, and the safety case it covers. */
+  readonly dcb0160: {
+    readonly recordedAt: Date | null;
+    readonly safetyCaseVersion: string | null;
+  };
+  /** Harbour's safety case for the release the tenant runs. */
+  readonly currentSafetyCaseVersion: string;
 }
 
 export interface OnboardingItemResult {
@@ -141,6 +275,11 @@ export interface OnboardingItemResult {
   readonly reason: string;
   /** Ids or keys still outstanding, for the screen to list. */
   readonly outstanding: readonly string[];
+  /** For people readiness: each person still outstanding with what they lack. */
+  readonly people?: readonly {
+    readonly personId: string;
+    readonly gaps: readonly PersonReadinessGap[];
+  }[];
 }
 
 export interface OnboardingChecklist {
@@ -157,6 +296,7 @@ type Outcome = {
   readonly done: boolean;
   readonly reason: string;
   readonly outstanding: readonly string[];
+  readonly people?: OnboardingItemResult["people"];
 };
 
 function locationsItem(state: OnboardingState): Outcome {
@@ -224,8 +364,9 @@ function usersItem(state: OnboardingState): Outcome {
   };
 }
 
-function ratesItem(state: OnboardingState): Outcome {
-  const pending = state.tenantDefaults
+function pendingDefaults(state: OnboardingState, clinical: boolean): string[] {
+  return state.tenantDefaults
+    .filter((d) => isClinicalSetting(d.key) === clinical)
     .filter(
       (d) =>
         !state.rateDecisions.some(
@@ -233,16 +374,119 @@ function ratesItem(state: OnboardingState): Outcome {
         ),
     )
     .map((d) => d.key);
+}
+
+function ratesItem(state: OnboardingState): Outcome {
+  const pending = pendingDefaults(state, false);
   return pending.length === 0
     ? {
         done: true,
-        reason: "Every setting Harbour chose for you has been reviewed.",
+        reason: "Every other setting Harbour chose for you has been reviewed.",
         outstanding: [],
       }
     : {
         done: false,
         reason: `${plural(pending.length, "setting needs", "settings need")} your review.`,
         outstanding: pending,
+      };
+}
+
+function clinicalSettingsItem(state: OnboardingState): Outcome {
+  const pending = pendingDefaults(state, true);
+  return pending.length === 0
+    ? {
+        done: true,
+        reason: "Your clinical lead has reviewed every clinical setting.",
+        outstanding: [],
+      }
+    : {
+        done: false,
+        reason: `${plural(pending.length, "clinical setting needs", "clinical settings need")} your clinical lead's review (for example device auto-lock and post-fall observations).`,
+        outstanding: pending,
+      };
+}
+
+function devicesItem(state: OnboardingState): Outcome {
+  const shared = state.devices.filter((d) => d.active && d.mode !== "personal");
+  const missing = shared.filter((d) => !d.mdmEnrolled).map((d) => d.id);
+  if (shared.length === 0) {
+    return { done: true, reason: "No shared or kiosk devices are registered.", outstanding: [] };
+  }
+  return missing.length === 0
+    ? { done: true, reason: "Every shared and kiosk device is enrolled.", outstanding: [] }
+    : {
+        done: false,
+        reason: `${plural(missing.length, "shared device is", "shared devices are")} not enrolled in device management.`,
+        outstanding: missing,
+      };
+}
+
+function escalationChainsItem(state: OnboardingState): Outcome {
+  const missing = REQUIRED_ESCALATION_CHAINS.filter((key) => {
+    const chain = state.escalationChains.find((c) => c.key === key);
+    return !chain || chain.steps.length === 0 || validateChain(chain.steps).length > 0;
+  });
+  return missing.length === 0
+    ? { done: true, reason: "Every urgent alert has an escalation chain.", outstanding: [] }
+    : {
+        done: false,
+        reason: `${plural(missing.length, "alert has", "alerts have")} no working escalation chain.`,
+        outstanding: missing,
+      };
+}
+
+function escalationPoliciesItem(state: OnboardingState): Outcome {
+  const missing = state.validatedTools
+    .filter((t) => t.enabled && t.escalationPolicyDocumentId === null)
+    .map((t) => t.key);
+  return missing.length === 0
+    ? {
+        done: true,
+        reason: "Every validated tool in use links your escalation policy.",
+        outstanding: [],
+      }
+    : {
+        done: false,
+        reason: `${plural(missing.length, "validated tool has", "validated tools have")} no escalation policy linked.`,
+        outstanding: missing,
+      };
+}
+
+function peopleItem(state: OnboardingState): Outcome {
+  const people = state.people
+    .filter((p) => !p.sample && LIVE_PERSON_STATUSES.includes(p.status))
+    .map((p) => ({ personId: p.id, gaps: personReadinessGaps(p) }))
+    .filter((p) => p.gaps.length > 0);
+  return people.length === 0
+    ? {
+        done: true,
+        reason: "Every person has a photo and their safety-critical facts recorded.",
+        outstanding: [],
+        people: [],
+      }
+    : {
+        done: false,
+        reason: `${plural(people.length, "person needs", "people need")} a photo, allergy status, resuscitation status, communication needs or IDDSI levels recorded.`,
+        outstanding: people.map((p) => p.personId),
+        people,
+      };
+}
+
+function dcb0160Item(state: OnboardingState): Outcome {
+  const { recordedAt, safetyCaseVersion } = state.dcb0160;
+  if (recordedAt === null) {
+    return {
+      done: false,
+      reason: "Your CSO or clinical lead has not recorded your DCB0160 assessment.",
+      outstanding: [],
+    };
+  }
+  return safetyCaseVersion === state.currentSafetyCaseVersion
+    ? { done: true, reason: "Your DCB0160 assessment covers this release.", outstanding: [] }
+    : {
+        done: false,
+        reason: `Your DCB0160 assessment covers an earlier safety case; review it for ${state.currentSafetyCaseVersion}.`,
+        outstanding: [state.currentSafetyCaseVersion],
       };
 }
 
@@ -367,8 +611,14 @@ const RULES: Record<OnboardingItemKey, (state: OnboardingState) => Outcome> = {
   locations_identified: locationsItem,
   registered_managers: managersItem,
   first_users_with_mfa: usersItem,
+  shared_devices_enrolled: devicesItem,
+  escalation_chains_set: escalationChainsItem,
+  escalation_policies_linked: escalationPoliciesItem,
+  clinical_settings_reviewed: clinicalSettingsItem,
+  people_ready: peopleItem,
   rates_reviewed: ratesItem,
   retention_reviewed: retentionItem,
+  dcb0160_recorded: dcb0160Item,
   dpia_signed: dpiaItem,
   sub_processors_acknowledged: subProcessorsItem,
   data_opt_out: optOutItem,
