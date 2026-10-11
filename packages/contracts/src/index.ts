@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ResuscitationStatus } from "./care-planning";
 
 /**
  * Harbour API contracts (master prompt section 6): one set of Zod schemas shared by the API, the
@@ -110,7 +111,10 @@ export const AllergyStatus = z
   .enum(["unknown", "no_known_allergies", "has_allergies"])
   .meta({ id: "AllergyStatus" });
 
-/** Point-of-care header data: photo, names, allergies and communication needs (HZ-001, HZ-007). */
+/**
+ * Point-of-care header data: photo, names, allergies, communication needs and the resuscitation
+ * status (HZ-001, HZ-007, HZ-015).
+ */
 export const PersonSummary = z
   .object({
     id: uuid,
@@ -136,6 +140,8 @@ export const PersonSummary = z
       z.object({ substance: z.string(), severity: z.string(), reaction: z.string().nullable() }),
     ),
     communicationNeeds: z.array(CommunicationNeed),
+    /** The CPR decision in force, or `not_recorded` (hazard HZ-015). */
+    resuscitation: ResuscitationStatus,
     version: z.number().int(),
   })
   .meta({ id: "PersonSummary" });
@@ -281,5 +287,6 @@ export const TENANT_HEADER = "x-harbour-tenant";
 export const DEVICE_HEADER = "x-harbour-device";
 
 export * from "./care";
+export * from "./care-planning";
 export * from "./records";
 export * from "./tasks";

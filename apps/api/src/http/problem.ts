@@ -35,6 +35,8 @@ export const problems = {
       "mfa_enrolment_required",
       "Set up an authenticator app or a passkey before you open care records.",
     ),
+  featureDisabled: (detail?: string) =>
+    new HttpProblem(403, "feature_disabled", "This is switched off for your organisation.", detail),
   notFound: () => new HttpProblem(404, "not_found", "We could not find that."),
   conflict: (detail?: string) =>
     new HttpProblem(
