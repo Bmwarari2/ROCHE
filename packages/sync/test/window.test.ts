@@ -3,12 +3,11 @@ import {
   isValidWindowDays,
   MAX_OFFLINE_WINDOW_DAYS,
   nextWindowChange,
-  OFFLINE_DAYS_PARAMETER,
+  OFFLINE_DAYS_CLAIM,
   offlineWindowDays,
-  syncConnectionParameters,
 } from "../src/client/window";
 
-/** The offline window sent as the `offline_days` connection parameter (ADR-0011). */
+/** The offline window carried in the `offline_days` sync token claim (ADR-0011). */
 describe("offlineWindowDays", () => {
   it.each([
     // [now, window days, expected UTC days newest first]
@@ -59,11 +58,13 @@ describe("isValidWindowDays", () => {
   });
 });
 
-describe("syncConnectionParameters", () => {
-  it("names the parameter the streams read", () => {
-    const params = syncConnectionParameters(new Date("2026-10-11T12:00:00Z"), 1);
-    expect(Object.keys(params)).toEqual([OFFLINE_DAYS_PARAMETER]);
-    expect(params.offline_days).toEqual(["2026-10-12", "2026-10-11"]);
+describe("the offline_days claim", () => {
+  it("is the token claim the streams read", () => {
+    expect(OFFLINE_DAYS_CLAIM).toBe("offline_days");
+    expect(offlineWindowDays(new Date("2026-10-11T12:00:00Z"), 1)).toEqual([
+      "2026-10-12",
+      "2026-10-11",
+    ]);
   });
 });
 

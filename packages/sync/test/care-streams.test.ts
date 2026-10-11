@@ -8,15 +8,17 @@ import { compile, type DeviceDataset, ids, type SourceRows, syncFor } from "./su
  * Care record streams (care.md section 6). Logical replication bypasses row-level security, so
  * these tests alone prove which care rows reach a device (hazard HZ-011): only the token's tenant,
  * only people in the token's scope, and point-of-care entries only for the days of the offline
- * window. The window is a connection parameter the device controls, so hostile values are tried
- * too. Invented people and values only.
+ * window in the token. Connection parameters are under the device's control, so hostile values are
+ * tried too: none of them may widen the scope or the window (security review S1). Invented people
+ * and values only.
  */
 
 const A = "tenant-a";
 const B = "tenant-b";
 const TODAY = "2026-10-11";
 const NOW = new Date(`${TODAY}T10:00:00Z`);
-const WINDOW = { offline_days: offlineWindowDays(NOW, 7) };
+/** The window the API puts in the token (the tenant's `mobile.offline_window_days`, 7 here). */
+const WINDOW_DAYS = offlineWindowDays(NOW, 7);
 const OLD = "2026-09-01T09:00:00.000000Z";
 const RECENT = `${TODAY}T09:00:00.000000Z`;
 
@@ -28,6 +30,7 @@ interface PersonFixture {
   readonly id: string;
   readonly tenant: string;
   readonly location: string;
+  readonly status?: string;
 }
 
 const people: readonly PersonFixture[] = [
@@ -35,6 +38,11 @@ const people: readonly PersonFixture[] = [
   { id: "ben", tenant: A, location: "loc-a-north" },
   { id: "cara", tenant: A, location: "loc-a-south" },
   { id: "dev", tenant: B, location: "loc-b-river" },
+  // No longer receiving care at the manager's location: their care record must leave devices.
+  { id: "eve", tenant: A, location: "loc-a-north", status: "discharged" },
+  { id: "fay", tenant: A, location: "loc-a-north", status: "deceased" },
+  { id: "gus", tenant: A, location: "loc-a-north", status: "archived" },
+  { id: "hal", tenant: A, location: "loc-a-north", status: "in_hospital" },
 ];
 
 function entry(table: string, p: PersonFixture, suffix: string, occurredAt: string) {
@@ -210,7 +218,7 @@ const source: SourceRows = merge(
       id: p.id,
       tenant_id: p.tenant,
       location_id: p.location,
-      status: "active",
+      status: p.status ?? "active",
       given_name: p.id,
       family_name: "Example",
     })),
@@ -233,6 +241,7 @@ const source: SourceRows = merge(
 const claims = (overrides: Partial<SyncTokenClaims>): Partial<SyncTokenClaims> => ({
   location_ids: [],
   people_location_ids: [],
+  offline_days: WINDOW_DAYS,
   ...overrides,
 });
 
@@ -260,17 +269,12 @@ beforeAll(() => {
 
 describe("hazard HZ-011 care record streams (assigned scope)", () => {
   it("gives a care worker the care record of assigned people only", async () => {
-    const device = await syncFor(
-      hydrated,
-      source,
-      claims({ sub: "carer-a", tenant_id: A }),
-      WINDOW,
-    );
+    const device = await syncFor(hydrated, source, claims({ sub: "carer-a", tenant_id: A }));
     expect(peopleOnDevice(device)).toEqual(["ada"]);
     for (const table of CARE_TABLES) expect(ids(device, table).length, table).toBeGreaterThan(0);
   });
 
-  it("never sends a person who is not assigned, whatever window the device asks for", async () => {
+  it("never sends a person who is not assigned, whatever window the device sends", async () => {
     const everyDay = { offline_days: [OLD.slice(0, 10), TODAY, "2025-01-01", "2026-10-12"] };
     const device = await syncFor(
       hydrated,
@@ -283,18 +287,13 @@ describe("hazard HZ-011 care record streams (assigned scope)", () => {
   });
 
   it("takes a person's care record off the device once the assignment has ended", async () => {
-    const device = await syncFor(
-      hydrated,
-      source,
-      claims({ sub: "carer-a", tenant_id: A }),
-      WINDOW,
-    );
+    const device = await syncFor(hydrated, source, claims({ sub: "carer-a", tenant_id: A }));
     expect(careIds(device).filter((id) => id.endsWith("-ben"))).toEqual([]);
   });
 
   it("ignores connection parameters that try to widen the scope", async () => {
     const hostile = {
-      ...WINDOW,
+      offline_days: [OLD.slice(0, 10), TODAY],
       tenant_id: B,
       sub: "agency",
       people_location_ids: ["loc-a-north", "loc-a-south", "loc-b-river"],
@@ -307,24 +306,32 @@ describe("hazard HZ-011 care record streams (assigned scope)", () => {
       hostile,
     );
     expect(peopleOnDevice(device)).toEqual(["ada"]);
-  });
-
-  it("refuses a malformed window rather than widening it", async () => {
-    await expect(
-      syncFor(hydrated, source, claims({ sub: "carer-a", tenant_id: A }), { offline_days: TODAY }),
-    ).rejects.toThrow();
+    expect(ids(device, "care_note")).toEqual(["care_note-ada-recent"]);
   });
 });
 
 describe("hazard HZ-011 care record streams (location scope)", () => {
-  it("gives a manager everyone at their locations and nobody elsewhere", async () => {
+  it("gives a manager everyone receiving care at their locations and nobody elsewhere", async () => {
     const device = await syncFor(
       hydrated,
       source,
       claims({ sub: "manager-a", tenant_id: A, people_location_ids: ["loc-a-north"] }),
-      WINDOW,
     );
-    expect(peopleOnDevice(device)).toEqual(["ada", "ben"]);
+    expect(peopleOnDevice(device)).toEqual(["ada", "ben", "hal"]);
+  });
+
+  it("takes the care record of people discharged, deceased or archived off managers' devices", async () => {
+    const device = await syncFor(
+      hydrated,
+      source,
+      claims({ sub: "manager-a", tenant_id: A, people_location_ids: ["loc-a-north"] }),
+    );
+    const gone = careIds(device).filter((id) =>
+      ["-eve", "-fay", "-gus"].some((p) => id.includes(p)),
+    );
+    expect(gone).toEqual([]);
+    // Someone in hospital is still a resident: their record stays for their return.
+    expect(ids(device, "care_plan")).toContain("plan-active-hal");
   });
 });
 
@@ -334,106 +341,102 @@ describe("hazard HZ-011 care record streams (tenant isolation)", () => {
       hydrated,
       source,
       claims({ sub: "manager-a", tenant_id: A, people_location_ids: ["loc-b-river"] }),
-      WINDOW,
     );
     expect(careIds(device)).toEqual([]);
   });
 
   it("keeps an agency worker's two tenants apart", async () => {
-    const inA = await syncFor(hydrated, source, claims({ sub: "agency", tenant_id: A }), WINDOW);
+    const inA = await syncFor(hydrated, source, claims({ sub: "agency", tenant_id: A }));
     expect(peopleOnDevice(inA)).toEqual(["cara"]);
-    const inB = await syncFor(hydrated, source, claims({ sub: "agency", tenant_id: B }), WINDOW);
+    const inB = await syncFor(hydrated, source, claims({ sub: "agency", tenant_id: B }));
     expect(peopleOnDevice(inB)).toEqual(["dev"]);
   });
 
   it("gives a token without a tenant no care record at all", async () => {
-    const device = await syncFor(hydrated, source, { sub: "carer-a" }, WINDOW);
+    const device = await syncFor(hydrated, source, { sub: "carer-a", offline_days: WINDOW_DAYS });
     expect(careIds(device)).toEqual([]);
   });
 });
 
 describe("offline window (ADR-0011)", () => {
   it("keeps point-of-care entries for the days of the window only", async () => {
-    const device = await syncFor(
-      hydrated,
-      source,
-      claims({ sub: "carer-a", tenant_id: A }),
-      WINDOW,
-    );
+    const device = await syncFor(hydrated, source, claims({ sub: "carer-a", tenant_id: A }));
     for (const table of OFFLINE_WINDOW_TABLES) {
       expect(ids(device, table), table).toEqual([`${table}-ada-recent`]);
     }
   });
 
   it("hazard HZ-028 takes entries off the device when their day leaves the window", async () => {
-    const withOldDay = { offline_days: [TODAY, OLD.slice(0, 10)] };
     const before = await syncFor(
       hydrated,
       source,
-      claims({ sub: "carer-a", tenant_id: A }),
-      withOldDay,
+      claims({ sub: "carer-a", tenant_id: A, offline_days: [TODAY, OLD.slice(0, 10)] }),
     );
     expect(ids(before, "care_note")).toEqual(["care_note-ada-old", "care_note-ada-recent"]);
-    const after = await syncFor(hydrated, source, claims({ sub: "carer-a", tenant_id: A }), {
-      offline_days: [TODAY],
-    });
+    const after = await syncFor(
+      hydrated,
+      source,
+      claims({ sub: "carer-a", tenant_id: A, offline_days: [TODAY] }),
+    );
     expect(ids(after, "care_note")).toEqual(["care_note-ada-recent"]);
   });
 
-  it("sends no entries to a device that sends no window (fails closed)", async () => {
-    const device = await syncFor(hydrated, source, claims({ sub: "carer-a", tenant_id: A }));
+  it("hazard HZ-028 ignores a window sent by the device: only the token's window counts", async () => {
+    const widened = { offline_days: [OLD.slice(0, 10), TODAY, "2025-01-01"] };
+    const device = await syncFor(
+      hydrated,
+      source,
+      claims({ sub: "carer-a", tenant_id: A, offline_days: [TODAY] }),
+      widened,
+    );
+    for (const table of OFFLINE_WINDOW_TABLES) {
+      expect(ids(device, table), table).toEqual([`${table}-ada-recent`]);
+    }
+  });
+
+  it("sends no entries when the token has no window, whatever the device sends (fails closed)", async () => {
+    const noWindow = { sub: "carer-a", tenant_id: A, location_ids: [], people_location_ids: [] };
+    const device = await syncFor(hydrated, source, noWindow, { offline_days: WINDOW_DAYS });
     for (const table of OFFLINE_WINDOW_TABLES) expect(ids(device, table), table).toEqual([]);
   });
 
   it("hazard HZ-002 reference data for assigned people is never evicted while the assignment stands", async () => {
-    const todayOnly = { offline_days: [TODAY] };
     const device = await syncFor(
       hydrated,
       source,
-      claims({ sub: "carer-a", tenant_id: A }),
-      todayOnly,
+      claims({ sub: "carer-a", tenant_id: A, offline_days: [TODAY] }),
     );
     expect(ids(device, "care_plan")).toEqual(["plan-active-ada"]);
     expect(ids(device, "assessment")).toEqual(["assessment-0-ada", "assessment-1-ada"]);
     expect(ids(device, "advance_care_record")).toEqual(["acr-dnacpr-ada"]);
     expect(ids(device, "person_care_profile")).toEqual(["profile-ada"]);
     // With no window at all, the reference data still arrives.
-    const noWindow = await syncFor(hydrated, source, claims({ sub: "carer-a", tenant_id: A }));
+    const noWindow = await syncFor(hydrated, source, {
+      sub: "carer-a",
+      tenant_id: A,
+      location_ids: [],
+      people_location_ids: [],
+    });
     expect(ids(noWindow, "risk_assessment")).toEqual(["risk-active-ada"]);
   });
 });
 
 describe("what reaches the device", () => {
   it("hazard HZ-024 only the active care plan, with its own sections and actions", async () => {
-    const device = await syncFor(
-      hydrated,
-      source,
-      claims({ sub: "carer-a", tenant_id: A }),
-      WINDOW,
-    );
+    const device = await syncFor(hydrated, source, claims({ sub: "carer-a", tenant_id: A }));
     expect(ids(device, "care_plan")).toEqual(["plan-active-ada"]);
     expect(ids(device, "care_plan_section")).toEqual(["section-plan-active-ada"]);
     expect(ids(device, "care_plan_action")).toEqual(["action-plan-active-ada"]);
   });
 
   it("hazard HZ-015 only advance care records in force, and active risk assessments", async () => {
-    const device = await syncFor(
-      hydrated,
-      source,
-      claims({ sub: "carer-a", tenant_id: A }),
-      WINDOW,
-    );
+    const device = await syncFor(hydrated, source, claims({ sub: "carer-a", tenant_id: A }));
     expect(ids(device, "advance_care_record")).toEqual(["acr-dnacpr-ada"]);
     expect(ids(device, "risk_assessment")).toEqual(["risk-active-ada"]);
   });
 
   it("never sends answers, workings, documents, photos or device ids the screens do not need", async () => {
-    const device = await syncFor(
-      hydrated,
-      source,
-      claims({ sub: "carer-a", tenant_id: A }),
-      WINDOW,
-    );
+    const device = await syncFor(hydrated, source, claims({ sub: "carer-a", tenant_id: A }));
     const columns = (table: string) =>
       new Set([...(device.tables[table]?.values() ?? [])].flatMap((row) => Object.keys(row)));
     expect(columns("assessment").has("answers")).toBe(false);
@@ -446,12 +449,7 @@ describe("what reaches the device", () => {
   });
 
   it("renames observation values so the device never needs a reserved word", async () => {
-    const device = await syncFor(
-      hydrated,
-      source,
-      claims({ sub: "carer-a", tenant_id: A }),
-      WINDOW,
-    );
+    const device = await syncFor(hydrated, source, claims({ sub: "carer-a", tenant_id: A }));
     const row = device.tables.observation?.get("observation-ada-recent");
     expect(row?.chart_values).toBe('{"chart":"fluid_intake","ml":200}');
     expect(row).not.toHaveProperty("values");

@@ -162,11 +162,8 @@ describe("sync streams definition", () => {
       const scoped =
         query.includes("auth.user_id()") || query.includes("auth.parameter('people_location_ids')");
       expect(scoped, stream).toBe(true);
-      // The only connection parameter is the offline window, which narrows and never widens.
-      const connectionParameters = query.match(/connection\.parameter\('[a-z_]+'\)/g) ?? [];
-      for (const p of connectionParameters) {
-        expect(p, stream).toBe("connection.parameter('offline_days')");
-      }
+      // Nothing the device sends is read: not the scope, and not the offline window (S1).
+      expect(query, stream).not.toContain("connection.parameter");
     }
   });
 
@@ -176,7 +173,19 @@ describe("sync streams definition", () => {
     );
     expect(entryQueries).toHaveLength(OFFLINE_WINDOW_TABLES.length * 2);
     for (const { stream, query } of entryQueries) {
-      expect(query, stream).toContain("IN connection.parameter('offline_days')");
+      expect(query, stream).toContain("IN auth.parameter('offline_days')");
+    }
+  });
+
+  it("carries live people only in the location-scope care streams", () => {
+    const locationCare = streamQueries().filter(
+      ({ stream }) => stream.startsWith("location_") && /care|entries/.test(stream),
+    );
+    expect(locationCare.length).toBe(12);
+    for (const { stream, query } of locationCare) {
+      for (const status of ["discharged", "deceased", "archived"]) {
+        expect(query, stream).toContain(`person.status != '${status}'`);
+      }
     }
   });
 });

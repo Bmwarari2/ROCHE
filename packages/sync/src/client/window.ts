@@ -1,20 +1,21 @@
 /**
  * The offline window (ADR-0011, care.md section 6): which days of point-of-care entries a device
  * keeps. Sync streams cannot read the clock, so the window travels as a list of UTC calendar days
- * in the `offline_days` connection parameter, and the entry streams keep a row only when the first
- * ten characters of its `occurred_at` (UTC, ISO 8601) are in the list. When a day drops out of the
- * list its bucket, and every entry in it, leaves the device.
+ * in the `offline_days` claim of the signed sync token, and the entry streams keep a row only when
+ * the first ten characters of its `occurred_at` (UTC, ISO 8601) are in the list. When a day drops
+ * out of the list its bucket, and every entry in it, leaves the device.
  *
- * The number of days is the tenant's `mobile.offline_window_days` from the rate table, never a
- * literal here. The parameter narrows data only: tenant and people always come from the signed
- * token, so a device that sends a longer list still sees nobody it is not assigned to.
+ * The API mints the claim at `POST /v1/sync/token` from the tenant's `mobile.offline_window_days`
+ * in the rate table (never a literal here), so the device cannot widen it: the streams read no
+ * connection parameters (security review S1). The token lasts 15 minutes, so a new day enters and
+ * the oldest leaves at the first token after UTC midnight.
  */
 
 /** Rate-table key for the number of days a device keeps (tenant default, ADR-0011). */
 export const OFFLINE_WINDOW_RATE_KEY = "mobile.offline_window_days";
 
-/** Name of the connection parameter the entry streams read. */
-export const OFFLINE_DAYS_PARAMETER = "offline_days";
+/** Name of the sync token claim the entry streams read (`auth.parameter('offline_days')`). */
+export const OFFLINE_DAYS_CLAIM = "offline_days";
 
 /**
  * Upper bound on the days a device asks for. Each day is a bucket per person in scope, and the
@@ -22,11 +23,6 @@ export const OFFLINE_DAYS_PARAMETER = "offline_days";
  * policy: ADR-0011 offers 3, 7 or 14 days.
  */
 export const MAX_OFFLINE_WINDOW_DAYS = 31;
-
-/** What the device passes to `connect({ params })`. */
-export interface SyncConnectionParameters {
-  readonly [OFFLINE_DAYS_PARAMETER]: readonly string[];
-}
 
 const DAY_MS = 86_400_000;
 
@@ -63,14 +59,10 @@ export function offlineWindowDays(now: Date, windowDays: number): string[] {
   return days;
 }
 
-/** The connection parameters for `connect({ params })`. */
-export function syncConnectionParameters(now: Date, windowDays: number): SyncConnectionParameters {
-  return { [OFFLINE_DAYS_PARAMETER]: offlineWindowDays(now, windowDays) };
-}
-
 /**
- * When the window next changes: the next UTC midnight. The device reconnects then with the new
- * list, so the oldest day leaves the device on time even if the app stays open.
+ * When the window next changes: the next UTC midnight. The device reconnects then, which fetches a
+ * new token with the new list, so the oldest day leaves the device on time even if the app stays
+ * open.
  */
 export function nextWindowChange(now: Date): Date {
   const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
