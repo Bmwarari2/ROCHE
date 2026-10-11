@@ -40,6 +40,8 @@ Owners: **Brian** (Thapsus Cargo Ltd), **CSO** (Clinical Safety Officer, to be a
 | H-24 | Sign safety case v0.0 (Phase 0) with Brian | CSO, Brian | [Safety case v0.0](../clinical-safety/safety-case/safety-case-v0.0-phase0.md) | Any real tenant | open |
 | H-25 | Regulatory opinion that calculating published tools (NEWS2, MUST, Waterlow, Braden) exactly as published keeps Harbour outside the medical-device definition; confirm licence terms for using those tools in software (the Braden form asks for permission at bradenscale.com; BAPEN may charge a licence fee for commercial use of 'MUST') and the authoritative Waterlow source | Brian | [Medical-device boundary](../compliance/medical-device-boundary.md); calculators in `packages/domain/src/care/`, with Waterlow and Braden listed in `TOOLS_AWAITING_LICENCE_CONFIRMATION` | Phase 1 validated tools release | open |
 | H-26 | Accept ADR-0025 (shared and kiosk device sign-in factors) | CSO, DPO | [ADR-0025](../decisions/0025-shared-device-sign-in.md), [kiosk.md](../compliance/kiosk.md) | First shared-device deployment | open |
+| H-61 | Rate the new hazards HZ-026 (restrictive or covert care under consent or authority that is not valid) and HZ-027 (head injury after a fall not observed or escalated, proposed residual level 3), and review the HZ-013 and HZ-020 verification evidence now passing | CSO | [Hazard log](../clinical-safety/hazard-log.md) entries and tests in `packages/domain/src/care/mca/` and `packages/domain/src/safety/` | Safety case for the slice 6 and 7 release | open |
+| H-66 | Confirm or replace the post-fall observation defaults: NICE NG232 1.9.11 gives half-hourly, hourly then 2-hourly observations for people admitted to hospital, and the 24-hour monitoring period comes from a regional care home pathway (HCPA, May 2026); NICE has no care home schedule. Also confirm Harbour's reading that unstageable and deep tissue injury pressure ulcers run the safeguarding decision guide | CSO | `falls.*` rows marked `to-verify` in [rates.md](../specs/rates.md); `packages/domain/src/safety/post-fall.ts`; [safety.md](../specs/safety.md) rules 4 and 12; hazard HZ-027 | Post-fall tasks for a live tenant | open |
 
 ## Data protection and legal
 
@@ -53,6 +55,8 @@ Owners: **Brian** (Thapsus Cargo Ltd), **CSO** (Clinical Safety Officer, to be a
 | H-35 | Keep Thapsus's own controller register (staff, operators, prospects) | DPO | Operator register row noted in records of processing | Accountability | open |
 | H-36 | Publish an accessibility statement | Brian | [Accessibility checklist](../compliance/accessibility-checklist.md) | Public launch | open |
 | H-37 | Professional Welsh translation of the catalogues before any Welsh tenant | Brian | `packages/i18n/src/messages/cy.json` with every key marked untranslated | Welsh Active Offer | open |
+| H-62 | Legal review of the DoLS legal-change review workflow: the multifactorial factors, objection forms and consent signs are quoted from the DHSC interim guidance (updated 22 September 2026) on [2026] UKSC 16; the rule that "no longer deprived" or any doubt needs a request to the local authority rests on Mental Capacity Act 2005 Schedule A1 paragraphs 102, 103 and 117 and the guidance. Watch for the further DHSC interim guidance with case studies and update `DOLS_LEGAL_CHANGE` and the in-app link when it is published | Brian with a solicitor | `packages/domain/src/care/mca/dols.ts`; [care.md](../specs/care.md) rule 11 | The legal-change switch for a live tenant | open |
+| H-63 | Confirm with CQC or a regulatory adviser the classifier's readings of the 2009 Registration Regulations: serious injury is the regulation 18(2)(a) and (b) outcomes (the spec's former list of fractures, dislocations, loss of consciousness and burns is not in the regulation); self-neglect alone is not regulation 18 abuse; every missing person reported to the police is a regulation 18(2)(f) notification; police involvement goes on the death, serious injury or abuse form; a death outside both limbs of regulation 16(1) may be marked not required; and an adult social care provider's duty of candour is defined by regulation 20(9), not 20(8) | Brian | [safety.md](../specs/safety.md) section 4 (marked Corrected); `packages/domain/src/safety/classifier.ts` | Notification drafts for a live tenant | open |
 
 ## Certification, assurance and insurance
 
@@ -69,7 +73,7 @@ Owners: **Brian** (Thapsus Cargo Ltd), **CSO** (Clinical Safety Officer, to be a
 
 | # | Question | Default in force | Where |
 | --- | --- | --- | --- |
-| H-50 | Duty of candour written-notification timescale to encode | Tenant setting, 10 working days, flagged to verify | ADR-0021 |
+| H-50 | Duty of candour written-notification timescale to encode | Tenant setting, 10 working days, flagged to verify; shown as a target, never a statutory deadline | ADR-0021; `candour.written_notification.working_days`; `packages/domain/src/safety/candour.ts` |
 | H-51 | Which councils the first clients invoice (portal template to build first) | ContrOCC CSV | Section 15.3 |
 | H-52 | Does any first client employ sponsored workers? | Sponsor module stays in Phase 2 | ADR-0022 |
 | H-53 | Do first clients hold DSPT "Standards Met"? | GP Connect gated per tenant | ADR-0023 |
@@ -77,6 +81,8 @@ Owners: **Brian** (Thapsus Cargo Ltd), **CSO** (Clinical Safety Officer, to be a
 | H-55 | Prod audit archive uses S3 Object Lock COMPLIANCE for 365 days (irreversible): confirm before the first prod apply | As written in infra | `infra/README.md` |
 | H-56 | Design partner care home for weekly feedback | Demo tenant only | ADR-0005 |
 | H-57 | Pricing and packaging | Drafted in Phase 3 | ADR-0018 |
+| H-64 | DoLS expiry reminder defaults (no statutory figure) | Tenant setting, 28 and 7 days before the end, flagged to verify | `dols.expiry_reminder_days.*` in rates.md; care.md rule 11 |
+| H-65 | Outbreak definitions: no national UKHSA definition or time window for linked diarrhoea and vomiting cases in adult social care was found; ARI "within 5 days of each other" is read as onsets at most 5 UK calendar days apart | Staff record linkage on each case and unreviewed cases raise a review task; ARI counted inclusively | `outbreak.*` in rates.md; safety.md rule 7; `packages/domain/src/safety/outbreak.ts` |
 
 ## Per tenant at onboarding
 

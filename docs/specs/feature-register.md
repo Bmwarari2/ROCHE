@@ -9,11 +9,11 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 
 | Module | Prefix | Sections | Rows | todo | partial | done |
 | --- | --- | --- | --- | --- | --- | --- |
-| Platform core | `PLAT` | 9.1 | 23 | 13 | 10 | 0 |
+| Platform core | `PLAT` | 9.1 | 23 | 10 | 13 | 0 |
 | Service-user lifecycle | `PEOP` | 9.2 | 13 | 11 | 2 | 0 |
-| Care planning and delivery | `CARE` | 10.1, 10.4 | 22 | 17 | 5 | 0 |
+| Care planning and delivery | `CARE` | 10.1, 10.4 | 22 | 14 | 8 | 0 |
 | Medicines | `MEDS` | 10.2-10.3 | 14 | 14 | 0 | 0 |
-| Safety and notifications | `SAFE` | 11.1 | 16 | 16 | 0 | 0 |
+| Safety and notifications | `SAFE` | 11.1 | 16 | 9 | 7 | 0 |
 | Quality and governance | `QUAL` | 11.2 | 13 | 13 | 0 | 0 |
 | Workforce | `WORK` | 12.1, 12.2, 12.4 | 13 | 13 | 0 | 0 |
 | Rostering, time and pay | `SCHED` | 12.3 | 12 | 12 | 0 | 0 |
@@ -25,7 +25,7 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 | AI Management Copilot | `AI` | 16 | 11 | 11 | 0 | 0 |
 | Mobile apps | `MOB` | 17 | 13 | 11 | 2 | 0 |
 | Expansion (Phase 7) | `EXP` | 19 | 7 | 7 | 0 | 0 |
-| **Total** | | | **233** | **213** | **20** | **0** |
+| **Total** | | | **233** | **200** | **33** | **0** |
 
 | Phase | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -113,8 +113,8 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | CARE-018 | Positive behaviour support plans and restrictive-practice register | 10.1 | 5 | todo | - | - | - | - |
 | CARE-019 | Delegated healthcare and complex care task plans tied to competencies, with equipment register | 10.1, 12.2 | 5 | todo | - | - | - | - |
 | CARE-020 | CHC checklist and Decision Support Tool evidence with Fast Track flag | 10.1 | 5 | todo | - | - | - | - |
-| CARE-021 | Consent, MCA capacity assessment and best-interests records | 10.4 | 1 | todo | - | - | - | - |
-| CARE-022 | DoLS register with CQC notification and the June 2026 legal change switch (review of existing authorisations) | 10.4 | 1 | todo | - | - | - | - |
+| CARE-021 | Consent, MCA capacity assessment and best-interests records | 10.4 | 1 | partial | [care](care.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/care/mca/consent.ts`, `packages/domain/src/care/mca/capacity.ts`, `packages/domain/src/care/mca/best-interests.ts` | `packages/domain/src/care/mca/consent.test.ts`, `packages/domain/src/care/mca/capacity.test.ts` | - |
+| CARE-022 | DoLS register with CQC notification and the June 2026 legal change switch (review of existing authorisations) | 10.4 | 1 | partial | [care](care.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/care/mca/dols.ts` | `packages/domain/src/care/mca/dols.test.ts` | - |
 | MEDS-001 | dm+d-coded medicines record and reconciliation (admission, transfer, change, return from hospital) | 9.2, 10.2 | 2 | todo | - | - | - | - |
 | MEDS-002 | Offline administration rounds with barcode and person confirmation, time-critical rules and the 10.3 safety rules | 10.2, 10.3 | 2 | todo | - | - | - | - |
 | MEDS-003 | PRN protocols with outcomes and psychotropic PRN report | 10.2 | 2 | todo | - | - | - | - |
@@ -130,14 +130,14 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | MEDS-013 | Annual medication review tracker and competence gating with logged override | 10.2, 12.2 | 2 | todo | - | - | - | - |
 | MEDS-014 | Printable MAR chart and CD register exports | 10.2 | 2 | todo | - | - | - | - |
 | SAFE-001 | Incident and accident capture with body map, photos, severity and harm grading | 11.1 | 1 | todo | - | - | - | - |
-| SAFE-002 | Notification classifier with deadline clocks and step-up submission | 11.1 | 1 | todo | - | - | - | - |
-| SAFE-003 | CQC notifications (Reg 18 events, Reg 16 deaths) pre-filled from the record | 11.1 | 1 | todo | - | - | - | - |
-| SAFE-004 | RIDDOR reporting (work-activity test, 10-day and 15-day clocks) | 11.1 | 1 | todo | - | - | - | - |
-| SAFE-005 | Care Act s.42 safeguarding referral drafts | 11.1 | 1 | todo | - | - | - | - |
+| SAFE-002 | Notification classifier with deadline clocks and step-up submission | 11.1 | 1 | partial | [safety](safety.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/safety/classifier.ts`, `packages/domain/src/safety/questions.ts`, `packages/domain/src/safety/notifications.ts`, `packages/domain/src/safety/incident.ts`, `packages/domain/src/safety/rates.ts` | `packages/domain/src/safety/classifier.test.ts`, `packages/domain/src/safety/workflows.test.ts` | - |
+| SAFE-003 | CQC notifications (Reg 18 events, Reg 16 deaths) pre-filled from the record | 11.1 | 1 | partial | [safety](safety.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/safety/classifier.ts` (Reg 16 and 18), `packages/domain/src/care/mca/dols.ts` (Reg 18(4A)) | `packages/domain/src/safety/classifier.test.ts`, `packages/domain/src/care/mca/dols.test.ts` | - |
+| SAFE-004 | RIDDOR reporting (work-activity test, 10-day and 15-day clocks) | 11.1 | 1 | partial | [safety](safety.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/safety/classifier.ts` (RIDDOR) | `packages/domain/src/safety/classifier.test.ts` | - |
+| SAFE-005 | Care Act s.42 safeguarding referral drafts | 11.1 | 1 | partial | [safety](safety.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/safety/classifier.ts` (s.42 and the pressure ulcer decision guide) | `packages/domain/src/safety/classifier.test.ts` | - |
 | SAFE-006 | Safeguarding log (concerns, LA enquiry outcomes, Making Safeguarding Personal, DBS referral decisions) | 11.1 | 2 | todo | - | - | - | - |
-| SAFE-007 | Duty of candour workflow (threshold, verbal and written notification, enquiries, correspondence) | 11.1 | 1 | todo | - | - | - | - |
-| SAFE-008 | Medical examiner information pack and LeDeR notification prompt | 11.1 | 1 | todo | - | - | - | - |
-| SAFE-009 | Falls and pressure-ulcer protocols | 11.1 | 1 | todo | - | - | - | - |
+| SAFE-007 | Duty of candour workflow (threshold, verbal and written notification, enquiries, correspondence) | 11.1 | 1 | partial | [safety](safety.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/safety/candour.ts`, `packages/domain/src/safety/classifier.ts` | `packages/domain/src/safety/workflows.test.ts`, `packages/domain/src/safety/classifier.test.ts` | - |
+| SAFE-008 | Medical examiner information pack and LeDeR notification prompt | 11.1 | 1 | partial | [safety](safety.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/safety/medical-examiner.ts`, `packages/domain/src/safety/classifier.ts` (LeDeR) | `packages/domain/src/safety/workflows.test.ts`, `packages/domain/src/safety/classifier.test.ts` | - |
+| SAFE-009 | Falls and pressure-ulcer protocols | 11.1 | 1 | partial | [safety](safety.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/safety/post-fall.ts`, `packages/domain/src/safety/classifier.ts` (pressure ulcers) | `packages/domain/src/safety/post-fall.test.ts`, `packages/domain/src/safety/classifier.test.ts` | - |
 | SAFE-010 | Investigations, root cause, lessons-learned bulletins and trend analysis | 11.1 | 1 | todo | - | - | - | - |
 | SAFE-011 | Complaints and compliments (Reg 16 workflow, LGSCO signposting) | 11.1 | 2 | todo | - | - | - | - |
 | SAFE-012 | Whistleblowing and speak-up silo | 11.1 | 2 | todo | - | - | - | - |
