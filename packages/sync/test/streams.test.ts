@@ -177,15 +177,15 @@ describe("sync streams definition", () => {
     }
   });
 
-  it("carries live people only in the location-scope care streams", () => {
-    const locationCare = streamQueries().filter(
-      ({ stream }) => stream.startsWith("location_") && /care|entries/.test(stream),
-    );
-    expect(locationCare.length).toBe(12);
-    for (const { stream, query } of locationCare) {
-      for (const status of ["discharged", "deceased", "archived"]) {
-        expect(query, stream).toContain(`person.status != '${status}'`);
-      }
+  it("carries people receiving care only on every location-scope stream (L1)", () => {
+    const location = streamQueries().filter(({ stream }) => stream.startsWith("location_"));
+    // People, allergies, and the five reference, two plan and five entry queries.
+    expect(location.length).toBe(14);
+    const live = (column: string) =>
+      `(${column} = 'active' OR ${column} = 'on_leave' OR ${column} = 'in_hospital')`;
+    for (const { stream, query } of location) {
+      const filtered = query.includes(live("status")) || query.includes(live("person.status"));
+      expect(filtered, stream).toBe(true);
     }
   });
 });
@@ -231,6 +231,44 @@ describe("hazard HZ-011 location manager (locations scope)", () => {
     );
     expect(ids(device, "person")).toEqual(["ada", "ben"]);
     expect(ids(device, "allergy")).toEqual(["allergy-ada"]);
+  });
+
+  it("receives only people active, on leave or in hospital, with their allergies (L1)", async () => {
+    const statuses = ["enquiry", "discharged", "deceased", "archived", "on_leave", "in_hospital"];
+    const extra = statuses.map((status, i) => ({
+      ...person(`p-${status}`, A, "loc-a-north", `999 000 00${10 + i}`),
+      status,
+    }));
+    const extraAllergies = statuses.map((status) => ({
+      id: `allergy-${status}`,
+      tenant_id: A,
+      person_id: `p-${status}`,
+      substance: "Invented",
+      reaction: null,
+      severity: "mild",
+      status: "active",
+      recorded_at: "2026-10-01T09:00:00Z",
+    }));
+    const device = await syncFor(
+      hydrated,
+      {
+        ...source,
+        person: [...(source.person ?? []), ...extra],
+        allergy: [...(source.allergy ?? []), ...extraAllergies],
+      },
+      claims({
+        sub: "manager-a",
+        tenant_id: A,
+        location_ids: ["loc-a-north"],
+        people_location_ids: ["loc-a-north"],
+      }),
+    );
+    expect(ids(device, "person")).toEqual(["ada", "ben", "p-in_hospital", "p-on_leave"]);
+    expect(ids(device, "allergy")).toEqual([
+      "allergy-ada",
+      "allergy-in_hospital",
+      "allergy-on_leave",
+    ]);
   });
 });
 

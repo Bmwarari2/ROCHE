@@ -32,9 +32,10 @@
 #                         event day is in the offline window; queries in one stream share buckets
 #                         (one per person or location and day), which keeps the bucket count low
 #
-# The location-scope care streams carry live people only: once a person is discharged, has died or
-# is archived, their care record leaves managers' devices (security review S8). Assigned people
-# leave with their assignment.
+# Every location-scope stream (people, allergies and the care record) carries people receiving care
+# only, active, on leave or in hospital: once a person is an enquiry, discharged, has died or is
+# archived, they and their care record leave managers' devices (security review S8 and L1).
+# Assigned people leave with their assignment.
 
 config:
   edition: 3
@@ -83,6 +84,7 @@ streams:
       FROM person
       WHERE tenant_id = auth.parameter('tenant_id')
         AND location_id IN auth.parameter('people_location_ids')
+        AND (status = 'active' OR status = 'on_leave' OR status = 'in_hospital')
 
   location_allergies:
     auto_subscribe: true
@@ -94,6 +96,7 @@ streams:
         AND allergy.tenant_id = auth.parameter('tenant_id')
         AND person.tenant_id = auth.parameter('tenant_id')
         AND person.location_id IN auth.parameter('people_location_ids')
+        AND (person.status = 'active' OR person.status = 'on_leave' OR person.status = 'in_hospital')
 
   # ----------------------------------------------------------------------------------------------
   # Care record: reference data (never evicted while the person is in scope)
@@ -189,9 +192,7 @@ streams:
           AND person_care_profile.deleted_at IS NULL
           AND person.tenant_id = auth.parameter('tenant_id')
           AND person.location_id IN auth.parameter('people_location_ids')
-          AND person.status != 'discharged'
-          AND person.status != 'deceased'
-          AND person.status != 'archived'
+          AND (person.status = 'active' OR person.status = 'on_leave' OR person.status = 'in_hospital')
       - >-
         SELECT care_plan.id, care_plan.tenant_id, care_plan.person_id, care_plan.location_id,
                care_plan.status, care_plan.published_version, care_plan.summary,
@@ -204,9 +205,7 @@ streams:
           AND care_plan.deleted_at IS NULL
           AND person.tenant_id = auth.parameter('tenant_id')
           AND person.location_id IN auth.parameter('people_location_ids')
-          AND person.status != 'discharged'
-          AND person.status != 'deceased'
-          AND person.status != 'archived'
+          AND (person.status = 'active' OR person.status = 'on_leave' OR person.status = 'in_hospital')
       - >-
         SELECT risk_assessment.id, risk_assessment.tenant_id, risk_assessment.person_id,
                risk_assessment.template_key, risk_assessment.template_version,
@@ -223,9 +222,7 @@ streams:
           AND risk_assessment.deleted_at IS NULL
           AND person.tenant_id = auth.parameter('tenant_id')
           AND person.location_id IN auth.parameter('people_location_ids')
-          AND person.status != 'discharged'
-          AND person.status != 'deceased'
-          AND person.status != 'archived'
+          AND (person.status = 'active' OR person.status = 'on_leave' OR person.status = 'in_hospital')
       - >-
         SELECT assessment.id, assessment.tenant_id, assessment.person_id, assessment.location_id,
                assessment.tool_key, assessment.tool_version, assessment.score, assessment.band,
@@ -236,9 +233,7 @@ streams:
           AND assessment.tenant_id = auth.parameter('tenant_id')
           AND person.tenant_id = auth.parameter('tenant_id')
           AND person.location_id IN auth.parameter('people_location_ids')
-          AND person.status != 'discharged'
-          AND person.status != 'deceased'
-          AND person.status != 'archived'
+          AND (person.status = 'active' OR person.status = 'on_leave' OR person.status = 'in_hospital')
       - >-
         SELECT advance_care_record.id, advance_care_record.tenant_id,
                advance_care_record.person_id, advance_care_record.kind, advance_care_record.status,
@@ -253,9 +248,7 @@ streams:
           AND advance_care_record.deleted_at IS NULL
           AND person.tenant_id = auth.parameter('tenant_id')
           AND person.location_id IN auth.parameter('people_location_ids')
-          AND person.status != 'discharged'
-          AND person.status != 'deceased'
-          AND person.status != 'archived'
+          AND (person.status = 'active' OR person.status = 'on_leave' OR person.status = 'in_hospital')
 
   # ----------------------------------------------------------------------------------------------
   # Care record: sections and actions of the active care plan
@@ -318,9 +311,7 @@ streams:
           AND care_plan.deleted_at IS NULL
           AND person.tenant_id = auth.parameter('tenant_id')
           AND person.location_id IN auth.parameter('people_location_ids')
-          AND person.status != 'discharged'
-          AND person.status != 'deceased'
-          AND person.status != 'archived'
+          AND (person.status = 'active' OR person.status = 'on_leave' OR person.status = 'in_hospital')
       - >-
         SELECT care_plan_action.id, care_plan_action.tenant_id, care_plan_action.person_id,
                care_plan_action.plan_id, care_plan_action.section_id, care_plan_action.action,
@@ -337,9 +328,7 @@ streams:
           AND care_plan.deleted_at IS NULL
           AND person.tenant_id = auth.parameter('tenant_id')
           AND person.location_id IN auth.parameter('people_location_ids')
-          AND person.status != 'discharged'
-          AND person.status != 'deceased'
-          AND person.status != 'archived'
+          AND (person.status = 'active' OR person.status = 'on_leave' OR person.status = 'in_hospital')
 
   # ----------------------------------------------------------------------------------------------
   # Care record: point-of-care entries in the offline window (append-only, written offline)
@@ -439,9 +428,7 @@ streams:
           AND substring(care_note.occurred_at, 1, 10) IN auth.parameter('offline_days')
           AND person.tenant_id = auth.parameter('tenant_id')
           AND person.location_id IN auth.parameter('people_location_ids')
-          AND person.status != 'discharged'
-          AND person.status != 'deceased'
-          AND person.status != 'archived'
+          AND (person.status = 'active' OR person.status = 'on_leave' OR person.status = 'in_hospital')
       - >-
         SELECT observation.id, observation.tenant_id, observation.person_id,
                observation.location_id, observation.occurred_at, observation.recorded_at,
@@ -454,9 +441,7 @@ streams:
           AND substring(observation.occurred_at, 1, 10) IN auth.parameter('offline_days')
           AND person.tenant_id = auth.parameter('tenant_id')
           AND person.location_id IN auth.parameter('people_location_ids')
-          AND person.status != 'discharged'
-          AND person.status != 'deceased'
-          AND person.status != 'archived'
+          AND (person.status = 'active' OR person.status = 'on_leave' OR person.status = 'in_hospital')
       - >-
         SELECT body_map_mark.id, body_map_mark.tenant_id, body_map_mark.person_id,
                body_map_mark.location_id, body_map_mark.occurred_at, body_map_mark.recorded_at,
@@ -473,9 +458,7 @@ streams:
           AND substring(body_map_mark.occurred_at, 1, 10) IN auth.parameter('offline_days')
           AND person.tenant_id = auth.parameter('tenant_id')
           AND person.location_id IN auth.parameter('people_location_ids')
-          AND person.status != 'discharged'
-          AND person.status != 'deceased'
-          AND person.status != 'archived'
+          AND (person.status = 'active' OR person.status = 'on_leave' OR person.status = 'in_hospital')
       - >-
         SELECT activity_record.id, activity_record.tenant_id, activity_record.person_id,
                activity_record.location_id, activity_record.occurred_at,
@@ -492,9 +475,7 @@ streams:
           AND substring(activity_record.occurred_at, 1, 10) IN auth.parameter('offline_days')
           AND person.tenant_id = auth.parameter('tenant_id')
           AND person.location_id IN auth.parameter('people_location_ids')
-          AND person.status != 'discharged'
-          AND person.status != 'deceased'
-          AND person.status != 'archived'
+          AND (person.status = 'active' OR person.status = 'on_leave' OR person.status = 'in_hospital')
       - >-
         SELECT visit_log.id, visit_log.tenant_id, visit_log.person_id, visit_log.location_id,
                visit_log.occurred_at, visit_log.recorded_at, visit_log.device_time,
@@ -509,6 +490,4 @@ streams:
           AND substring(visit_log.occurred_at, 1, 10) IN auth.parameter('offline_days')
           AND person.tenant_id = auth.parameter('tenant_id')
           AND person.location_id IN auth.parameter('people_location_ids')
-          AND person.status != 'discharged'
-          AND person.status != 'deceased'
-          AND person.status != 'archived'
+          AND (person.status = 'active' OR person.status = 'on_leave' OR person.status = 'in_hospital')
