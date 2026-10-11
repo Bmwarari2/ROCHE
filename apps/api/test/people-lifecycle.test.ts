@@ -1389,6 +1389,20 @@ describe("hazard HZ-023 the hospital transfer pack and the transfer", () => {
         await as("nurse", `/v1/people/${resident(1)}/property`),
       );
       expect(list.items.every((i) => i.status !== "sent_with_person")).toBe(true);
+      // A check's assignee may record it, whatever their role.
+      await asDemoTenant((c) =>
+        c.query(
+          `UPDATE task SET assignee_tenant_user_id = $1 WHERE source_type = 'hospital_transfer'
+           AND source_id = $2 AND kind = 'people.return_check.allergies_rechecked'`,
+          [DEMO.users.carer.id, transfer.id],
+        ),
+      );
+      const assigned = await as("carer", path("allergies_rechecked"), {
+        method: "POST",
+        body: { version: transfer.version },
+      });
+      expect(assigned.status).toBe(200);
+      transfer = await json<HospitalTransferOut>(assigned);
       // The nurse in charge records the clinical check.
       const medicines = await as("nurse", path("medicines_reconciled"), {
         method: "POST",
@@ -2474,7 +2488,7 @@ describe("people.md rules 1 and 2: rounds after a correction or a late return (H
 
 // ------------------------------------------------------------------------------------------------
 
-describe("care.md rule 7: an entry and the task it names (HZ-004, HZ-006)", () => {
+describe("care.md rule 13: an entry and the task it names (HZ-004, HZ-006)", () => {
   let round = "";
   const note = (
     user: keyof Harness["tokens"],
