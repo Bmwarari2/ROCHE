@@ -3,7 +3,7 @@ import { StatusChip } from "@harbour/ui";
 import { CircleSlash, DoorOpen, Link2Off, ListChecks } from "lucide-react";
 import { t } from "@/lib/i18n";
 
-type TaskOutcome = "completed" | "task_cancelled" | "task_already_closed" | "not_linked";
+export type TaskOutcome = "completed" | "task_cancelled" | "task_already_closed" | "not_linked";
 
 /**
  * Flags on an entry about a person who has left, died or gone away, and about the round it named
