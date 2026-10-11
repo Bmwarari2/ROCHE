@@ -1760,6 +1760,1124 @@
           "reason"
         ]
       },
+      "CareNoteItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deviceTime": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lateEntry": {
+            "type": "boolean"
+          },
+          "clockDrift": {
+            "type": "boolean"
+          },
+          "supersedesId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "correctionReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "superseded": {
+            "type": "boolean"
+          },
+          "recordedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "category": {
+            "$ref": "#/components/schemas/CareNoteCategory"
+          },
+          "body": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "attachmentDocumentIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "locationId",
+          "occurredAt",
+          "recordedAt",
+          "deviceTime",
+          "lateEntry",
+          "clockDrift",
+          "supersedesId",
+          "correctionReason",
+          "superseded",
+          "recordedBy",
+          "category",
+          "body",
+          "tags",
+          "attachmentDocumentIds"
+        ]
+      },
+      "CareNoteCategory": {
+        "type": "string",
+        "enum": [
+          "personal_care",
+          "nutrition",
+          "mood",
+          "activity",
+          "visit",
+          "health",
+          "night",
+          "other"
+        ]
+      },
+      "CreateCareNote": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deviceTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "supersedesId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "correctionReason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "category": {
+            "$ref": "#/components/schemas/CareNoteCategory"
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z_]{2,40}$"
+            },
+            "maxItems": 10,
+            "default": []
+          },
+          "attachmentDocumentIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 10,
+            "default": []
+          }
+        },
+        "required": [
+          "occurredAt",
+          "category",
+          "body"
+        ]
+      },
+      "CareNoteList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CareNoteItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "ObservationItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deviceTime": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lateEntry": {
+            "type": "boolean"
+          },
+          "clockDrift": {
+            "type": "boolean"
+          },
+          "supersedesId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "correctionReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "superseded": {
+            "type": "boolean"
+          },
+          "recordedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "chart": {
+            "type": "string"
+          },
+          "values": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "flags": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "locationId",
+          "occurredAt",
+          "recordedAt",
+          "deviceTime",
+          "lateEntry",
+          "clockDrift",
+          "supersedesId",
+          "correctionReason",
+          "superseded",
+          "recordedBy",
+          "chart",
+          "values",
+          "flags"
+        ]
+      },
+      "CreateObservation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deviceTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "supersedesId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "correctionReason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "values": {
+            "$ref": "#/components/schemas/ObservationValues"
+          }
+        },
+        "required": [
+          "occurredAt",
+          "values"
+        ]
+      },
+      "ObservationValues": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "chart": {
+                "type": "string",
+                "enum": [
+                  "fluid_intake"
+                ]
+              },
+              "ml": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 5000
+              },
+              "drink": {
+                "type": "string",
+                "maxLength": 60
+              },
+              "iddsiLevel": {
+                "type": "string",
+                "enum": [
+                  "0",
+                  "1",
+                  "2",
+                  "3",
+                  "4"
+                ]
+              },
+              "overrideReason": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "refused": {
+                "type": "boolean",
+                "default": false
+              }
+            },
+            "required": [
+              "chart",
+              "ml"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "chart": {
+                "type": "string",
+                "enum": [
+                  "fluid_output"
+                ]
+              },
+              "ml": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 5000
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "urine",
+                  "vomit",
+                  "drain",
+                  "other"
+                ]
+              }
+            },
+            "required": [
+              "chart",
+              "ml",
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "chart": {
+                "type": "string",
+                "enum": [
+                  "food"
+                ]
+              },
+              "meal": {
+                "type": "string",
+                "enum": [
+                  "breakfast",
+                  "lunch",
+                  "dinner",
+                  "supper",
+                  "snack"
+                ]
+              },
+              "portion": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "quarter",
+                  "half",
+                  "three_quarters",
+                  "all"
+                ]
+              },
+              "iddsiLevel": {
+                "type": "string",
+                "enum": [
+                  "3",
+                  "4",
+                  "5",
+                  "6",
+                  "7",
+                  "7EC"
+                ]
+              },
+              "overrideReason": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "refused": {
+                "type": "boolean",
+                "default": false
+              }
+            },
+            "required": [
+              "chart",
+              "meal",
+              "portion",
+              "iddsiLevel"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "chart": {
+                "type": "string",
+                "enum": [
+                  "repositioning"
+                ]
+              },
+              "position": {
+                "type": "string",
+                "enum": [
+                  "left",
+                  "right",
+                  "back",
+                  "front",
+                  "sitting"
+                ]
+              },
+              "skinChecked": {
+                "type": "boolean"
+              },
+              "declined": {
+                "type": "boolean",
+                "default": false
+              }
+            },
+            "required": [
+              "chart",
+              "position",
+              "skinChecked"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "chart": {
+                "type": "string",
+                "enum": [
+                  "bowel"
+                ]
+              },
+              "bristolType": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 7
+              },
+              "noMovement": {
+                "type": "boolean",
+                "default": false
+              },
+              "amount": {
+                "type": "string",
+                "enum": [
+                  "small",
+                  "medium",
+                  "large"
+                ]
+              }
+            },
+            "required": [
+              "chart",
+              "bristolType"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "chart": {
+                "type": "string",
+                "enum": [
+                  "weight"
+                ]
+              },
+              "kg": {
+                "type": "number",
+                "minimum": 20,
+                "maximum": 300
+              },
+              "method": {
+                "type": "string",
+                "enum": [
+                  "standing",
+                  "chair",
+                  "hoist",
+                  "bed"
+                ]
+              }
+            },
+            "required": [
+              "chart",
+              "kg",
+              "method"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "chart": {
+                "type": "string",
+                "enum": [
+                  "vitals"
+                ]
+              },
+              "respirationRate": {
+                "type": "integer"
+              },
+              "spo2": {
+                "type": "integer"
+              },
+              "onOxygen": {
+                "type": "boolean"
+              },
+              "systolic": {
+                "type": "integer"
+              },
+              "pulse": {
+                "type": "integer"
+              },
+              "consciousness": {
+                "type": "string",
+                "enum": [
+                  "alert",
+                  "new_confusion",
+                  "voice",
+                  "pain",
+                  "unresponsive"
+                ]
+              },
+              "temperature": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "chart",
+              "respirationRate",
+              "spo2",
+              "onOxygen",
+              "systolic",
+              "pulse",
+              "consciousness",
+              "temperature"
+            ]
+          }
+        ]
+      },
+      "ObservationList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ObservationItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "FluidDay": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "intakeMl": {
+            "type": "integer"
+          },
+          "outputMl": {
+            "type": "integer"
+          },
+          "targetMl": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "shortfallMl": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "entries": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "intakeMl",
+          "outputMl",
+          "targetMl",
+          "shortfallMl",
+          "entries"
+        ],
+        "description": "Fluid balance for one UK calendar day (00:00 to 24:00)"
+      },
+      "BodyMapMarkItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deviceTime": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lateEntry": {
+            "type": "boolean"
+          },
+          "clockDrift": {
+            "type": "boolean"
+          },
+          "supersedesId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "correctionReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "superseded": {
+            "type": "boolean"
+          },
+          "recordedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "view": {
+            "type": "string",
+            "enum": [
+              "front",
+              "back"
+            ]
+          },
+          "region": {
+            "type": "string"
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "left",
+              "right",
+              "midline"
+            ]
+          },
+          "markType": {
+            "$ref": "#/components/schemas/BodyMarkType"
+          },
+          "pressureCategory": {
+            "$ref": "#/components/schemas/PressureUlcerCategory"
+          },
+          "lengthMm": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "widthMm": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "depthMm": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "photoDocumentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "present",
+              "healed"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "locationId",
+          "occurredAt",
+          "recordedAt",
+          "deviceTime",
+          "lateEntry",
+          "clockDrift",
+          "supersedesId",
+          "correctionReason",
+          "superseded",
+          "recordedBy",
+          "view",
+          "region",
+          "side",
+          "markType",
+          "pressureCategory",
+          "lengthMm",
+          "widthMm",
+          "depthMm",
+          "description",
+          "photoDocumentId",
+          "status"
+        ]
+      },
+      "BodyMarkType": {
+        "type": "string",
+        "enum": [
+          "bruise",
+          "pressure_ulcer",
+          "moisture_associated_skin_damage",
+          "skin_tear",
+          "laceration",
+          "burn",
+          "rash",
+          "wound",
+          "other"
+        ]
+      },
+      "PressureUlcerCategory": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "category_1",
+          "category_2",
+          "category_3",
+          "category_4",
+          "unstageable",
+          "deep_tissue_injury",
+          null
+        ]
+      },
+      "CreateBodyMapMark": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deviceTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "supersedesId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "correctionReason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "view": {
+            "type": "string",
+            "enum": [
+              "front",
+              "back"
+            ]
+          },
+          "region": {
+            "type": "string",
+            "pattern": "^[a-z_]{2,40}$"
+          },
+          "drawnSide": {
+            "type": "string",
+            "enum": [
+              "left",
+              "right",
+              "midline"
+            ]
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "left",
+              "right",
+              "midline"
+            ]
+          },
+          "markType": {
+            "$ref": "#/components/schemas/BodyMarkType"
+          },
+          "pressureCategory": {
+            "$ref": "#/components/schemas/PressureUlcerCategory"
+          },
+          "deviceRelated": {
+            "type": "boolean"
+          },
+          "bruiseExplained": {
+            "type": "boolean"
+          },
+          "lengthMm": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "widthMm": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "depthMm": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 300
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "photoDocumentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "present",
+              "healed"
+            ],
+            "default": "present"
+          }
+        },
+        "required": [
+          "occurredAt",
+          "view",
+          "region",
+          "drawnSide",
+          "side",
+          "markType"
+        ]
+      },
+      "BodyMapMarkList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BodyMapMarkItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "PersonCareProfile": {
+        "type": "object",
+        "properties": {
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "iddsiFoodLevel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "3",
+              "4",
+              "5",
+              "6",
+              "7",
+              "7EC",
+              null
+            ]
+          },
+          "iddsiDrinkLevel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "0",
+              "1",
+              "2",
+              "3",
+              "4",
+              null
+            ]
+          },
+          "iddsiAdvisedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "iddsiChangedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "fluidTargetMl": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "spo2Scale2": {
+            "type": "boolean"
+          },
+          "spo2Scale2Clinician": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "spo2Scale2RecordedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "skinRisk": {
+            "type": "string",
+            "enum": [
+              "not_at_risk",
+              "at_risk",
+              "high_risk"
+            ]
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "personId",
+          "iddsiFoodLevel",
+          "iddsiDrinkLevel",
+          "iddsiAdvisedBy",
+          "iddsiChangedAt",
+          "fluidTargetMl",
+          "spo2Scale2",
+          "spo2Scale2Clinician",
+          "spo2Scale2RecordedOn",
+          "skinRisk",
+          "version"
+        ]
+      },
+      "UpdatePersonCareProfile": {
+        "type": "object",
+        "properties": {
+          "iddsiFoodLevel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "3",
+              "4",
+              "5",
+              "6",
+              "7",
+              "7EC",
+              null
+            ]
+          },
+          "iddsiDrinkLevel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "0",
+              "1",
+              "2",
+              "3",
+              "4",
+              null
+            ]
+          },
+          "iddsiAdvisedBy": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 120
+          },
+          "fluidTargetMl": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 500,
+            "maximum": 4000
+          },
+          "spo2Scale2": {
+            "type": "boolean"
+          },
+          "spo2Scale2Clinician": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 120
+          },
+          "spo2Scale2RecordedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "skinRisk": {
+            "type": "string",
+            "enum": [
+              "not_at_risk",
+              "at_risk",
+              "high_risk"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
       "RateValue": {
         "type": "object",
         "properties": {
@@ -4826,6 +5944,850 @@
           },
           "403": {
             "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/notes": {
+      "post": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Write a daily note (append-only; corrections supersede)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCareNote"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Note saved (or the earlier copy of a replayed upload)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CareNoteItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Daily notes, newest first (default: the last three days)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": false,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": false,
+            "name": "to",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal_care",
+                "nutrition",
+                "mood",
+                "activity",
+                "visit",
+                "health",
+                "night",
+                "other"
+              ]
+            },
+            "required": false,
+            "name": "category",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CareNoteList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/observations": {
+      "post": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Record a chart entry (fluids, food, repositioning, bowel, weight, vital signs)",
+        "description": "Vital signs are scored with NEWS2 using the person's recorded SpO2 scale; a score that needs a response alerts the nurse in charge and creates the follow-up tasks. Food and drink are checked against the person's IDDSI levels.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateObservation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Saved (or the earlier copy of a replayed upload)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservationItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Chart entries, newest first (default: the last three days)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": false,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": false,
+            "name": "to",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "fluid_intake",
+                "fluid_output",
+                "food",
+                "repositioning",
+                "bowel",
+                "weight",
+                "vitals"
+              ]
+            },
+            "required": false,
+            "name": "chart",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservationList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/charts/fluid": {
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Fluid balance for one UK calendar day, with the shortfall against the target",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": true,
+            "name": "date",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fluid balance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FluidDay"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/body-map": {
+      "post": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Record a body-map mark (the side is stated in words and checked against the drawing)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBodyMapMark"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Mark saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BodyMapMarkItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Current body-map marks (the latest of each corrected or healed mark)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "default": "false"
+            },
+            "required": false,
+            "name": "includeHealed",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Marks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BodyMapMarkList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/care-profile": {
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "IDDSI levels, fluid target, NEWS2 SpO2 scale and skin risk",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonCareProfile"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Change IDDSI levels, the fluid target, the SpO2 scale or skin risk",
+        "description": "A changed IDDSI level must say who advised it (HZ-016); switching NEWS2 to SpO2 scale 2 needs the clinician who decided it.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePersonCareProfile"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonCareProfile"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
             "content": {
               "application/problem+json": {
                 "schema": {

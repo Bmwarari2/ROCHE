@@ -10,6 +10,7 @@ import { type AppEnv, type Services, sessionMiddleware, tenantMiddleware } from 
 import { HttpProblem, problemResponse, problems } from "./http/problem";
 import { createDocumentServices } from "./integrations/documents";
 import type { Logger } from "./logger";
+import { careRouter } from "./routes/care";
 import { documentsRouter } from "./routes/documents";
 import { integrationsRouter, supportAccessRouter } from "./routes/integrations";
 import { membershipsRouter, meRouter } from "./routes/me";
@@ -128,6 +129,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", formsRouter);
   app.route("/", tasksRouter);
   app.route("/", documentsRouter);
+  app.route("/", careRouter);
   app.route("/", ratesRouter);
   app.route("/", createSyncRouter(signer));
   app.route("/", integrationsRouter);
