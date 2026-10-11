@@ -4,7 +4,7 @@ import {
   NOTIFICATION_KINDS,
   type StatutoryNotificationKind,
 } from "@harbour/domain";
-import { and, eq, gte, inArray, isNotNull, isNull, lte } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import { contextOfExit } from "./people";
 import { upsertDraft } from "./safety";
 
@@ -46,7 +46,8 @@ export function draftedKinds(exit: ExitRow): Map<string, StatutoryNotificationKi
 /**
  * The notifications for this death, by kind: the drafts this exit made, or a draft the incident
  * classifier made for the same death (an incident about the person within a day of it). Drafts of
- * an earlier exit never count (HZ-013).
+ * an earlier exit never count, and neither does an incident's draft withdrawn for a death recorded
+ * in error (flagged no longer indicated, or submitted and given a correction task) (HZ-013).
  */
 export async function notificationsForExit(
   tx: Transaction,
@@ -76,6 +77,8 @@ export async function notificationsForExit(
           inArray(statutoryNotification.kind, kinds),
           isNotNull(statutoryNotification.incidentId),
           eq(statutoryNotification.noLongerIndicated, false),
+          sql`NOT EXISTS (SELECT 1 FROM task t WHERE t.kind = ${CORRECTION_TASK_KIND}
+            AND t.source_type = 'statutory_notification' AND t.source_id = ${statutoryNotification.id})`,
           gte(statutoryNotification.dueAt, new Date(exit.leftAt.getTime() - SAME_DEATH_WINDOW_MS)),
           lte(statutoryNotification.dueAt, new Date(exit.leftAt.getTime() + SAME_DEATH_WINDOW_MS)),
         ),
@@ -144,8 +147,10 @@ export async function draftDeathNotifications(
 export const CORRECTION_TASK_KIND = "safety.notification_correction";
 
 /**
- * A death corrected as recorded in error: this exit's drafts are flagged and a person decides;
- * a notification already submitted gets a task to tell the regulator it was made in error.
+ * A death corrected as recorded in error: every notification that counted for that exit (its own
+ * drafts, and an incident's drafts for the same death) is withdrawn. Drafts are flagged and a
+ * person decides; a notification already submitted gets a task to tell the regulator it was made
+ * in error, and no longer counts for a later death.
  */
 export async function withdrawDeathNotifications(
   tx: Transaction,
@@ -155,28 +160,28 @@ export async function withdrawDeathNotifications(
   const keys = Object.keys(NOTIFICATION_KINDS).map((kind) =>
     exitSourceKey(exitRecordId, kind as StatutoryNotificationKind),
   );
+  const [exit] = await tx.select().from(exitRecord).where(eq(exitRecord.id, exitRecordId));
+  const fromIncidents = exit
+    ? [...(await notificationsForExit(tx, exit)).values()]
+        .filter((n) => n.incidentId !== null)
+        .map((n) => n.id)
+    : [];
+  const counted = or(
+    inArray(statutoryNotification.sourceKey, keys),
+    fromIncidents.length > 0 ? inArray(statutoryNotification.id, fromIncidents) : undefined,
+  );
   const flagged = await tx
     .update(statutoryNotification)
     .set({
       noLongerIndicated: true,
       noLongerIndicatedReason: "The death was recorded in error and has been corrected.",
     })
-    .where(
-      and(
-        inArray(statutoryNotification.sourceKey, keys),
-        inArray(statutoryNotification.status, ["draft", "ready"]),
-      ),
-    )
+    .where(and(counted, inArray(statutoryNotification.status, ["draft", "ready"])))
     .returning({ id: statutoryNotification.id });
   const submitted = await tx
     .select()
     .from(statutoryNotification)
-    .where(
-      and(
-        inArray(statutoryNotification.sourceKey, keys),
-        eq(statutoryNotification.status, "submitted"),
-      ),
-    );
+    .where(and(counted, eq(statutoryNotification.status, "submitted")));
   let corrections = 0;
   for (const n of submitted) {
     const [open] = await tx
