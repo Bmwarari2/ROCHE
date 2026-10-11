@@ -24,6 +24,8 @@ export * from "./care/tools";
 export * from "./care/validated-assessment";
 export * from "./care/waterlow";
 export * from "./care/weight";
+export * from "./comms/template-style";
+export * from "./comms/templates";
 export * from "./integrations/ports";
 export * from "./operations/downtime-pack";
 export * from "./operations/outage";
