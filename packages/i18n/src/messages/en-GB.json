@@ -794,5 +794,7 @@
   "care.history.recordName": "{table, select, care_plan {the care plan} care_plan_section {the care plan section} care_plan_action {the care plan action} risk_assessment {the risk assessment} advance_care_record {the advance care record} other {the record}}",
   "care.history.empty": "Not recorded",
   "care.history.field": "Field",
-  "care.history.value": "Value"
+  "care.history.value": "Value",
+  "care.charts.overrideGiven": "Not the prescribed level. Reason given: {reason}",
+  "care.charts.settingsTitle": "Chart settings"
 }
