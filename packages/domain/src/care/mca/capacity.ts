@@ -109,12 +109,15 @@ const GENERIC_DECISIONS = [
 
 const isBlank = (text: string | null | undefined) => !text || text.trim().length === 0;
 
+/** Drops trailing full stops and exclamation marks in one pass (no regular expression to backtrack). */
+function withoutTrailingPunctuation(text: string): string {
+  let end = text.length;
+  while (end > 0 && (text[end - 1] === "." || text[end - 1] === "!")) end--;
+  return text.slice(0, end);
+}
+
 function isGenericDecision(decision: string): boolean {
-  const words = decision
-    .trim()
-    .toLowerCase()
-    .replace(/[.!]+$/, "");
-  return GENERIC_DECISIONS.includes(words);
+  return GENERIC_DECISIONS.includes(withoutTrailingPunctuation(decision.trim().toLowerCase()));
 }
 
 /**

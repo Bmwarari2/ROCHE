@@ -139,6 +139,11 @@ describe("hazard HZ-026 capacity: lacks capacity only when stage 1 is met and a 
   it("is decision-specific and time-specific", () => {
     expect(issuesOf(assessment({ decision: "Everything" }))).toEqual(["decision:not_allowed"]);
     expect(issuesOf(assessment({ decision: "general." }))).toEqual(["decision:not_allowed"]);
+    expect(issuesOf(assessment({ decision: "All decisions!!." }))).toEqual([
+      "decision:not_allowed",
+    ]);
+    // A long run of full stops before other text is read in one pass and is not generic.
+    expect(issuesOf(assessment({ decision: `${".".repeat(50_000)} Where to live` }))).toEqual([]);
     expect(issuesOf(assessment({ decision: "" }))).toEqual(["decision:missing"]);
     expect(issuesOf(assessment({ assessedAt: null }))).toEqual(["assessedAt:missing"]);
     expect(issuesOf(assessment({ assessedAt: new Date("2026-10-12T09:00:00Z") }))).toEqual([
