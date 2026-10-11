@@ -41,9 +41,13 @@ import {
   minimiseEvidenceField,
   redactionLeaks,
 } from "./evidence-pack";
-import { EVIDENCE_PACK_RATE_KEYS, resolveEvidencePackPolicy } from "./rates";
+import {
+  EVIDENCE_CODE_MAX_VALID_MINUTES,
+  EVIDENCE_PACK_RATE_KEYS,
+  resolveEvidencePackPolicy,
+} from "./rates";
 
-/** Inspector evidence pack (quality.md section 4 rules 1 to 7). Hazard HZ-050. */
+/** Inspector evidence pack (quality.md section 4 rules 1 to 10). Hazard HZ-050. */
 
 const policy = tableEvidencePackPolicy();
 const DAY = 86_400_000;
@@ -132,6 +136,17 @@ describe("evidence pack link figures come from the rate table as tenant defaults
 
   it("applies in Wales too (a policy default, not a statutory figure)", () => {
     expect(resolveEvidencePackPolicy(readRateTable(), "wales", "2026-10-11", null)).toEqual(policy);
+  });
+
+  it.each([
+    [5, 5],
+    [60, EVIDENCE_CODE_MAX_VALID_MINUTES],
+  ])("lets a tenant shorten the code lifetime but never lengthen it (%i minutes)", (asked, got) => {
+    const base = readRateTable().find((r) => r.key === EVIDENCE_PACK_RATE_KEYS.codeValidMinutes);
+    if (!base) throw new Error("code_valid_minutes row missing");
+    const rows = [...readRateTable(), { ...base, value: asked, tenantId: "tenant-a" }];
+    const tenant = resolveEvidencePackPolicy(rows, "england", "2026-10-11", "tenant-a");
+    expect(tenant.codeValidMinutes).toBe(got);
   });
 });
 

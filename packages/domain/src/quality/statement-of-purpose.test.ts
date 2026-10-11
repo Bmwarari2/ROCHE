@@ -23,7 +23,7 @@ import {
   statementOfPurposeRegistrationPrompts,
 } from "./statement-of-purpose";
 
-/** Statement of purpose (quality.md section 4 rules 8 to 12). CQC Registration Regulations reg 12. */
+/** Statement of purpose (quality.md section 4 rules 11 to 15). CQC Registration Regulations reg 12. */
 
 const rates = tableStatementOfPurposeRates();
 const APPROVED = new Date("2026-10-12T10:00:00Z");

@@ -40,14 +40,27 @@ function resolveAll<K extends string>(
   return Object.fromEntries(entries) as Record<K, number>;
 }
 
-/** The evidence pack link expiry default and maximum for a tenant; fails loudly if missing. */
+/**
+ * Why: a one-time code is a security control (ADR-0050). A tenant may shorten its lifetime in the
+ * rate table, never lengthen it past this ceiling.
+ */
+export const EVIDENCE_CODE_MAX_VALID_MINUTES = 10;
+
+/**
+ * The evidence pack link expiry default and maximum and the code lifetime for a tenant; fails
+ * loudly if a figure is missing. The code lifetime never exceeds `EVIDENCE_CODE_MAX_VALID_MINUTES`.
+ */
 export function resolveEvidencePackPolicy(
   rows: readonly RateRow[],
   nation: LookupNation,
   on: string,
   tenantId: string | null,
 ): EvidencePackPolicy {
-  return resolveAll(EVIDENCE_PACK_RATE_KEYS, rows, nation, on, tenantId);
+  const policy = resolveAll(EVIDENCE_PACK_RATE_KEYS, rows, nation, on, tenantId);
+  return {
+    ...policy,
+    codeValidMinutes: Math.min(policy.codeValidMinutes, EVIDENCE_CODE_MAX_VALID_MINUTES),
+  };
 }
 
 /** The statement of purpose figures; England only until the nation packs (fails loudly). */

@@ -5,7 +5,7 @@ import type { StatementOfPurposeRates } from "./rates";
 
 /**
  * Statement of purpose (master prompt 11.2, registration and governance row: "statement of purpose
- * with change tracking"; quality.md section 4 rules 8 to 12).
+ * with change tracking"; quality.md section 4 rules 11 to 15).
  *
  * CQC (Registration) Regulations 2009, regulation 12: the registered person gives CQC a statement
  * of purpose containing the information in Schedule 3 (12(1)), keeps it under review (12(2)) and
@@ -203,7 +203,7 @@ export interface StatementOfPurposeChecklist {
   readonly warnings: readonly "no_registered_manager"[];
 }
 
-/** Validates a draft against Schedule 3 (quality.md rule 8). */
+/** Validates a draft against Schedule 3 (quality.md rule 11). */
 export function checkStatementOfPurpose(
   content: StatementOfPurposeContent,
 ): StatementOfPurposeChecklist {
@@ -250,7 +250,7 @@ export function checkStatementOfPurpose(
 }
 
 // ------------------------------------------------------------------------------------------------
-// Change summary between versions (rule 9)
+// Change summary between versions (rule 12)
 // ------------------------------------------------------------------------------------------------
 
 export type SectionChangeKind = "unchanged" | "changed";
@@ -426,7 +426,7 @@ export function statementOfPurposeRegistrationPrompts(
 }
 
 // ------------------------------------------------------------------------------------------------
-// Versions, approval and the CQC notification (rules 10 to 12)
+// Versions, approval and the CQC notification (rules 13 to 15)
 // ------------------------------------------------------------------------------------------------
 
 export type StatementOfPurposeState = "draft" | "approved" | "superseded" | "discarded";
