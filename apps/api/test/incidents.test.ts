@@ -218,6 +218,12 @@ describe("permissions on every incident route", () => {
     expect((await record("carer", { people: [affected(5)] })).status).toBe(404);
   });
 
+  it("asks for MFA to report about a person, but not to report a person-free incident", async () => {
+    const aboutAda = await record("nurse", { people: [affected(1)] });
+    expect((await json<ProblemDetails>(aboutAda)).code).toBe("mfa_enrolment_required");
+    expect((await record("nurse", { type: "environmental", people: [] })).status).toBe(201);
+  });
+
   it("asks for MFA before anyone reads incidents (a care-record permission)", async () => {
     const response = await as("nurse", "/v1/incidents");
     expect(response.status).toBe(403);

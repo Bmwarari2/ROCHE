@@ -178,9 +178,15 @@ function personValues(p: IncidentPersonInput) {
   };
 }
 
+/** An incident about a person is part of their care record: MFA applies (section 5.3). */
+function requireMfaForPeople(access: TenantAccess, people: number) {
+  if (people > 0 && !access.mfaSatisfied) throw problems.mfaRequired();
+}
+
 async function loadForChange(c: Context<AppEnv>, tx: Transaction, incidentId: string) {
   const access = c.get("access");
   const found = await readIncident(tx, incidentId);
+  requireMfaForPeople(access, found.row.personIds.length);
   if (!mayChange(access, found.row)) throw problems.forbidden();
   if (found.restricted) {
     throw problems.forbidden();
@@ -304,6 +310,7 @@ export const incidentsRouter = createRouter()
       const access = await requirePermission(c, "safety.incident.report");
       const body = c.req.valid("json");
       const now = new Date();
+      requireMfaForPeople(access, body.people.filter((p) => p.kind === "service_user").length);
       checkAnswers(access, body.answers);
       const detail = await withTenant(c, async (tx) => {
         if (body.id) {
