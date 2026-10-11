@@ -7,7 +7,7 @@
  * `Authorization: Bearer <token>`. For accounts with TOTP, sign-in answers `twoFactorRedirect`
  * and sets a short-lived two-factor cookie that must accompany the verify call.
  */
-import { isSessionProblem, readProblemBody } from "../sync/session-signals";
+import { isSessionProblem, readProblemBody, TENANT_HEADER } from "../sync/session-signals";
 import { cookiePairsFromSetCookie, type FetchLike, HttpError } from "./http";
 
 export type AuthErrorKind =
@@ -68,7 +68,8 @@ export interface AuthClient {
   verifyTotp(challenge: TwoFactorChallenge, code: string): Promise<string>;
   /** Best effort: revokes the session server-side; never throws. */
   signOut(token: string): Promise<void>;
-  getMe(token: string): Promise<Me>;
+  /** The signed-in user; `tenantId` picks the organisation for staff who belong to more than one. */
+  getMe(token: string, tenantId?: string | null): Promise<Me>;
 }
 
 export interface AuthClientOptions {
@@ -204,10 +205,14 @@ export function createAuthClient(options: AuthClientOptions): AuthClient {
       }
     },
 
-    async getMe(token) {
+    async getMe(token, tenantId) {
       const response = await doFetch(`${baseUrl}/v1/me`, {
         method: "GET",
-        headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+          ...(tenantId ? { [TENANT_HEADER]: tenantId } : {}),
+        },
         credentials: "omit",
       });
       // A 403 ends the session only with a session problem code; an edge block or an unknown

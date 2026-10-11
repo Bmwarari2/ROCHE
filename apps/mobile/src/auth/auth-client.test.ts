@@ -151,6 +151,13 @@ describe("getMe and signOut", () => {
     await expect(client(fetch).getMe("tok")).resolves.toEqual(me);
     expect(calls[0]?.url).toBe("https://api.example.invalid/v1/me");
     expect(headerOf(calls[0], "authorization")).toBe("Bearer tok");
+    expect(headerOf(calls[0], "x-harbour-tenant")).toBeNull();
+  });
+
+  it("asks in the session's organisation when it knows it (security review round 4, H1)", async () => {
+    const { fetch, calls } = fakeFetch([json(me)]);
+    await client(fetch).getMe("tok", "00000000-0000-4000-8000-0000000000a1");
+    expect(headerOf(calls[0], "x-harbour-tenant")).toBe("00000000-0000-4000-8000-0000000000a1");
   });
 
   it("treats 401 as an ended session", async () => {

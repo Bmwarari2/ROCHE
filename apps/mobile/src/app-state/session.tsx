@@ -29,6 +29,7 @@ import {
 } from "../platform/secure-store";
 import { DB_ID_ITEM } from "../security/db-key";
 import { flushPendingReport } from "../sync/device-report";
+import { CARE_ACCESS_PERMISSION } from "../sync/session-signals";
 import { admitSignIn, type HeldWork, loadHeldMarker, serialiseHeldWork } from "./held-work";
 import { type AppMode, parseAppMode } from "./preferences-model";
 
@@ -166,7 +167,11 @@ export function SessionProvider({ children }: { readonly children: ReactNode }) 
   const refreshMe = useCallback(async () => {
     if (!token) return "ended" as const;
     try {
-      const loaded = await authClient.getMe(token);
+      const loaded = await authClient.getMe(token, me?.tenant.id ?? null);
+      // Access to Care mode withdrawn (security review round 4, H1): the session has ended for it.
+      if (!appEnv.demoMode && !loaded.permissions.includes(CARE_ACCESS_PERMISSION)) {
+        return "ended" as const;
+      }
       await writePlain(ME_ITEM, JSON.stringify(loaded));
       setMe(loaded);
       return "ok" as const;
@@ -174,7 +179,7 @@ export function SessionProvider({ children }: { readonly children: ReactNode }) 
       if (error instanceof AuthError && error.kind === "session_expired") return "ended" as const;
       return "offline" as const;
     }
-  }, [token]);
+  }, [token, me]);
 
   const setMode = useCallback((next: AppMode) => {
     setModeState(next);

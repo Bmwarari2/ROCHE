@@ -2,11 +2,13 @@
  * PowerSync backend connector for the Harbour API.
  *
  * - fetchCredentials: exchanges the Better Auth session for a short-lived PowerSync token
- *   (`POST /v1/sync/token`). A 401 means the session expired or was revoked elsewhere; a 403 means
- *   so only with a session problem code or when `GET /v1/me` agrees (`session-signals.ts`). The
- *   connector reports it and the vault decides (HZ-006, `held-work.ts`): wipe when nothing is
- *   waiting to upload, otherwise hold the unsent entries for their owner. Any other 403 (an edge
- *   block, an HTML page, an unknown code) only backs off and tries again.
+ *   (`POST /v1/sync/token`), in the session's organisation. A 401 means the session expired or was
+ *   revoked elsewhere. A 403 whose problem body comes from the API (a session code, or any other
+ *   code such as `missing_permission`) means the session or the access Care mode needs has gone; a
+ *   403 with no body, an HTML page or the edge's `edge_blocked` is checked with `GET /v1/me` first
+ *   (`session-signals.ts`). The connector reports an ended session and the vault decides (HZ-006,
+ *   `held-work.ts`): wipe when nothing is waiting to upload, otherwise hold the unsent entries for
+ *   their owner. Otherwise it backs off and tries again.
  * - uploadData: sends the next local transaction. Care entries (notes, chart observations,
  *   body-map marks, activities and visits) go one by one to the API's own endpoints for them
  *   (`care-upload.ts`) with the device's UUIDv7, the device id, the tenant and the time the device
@@ -36,9 +38,10 @@ import {
 import { isCareEntryTable, toCareUpload } from "./care-upload";
 import {
   checkSession,
-  isSessionProblem,
+  classifyForbidden,
   readProblemBody,
   type SessionCheck,
+  TENANT_HEADER,
 } from "./session-signals";
 
 export type UploadOp = "PUT" | "PATCH" | "DELETE";
@@ -65,7 +68,7 @@ export type UploadSource = Pick<
 >;
 
 /** Request headers the API reads (`@harbour/contracts` and `apps/api/src/routes/care-shared.ts`). */
-export const TENANT_HEADER = "x-harbour-tenant";
+export { TENANT_HEADER };
 export const DEVICE_HEADER = "x-harbour-device";
 export const SENT_AT_HEADER = "x-harbour-sent-at";
 
@@ -207,6 +210,8 @@ export interface HarbourConnectorOptions {
   readonly fetch: FetchLike;
   /** Current session token, or null when signed out. */
   readonly getToken: () => Promise<string | null>;
+  /** The session's organisation, sent on every request (staff may belong to more than one). */
+  readonly getTenantId?: () => string | null;
   /** Called once when the API says the session is no longer valid. */
   readonly onSessionRevoked: () => void;
   readonly backoff?: BackoffPolicy;
@@ -227,10 +232,19 @@ export class HarbourConnector implements PowerSyncBackendConnector {
     return this.options.now?.() ?? new Date();
   }
 
+  private tenantHeader(): Record<string, string> {
+    const tenantId = this.options.getTenantId?.() ?? null;
+    return tenantId ? { [TENANT_HEADER]: tenantId } : {};
+  }
+
   private async authorisedHeaders(): Promise<Record<string, string>> {
     const token = await this.options.getToken();
     if (!token) throw new SessionRevokedError();
-    return { Accept: "application/json", Authorization: `Bearer ${token}` };
+    return {
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+      ...this.tenantHeader(),
+    };
   }
 
   /** Asks `GET /v1/me` whether the session stands, after a 403 that did not say (H1). */
@@ -239,26 +253,42 @@ export class HarbourConnector implements PowerSyncBackendConnector {
       apiUrl: this.options.apiUrl,
       fetch: this.options.fetch,
       token: await this.options.getToken(),
+      tenantId: this.options.getTenantId?.() ?? null,
     });
   }
 
+  private ended(): never {
+    this.options.onSessionRevoked();
+    throw new SessionRevokedError();
+  }
+
   /**
-   * A 403: the session has ended only when the API says so in a problem body, or `GET /v1/me`
-   * says so; a block at the edge, an empty or HTML body, or an unknown code never ends it (H1).
-   * Returns the problem when the session stands, so the caller can refuse the entry or retry.
+   * A 403 (security reviews round 3 and round 4, H1). A session code ends the session. Any other
+   * code from the API is the API's decision: `accessWithdrawn` says what it means here (true on
+   * the token and batch uploads, where it withdraws the access Care mode needs; false on a single
+   * entry, which it refuses). No body, an HTML page or the edge's `edge_blocked` asks
+   * `GET /v1/me`, which ends the session only when it says so. Returns the problem when the
+   * session stands, with whether that could be checked.
    */
-  private async forbidden(response: Response): Promise<{
+  private async forbidden(
+    response: Response,
+    accessWithdrawn: boolean,
+  ): Promise<{
+    readonly kind: "api" | "unexplained";
     readonly session: "ok" | "unknown";
     readonly code: string | null;
     readonly reason: string | null;
   }> {
     const problem = await readProblemBody(response);
-    const session = isSessionProblem(problem.code) ? "ended" : await this.sessionState();
-    if (session === "ended") {
-      this.options.onSessionRevoked();
-      throw new SessionRevokedError();
+    const kind = classifyForbidden(problem.code);
+    if (kind === "session") this.ended();
+    if (kind === "api") {
+      if (accessWithdrawn) this.ended();
+      return { kind, session: "ok", code: problem.code, reason: problem.reason };
     }
-    return { session, code: problem.code, reason: problem.reason };
+    const session = await this.sessionState();
+    if (session === "ended") this.ended();
+    return { kind, session, code: problem.code, reason: problem.reason };
   }
 
   private retryOptions() {
@@ -276,7 +306,11 @@ export class HarbourConnector implements PowerSyncBackendConnector {
     if (!token) return null;
     const response = await this.options.fetch(`${this.options.apiUrl}/v1/sync/token`, {
       method: "POST",
-      headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+        ...this.tenantHeader(),
+      },
       credentials: "omit",
     });
     if (response.status === 401) {
@@ -285,12 +319,13 @@ export class HarbourConnector implements PowerSyncBackendConnector {
     }
     if (response.status === 403) {
       try {
-        await this.forbidden(response);
+        // On the token, any refusal from the API withdraws the access Care mode needs.
+        await this.forbidden(response, true);
       } catch (error) {
         if (error instanceof SessionRevokedError) return null;
         throw error;
       }
-      // The session stands (or cannot be checked): back off and let PowerSync try again.
+      // Not the API's decision, and the session stands or cannot be checked: back off and retry.
       throw new HttpError(403, "Sync credentials refused; the session still stands");
     }
     if (!response.ok) {
@@ -374,10 +409,10 @@ export class HarbourConnector implements PowerSyncBackendConnector {
           );
         }
         if (response.status === 403) {
-          // Only a session code or `GET /v1/me` ends the session (H1). With the session standing
-          // the entry itself was refused and moves to "needs attention"; when the session cannot
-          // be checked the entry stays queued and is tried again later.
-          const refusal = await this.forbidden(response);
+          // A session code, or `GET /v1/me` after an unexplained 403, ends the session (H1). Any
+          // other code from the API refuses this entry, which moves to "needs attention"; when an
+          // unexplained 403 cannot be checked the entry stays queued and is tried again later.
+          const refusal = await this.forbidden(response, false);
           if (refusal.session === "unknown") {
             throw new HttpError(403, "Upload refused; the session could not be checked");
           }
@@ -453,8 +488,9 @@ export class HarbourConnector implements PowerSyncBackendConnector {
           throw new SessionRevokedError();
         }
         if (response.status === 403) {
-          // A batch is never parked on an unexplained 403: back off and try again (H1).
-          await this.forbidden(response);
+          // An API refusal of the batch withdraws access; an unexplained 403 is never parked: back
+          // off and try again (H1).
+          await this.forbidden(response, true);
           throw new HttpError(403, "Upload refused; the session still stands");
         }
         if (isRetryableStatus(response.status)) {

@@ -85,13 +85,23 @@ function fakeQueue(entries: CrudEntryLike[] | null) {
   return { source, state, issues };
 }
 
-function connector(fetch: FetchLike, overrides: { token?: string | null; now?: () => Date } = {}) {
+/** `GET /v1/me` answering with the permission Care mode needs: the session stands. */
+const meOk = () => json({ permissions: ["people.person.read", "care.note.write"] });
+/** `GET /v1/me` answering without it: the access Care mode needs has been withdrawn. */
+const meWithdrawn = () => json({ permissions: ["care.note.write"] });
+const edgeBlocked = () => problem(403, "edge_blocked", "Request blocked.");
+
+function connector(
+  fetch: FetchLike,
+  overrides: { token?: string | null; now?: () => Date; tenantId?: string | null } = {},
+) {
   const revoked = { count: 0 };
   const sleeps: number[] = [];
   const instance = new HarbourConnector({
     apiUrl: API,
     fetch,
     getToken: async () => (overrides.token === undefined ? "tok" : overrides.token),
+    getTenantId: () => (overrides.tenantId === undefined ? TENANT : overrides.tenantId),
     onSessionRevoked: () => {
       revoked.count += 1;
     },
@@ -187,6 +197,7 @@ describe("fetchCredentials", () => {
     await expect(instance.fetchCredentials()).resolves.toMatchObject({ token: "jwt" });
     expect(calls[0]?.url).toBe(`${API}/v1/sync/token`);
     expect(new Headers(calls[0]?.init?.headers).get("authorization")).toBe("Bearer tok");
+    expect(new Headers(calls[0]?.init?.headers).get(TENANT_HEADER)).toBe(TENANT);
   });
 
   it("does not connect when signed out", async () => {
@@ -215,17 +226,35 @@ describe("fetchCredentials", () => {
   );
 
   it.each([
+    ["missing_permission", () => problem(403, "missing_permission", "No access.")],
+    ["feature_disabled", () => problem(403, "feature_disabled", "Switched off.")],
+    ["an unknown code", () => problem(403, "a_code_this_build_does_not_know", "No.")],
+  ])(
+    "hazard HZ-006 treats a 403 %s from the sync token as access withdrawn, without asking /v1/me (round 4, H1)",
+    async (_case, forbidden) => {
+      const { fetch, calls } = fakeFetch([forbidden()]);
+      const { instance, revoked } = connector(fetch);
+      await expect(instance.fetchCredentials()).resolves.toBeNull();
+      expect(revoked.count).toBe(1);
+      expect(calls).toHaveLength(1);
+    },
+  );
+
+  it.each([
     ["no JSON body", emptyForbidden],
     ["a WAF HTML page", wafForbidden],
-    ["an unknown code", () => problem(403, "a_code_this_build_does_not_know", "No.")],
+    ["the edge's edge_blocked", edgeBlocked],
   ])(
     "hazard HZ-006 backs off on a 403 from the sync token with %s while /v1/me answers (H1)",
     async (_case, forbidden) => {
-      const { fetch, calls } = fakeFetch([forbidden(), json({}, 200)]);
+      const { fetch, calls } = fakeFetch([forbidden(), meOk()]);
       const { instance, revoked } = connector(fetch);
       await expect(instance.fetchCredentials()).rejects.toMatchObject({ status: 403 });
       expect(revoked.count).toBe(0);
       expect(calls[1]?.url).toBe(`${API}/v1/me`);
+      const probe = new Headers(calls[1]?.init?.headers);
+      expect(probe.get("authorization")).toBe("Bearer tok");
+      expect(probe.get(TENANT_HEADER)).toBe(TENANT);
     },
   );
 
@@ -234,6 +263,28 @@ describe("fetchCredentials", () => {
     const { instance, revoked } = connector(fetch);
     await expect(instance.fetchCredentials()).resolves.toBeNull();
     expect(revoked.count).toBe(1);
+  });
+
+  it("hazard HZ-006 ends the session when /v1/me answers without the access Care mode needs (round 4, H1)", async () => {
+    const { fetch } = fakeFetch([edgeBlocked(), meWithdrawn()]);
+    const { instance, revoked } = connector(fetch);
+    await expect(instance.fetchCredentials()).resolves.toBeNull();
+    expect(revoked.count).toBe(1);
+  });
+
+  it("backs off when /v1/me answers with something it cannot read", async () => {
+    const { fetch } = fakeFetch([emptyForbidden(), json({}, 200)]);
+    const { instance, revoked } = connector(fetch);
+    await expect(instance.fetchCredentials()).rejects.toMatchObject({ status: 403 });
+    expect(revoked.count).toBe(0);
+  });
+
+  it("sends no organisation header when the session has none", async () => {
+    const { fetch, calls } = fakeFetch([emptyForbidden(), meOk()]);
+    const { instance } = connector(fetch, { tenantId: null });
+    await expect(instance.fetchCredentials()).rejects.toMatchObject({ status: 403 });
+    expect(new Headers(calls[0]?.init?.headers).get(TENANT_HEADER)).toBeNull();
+    expect(new Headers(calls[1]?.init?.headers).get(TENANT_HEADER)).toBeNull();
   });
 
   it("throws on server errors so PowerSync retries the connection", async () => {
@@ -379,22 +430,49 @@ describe("uploadData: care entries go to their own endpoints", () => {
   it.each([
     ["missing_permission", () => problem(403, "missing_permission", "Refused.")],
     ["feature_disabled", () => problem(403, "feature_disabled", "Refused.")],
+    ["an unknown code", () => problem(403, "a_code_this_build_does_not_know", "Refused.")],
+  ])(
+    "hazard HZ-006 parks the entry the API refused with %s, never the session",
+    async (_case, forbidden) => {
+      const { fetch, calls } = fakeFetch([forbidden()]);
+      const { instance, revoked } = connector(fetch);
+      const queue = fakeQueue([note()]);
+      await instance.uploadData(queue.source);
+      expect(revoked.count).toBe(0);
+      expect(calls).toHaveLength(1);
+      expect(queue.issues()).toHaveLength(1);
+      expect(queue.state.completed).toBe(1);
+    },
+  );
+
+  it.each([
     ["no JSON body", emptyForbidden],
     ["a WAF HTML page", wafForbidden],
-    ["an unknown code", () => problem(403, "a_code_this_build_does_not_know", "Refused.")],
+    ["the edge's edge_blocked", edgeBlocked],
   ])(
     "hazard HZ-006 parks the entry, never the session, on a 403 with %s while /v1/me answers (H1)",
     async (_case, forbidden) => {
-      const { fetch, calls } = fakeFetch([forbidden(), json({}, 200)]);
+      const { fetch, calls } = fakeFetch([forbidden(), meOk()]);
       const { instance, revoked } = connector(fetch);
       const queue = fakeQueue([note()]);
       await instance.uploadData(queue.source);
       expect(revoked.count).toBe(0);
       expect(calls[1]?.url).toBe(`${API}/v1/me`);
+      expect(new Headers(calls[1]?.init?.headers).get(TENANT_HEADER)).toBe(TENANT);
       expect(queue.issues()).toHaveLength(1);
       expect(queue.state.completed).toBe(1);
     },
   );
+
+  it("hazard HZ-006 ends the session on an unexplained 403 when /v1/me lacks the access Care mode needs (round 4, H1)", async () => {
+    const { fetch } = fakeFetch([edgeBlocked(), meWithdrawn()]);
+    const { instance, revoked } = connector(fetch);
+    const queue = fakeQueue([note()]);
+    await expect(instance.uploadData(queue.source)).rejects.toBeInstanceOf(SessionRevokedError);
+    expect(revoked.count).toBe(1);
+    expect(queue.issues()).toEqual([]);
+    expect(queue.state.completed).toBe(0);
+  });
 
   it("hazard HZ-006 keeps the entry queued on an unexplained 403 when /v1/me cannot be reached", async () => {
     const { fetch } = fakeFetch([wafForbidden(), new TypeError("Network request failed")]);
@@ -561,7 +639,9 @@ describe("uploadData: other tables through /v1/sync/upload", () => {
   it.each([
     ["401", () => json({}, 401)],
     ["403 not_a_member", () => problem(403, "not_a_member", "Not a member.")],
-  ])("stops and reports the ended session on %s", async (_case, response) => {
+    ["403 missing_permission", () => problem(403, "missing_permission", "No access.")],
+    ["403 with an unknown code", () => problem(403, "a_code_this_build_does_not_know", "No.")],
+  ])("stops and reports the ended session on %s (round 4, H1)", async (_case, response) => {
     const { fetch } = fakeFetch([response()]);
     const { instance, revoked } = connector(fetch);
     const queue = fakeQueue([other]);
@@ -573,11 +653,11 @@ describe("uploadData: other tables through /v1/sync/upload", () => {
   it.each([
     ["no JSON body", emptyForbidden],
     ["a WAF HTML page", wafForbidden],
-    ["an unknown code", () => problem(403, "a_code_this_build_does_not_know", "No.")],
+    ["the edge's edge_blocked", edgeBlocked],
   ])(
     "backs off on a 403 with %s while /v1/me answers, never parking the batch (H1)",
     async (_case, forbidden) => {
-      const { fetch } = fakeFetch([forbidden(), json({}, 200)]);
+      const { fetch } = fakeFetch([forbidden(), meOk()]);
       const { instance, revoked } = connector(fetch);
       const queue = fakeQueue([other]);
       await expect(instance.uploadData(queue.source)).rejects.toMatchObject({ status: 403 });
