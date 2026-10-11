@@ -1,5 +1,11 @@
 import { type ImageURISource, StyleSheet, View } from "react-native";
-import { formatNhsNumber, fullName, knownAsName, type PersonNameParts } from "../logic/person";
+import {
+  formatNhsNumber,
+  fullName,
+  type HeaderFlag,
+  knownAsName,
+  type PersonNameParts,
+} from "../logic/person";
 import { formatIsoCalendarDate } from "../logic/time";
 import { useTheme } from "../theme/ThemeProvider";
 import { Avatar } from "./Avatar";
@@ -19,6 +25,11 @@ export interface PersonHeaderProps extends PersonNameParts {
   readonly allergyCount: number;
   /** Display text of each communication need, for example "Large print". */
   readonly communicationNeeds: readonly string[];
+  /**
+   * Further safety flags worded by the app, shown after allergies and communication needs: the
+   * resuscitation status (HZ-015, always present on care screens) and IDDSI levels (HZ-016).
+   */
+  readonly additionalFlags?: readonly HeaderFlag[];
   readonly testID?: string;
 }
 
@@ -41,6 +52,7 @@ export function PersonHeader({
   allergyStatus,
   allergyCount,
   communicationNeeds,
+  additionalFlags,
   testID = "person-header",
 }: PersonHeaderProps) {
   const theme = useTheme();
@@ -100,6 +112,7 @@ export function PersonHeader({
         allergyCount={allergyCount}
         communicationNeedsCount={communicationNeeds.length}
         context="record"
+        additionalFlags={additionalFlags}
         testID={`${testID}-flags`}
       />
       {communicationNeeds.length > 0 ? (
