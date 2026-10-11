@@ -21,7 +21,8 @@ export type CareTaskKind =
   | "food_and_fluid_record"
   | "dietitian_referral"
   | "nutrition_assessment"
-  | "multifactorial_falls_assessment"
+  | "comprehensive_falls_assessment"
+  | "gait_and_balance_assessment"
   | "falls_review"
   | "incident_report"
   | "safeguarding_decision_guide";
