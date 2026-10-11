@@ -24,6 +24,7 @@ export * from "./people/pre-admission";
 export * from "./people/property";
 export * from "./people/rates";
 export * from "./people/reviews";
+export * from "./people/sharing";
 export * from "./people/transfer-pack";
 export * from "./platform/access";
 export * from "./platform/branding";
