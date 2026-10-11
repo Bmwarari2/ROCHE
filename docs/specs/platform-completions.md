@@ -361,7 +361,7 @@ are versioned per tenant; the migration adds a new version). No API route used
 
 | Table or column | Kind | Key columns |
 | --- | --- | --- |
-| Search index | Generated `tsvector` columns, `btree_gin` composite indexes with `tenant_id` first ([ADR-0070](../decisions/0070-search-on-postgres-full-text.md)) | `person` (names, preferred name, room label), `tenant_user` (display name), `document` (title, file name), `care_note` (text); `app.search_terms(text)` immutable function matching rule 2 |
+| Search index | Generated `tsvector` columns, `btree_gin` composite indexes with `tenant_id` first ([ADR-0070](../decisions/0070-search-on-postgres-full-text.md)) | `person` (one vector for the names and preferred name, a second for the room label), `tenant_user` (display name), `document` (title, file name), `care_note` (text); `app.search_terms(text)` immutable `SECURITY INVOKER` function matching rule 2; every query states `tenant_id = $1` first; nothing is marked `LEAKPROOF` |
 | `break_glass_event` | Add column | `kind` (`open` or `search`), so break-glass searches have a record holding the typed reason that audit events refer to |
 | `tenant_export` | Mutable, versioned | Status (`EXPORT_STATUSES`), kind, since, requested by, requested at, snapshot at, ready at, expires at, revoked at, schema version, storage prefix, bytes, manifest SHA-256, problems and warnings (JSON); partial unique index on `tenant_id` where status is `queued` or `running` |
 | `dpia` | Mutable, versioned | Version, status (`draft`, `prepared`, `signed`, `superseded`), prefill (JSON), answers by section (JSON), residual ratings, ICO reference, prepared by (array), version SHA-256, signed by, signed at, typed name, statement, basis (JSON) |
@@ -377,7 +377,9 @@ are versioned per tenant; the migration adds a new version). No API route used
 
 Database tests to add with it: RLS and HZ-011 isolation for every new table; `app.search_terms`
 gives the terms in `search.test.ts`; a search as each scope returns nothing from another tenant or
-outside scope; `EXPLAIN` as `harbour_app` shows each search uses its index; the export worker
+outside scope; `EXPLAIN` as `harbour_app` inside `withRequestContext` shows each search uses its
+composite index with `tenant_id` as the index condition; no search function or operator Harbour
+defines is `LEAKPROOF` or `SECURITY DEFINER`; the export worker
 running as `harbour_app` inside `withRequestContext` reads no other tenant's row
 (`hazard HZ-070 the export reads only the exporting tenant`); `checkExportCatalogue` against the
 migrated database; the partial unique index refuses a second running export; sample removal

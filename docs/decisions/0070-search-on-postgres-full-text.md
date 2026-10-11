@@ -44,15 +44,31 @@ application sees it, with no second store to secure, keep in step or shred.
    not immutable, so generated columns call an immutable wrapper, `app.search_terms(text)`, with
    the dictionary named explicitly. Its output for the fixtures in `search.test.ts` must equal
    `searchTerms` in the domain package (rule 2), tested in the schema step.
-2. **Index.** Generated `tsvector` columns with GIN indexes on `person` (names, preferred name, room
-   label), `tenant_user` (display name), `document` (title, display file name) and `care_note`
-   (text), each with `tenant_id` leading the composite indexes used by the planner.
-3. **Query.** `to_tsquery('harbour_search', $1)` with the prefix query from `normaliseSearchQuery`
-   as a bound parameter; NHS numbers by equality on `person.nhs_number`. One query per kind, each
-   limited to the plan's page size plus one, under RLS; the API then applies the plan again
-   (`filterSearchResults`) and counts only what is visible.
-4. **Offline.** The mobile app searches only what it has synced (already in scope), with the same
-   `searchTerms` normalisation over SQLite; it never queries the server index offline.
+2. **Index.** Generated `tsvector` columns on `person` (one for the names and preferred name, a
+   second for the room label, so a break-glass search can match names alone), `tenant_user`
+   (display name), `document` (title, display file name) and `care_note` (text). Each is indexed
+   with a composite GIN index on `(tenant_id, <vector>)` using the `btree_gin` extension, so the
+   tenant is the leading key.
+3. **Query.** Every search query states `tenant_id = $1` first, with the tenant from the request
+   context (the same value the RLS policy enforces), and then `<vector> @@ to_tsquery('harbour_search',
+   $2)` with the prefix query from `normaliseSearchQuery` as a bound parameter; the whole-word query
+   is a second bound parameter that marks each hit `exact` or `prefix` for ranking. NHS numbers are
+   matched by equality on `person.nhs_number`. One query per kind, each limited to the plan's page
+   size plus one, under RLS; the API then applies the plan again (`filterSearchResults`), ranks
+   (`compareSearchHits`) and counts only what is visible. A break-glass search uses the whole-word
+   query on the names vector only: no prefixes and no room labels.
+4. **RLS and the planner.** Under forced RLS, Postgres uses a condition as an index condition ahead
+   of the policy only when its operator is leakproof. Equality on `uuid` is leakproof, so the
+   explicit `tenant_id = $1` uses the composite index; `@@` is not, so it is applied after the
+   policy, within one tenant's rows, which is cheap at Harbour's per-tenant volumes. Two shortcuts
+   are forbidden: marking `@@`, its functions or a wrapper `LEAKPROOF` (that lets the planner run
+   user text against rows before the policy, a side channel through errors and timing), and running
+   search through a `SECURITY DEFINER` function (that runs as the function's owner, which can bypass
+   the caller's RLS). `app.search_terms` is `SECURITY INVOKER` and not leakproof.
+5. **Offline.** The mobile app searches only what it has synced (already in scope), with the same
+   `searchTerms` normalisation over SQLite; it never queries the server index offline. Offline
+   results are labelled "This device only, last synced at HH:MM" so nobody takes them for a search of
+   the whole organisation (HZ-002).
 
 ### Consequences
 
@@ -63,6 +79,8 @@ application sees it, with no second store to secure, keep in step or shred.
 - Good, because there is no extra service to run, patch, monitor or pay for.
 - Bad, because ranking and fuzzy matching are simpler than a search engine's; misspelt names are not
   found (accepted: a near match is a wrong-person risk, and the screen offers the NHS number).
+  Ranking is done in the domain instead (people first, whole-word before prefix, then status, name
+  and date of birth), with a same-name warning.
 - Bad, because the `tsvector` holds note words in plain text, like the note column itself today.
   If the open envelope-encryption decision ([retention-and-deletion.md](../compliance/retention-and-deletion.md)
   section 4) encrypts note text, it must choose between keeping a lexeme index (backups then keep
@@ -75,7 +93,9 @@ application sees it, with no second store to secure, keep in step or shred.
 
 The schema step adds: an isolation test that a search as each scope returns no row from another
 tenant or outside scope (`hazard HZ-011`); a test that `app.search_terms` matches `searchTerms` on
-the shared fixtures; an `EXPLAIN` check that each kind uses its GIN index; and a timing check
+the shared fixtures; an `EXPLAIN` check, run as `harbour_app` inside `withRequestContext`, that each
+kind uses its composite index with `tenant_id` as the index condition; a catalogue check that no
+search function or operator Harbour defines is `LEAKPROOF` or `SECURITY DEFINER`; and a timing check
 against a 60-bed demo tenant.
 
 ## Pros and cons of the options
