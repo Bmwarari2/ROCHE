@@ -1556,7 +1556,10 @@
     font-weight: 600;
     line-height: 20px;
     letter-spacing: var(--type-body-dense-tracking);
-    white-space: nowrap;
+    /* A long status ("CPR decision not recorded") wraps inside its chip on a narrow screen rather
+       than pushing the page sideways (WCAG 1.4.10 reflow at 320 px). */
+    max-width: 100%;
+    white-space: normal;
     vertical-align: middle;
   }
 
