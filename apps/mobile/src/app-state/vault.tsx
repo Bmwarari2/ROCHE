@@ -655,6 +655,8 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
           fetch: platformFetch,
           getToken: async () => tokenRef.current,
           getTenantId: () => tenantRef.current,
+          // The device id, so the server can tell who has used this device (round 7, M1).
+          getDeviceId: () => opened.getClientId(),
           onSessionRevoked: () => {
             void sessionEndedRef.current();
           },

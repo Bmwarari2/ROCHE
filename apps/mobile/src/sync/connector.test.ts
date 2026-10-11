@@ -198,6 +198,42 @@ describe("fetchCredentials", () => {
     expect(calls[0]?.url).toBe(`${API}/v1/sync/token`);
     expect(new Headers(calls[0]?.init?.headers).get("authorization")).toBe("Bearer tok");
     expect(new Headers(calls[0]?.init?.headers).get(TENANT_HEADER)).toBe(TENANT);
+    // No device id given: none is sent.
+    expect(new Headers(calls[0]?.init?.headers).has(DEVICE_HEADER)).toBe(false);
+  });
+
+  it("hazard HZ-040 names the device when it asks for credentials, so the server knows who has used it (security review round 7, M1)", async () => {
+    const credentials = {
+      token: "jwt",
+      endpoint: "https://sync.example.invalid",
+      expiresAt: "2026-10-09T14:00:00Z",
+    };
+    const { fetch, calls } = fakeFetch([json(credentials), json(credentials)]);
+    const named = new HarbourConnector({
+      apiUrl: API,
+      fetch,
+      getToken: async () => "tok",
+      getTenantId: () => TENANT,
+      getDeviceId: async () => "0199d000-0000-4000-8000-00000000de01",
+      onSessionRevoked: () => undefined,
+    });
+    await named.fetchCredentials();
+    expect(new Headers(calls[0]?.init?.headers).get(DEVICE_HEADER)).toBe(
+      "0199d000-0000-4000-8000-00000000de01",
+    );
+    // A device id that cannot be read sends none, and the credentials still come.
+    const unreadable = new HarbourConnector({
+      apiUrl: API,
+      fetch,
+      getToken: async () => "tok",
+      getTenantId: () => TENANT,
+      getDeviceId: async () => {
+        throw new Error("keystore unavailable");
+      },
+      onSessionRevoked: () => undefined,
+    });
+    await expect(unreadable.fetchCredentials()).resolves.toMatchObject({ token: "jwt" });
+    expect(new Headers(calls[1]?.init?.headers).has(DEVICE_HEADER)).toBe(false);
   });
 
   it("does not connect when signed out", async () => {

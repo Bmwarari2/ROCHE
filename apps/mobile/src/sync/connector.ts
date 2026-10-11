@@ -214,6 +214,12 @@ export interface HarbourConnectorOptions {
   readonly getTenantId?: () => string | null;
   /** Called once when the API says the session is no longer valid. */
   readonly onSessionRevoked: () => void;
+  /**
+   * The device's opaque id (the PowerSync client id), sent with the sync token request so the
+   * server knows this member has used the device: a hold report naming them as its owner counts
+   * only then (security review round 7, M1).
+   */
+  readonly getDeviceId?: () => Promise<string | null>;
   readonly backoff?: BackoffPolicy;
   readonly sleep?: (ms: number) => Promise<void>;
   readonly random?: () => number;
@@ -304,12 +310,16 @@ export class HarbourConnector implements PowerSyncBackendConnector {
     const token = await this.options.getToken();
     // Signed out: returning null tells PowerSync not to connect.
     if (!token) return null;
+    const deviceId = await (this.options.getDeviceId?.() ?? Promise.resolve(null)).catch(
+      () => null,
+    );
     const response = await this.options.fetch(`${this.options.apiUrl}/v1/sync/token`, {
       method: "POST",
       headers: {
         Accept: "application/json",
         Authorization: `Bearer ${token}`,
         ...this.tenantHeader(),
+        ...(deviceId ? { [DEVICE_HEADER]: deviceId } : {}),
       },
       credentials: "omit",
     });
