@@ -29,3 +29,4 @@ export * from "./platform/separation-of-duties";
 export * from "./platform/tasks";
 export * from "./platform/workflow";
 export * from "./shared/time";
+export * from "./shared/working-days";

@@ -1,4 +1,5 @@
 import { addUkDays } from "../shared/time";
+import { type BankHolidays, workingDaysDeadline } from "../shared/working-days";
 import { isPermission, type Permission, requiresStepUp } from "./permissions";
 
 /**
@@ -22,7 +23,7 @@ export interface WorkflowTransitionRule<S extends string> {
 
 export type WorkflowSla =
   | { readonly hours: number }
-  | { readonly rateKey: string; readonly unit: "hours" | "days" };
+  | { readonly rateKey: string; readonly unit: "hours" | "days" | "working_days" };
 
 export interface WorkflowDefinition<S extends string> {
   readonly key: string;
@@ -171,13 +172,15 @@ export function availableTransitions<S extends string>(
 
 /**
  * When the state entered at `enteredAt` is due to be left, or null when the state has no SLA.
- * `resolveRate` returns the current value of a rate-table key (in the unit the SLA names).
+ * `resolveRate` returns the current value of a rate-table key (in the unit the SLA names);
+ * working days skip the bank holidays given (docs/specs/calendar.md).
  */
 export function slaDueAt<S extends string>(
   definition: WorkflowDefinition<S>,
   state: S,
   enteredAt: Date,
   resolveRate: (key: string) => number,
+  holidays: BankHolidays = new Set(),
 ): Date | null {
   const sla = definition.sla?.[state];
   if (!sla) return null;
@@ -185,7 +188,7 @@ export function slaDueAt<S extends string>(
   const value = resolveRate(sla.rateKey);
   if (!(value > 0))
     throw new WorkflowDefinitionError(`${definition.key}: rate ${sla.rateKey} must be positive.`);
-  return sla.unit === "hours"
-    ? new Date(enteredAt.getTime() + value * 3_600_000)
-    : addUkDays(enteredAt, value);
+  if (sla.unit === "hours") return new Date(enteredAt.getTime() + value * 3_600_000);
+  if (sla.unit === "working_days") return workingDaysDeadline(enteredAt, value, holidays);
+  return addUkDays(enteredAt, value);
 }

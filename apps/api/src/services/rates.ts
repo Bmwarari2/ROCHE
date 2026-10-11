@@ -1,5 +1,5 @@
-import { rateTable, type Transaction } from "@harbour/db";
-import { type RateNation, resolveRate } from "@harbour/domain";
+import { bankHoliday, rateTable, type Transaction } from "@harbour/db";
+import { type BankHolidays, type RateNation, resolveRate } from "@harbour/domain";
 import { eq } from "drizzle-orm";
 
 /**
@@ -32,4 +32,16 @@ export async function rateNumber(
     tenantId,
   );
   return Number(rate.value);
+}
+
+/** The bank holidays of a nation for working-day clocks (docs/specs/calendar.md). */
+export async function bankHolidays(
+  tx: Transaction,
+  nation: Exclude<RateNation, "uk" | "all">,
+): Promise<BankHolidays> {
+  const rows = await tx
+    .select({ date: bankHoliday.date })
+    .from(bankHoliday)
+    .where(eq(bankHoliday.nation, nation));
+  return new Set(rows.map((r) => r.date));
 }
