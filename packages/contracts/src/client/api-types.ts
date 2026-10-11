@@ -2341,6 +2341,666 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/people/{id}/notes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Daily notes, newest first (default: the last three days) */
+    get: {
+      parameters: {
+        query?: {
+          from?: string;
+          to?: string;
+          category?:
+            | "personal_care"
+            | "nutrition"
+            | "mood"
+            | "activity"
+            | "visit"
+            | "health"
+            | "night"
+            | "other";
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Notes */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CareNoteList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /** Write a daily note (append-only; corrections supersede) */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateCareNote"];
+        };
+      };
+      responses: {
+        /** @description Note saved (or the earlier copy of a replayed upload) */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CareNoteItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/observations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Chart entries, newest first (default: the last three days) */
+    get: {
+      parameters: {
+        query?: {
+          from?: string;
+          to?: string;
+          chart?:
+            | "fluid_intake"
+            | "fluid_output"
+            | "food"
+            | "repositioning"
+            | "bowel"
+            | "weight"
+            | "vitals";
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Entries */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ObservationList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Record a chart entry (fluids, food, repositioning, bowel, weight, vital signs)
+     * @description Vital signs are scored with NEWS2 using the person's recorded SpO2 scale; a score that needs a response alerts the nurse in charge and creates the follow-up tasks. Food and drink are checked against the person's IDDSI levels.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateObservation"];
+        };
+      };
+      responses: {
+        /** @description Saved (or the earlier copy of a replayed upload) */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ObservationItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/charts/fluid": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Fluid balance for one UK calendar day, with the shortfall against the target */
+    get: {
+      parameters: {
+        query: {
+          date: string;
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Fluid balance */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["FluidDay"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/body-map": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Current body-map marks (the latest of each corrected or healed mark) */
+    get: {
+      parameters: {
+        query?: {
+          includeHealed?: "true" | "false";
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Marks */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["BodyMapMarkList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /** Record a body-map mark (the side is stated in words and checked against the drawing) */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateBodyMapMark"];
+        };
+      };
+      responses: {
+        /** @description Mark saved */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["BodyMapMarkItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/care-profile": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** IDDSI levels, fluid target, NEWS2 SpO2 scale and skin risk */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Profile */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PersonCareProfile"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Change IDDSI levels, the fluid target, the SpO2 scale or skin risk
+     * @description A changed IDDSI level must say who advised it (HZ-016); switching NEWS2 to SpO2 scale 2 needs the clinician who decided it.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdatePersonCareProfile"];
+        };
+      };
+      responses: {
+        /** @description Profile */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PersonCareProfile"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/rates/{key}": {
     parameters: {
       query?: never;
@@ -3755,6 +4415,319 @@ export interface components {
     DestroyDocuments: {
       documentIds: string[];
       reason: string;
+    };
+    CareNoteItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: date-time */
+      occurredAt: string;
+      /** Format: date-time */
+      recordedAt: string;
+      /** Format: date-time */
+      deviceTime: string | null;
+      lateEntry: boolean;
+      clockDrift: boolean;
+      /** Format: uuid */
+      supersedesId: string | null;
+      correctionReason: string | null;
+      superseded: boolean;
+      /** Format: uuid */
+      recordedBy: string | null;
+      category: components["schemas"]["CareNoteCategory"];
+      body: string;
+      tags: string[];
+      attachmentDocumentIds: string[];
+    };
+    /** @enum {string} */
+    CareNoteCategory:
+      | "personal_care"
+      | "nutrition"
+      | "mood"
+      | "activity"
+      | "visit"
+      | "health"
+      | "night"
+      | "other";
+    CreateCareNote: {
+      /** Format: uuid */
+      id?: string;
+      /** Format: date-time */
+      occurredAt: string;
+      /** Format: date-time */
+      deviceTime?: string;
+      /** Format: uuid */
+      supersedesId?: string;
+      correctionReason?: string;
+      /** Format: uuid */
+      taskId?: string;
+      category: components["schemas"]["CareNoteCategory"];
+      body: string;
+      /** @default [] */
+      tags: string[];
+      /** @default [] */
+      attachmentDocumentIds: string[];
+    };
+    CareNoteList: {
+      items: components["schemas"]["CareNoteItem"][];
+    };
+    ObservationItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: date-time */
+      occurredAt: string;
+      /** Format: date-time */
+      recordedAt: string;
+      /** Format: date-time */
+      deviceTime: string | null;
+      lateEntry: boolean;
+      clockDrift: boolean;
+      /** Format: uuid */
+      supersedesId: string | null;
+      correctionReason: string | null;
+      superseded: boolean;
+      /** Format: uuid */
+      recordedBy: string | null;
+      chart: string;
+      values: {
+        [key: string]: unknown;
+      };
+      flags: {
+        [key: string]: unknown;
+      };
+    };
+    CreateObservation: {
+      /** Format: uuid */
+      id?: string;
+      /** Format: date-time */
+      occurredAt: string;
+      /** Format: date-time */
+      deviceTime?: string;
+      /** Format: uuid */
+      supersedesId?: string;
+      correctionReason?: string;
+      /** Format: uuid */
+      taskId?: string;
+      values: components["schemas"]["ObservationValues"];
+    };
+    ObservationValues:
+      | {
+          /** @enum {string} */
+          chart: "fluid_intake";
+          ml: number;
+          drink?: string;
+          /** @enum {string} */
+          iddsiLevel?: "0" | "1" | "2" | "3" | "4";
+          overrideReason?: string;
+          /** @default false */
+          refused: boolean;
+        }
+      | {
+          /** @enum {string} */
+          chart: "fluid_output";
+          ml: number;
+          /** @enum {string} */
+          kind: "urine" | "vomit" | "drain" | "other";
+        }
+      | {
+          /** @enum {string} */
+          chart: "food";
+          /** @enum {string} */
+          meal: "breakfast" | "lunch" | "dinner" | "supper" | "snack";
+          /** @enum {string} */
+          portion: "none" | "quarter" | "half" | "three_quarters" | "all";
+          /** @enum {string} */
+          iddsiLevel: "3" | "4" | "5" | "6" | "7" | "7EC";
+          overrideReason?: string;
+          description?: string;
+          /** @default false */
+          refused: boolean;
+        }
+      | {
+          /** @enum {string} */
+          chart: "repositioning";
+          /** @enum {string} */
+          position: "left" | "right" | "back" | "front" | "sitting";
+          skinChecked: boolean;
+          /** @default false */
+          declined: boolean;
+        }
+      | {
+          /** @enum {string} */
+          chart: "bowel";
+          bristolType: number | null;
+          /** @default false */
+          noMovement: boolean;
+          /** @enum {string} */
+          amount?: "small" | "medium" | "large";
+        }
+      | {
+          /** @enum {string} */
+          chart: "weight";
+          kg: number;
+          /** @enum {string} */
+          method: "standing" | "chair" | "hoist" | "bed";
+        }
+      | {
+          /** @enum {string} */
+          chart: "vitals";
+          respirationRate: number;
+          spo2: number;
+          onOxygen: boolean;
+          systolic: number;
+          pulse: number;
+          /** @enum {string} */
+          consciousness: "alert" | "new_confusion" | "voice" | "pain" | "unresponsive";
+          temperature: number;
+        };
+    ObservationList: {
+      items: components["schemas"]["ObservationItem"][];
+    };
+    /** @description Fluid balance for one UK calendar day (00:00 to 24:00) */
+    FluidDay: {
+      /** Format: date */
+      date: string;
+      intakeMl: number;
+      outputMl: number;
+      targetMl: number | null;
+      shortfallMl: number | null;
+      entries: number;
+    };
+    BodyMapMarkItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: date-time */
+      occurredAt: string;
+      /** Format: date-time */
+      recordedAt: string;
+      /** Format: date-time */
+      deviceTime: string | null;
+      lateEntry: boolean;
+      clockDrift: boolean;
+      /** Format: uuid */
+      supersedesId: string | null;
+      correctionReason: string | null;
+      superseded: boolean;
+      /** Format: uuid */
+      recordedBy: string | null;
+      /** @enum {string} */
+      view: "front" | "back";
+      region: string;
+      /** @enum {string} */
+      side: "left" | "right" | "midline";
+      markType: components["schemas"]["BodyMarkType"];
+      pressureCategory: components["schemas"]["PressureUlcerCategory"];
+      lengthMm: number | null;
+      widthMm: number | null;
+      depthMm: number | null;
+      description: string | null;
+      /** Format: uuid */
+      photoDocumentId: string | null;
+      /** @enum {string} */
+      status: "present" | "healed";
+    };
+    /** @enum {string} */
+    BodyMarkType:
+      | "bruise"
+      | "pressure_ulcer"
+      | "moisture_associated_skin_damage"
+      | "skin_tear"
+      | "laceration"
+      | "burn"
+      | "rash"
+      | "wound"
+      | "other";
+    /** @enum {string|null} */
+    PressureUlcerCategory:
+      | "category_1"
+      | "category_2"
+      | "category_3"
+      | "category_4"
+      | "unstageable"
+      | "deep_tissue_injury"
+      | null;
+    CreateBodyMapMark: {
+      /** Format: uuid */
+      id?: string;
+      /** Format: date-time */
+      occurredAt: string;
+      /** Format: date-time */
+      deviceTime?: string;
+      /** Format: uuid */
+      supersedesId?: string;
+      correctionReason?: string;
+      /** Format: uuid */
+      taskId?: string;
+      /** @enum {string} */
+      view: "front" | "back";
+      region: string;
+      /** @enum {string} */
+      drawnSide: "left" | "right" | "midline";
+      /** @enum {string} */
+      side: "left" | "right" | "midline";
+      markType: components["schemas"]["BodyMarkType"];
+      pressureCategory?: components["schemas"]["PressureUlcerCategory"];
+      deviceRelated?: boolean;
+      bruiseExplained?: boolean;
+      lengthMm?: number;
+      widthMm?: number;
+      depthMm?: number;
+      description?: string;
+      /** Format: uuid */
+      photoDocumentId?: string;
+      /**
+       * @default present
+       * @enum {string}
+       */
+      status: "present" | "healed";
+    };
+    BodyMapMarkList: {
+      items: components["schemas"]["BodyMapMarkItem"][];
+    };
+    PersonCareProfile: {
+      /** Format: uuid */
+      personId: string;
+      /** @enum {string|null} */
+      iddsiFoodLevel: "3" | "4" | "5" | "6" | "7" | "7EC" | null;
+      /** @enum {string|null} */
+      iddsiDrinkLevel: "0" | "1" | "2" | "3" | "4" | null;
+      iddsiAdvisedBy: string | null;
+      /** Format: date-time */
+      iddsiChangedAt: string | null;
+      fluidTargetMl: number | null;
+      spo2Scale2: boolean;
+      spo2Scale2Clinician: string | null;
+      /** Format: date */
+      spo2Scale2RecordedOn: string | null;
+      /** @enum {string} */
+      skinRisk: "not_at_risk" | "at_risk" | "high_risk";
+      version: number;
+    };
+    UpdatePersonCareProfile: {
+      /** @enum {string|null} */
+      iddsiFoodLevel?: "3" | "4" | "5" | "6" | "7" | "7EC" | null;
+      /** @enum {string|null} */
+      iddsiDrinkLevel?: "0" | "1" | "2" | "3" | "4" | null;
+      iddsiAdvisedBy?: string;
+      fluidTargetMl?: number | null;
+      spo2Scale2?: boolean;
+      spo2Scale2Clinician?: string;
+      /** Format: date */
+      spo2Scale2RecordedOn?: string;
+      /** @enum {string} */
+      skinRisk?: "not_at_risk" | "at_risk" | "high_risk";
+      version: number;
     };
     RateValue: {
       key: string;

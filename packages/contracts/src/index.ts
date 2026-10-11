@@ -280,5 +280,6 @@ export const TENANT_HEADER = "x-harbour-tenant";
 /** Header carrying the device id, recorded in the audit log. */
 export const DEVICE_HEADER = "x-harbour-device";
 
+export * from "./care";
 export * from "./records";
 export * from "./tasks";
