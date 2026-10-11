@@ -3511,14 +3511,11 @@ export interface paths {
     };
     /**
      * Preview the hospital transfer pack from the record now (HZ-023)
-     * @description Never blocked by missing information: missing safety-critical sections are listed and print as 'not recorded'. Refused (422) only for a person not receiving care, without a name and date of birth, or with a section that belongs to someone else (HZ-001).
+     * @description Never blocked by missing information: missing safety-critical sections are listed and print as 'not recorded', and recorded information that needs checking is listed too. Refused (422) only for a person not receiving care, without a name and date of birth, or with a section that belongs to someone else (HZ-001). With no reason or items to send; POST the same path to include them.
      */
     get: {
       parameters: {
-        query?: {
-          reason?: string;
-          sendItemIds?: string;
-        };
+        query?: never;
         header?: never;
         path: {
           id: string;
@@ -3575,7 +3572,72 @@ export interface paths {
       };
     };
     put?: never;
-    post?: never;
+    /**
+     * Preview the hospital transfer pack with the reason and the items to send
+     * @description Never blocked by missing information: missing safety-critical sections are listed and print as 'not recorded', and recorded information that needs checking is listed too. Refused (422) only for a person not receiving care, without a name and date of birth, or with a section that belongs to someone else (HZ-001). Nothing is stored: the reason is clinical free text, so it travels in the body, never the URL.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["PreviewTransferPack"];
+        };
+      };
+      responses: {
+        /** @description Pack */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["TransferPack"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
     delete?: never;
     options?: never;
     head?: never;
@@ -12471,8 +12533,7 @@ export interface components {
       receivingProviderCqcLocationId?: string;
       receivingProviderOdsCode?: string;
       reason?: string;
-      /** @default false */
-      learningDisabilityOrAutism: boolean;
+      learningDisabilityOrAutism?: boolean;
       /** @default false */
       homeIsDwpAppointee: boolean;
       /** @default false */
@@ -13314,6 +13375,20 @@ export interface components {
       };
       missingCritical: string[];
       missingExpected: string[];
+      attention?: {
+        key: string;
+        /** @enum {string} */
+        code:
+          | "resuscitation_conflict"
+          | "resuscitation_review_overdue"
+          | "medicines_need_checking"
+          | "photo_not_printable"
+          | "allergy_confirmation_not_recorded";
+        message: string;
+        acknowledge: boolean;
+        /** Format: date */
+        onDate: string | null;
+      }[];
       itemsLeftBehind: {
         [key: string]: unknown;
       }[];
@@ -13328,6 +13403,11 @@ export interface components {
       status: "included" | "not_recorded";
       /** Format: date-time */
       asOf: string | null;
+    };
+    PreviewTransferPack: {
+      reason?: string;
+      /** @default [] */
+      sendItemIds: string[];
     };
     HospitalTransferList: {
       items: components["schemas"]["HospitalTransferOut"][];
@@ -13369,6 +13449,10 @@ export interface components {
         doneBy: string | null;
         /** Format: date-time */
         doneAt: string | null;
+        /** Format: uuid */
+        taskId?: string | null;
+        /** Format: date-time */
+        dueAt?: string | null;
       }[];
       version: number;
     };
@@ -13983,6 +14067,8 @@ export interface components {
       lateEntry: boolean;
       clockDrift: boolean;
       recordedAfterExit: boolean;
+      /** @enum {string} */
+      taskOutcome?: "completed" | "task_cancelled" | "task_already_closed" | "not_linked";
       /** Format: uuid */
       supersedesId: string | null;
       correctionReason: string | null;
@@ -14042,6 +14128,8 @@ export interface components {
       lateEntry: boolean;
       clockDrift: boolean;
       recordedAfterExit: boolean;
+      /** @enum {string} */
+      taskOutcome?: "completed" | "task_cancelled" | "task_already_closed" | "not_linked";
       /** Format: uuid */
       supersedesId: string | null;
       correctionReason: string | null;
@@ -14169,6 +14257,8 @@ export interface components {
       lateEntry: boolean;
       clockDrift: boolean;
       recordedAfterExit: boolean;
+      /** @enum {string} */
+      taskOutcome?: "completed" | "task_cancelled" | "task_already_closed" | "not_linked";
       /** Format: uuid */
       supersedesId: string | null;
       correctionReason: string | null;
@@ -14645,6 +14735,8 @@ export interface components {
       lateEntry: boolean;
       clockDrift: boolean;
       recordedAfterExit: boolean;
+      /** @enum {string} */
+      taskOutcome?: "completed" | "task_cancelled" | "task_already_closed" | "not_linked";
       /** Format: uuid */
       supersedesId: string | null;
       correctionReason: string | null;
@@ -14909,6 +15001,8 @@ export interface components {
       lateEntry: boolean;
       clockDrift: boolean;
       recordedAfterExit: boolean;
+      /** @enum {string} */
+      taskOutcome?: "completed" | "task_cancelled" | "task_already_closed" | "not_linked";
       /** Format: uuid */
       supersedesId: string | null;
       correctionReason: string | null;
@@ -14975,6 +15069,8 @@ export interface components {
       lateEntry: boolean;
       clockDrift: boolean;
       recordedAfterExit: boolean;
+      /** @enum {string} */
+      taskOutcome?: "completed" | "task_cancelled" | "task_already_closed" | "not_linked";
       /** Format: uuid */
       supersedesId: string | null;
       correctionReason: string | null;

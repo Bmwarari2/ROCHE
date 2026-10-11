@@ -873,8 +873,7 @@
             "maxLength": 1000
           },
           "learningDisabilityOrAutism": {
-            "type": "boolean",
-            "default": false
+            "type": "boolean"
           },
           "homeIsDwpAppointee": {
             "type": "boolean",
@@ -3829,6 +3828,47 @@
               "type": "string"
             }
           },
+          "attention": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "code": {
+                  "type": "string",
+                  "enum": [
+                    "resuscitation_conflict",
+                    "resuscitation_review_overdue",
+                    "medicines_need_checking",
+                    "photo_not_printable",
+                    "allergy_confirmation_not_recorded"
+                  ]
+                },
+                "message": {
+                  "type": "string"
+                },
+                "acknowledge": {
+                  "type": "boolean"
+                },
+                "onDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                }
+              },
+              "required": [
+                "key",
+                "code",
+                "message",
+                "acknowledge",
+                "onDate"
+              ]
+            }
+          },
           "itemsLeftBehind": {
             "type": "array",
             "items": {
@@ -3894,6 +3934,24 @@
           "status",
           "asOf"
         ]
+      },
+      "PreviewTransferPack": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "sendItemIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 50,
+            "default": []
+          }
+        }
       },
       "HospitalTransferList": {
         "type": "object",
@@ -4035,6 +4093,20 @@
                   "format": "uuid"
                 },
                 "doneAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "taskId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "dueAt": {
                   "type": [
                     "string",
                     "null"
@@ -6354,6 +6426,15 @@
           "recordedAfterExit": {
             "type": "boolean"
           },
+          "taskOutcome": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "task_cancelled",
+              "task_already_closed",
+              "not_linked"
+            ]
+          },
           "supersedesId": {
             "type": [
               "string",
@@ -6543,6 +6624,15 @@
           },
           "recordedAfterExit": {
             "type": "boolean"
+          },
+          "taskOutcome": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "task_cancelled",
+              "task_already_closed",
+              "not_linked"
+            ]
           },
           "supersedesId": {
             "type": [
@@ -7009,6 +7099,15 @@
           },
           "recordedAfterExit": {
             "type": "boolean"
+          },
+          "taskOutcome": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "task_cancelled",
+              "task_already_closed",
+              "not_linked"
+            ]
           },
           "supersedesId": {
             "type": [
@@ -8795,6 +8894,15 @@
           "recordedAfterExit": {
             "type": "boolean"
           },
+          "taskOutcome": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "task_cancelled",
+              "task_already_closed",
+              "not_linked"
+            ]
+          },
           "supersedesId": {
             "type": [
               "string",
@@ -9683,6 +9791,15 @@
           "recordedAfterExit": {
             "type": "boolean"
           },
+          "taskOutcome": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "task_cancelled",
+              "task_already_closed",
+              "not_linked"
+            ]
+          },
           "supersedesId": {
             "type": [
               "string",
@@ -9906,6 +10023,15 @@
           },
           "recordedAfterExit": {
             "type": "boolean"
+          },
+          "taskOutcome": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "task_cancelled",
+              "task_already_closed",
+              "not_linked"
+            ]
           },
           "supersedesId": {
             "type": [
@@ -18915,7 +19041,7 @@
           "people"
         ],
         "summary": "Preview the hospital transfer pack from the record now (HZ-023)",
-        "description": "Never blocked by missing information: missing safety-critical sections are listed and print as 'not recorded'. Refused (422) only for a person not receiving care, without a name and date of birth, or with a section that belongs to someone else (HZ-001).",
+        "description": "Never blocked by missing information: missing safety-critical sections are listed and print as 'not recorded', and recorded information that needs checking is listed too. Refused (422) only for a person not receiving care, without a name and date of birth, or with a section that belongs to someone else (HZ-001). With no reason or items to send; POST the same path to include them.",
         "security": [
           {
             "bearerAuth": []
@@ -18933,26 +19059,95 @@
             "required": true,
             "name": "id",
             "in": "path"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "maxLength": 2000
-            },
-            "required": false,
-            "name": "reason",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "maxLength": 2000
-            },
-            "required": false,
-            "name": "sendItemIds",
-            "in": "query"
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Pack",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferPack"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Preview the hospital transfer pack with the reason and the items to send",
+        "description": "Never blocked by missing information: missing safety-critical sections are listed and print as 'not recorded', and recorded information that needs checking is listed too. Refused (422) only for a person not receiving care, without a name and date of birth, or with a section that belongs to someone else (HZ-001). Nothing is stored: the reason is clinical free text, so it travels in the body, never the URL.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewTransferPack"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Pack",

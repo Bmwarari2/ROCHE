@@ -4,6 +4,7 @@ import {
   HandOverTransferPack,
   HospitalTransferList,
   type HospitalTransferOut,
+  PreviewTransferPack,
   RecordHospitalReturn,
   TransferPack,
 } from "@harbour/contracts";
@@ -12,6 +13,7 @@ import {
   hospitalTransfer,
   propertyItem,
   type Transaction,
+  task,
   tenantUser,
 } from "@harbour/db";
 import {
@@ -20,18 +22,20 @@ import {
   type TransferPackResult,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
-import { requirePermission, withTenant } from "../http/context";
+import { and, desc, eq, inArray, isNull, like } from "drizzle-orm";
+import type { Context } from "hono";
+import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
 import { readDocumentContent } from "../services/documents";
-import { jpegSize, type PdfImage } from "../services/pdf";
+import { type ImageObject, pdfImage } from "../services/pdf";
 import {
   CLOCK_DRIFT_RATE_KEY,
   loadPerson,
   type PersonRecord,
   requireVersion,
   requireWrite,
+  returnCheckTaskKind,
 } from "../services/people";
 import { rateNumber } from "../services/rates";
 import { toJson } from "../services/safety";
@@ -69,7 +73,46 @@ interface StoredCheck {
   readonly doneAt: string | null;
 }
 
-function transferOut(row: TransferRow): HospitalTransferOut {
+type CheckTask = Pick<
+  typeof task.$inferSelect,
+  "id" | "kind" | "status" | "dueAt" | "completedBy" | "completedAt"
+>;
+
+/** The tasks that carry each transfer's return checks (owner role, due time, escalation). */
+async function checkTasks(tx: Transaction, transferIds: readonly string[]) {
+  if (transferIds.length === 0) return new Map<string, CheckTask[]>();
+  const rows = await tx
+    .select({
+      id: task.id,
+      kind: task.kind,
+      status: task.status,
+      dueAt: task.dueAt,
+      completedBy: task.completedBy,
+      completedAt: task.completedAt,
+      sourceId: task.sourceId,
+    })
+    .from(task)
+    .where(
+      and(
+        eq(task.sourceType, "hospital_transfer"),
+        inArray(task.sourceId, [...transferIds]),
+        like(task.kind, "people.return_check.%"),
+        isNull(task.deletedAt),
+      ),
+    );
+  const byTransfer = new Map<string, CheckTask[]>();
+  for (const row of rows) {
+    if (!row.sourceId) continue;
+    byTransfer.set(row.sourceId, [...(byTransfer.get(row.sourceId) ?? []), row]);
+  }
+  return byTransfer;
+}
+
+async function transferWithTasks(tx: Transaction, row: TransferRow) {
+  return transferOut(row, (await checkTasks(tx, [row.id])).get(row.id) ?? []);
+}
+
+function transferOut(row: TransferRow, tasks: readonly CheckTask[] = []): HospitalTransferOut {
   const checks = (row.returnChecks ?? {}) as Record<string, StoredCheck>;
   return {
     id: row.id,
@@ -90,13 +133,19 @@ function transferOut(row: TransferRow): HospitalTransferOut {
         ? { by: row.ackBy, at: row.ackAt.toISOString(), reason: row.ackReason }
         : null,
     returnedAt: iso(row.returnedAt),
-    returnChecks: Object.entries(checks).map(([key, check]) => ({
-      key,
-      title: check.title,
-      hazardIds: [...check.hazardIds],
-      doneBy: check.doneBy,
-      doneAt: check.doneAt,
-    })),
+    returnChecks: Object.entries(checks).map(([key, check]) => {
+      const carried = tasks.find((t) => t.kind === returnCheckTaskKind(key));
+      const doneByTask = carried?.status === "done";
+      return {
+        key,
+        title: check.title,
+        hazardIds: [...check.hazardIds],
+        doneBy: check.doneBy ?? (doneByTask ? carried.completedBy : null),
+        doneAt: check.doneAt ?? (doneByTask ? iso(carried.completedAt) : null),
+        taskId: carried?.id ?? null,
+        dueAt: carried ? carried.dueAt.toISOString() : null,
+      };
+    }),
     version: row.version,
   };
 }
@@ -175,6 +224,37 @@ async function staffNames(tx: Transaction, pack: unknown): Promise<Map<string, s
   return new Map(rows.map((r) => [r.id, r.name]));
 }
 
+/** The pack as it would be made now, for the screen (clinical text stays out of the URL). */
+async function previewPack(
+  c: Context<AppEnv>,
+  access: TenantAccess,
+  id: string,
+  body: PreviewTransferPack,
+) {
+  return withTenant(c, async (tx) => {
+    const p = await loadPerson(tx, id);
+    await itemsToSend(tx, id, body.sendItemIds);
+    const assembled = await packFor(
+      tx,
+      p,
+      access.tenantUserId,
+      body.reason ?? null,
+      body.sendItemIds,
+      new Date(),
+    );
+    await audit(c, tx, access, {
+      action: "people.transfer_pack.preview",
+      resourceType: "person",
+      resourceId: id,
+      scope: { missingCritical: assembled.missingCritical.length },
+    });
+    return toJson(assembled) as HospitalTransferOut["pack"];
+  });
+}
+
+const PREVIEW_DESCRIPTION =
+  "Never blocked by missing information: missing safety-critical sections are listed and print as 'not recorded', and recorded information that needs checking is listed too. Refused (422) only for a person not receiving care, without a name and date of birth, or with a section that belongs to someone else (HZ-001).";
+
 export const peopleTransfersRouter = createRouter()
   .openapi(
     createRoute({
@@ -182,43 +262,35 @@ export const peopleTransfersRouter = createRouter()
       path: "/v1/people/{id}/transfer-pack",
       tags: ["people"],
       summary: "Preview the hospital transfer pack from the record now (HZ-023)",
-      description:
-        "Never blocked by missing information: missing safety-critical sections are listed and print as 'not recorded'. Refused (422) only for a person not receiving care, without a name and date of birth, or with a section that belongs to someone else (HZ-001).",
+      description: `${PREVIEW_DESCRIPTION} With no reason or items to send; POST the same path to include them.`,
+      security,
+      request: { params: PersonParam },
+      responses: { 200: jsonBody(TransferPack, "Pack"), ...errorResponses, ...notFoundResponse },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, "people.movement.record");
+      const { id } = c.req.valid("param");
+      return c.json(await previewPack(c, access, id, { sendItemIds: [] }), 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "post",
+      path: "/v1/people/{id}/transfer-pack",
+      tags: ["people"],
+      summary: "Preview the hospital transfer pack with the reason and the items to send",
+      description: `${PREVIEW_DESCRIPTION} Nothing is stored: the reason is clinical free text, so it travels in the body, never the URL.`,
       security,
       request: {
         params: PersonParam,
-        query: z.object({
-          reason: z.string().max(2000).optional(),
-          sendItemIds: z.string().max(2000).optional(),
-        }),
+        body: { content: { "application/json": { schema: PreviewTransferPack } } },
       },
       responses: { 200: jsonBody(TransferPack, "Pack"), ...errorResponses, ...notFoundResponse },
     }),
     async (c) => {
       const access = await requirePermission(c, "people.movement.record");
       const { id } = c.req.valid("param");
-      const query = c.req.valid("query");
-      const sendItemIds = query.sendItemIds ? query.sendItemIds.split(",").filter(Boolean) : [];
-      const pack = await withTenant(c, async (tx) => {
-        const p = await loadPerson(tx, id);
-        await itemsToSend(tx, id, sendItemIds);
-        const assembled = await packFor(
-          tx,
-          p,
-          access.tenantUserId,
-          query.reason ?? null,
-          sendItemIds,
-          new Date(),
-        );
-        await audit(c, tx, access, {
-          action: "people.transfer_pack.preview",
-          resourceType: "person",
-          resourceId: id,
-          scope: { missingCritical: assembled.missingCritical.length },
-        });
-        return toJson(assembled) as HospitalTransferOut["pack"];
-      });
-      return c.json(pack, 200);
+      return c.json(await previewPack(c, access, id, c.req.valid("json")), 200);
     },
   )
   .openapi(
@@ -236,7 +308,8 @@ export const peopleTransfersRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, "people.person.read");
+      // The packs are a disclosure-ready summary of the record: the same permission as making one.
+      const access = await requirePermission(c, "people.movement.record");
       const { id } = c.req.valid("param");
       const items = await withTenant(c, async (tx) => {
         await loadPerson(tx, id);
@@ -245,13 +318,17 @@ export const peopleTransfersRouter = createRouter()
           .from(hospitalTransfer)
           .where(and(eq(hospitalTransfer.personId, id), isNull(hospitalTransfer.deletedAt)))
           .orderBy(desc(hospitalTransfer.leftAt));
+        const tasks = await checkTasks(
+          tx,
+          rows.map((r) => r.id),
+        );
         await audit(c, tx, access, {
           action: "people.hospital_transfer.list",
           resourceType: "person",
           resourceId: id,
           scope: { count: rows.length },
         });
-        return rows.map(transferOut);
+        return rows.map((r) => transferOut(r, tasks.get(r.id) ?? []));
       });
       return c.json({ items }, 200);
     },
@@ -290,7 +367,13 @@ export const peopleTransfersRouter = createRouter()
             .where(eq(hospitalTransfer.id, body.id));
           if (replayed) {
             if (replayed.personId !== id) throw problems.invalid("That id is already used.");
-            return transferOut(replayed);
+            await audit(c, tx, access, {
+              action: "people.hospital_transfer.view",
+              resourceType: "hospital_transfer",
+              resourceId: replayed.id,
+              scope: { replay: true },
+            });
+            return transferWithTasks(tx, replayed);
           }
         }
         const p = await loadPerson(tx, id, true);
@@ -384,27 +467,26 @@ export const peopleTransfersRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requireAnyPermission(c, [
-        "people.movement.record",
-        "people.person.read",
-      ]);
+      const access = await requirePermission(c, "people.movement.record");
       const { id, transferId } = c.req.valid("param");
       const { storage } = c.get("services");
       const bytes = await withTenant(c, async (tx) => {
         const p = await loadPerson(tx, id);
         const row = await transferFor(tx, id, transferId);
         const pack = row.pack as unknown as StoredPack;
-        let photo: PdfImage | null = null;
+        // JPEG and PNG photos print; anything that cannot be read or drawn is named on page 1.
+        let photo: ImageObject | null = null;
         const photoId = (pack.content.photo as { documentId?: string } | null)?.documentId;
         if (photoId) {
           const [doc] = await tx
-            .select({ contentType: document.contentType })
+            .select({ contentType: document.contentType, personId: document.personId })
             .from(document)
             .where(eq(document.id, photoId));
-          if (doc?.contentType === "image/jpeg") {
+          if (doc && doc.personId === id) {
             const content = await readDocumentContent(tx, storage, photoId).catch(() => null);
-            const size = content ? jpegSize(content.bytes) : null;
-            if (content && size) photo = { jpeg: content.bytes, ...size };
+            photo = content
+              ? pdfImage({ bytes: content.bytes, contentType: doc.contentType })
+              : null;
           }
         }
         await audit(c, tx, access, {
@@ -427,6 +509,7 @@ export const peopleTransfersRouter = createRouter()
         "content-disposition": `attachment; filename="transfer-pack-${transferId}.pdf"`,
         "x-content-type-options": "nosniff",
         "cache-control": "private, no-store",
+        "content-security-policy": "default-src 'none'; sandbox",
       });
     },
   )
@@ -466,20 +549,23 @@ export const peopleTransfersRouter = createRouter()
           : null;
         const check = checkTransferPackHandover(
           {
-            ...pack,
+            complete: pack.complete,
+            attention: pack.attention ?? [],
             missingCritical: row.missingCritical as HospitalTransferPack["missingCritical"],
           },
           acknowledgement,
         );
         if (!check.ok) {
+          const listed = [...check.missingCritical, ...check.toAcknowledge];
           throw new HttpProblem(
             422,
             `transfer_pack_${check.problem}`,
             "Some details need checking.",
-            `${check.message} Missing: ${check.missingCritical.join(", ")}.`,
+            `${check.message} To acknowledge: ${listed.join(", ")}.`,
           );
         }
-        const needsAck = row.missingCritical.length > 0;
+        const needsAck =
+          row.missingCritical.length > 0 || (pack.attention ?? []).some((a) => a.acknowledge);
         const [updated] = await tx
           .update(hospitalTransfer)
           .set({
@@ -517,7 +603,7 @@ export const peopleTransfersRouter = createRouter()
             missingCritical: row.missingCritical.length,
           },
         });
-        return transferOut(updated);
+        return transferWithTasks(tx, updated);
       });
       return c.json(out, 200);
     },
@@ -568,7 +654,7 @@ export const peopleTransfersRouter = createRouter()
           resourceType: "hospital_transfer",
           resourceId: transferId,
         });
-        return transferOut(updated);
+        return transferWithTasks(tx, updated);
       });
       return c.json(out, 200);
     },
@@ -603,7 +689,7 @@ export const peopleTransfersRouter = createRouter()
         const row = await transferFor(tx, id, transferId);
         requireVersion(row.version, body.version);
         const checks = { ...((row.returnChecks ?? {}) as Record<string, StoredCheck>) };
-        const check = checks[checkKey];
+        const check = Object.hasOwn(checks, checkKey) ? checks[checkKey] : undefined;
         if (!check) throw problems.notFound();
         if (check.doneAt) throw problems.invalid("This check has already been recorded.");
         checks[checkKey] = { ...check, doneBy: access.tenantUserId, doneAt: now.toISOString() };
@@ -615,6 +701,23 @@ export const peopleTransfersRouter = createRouter()
           )
           .returning();
         if (!updated) throw problems.conflict();
+        await tx
+          .update(task)
+          .set({
+            status: "done",
+            completedAt: now,
+            completedBy: access.tenantUserId,
+            evidenceType: "hospital_transfer",
+            evidenceId: transferId,
+          })
+          .where(
+            and(
+              eq(task.sourceType, "hospital_transfer"),
+              eq(task.sourceId, transferId),
+              eq(task.kind, returnCheckTaskKind(checkKey)),
+              inArray(task.status, ["open", "in_progress"]),
+            ),
+          );
         if (checkKey === "belongings_returned") {
           await tx
             .update(propertyItem)
@@ -632,7 +735,7 @@ export const peopleTransfersRouter = createRouter()
           resourceId: transferId,
           scope: { check: checkKey },
         });
-        return transferOut(updated);
+        return transferWithTasks(tx, updated);
       });
       return c.json(out, 200);
     },

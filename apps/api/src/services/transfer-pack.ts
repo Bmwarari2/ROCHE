@@ -26,10 +26,12 @@ import {
   type TransferAllergy,
   type TransferPackResult,
   type TransferPropertyItem,
+  ukIsoDate,
 } from "@harbour/domain";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { capacityViews } from "./mca";
 import type { PersonRecord } from "./people";
+import { ukDate } from "./transfer-pack-pdf";
 
 /**
  * The hospital transfer pack from the record (people.md rule 10; HZ-001, HZ-007, HZ-015, HZ-016,
@@ -45,6 +47,9 @@ import type { PersonRecord } from "./people";
 
 const SEVERITIES = ["mild", "moderate", "severe", "unknown"] as const;
 
+/** Image types the printed pack can carry (transfer-pack-pdf.ts). */
+export const PRINTABLE_PHOTO_TYPES: readonly string[] = ["image/jpeg", "image/png"];
+
 interface MedicinesSection {
   readonly status?: string;
   readonly medicines?: readonly {
@@ -59,22 +64,20 @@ interface MedicinesSection {
   readonly completedAt?: string | null;
 }
 
+/**
+ * Medicines from the pre-admission assessment until the eMAR (Phase 2). The list is from before
+ * admission, so it never says "no current medicines": an empty list reads "not recorded since
+ * admission, check the MAR", and a list is marked as needing checking against the MAR.
+ */
 function medicinesFrom(section: MedicinesSection | undefined): MedicinesStatement {
   if (section?.status !== "complete" || !section.completedAt) {
     return { status: "not_recorded" };
   }
   const items = section.medicines ?? [];
-  if (items.length === 0) {
-    // A completed section with no medicines is a positive statement of none, with who and when.
-    return {
-      status: "none",
-      confirmedBy: section.completedBy ?? "unknown",
-      confirmedAt: new Date(section.completedAt),
-    };
-  }
+  if (items.length === 0) return { status: "not_recorded" };
   return {
     status: "recorded",
-    source: "medicines_list",
+    source: "pre_admission_assessment",
     items: items.map((m) => ({
       name: m.name,
       dose: m.dose,
@@ -115,17 +118,26 @@ export async function transferPackInput(
   const { now } = request;
 
   // Photo: the document's own person decides whose it is, so a misfiled photo refuses the pack.
+  // Only JPEG and PNG photos go on the printed pack; anything else is flagged on the first page.
   let photo: HospitalTransferInput["photo"] = null;
   if (p.photoDocumentId) {
     const [doc] = await tx
-      .select({ personId: document.personId, createdAt: document.createdAt })
+      .select({
+        personId: document.personId,
+        createdAt: document.createdAt,
+        contentType: document.contentType,
+      })
       .from(document)
       .where(eq(document.id, p.photoDocumentId));
     if (doc) {
       photo = {
         personId: doc.personId ?? "",
         asOf: doc.createdAt,
-        data: { documentId: p.photoDocumentId, takenOn: doc.createdAt.toISOString().slice(0, 10) },
+        data: {
+          documentId: p.photoDocumentId,
+          takenOn: ukIsoDate(doc.createdAt),
+          printable: PRINTABLE_PHOTO_TYPES.includes(doc.contentType),
+        },
       };
     }
   }
@@ -139,10 +151,11 @@ export async function transferPackInput(
     );
   let allergyStatement: AllergyStatement;
   if (p.allergyStatus === "no_known_allergies") {
+    // Who set the status and when (a trigger keeps them), never the last edit of the row.
     allergyStatement = {
       status: "no_known_allergies",
-      recordedBy: p.updatedBy ?? p.createdBy ?? "unknown",
-      recordedAt: p.updatedAt,
+      recordedBy: p.allergyStatusConfirmedBy,
+      recordedAt: p.allergyStatusConfirmedAt,
     };
   } else if (p.allergyStatus === "has_allergies") {
     allergyStatement = {
@@ -160,9 +173,9 @@ export async function transferPackInput(
   } else {
     allergyStatement = { status: "unknown" };
   }
-  const allergiesAsOf = allergies.reduce<Date>(
-    (latest, a) => (a.updatedAt > latest ? a.updatedAt : latest),
-    p.updatedAt,
+  const allergiesAsOf = allergies.reduce<Date | null>(
+    (latest, a) => (latest === null || a.updatedAt > latest ? a.updatedAt : latest),
+    p.allergyStatusConfirmedAt,
   );
 
   // Medicines: the pre-admission list until the eMAR (Phase 2).
@@ -193,6 +206,8 @@ export async function transferPackInput(
         display: n.display,
         preferredFormat: n.preferredFormat ?? "",
       })),
+      confirmedBy: p.communicationNeedsConfirmedBy,
+      confirmedAt: p.communicationNeedsConfirmedAt,
     };
   } else if (
     p.communicationNeedsStatus === "none_identified" &&
@@ -214,7 +229,9 @@ export async function transferPackInput(
     .from(advanceCareRecord)
     .where(and(eq(advanceCareRecord.personId, p.id), isNull(advanceCareRecord.deletedAt)));
   const summaries: AdvanceCareSummary[] = records.map((r) => ({
+    id: r.id,
     kind: r.kind as AdvanceCareSummary["kind"],
+    cprDecision: (r.cprDecision ?? null) as AdvanceCareSummary["cprDecision"],
     summary:
       [r.cprDecision ? CPR_WORDS[r.cprDecision] : null, r.details].filter(Boolean).join(". ") ||
       "See the scanned form",
@@ -300,7 +317,7 @@ export async function transferPackInput(
               assessmentRows
                 .map(
                   (a) =>
-                    `${a.decision}: ${a.outcome === "lacks_capacity" ? "lacks capacity" : "has capacity"} (assessed ${a.assessedAt.toISOString().slice(0, 10)})`,
+                    `${a.decision}: ${a.outcome === "lacks_capacity" ? "lacks capacity" : "has capacity"} (assessed ${ukDate(a.assessedAt)})`,
                 )
                 .join("; ") || "No capacity assessments recorded",
             dolsInPlace,
@@ -347,7 +364,7 @@ export async function transferPackInput(
     medicines,
     communication: {
       personId: p.id,
-      asOf: p.communicationNeedsConfirmedAt ?? p.updatedAt,
+      asOf: p.communicationNeedsConfirmedAt,
       data: communication,
     },
     resuscitation: { personId: p.id, asOf: resuscitationAsOf, data: resuscitation },
