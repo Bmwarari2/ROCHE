@@ -701,6 +701,7 @@ Six hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014) have a target resid
 | `packages/domain` (care): `hazard HZ-012 NEWS2 refuses impossible or malformed values rather than scoring them` | Passing |
 | `packages/domain` (care): `hazard HZ-012 NEWS2 clinical risk follows RCP chart 2 at every threshold` | Passing |
 | `packages/domain` (care): `hazard HZ-012 MUST BMI, weight-loss and acute disease scores match the BAPEN worked examples` | Passing |
+| `packages/domain` (care): `hazard HZ-012 MUST bands the exact BMI and rounds it only for display` (18.45, 18.49, 18.5, 19.99, 20.0, 20.01) | Passing |
 | `packages/domain` (care): `hazard HZ-012 MUST gives no total for missing or impossible values` | Passing |
 | `packages/domain` (care): `hazard HZ-012 Waterlow totals and risk bands match the published scoring card` | Passing |
 | `packages/domain` (care): `hazard HZ-012 Waterlow gives no total for missing or contradictory answers` | Passing |

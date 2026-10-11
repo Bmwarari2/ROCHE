@@ -8,10 +8,20 @@
  * is the Malnutrition Screening Tool (MST), Nutrition 1999;15(6), as printed on the card.
  *
  * The card's rules carried into code: "more than 1 score per category can be used" (skin type and
- * the special risks are multi-select and every selection counts); neurological deficit scores 4 to
- * 6 per condition at the assessor's choice, to a maximum of 6 for the category; medication scores
- * a maximum of 4 for the category; surgery scores "can be discounted after 48 hours provided the
- * patient is recovering normally", which is the assessor's decision not to select them.
+ * the special risks are multi-select and every selection counts); surgery scores "can be discounted
+ * after 48 hours provided the patient is recovering normally", which is the assessor's decision not
+ * to select them.
+ *
+ * Readings taken where the card leaves room (listed for CSO review in the medical-device boundary,
+ * section 5):
+ * 1. Obese at 30: the card prints "BMI > 30" after "25-29.9"; a BMI of 30.0 or more scores 2.
+ * 2. BMI bands apply to the exact BMI: under 20, 20 up to 25, 25 up to 30, 30 or more.
+ * 3. Medication, maximum 4: the card prints "MAX OF 4" with no per-item score; the category scores
+ *    4 when any listed medicine applies, however many.
+ * 4. Weight lost as categories: the card's bands share end points (0.5-5 kg, 5-10 kg, 10-15 kg), so
+ *    the assessor chooses a band rather than entering kilograms.
+ * 5. Neurological deficit capped at 6: each condition scores 4 to 6 at the assessor's choice, and
+ *    the category total is capped at 6 (the card prints "MAX OF 6").
  */
 
 import {

@@ -45,7 +45,7 @@ Apple and Google accounts).
 
 | Package | Tests |
 | --- | --- |
-| `packages/domain` | 662 (99.9% line coverage; 459 for the Phase 1 care rules) |
+| `packages/domain` | 687 (99.9% line coverage; 484 for the Phase 1 care rules) |
 | `packages/db` | 78 (real Postgres: RLS coverage, isolation, scope, audit chain, seed) |
 | `packages/sync` | 10 (PowerSync rules engine) |
 | `packages/contracts` | 4 |
