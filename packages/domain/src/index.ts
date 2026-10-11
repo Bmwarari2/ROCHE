@@ -28,6 +28,7 @@ export * from "./comms/template-style";
 export * from "./comms/templates";
 export * from "./integrations/ports";
 export * from "./operations/downtime-pack";
+export * from "./operations/kiosk-cache";
 export * from "./operations/outage";
 export * from "./operations/rates";
 export * from "./people/about-me";

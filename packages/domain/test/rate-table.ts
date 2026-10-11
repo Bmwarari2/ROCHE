@@ -92,6 +92,21 @@ export function tableOperationsRates(on = "2026-10-11"): OperationsRates {
   return resolveOperationsRates(readRateTable(), "england", on, null);
 }
 
+const RETENTION_PATH = fileURLToPath(new URL("../../../docs/specs/retention.md", import.meta.url));
+
+/** One row of the retention schedule in docs/specs/retention.md (the seed's source). */
+export function tableRetentionRule(recordClass: string): {
+  readonly period: number;
+  readonly unit: "years" | "months";
+} {
+  const row = readFileSync(RETENTION_PATH, "utf8")
+    .split("\n")
+    .find((line) => line.startsWith(`| ${recordClass} |`));
+  const cells = row?.split("|").map((c) => c.trim()) ?? [];
+  if (!row) throw new Error(`No retention row for ${recordClass}`);
+  return { period: Number(cells[2]), unit: cells[3] as "years" | "months" };
+}
+
 /** The evidence pack link policy (tenant defaults) for an English location. */
 export function tableEvidencePackPolicy(on = "2026-10-11"): EvidencePackPolicy {
   return resolveEvidencePackPolicy(readRateTable(), "england", on, null);

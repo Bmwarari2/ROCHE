@@ -1,6 +1,6 @@
-import type { ResuscitationStatus } from "../care/advance-care";
+import type { AdvanceCareRecordState } from "../care/advance-care";
 import { PCSP_DOMAIN_LABELS, PCSP_DOMAINS, type PcspDomain } from "../care/care-plan";
-import { describeIddsiLevel, type IddsiDrinkLevel, type IddsiFoodLevel } from "../care/iddsi";
+import { describeIddsiLevel, iddsiLevel } from "../care/iddsi";
 import type { RiskBand } from "../care/risk-assessment";
 import { LIVE_PERSON_STATUSES, type PersonStatus } from "../people/lifecycle";
 import type {
@@ -9,20 +9,21 @@ import type {
   SectionSource,
   TransferAllergy,
 } from "../people/transfer-pack";
-import { formatUkDateTime } from "../shared/time";
+import { formatUkDateTime, toUkWallClock } from "../shared/time";
 import type { OperationsRates } from "./rates";
 
 /**
  * Nightly downtime pack (master prompt 13.4, fire safety and PEEPs row: "a nightly downtime pack
  * per location (MAR, care plan summaries, allergies, PEEPs, contacts) printed or cached on the kiosk
- * for power cuts and IT outages"; operations.md section 4 rules 1 to 4; hazard HZ-021).
+ * for power cuts and IT outages"; operations.md section 4 rules 1 to 7; hazard HZ-021).
  *
  * A pure function selects, for one location, a page per person receiving care. It copies what is
- * recorded and never interprets it (medical-device boundary). It never leaves a person out because
- * their record is incomplete: missing safety-critical information reads "not recorded" in words, a
- * section that belongs to someone else is withheld (HZ-001), and every page says when the
- * information is from and until when to use it, and, once that time has passed, that it is out of
- * date (HZ-021).
+ * recorded and never interprets it (medical-device boundary): where resuscitation records disagree
+ * it prints every record in force and says so, and never picks one. It never leaves a person out
+ * because their record is incomplete: missing safety-critical information reads "not recorded" in
+ * words, a value it cannot read says "check the record", a section that belongs to someone else is
+ * withheld (HZ-001), and every page says when the information is from and whether it can still be
+ * relied on (HZ-021).
  */
 
 export interface DowntimeSectionDefinition {
@@ -53,8 +54,14 @@ export const DOWNTIME_PACK_SECTIONS = [
     hazardIds: ["HZ-015", "HZ-021"],
   },
   {
-    key: "eating_and_drinking",
-    title: "Eating and drinking (IDDSI levels)",
+    key: "iddsi_food",
+    title: "Food texture (IDDSI level)",
+    critical: true,
+    hazardIds: ["HZ-016", "HZ-021"],
+  },
+  {
+    key: "iddsi_drink",
+    title: "Drink thickness (IDDSI level)",
     critical: true,
     hazardIds: ["HZ-016", "HZ-021"],
   },
@@ -79,7 +86,7 @@ export const DOWNTIME_PACK_SECTIONS = [
 export type DowntimeSectionKey = (typeof DOWNTIME_PACK_SECTIONS)[number]["key"];
 
 // ------------------------------------------------------------------------------------------------
-// Placeholder ports: PEEPs (operations, Phase 3 facilities) and medicines (eMAR, Phase 2)
+// Ports: PEEPs (operations, Phase 3 facilities) and medicines (eMAR, Phase 2)
 // ------------------------------------------------------------------------------------------------
 
 /** A PEEP from the fire safety module, or where staff find it until that module exists. */
@@ -92,25 +99,41 @@ export type EvacuationPlanStatement =
       readonly staffNeeded: number | null;
     };
 
-export interface DueMedicine {
+/** A scheduled dose from the eMAR (Phase 2), with whether it has already been given. */
+export interface ScheduledDose {
   readonly name: string;
   readonly dose: string;
   readonly route: string;
   readonly dueAt: Date;
   /** Time-critical medicines (for example for Parkinson's disease) are listed first at each time. */
   readonly timeCritical: boolean;
+  /** Only `due` doses are listed; a dose already given, or recorded as not given, is not due. */
+  readonly status: "due" | "given" | "not_given";
+  readonly givenAt: Date | null;
 }
 
-/** Medicines due while the pack is in use, from the eMAR, or where staff find them until then. */
+/** A when-required medicine, listed with when it was last given so nobody repeats it too soon. */
+export interface PrnMedicine {
+  readonly name: string;
+  readonly dose: string;
+  readonly route: string;
+  readonly reason: string | null;
+  readonly lastGivenAt: Date | null;
+}
+
+/** Medicines from the eMAR, or where staff find them until then. */
 export type MedicinesDueStatement =
   | { readonly status: "held_elsewhere"; readonly where: string }
-  | { readonly status: "none_due" }
-  | { readonly status: "due"; readonly items: readonly DueMedicine[] };
+  | {
+      readonly status: "recorded";
+      readonly scheduled: readonly ScheduledDose[];
+      readonly prn: readonly PrnMedicine[];
+    };
 
 /** Implemented by the medicines module in Phase 2; the API calls it once per person. */
 export interface DowntimeMedicinesPort {
   readonly provider: string;
-  /** Medicines due for a person from `from` (inclusive) to `until` (exclusive). */
+  /** Doses scheduled for a person from `from` (inclusive) to `until` (exclusive), and their PRNs. */
   medicinesDue(personId: string, from: Date, until: Date): Promise<MedicinesDueStatement>;
 }
 
@@ -120,20 +143,36 @@ export interface DowntimeEvacuationPort {
   evacuationPlan(personId: string): Promise<EvacuationPlanStatement>;
 }
 
-/** Phase 1: medicines are on the paper MAR chart, so the pack says where to look. */
-export const PAPER_MAR_MEDICINES_PORT: DowntimeMedicinesPort = {
-  provider: "paper_mar",
-  medicinesDue: async () => ({ status: "held_elsewhere", where: "the paper MAR chart" }),
-};
+/** Seeded into each location's settings; the Registered Manager changes it to the real place. */
+export const DEFAULT_PAPER_MAR_LOCATION = "the paper MAR chart";
+export const DEFAULT_PEEP_LOCATION = "the person's PEEP in the fire file";
 
-/** Until PEEPs are kept in Harbour, the pack points to the fire file. */
-export const FIRE_FILE_EVACUATION_PORT: DowntimeEvacuationPort = {
-  provider: "fire_file",
-  evacuationPlan: async () => ({
-    status: "held_elsewhere",
-    where: "the person's PEEP in the fire file",
-  }),
-};
+function where(text: string, missing: string): string {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) throw new RangeError(missing);
+  return trimmed;
+}
+
+/**
+ * Phase 1: medicines are on paper, so the pack says where to look. The wording is the location's
+ * setting (for example "the MAR folder in the clinical room"), not a fixed phrase.
+ */
+export function paperMarMedicinesPort(location: string): DowntimeMedicinesPort {
+  const place = where(location, "Set where the paper MAR is kept for this location.");
+  return {
+    provider: "paper_mar",
+    medicinesDue: async () => ({ status: "held_elsewhere", where: place }),
+  };
+}
+
+/** Until PEEPs are kept in Harbour, the pack points to where the location keeps them. */
+export function fireFileEvacuationPort(location: string): DowntimeEvacuationPort {
+  const place = where(location, "Set where the PEEPs are kept for this location.");
+  return {
+    provider: "fire_file",
+    evacuationPlan: async () => ({ status: "held_elsewhere", where: place }),
+  };
+}
 
 // ------------------------------------------------------------------------------------------------
 // Input
@@ -168,9 +207,10 @@ export interface DowntimeRisk {
   readonly reviewDueOn: string | null;
 }
 
+/** The stored codes, checked here: a code that is not an IDDSI level prints "check the record". */
 export interface DowntimeEatingAndDrinking {
-  readonly foodLevel: IddsiFoodLevel | null;
-  readonly drinkLevel: IddsiDrinkLevel | null;
+  readonly foodLevel: string | null;
+  readonly drinkLevel: string | null;
   readonly notes: string | null;
 }
 
@@ -187,7 +227,8 @@ export interface DowntimePersonInput {
   readonly roomLabel: string | null;
   readonly photo: SectionSource<{ readonly documentId: string; readonly takenOn: string }> | null;
   readonly allergies: SectionSource<AllergyStatement>;
-  readonly resuscitation: SectionSource<ResuscitationStatus>;
+  /** The person's advance care records; every active ReSPECT or DNACPR decision prints. */
+  readonly resuscitation: SectionSource<readonly AdvanceCareRecordState[]>;
   readonly eatingAndDrinking: SectionSource<DowntimeEatingAndDrinking> | null;
   readonly communication: SectionSource<CommunicationStatement>;
   readonly evacuation: SectionSource<EvacuationPlanStatement>;
@@ -214,7 +255,17 @@ export interface DowntimePackInput {
 // Output
 // ------------------------------------------------------------------------------------------------
 
-export type DowntimeSectionState = "included" | "not_recorded" | "held_elsewhere" | "withheld";
+/**
+ * `conflicting`: resuscitation records in force disagree (every one prints, none is chosen);
+ * `unreadable`: the stored value could not be read, so the page says to check the record.
+ */
+export type DowntimeSectionState =
+  | "included"
+  | "not_recorded"
+  | "held_elsewhere"
+  | "withheld"
+  | "conflicting"
+  | "unreadable";
 
 export interface DowntimeSectionStatus {
   readonly key: DowntimeSectionKey;
@@ -223,13 +274,14 @@ export interface DowntimeSectionStatus {
   readonly hazardIds: readonly string[];
   readonly status: DowntimeSectionState;
   readonly asOf: Date | null;
-  /** The words printed in place of, or beside, the section's content. */
+  /** The words printed inside the section, in place of or beside its content. */
   readonly note: string | null;
 }
 
 export type DowntimeWarningKind =
   | "critical_not_recorded"
   | "resuscitation_conflict"
+  | "unreadable_value"
   | "resuscitation_review_overdue"
   | "section_withheld"
   | "date_of_birth_not_recorded";
@@ -242,10 +294,21 @@ export interface DowntimeWarning {
 }
 
 export interface DowntimeIddsiContent {
-  /** For example "Level 6 Soft and bite-sized (blue)"; null when no level is recorded. */
+  /** For example "Level 6 Soft and bite-sized (blue)"; null when not recorded or unreadable. */
   readonly food: string | null;
   readonly drink: string | null;
   readonly notes: string | null;
+}
+
+export interface DowntimeResuscitationRecord {
+  readonly recordId: string;
+  readonly kind: "respect" | "dnacpr";
+  readonly decision: "attempt_cpr" | "do_not_attempt_cpr";
+  readonly completedOn: string;
+  readonly clinicianName: string | null;
+  readonly clinicianRole: string | null;
+  readonly reviewDueOn: string | null;
+  readonly reviewOverdue: boolean;
 }
 
 export interface DowntimeCarePlanLine {
@@ -254,6 +317,15 @@ export interface DowntimeCarePlanLine {
   readonly need: string;
   readonly contingency: string | null;
 }
+
+export type DowntimeMedicinesContent =
+  | { readonly status: "held_elsewhere"; readonly where: string }
+  | {
+      readonly status: "recorded";
+      /** Doses still due while the pack is in use, in time order, time-critical first. */
+      readonly due: readonly ScheduledDose[];
+      readonly prn: readonly PrnMedicine[];
+    };
 
 export interface DowntimePersonPage {
   readonly personId: string;
@@ -269,11 +341,12 @@ export interface DowntimePersonPage {
   readonly content: {
     readonly photo: { readonly documentId: string; readonly takenOn: string } | null;
     readonly allergies: AllergyStatement;
-    readonly resuscitation: ResuscitationStatus | null;
-    readonly eatingAndDrinking: DowntimeIddsiContent | null;
+    /** Every ReSPECT and DNACPR decision in force, newest first; empty when none or withheld. */
+    readonly resuscitation: readonly DowntimeResuscitationRecord[];
+    readonly eatingAndDrinking: DowntimeIddsiContent;
     readonly communication: CommunicationStatement;
     readonly evacuation: EvacuationPlanStatement | null;
-    readonly medicinesDue: MedicinesDueStatement | null;
+    readonly medicinesDue: DowntimeMedicinesContent | null;
     readonly contacts: readonly DowntimeContact[];
     readonly carePlan: readonly DowntimeCarePlanLine[];
     readonly risks: readonly DowntimeRisk[];
@@ -298,7 +371,7 @@ export interface DowntimePack {
     readonly personId: string;
     readonly reason: DowntimeExclusionReason;
   }[];
-  /** Every page's warnings, safety-critical gaps first, for the front sheet. */
+  /** Every page's warnings, safety-critical ones first, for the front sheet. */
   readonly warnings: readonly DowntimeWarning[];
 }
 
@@ -314,7 +387,7 @@ const PACK_PROBLEM_MESSAGES: Record<DowntimePackProblem, string> = {
   location_name_missing: "The pack needs the location's name on every page.",
 };
 
-/** Printed on the front sheet and every page's footer (operations.md rule 6). */
+/** Printed on the front sheet and every page's header (operations.md rule 2). */
 export const DOWNTIME_BACK_ENTRY_INSTRUCTION =
   "Write care on the downtime forms with the time you gave it. When Harbour is back, enter each form with that time and the outage it belongs to.";
 
@@ -323,29 +396,45 @@ const NOT_RECORDED_NOTES: Partial<Record<DowntimeSectionKey, string>> = {
   allergies: "Allergies not recorded. Do not assume there are none.",
   resuscitation:
     "Resuscitation status not recorded. Check the person's documents and follow the home's policy.",
-  eating_and_drinking:
-    "IDDSI levels not recorded. Check with the nurse in charge before giving food or drink.",
+  iddsi_food:
+    "IDDSI food level not recorded. Check with the nurse in charge before giving any food.",
+  iddsi_drink:
+    "IDDSI drink level not recorded. Check with the nurse in charge before giving any drink.",
   communication: "Communication needs not recorded. Ask the person or their family.",
   contacts: "No key contacts recorded.",
   care_plan: "No active care plan. Follow the paper care plan if there is one.",
   risks: "No active risk assessments recorded.",
 };
 
+/** Words for a resuscitation conflict, printed inside the section (to confirm with the CSO, H-100). */
+export const RESUSCITATION_CONFLICT_NOTE =
+  "Resuscitation records disagree. Every record in force is listed here. Harbour does not choose between them: check the signed forms and follow the home's policy.";
+
+const UNREADABLE_NOTE =
+  "This could not be read from the record. Check the record before giving food or drink.";
+
 const WITHHELD_NOTE =
   "Not included: this information did not match the person. Check the record when Harbour is back.";
 
+/** Unknown severity sorts with severe: an unknown reaction is never shown as the mildest. */
 const SEVERITY_ORDER: Record<TransferAllergy["severity"], number> = {
   severe: 0,
+  unknown: 0,
   moderate: 1,
   mild: 2,
-  unknown: 3,
 };
 
 const collator = new Intl.Collator("en-GB", { numeric: true, sensitivity: "base" });
-const MS_PER_HOUR = 3_600_000;
+const MS_PER_MINUTE = 60_000;
+const MS_PER_HOUR = 60 * MS_PER_MINUTE;
 
 function hasText(value: string | null | undefined): value is string {
   return (value?.trim().length ?? 0) > 0;
+}
+
+function ukDate(instant: Date): string {
+  const w = toUkWallClock(instant);
+  return `${w.year}-${String(w.month).padStart(2, "0")}-${String(w.day).padStart(2, "0")}`;
 }
 
 function displayName(person: DowntimePersonInput): string {
@@ -379,28 +468,57 @@ function normaliseCommunication(statement: CommunicationStatement): Communicatio
   return statement;
 }
 
+/** Every active ReSPECT or DNACPR decision, newest first. Harbour never picks one. */
+function resuscitationInForce(
+  records: readonly AdvanceCareRecordState[],
+  today: string,
+): DowntimeResuscitationRecord[] {
+  const inForce: DowntimeResuscitationRecord[] = [];
+  for (const r of records) {
+    if (r.status !== "active" || r.cprDecision === null) continue;
+    if (r.kind !== "respect" && r.kind !== "dnacpr") continue;
+    inForce.push({
+      recordId: r.id,
+      kind: r.kind,
+      decision: r.cprDecision,
+      completedOn: r.completedOn,
+      clinicianName: r.clinicianName,
+      clinicianRole: r.clinicianRole,
+      reviewDueOn: r.reviewDueOn,
+      reviewOverdue: r.reviewDueOn !== null && today > r.reviewDueOn,
+    });
+  }
+  return inForce.sort((a, b) => b.completedOn.localeCompare(a.completedOn));
+}
+
 function medicinesInWindow(
   statement: MedicinesDueStatement,
   from: Date,
   until: Date,
-): MedicinesDueStatement {
-  if (statement.status !== "due") return statement;
-  const items = statement.items
-    .filter((m) => m.dueAt.getTime() >= from.getTime() && m.dueAt.getTime() < until.getTime())
+): DowntimeMedicinesContent {
+  if (statement.status === "held_elsewhere") return statement;
+  const due = statement.scheduled
+    .filter(
+      (d) =>
+        d.status === "due" &&
+        d.dueAt.getTime() >= from.getTime() &&
+        d.dueAt.getTime() < until.getTime(),
+    )
     .sort(
       (a, b) =>
         a.dueAt.getTime() - b.dueAt.getTime() || Number(b.timeCritical) - Number(a.timeCritical),
     );
-  return items.length === 0 ? { status: "none_due" } : { status: "due", items };
+  return { status: "recorded", due, prn: statement.prn };
 }
 
-function iddsiContent(data: DowntimeEatingAndDrinking): DowntimeIddsiContent | null {
-  if (data.foodLevel === null && data.drinkLevel === null) return null;
-  return {
-    food: data.foodLevel === null ? null : describeIddsiLevel("food", data.foodLevel),
-    drink: data.drinkLevel === null ? null : describeIddsiLevel("drink", data.drinkLevel),
-    notes: hasText(data.notes) ? data.notes.trim() : null,
-  };
+/** One IDDSI level: described, not recorded, or unreadable (never throws for a bad code). */
+function iddsiValue(
+  kind: "food" | "drink",
+  code: string | null,
+): { readonly state: DowntimeSectionState; readonly text: string | null } {
+  if (code === null || code.trim() === "") return { state: "not_recorded", text: null };
+  if (iddsiLevel(kind, code) === null) return { state: "unreadable", text: null };
+  return { state: "included", text: describeIddsiLevel(kind, code) };
 }
 
 function carePlanLines(plan: DowntimeCarePlan): DowntimeCarePlanLine[] {
@@ -420,25 +538,20 @@ function personPage(person: DowntimePersonInput, from: Date, until: Date): Downt
   const own = (source: { readonly personId: string } | null): boolean =>
     source === null || source.personId === person.personId;
   const warnings: DowntimeWarning[] = [];
+  const warn = (kind: DowntimeWarningKind, section: DowntimeSectionKey | null, message: string) =>
+    warnings.push({ personId: person.personId, kind, section, message });
   const statuses = new Map<
     DowntimeSectionKey,
-    { status: DowntimeSectionState; asOf: Date | null; where: string | null }
+    { status: DowntimeSectionState; asOf: Date | null; note: string | null }
   >();
-  const withheld = (key: DowntimeSectionKey) =>
-    warnings.push({
-      personId: person.personId,
-      kind: "section_withheld",
-      section: key,
-      message: WITHHELD_NOTE,
-    });
   const set = (
     key: DowntimeSectionKey,
     status: DowntimeSectionState,
     asOf: Date | null,
-    where: string | null = null,
+    note: string | null = null,
   ) => {
-    statuses.set(key, { status, asOf, where });
-    if (status === "withheld") withheld(key);
+    statuses.set(key, { status, asOf, note });
+    if (status === "withheld") warn("section_withheld", key, WITHHELD_NOTE);
   };
 
   // Identity: the name and room always print; the photo is the safety-critical part (HZ-001).
@@ -459,40 +572,43 @@ function personPage(person: DowntimePersonInput, from: Date, until: Date): Downt
     person.allergies.asOf,
   );
 
+  // Resuscitation (HZ-015): every decision in force prints; disagreement is a state of its own.
   const resusOwn = own(person.resuscitation);
-  const resuscitation = resusOwn ? person.resuscitation.data : null;
-  set(
-    "resuscitation",
-    !resusOwn ? "withheld" : resuscitation?.status === "not_recorded" ? "not_recorded" : "included",
-    person.resuscitation.asOf,
-  );
-  if (resuscitation?.conflicting) {
-    warnings.push({
-      personId: person.personId,
-      kind: "resuscitation_conflict",
-      section: "resuscitation",
-      message:
-        "Resuscitation records disagree. Check the signed ReSPECT or DNACPR form before acting.",
-    });
-  }
-  if (resuscitation && resuscitation.status !== "not_recorded" && resuscitation.reviewOverdue) {
-    warnings.push({
-      personId: person.personId,
-      kind: "resuscitation_review_overdue",
-      section: "resuscitation",
-      message:
-        "The resuscitation decision is past its review date. It still applies until changed.",
-    });
+  const resuscitation = resusOwn
+    ? resuscitationInForce(person.resuscitation.data, ukDate(from))
+    : [];
+  const decisions = new Set(resuscitation.map((r) => r.decision));
+  if (!resusOwn) set("resuscitation", "withheld", person.resuscitation.asOf);
+  else if (resuscitation.length === 0)
+    set("resuscitation", "not_recorded", person.resuscitation.asOf);
+  else if (decisions.size > 1) {
+    set("resuscitation", "conflicting", person.resuscitation.asOf, RESUSCITATION_CONFLICT_NOTE);
+    warn("resuscitation_conflict", "resuscitation", RESUSCITATION_CONFLICT_NOTE);
+  } else set("resuscitation", "included", person.resuscitation.asOf);
+  if (resuscitation.some((r) => r.reviewOverdue)) {
+    warn(
+      "resuscitation_review_overdue",
+      "resuscitation",
+      "A resuscitation decision is past its review date. It still applies until changed.",
+    );
   }
 
+  // IDDSI (HZ-016): food and drink are separate, each recorded, not recorded or unreadable.
   const eatingOwn = own(person.eatingAndDrinking);
-  const eating =
-    eatingOwn && person.eatingAndDrinking ? iddsiContent(person.eatingAndDrinking.data) : null;
-  set(
-    "eating_and_drinking",
-    !eatingOwn ? "withheld" : eating ? "included" : "not_recorded",
-    person.eatingAndDrinking?.asOf ?? null,
-  );
+  const eatingData = eatingOwn ? (person.eatingAndDrinking?.data ?? null) : null;
+  const food = iddsiValue("food", eatingData?.foodLevel ?? null);
+  const drink = iddsiValue("drink", eatingData?.drinkLevel ?? null);
+  const eatingAsOf = person.eatingAndDrinking?.asOf ?? null;
+  for (const [key, value] of [
+    ["iddsi_food", food],
+    ["iddsi_drink", drink],
+  ] as const) {
+    if (!eatingOwn) set(key, "withheld", eatingAsOf);
+    else if (value.state === "unreadable") {
+      set(key, "unreadable", eatingAsOf, UNREADABLE_NOTE);
+      warn("unreadable_value", key, UNREADABLE_NOTE);
+    } else set(key, value.state, eatingAsOf);
+  }
 
   const communicationOwn = own(person.communication);
   const communication = communicationOwn
@@ -512,7 +628,12 @@ function personPage(person: DowntimePersonInput, from: Date, until: Date): Downt
   const evacuation = evacuationOwn ? person.evacuation.data : null;
   if (!evacuation) set("evacuation", "withheld", person.evacuation.asOf);
   else if (evacuation.status === "held_elsewhere")
-    set("evacuation", "held_elsewhere", person.evacuation.asOf, evacuation.where);
+    set(
+      "evacuation",
+      "held_elsewhere",
+      person.evacuation.asOf,
+      `Not kept in Harbour yet. Use ${evacuation.where}.`,
+    );
   else set("evacuation", "included", person.evacuation.asOf);
 
   const medicinesOwn = own(person.medicinesDue);
@@ -521,12 +642,17 @@ function personPage(person: DowntimePersonInput, from: Date, until: Date): Downt
     : null;
   if (!medicinesDue) set("medicines_due", "withheld", person.medicinesDue.asOf);
   else if (medicinesDue.status === "held_elsewhere")
-    set("medicines_due", "held_elsewhere", person.medicinesDue.asOf, medicinesDue.where);
+    set(
+      "medicines_due",
+      "held_elsewhere",
+      person.medicinesDue.asOf,
+      `Not kept in Harbour yet. Use ${medicinesDue.where}.`,
+    );
   else set("medicines_due", "included", person.medicinesDue.asOf);
 
   // A contact of someone else is left out and flagged; the person's own contacts still print.
   const contacts = person.contacts.filter((c) => c.personId === person.personId);
-  if (contacts.length < person.contacts.length) withheld("contacts");
+  if (contacts.length < person.contacts.length) warn("section_withheld", "contacts", WITHHELD_NOTE);
   set("contacts", contacts.length === 0 ? "not_recorded" : "included", null);
 
   const planOwn = own(person.carePlan);
@@ -549,16 +675,15 @@ function personPage(person: DowntimePersonInput, from: Date, until: Date): Downt
     const state = statuses.get(definition.key) ?? {
       status: "not_recorded" as const,
       asOf: null,
-      where: null,
+      note: null,
     };
     const note =
-      state.status === "withheld"
+      state.note ??
+      (state.status === "withheld"
         ? WITHHELD_NOTE
         : state.status === "not_recorded"
           ? (NOT_RECORDED_NOTES[definition.key] ?? null)
-          : state.status === "held_elsewhere"
-            ? `Not kept in Harbour yet. Use ${state.where}.`
-            : null;
+          : null);
     return {
       key: definition.key,
       title: definition.title,
@@ -573,7 +698,7 @@ function personPage(person: DowntimePersonInput, from: Date, until: Date): Downt
   const missingCritical = sections
     .filter((s) => s.critical && s.status === "not_recorded")
     .map((s) => s.key);
-  for (const key of missingCritical) {
+  for (const key of [...missingCritical].reverse()) {
     warnings.unshift({
       personId: person.personId,
       kind: "critical_not_recorded",
@@ -582,12 +707,11 @@ function personPage(person: DowntimePersonInput, from: Date, until: Date): Downt
     });
   }
   if (!person.dateOfBirth) {
-    warnings.push({
-      personId: person.personId,
-      kind: "date_of_birth_not_recorded",
-      section: "identity",
-      message: "Date of birth not recorded. Confirm identity another way.",
-    });
+    warn(
+      "date_of_birth_not_recorded",
+      "identity",
+      "Date of birth not recorded. Confirm identity another way.",
+    );
   }
 
   return {
@@ -603,7 +727,11 @@ function personPage(person: DowntimePersonInput, from: Date, until: Date): Downt
       photo: photoOwn ? (person.photo?.data ?? null) : null,
       allergies,
       resuscitation,
-      eatingAndDrinking: eating,
+      eatingAndDrinking: {
+        food: food.text,
+        drink: drink.text,
+        notes: hasText(eatingData?.notes) ? (eatingData?.notes ?? "").trim() : null,
+      },
       communication,
       evacuation,
       medicinesDue,
@@ -628,7 +756,8 @@ function comparePages(a: DowntimePersonPage, b: DowntimePersonPage): number {
 
 const WARNING_ORDER: Record<DowntimeWarningKind, number> = {
   critical_not_recorded: 0,
-  resuscitation_conflict: 1,
+  resuscitation_conflict: 0,
+  unreadable_value: 1,
   section_withheld: 2,
   date_of_birth_not_recorded: 3,
   resuscitation_review_overdue: 4,
@@ -692,21 +821,51 @@ export function assembleDowntimePack(
 // Freshness (HZ-021): words on every page, worked out when the page is shown or printed
 // ------------------------------------------------------------------------------------------------
 
+/**
+ * `current` and `out_of_date` against the "use until" time; `outage` while an outage is declared
+ * at the location (the pack is the latest available and anything since is on paper);
+ * `clock_behind` when the showing device's clock is earlier than the pack's information, so the
+ * age cannot be trusted.
+ */
+export type DowntimeFreshnessState = "current" | "out_of_date" | "outage" | "clock_behind";
+
 export interface DowntimeFreshness {
-  readonly state: "current" | "out_of_date";
+  readonly state: DowntimeFreshnessState;
   readonly notice: string;
   /** Whole hours between the information's time and `at` (never negative). */
   readonly hoursOld: number;
 }
 
-/** Whether a pack is still in date at `at`, in words for the page. */
+export interface DowntimeFreshnessContext {
+  /** The outage declared and still open at the location, if any. */
+  readonly outage: { readonly startedAt: Date } | null;
+  /** `sync.clock_drift_flag_minutes`: a clock behind the pack by more than this is flagged. */
+  readonly clockDriftMinutes: number;
+}
+
+/** Whether a pack can still be relied on at `at`, in words for the page (operations.md rule 2). */
 export function downtimePackFreshness(
   pack: Pick<DowntimePack, "asAt" | "validUntil">,
   at: Date,
+  context: DowntimeFreshnessContext,
 ): DowntimeFreshness {
   const asAt = formatUkDateTime(pack.asAt);
   const until = formatUkDateTime(pack.validUntil);
   const hoursOld = Math.max(0, Math.floor((at.getTime() - pack.asAt.getTime()) / MS_PER_HOUR));
+  if (pack.asAt.getTime() - at.getTime() > context.clockDriftMinutes * MS_PER_MINUTE) {
+    return {
+      state: "clock_behind",
+      hoursOld,
+      notice: `Check this device's clock: it shows ${formatUkDateTime(at)}, earlier than this pack's information (${asAt}). Until the clock is right, treat the pack as possibly out of date and check allergies, resuscitation status and diet with the nurse in charge.`,
+    };
+  }
+  if (context.outage !== null) {
+    return {
+      state: "outage",
+      hoursOld,
+      notice: `Latest available pack: information as at ${asAt}. Anything recorded since ${asAt} is on paper or not shown here: check the downtime forms and ask the nurse in charge about changes.`,
+    };
+  }
   if (at.getTime() < pack.validUntil.getTime()) {
     return {
       state: "current",
@@ -723,21 +882,22 @@ export function downtimePackFreshness(
 
 export interface DowntimePageHeader {
   readonly lines: readonly string[];
-  readonly outOfDate: boolean;
+  readonly state: DowntimeFreshnessState;
 }
 
 /**
  * The words at the top of every page, worked out at the moment the page is shown or printed: a
  * printed page cannot change later, so it carries its "use until" time, and a page printed from an
- * out-of-date pack says so (HZ-021).
+ * out-of-date pack, during an outage or on a device with a wrong clock says so (HZ-021).
  */
 export function downtimePageHeader(
   pack: Pick<DowntimePack, "locationName" | "generatedAt" | "asAt" | "validUntil">,
   printedAt: Date,
+  context: DowntimeFreshnessContext,
 ): DowntimePageHeader {
-  const freshness = downtimePackFreshness(pack, printedAt);
+  const freshness = downtimePackFreshness(pack, printedAt, context);
   return {
-    outOfDate: freshness.state === "out_of_date",
+    state: freshness.state,
     lines: [
       `Downtime pack for ${pack.locationName}`,
       freshness.notice,

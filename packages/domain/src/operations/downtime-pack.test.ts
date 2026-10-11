@@ -1,24 +1,32 @@
 import { describe, expect, it } from "vitest";
 import { readRateTable, tableOperationsRates } from "../../test/rate-table";
-import type { ResuscitationStatus } from "../care/advance-care";
+import type { AdvanceCareRecordState } from "../care/advance-care";
 import { RateNotFoundError } from "../platform/rates";
 import { builtinRole } from "../platform/roles";
 import {
   assembleDowntimePack,
+  DEFAULT_PAPER_MAR_LOCATION,
+  DEFAULT_PEEP_LOCATION,
   DOWNTIME_BACK_ENTRY_INSTRUCTION,
   DOWNTIME_PACK_SECTIONS,
+  type DowntimeFreshnessContext,
   type DowntimePack,
   type DowntimePackInput,
   type DowntimePersonInput,
   type DowntimeSectionKey,
   downtimePackFreshness,
   downtimePageHeader,
-  FIRE_FILE_EVACUATION_PORT,
-  PAPER_MAR_MEDICINES_PORT,
+  fireFileEvacuationPort,
+  paperMarMedicinesPort,
+  RESUSCITATION_CONFLICT_NOTE,
+  type ScheduledDose,
 } from "./downtime-pack";
 import { OPERATIONS_RATE_KEYS, type OperationsRateName, resolveOperationsRates } from "./rates";
 
-/** Nightly downtime pack (operations.md section 4 rules 1 to 4). Hazard HZ-021 (and HZ-001, HZ-007, HZ-015, HZ-016). */
+/**
+ * Nightly downtime pack (operations.md section 4 rules 1 to 8). Hazard HZ-021, with HZ-001, HZ-003,
+ * HZ-007, HZ-015, HZ-016 and HZ-024 for the sections they cover.
+ */
 
 const rates = tableOperationsRates();
 const HOUR = 3_600_000;
@@ -26,30 +34,24 @@ const LOCATION = "location-harbour-house";
 // 01:00 on 11 October 2026 in UK summer time.
 const AS_AT = new Date("2026-10-11T00:00:00Z");
 const GENERATED = new Date("2026-10-11T00:05:00Z");
-
-const NOT_RECORDED_RESUS: ResuscitationStatus = {
-  status: "not_recorded",
-  conflicting: false,
-  recordId: null,
-  kind: null,
-  completedOn: null,
-  clinicianName: null,
-  clinicianRole: null,
-  reviewDueOn: null,
-  reviewOverdue: false,
+const NO_OUTAGE: DowntimeFreshnessContext = {
+  outage: null,
+  clockDriftMinutes: rates.clockDriftMinutes,
 };
 
-const DNACPR: ResuscitationStatus = {
-  status: "do_not_attempt_cpr",
-  conflicting: false,
-  recordId: "acr-1",
-  kind: "respect",
-  completedOn: "2026-06-01",
-  clinicianName: "Dr Example",
-  clinicianRole: "GP",
-  reviewDueOn: "2027-06-01",
-  reviewOverdue: false,
-};
+function advance(o: Partial<AdvanceCareRecordState> = {}): AdvanceCareRecordState {
+  return {
+    id: "acr-1",
+    kind: "respect",
+    status: "active",
+    cprDecision: "do_not_attempt_cpr",
+    completedOn: "2026-06-01",
+    clinicianName: "Dr Example",
+    clinicianRole: "GP",
+    reviewDueOn: "2027-06-01",
+    ...o,
+  };
+}
 
 function src<T>(personId: string, data: T) {
   return { personId, asOf: AS_AT, data };
@@ -74,14 +76,14 @@ function person(id: string, o: Partial<DowntimePersonInput> = {}): DowntimePerso
         { substance: "Penicillin", reaction: "Anaphylaxis", severity: "severe" },
       ],
     }),
-    resuscitation: src(id, DNACPR),
+    resuscitation: src(id, [advance()]),
     eatingAndDrinking: src(id, { foodLevel: "6", drinkLevel: "0", notes: " Small portions " }),
     communication: src(id, {
       status: "recorded",
       needs: [{ code: "000000", display: "Uses a hearing aid", preferredFormat: "in_person" }],
     }),
-    evacuation: src(id, { status: "held_elsewhere", where: "the person's PEEP in the fire file" }),
-    medicinesDue: src(id, { status: "held_elsewhere", where: "the paper MAR chart" }),
+    evacuation: src(id, { status: "held_elsewhere", where: DEFAULT_PEEP_LOCATION }),
+    medicinesDue: src(id, { status: "held_elsewhere", where: DEFAULT_PAPER_MAR_LOCATION }),
     contacts: [
       {
         personId: id,
@@ -139,14 +141,20 @@ function onlyPage(p: DowntimePersonInput) {
   return page;
 }
 
+const section = (page: ReturnType<typeof onlyPage>, key: DowntimeSectionKey) =>
+  page.sections.find((s) => s.key === key);
 const status = (page: ReturnType<typeof onlyPage>, key: DowntimeSectionKey) =>
-  page.sections.find((s) => s.key === key)?.status;
+  section(page, key)?.status;
 
 describe("downtime figures come from the rate table", () => {
   it("resolves every operations key", () => {
     for (const name of Object.keys(OPERATIONS_RATE_KEYS) as OperationsRateName[]) {
       expect(rates[name]).toBeGreaterThan(0);
     }
+  });
+
+  it("keeps a pack in date for longer than the nightly interval, so one failed night still leaves a pack", () => {
+    expect(rates.downtimePackValidHours).toBeGreaterThan(24);
   });
 
   it("fails loudly when a figure is missing rather than guessing", () => {
@@ -182,7 +190,8 @@ describe("hazard HZ-021 the downtime pack has a page with every section for ever
       ["identity", true],
       ["allergies", true],
       ["resuscitation", true],
-      ["eating_and_drinking", true],
+      ["iddsi_food", true],
+      ["iddsi_drink", true],
       ["communication", true],
       ["evacuation", true],
       ["medicines_due", true],
@@ -221,7 +230,7 @@ describe("hazard HZ-021 the downtime pack has a page with every section for ever
       photo: null,
       dateOfBirth: null,
       allergies: src("p-sparse", { status: "unknown" }),
-      resuscitation: src("p-sparse", NOT_RECORDED_RESUS),
+      resuscitation: src("p-sparse", []),
       eatingAndDrinking: null,
       communication: src("p-sparse", { status: "not_recorded" }),
       contacts: [],
@@ -233,9 +242,11 @@ describe("hazard HZ-021 the downtime pack has a page with every section for ever
       "identity",
       "allergies",
       "resuscitation",
-      "eating_and_drinking",
+      "iddsi_food",
+      "iddsi_drink",
       "communication",
     ]);
+    expect(page.warnings.slice(0, 6).map((w) => w.section)).toEqual(page.missingCritical);
     expect(page.warnings.map((w) => w.kind)).toContain("date_of_birth_not_recorded");
     expect(status(page, "contacts")).toBe("not_recorded");
     expect(status(page, "care_plan")).toBe("not_recorded");
@@ -261,46 +272,81 @@ describe("hazard HZ-021 the downtime pack has a page with every section for ever
 });
 
 describe("hazard HZ-021 missing safety-critical information reads not recorded, never blank", () => {
-  it.each<[string, Partial<DowntimePersonInput>, DowntimeSectionKey]>([
-    ["hazard HZ-001 no photo", { photo: null }, "identity"],
+  it.each<[string, Partial<DowntimePersonInput>, DowntimeSectionKey[]]>([
+    ["hazard HZ-001 no photo", { photo: null }, ["identity"]],
     [
       "hazard HZ-007 allergy status unknown",
       { allergies: src("p-1", { status: "unknown" }) },
-      "allergies",
+      ["allergies"],
     ],
     [
       "hazard HZ-007 allergies said to exist but none listed",
       { allergies: src("p-1", { status: "has_allergies", allergies: [] }) },
-      "allergies",
+      ["allergies"],
     ],
     [
       "hazard HZ-015 no resuscitation decision",
-      { resuscitation: src("p-1", NOT_RECORDED_RESUS) },
-      "resuscitation",
+      { resuscitation: src("p-1", []) },
+      ["resuscitation"],
     ],
-    ["hazard HZ-016 no IDDSI record", { eatingAndDrinking: null }, "eating_and_drinking"],
     [
-      "hazard HZ-016 an IDDSI record with no levels",
-      { eatingAndDrinking: src("p-1", { foodLevel: null, drinkLevel: null, notes: "x" }) },
-      "eating_and_drinking",
+      "hazard HZ-015 only withdrawn or superseded decisions",
+      {
+        resuscitation: src("p-1", [
+          advance({ status: "withdrawn" }),
+          advance({ id: "acr-2", status: "superseded" }),
+          advance({ id: "acr-3", kind: "adrt", cprDecision: null }),
+        ]),
+      },
+      ["resuscitation"],
+    ],
+    ["hazard HZ-016 no IDDSI record", { eatingAndDrinking: null }, ["iddsi_food", "iddsi_drink"]],
+    [
+      "hazard HZ-016 a food level but no drink level",
+      { eatingAndDrinking: src("p-1", { foodLevel: "5", drinkLevel: null, notes: null }) },
+      ["iddsi_drink"],
+    ],
+    [
+      "hazard HZ-016 a drink level but no food level",
+      { eatingAndDrinking: src("p-1", { foodLevel: " ", drinkLevel: "2", notes: null }) },
+      ["iddsi_food"],
     ],
     [
       "communication needs never assessed",
       { communication: src("p-1", { status: "not_recorded" }) },
-      "communication",
+      ["communication"],
     ],
     [
       "communication needs recorded as an empty list",
       { communication: src("p-1", { status: "recorded", needs: [] }) },
-      "communication",
+      ["communication"],
     ],
-  ])("%s", (_label, overrides, key) => {
+  ])("%s", (_label, overrides, keys) => {
     const page = onlyPage(person("p-1", overrides));
-    expect(page.missingCritical).toEqual([key]);
-    const section = page.sections.find((s) => s.key === key);
-    expect(section?.status).toBe("not_recorded");
-    expect(section?.note?.length).toBeGreaterThan(10);
-    expect(page.warnings[0]).toMatchObject({ kind: "critical_not_recorded", section: key });
+    expect(page.missingCritical).toEqual(keys);
+    for (const key of keys) {
+      expect(section(page, key)?.status).toBe("not_recorded");
+      expect(section(page, key)?.note?.length).toBeGreaterThan(10);
+    }
+    expect(page.warnings.slice(0, keys.length)).toEqual(
+      keys.map((key) => expect.objectContaining({ kind: "critical_not_recorded", section: key })),
+    );
+  });
+
+  it("hazard HZ-016 tells staff to check before giving food or drink when a level is missing", () => {
+    const page = onlyPage(
+      person("p-1", {
+        eatingAndDrinking: src("p-1", { foodLevel: "5", drinkLevel: null, notes: null }),
+      }),
+    );
+    expect(section(page, "iddsi_drink")?.note).toBe(
+      "IDDSI drink level not recorded. Check with the nurse in charge before giving any drink.",
+    );
+    expect(page.content.eatingAndDrinking).toEqual({
+      food: "Level 5 Minced and moist (orange)",
+      drink: null,
+      notes: null,
+    });
   });
 
   it("accepts positive statements of none", () => {
@@ -319,12 +365,47 @@ describe("hazard HZ-021 missing safety-critical information reads not recorded, 
   });
 });
 
-describe("pack content", () => {
-  it("hazard HZ-007 lists the most severe allergies first", () => {
-    expect(onlyPage(person("p-1")).content.allergies).toMatchObject({
-      status: "has_allergies",
-      allergies: [{ substance: "Penicillin" }, { substance: "Plasters" }],
+describe("hazard HZ-016 an unreadable IDDSI code says check the record and never stops the pack", () => {
+  it.each<[string, { foodLevel: string | null; drinkLevel: string | null }, DowntimeSectionKey]>([
+    ["a food code that is not a level", { foodLevel: "8", drinkLevel: "0" }, "iddsi_food"],
+    ["a drink code that is not a level", { foodLevel: "6", drinkLevel: "thick" }, "iddsi_drink"],
+  ])("%s", (_label, levels, key) => {
+    const result = pack([
+      person("p-1", { eatingAndDrinking: src("p-1", { ...levels, notes: null }) }),
+      person("p-2", { roomLabel: "Room 3" }),
+    ]);
+    expect(result.pages).toHaveLength(2);
+    const page = result.pages[0];
+    if (!page) throw new Error("no page");
+    expect(section(page, key)).toMatchObject({
+      status: "unreadable",
+      note: "This could not be read from the record. Check the record before giving food or drink.",
     });
+    expect(page.warnings).toContainEqual(
+      expect.objectContaining({ kind: "unreadable_value", section: key }),
+    );
+  });
+});
+
+describe("pack content", () => {
+  it("hazard HZ-007 lists the most severe allergies first, with unknown severity among the severe", () => {
+    const page = onlyPage(
+      person("p-1", {
+        allergies: src("p-1", {
+          status: "has_allergies",
+          allergies: [
+            { substance: "Plasters", reaction: "Rash", severity: "mild" },
+            { substance: "Latex", reaction: null, severity: "unknown" },
+            { substance: "Ibuprofen", reaction: "Wheeze", severity: "moderate" },
+            { substance: "Penicillin", reaction: "Anaphylaxis", severity: "severe" },
+          ],
+        }),
+      }),
+    );
+    const allergies = page.content.allergies;
+    expect(
+      allergies.status === "has_allergies" && allergies.allergies.map((a) => a.substance),
+    ).toEqual(["Latex", "Penicillin", "Ibuprofen", "Plasters"]);
   });
 
   it("hazard HZ-016 shows IDDSI levels with number, name and colour", () => {
@@ -332,16 +413,6 @@ describe("pack content", () => {
       food: "Level 6 Soft and bite-sized (blue)",
       drink: "Level 0 Thin (white)",
       notes: "Small portions",
-    });
-    const drinkOnly = onlyPage(
-      person("p-1", {
-        eatingAndDrinking: src("p-1", { foodLevel: null, drinkLevel: "2", notes: " " }),
-      }),
-    );
-    expect(drinkOnly.content.eatingAndDrinking).toEqual({
-      food: null,
-      drink: "Level 2 Mildly thick (pink)",
-      notes: null,
     });
   });
 
@@ -363,26 +434,29 @@ describe("pack content", () => {
     expect(onlyPage(person("p-1", { preferredName: null })).displayName).toBe("Example, Ada");
   });
 
-  it("points to the paper MAR and the fire file until medicines and PEEPs are in Harbour", async () => {
-    const medicines = await PAPER_MAR_MEDICINES_PORT.medicinesDue("p-1", AS_AT, GENERATED);
-    const evacuation = await FIRE_FILE_EVACUATION_PORT.evacuationPlan("p-1");
+  it("points to the location's own MAR and PEEP places until medicines and PEEPs are in Harbour", async () => {
+    const medicinesPort = paperMarMedicinesPort(" the MAR folder in the clinical room ");
+    const peepPort = fireFileEvacuationPort("the red fire grab bag at reception");
     const page = onlyPage(
       person("p-1", {
-        medicinesDue: src("p-1", medicines),
-        evacuation: src("p-1", evacuation),
+        medicinesDue: src("p-1", await medicinesPort.medicinesDue("p-1", AS_AT, GENERATED)),
+        evacuation: src("p-1", await peepPort.evacuationPlan("p-1")),
       }),
     );
-    const medicinesSection = page.sections.find((s) => s.key === "medicines_due");
-    const peepSection = page.sections.find((s) => s.key === "evacuation");
-    expect(medicinesSection).toMatchObject({
+    expect(section(page, "medicines_due")).toMatchObject({
       status: "held_elsewhere",
-      note: "Not kept in Harbour yet. Use the paper MAR chart.",
+      note: "Not kept in Harbour yet. Use the MAR folder in the clinical room.",
     });
-    expect(peepSection).toMatchObject({
+    expect(section(page, "evacuation")).toMatchObject({
       status: "held_elsewhere",
-      note: "Not kept in Harbour yet. Use the person's PEEP in the fire file.",
+      note: "Not kept in Harbour yet. Use the red fire grab bag at reception.",
     });
     expect(page.missingCritical).toEqual([]);
+  });
+
+  it("refuses a placeholder with no place set", () => {
+    expect(() => paperMarMedicinesPort("  ")).toThrow("Set where the paper MAR is kept");
+    expect(() => fireFileEvacuationPort("")).toThrow("Set where the PEEPs are kept");
   });
 
   it("shows a recorded PEEP when the fire safety module supplies one", () => {
@@ -399,67 +473,116 @@ describe("pack content", () => {
     expect(status(page, "evacuation")).toBe("included");
   });
 
-  it("hazard HZ-003 lists medicines due while the pack is in use, in time order, time-critical first", () => {
+  it("hazard HZ-003 lists doses still due while the pack is in use, in time order, time-critical first, never doses already given", () => {
     const at = (hours: number) => new Date(AS_AT.getTime() + hours * HOUR);
-    const dose = (name: string, hours: number, timeCritical = false) => ({
+    const dose = (name: string, hours: number, o: Partial<ScheduledDose> = {}): ScheduledDose => ({
       name,
       dose: "1 tablet",
       route: "oral",
       dueAt: at(hours),
-      timeCritical,
+      timeCritical: false,
+      status: "due",
+      givenAt: null,
+      ...o,
     });
     const page = onlyPage(
       person("p-1", {
         medicinesDue: src("p-1", {
-          status: "due",
-          items: [
+          status: "recorded",
+          scheduled: [
             dose("Before the pack", -1),
             dose("Paracetamol", 7),
-            dose("Co-careldopa", 7, true),
+            dose("Co-careldopa", 7, { timeCritical: true }),
             dose("Senna", 3),
+            dose("Already given", 4, { status: "given", givenAt: at(4) }),
+            dose("Refused", 5, { status: "not_given" }),
             dose("After the pack", rates.downtimePackValidHours),
+          ],
+          prn: [
+            {
+              name: "Paracetamol",
+              dose: "1 g",
+              route: "oral",
+              reason: "Pain",
+              lastGivenAt: at(-2),
+            },
           ],
         }),
       }),
     );
     const due = page.content.medicinesDue;
-    expect(due?.status === "due" && due.items.map((m) => m.name)).toEqual([
+    expect(due?.status === "recorded" && due.due.map((m) => m.name)).toEqual([
       "Senna",
       "Co-careldopa",
       "Paracetamol",
     ]);
-    const none = onlyPage(
-      person("p-1", {
-        medicinesDue: src("p-1", { status: "due", items: [dose("Later", 99)] }),
-      }),
-    );
-    expect(none.content.medicinesDue).toEqual({ status: "none_due" });
-    expect(status(none, "medicines_due")).toBe("included");
+    expect(due?.status === "recorded" && due.prn[0]?.lastGivenAt).toEqual(at(-2));
+    expect(status(page, "medicines_due")).toBe("included");
   });
 });
 
 describe("hazard HZ-015 resuscitation status on the downtime pack", () => {
-  it("shows conflicting resuscitation records as a warning", () => {
+  it("prints the decision in force", () => {
+    const page = onlyPage(person("p-1"));
+    expect(status(page, "resuscitation")).toBe("included");
+    expect(page.content.resuscitation.map((r) => [r.kind, r.decision])).toEqual([
+      ["respect", "do_not_attempt_cpr"],
+    ]);
+  });
+
+  it("marks a conflict between ReSPECT and DNACPR in the section itself, and prints every record in force", () => {
     const page = onlyPage(
-      person("p-1", { resuscitation: src("p-1", { ...DNACPR, conflicting: true }) }),
+      person("p-1", {
+        resuscitation: src("p-1", [
+          advance({ id: "acr-respect", kind: "respect", cprDecision: "attempt_cpr" }),
+          advance({
+            id: "acr-dnacpr",
+            kind: "dnacpr",
+            cprDecision: "do_not_attempt_cpr",
+            completedOn: "2026-09-20",
+          }),
+          advance({ id: "acr-old", status: "withdrawn", cprDecision: "attempt_cpr" }),
+        ]),
+      }),
     );
+    expect(section(page, "resuscitation")).toMatchObject({
+      status: "conflicting",
+      note: RESUSCITATION_CONFLICT_NOTE,
+    });
+    expect(page.content.resuscitation.map((r) => [r.recordId, r.kind, r.decision])).toEqual([
+      ["acr-dnacpr", "dnacpr", "do_not_attempt_cpr"],
+      ["acr-respect", "respect", "attempt_cpr"],
+    ]);
     expect(page.warnings).toContainEqual(
       expect.objectContaining({ kind: "resuscitation_conflict", section: "resuscitation" }),
     );
+  });
+
+  it("prints two records that agree without a conflict", () => {
+    const page = onlyPage(
+      person("p-1", {
+        resuscitation: src("p-1", [
+          advance(),
+          advance({ id: "acr-2", kind: "dnacpr", completedOn: "2026-08-01" }),
+        ]),
+      }),
+    );
     expect(status(page, "resuscitation")).toBe("included");
+    expect(page.content.resuscitation).toHaveLength(2);
   });
 
   it("notes a decision past its review date without hiding it", () => {
     const page = onlyPage(
-      person("p-1", { resuscitation: src("p-1", { ...DNACPR, reviewOverdue: true }) }),
+      person("p-1", { resuscitation: src("p-1", [advance({ reviewDueOn: "2026-10-10" })]) }),
     );
     expect(page.warnings.map((w) => w.kind)).toEqual(["resuscitation_review_overdue"]);
-    expect(page.content.resuscitation?.status).toBe("do_not_attempt_cpr");
+    expect(page.content.resuscitation[0]?.reviewOverdue).toBe(true);
+    expect(status(page, "resuscitation")).toBe("included");
   });
 
-  it("puts safety-critical gaps first on the front sheet", () => {
+  it("puts safety-critical gaps and conflicts first on the front sheet", () => {
     const result = pack([
-      person("p-1", { resuscitation: src("p-1", { ...DNACPR, reviewOverdue: true }) }),
+      person("p-1", { resuscitation: src("p-1", [advance({ reviewDueOn: "2026-01-01" })]) }),
       person("p-2", { roomLabel: "Room 5", photo: null }),
     ]);
     expect(result.warnings.map((w) => w.kind)).toEqual([
@@ -471,27 +594,28 @@ describe("hazard HZ-015 resuscitation status on the downtime pack", () => {
 
 describe("hazard HZ-001 information from another person's record is withheld, never printed", () => {
   const other = "p-other";
-  it.each<[DowntimeSectionKey, Partial<DowntimePersonInput>]>([
-    ["identity", { photo: src(other, { documentId: "doc-x", takenOn: "2026-01-01" }) }],
-    ["allergies", { allergies: src(other, { status: "unknown" }) }],
-    ["resuscitation", { resuscitation: src(other, DNACPR) }],
+  it.each<[DowntimeSectionKey[], Partial<DowntimePersonInput>]>([
+    [["identity"], { photo: src(other, { documentId: "doc-x", takenOn: "2026-01-01" }) }],
+    [["allergies"], { allergies: src(other, { status: "unknown" }) }],
+    [["resuscitation"], { resuscitation: src(other, [advance()]) }],
     [
-      "eating_and_drinking",
+      ["iddsi_food", "iddsi_drink"],
       { eatingAndDrinking: src(other, { foodLevel: "4", drinkLevel: "2", notes: null }) },
     ],
-    ["communication", { communication: src(other, { status: "not_recorded" }) }],
-    ["evacuation", { evacuation: src(other, { status: "held_elsewhere", where: "x" }) }],
-    ["medicines_due", { medicinesDue: src(other, { status: "none_due" }) }],
-    ["care_plan", { carePlan: src(other, { publishedVersion: 1, sections: [] }) }],
-    ["risks", { risks: src(other, []) }],
-  ])("withholds %s", (key, overrides) => {
+    [["communication"], { communication: src(other, { status: "not_recorded" }) }],
+    [["evacuation"], { evacuation: src(other, { status: "held_elsewhere", where: "x" }) }],
+    [["medicines_due"], { medicinesDue: src(other, { status: "held_elsewhere", where: "x" }) }],
+    [["care_plan"], { carePlan: src(other, { publishedVersion: 1, sections: [] }) }],
+    [["risks"], { risks: src(other, []) }],
+  ])("withholds %s", (keys, overrides) => {
     const page = onlyPage(person("p-1", overrides));
-    const section = page.sections.find((s) => s.key === key);
-    expect(section?.status).toBe("withheld");
-    expect(section?.note).toMatch(/did not match the person/);
-    expect(page.warnings).toContainEqual(
-      expect.objectContaining({ kind: "section_withheld", section: key }),
-    );
+    for (const key of keys) {
+      expect(section(page, key)?.status).toBe("withheld");
+      expect(section(page, key)?.note).toMatch(/did not match the person/);
+      expect(page.warnings).toContainEqual(
+        expect.objectContaining({ kind: "section_withheld", section: key }),
+      );
+    }
   });
 
   it("drops another person's contact but keeps the person's own", () => {
@@ -507,15 +631,17 @@ describe("hazard HZ-001 information from another person's record is withheld, ne
     );
   });
 
-  it("keeps a withheld photo and allergies off the page", () => {
+  it("keeps a withheld photo, allergies and resuscitation decisions off the page", () => {
     const page = onlyPage(
       person("p-1", {
         photo: src(other, { documentId: "doc-x", takenOn: "2026-01-01" }),
         allergies: src(other, { status: "no_known_allergies", recordedBy: "n", recordedAt: AS_AT }),
+        resuscitation: src(other, [advance()]),
       }),
     );
     expect(page.content.photo).toBeNull();
     expect(page.content.allergies).toEqual({ status: "unknown" });
+    expect(page.content.resuscitation).toEqual([]);
   });
 });
 
@@ -539,11 +665,15 @@ describe("hazard HZ-021 every page says when its information is from and whether
   const result = pack([person("p-1")]);
 
   it("states the information's time and when to stop using it while in date", () => {
-    const freshness = downtimePackFreshness(result, new Date(AS_AT.getTime() + 5 * HOUR));
+    const freshness = downtimePackFreshness(
+      result,
+      new Date(AS_AT.getTime() + 5 * HOUR),
+      NO_OUTAGE,
+    );
     expect(freshness.state).toBe("current");
     expect(freshness.hoursOld).toBe(5);
     expect(freshness.notice).toContain("Information as at 11/10/2026 01:00");
-    expect(freshness.notice).toContain("Use until 12/10/2026 01:00");
+    expect(freshness.notice).toContain("Use until 12/10/2026 13:00");
   });
 
   it.each([
@@ -552,31 +682,57 @@ describe("hazard HZ-021 every page says when its information is from and whether
     ["two days later", 48],
   ])("says out of date in words %s", (_label, hoursAfter) => {
     const at = new Date(result.validUntil.getTime() + hoursAfter * HOUR);
-    const freshness = downtimePackFreshness(result, at);
+    const freshness = downtimePackFreshness(result, at, NO_OUTAGE);
     expect(freshness.state).toBe("out_of_date");
     expect(freshness.notice).toMatch(/^Out of date: this information is from 11\/10\/2026 01:00/);
     expect(freshness.notice).toContain("check allergies, resuscitation status and diet");
   });
 
+  it("during a declared outage says it is the latest available and that anything since is on paper", () => {
+    const during: DowntimeFreshnessContext = {
+      outage: { startedAt: new Date(AS_AT.getTime() + 30 * HOUR) },
+      clockDriftMinutes: rates.clockDriftMinutes,
+    };
+    for (const hoursAfter of [31, rates.downtimePackValidHours + 5]) {
+      const freshness = downtimePackFreshness(
+        result,
+        new Date(AS_AT.getTime() + hoursAfter * HOUR),
+        during,
+      );
+      expect(freshness.state).toBe("outage");
+      expect(freshness.notice).toBe(
+        "Latest available pack: information as at 11/10/2026 01:00. Anything recorded since 11/10/2026 01:00 is on paper or not shown here: check the downtime forms and ask the nurse in charge about changes.",
+      );
+    }
+  });
+
+  it("flags a device clock behind the pack instead of calling it current", () => {
+    const behind = new Date(AS_AT.getTime() - (rates.clockDriftMinutes + 1) * 60_000);
+    const freshness = downtimePackFreshness(result, behind, NO_OUTAGE);
+    expect(freshness.state).toBe("clock_behind");
+    expect(freshness.hoursOld).toBe(0);
+    expect(freshness.notice).toMatch(/^Check this device's clock/);
+    const slightlyBehind = new Date(AS_AT.getTime() - (rates.clockDriftMinutes - 1) * 60_000);
+    expect(downtimePackFreshness(result, slightlyBehind, NO_OUTAGE).state).toBe("current");
+  });
+
   it("puts the freshness words, the back-entry instruction and the print time on every page", () => {
     const printed = new Date(result.validUntil.getTime() + 2 * HOUR);
-    const header = downtimePageHeader(result, printed);
-    expect(header.outOfDate).toBe(true);
+    const header = downtimePageHeader(result, printed, NO_OUTAGE);
+    expect(header.state).toBe("out_of_date");
     expect(header.lines[0]).toBe("Downtime pack for Harbour House");
     expect(header.lines[1]).toMatch(/^Out of date/);
-    expect(header.lines[2]).toBe("Made 11/10/2026 01:05. Printed or shown 12/10/2026 03:00.");
+    expect(header.lines[2]).toBe("Made 11/10/2026 01:05. Printed or shown 12/10/2026 15:00.");
     expect(header.lines[3]).toBe(DOWNTIME_BACK_ENTRY_INSTRUCTION);
-    expect(downtimePageHeader(result, GENERATED).outOfDate).toBe(false);
+    expect(downtimePageHeader(result, GENERATED, NO_OUTAGE).state).toBe("current");
   });
 
   it("marks a pack built on a kiosk from an old sync as out of date from the start", () => {
     const staleSync = new Date(GENERATED.getTime() - (rates.downtimePackValidHours + 6) * HOUR);
     const kiosk = pack([person("p-1")], { asAt: staleSync });
-    expect(downtimePackFreshness(kiosk, GENERATED).state).toBe("out_of_date");
-    expect(downtimePackFreshness(kiosk, GENERATED).hoursOld).toBe(rates.downtimePackValidHours + 6);
-  });
-
-  it("never reports a negative age when the viewing device's clock is behind", () => {
-    expect(downtimePackFreshness(result, new Date(AS_AT.getTime() - HOUR)).hoursOld).toBe(0);
+    expect(downtimePackFreshness(kiosk, GENERATED, NO_OUTAGE).state).toBe("out_of_date");
+    expect(downtimePackFreshness(kiosk, GENERATED, NO_OUTAGE).hoursOld).toBe(
+      rates.downtimePackValidHours + 6,
+    );
   });
 });
