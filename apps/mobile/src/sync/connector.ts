@@ -2,9 +2,11 @@
  * PowerSync backend connector for the Harbour API.
  *
  * - fetchCredentials: exchanges the Better Auth session for a short-lived PowerSync token
- *   (`POST /v1/sync/token`). A 401 or 403 means the session expired or was revoked elsewhere; the
+ *   (`POST /v1/sync/token`). A 401 means the session expired or was revoked elsewhere; a 403 means
+ *   so only with a session problem code or when `GET /v1/me` agrees (`session-signals.ts`). The
  *   connector reports it and the vault decides (HZ-006, `held-work.ts`): wipe when nothing is
- *   waiting to upload, otherwise keep the encrypted entries for their owner to sign in and send.
+ *   waiting to upload, otherwise hold the unsent entries for their owner. Any other 403 (an edge
+ *   block, an HTML page, an unknown code) only backs off and tries again.
  * - uploadData: sends the next local transaction. Care entries (notes, chart observations,
  *   body-map marks, activities and visits) go one by one to the API's own endpoints for them
  *   (`care-upload.ts`) with the device's UUIDv7, the device id, the tenant and the time the device
@@ -32,6 +34,12 @@ import {
   UPLOAD_BACKOFF,
 } from "./backoff";
 import { isCareEntryTable, toCareUpload } from "./care-upload";
+import {
+  checkSession,
+  isSessionProblem,
+  readProblemBody,
+  type SessionCheck,
+} from "./session-signals";
 
 export type UploadOp = "PUT" | "PATCH" | "DELETE";
 
@@ -82,24 +90,6 @@ export class UploadRejectedError extends Error {
     this.code = code;
     this.reason = reason;
   }
-}
-
-/**
- * 403 problem codes that refuse the entry itself (`apps/api/src/http/problem.ts`): the entry moves
- * to "needs attention" with its content. Every other 403, the session-level codes
- * (`not_a_member` when the account is removed or disabled, `mfa_enrolment_required`,
- * `step_up_required`, a revoked session) and any code this build does not know, ends the session
- * through the held-work rules, so a problem with the session never parks the whole queue as
- * refused (security review S6).
- */
-export const ENTRY_REFUSAL_CODES: ReadonlySet<string> = new Set([
-  "missing_permission",
-  "feature_disabled",
-]);
-
-/** True when a 403 with this problem code is about the session rather than the entry. */
-export function forbiddenEndsSession(code: string): boolean {
-  return !ENTRY_REFUSAL_CODES.has(code);
 }
 
 const OPS = new Set<UploadOp>(["PUT", "PATCH", "DELETE"]);
@@ -243,6 +233,34 @@ export class HarbourConnector implements PowerSyncBackendConnector {
     return { Accept: "application/json", Authorization: `Bearer ${token}` };
   }
 
+  /** Asks `GET /v1/me` whether the session stands, after a 403 that did not say (H1). */
+  private async sessionState(): Promise<SessionCheck> {
+    return checkSession({
+      apiUrl: this.options.apiUrl,
+      fetch: this.options.fetch,
+      token: await this.options.getToken(),
+    });
+  }
+
+  /**
+   * A 403: the session has ended only when the API says so in a problem body, or `GET /v1/me`
+   * says so; a block at the edge, an empty or HTML body, or an unknown code never ends it (H1).
+   * Returns the problem when the session stands, so the caller can refuse the entry or retry.
+   */
+  private async forbidden(response: Response): Promise<{
+    readonly session: "ok" | "unknown";
+    readonly code: string | null;
+    readonly reason: string | null;
+  }> {
+    const problem = await readProblemBody(response);
+    const session = isSessionProblem(problem.code) ? "ended" : await this.sessionState();
+    if (session === "ended") {
+      this.options.onSessionRevoked();
+      throw new SessionRevokedError();
+    }
+    return { session, code: problem.code, reason: problem.reason };
+  }
+
   private retryOptions() {
     return {
       policy: this.options.backoff ?? UPLOAD_BACKOFF,
@@ -261,9 +279,19 @@ export class HarbourConnector implements PowerSyncBackendConnector {
       headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
       credentials: "omit",
     });
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401) {
       this.options.onSessionRevoked();
       return null;
+    }
+    if (response.status === 403) {
+      try {
+        await this.forbidden(response);
+      } catch (error) {
+        if (error instanceof SessionRevokedError) return null;
+        throw error;
+      }
+      // The session stands (or cannot be checked): back off and let PowerSync try again.
+      throw new HttpError(403, "Sync credentials refused; the session still stands");
     }
     if (!response.ok) {
       // PowerSync retries the connection itself; the banner shows the failure meanwhile.
@@ -345,13 +373,17 @@ export class HarbourConnector implements PowerSyncBackendConnector {
             parseRetryAfter(response.headers.get("retry-after")),
           );
         }
-        const problem = await readProblem(response);
-        // A 403 about the session, not this entry, ends the session through the held-work rules
-        // rather than parking every queued entry as refused (security review S6).
-        if (response.status === 403 && forbiddenEndsSession(problem.code)) {
-          this.options.onSessionRevoked();
-          throw new SessionRevokedError();
+        if (response.status === 403) {
+          // Only a session code or `GET /v1/me` ends the session (H1). With the session standing
+          // the entry itself was refused and moves to "needs attention"; when the session cannot
+          // be checked the entry stays queued and is tried again later.
+          const refusal = await this.forbidden(response);
+          if (refusal.session === "unknown") {
+            throw new HttpError(403, "Upload refused; the session could not be checked");
+          }
+          throw new UploadRejectedError(403, refusal.code ?? "http_403", refusal.reason);
         }
+        const problem = await readProblem(response);
         throw new UploadRejectedError(response.status, problem.code, problem.reason);
       }, this.retryOptions());
     } catch (error) {
@@ -416,9 +448,14 @@ export class HarbourConnector implements PowerSyncBackendConnector {
           rejected = await readRejected(response);
           return;
         }
-        if (response.status === 401 || response.status === 403) {
+        if (response.status === 401) {
           this.options.onSessionRevoked();
           throw new SessionRevokedError();
+        }
+        if (response.status === 403) {
+          // A batch is never parked on an unexplained 403: back off and try again (H1).
+          await this.forbidden(response);
+          throw new HttpError(403, "Upload refused; the session still stands");
         }
         if (isRetryableStatus(response.status)) {
           throw new HttpError(

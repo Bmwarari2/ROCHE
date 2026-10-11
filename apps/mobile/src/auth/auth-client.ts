@@ -7,6 +7,7 @@
  * `Authorization: Bearer <token>`. For accounts with TOTP, sign-in answers `twoFactorRedirect`
  * and sets a short-lived two-factor cookie that must accompany the verify call.
  */
+import { isSessionProblem, readProblemBody } from "../sync/session-signals";
 import { cookiePairsFromSetCookie, type FetchLike, HttpError } from "./http";
 
 export type AuthErrorKind =
@@ -209,6 +210,12 @@ export function createAuthClient(options: AuthClientOptions): AuthClient {
         headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
         credentials: "omit",
       });
+      // A 403 ends the session only with a session problem code; an edge block or an unknown
+      // code is not evidence that it has ended (security review round 3, H1).
+      if (response.status === 403) {
+        const problem = await readProblemBody(response);
+        throw new AuthError(isSessionProblem(problem.code) ? "session_expired" : "server");
+      }
       if (!response.ok) throw errorForStatus(response.status, "session_expired");
       return parseMe(await readJson(response));
     },

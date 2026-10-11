@@ -158,6 +158,24 @@ describe("getMe and signOut", () => {
     await expect(client(fetch).getMe("tok")).rejects.toMatchObject({ kind: "session_expired" });
   });
 
+  it("hazard HZ-006 treats a 403 as an ended session only with a session problem code (H1)", async () => {
+    const session = fakeFetch([
+      json({ code: "mfa_enrolment_required", title: "Set up MFA" }, { status: 403 }),
+    ]);
+    await expect(client(session.fetch).getMe("tok")).rejects.toMatchObject({
+      kind: "session_expired",
+    });
+    const edge = fakeFetch([
+      new Response("<html>Request blocked</html>", {
+        status: 403,
+        headers: { "content-type": "text/html" },
+      }),
+    ]);
+    await expect(client(edge.fetch).getMe("tok")).rejects.toMatchObject({ kind: "server" });
+    const unknown = fakeFetch([json({ code: "edge_blocked" }, { status: 403 })]);
+    await expect(client(unknown.fetch).getMe("tok")).rejects.toMatchObject({ kind: "server" });
+  });
+
   it("never throws from signOut, even offline", async () => {
     const { fetch } = fakeFetch([new TypeError("offline")]);
     await expect(client(fetch).signOut("tok")).resolves.toBeUndefined();
