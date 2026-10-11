@@ -1,0 +1,74 @@
+# PowerSync sync streams (edition 3): what each device may hold offline (master prompt 5.3, 17.2).
+#
+# Logical replication bypasses Postgres row-level security, so these queries ARE the access control
+# for offline data. Every stream is pinned to the tenant in the signed token, and
+# packages/sync/test/streams.test.ts proves no cross-tenant or out-of-scope row reaches a device.
+#
+# Token claims (minted by the API at POST /v1/sync/token, 15-minute expiry):
+#   sub                   tenant_user id (auth.user_id())
+#   tenant_id             the active tenant
+#   location_ids          locations the user works at (location switcher)
+#   people_location_ids   locations whose people sync in full: managers and nurses only; empty for
+#                         care workers, who receive assigned people only
+#
+# Assignments end by soft delete (deleted_at) when valid_to passes or when revoked, because sync
+# streams cannot read the clock; the short token expiry bounds how long a device keeps syncing.
+
+config:
+  edition: 3
+
+streams:
+  my_locations:
+    auto_subscribe: true
+    query: >-
+      SELECT id, tenant_id, name, regulator_location_id AS cqc_location_id, nation
+      FROM location
+      WHERE tenant_id = auth.parameter('tenant_id')
+        AND id IN auth.parameter('location_ids')
+
+  assigned_people:
+    auto_subscribe: true
+    query: >-
+      SELECT person.id, person.tenant_id, person.location_id, person.status, person.given_name,
+             person.family_name, person.preferred_name, person.date_of_birth, person.nhs_number,
+             person.room_label, person.photo_document_id, person.communication_needs,
+             person.allergy_status, person.updated_at, person.version
+      FROM person, person_assignment
+      WHERE person.id = person_assignment.person_id
+        AND person.tenant_id = auth.parameter('tenant_id')
+        AND person_assignment.tenant_id = auth.parameter('tenant_id')
+        AND person_assignment.tenant_user_id = auth.user_id()
+        AND person_assignment.deleted_at IS NULL
+
+  assigned_allergies:
+    auto_subscribe: true
+    query: >-
+      SELECT allergy.id, allergy.tenant_id, allergy.person_id, allergy.substance, allergy.reaction,
+             allergy.severity, allergy.status, allergy.recorded_at
+      FROM allergy, person_assignment
+      WHERE allergy.person_id = person_assignment.person_id
+        AND allergy.tenant_id = auth.parameter('tenant_id')
+        AND person_assignment.tenant_id = auth.parameter('tenant_id')
+        AND person_assignment.tenant_user_id = auth.user_id()
+        AND person_assignment.deleted_at IS NULL
+
+  location_people:
+    auto_subscribe: true
+    query: >-
+      SELECT id, tenant_id, location_id, status, given_name, family_name, preferred_name,
+             date_of_birth, nhs_number, room_label, photo_document_id, communication_needs,
+             allergy_status, updated_at, version
+      FROM person
+      WHERE tenant_id = auth.parameter('tenant_id')
+        AND location_id IN auth.parameter('people_location_ids')
+
+  location_allergies:
+    auto_subscribe: true
+    query: >-
+      SELECT allergy.id, allergy.tenant_id, allergy.person_id, allergy.substance, allergy.reaction,
+             allergy.severity, allergy.status, allergy.recorded_at
+      FROM allergy, person
+      WHERE allergy.person_id = person.id
+        AND allergy.tenant_id = auth.parameter('tenant_id')
+        AND person.tenant_id = auth.parameter('tenant_id')
+        AND person.location_id IN auth.parameter('people_location_ids')
