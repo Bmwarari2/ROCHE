@@ -1,10 +1,14 @@
+import type { PcspDomain } from "../care/care-plan";
 import type { CapacityAssessmentView } from "../care/mca/capacity";
 import { capacityFinding } from "../care/mca/capacity";
 import { type ConsentRecordView, consentStatus } from "../care/mca/consent";
-import type { PersonStatus } from "../people/lifecycle";
+import { LIVE_PERSON_STATUSES, type PersonStatus } from "../people/lifecycle";
 import {
+  type CapacityForSharing,
   checkSectionVisibility,
+  decisionInForceAt,
   type HiddenReason,
+  type SectionVisibility,
   type SharingDecision,
   type SharingSection,
 } from "../people/sharing";
@@ -12,7 +16,7 @@ import { formatUkDateTime } from "../shared/time";
 import { ukIsoDate } from "../shared/working-days";
 
 /**
- * Family feed visibility (COMMS-001; comms.md section 4 rules 1 to 6 and 12; master prompt 15.1
+ * Family feed visibility (COMMS-001; comms.md section 4 rules 1 to 7 and 12; master prompt 15.1
  * "sections stay closed until that record exists"; hazard HZ-022).
  *
  * The feed adds nothing to the sharing rules: each item belongs to one section of the person's
@@ -197,6 +201,44 @@ export function feedPhotoBasis(input: FeedPhotoBasisInput): FeedPhotoBasis {
 }
 
 // ------------------------------------------------------------------------------------------------
+// Care plan sections that may be announced in the feed (CSO to confirm, H-110)
+// ------------------------------------------------------------------------------------------------
+
+/**
+ * Whether an update to each care plan section may be announced in the feed. The section itself is
+ * still shown to whoever a decision allows; only the announcement is held back for sections whose
+ * name alone says something sensitive (end of life, medicines, continence, mood and the like).
+ * Typed over every domain, so a new domain cannot appear without a decision here.
+ */
+export const FEED_CARE_PLAN_DOMAINS: Readonly<Record<PcspDomain, "may_appear" | "never_in_feed">> =
+  {
+    mobility: "may_appear",
+    skin: "never_in_feed",
+    nutrition_and_hydration: "may_appear",
+    continence: "never_in_feed",
+    communication: "may_appear",
+    cognition: "never_in_feed",
+    mood: "never_in_feed",
+    behaviour: "never_in_feed",
+    sleep: "may_appear",
+    pain: "never_in_feed",
+    breathing: "never_in_feed",
+    medicines: "never_in_feed",
+    personal_care: "may_appear",
+    social_and_spiritual: "may_appear",
+    sexuality_and_relationships: "never_in_feed",
+    end_of_life: "never_in_feed",
+  };
+
+export function carePlanDomainMayAppear(domain: string | null): boolean {
+  return (
+    domain !== null &&
+    Object.hasOwn(FEED_CARE_PLAN_DOMAINS, domain) &&
+    FEED_CARE_PLAN_DOMAINS[domain as PcspDomain] === "may_appear"
+  );
+}
+
+// ------------------------------------------------------------------------------------------------
 // Visibility of one item
 // ------------------------------------------------------------------------------------------------
 
@@ -204,8 +246,12 @@ export type FeedHiddenReason =
   | HiddenReason
   | "wrong_person"
   | "before_decision_start"
+  | "suspended_when_it_happened"
   | "item_withdrawn"
-  | "photo_basis_missing";
+  | "photo_basis_missing"
+  | "photo_not_shared"
+  | "care_plan_domain_missing"
+  | "care_plan_domain_not_for_feed";
 
 export type FeedItemVisibility =
   | {
@@ -223,15 +269,52 @@ export interface FeedViewerContext {
   /** The family member or representative, as the contact the decisions name. */
   readonly contactId: string;
   readonly decisions: readonly SharingDecision[];
+  /**
+   * The person's capacity for the sharing decision now, from the latest assessment: a decision
+   * resting on a welfare attorney, a deputy, a representative's consent or a best-interests
+   * decision applies only while it is `assessed_lacks_capacity`.
+   */
+  readonly capacityForSharingNow: CapacityForSharing;
   /** Needed for photos; see `feedPhotoBasis`. */
   readonly photoBasis: FeedPhotoBasis | null;
   readonly now: Date;
 }
 
+/** The section as it stood when the thing happened, judged now (HZ-022). */
+function sectionAt(
+  context: FeedViewerContext,
+  section: SharingSection,
+  carePlanDomain: string | null,
+  occurredAt: Date,
+): SectionVisibility | { readonly visible: false; readonly reason: FeedHiddenReason } {
+  const request = {
+    personId: context.person.id,
+    personStatus: context.person.status,
+    recipient: { kind: "family", contactId: context.contactId } as const,
+    section,
+    carePlanDomain,
+    capacityNow: context.capacityForSharingNow,
+    now: context.now,
+  };
+  // Only decisions in force, and not suspended, when the thing happened can share it.
+  const covering = context.decisions.filter((d) => decisionInForceAt(d, occurredAt) === "in_force");
+  const result = checkSectionVisibility(covering, request);
+  if (result.visible) return result;
+  // Report why it is closed now; if it is open now, say why it was not open back then.
+  const now = checkSectionVisibility(context.decisions, request);
+  if (!now.visible) return now;
+  const suspended = context.decisions.some((d) => decisionInForceAt(d, occurredAt) === "suspended");
+  return {
+    visible: false,
+    reason: suspended ? "suspended_when_it_happened" : "before_decision_start",
+  };
+}
+
 /**
  * Whether one feed item may be shown to one family member now (HZ-022). Closed by default: with no
  * decision, or none in force for the item's section, it is hidden. `seenBefore` says whether this
- * viewer saw the item before it was withdrawn (from the view log).
+ * viewer saw the item before it was withdrawn (from the view log). Data the schema should never
+ * hold (a care plan update with no section, a photo on another kind of update) is hidden too.
  */
 export function checkFeedItemVisibility(
   item: FeedItem,
@@ -239,37 +322,28 @@ export function checkFeedItemVisibility(
   seenBefore = false,
 ): FeedItemVisibility {
   if (item.personId !== context.person.id) return { visible: false, reason: "wrong_person" };
-  const section = FEED_ITEM_SECTIONS[item.kind];
-  const request = {
-    personId: context.person.id,
-    personStatus: context.person.status,
-    recipient: { kind: "family", contactId: context.contactId } as const,
-    section,
-    carePlanDomain: item.carePlanDomain,
-    now: context.now,
-  };
-  // Only decisions that had started by the time the thing happened can share it.
-  const covering = context.decisions.filter(
-    (d) => d.validFrom.getTime() <= item.occurredAt.getTime(),
-  );
-  const result = checkSectionVisibility(covering, request);
-  if (!result.visible) {
-    if (
-      covering.length < context.decisions.length &&
-      checkSectionVisibility(context.decisions, request).visible
-    ) {
-      return { visible: false, reason: "before_decision_start" };
+  if (item.kind === "care_plan_update") {
+    if (item.carePlanDomain === null) return { visible: false, reason: "care_plan_domain_missing" };
+    if (!carePlanDomainMayAppear(item.carePlanDomain)) {
+      return { visible: false, reason: "care_plan_domain_not_for_feed" };
     }
-    return { visible: false, reason: result.reason };
   }
+  const section = FEED_ITEM_SECTIONS[item.kind];
+  const result = sectionAt(context, section, item.carePlanDomain, item.occurredAt);
+  if (!result.visible) return { visible: false, reason: result.reason };
   const shown = { section, decisionId: result.decisionId, expiresAt: result.expiresAt };
   if (item.withdrawnAt !== null && item.withdrawnAt.getTime() <= context.now.getTime()) {
     return seenBefore
       ? { visible: true, display: "withdrawn_notice", ...shown }
       : { visible: false, reason: "item_withdrawn" };
   }
-  if (item.kind === "photo" && !context.photoBasis?.ok) {
-    return { visible: false, reason: "photo_basis_missing" };
+  if (item.kind === "photo" || item.photoDocumentId !== null) {
+    if (item.kind !== "photo") {
+      // A photo attached to another kind of update needs the photos section as well.
+      const photos = sectionAt(context, "photos", null, item.occurredAt);
+      if (!photos.visible) return { visible: false, reason: "photo_not_shared" };
+    }
+    if (!context.photoBasis?.ok) return { visible: false, reason: "photo_basis_missing" };
   }
   return { visible: true, display: "item", ...shown };
 }
@@ -284,6 +358,13 @@ export const FEED_NOT_FULL_RECORD_STATEMENT =
 
 /** Shown in place of an update this viewer saw before it was withdrawn (HZ-061). */
 export const FEED_WITHDRAWN_NOTICE = "This update was taken down because it was not right.";
+
+/**
+ * Shown instead of the feed when it closes because the person has left the service or died, to a
+ * family member who had a sharing decision: never a feed that is suddenly empty (CSO to confirm
+ * the wording, H-110).
+ */
+export const FEED_PAUSED_STATEMENT = "Updates are paused. The home will be in touch.";
 
 export interface FeedEntry {
   readonly itemId: string;
@@ -302,6 +383,8 @@ export interface FeedEntry {
 }
 
 export interface FamilyFeed {
+  /** `paused` when the person has left or died and this viewer had a decision (rule 3). */
+  readonly state: "showing" | "paused";
   readonly statement: string;
   /** When the newest update shown happened, or null when there is none. */
   readonly lastUpdateAt: Date | null;
@@ -310,13 +393,25 @@ export interface FamilyFeed {
 
 /**
  * The family feed, newest first. Hidden items are left out without trace; each entry names the
- * decision that allowed it so the API can audit the view.
+ * decision that allowed it so the API can audit the view. When the record has closed (discharge,
+ * death, archive) a viewer who had a decision sees the paused statement and no entries.
  */
 export function buildFamilyFeed(
   items: readonly FeedItem[],
   context: FeedViewerContext,
   seenItemIds: ReadonlySet<string> = new Set(),
 ): FamilyFeed {
+  if (!LIVE_PERSON_STATUSES.includes(context.person.status)) {
+    const hadDecision = context.decisions.some(
+      (d) =>
+        d.personId === context.person.id &&
+        d.recipient.kind === "family" &&
+        d.recipient.contactId === context.contactId,
+    );
+    if (hadDecision) {
+      return { state: "paused", statement: FEED_PAUSED_STATEMENT, lastUpdateAt: null, entries: [] };
+    }
+  }
   const entries: { entry: FeedEntry; item: FeedItem }[] = [];
   for (const item of items) {
     const visibility = checkFeedItemVisibility(item, context, seenItemIds.has(item.id));
@@ -348,6 +443,7 @@ export function buildFamilyFeed(
   );
   const newest = entries.find((e) => e.entry.display === "item");
   return {
+    state: "showing",
     statement: FEED_NOT_FULL_RECORD_STATEMENT,
     lastUpdateAt: newest ? newest.item.occurredAt : null,
     entries: entries.map((e) => e.entry),
@@ -368,6 +464,8 @@ export interface FeedViewRecord {
   readonly carePlanDomain: string | null;
   /** The person's status when the view happened. */
   readonly personStatus: PersonStatus;
+  /** The person's capacity for the sharing decision when the view happened. */
+  readonly capacityForSharing: CapacityForSharing;
   readonly viewedAt: Date;
 }
 
@@ -400,6 +498,7 @@ export function feedExposure(
     const inForce = checkSectionVisibility([decision], {
       personId: view.personId,
       personStatus: view.personStatus,
+      capacityNow: view.capacityForSharing,
       recipient: { kind: "family", contactId: view.contactId },
       section: view.section,
       carePlanDomain: view.carePlanDomain,

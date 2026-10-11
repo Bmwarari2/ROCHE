@@ -2,13 +2,20 @@ import { describe, expect, it } from "vitest";
 import type { CapacityAssessmentView } from "../care/mca/capacity";
 import type { ConsentRecordView } from "../care/mca/consent";
 import type { PersonStatus } from "../people/lifecycle";
-import type { SharingAuthority, SharingDecision } from "../people/sharing";
+import type {
+  CapacityForSharing,
+  SharingAuthority,
+  SharingDecision,
+  SharingSection,
+} from "../people/sharing";
 import {
   buildFamilyFeed,
   checkFeedItemVisibility,
+  FEED_CARE_PLAN_DOMAINS,
   FEED_ITEM_KINDS,
   FEED_ITEM_SECTIONS,
   FEED_NOT_FULL_RECORD_STATEMENT,
+  FEED_PAUSED_STATEMENT,
   FEED_WITHDRAWN_NOTICE,
   type FeedItem,
   type FeedItemKind,
@@ -72,6 +79,7 @@ function viewer(overrides: Partial<FeedViewerContext> = {}): FeedViewerContext {
     person: { id: ADA, status: "active" },
     contactId: BEN,
     decisions: [decision()],
+    capacityForSharingNow: "presumed",
     photoBasis: PHOTO_OK,
     now: NOW,
     ...overrides,
@@ -280,23 +288,25 @@ describe("hazard HZ-022 attorneys and deputies see what their authority covers",
   const authority = (
     role: SharingAuthority["role"],
     validUntil: string | null = null,
+    orderSections: readonly SharingSection[] | null = null,
   ): SharingAuthority => ({
     role,
     contactId: BEN,
     reference: "OPG-EXAMPLE-1",
     evidenceDocumentId: "doc-authority",
     validUntil,
+    orderSections,
   });
   const byAuthority = (
     role: SharingAuthority["role"],
-    sections: string[],
+    sections: SharingSection[],
     overrides: Partial<SharingDecision> = {},
   ) =>
     decision({
       basis: "legal_authority",
       consentGivenBy: null,
       capacity: "assessed_lacks_capacity",
-      authority: authority(role),
+      authority: authority(role, null, role.startsWith("deputy_") ? sections : null),
       sections,
       ...overrides,
     });
@@ -306,64 +316,111 @@ describe("hazard HZ-022 attorneys and deputies see what their authority covers",
     "care_plan_update",
     "finance_statement",
   ];
-  const visibleKinds = (decisions: SharingDecision[]) =>
+  const visibleKinds = (
+    decisions: SharingDecision[],
+    capacityForSharingNow: CapacityForSharing = "assessed_lacks_capacity",
+  ) =>
     kinds.filter(
       (kind) =>
         checkFeedItemVisibility(
           item({ kind, carePlanDomain: kind === "care_plan_update" ? "mobility" : null }),
-          viewer({ decisions }),
+          viewer({ decisions, capacityForSharingNow }),
         ).visible,
     );
+  const care: SharingSection[] = ["daily_updates", "activities_and_visits", "care_plan"];
 
-  it.each<[string, SharingDecision[], readonly FeedItemKind[]]>([
+  it.each<[string, SharingDecision[], CapacityForSharing, readonly FeedItemKind[]]>([
     [
       "a health and welfare attorney sees care sections, not finance",
-      [byAuthority("lpa_health_welfare", ["daily_updates", "activities_and_visits", "care_plan"])],
+      [byAuthority("lpa_health_welfare", care)],
+      "assessed_lacks_capacity",
       ["shared_note", "activity", "care_plan_update"],
     ],
     [
       "a property and financial affairs attorney sees finance only",
       [byAuthority("lpa_property_finance", ["finance"], { capacity: "presumed" })],
+      "presumed",
       ["finance_statement"],
     ],
     [
-      "a personal welfare deputy sees care sections",
-      [
-        byAuthority("deputy_personal_welfare", [
-          "daily_updates",
-          "activities_and_visits",
-          "care_plan",
-        ]),
-      ],
+      "a personal welfare deputy sees the care sections the order covers",
+      [byAuthority("deputy_personal_welfare", care)],
+      "assessed_lacks_capacity",
       ["shared_note", "activity", "care_plan_update"],
+    ],
+    [
+      "a personal welfare deputy whose order leaves out the care plan",
+      [
+        byAuthority("deputy_personal_welfare", ["daily_updates", "activities_and_visits"], {
+          authority: authority("deputy_personal_welfare", null, [
+            "daily_updates",
+            "activities_and_visits",
+          ]),
+        }),
+      ],
+      "assessed_lacks_capacity",
+      ["shared_note", "activity"],
+    ],
+    [
+      "a deputy's decision naming a section outside the order is never honoured",
+      [
+        byAuthority("deputy_personal_welfare", care, {
+          authority: authority("deputy_personal_welfare", null, ["daily_updates"]),
+        }),
+      ],
+      "assessed_lacks_capacity",
+      [],
     ],
     [
       "a property and affairs deputy sees finance only",
       [byAuthority("deputy_property_affairs", ["finance"])],
+      "assessed_lacks_capacity",
       ["finance_statement"],
+    ],
+    [
+      "an appointee never sees a finance statement",
+      [byAuthority("appointee", ["finance"], { capacity: "presumed" })],
+      "presumed",
+      [],
     ],
     [
       "a finance attorney's decision that names updates is never honoured",
       [byAuthority("lpa_property_finance", ["finance", "daily_updates"], { capacity: "presumed" })],
+      "presumed",
       [],
     ],
     [
       "a welfare attorney's decision that names finance is never honoured",
       [byAuthority("lpa_health_welfare", ["daily_updates", "finance"])],
+      "assessed_lacks_capacity",
       [],
     ],
     [
-      "a welfare attorney while the person has capacity sees nothing",
+      "a welfare attorney recorded while the person had capacity sees nothing",
       [byAuthority("lpa_health_welfare", ["daily_updates"], { capacity: "presumed" })],
+      "assessed_lacks_capacity",
+      [],
+    ],
+    [
+      "a welfare attorney once the person has regained capacity sees nothing",
+      [byAuthority("lpa_health_welfare", care)],
+      "assessed_has_capacity",
+      [],
+    ],
+    [
+      "a welfare deputy when no current finding is given sees nothing (capacity presumed)",
+      [byAuthority("deputy_personal_welfare", care)],
+      "presumed",
       [],
     ],
     [
       "a deputy whose order has ended sees nothing",
       [
         byAuthority("deputy_personal_welfare", ["daily_updates"], {
-          authority: authority("deputy_personal_welfare", "2026-10-01"),
+          authority: authority("deputy_personal_welfare", "2026-10-01", ["daily_updates"]),
         }),
       ],
+      "assessed_lacks_capacity",
       [],
     ],
     [
@@ -372,22 +429,93 @@ describe("hazard HZ-022 attorneys and deputies see what their authority covers",
         byAuthority("lpa_property_finance", ["finance"], { id: "finance", capacity: "presumed" }),
         decision({ id: "consent", sections: ["daily_updates"] }),
       ],
+      "presumed",
       ["shared_note", "finance_statement"],
     ],
-  ])("%s", (_label, decisions, expected) => {
-    expect(visibleKinds(decisions)).toEqual(expected);
+  ])("%s", (_label, decisions, capacity, expected) => {
+    expect(visibleKinds(decisions, capacity)).toEqual(expected);
   });
 
-  it("reports why a lapsed authority closes the feed", () => {
+  it("reports why a lapsed authority, or regained capacity, closes the feed", () => {
     const lapsed = byAuthority("lpa_health_welfare", ["daily_updates"], {
       authority: authority("lpa_health_welfare", "2026-10-01"),
     });
     expect(
-      checkFeedItemVisibility(item({ kind: "shared_note" }), viewer({ decisions: [lapsed] })),
-    ).toEqual({
+      checkFeedItemVisibility(
+        item({ kind: "shared_note" }),
+        viewer({ decisions: [lapsed], capacityForSharingNow: "assessed_lacks_capacity" }),
+      ),
+    ).toEqual({ visible: false, reason: "authority_lapsed" });
+    const welfare = byAuthority("lpa_health_welfare", ["daily_updates"]);
+    expect(
+      checkFeedItemVisibility(
+        item({ kind: "shared_note" }),
+        viewer({ decisions: [welfare], capacityForSharingNow: "assessed_has_capacity" }),
+      ),
+    ).toEqual({ visible: false, reason: "capacity_regained" });
+  });
+});
+
+describe("hazard HZ-022 suspensions and data that should never exist stay closed", () => {
+  const enquiry = { from: new Date("2026-10-05T00:00:00Z"), to: new Date("2026-10-08T00:00:00Z") };
+
+  it("hides an update from a safeguarding suspension even after the suspension is lifted", () => {
+    const d = decision({ suspensions: [enquiry] });
+    const during = item({ occurredAt: new Date("2026-10-06T12:00:00Z") });
+    const after = item({ id: "after", occurredAt: new Date("2026-10-09T12:00:00Z") });
+    expect(checkFeedItemVisibility(during, viewer({ decisions: [d] }))).toEqual({
       visible: false,
-      reason: "authority_lapsed",
+      reason: "suspended_when_it_happened",
     });
+    expect(checkFeedItemVisibility(after, viewer({ decisions: [d] })).visible).toBe(true);
+  });
+
+  it("hides everything while a suspension is open", () => {
+    const d = decision({ suspensions: [{ from: enquiry.from, to: null }] });
+    expect(checkFeedItemVisibility(item(), viewer({ decisions: [d] }))).toEqual({
+      visible: false,
+      reason: "suspended",
+    });
+  });
+
+  it.each<[string, Partial<FeedItem>, Partial<FeedViewerContext>, string]>([
+    [
+      "a care plan update with no section, under a domain-limited decision",
+      { kind: "care_plan_update", carePlanDomain: null },
+      { decisions: [decision({ sections: ["care_plan"], carePlanDomains: ["mobility"] })] },
+      "care_plan_domain_missing",
+    ],
+    [
+      "a care plan update for a section never announced in the feed",
+      { kind: "care_plan_update", carePlanDomain: "end_of_life" },
+      { decisions: [decision({ sections: ["care_plan"] })] },
+      "care_plan_domain_not_for_feed",
+    ],
+    [
+      "a photo attached to an activity without a photos decision",
+      { photoDocumentId: "doc-photo" },
+      { decisions: [decision({ sections: ["activities_and_visits"] })] },
+      "photo_not_shared",
+    ],
+    [
+      "a photo attached to an activity without a photo basis",
+      { photoDocumentId: "doc-photo" },
+      {
+        photoBasis: { ok: false, problem: "consent_refused", message: "Refused." },
+      },
+      "photo_basis_missing",
+    ],
+  ])("hides %s", (_label, itemOverrides, context, reason) => {
+    expect(checkFeedItemVisibility(item(itemOverrides), viewer(context))).toEqual({
+      visible: false,
+      reason,
+    });
+  });
+
+  it("shows a photo attached to an activity when photos are shared and the basis holds", () => {
+    expect(checkFeedItemVisibility(item({ photoDocumentId: "doc-photo" }), viewer()).visible).toBe(
+      true,
+    );
   });
 });
 
@@ -663,6 +791,7 @@ describe("the feed a family member sees (HZ-022, HZ-061)", () => {
 
   it("hazard HZ-061 lists open items newest first with when they happened and when they were added", () => {
     const feed = buildFamilyFeed(items, viewer(), new Set(["taken-down"]));
+    expect(feed.state).toBe("showing");
     expect(feed.statement).toBe(FEED_NOT_FULL_RECORD_STATEMENT);
     expect(feed.entries.map((e) => e.itemId)).toEqual([
       "late-night",
@@ -685,6 +814,37 @@ describe("the feed a family member sees (HZ-022, HZ-061)", () => {
     });
   });
 
+  it.each<PersonStatus>(["deceased", "discharged", "archived"])(
+    "hazard HZ-061 pauses the feed with a neutral statement when the person is %s, never an empty feed",
+    (status) => {
+      const feed = buildFamilyFeed(items, viewer({ person: { id: ADA, status } }), new Set());
+      expect(feed).toEqual({
+        state: "paused",
+        statement: FEED_PAUSED_STATEMENT,
+        lastUpdateAt: null,
+        entries: [],
+      });
+    },
+  );
+
+  it("hazard HZ-022 does not pause the feed for someone who never had a decision", () => {
+    const feed = buildFamilyFeed(
+      items,
+      viewer({ person: { id: ADA, status: "deceased" }, decisions: [] }),
+    );
+    expect(feed).toMatchObject({ state: "showing", entries: [] });
+  });
+
+  it("keeps the paused statement plain and free of clinical words", () => {
+    expect(FEED_PAUSED_STATEMENT).toBe("Updates are paused. The home will be in touch.");
+  });
+
+  it("decides for every care plan section whether its updates may be announced", () => {
+    expect(FEED_CARE_PLAN_DOMAINS.end_of_life).toBe("never_in_feed");
+    expect(FEED_CARE_PLAN_DOMAINS.medicines).toBe("never_in_feed");
+    expect(FEED_CARE_PLAN_DOMAINS.mobility).toBe("may_appear");
+  });
+
   it("leaves out a withdrawn update the viewer never saw", () => {
     const feed = buildFamilyFeed(items, viewer());
     expect(feed.entries.map((e) => e.itemId)).not.toContain("taken-down");
@@ -693,6 +853,7 @@ describe("the feed a family member sees (HZ-022, HZ-061)", () => {
   it("hazard HZ-022 is empty with no decision, and says there is no update yet", () => {
     const feed = buildFamilyFeed(items, viewer({ decisions: [] }));
     expect(feed).toEqual({
+      state: "showing",
       statement: FEED_NOT_FULL_RECORD_STATEMENT,
       lastUpdateAt: null,
       entries: [],
@@ -742,6 +903,7 @@ describe("what was seen cannot be unseen (exposure history)", () => {
     section: "activities_and_visits",
     carePlanDomain: null,
     personStatus: "active",
+    capacityForSharing: "presumed",
     viewedAt: new Date("2026-10-09T09:00:00Z"),
     ...overrides,
   });

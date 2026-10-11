@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PCSP_DOMAINS } from "../care/care-plan";
+import { PCSP_DOMAIN_LABELS, PCSP_DOMAINS } from "../care/care-plan";
 import type { PersonStatus } from "../people/lifecycle";
 import {
   checkFeedText,
@@ -14,8 +14,8 @@ import {
   photoItemsToWithdraw,
   stripStaffSurnames,
 } from "./feed-compose";
-import { feedReadabilityLint, findClinicalTerms } from "./feed-text";
-import type { FeedPhotoBasis } from "./feed-visibility";
+import { feedReadabilityLint, findClinicalTerms, findConfirmationTerms } from "./feed-text";
+import { FEED_CARE_PLAN_DOMAINS, type FeedPhotoBasis } from "./feed-visibility";
 
 /**
  * Family feed composition (comms.md section 4 rules 4 and 6 to 12). Invented people: Ada Example
@@ -39,6 +39,9 @@ function context(overrides: Partial<FeedComposeContext> = {}): FeedComposeContex
     ],
     staffNames: "first_name_only",
     photoBasis: { ok: true, basis: "consent", consentRecordId: "consent-1" },
+    openIncidents: [],
+    candourStates: [],
+    confirmation: null,
     now: NOW,
     ...overrides,
   };
@@ -169,13 +172,15 @@ describe("approved phrasing turns records into updates", () => {
         personId: ADA,
         occurredAt: AT,
         visitKind,
+        endedAt: AT,
+        accompanimentPurpose: visitKind === "accompaniment" ? "planned_appointment" : null,
         restrictionsApplied: true,
       });
       expect(item).toMatchObject({ kind, section, text, phraseKey: expect.any(String) });
     },
   );
 
-  it("writes a care plan update with the section's name", () => {
+  it("writes a care plan update with the section's name (an announced section)", () => {
     const { item } = composed({
       kind: "care_plan_update",
       id: "section-1",
@@ -230,17 +235,26 @@ describe("approved phrasing turns records into updates", () => {
 });
 
 describe("hazard HZ-061 approved phrases say what happened, never how the person is", () => {
-  const sample = { name: "Ada", activity: "the quiz", domain: "nutrition and hydration" };
-  const filled = Object.entries(FEED_PHRASES).map(([key, phrase]) => {
-    let text: string = phrase;
-    for (const [placeholder, value] of Object.entries(sample))
-      text = text.split(`{${placeholder}}`).join(value);
-    return [key, phrase, text] as const;
-  });
+  const announced = PCSP_DOMAINS.filter((d) => FEED_CARE_PLAN_DOMAINS[d] === "may_appear");
+  const filled = Object.entries(FEED_PHRASES).flatMap(([key, phrase]) =>
+    (phrase.includes("{domain}") ? announced : ["nutrition_and_hydration" as const]).map((d) => {
+      const sample = {
+        name: "Ada",
+        activity: "the quiz",
+        domain: PCSP_DOMAIN_LABELS[d].toLowerCase(),
+      };
+      let text: string = phrase;
+      for (const [placeholder, value] of Object.entries(sample))
+        text = text.split(`{${placeholder}}`).join(value);
+      // Section names are fixed labels: the reading-age lint runs on one sample section only.
+      return [`${key} (${d})`, phrase, text, d === "nutrition_and_hydration"] as const;
+    }),
+  );
 
-  it.each(filled)("%s is plain, short and free of clinical words", (_key, phrase, text) => {
-    expect(feedReadabilityLint(text)).toEqual([]);
+  it.each(filled)("%s is plain, short and free of clinical words", (_key, phrase, text, lint) => {
+    if (lint) expect(feedReadabilityLint(text)).toEqual([]);
     expect(findClinicalTerms(text)).toEqual([]);
+    expect(findConfirmationTerms(text)).toEqual([]);
     expect(text).not.toMatch(/[{}]/);
     expect(phrase.charAt(0)).toMatch(/[A-Z{]/);
     expect(phrase.endsWith(".")).toBe(true);
@@ -484,13 +498,15 @@ describe("hazard HZ-022 nothing is composed for the wrong person or a closed rec
     expect(problems(activity(), ctx)).toEqual(["person_record_closed"]);
   });
 
-  it.each<PersonStatus>(["active", "on_leave", "in_hospital"])(
-    "composes for a person who is %s",
-    (status) => {
-      const ctx = context({ person: { ...context().person, status } });
-      expect(composeFeedItem(activity(), ctx).ok).toBe(true);
-    },
-  );
+  it("hazard HZ-061 holds every update while the person is in hospital", () => {
+    const ctx = context({ person: { ...context().person, status: "in_hospital" } });
+    expect(problems(activity(), ctx)).toEqual(["publishing_held"]);
+  });
+
+  it.each<PersonStatus>(["active", "on_leave"])("composes for a person who is %s", (status) => {
+    const ctx = context({ person: { ...context().person, status } });
+    expect(composeFeedItem(activity(), ctx).ok).toBe(true);
+  });
 
   it("refuses a record dated in the future", () => {
     expect(problems(activity({ occurredAt: new Date("2026-10-11T11:00:00Z") }))).toEqual([
@@ -511,7 +527,12 @@ describe("staff surnames and text checks on their own", () => {
 
   it("returns the checked text with problems and lint together", () => {
     const check = checkFeedText("Sam Tester read the paper with Ada.", context());
-    expect(check).toEqual({ text: "Sam read the paper with Ada.", problems: [], lint: [] });
+    expect(check).toEqual({
+      text: "Sam read the paper with Ada.",
+      problems: [],
+      lint: [],
+      confirmed: false,
+    });
   });
 });
 
@@ -576,12 +597,25 @@ describe("taking an update down", () => {
   });
 });
 
-describe("care plan domains", () => {
-  it.each(PCSP_DOMAINS)("writes an update for the %s section", (domain) => {
+describe("hazard HZ-061 care plan sections announced in the feed", () => {
+  it.each(PCSP_DOMAINS)("announces the %s section only if the allow-list says so", (domain) => {
     const result = composeFeedItem(
       { kind: "care_plan_update", id: "s", personId: ADA, occurredAt: AT, domain },
       context(),
     );
-    expect(result.ok).toBe(true);
+    if (FEED_CARE_PLAN_DOMAINS[domain] === "may_appear") expect(result.ok).toBe(true);
+    else
+      expect(result).toMatchObject({
+        ok: false,
+        problems: [{ problem: "care_plan_domain_not_for_feed" }],
+      });
+  });
+
+  it("never announces end of life or medicines", () => {
+    for (const domain of ["end_of_life", "medicines"]) {
+      expect(
+        problems({ kind: "care_plan_update", id: "s", personId: ADA, occurredAt: AT, domain }),
+      ).toEqual(["care_plan_domain_not_for_feed"]);
+    }
   });
 });
