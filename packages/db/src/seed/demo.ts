@@ -222,13 +222,31 @@ export async function seedReferenceData(
   }
 }
 
+/**
+ * Feature flags switched on for the demo tenant only. Waterlow and Braden stay off by default for
+ * real tenants until their licence terms are confirmed (human action H-25, care.md section 10).
+ */
+export const DEMO_FLAGS_ON = ["care.tool.waterlow", "care.tool.braden"] as const;
+
+async function seedDemoFlags(client: pg.PoolClient): Promise<void> {
+  for (const flagKey of DEMO_FLAGS_ON) {
+    await client.query(
+      "INSERT INTO feature_flag (flag_key, enabled) VALUES ($1, true) ON CONFLICT DO NOTHING",
+      [flagKey],
+    );
+  }
+}
+
 /** Creates the demo tenant if it does not exist. Safe to run repeatedly. */
 export async function seedDemoTenant(ownerPool: pg.Pool): Promise<{ created: boolean }> {
   const client = await ownerPool.connect();
   try {
     return await inTenant(client, DEMO.tenantId, async () => {
       const existing = await client.query("SELECT 1 FROM tenant WHERE id = $1", [DEMO.tenantId]);
-      if ((existing.rowCount ?? 0) > 0) return { created: false };
+      if ((existing.rowCount ?? 0) > 0) {
+        await seedDemoFlags(client);
+        return { created: false };
+      }
 
       await client.query(
         `INSERT INTO tenant (id, name, legal_name, legal_form, status, nation, terminology, brand_name)
@@ -246,6 +264,7 @@ export async function seedDemoTenant(ownerPool: pg.Pool): Promise<{ created: boo
            ($2, $3, 'Harbour House residential', 'residential')`,
         [DEMO.nursingServiceId, DEMO.residentialServiceId, DEMO.locationId],
       );
+      await seedDemoFlags(client);
       for (let room = 1; room <= 60; room++) {
         await client.query(
           `INSERT INTO room (id, location_id, label, unit_name, floor, ensuite)
