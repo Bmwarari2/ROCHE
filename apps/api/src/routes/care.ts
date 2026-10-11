@@ -52,13 +52,14 @@ import {
   raiseCareTriggers,
 } from "../services/care";
 import { latestMustBand } from "../services/care-planning";
+import { loadPerson, type PersonRecord, requireWrite } from "../services/people";
 import {
   entryOut,
+  eventKind,
   PersonParam,
   permissionsOf,
   range,
   requireCorrection,
-  requireOpenRecord,
   SENT_AT_HEADER,
   supersededIds,
   window,
@@ -109,16 +110,24 @@ async function checkMarkIncident(
   }
 }
 
-async function writeContext(
-  c: Context<AppEnv>,
-  personId: string,
-  tx: Transaction,
-  chartsOnly: boolean,
-) {
+async function writeContext(c: Context<AppEnv>, personId: string, tx: Transaction) {
   const person = await personContext(tx, personId);
-  if (chartsOnly) requireOpenRecord(person);
+  const record = await loadPerson(tx, personId);
   const rates = await careRates(tx, c.get("access").tenantId, person.nation);
-  return { person, rates };
+  return { person, record, rates };
+}
+
+/**
+ * people.md rule 3 (HZ-006): what the person's status allows for an event at this time. An entry
+ * about an event at or before a discharge, death or move to hospital is accepted and flagged as
+ * recorded after it; anything later is refused, except post-event notes.
+ */
+function allowedAt(
+  record: PersonRecord,
+  kind: "care_note" | "observation" | "body_map_mark",
+  occurredAt: Date,
+): boolean {
+  return requireWrite(record, eventKind(record, kind, occurredAt), occurredAt).recordedAfterExit;
 }
 
 export const careRouter = createRouter()
@@ -146,8 +155,9 @@ export const careRouter = createRouter()
       requireCorrection(body);
       const now = new Date();
       const item = await withTenant(c, async (tx) => {
-        const { person, rates } = await writeContext(c, personId, tx, false);
+        const { person, record, rates } = await writeContext(c, personId, tx);
         const times = entryTimes(body, c.req.header(SENT_AT_HEADER), now, rates);
+        const recordedAfterExit = allowedAt(record, "care_note", times.occurredAt);
         await checkSuperseded(tx, careNote, body.supersedesId, personId);
         const [inserted] = await tx
           .insert(careNote)
@@ -164,6 +174,7 @@ export const careRouter = createRouter()
             deviceId: access.deviceId,
             lateEntry: times.lateEntry,
             clockDrift: times.clockDrift,
+            recordedAfterExit,
             supersedesId: body.supersedesId ?? null,
             correctionReason: body.correctionReason ?? null,
           })
@@ -295,8 +306,9 @@ export const careRouter = createRouter()
       requireCorrection(body);
       const now = new Date();
       const item = await withTenant(c, async (tx) => {
-        const { person, rates } = await writeContext(c, personId, tx, true);
+        const { person, record, rates } = await writeContext(c, personId, tx);
         const times = entryTimes(body, c.req.header(SENT_AT_HEADER), now, rates);
+        const recordedAfterExit = allowedAt(record, "observation", times.occurredAt);
         await checkSuperseded(tx, observation, body.supersedesId, personId);
         const profile = await careProfile(tx, personId);
         const { flags, triggers } = chartRules(body.values, profile, times.occurredAt);
@@ -314,6 +326,7 @@ export const careRouter = createRouter()
             deviceId: access.deviceId,
             lateEntry: times.lateEntry,
             clockDrift: times.clockDrift,
+            recordedAfterExit,
             supersedesId: body.supersedesId ?? null,
             correctionReason: body.correctionReason ?? null,
           })
@@ -329,6 +342,8 @@ export const careRouter = createRouter()
           )[0];
         if (!row || row.personId !== personId) throw problems.invalid("That id is already used.");
         if (inserted) {
+          // A result recorded after the person left, died or went to hospital raises no alerts
+          // or follow-ups: they are no longer here to respond to (people.md rule 3).
           await raiseCareTriggers(
             tx,
             {
@@ -337,7 +352,7 @@ export const careRouter = createRouter()
               sourceType: "observation",
               sourceId: row.id,
             },
-            triggers,
+            recordedAfterExit ? [] : triggers,
             now,
           );
           if (body.taskId) {
@@ -351,7 +366,7 @@ export const careRouter = createRouter()
               now,
             });
           }
-          if (body.values.chart === "weight" && !body.supersedesId) {
+          if (body.values.chart === "weight" && !body.supersedesId && !recordedAfterExit) {
             // The weight answers the scheduled check and sets the next one: weekly while the
             // latest MUST result is medium or high, otherwise monthly (care.md rule 6).
             await completeOpenTasks(tx, {
@@ -567,8 +582,9 @@ export const careRouter = createRouter()
       if (!check.ok) throw problems.invalid(check.issues.map((i) => i.message).join(" "));
       const now = new Date();
       const item = await withTenant(c, async (tx) => {
-        const { person, rates } = await writeContext(c, personId, tx, true);
+        const { person, record, rates } = await writeContext(c, personId, tx);
         const times = entryTimes(body, c.req.header(SENT_AT_HEADER), now, rates);
+        const recordedAfterExit = allowedAt(record, "body_map_mark", times.occurredAt);
         await checkSuperseded(tx, bodyMapMark, body.supersedesId, personId);
         await checkMarkIncident(tx, body.incidentId, personId);
         const [inserted] = await tx
@@ -596,6 +612,7 @@ export const careRouter = createRouter()
             deviceId: access.deviceId,
             lateEntry: times.lateEntry,
             clockDrift: times.clockDrift,
+            recordedAfterExit,
             supersedesId: body.supersedesId ?? null,
             correctionReason: body.correctionReason ?? null,
           })
@@ -617,7 +634,7 @@ export const careRouter = createRouter()
               .where(eq(bodyMapMark.id, body.id ?? ""))
           )[0];
         if (!row || row.personId !== personId) throw problems.invalid("That id is already used.");
-        if (inserted && body.status === "present") {
+        if (inserted && body.status === "present" && !recordedAfterExit) {
           await raiseCareTriggers(
             tx,
             {

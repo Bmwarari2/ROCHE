@@ -806,10 +806,12 @@ describe("hazard HZ-015 advance care records and the resuscitation status", () =
 
 describe("rule 12: closed records are read-only", () => {
   it("refuses new care planning records for a discharged person but still shows them", async () => {
+    // Discharged an hour ago: the activity and visit below happened after it (care.md rule 3).
     await asDemoTenant((c) =>
-      c.query("UPDATE person SET status = 'discharged', discharged_at = now() WHERE id = $1", [
-        resident(6),
-      ]),
+      c.query(
+        "UPDATE person SET status = 'discharged', discharged_at = now() - interval '1 hour' WHERE id = $1",
+        [resident(6)],
+      ),
     );
     const writes = [
       as("manager", plansPath(6), { method: "POST", body: {} }),

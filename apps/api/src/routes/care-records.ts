@@ -66,6 +66,7 @@ import {
   REVIEW_TASKS,
   toRecordState,
 } from "../services/care-planning";
+import { loadPerson, requireWrite } from "../services/people";
 import {
   entryOut,
   iso,
@@ -268,7 +269,7 @@ export const careRecordsRouter = createRouter()
       const now = new Date();
       const item = await withTenant(c, async (tx) => {
         const person = await personContext(tx, personId);
-        requireOpenRecord(person);
+        const record = await loadPerson(tx, personId);
         if (!toolAvailable(body.toolKey, await flagsAt(tx, person.locationId))) {
           throw problems.featureDisabled(
             `${TOOL_NAMES[body.toolKey]} is switched off until its licence is confirmed (${toolFlag(body.toolKey)}).`,
@@ -276,6 +277,9 @@ export const careRecordsRouter = createRouter()
         }
         const rates = await careRates(tx, access.tenantId, person.nation);
         const times = entryTimes(body, c.req.header(SENT_AT_HEADER), now, rates);
+        // people.md rule 3 (HZ-006): an assessment made before the person left, died or went to
+        // hospital is accepted afterwards and flagged; one made later is refused.
+        const { recordedAfterExit } = requireWrite(record, "assessment", times.occurredAt);
         let original: AssessmentRow | null = null;
         if (body.supersedesId) {
           const [found] = await tx
@@ -325,6 +329,7 @@ export const careRecordsRouter = createRouter()
             deviceId: access.deviceId,
             lateEntry: times.lateEntry,
             clockDrift: times.clockDrift,
+            recordedAfterExit,
             supersedesId: body.supersedesId ?? null,
             correctionReason: body.correctionReason ?? null,
           })
@@ -366,10 +371,11 @@ export const careRecordsRouter = createRouter()
               sourceId: row.id,
               occurredOn: assessedOn,
             },
-            newFollowUps(result.triggers, original),
+            recordedAfterExit ? [] : newFollowUps(result.triggers, original),
             now,
           );
           if (
+            !recordedAfterExit &&
             needsPlanReview(
               previous ? { toolKey: result.toolKey, band: previous.band } : null,
               result,
@@ -492,9 +498,15 @@ export const careRecordsRouter = createRouter()
       const now = new Date();
       const item = await withTenant(c, async (tx) => {
         const person = await personContext(tx, personId);
-        requireOpenRecord(person);
         const rates = await careRates(tx, access.tenantId, person.nation);
         const times = entryTimes(body, c.req.header(SENT_AT_HEADER), now, rates);
+        // An activity is a care event (people.md rule 3): accepted after an exit only for a time
+        // at or before it, flagged as recorded after it.
+        const { recordedAfterExit } = requireWrite(
+          await loadPerson(tx, personId),
+          "care_note",
+          times.occurredAt,
+        );
         if (body.supersedesId) {
           const [original] = await tx
             .select({ personId: activityRecord.personId })
@@ -522,6 +534,7 @@ export const careRecordsRouter = createRouter()
             deviceId: access.deviceId,
             lateEntry: times.lateEntry,
             clockDrift: times.clockDrift,
+            recordedAfterExit,
             supersedesId: body.supersedesId ?? null,
             correctionReason: body.correctionReason ?? null,
           })
@@ -641,7 +654,12 @@ export const careRecordsRouter = createRouter()
       if (!check.ok) throw problems.invalid(check.message);
       const item = await withTenant(c, async (tx) => {
         const person = await personContext(tx, personId);
-        requireOpenRecord(person);
+        // A visit is a care event (people.md rule 3), placed in time by when it began.
+        const { recordedAfterExit } = requireWrite(
+          await loadPerson(tx, personId),
+          "care_note",
+          new Date(body.occurredAt),
+        );
         const rates = await careRates(tx, access.tenantId, person.nation);
         // Late means recorded long after the visit ended (or started, while it goes on).
         const times = entryTimes(
@@ -685,6 +703,7 @@ export const careRecordsRouter = createRouter()
             deviceId: access.deviceId,
             lateEntry: times.lateEntry,
             clockDrift: times.clockDrift,
+            recordedAfterExit,
             supersedesId: body.supersedesId ?? null,
             correctionReason: body.correctionReason ?? null,
           })

@@ -1,3 +1,4 @@
+import type { PersonRecordKind } from "@harbour/domain";
 import { z } from "@hono/zod-openapi";
 import type { TenantAccess } from "../http/context";
 import { problems } from "../http/problem";
@@ -37,6 +38,7 @@ export function entryOut(
     deviceTime: Date | null;
     lateEntry: boolean;
     clockDrift: boolean;
+    recordedAfterExit: boolean;
     supersedesId: string | null;
     correctionReason: string | null;
     createdBy: string | null;
@@ -52,6 +54,7 @@ export function entryOut(
     deviceTime: iso(row.deviceTime),
     lateEntry: row.lateEntry,
     clockDrift: row.clockDrift,
+    recordedAfterExit: row.recordedAfterExit,
     supersedesId: row.supersedesId,
     correctionReason: row.correctionReason,
     superseded: superseded.has(row.id),
@@ -72,6 +75,31 @@ export function requireCorrection(body: { supersedesId?: string; correctionReaso
 
 export function permissionsOf(access: TenantAccess): ReadonlySet<string> {
   return new Set(access.effective.permissions);
+}
+
+/**
+ * The kind of a care event for people.md rule 3: once a person has left or died, an entry about an
+ * event at or before then is a care event (accepted and flagged as recorded after the exit), and
+ * a note about anything later is a post-event note.
+ */
+export function eventKind(
+  person: {
+    status: string;
+    statusChangedAt: Date;
+    dischargedAt: Date | null;
+    deceasedAt: Date | null;
+  },
+  kind: "care_note" | "observation" | "body_map_mark" | "assessment",
+  occurredAt: Date,
+): PersonRecordKind {
+  if (kind !== "care_note" || (person.status !== "discharged" && person.status !== "deceased")) {
+    return kind;
+  }
+  const exit =
+    person.status === "deceased"
+      ? (person.deceasedAt ?? person.statusChangedAt)
+      : (person.dischargedAt ?? person.statusChangedAt);
+  return occurredAt.getTime() > exit.getTime() ? "post_event_note" : "care_note";
 }
 
 /** Rule 12: a closed record takes post-event records only. */

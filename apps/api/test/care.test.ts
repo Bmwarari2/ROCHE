@@ -336,18 +336,38 @@ describe("rounds and closed records", () => {
     });
   });
 
-  it("keeps a discharged person's charts closed but allows post-event notes", async () => {
+  it("hazard HZ-006 accepts entries from before a discharge, flagged, and refuses later ones except post-event notes", async () => {
+    // Discharged an hour ago (people.md rule 3): the trigger keeps status_changed_at in step.
     await asDemoTenant((c) =>
-      c.query("UPDATE person SET status = 'discharged', discharged_at = now() WHERE id = $1", [
-        resident(6),
-      ]),
+      c.query(
+        `UPDATE person SET status = 'discharged', discharged_at = now() - interval '1 hour'
+         WHERE id = $1`,
+        [resident(6)],
+      ),
     );
+    const before = await observe(
+      6,
+      { chart: "weight", kg: 60, method: "chair" },
+      { occurredAt: ago(120) },
+      "manager",
+    );
+    expect(before.status).toBe(201);
+    expect((await json<ObservationItem>(before)).recordedAfterExit).toBe(true);
     expect(
       (await observe(6, { chart: "weight", kg: 60, method: "chair" }, {}, "manager")).status,
     ).toBe(422);
-    expect(
-      (await note(6, { category: "other", body: "Property returned to family." }, "manager"))
-        .status,
-    ).toBe(201);
+    const postEvent = await note(
+      6,
+      { category: "other", body: "Property returned to family." },
+      "manager",
+    );
+    expect(postEvent.status).toBe(201);
+    expect((await json<CareNoteItem>(postEvent)).recordedAfterExit).toBe(false);
+    const late = await note(
+      6,
+      { category: "night", body: "Settled well overnight.", occurredAt: ago(180) },
+      "manager",
+    );
+    expect((await json<CareNoteItem>(late)).recordedAfterExit).toBe(true);
   });
 });
