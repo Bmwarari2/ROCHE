@@ -96,6 +96,11 @@ export const taskSeries = pgTable(
     active: boolean("active").notNull().default(true),
     /** Why the series is inactive when the people lifecycle stopped it (`TASK_STOP_CODES`). */
     inactiveCode: text("inactive_code"),
+    /**
+     * The exit record whose discharge or death stopped the series (`ended_at_exit`), so correcting
+     * that exit restarts exactly what it stopped. An opaque reference: no foreign key across modules.
+     */
+    stoppedByExitId: uuid("stopped_by_exit_id"),
     /** Tasks exist up to this instant; the worker extends it. */
     materialisedUntil: timestamp("materialised_until", { withTimezone: true }),
     ...mutableColumns(),
@@ -137,6 +142,8 @@ export const task = pgTable(
     statusReason: text("status_reason"),
     /** Why the people lifecycle cancelled the task (`TASK_STOP_CODES`), to reopen it exactly. */
     cancelCode: text("cancel_code"),
+    /** The exit record that ended the task (`ended_at_exit`); see `task_series.stopped_by_exit_id`. */
+    stoppedByExitId: uuid("stopped_by_exit_id"),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     completedBy: uuid("completed_by"),
     evidenceType: text("evidence_type"),
@@ -147,6 +154,12 @@ export const task = pgTable(
      * cancelled (HZ-006).
      */
     evidenceAfterClose: boolean("evidence_after_close").notNull().default(false),
+    /**
+     * What a review task is about, as opaque references only (never clinical text): the entries,
+     * devices and users of a late entry, or the rounds missed before a return (`TaskDetails` in
+     * packages/contracts).
+     */
+    details: jsonb("details"),
     /** 0 none, 1 escalated to the nurse in charge, 2 further up the location's chain. */
     escalationLevel: integer("escalation_level").notNull().default(0),
     escalatedAt: timestamp("escalated_at", { withTimezone: true }),

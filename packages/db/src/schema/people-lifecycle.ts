@@ -708,6 +708,13 @@ export const exitRecord = pgTable(
     workflowInstanceId: uuid("workflow_instance_id"),
     /** When the person left or died; null while a discharge is only planned. */
     leftAt: timestamp("left_at", { withTimezone: true }),
+    /**
+     * The person's status when the exit was recorded (`active`, `on_leave` or `in_hospital`) and
+     * since when, so a correction returns them to it (people.md rule 2). Null while planned and for
+     * exits recorded before it was kept.
+     */
+    statusBefore: text("status_before"),
+    statusBeforeSince: timestamp("status_before_since", { withTimezone: true }),
     regulator: text("regulator").notNull(),
     localAuthorityFunded: boolean("local_authority_funded").notNull().default(false),
     nhsFunded: boolean("nhs_funded").notNull().default(false),
@@ -756,6 +763,10 @@ export const exitRecord = pgTable(
       foreignColumns: [workflowInstance.tenantId, workflowInstance.id],
     }),
     check("exit_record_kind", sql`kind IN ('discharge', 'transfer', 'death')`),
+    check(
+      "exit_record_status_before",
+      sql`status_before IS NULL OR status_before IN ('active', 'on_leave', 'in_hospital')`,
+    ),
     check(
       "exit_record_state",
       sql`state IN (${EXIT_STATE_SQL}) AND CASE WHEN kind = 'death'

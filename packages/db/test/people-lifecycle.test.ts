@@ -646,6 +646,25 @@ describe("existing tenants' role copies gain the new permissions (migration 0022
     }
   });
 
+  it("keeps a copy whose permissions an administrator had already granted out of 0022's change", async () => {
+    await asOwner((c) =>
+      c.query(
+        `INSERT INTO role (key, name, scope_kind, permissions, is_builtin)
+         VALUES ('care_coordinator', 'Care coordinator', 'location', '{people.person.read}', true)`,
+      ),
+    );
+    // An earlier migration (no user) touched the copy, then an administrator granted both.
+    await asOwner((c) =>
+      c.query("UPDATE role SET name = 'Care coordinator' WHERE key = 'care_coordinator'"),
+    );
+    await inContext(db.pool("harbour_owner"), ctx(TENANT_A, a.manager, "tenant"), (c) =>
+      c.query(
+        `UPDATE role SET permissions = permissions || '{people.movement.record,safety.incident.read}'
+         WHERE key = 'care_coordinator'`,
+      ),
+    );
+  });
+
   it("adds them once, as a new version of each copy, and leaves custom roles alone", async () => {
     await asOwner(async (c) => {
       await c.query(
@@ -691,6 +710,21 @@ describe("existing tenants' role copies gain the new permissions (migration 0022
     expect(await roleRows()).toEqual(after);
   });
 
+  it("lists in 0024 exactly what 0022 adds for each role key", () => {
+    const audit = readFileSync(
+      fileURLToPath(new URL("../drizzle/0024_builtin_role_permissions_audit.sql", import.meta.url)),
+      "utf8",
+    );
+    const pairs = (text: string) =>
+      text
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => /^\('[a-z_]+', ARRAY\[/.test(l))
+        .map((l) => l.replace(/\),?$/, ""))
+        .sort();
+    expect(pairs(audit)).toEqual(pairs(migration));
+  });
+
   it("audits each copy migration 0022 changed once, as the system, in the tenant's chain (0024)", async () => {
     const audit = readFileSync(
       fileURLToPath(new URL("../drizzle/0024_builtin_role_permissions_audit.sql", import.meta.url)),
@@ -730,6 +764,9 @@ describe("existing tenants' role copies gain the new permissions (migration 0022
       "safety.incident.read",
     ]);
     expect(first.map((e) => e.key)).not.toContain("night_nurse");
+    // 0022 did not change the coordinator: the administrator's grants are not credited to it.
+    expect(first.map((e) => e.key)).not.toContain("care_coordinator");
+    expect(first.find((e) => e.key === "care_worker")?.added).toEqual(["safety.incident.read"]);
     await runAudit();
     expect(await events()).toEqual(first);
     const broken = await asOwner((c) =>
@@ -749,7 +786,7 @@ describe("existing tenants' role copies gain the new permissions (migration 0022
 });
 
 describe("slice 8 review fixes (migration 0023)", () => {
-  it("keeps About Me, the pre-admission assessment and property out of device replication", async () => {
+  it("hazard HZ-011 keeps About Me, the pre-admission assessment and property out of device replication", async () => {
     const { rows: published } = await db
       .pool("harbour_owner")
       .query<{ table: string }>(
@@ -790,7 +827,50 @@ describe("slice 8 review fixes (migration 0023)", () => {
     expect(after).toBe(a.manager);
   });
 
-  it("codes the tasks the lifecycle cancels, and only cancelled tasks carry a code", async () => {
+  it("hazard HZ-007 never takes the allergy confirmer from the writer", async () => {
+    const confirmer = async () =>
+      asOwner(async (c) => {
+        const { rows: found } = await c.query<{ by: string | null; at: Date | null }>(
+          `SELECT allergy_status_confirmed_by AS by, allergy_status_confirmed_at AS at
+           FROM person WHERE id = $1`,
+          [a.personBen],
+        );
+        return found[0];
+      });
+    // A status written with someone else named as the confirmer records the writer.
+    await asManager((c) =>
+      c.query(
+        `UPDATE person SET allergy_status = 'has_allergies', allergy_status_confirmed_by = $2,
+           allergy_status_confirmed_at = '2020-01-01T00:00:00Z' WHERE id = $1`,
+        [a.personBen, a.carer],
+      ),
+    );
+    const set = await confirmer();
+    expect(set?.by).toBe(a.manager);
+    expect(set?.at?.getFullYear()).toBeGreaterThan(2020);
+    // Changing only who confirmed it rewrites it to the writer, never to the name given.
+    await inContext(app(), north, (c) =>
+      c.query("UPDATE person SET allergy_status_confirmed_by = $2 WHERE id = $1", [
+        a.personBen,
+        a.carer,
+      ]),
+    );
+    expect((await confirmer())?.by).toBe(a.northManager);
+    await inContext(app(), north, (c) =>
+      c.query(
+        "UPDATE person SET allergy_status_confirmed_at = now() - interval '9 days' WHERE id = $1",
+        [a.personBen],
+      ),
+    );
+    expect((await confirmer())?.by).toBe(a.northManager);
+    // Back to unknown clears both.
+    await asManager((c) =>
+      c.query("UPDATE person SET allergy_status = 'unknown' WHERE id = $1", [a.personBen]),
+    );
+    expect(await confirmer()).toEqual({ by: null, at: null });
+  });
+
+  it("hazard HZ-003 codes the tasks the lifecycle cancels, and only cancelled tasks carry a code", async () => {
     await expect(
       asManager((c) =>
         c.query(
@@ -809,5 +889,135 @@ describe("slice 8 review fixes (migration 0023)", () => {
         ),
       ),
     ).rejects.toThrow(/task_cancel_code/);
+  });
+
+  it("hazard HZ-003 codes only what a lifecycle event stopped, with the exit that stopped it (backfill)", async () => {
+    const sql = readFileSync(
+      fileURLToPath(new URL("../drizzle/0023_people_lifecycle_review.sql", import.meta.url)),
+      "utf8",
+    );
+    const backfill = sql.slice(sql.indexOf("-- backfill: begin"), sql.indexOf("-- backfill: end"));
+    const runBackfill = async () => {
+      const client = await db.pool("harbour_owner").connect();
+      try {
+        await client.query("BEGIN");
+        for (const statement of backfill.split("--> statement-breakpoint")) {
+          if (statement.replace(/--.*$/gm, "").trim()) await client.query(statement);
+        }
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+    };
+    // Rows as the slice 8 API wrote them before 0023: reason text, no code.
+    const made = await asOwner(async (c) => {
+      // Cara's exit record (seeded); the event names it.
+      const exit = await c.query<{ id: string }>(
+        "SELECT id FROM exit_record WHERE person_id = $1 LIMIT 1",
+        [a.personCara],
+      );
+      const exitId = exit.rows[0]?.id ?? "";
+      const series = async (title: string) =>
+        (
+          await c.query<{ id: string }>(
+            `INSERT INTO task_series (person_id, location_id, kind, title, required_permission,
+               recurrence, starts_on)
+             VALUES ($1, $2, 'care.reposition', $3, 'care.note.write',
+               '{"freq":"daily","times":["10:00"]}', '2026-09-01') RETURNING id`,
+            [a.personCara, a.locationSouth, title],
+          )
+        ).rows[0]?.id ?? "";
+      const lifecycleSeries = await series("Reposition");
+      const userSeries = await series("Fluid round");
+      const task = async (seriesId: string) =>
+        (
+          await c.query<{ id: string }>(
+            `INSERT INTO task (series_id, person_id, location_id, kind, title, required_permission,
+               due_at) VALUES ($1, $2, $3, 'care.reposition', 'Reposition', 'care.note.write',
+               now() + interval '1 day') RETURNING id`,
+            [seriesId, a.personCara, a.locationSouth],
+          )
+        ).rows[0]?.id ?? "";
+      return {
+        exitId,
+        lifecycleSeries,
+        userSeries,
+        lifecycleTask: await task(lifecycleSeries),
+        userTask: await task(userSeries),
+      };
+    });
+    // The death: tasks and series stopped in the same transaction as the event.
+    await asOwner(async (c) => {
+      await c.query(
+        `UPDATE task SET status = 'cancelled', status_reason = 'The person died' WHERE id = $1`,
+        [made.lifecycleTask],
+      );
+      await c.query("UPDATE task_series SET active = false WHERE id = $1", [made.lifecycleSeries]);
+      await c.query(
+        `INSERT INTO outbox_event (aggregate_type, aggregate_id, event_type, payload)
+         VALUES ('person', $1, 'people.person.died', $2)`,
+        [a.personCara, JSON.stringify({ exitRecordId: made.exitId })],
+      );
+    });
+    // A user ending a series with the same words, in a transaction of their own.
+    await asOwner(async (c) => {
+      await c.query(
+        `UPDATE task SET status = 'cancelled', status_reason = 'The person died' WHERE id = $1`,
+        [made.userTask],
+      );
+      await c.query("UPDATE task_series SET active = false WHERE id = $1", [made.userSeries]);
+    });
+    await runBackfill();
+    await runBackfill();
+    const coded = await asOwner(async (c) => {
+      const tasks = await c.query<{ id: string; code: string | null; exit: string | null }>(
+        "SELECT id, cancel_code AS code, stopped_by_exit_id AS exit FROM task WHERE id = ANY($1)",
+        [[made.lifecycleTask, made.userTask]],
+      );
+      const series = await c.query<{ id: string; code: string | null; exit: string | null }>(
+        `SELECT id, inactive_code AS code, stopped_by_exit_id AS exit FROM task_series
+         WHERE id = ANY($1)`,
+        [[made.lifecycleSeries, made.userSeries]],
+      );
+      return [...tasks.rows, ...series.rows];
+    });
+    const find = (id: string) => coded.find((r) => r.id === id);
+    expect(find(made.lifecycleTask)).toMatchObject({ code: "ended_at_exit", exit: made.exitId });
+    expect(find(made.lifecycleSeries)).toMatchObject({ code: "ended_at_exit", exit: made.exitId });
+    expect(find(made.userTask)).toMatchObject({ code: null, exit: null });
+    expect(find(made.userSeries)).toMatchObject({ code: null, exit: null });
+    // The backfill restores forced row-level security on every table it opened.
+    const { rows: forced } = await db
+      .pool("harbour_owner")
+      .query<{ name: string; forced: boolean }>(
+        `SELECT relname AS name, relforcerowsecurity AS forced FROM pg_class
+         WHERE relname IN ('task', 'task_series', 'outbox_event', 'exit_record')`,
+      );
+    expect(forced.every((r) => r.forced)).toBe(true);
+  });
+
+  it("hazards HZ-004 and HZ-006 an entry names its task only with what happened to it", async () => {
+    await expect(
+      asManager((c) =>
+        c.query(
+          `INSERT INTO care_note (person_id, location_id, occurred_at, category, body, task_id)
+           VALUES ($1, $2, now(), 'other', 'Turned.', $3)`,
+          [a.personAda, a.locationNorth, "0193a000-0000-7000-8000-0000000fffff"],
+        ),
+      ),
+    ).rejects.toThrow(/care_note_task_outcome/);
+    await expect(
+      asManager((c) =>
+        c.query(
+          `INSERT INTO observation (person_id, location_id, occurred_at, chart, values, task_id,
+             task_outcome)
+           VALUES ($1, $2, now(), 'weight', '{}', $3, 'lost')`,
+          [a.personAda, a.locationNorth, "0193a000-0000-7000-8000-0000000fffff"],
+        ),
+      ),
+    ).rejects.toThrow(/observation_task_outcome/);
   });
 });

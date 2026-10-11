@@ -670,6 +670,18 @@
           "notNull": true,
           "default": false
         },
+        "task_id": {
+          "name": "task_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "task_outcome": {
+          "name": "task_outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "supersedes_id": {
           "name": "supersedes_id",
           "type": "uuid",
@@ -846,6 +858,10 @@
       },
       "policies": {},
       "checkConstraints": {
+        "activity_record_task_outcome": {
+          "name": "activity_record_task_outcome",
+          "value": "(task_id IS NULL) = (task_outcome IS NULL) AND (task_outcome IS NULL OR task_outcome IN ('completed', 'task_cancelled', 'task_already_closed', 'not_linked'))"
+        },
         "activity_record_format": {
           "name": "activity_record_format",
           "value": "format IN ('group', 'one_to_one')"
@@ -1240,6 +1256,18 @@
           "notNull": true,
           "default": false
         },
+        "task_id": {
+          "name": "task_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "task_outcome": {
+          "name": "task_outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "supersedes_id": {
           "name": "supersedes_id",
           "type": "uuid",
@@ -1416,6 +1444,10 @@
       },
       "policies": {},
       "checkConstraints": {
+        "assessment_task_outcome": {
+          "name": "assessment_task_outcome",
+          "value": "(task_id IS NULL) = (task_outcome IS NULL) AND (task_outcome IS NULL OR task_outcome IN ('completed', 'task_cancelled', 'task_already_closed', 'not_linked'))"
+        },
         "assessment_tool_key": {
           "name": "assessment_tool_key",
           "value": "tool_key IN ('must', 'waterlow', 'braden', 'ng249_falls')"
@@ -1515,6 +1547,18 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "task_id": {
+          "name": "task_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "task_outcome": {
+          "name": "task_outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "supersedes_id": {
           "name": "supersedes_id",
@@ -1738,7 +1782,12 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "body_map_mark_task_outcome": {
+          "name": "body_map_mark_task_outcome",
+          "value": "(task_id IS NULL) = (task_outcome IS NULL) AND (task_outcome IS NULL OR task_outcome IN ('completed', 'task_cancelled', 'task_already_closed', 'not_linked'))"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.care_note": {
@@ -1829,6 +1878,18 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "task_id": {
+          "name": "task_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "task_outcome": {
+          "name": "task_outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "supersedes_id": {
           "name": "supersedes_id",
@@ -1969,7 +2030,12 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "care_note_task_outcome": {
+          "name": "care_note_task_outcome",
+          "value": "(task_id IS NULL) = (task_outcome IS NULL) AND (task_outcome IS NULL OR task_outcome IN ('completed', 'task_cancelled', 'task_already_closed', 'not_linked'))"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.care_plan": {
@@ -2891,6 +2957,18 @@
           "notNull": true,
           "default": false
         },
+        "task_id": {
+          "name": "task_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "task_outcome": {
+          "name": "task_outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "supersedes_id": {
           "name": "supersedes_id",
           "type": "uuid",
@@ -3029,7 +3107,12 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "observation_task_outcome": {
+          "name": "observation_task_outcome",
+          "value": "(task_id IS NULL) = (task_outcome IS NULL) AND (task_outcome IS NULL OR task_outcome IN ('completed', 'task_cancelled', 'task_already_closed', 'not_linked'))"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.person_care_profile": {
@@ -3596,6 +3679,18 @@
           "notNull": true,
           "default": false
         },
+        "task_id": {
+          "name": "task_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "task_outcome": {
+          "name": "task_outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "supersedes_id": {
           "name": "supersedes_id",
           "type": "uuid",
@@ -3775,6 +3870,10 @@
       },
       "policies": {},
       "checkConstraints": {
+        "visit_log_task_outcome": {
+          "name": "visit_log_task_outcome",
+          "value": "(task_id IS NULL) = (task_outcome IS NULL) AND (task_outcome IS NULL OR task_outcome IN ('completed', 'task_cancelled', 'task_already_closed', 'not_linked'))"
+        },
         "visit_log_kind": {
           "name": "visit_log_kind",
           "value": "kind IN ('facilitated_visit', 'visit_out', 'accompaniment')"
@@ -9307,6 +9406,18 @@
           "primaryKey": false,
           "notNull": false
         },
+        "status_before": {
+          "name": "status_before",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status_before_since": {
+          "name": "status_before_since",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "regulator": {
           "name": "regulator",
           "type": "text",
@@ -9633,6 +9744,10 @@
         "exit_record_kind": {
           "name": "exit_record_kind",
           "value": "kind IN ('discharge', 'transfer', 'death')"
+        },
+        "exit_record_status_before": {
+          "name": "exit_record_status_before",
+          "value": "status_before IS NULL OR status_before IN ('active', 'on_leave', 'in_hospital')"
         },
         "exit_record_state": {
           "name": "exit_record_state",
@@ -17132,6 +17247,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "stopped_by_exit_id": {
+          "name": "stopped_by_exit_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "completed_at": {
           "name": "completed_at",
           "type": "timestamp with time zone",
@@ -17162,6 +17283,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "details": {
+          "name": "details",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
         },
         "escalation_level": {
           "name": "escalation_level",
@@ -17539,6 +17666,12 @@
         "inactive_code": {
           "name": "inactive_code",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stopped_by_exit_id": {
+          "name": "stopped_by_exit_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": false
         },
