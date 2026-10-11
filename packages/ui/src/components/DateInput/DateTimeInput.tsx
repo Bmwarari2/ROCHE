@@ -3,11 +3,11 @@
 import { useId, useState } from "react";
 import { cx } from "../../lib/cx";
 import {
+  checkWallClockParts,
   type DateTimePart,
   datePartName,
   type Fold,
-  resolveWallClock,
-  UK_TIME_ZONE,
+  type WallClock,
 } from "../../lib/zoned-time";
 import { RadioGroup } from "../RadioGroup/RadioGroup";
 import { DatePartBox, type DatePartLabels, defaultDatePartLabels } from "./DateInput";
@@ -17,8 +17,17 @@ export interface DateTimeLabels extends DatePartLabels {
   minute: string;
   /** The question when the clocks went back over the time entered. */
   foldLegend: (args: { time: string; date: string }) => string;
-  /** One of the two times: "01:30 BST (the first time)". */
+  /** One of the two times: "01:30 BST, before the clocks went back". */
   foldOption: (args: { time: string; zone: string; which: Fold }) => string;
+}
+
+/**
+ * The zones of the two times a wall-clock time stands for, when it happened twice and the app
+ * needs to ask which one was meant, for example `{ first: "BST", second: "GMT" }`.
+ */
+export interface RepeatedTime {
+  readonly first: string;
+  readonly second: string;
 }
 
 export const defaultDateTimeLabels: DateTimeLabels = {
@@ -28,7 +37,7 @@ export const defaultDateTimeLabels: DateTimeLabels = {
   foldLegend: ({ time, date }) =>
     `The clocks went back on ${date}, so ${time} happened twice. Which ${time} was it?`,
   foldOption: ({ time, zone, which }) =>
-    `${time} ${zone} (${which === "first" ? "the first time" : "the second time"})`,
+    `${time} ${zone}, ${which === "first" ? "before" : "after"} the clocks went back`,
 };
 
 export interface DateTimeInputProps {
@@ -49,8 +58,11 @@ export interface DateTimeInputProps {
   /** The day box's id, so an error summary can link to the question. */
   id?: string;
   defaultValue?: Readonly<Partial<Record<DateTimePart, string>>> | null;
-  /** The zone the wall clock is in. */
-  timeZone?: string;
+  /**
+   * Whether the time typed happened twice (the clocks went back) and the person must choose which,
+   * by the app's own rule; null when it did not. Without it the question is never asked.
+   */
+  repeated?: (wall: WallClock) => RepeatedTime | null;
   labels?: DateTimeLabels;
   className?: string;
 }
@@ -65,25 +77,14 @@ const PARTS: readonly { readonly part: DateTimePart; readonly size: "2" | "4" }[
 
 const EMPTY: Record<DateTimePart, string> = { day: "", month: "", year: "", hour: "", minute: "" };
 
-/** Digits that make a whole number in range, or null. */
-function whole(text: string, min: number, max: number): number | null {
-  const trimmed = text.trim();
-  if (trimmed === "" || trimmed.length > 4) return null;
-  for (const char of trimmed) {
-    if (char < "0" || char > "9") return null;
-  }
-  const value = Number(trimmed);
-  return value >= min && value <= max ? value : null;
-}
-
 const pad = (value: number) => String(value).padStart(2, "0");
 
 /**
- * A date and a 24-hour time in five boxes, read in a named time zone (UK time by default), so it
- * reads the same on any device. When the clocks went back over the time entered, the hour
- * happened twice, and a required question asks which one (the first, in summer time, or the
- * second); it appears only then. A time in the hour the clocks went forward never happened, and
- * the form refuses it with words that say so.
+ * A date and a 24-hour time in five boxes, so it reads dd/mm/yyyy and 24-hour on any device, in
+ * any browser language. When the app's `repeated` rule says the time typed happened twice (the
+ * clocks went back), a required question asks which one; it appears only then, with nothing
+ * chosen. The app refuses a time that never happened (the clocks went forward) when the form is
+ * sent, with words that say so.
  */
 export function DateTimeInput({
   legend,
@@ -94,7 +95,7 @@ export function DateTimeInput({
   name,
   id,
   defaultValue,
-  timeZone = UK_TIME_ZONE,
+  repeated: repeatedRule,
   labels = defaultDateTimeLabels,
   className,
 }: DateTimeInputProps) {
@@ -113,19 +114,11 @@ export function DateTimeInput({
   const invalid = (part: DateTimePart) =>
     Boolean(fieldError) && (errorParts === undefined || errorParts.includes(part));
 
-  const year = whole(values.year, 1900, 9999);
-  const month = whole(values.month, 1, 12);
-  const day = whole(values.day, 1, 31);
-  const hour = whole(values.hour, 0, 23);
-  const minute = whole(values.minute, 0, 59);
-  const resolution =
-    year !== null && month !== null && day !== null && hour !== null && minute !== null
-      ? resolveWallClock({ year, month, day, hour, minute }, timeZone)
-      : null;
-  const repeated = resolution?.kind === "repeated" ? resolution : null;
-  const time = hour !== null && minute !== null ? `${pad(hour)}:${pad(minute)}` : "";
-  const date =
-    day !== null && month !== null && year !== null ? `${pad(day)}/${pad(month)}/${year}` : "";
+  const read = checkWallClockParts(values);
+  const wall = read.ok ? read.wall : null;
+  const repeated = wall && repeatedRule ? repeatedRule(wall) : null;
+  const time = wall ? `${pad(wall.hour)}:${pad(wall.minute)}` : "";
+  const date = wall ? `${pad(wall.day)}/${pad(wall.month)}/${wall.year}` : "";
 
   return (
     <div className={cx("hb-datetime", className)}>
@@ -174,7 +167,7 @@ export function DateTimeInput({
             value: which,
             label: labels.foldOption({
               time,
-              zone: (which === "first" ? repeated.first : repeated.second).zoneName,
+              zone: which === "first" ? repeated.first : repeated.second,
               which,
             }),
           }))}

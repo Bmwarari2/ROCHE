@@ -1,11 +1,13 @@
 /**
- * Wall-clock dates and times in a named time zone (Europe/London unless said otherwise), for the
- * date and time inputs. Everything is worked out with Intl from the zone's own rules, never from
- * the device's time zone, so a laptop set to New York or UTC reads UK times the same way.
+ * The boxes of the date and time inputs: reading what people type into them, and filling them
+ * from an instant in a named time zone (Europe/London unless said otherwise). The fill uses Intl
+ * with the zone's own rules, never the device's zone, so a laptop set to New York or UTC shows UK
+ * times the same way.
  *
- * When the clocks go back, one wall-clock hour happens twice (01:00 to 01:59 BST, then again as
- * GMT); when they go forward, an hour never happens (01:00 to 01:59 on the last Sunday in March).
- * `resolveWallClock` says which: an exact instant, two instants to choose between, or none.
+ * Which instant a typed time means, and whether it happened twice or not at all when the clocks
+ * changed, is a domain rule (`resolveRecordedUkTime` in @harbour/domain, the same on web and
+ * mobile). The design system does not decide it: DateTimeInput asks the app through its
+ * `repeated` prop whether to ask which of two times was meant.
  */
 
 export interface WallClock {
@@ -20,11 +22,7 @@ export interface WallClock {
 
 export const UK_TIME_ZONE = "Europe/London";
 
-const MS_PER_MINUTE = 60_000;
-const MS_PER_DAY = 24 * 60 * MS_PER_MINUTE;
-
 const partsFormatters = new Map<string, Intl.DateTimeFormat>();
-const nameFormatters = new Map<string, Intl.DateTimeFormat>();
 
 function partsFormatter(timeZone: string): Intl.DateTimeFormat {
   let formatter = partsFormatters.get(timeZone);
@@ -57,76 +55,6 @@ export function wallClockAt(instant: number, timeZone: string = UK_TIME_ZONE): W
     hour: (parts.hour ?? 0) % 24,
     minute: parts.minute ?? 0,
   };
-}
-
-/** The zone's offset from UTC, in minutes, at an instant (60 for BST, 0 for GMT). */
-export function zoneOffsetMinutes(instant: number, timeZone: string = UK_TIME_ZONE): number {
-  const wall = wallClockAt(instant, timeZone);
-  const asUtc = Date.UTC(wall.year, wall.month - 1, wall.day, wall.hour, wall.minute);
-  const wholeMinute = Math.floor(instant / MS_PER_MINUTE) * MS_PER_MINUTE;
-  return Math.round((asUtc - wholeMinute) / MS_PER_MINUTE);
-}
-
-/** The zone's short name at an instant, for example "BST" or "GMT". */
-export function zoneName(instant: number, timeZone: string = UK_TIME_ZONE): string {
-  let formatter = nameFormatters.get(timeZone);
-  if (!formatter) {
-    formatter = new Intl.DateTimeFormat("en-GB", { timeZone, timeZoneName: "short" });
-    nameFormatters.set(timeZone, formatter);
-  }
-  return (
-    formatter.formatToParts(new Date(instant)).find((part) => part.type === "timeZoneName")
-      ?.value ?? timeZone
-  );
-}
-
-const sameWallClock = (a: WallClock, b: WallClock) =>
-  a.year === b.year &&
-  a.month === b.month &&
-  a.day === b.day &&
-  a.hour === b.hour &&
-  a.minute === b.minute;
-
-export interface ZonedInstant {
-  /** ISO 8601 in UTC, for example "2026-10-25T00:30:00.000Z". */
-  readonly instant: string;
-  /** The zone's short name then, for example "BST". */
-  readonly zoneName: string;
-}
-
-export type WallClockResolution =
-  | ({ readonly kind: "exact" } & ZonedInstant)
-  /** The clocks went back: the time happened twice, first in summer time, then again. */
-  | { readonly kind: "repeated"; readonly first: ZonedInstant; readonly second: ZonedInstant }
-  /** The clocks went forward: the time never happened. */
-  | { readonly kind: "skipped" };
-
-/**
- * The instant or instants a wall-clock time names in a zone. Checks every offset the zone uses on
- * the day before and the day after, and keeps those that read back as the same wall clock.
- */
-export function resolveWallClock(
-  wall: WallClock,
-  timeZone: string = UK_TIME_ZONE,
-): WallClockResolution {
-  const asUtc = Date.UTC(wall.year, wall.month - 1, wall.day, wall.hour, wall.minute);
-  const offsets = new Set([
-    zoneOffsetMinutes(asUtc - MS_PER_DAY, timeZone),
-    zoneOffsetMinutes(asUtc, timeZone),
-    zoneOffsetMinutes(asUtc + MS_PER_DAY, timeZone),
-  ]);
-  const instants = [...offsets]
-    .map((offset) => asUtc - offset * MS_PER_MINUTE)
-    .filter((instant) => sameWallClock(wallClockAt(instant, timeZone), wall))
-    .sort((a, b) => a - b);
-  const zoned = (instant: number): ZonedInstant => ({
-    instant: new Date(instant).toISOString(),
-    zoneName: zoneName(instant, timeZone),
-  });
-  const [first, second] = instants;
-  if (first === undefined) return { kind: "skipped" };
-  if (second === undefined) return { kind: "exact", ...zoned(first) };
-  return { kind: "repeated", first: zoned(first), second: zoned(second) };
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -191,39 +119,28 @@ export function checkDateParts(values: Readonly<Partial<Record<DatePart, string>
   };
 }
 
-export type DateTimeProblem =
+export type WallClockProblem =
   | DateProblem
   /** The time is missing or partly missing. */
   | "time_incomplete"
   /** The hour is not 0 to 23 or the minute not 0 to 59. */
-  | "time_not_real"
-  /** The clocks went forward over this time, so it never happened. */
-  | "clocks_went_forward"
-  /** The clocks went back over this time and nobody said which of the two it was. */
-  | "which_time";
+  | "time_not_real";
 
-/** Which of a repeated time was meant: the first (summer time) or the second. */
-export type Fold = "first" | "second";
-
-export type DateTimeCheck =
-  | { readonly ok: true; readonly instant: string }
+export type WallClockCheck =
+  | { readonly ok: true; readonly wall: WallClock }
   | {
       readonly ok: false;
-      readonly problem: DateTimeProblem;
-      readonly parts: readonly (DateTimePart | "fold")[];
-      /** The two instants, when the problem is which_time. */
-      readonly repeated?: { readonly first: ZonedInstant; readonly second: ZonedInstant };
+      readonly problem: WallClockProblem;
+      readonly parts: readonly DateTimePart[];
     };
 
 /**
- * Checks a date and a 24-hour time typed in separate boxes, and turns it into one instant. In the
- * hour the clocks go back, `fold` says which of the two times was meant; without it the answer is
- * "which_time". In the hour they go forward the time is refused.
+ * Checks a date and a 24-hour time typed in separate boxes, as a wall-clock time. It does not say
+ * which instant that is: the app resolves it with its own rule for clock changes.
  */
-export function checkDateTimeParts(
+export function checkWallClockParts(
   values: Readonly<Partial<Record<DateTimePart, string>>>,
-  options: { readonly timeZone?: string; readonly fold?: Fold | null } = {},
-): DateTimeCheck {
+): WallClockCheck {
   const date = checkDateParts(values);
   if (!date.ok) return date;
   const hourText = (values.hour ?? "").trim();
@@ -240,23 +157,11 @@ export function checkDateTimeParts(
   if (wrong.length > 0 || hour === null || minute === null) {
     return { ok: false, problem: "time_not_real", parts: wrong };
   }
-  const resolved = resolveWallClock({ ...date.wall, hour, minute }, options.timeZone);
-  switch (resolved.kind) {
-    case "exact":
-      return { ok: true, instant: resolved.instant };
-    case "skipped":
-      return { ok: false, problem: "clocks_went_forward", parts: ["hour", "minute"] };
-    case "repeated":
-      if (options.fold === "first") return { ok: true, instant: resolved.first.instant };
-      if (options.fold === "second") return { ok: true, instant: resolved.second.instant };
-      return {
-        ok: false,
-        problem: "which_time",
-        parts: ["fold"],
-        repeated: { first: resolved.first, second: resolved.second },
-      };
-  }
+  return { ok: true, wall: { ...date.wall, hour, minute } };
 }
+
+/** Which of a repeated time was meant: the first (summer time, before the clocks went back). */
+export type Fold = "first" | "second";
 
 /** The parts of an instant as the boxes show them ("05", "03", "2026", "14", "05"). */
 export function dateTimePartsAt(

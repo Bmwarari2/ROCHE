@@ -1,5 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { WallClock } from "../../lib/zoned-time";
 import { DateTimeInput } from "./DateTimeInput";
+
+/**
+ * A stand-in for the app's rule (resolveRecordedUkTime in @harbour/domain): 01:00 to 01:59 on
+ * 25/10/2026 happened twice, first in BST and then in GMT.
+ */
+const repeated = (wall: WallClock) =>
+  wall.year === 2026 && wall.month === 10 && wall.day === 25 && wall.hour === 1
+    ? { first: "BST", second: "GMT" }
+    : null;
 
 const meta = {
   title: "Primitives/Date and time input",
@@ -9,6 +19,7 @@ const meta = {
     hint: "UK time, 24-hour clock: 14 30 is half past two in the afternoon",
     name: "occurredAt",
     defaultValue: { day: "11", month: "10", year: "2026", hour: "14", minute: "05" },
+    repeated,
   },
 } satisfies Meta<typeof DateTimeInput>;
 

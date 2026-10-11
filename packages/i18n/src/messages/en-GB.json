@@ -837,7 +837,7 @@
   "care.time.clocksWentForward": "The clocks went forward an hour at 01:00 on {date}, so {time} did not happen in the UK. Check the time: it may be an hour later.",
   "care.time.whichTime": "Choose which {time} it was: the clocks went back on {date}, so {time} happened twice.",
   "care.time.foldLegend": "The clocks went back on {date}, so {time} happened twice. Which {time} was it?",
-  "care.time.foldOption": "{which, select, first {{time} {zone} (the first time)} other {{time} {zone} (the second time)}}",
+  "care.time.foldOption": "{which, select, first {{time} {zone}, before the clocks went back} other {{time} {zone}, after the clocks went back}}",
   "care.charts.fluid.futureDay": "The day to show must be today or earlier",
   "care.refusal.futureEntry": "The time it happened is in the future. Check the time, and the clock on this device.",
   "care.refusal.correctionReason": "Say why the entry is being corrected.",
@@ -906,5 +906,6 @@
   "care.news2.showWorkings": "How the score was worked out",
   "care.news2.unreadable": "The NEWS2 result of this entry cannot be shown. Tell the nurse in charge.",
   "care.workings.unreadable": "{count, plural, one {# row of the workings could not be shown.} other {# rows of the workings could not be shown.}} Check the result with the nurse in charge.",
-  "care.assessments.triggers.unknown": "{count, plural, one {# follow-up could not be shown} other {# follow-ups could not be shown}} ({codes}). Check what this result raised with the nurse in charge."
+  "care.assessments.triggers.unknown": "{count, plural, one {# follow-up could not be shown} other {# follow-ups could not be shown}} ({codes}). Check what this result raised with the nurse in charge.",
+  "care.time.future": "{subject} is later than now. Check the date and time."
 }

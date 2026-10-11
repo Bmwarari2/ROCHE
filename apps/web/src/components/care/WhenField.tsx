@@ -3,7 +3,7 @@
 import { DateTimeInput, type DateTimePart, dateTimePartsAt, RadioGroup } from "@harbour/ui";
 import { useState } from "react";
 import { t } from "@/lib/i18n";
-import { boxesOf, dateTimeLabels } from "@/lib/uk-time";
+import { boxesOf, dateTimeLabels, ukRepeatedTime } from "@/lib/uk-time";
 
 type Mode = "now" | "earlier";
 
@@ -62,6 +62,7 @@ export function WhenField({
           name={name}
           defaultValue={start}
           labels={dateTimeLabels(t)}
+          repeated={ukRepeatedTime}
           {...(id ? { id } : {})}
           {...(error ? { error, ...(boxes ? { errorParts: boxes } : {}) } : {})}
         />

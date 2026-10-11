@@ -6,7 +6,13 @@ import { type FormEvent, useState, useTransition } from "react";
 import { recordVisit } from "@/app/actions/care-records";
 import { characterCount, t } from "@/lib/i18n";
 import { type ActionResult, errorFor, partsFor, partsRefusal, refused } from "@/lib/outcome";
-import { boxesOf, dateTimeLabels, readDateTimeField, readWhen } from "@/lib/uk-time";
+import {
+  boxesOf,
+  dateTimeLabels,
+  readDateTimeField,
+  readWhen,
+  ukRepeatedTime,
+} from "@/lib/uk-time";
 import { FormFeedback } from "./FormFeedback";
 import { useEntryId, useFieldIds } from "./form-state";
 import { WhenField } from "./WhenField";
@@ -128,6 +134,7 @@ export function VisitForm({
           hint={t("care.visits.form.endedHint")}
           name="endedAt"
           labels={dateTimeLabels(t)}
+          repeated={ukRepeatedTime}
           error={errorFor(result, "endedAt")}
           errorParts={boxesOf(partsFor(result, "endedAt"))}
         />

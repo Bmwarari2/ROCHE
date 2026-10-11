@@ -1,13 +1,19 @@
+import {
+  DEFAULT_CLOCK_DRIFT_TOLERANCE_MINUTES,
+  resolveRecordedUkTime,
+  ukZoneAbbreviation,
+} from "@harbour/domain";
 import type { Translator } from "@harbour/i18n";
 import {
   checkDateParts,
-  checkDateTimeParts,
+  checkWallClockParts,
   type DatePart,
   type DateTimeLabels,
   type DateTimePart,
   datePartName,
-  type Fold,
+  type RepeatedTime,
   UK_TIME_ZONE,
+  type WallClock,
   wallClockAt,
 } from "@harbour/ui";
 
@@ -15,12 +21,16 @@ import {
  * UK local time for forms (CONTENT.md rule 6, hazard HZ-009). People enter and read times as UK
  * wall-clock time whatever the computer's own time zone, in separate day, month, year, hour and
  * minute boxes (so the browser's language never turns 11/10 into 10/11); the API receives ISO 8601
- * instants. The zone arithmetic is @harbour/ui's, tested over every minute of the clock changes.
+ * instants. Which instant a typed time means is the domain's one rule for web and mobile,
+ * `resolveRecordedUkTime` (packages/domain/src/shared/time.ts), tested here over every minute of
+ * the clock changes with the device in three time zones.
  *
  * - An entry's time is "now" until someone changes it: the instant is taken when the form is sent,
  *   not when the page was drawn, so a form left open does not record an earlier time.
- * - In the hour the clocks go back (it happens twice), the form asks which one was meant.
+ * - In the hour the clocks go back (it happens twice), once both have passed, the form asks which
+ *   one was meant ("BST, before the clocks went back" or "GMT, after"), with nothing chosen.
  * - A time in the hour the clocks go forward (it never happens) is refused, saying so.
+ * - A time later than now (beyond the clock tolerance) is refused, never moved to another day.
  *
  * Patterns are anchored at both ends and have no nested repetition.
  */
@@ -160,10 +170,43 @@ export function readDateField(
 }
 
 /** The five boxes of a date and time field as an instant; null when optional and all empty. */
+/**
+ * How far ahead of this device's clock a typed time may be and still count as now: the clock-drift
+ * tolerance (`sync.clock_drift_flag_minutes`). The API does not serve the rate table to the web
+ * yet (an API gap in docs/specs/care.md section 10), so this is the domain's default; the API
+ * applies the tenant's own figure again when the entry arrives.
+ */
+export const FUTURE_TOLERANCE_MINUTES = DEFAULT_CLOCK_DRIFT_TOLERANCE_MINUTES;
+
+/**
+ * DateTimeInput's `repeated` rule: whether a typed UK time happened twice and both times have
+ * passed, so the person must choose which, with each one's zone ("BST" then "GMT").
+ */
+export function ukRepeatedTime(wall: WallClock, now: Date = new Date()): RepeatedTime | null {
+  try {
+    const resolved = resolveRecordedUkTime(wall, {
+      now,
+      futureToleranceMinutes: FUTURE_TOLERANCE_MINUTES,
+    });
+    return resolved.kind === "ambiguous"
+      ? { first: ukZoneAbbreviation(resolved.earlier), second: ukZoneAbbreviation(resolved.later) }
+      : null;
+  } catch {
+    // Not a real date (31/02): the form says so when it is sent.
+    return null;
+  }
+}
+
 export function readDateTimeField(
   form: FormLike,
   name: string,
-  options: { readonly subject: string; readonly optional?: boolean; readonly t: Translator },
+  options: {
+    readonly subject: string;
+    readonly optional?: boolean;
+    readonly t: Translator;
+    /** This device's clock; a time later than this (beyond the tolerance) is refused. */
+    readonly now?: Date;
+  },
 ): { readonly ok: true; readonly instant: string | null } | TimeProblem {
   const values = {
     day: text(form, datePartName(name, "day")),
@@ -175,13 +218,38 @@ export function readDateTimeField(
   if (options.optional && Object.values(values).every((value) => value.trim() === "")) {
     return { ok: true, instant: null };
   }
-  const foldValue = text(form, datePartName(name, "fold"));
-  const fold: Fold | null = foldValue === "first" || foldValue === "second" ? foldValue : null;
-  const check = checkDateTimeParts(values, { timeZone: UK_TIME_ZONE, fold });
-  if (check.ok) return { ok: true, instant: check.instant };
+  const fold = text(form, datePartName(name, "fold"));
   const { t, subject } = options;
-  const time = `${pad(Number(values.hour))}:${pad(Number(values.minute))}`;
-  const date = `${pad(Number(values.day))}/${pad(Number(values.month))}/${values.year.trim()}`;
+  const check = checkWallClockParts(values);
+  if (check.ok) {
+    const { wall } = check;
+    const time = `${pad(wall.hour)}:${pad(wall.minute)}`;
+    const date = `${pad(wall.day)}/${pad(wall.month)}/${wall.year}`;
+    const resolved = resolveRecordedUkTime(wall, {
+      now: options.now ?? new Date(),
+      futureToleranceMinutes: FUTURE_TOLERANCE_MINUTES,
+    });
+    switch (resolved.kind) {
+      case "exact":
+        return { ok: true, instant: resolved.instant.toISOString() };
+      case "ambiguous":
+        if (fold === "first") return { ok: true, instant: resolved.earlier.toISOString() };
+        if (fold === "second") return { ok: true, instant: resolved.later.toISOString() };
+        return { ok: false, message: t("care.time.whichTime", { time, date }), parts: ["fold"] };
+      case "skipped":
+        return {
+          ok: false,
+          message: t("care.time.clocksWentForward", { time, date }),
+          parts: ["hour", "minute"],
+        };
+      case "future":
+        return {
+          ok: false,
+          message: t("care.time.future", { subject }),
+          parts: ["day", "month", "year", "hour", "minute"],
+        };
+    }
+  }
   switch (check.problem) {
     case "empty":
     case "incomplete":
@@ -199,18 +267,6 @@ export function readDateTimeField(
       };
     case "time_not_real":
       return { ok: false, message: t("care.time.notReal", { subject }), parts: check.parts };
-    case "clocks_went_forward":
-      return {
-        ok: false,
-        message: t("care.time.clocksWentForward", { time, date }),
-        parts: check.parts,
-      };
-    case "which_time":
-      return {
-        ok: false,
-        message: t("care.time.whichTime", { time, date }),
-        parts: check.parts,
-      };
   }
 }
 
@@ -228,7 +284,7 @@ export function readWhen(
   const now = options.now ?? new Date();
   if (text(form, `${name}-mode`) !== "earlier") return { ok: true, instant: now.toISOString() };
   const subject = options.subject ?? t("care.when.subject");
-  const read = readDateTimeField(form, name, { subject, t });
+  const read = readDateTimeField(form, name, { subject, t, now });
   if (!read.ok) return read;
   return { ok: true, instant: read.instant ?? now.toISOString() };
 }

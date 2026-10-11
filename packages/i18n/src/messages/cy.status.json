@@ -658,6 +658,7 @@
     "care.time.clocksWentForward",
     "care.time.foldLegend",
     "care.time.foldOption",
+    "care.time.future",
     "care.time.hour",
     "care.time.incomplete",
     "care.time.minute",

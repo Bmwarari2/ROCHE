@@ -1,8 +1,15 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
+import type { WallClock } from "../../lib/zoned-time";
 import { DateInput } from "./DateInput";
 import { DateTimeInput } from "./DateTimeInput";
+
+/** The app's rule, as a stand-in: 01:00 to 01:59 on 25/10/2026 happened twice. */
+const repeated = (wall: WallClock) =>
+  wall.year === 2026 && wall.month === 10 && wall.day === 25 && wall.hour === 1
+    ? { first: "BST", second: "GMT" }
+    : null;
 
 describe("DateInput", () => {
   it("is a fieldset of day, month and year boxes named by the legend", () => {
@@ -61,12 +68,13 @@ describe("DateTimeInput", () => {
     expect(screen.queryByRole("radio")).toBeNull();
   });
 
-  it("hazard HZ-009 asks which time was meant only when the clocks went back over it", async () => {
+  it("hazard HZ-009 hazard HZ-017 asks which time was meant only when the app's rule says it happened twice", async () => {
     const user = userEvent.setup();
     render(
       <DateTimeInput
         legend="When did it happen?"
         name="occurredAt"
+        repeated={repeated}
         defaultValue={{ day: "25", month: "10", year: "2026", hour: "00", minute: "30" }}
       />,
     );
@@ -77,8 +85,12 @@ describe("DateTimeInput", () => {
     const question = screen.getByRole("group", {
       name: "The clocks went back on 25/10/2026, so 01:30 happened twice. Which 01:30 was it?",
     });
-    const first = within(question).getByRole("radio", { name: "01:30 BST (the first time)" });
-    const second = within(question).getByRole("radio", { name: "01:30 GMT (the second time)" });
+    const first = within(question).getByRole("radio", {
+      name: "01:30 BST, before the clocks went back",
+    });
+    const second = within(question).getByRole("radio", {
+      name: "01:30 GMT, after the clocks went back",
+    });
     expect(first).toBeRequired();
     expect(first).not.toBeChecked();
     expect(second).toHaveAttribute("name", "occurredAt-fold");
@@ -96,6 +108,7 @@ describe("DateTimeInput", () => {
         name="occurredAt"
         error="Choose which 01:30 it was"
         errorParts={["fold"]}
+        repeated={repeated}
         defaultValue={{ day: "25", month: "10", year: "2026", hour: "01", minute: "30" }}
       />,
     );

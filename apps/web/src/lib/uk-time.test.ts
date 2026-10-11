@@ -2,12 +2,14 @@ import { createTranslator } from "@harbour/i18n";
 import { afterAll, describe, expect, it } from "vitest";
 import {
   addDays,
+  FUTURE_TOLERANCE_MINUTES,
   formatUkTime,
   isIsoDate,
   isIsoInstant,
   readDateField,
   readDateTimeField,
   readWhen,
+  ukRepeatedTime,
   ukToday,
 } from "./uk-time";
 
@@ -46,8 +48,11 @@ function inEveryDeviceZone(check: () => void) {
   }
 }
 
-describe("when an entry happened (hazard HZ-009)", () => {
-  it("hazard HZ-009 takes 'now' when the form is sent, not when the page was drawn", () => {
+/** Long after every date below, so both times of a repeated hour have passed. */
+const LATER = new Date("2030-01-01T12:00:00.000Z");
+
+describe("when an entry happened (hazards HZ-009 and HZ-017)", () => {
+  it("hazard HZ-009 hazard HZ-017 takes 'now' when the form is sent, not when the page was drawn", () => {
     const sent = new Date("2026-10-11T13:20:00.000Z");
     expect(readWhen(form({ "occurredAt-mode": "now" }), "occurredAt", t, { now: sent })).toEqual({
       ok: true,
@@ -60,16 +65,14 @@ describe("when an entry happened (hazard HZ-009)", () => {
     });
   });
 
-  it("hazard HZ-009 reads an earlier UK time as one instant in summer and winter", () => {
+  it("hazard HZ-009 hazard HZ-017 reads an earlier UK time as one instant in summer and winter", () => {
     inEveryDeviceZone(() => {
-      expect(readWhen(form(when("11", "10", "2026", "14", "05")), "occurredAt", t)).toEqual({
-        ok: true,
-        instant: "2026-10-11T13:05:00.000Z",
-      });
-      expect(readWhen(form(when("1", "12", "2026", "9", "30")), "occurredAt", t)).toEqual({
-        ok: true,
-        instant: "2026-12-01T09:30:00.000Z",
-      });
+      expect(
+        readWhen(form(when("11", "10", "2026", "14", "05")), "occurredAt", t, { now: LATER }),
+      ).toEqual({ ok: true, instant: "2026-10-11T13:05:00.000Z" });
+      expect(
+        readWhen(form(when("1", "12", "2026", "9", "30")), "occurredAt", t, { now: LATER }),
+      ).toEqual({ ok: true, instant: "2026-12-01T09:30:00.000Z" });
     });
   });
 
@@ -79,7 +82,7 @@ describe("when an entry happened (hazard HZ-009)", () => {
     ["28", "3", "2027"],
     ["31", "10", "2027"],
   ] as const) {
-    it(`hazard HZ-009 reads every minute of ${day}/${month}/${year} through the form`, () => {
+    it(`hazard HZ-009 hazard HZ-017 reads every minute of ${day}/${month}/${year} through the form, by the domain rule`, () => {
       const forward = month === "3";
       inEveryDeviceZone(() => {
         for (let minuteOfDay = 0; minuteOfDay < 24 * 60; minuteOfDay += 1) {
@@ -88,20 +91,23 @@ describe("when an entry happened (hazard HZ-009)", () => {
           const fields = when(day, month, year, String(hour), String(minute));
           const asUtc = Date.UTC(Number(year), Number(month) - 1, Number(day), hour, minute);
           const label = `${hour}:${minute}`;
-          const read = readWhen(form(fields), "occurredAt", t);
+          const read = readWhen(form(fields), "occurredAt", t, { now: LATER });
           if (hour === 1 && forward) {
             expect(read, label).toMatchObject({ ok: false, parts: ["hour", "minute"] });
             expect(read.ok ? "" : read.message, label).toMatch(/^The clocks went forward/);
             continue;
           }
           if (hour === 1) {
+            // Both times have passed: nothing is chosen for anyone.
             expect(read, label).toMatchObject({ ok: false, parts: ["fold"] });
             for (const [fold, instant] of [
               ["first", asUtc - 3_600_000],
               ["second", asUtc],
             ] as const) {
               expect(
-                readWhen(form({ ...fields, "occurredAt-fold": fold }), "occurredAt", t),
+                readWhen(form({ ...fields, "occurredAt-fold": fold }), "occurredAt", t, {
+                  now: LATER,
+                }),
                 `${label} ${fold}`,
               ).toEqual({ ok: true, instant: new Date(instant).toISOString() });
             }
@@ -117,21 +123,58 @@ describe("when an entry happened (hazard HZ-009)", () => {
     });
   }
 
-  it("hazard HZ-009 says the clocks went forward, and asks which time when they went back", () => {
-    const skipped = readWhen(form(when("29", "3", "2026", "01", "30")), "occurredAt", t);
+  it("hazard HZ-009 hazard HZ-017 says the clocks went forward, and asks which time when they went back", () => {
+    const skipped = readWhen(form(when("29", "3", "2026", "01", "30")), "occurredAt", t, {
+      now: LATER,
+    });
     expect(skipped).toEqual({
       ok: false,
       message:
         "The clocks went forward an hour at 01:00 on 29/03/2026, so 01:30 did not happen in the UK. Check the time: it may be an hour later.",
       parts: ["hour", "minute"],
     });
-    const repeated = readWhen(form(when("25", "10", "2026", "1", "30")), "occurredAt", t);
+    const repeated = readWhen(form(when("25", "10", "2026", "1", "30")), "occurredAt", t, {
+      now: LATER,
+    });
     expect(repeated).toEqual({
       ok: false,
       message:
         "Choose which 01:30 it was: the clocks went back on 25/10/2026, so 01:30 happened twice.",
       parts: ["fold"],
     });
+  });
+
+  it("hazard HZ-009 hazard HZ-017 does not ask when only the first 01:30 has happened yet", () => {
+    // 01:45 BST has passed and 01:45 GMT has not: it can only be the first.
+    const between = new Date("2026-10-25T01:10:00.000Z");
+    expect(
+      readWhen(form(when("25", "10", "2026", "1", "45")), "occurredAt", t, { now: between }),
+    ).toEqual({ ok: true, instant: "2026-10-25T00:45:00.000Z" });
+    expect(
+      ukRepeatedTime({ year: 2026, month: 10, day: 25, hour: 1, minute: 45 }, between),
+    ).toBeNull();
+    expect(ukRepeatedTime({ year: 2026, month: 10, day: 25, hour: 1, minute: 45 }, LATER)).toEqual({
+      first: "BST",
+      second: "GMT",
+    });
+    expect(
+      ukRepeatedTime({ year: 2026, month: 2, day: 31, hour: 1, minute: 45 }, LATER),
+    ).toBeNull();
+  });
+
+  it("hazard HZ-010 hazard HZ-017 refuses a time later than now, beyond the clock tolerance", () => {
+    const now = new Date("2026-10-11T13:00:00.000Z");
+    // 14:04 BST is 13:04 UTC, within the tolerance; 14:06 is beyond it.
+    expect(readWhen(form(when("11", "10", "2026", "14", "04")), "occurredAt", t, { now })).toEqual({
+      ok: true,
+      instant: "2026-10-11T13:04:00.000Z",
+    });
+    expect(readWhen(form(when("11", "10", "2026", "14", "06")), "occurredAt", t, { now })).toEqual({
+      ok: false,
+      message: "The time it happened is later than now. Check the date and time.",
+      parts: ["day", "month", "year", "hour", "minute"],
+    });
+    expect(FUTURE_TOLERANCE_MINUTES).toBe(5);
   });
 
   it("says which boxes of an earlier time are missing or wrong", () => {
