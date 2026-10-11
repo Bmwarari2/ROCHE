@@ -72,7 +72,7 @@ describe("client schema covers every stream", () => {
 
   it("keeps upload problems and bookkeeping on the device only", () => {
     const localOnly = AppSchema.tables.filter((t) => t.localOnly).map((t) => t.name);
-    expect(localOnly.sort()).toEqual(["sync_meta", "upload_issue"]);
+    expect(localOnly.sort()).toEqual(["held_entry", "sync_meta", "upload_issue"]);
   });
 });
 

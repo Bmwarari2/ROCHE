@@ -329,6 +329,26 @@ const upload_issue = new Table(
   { localOnly: true, indexes: { by_person: ["person_id"] } },
 );
 
+/**
+ * Local-only: entries written on the device that had not uploaded when the session ended
+ * (HZ-006, security review S2). They are copied here from PowerSync's upload queue, and then
+ * everything else synced is cleared from the device, so only the unsent work stays, encrypted,
+ * until its owner signs in again (it goes back into the queue) or it is deleted. `id` is the
+ * entry's id; `payload` is the entry's columns as JSON; `position` keeps the queue order.
+ */
+const held_entry = new Table(
+  {
+    tenant_id: column.text,
+    person_id: column.text,
+    record_table: column.text,
+    op: column.text,
+    payload: column.text,
+    position: column.integer,
+    held_at: column.text,
+  },
+  { localOnly: true },
+);
+
 export const AppSchema = new Schema({
   person,
   allergy,
@@ -347,6 +367,7 @@ export const AppSchema = new Schema({
   activity_record,
   visit_log,
   upload_issue,
+  held_entry,
 });
 
 export type Database = (typeof AppSchema)["types"];
@@ -366,6 +387,7 @@ export type BodyMapMarkRecord = Database["body_map_mark"];
 export type ActivityRecordRecord = Database["activity_record"];
 export type VisitLogRecord = Database["visit_log"];
 export type UploadIssueRecord = Database["upload_issue"];
+export type HeldEntryRecord = Database["held_entry"];
 
 /**
  * Reference data for people in scope, never evicted while the assignment (or the location scope)
