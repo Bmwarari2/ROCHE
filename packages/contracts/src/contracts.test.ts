@@ -4,13 +4,18 @@ import {
   ClassifierAnswerValue,
   CloseIncident,
   CreateAssessment,
+  CreateBedMove,
   CreateIncident,
+  CreatePropertyItem,
+  CreateSharingDecision,
   NotRequiredNotification,
+  PersonStatusChange,
   PersonSummary,
   ProblemDetails,
   PublishCarePlan,
   ResuscitationStatus,
   SyncUpload,
+  UpdateAboutMe,
   UpdateCandour,
   UpdateCarePlanSection,
 } from "./index";
@@ -78,7 +83,11 @@ const ADA = {
   allergyStatus: "has_allergies",
   allergies: [{ substance: "Penicillin", severity: "severe", reaction: null }],
   communicationNeeds: [{ code: "fixture-large-print", display: "Requires large print" }],
+  communicationNeedsStatus: "recorded",
+  communicationNeedsConfirmedBy: null,
+  communicationNeedsConfirmedAt: null,
   resuscitation: NOT_RECORDED,
+  statusChangedAt: "2026-09-01T00:00:00+01:00",
   version: 1,
 } as const;
 
@@ -143,5 +152,67 @@ describe("contracts", () => {
     expect(
       ProblemDetails.parse({ title: "Forbidden", status: 403, code: "missing_permission" }).type,
     ).toBe("about:blank");
+  });
+});
+
+describe("slice 8 people lifecycle contracts", () => {
+  it("hazard HZ-023 needs the communication needs status on every summary", () => {
+    const { communicationNeedsStatus: _omitted, ...withoutStatus } = ADA;
+    expect(PersonSummary.safeParse(withoutStatus).success).toBe(false);
+    expect(PersonSummary.parse({ ...ADA, status: "pre_admission" }).status).toBe("pre_admission");
+  });
+
+  it("uses inclusive bounds on versions, beds and quantities", () => {
+    expect(PersonStatusChange.shape.version.safeParse(0).success).toBe(false);
+    expect(PersonStatusChange.shape.version.safeParse(1).success).toBe(true);
+    expect(UpdateAboutMe.shape.version.safeParse(0).success).toBe(true);
+    expect(CreateBedMove.shape.bed.safeParse(0).success).toBe(false);
+    expect(CreatePropertyItem.shape.quantity.safeParse(1).success).toBe(true);
+    expect(CreatePropertyItem.shape.quantity.safeParse(0).success).toBe(false);
+  });
+
+  it("takes About Me media as a document reference, never inline", () => {
+    const inline = UpdateAboutMe.safeParse({
+      sections: {
+        my_wellness: {
+          media: [{ documentId: "data:image/png;base64,AAAA", mimeType: "image/png" }],
+        },
+      },
+      authoredByPerson: true,
+      version: 0,
+    });
+    expect(inline.success).toBe(false);
+  });
+
+  it("names a sharing recipient by kind, and every decision has an expiry", () => {
+    const base = { sections: ["about_me"], basis: "consent", consentGivenBy: "person" } as const;
+    expect(CreateSharingDecision.safeParse({ ...base, recipient: { kind: "link" } }).success).toBe(
+      false,
+    );
+    expect(
+      CreateSharingDecision.safeParse({
+        ...base,
+        recipient: { kind: "family" },
+        validTo: "2026-12-01T00:00:00Z",
+      }).success,
+    ).toBe(false);
+    expect(
+      CreateSharingDecision.parse({
+        ...base,
+        recipient: { kind: "link" },
+        validTo: "2026-12-01T00:00:00Z",
+      }).capacity,
+    ).toBe("presumed");
+  });
+
+  it("keeps the break-glass reason code optional (additive)", () => {
+    const request = {
+      personId: "0193a000-0000-7000-8000-000000000401",
+      justification: "Covering the unit tonight while the nurse is off sick",
+    };
+    expect(BreakGlassRequest.safeParse(request).success).toBe(true);
+    expect(BreakGlassRequest.safeParse({ ...request, reasonCode: "curiosity" }).success).toBe(
+      false,
+    );
   });
 });

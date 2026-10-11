@@ -31,6 +31,11 @@ export const entryOutput = {
   deviceTime: isoDateTime.nullable(),
   lateEntry: z.boolean(),
   clockDrift: z.boolean(),
+  /**
+   * Accepted after the person left or died, for an event at or before then (people.md rule 3,
+   * HZ-006); show it as recorded after the exit.
+   */
+  recordedAfterExit: z.boolean(),
   supersedesId: uuid.nullable(),
   correctionReason: z.string().nullable(),
   /** True when a later entry supersedes this one. */

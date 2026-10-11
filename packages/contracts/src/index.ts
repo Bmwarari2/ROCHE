@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ResuscitationStatus } from "./care-planning";
+import { BreakGlassReasonCode, PersonStatus } from "./people";
 
 /**
  * Harbour API contracts (master prompt section 6): one set of Zod schemas shared by the API, the
@@ -119,15 +120,7 @@ export const PersonSummary = z
   .object({
     id: uuid,
     locationId: uuid,
-    status: z.enum([
-      "enquiry",
-      "active",
-      "on_leave",
-      "in_hospital",
-      "discharged",
-      "deceased",
-      "archived",
-    ]),
+    status: PersonStatus,
     givenName: z.string(),
     familyName: z.string(),
     preferredName: z.string().nullable(),
@@ -140,8 +133,17 @@ export const PersonSummary = z
       z.object({ substance: z.string(), severity: z.string(), reaction: z.string().nullable() }),
     ),
     communicationNeeds: z.array(CommunicationNeed),
+    /**
+     * HZ-023: `not_recorded` until someone records the needs or confirms there are none. An empty
+     * list with `not_recorded` means nobody has asked, never "no needs".
+     */
+    communicationNeedsStatus: z.enum(["not_recorded", "none_identified", "recorded"]),
+    communicationNeedsConfirmedBy: uuid.nullable(),
+    communicationNeedsConfirmedAt: isoDateTime.nullable(),
     /** The CPR decision in force, or `not_recorded` (hazard HZ-015). */
     resuscitation: ResuscitationStatus,
+    /** When the current status began (for a discharge or death, when the person left or died). */
+    statusChangedAt: isoDateTime,
     version: z.number().int(),
   })
   .meta({ id: "PersonSummary" });
@@ -259,6 +261,8 @@ export const BreakGlassRequest = z
       .string()
       .trim()
       .min(20, "Explain why you need this record (20 characters or more)."),
+    /** The kind of reason, for the weekly report; the typed justification is still required. */
+    reasonCode: BreakGlassReasonCode.optional(),
   })
   .meta({ id: "BreakGlassRequest" });
 export type BreakGlassRequest = z.infer<typeof BreakGlassRequest>;
@@ -289,6 +293,7 @@ export const DEVICE_HEADER = "x-harbour-device";
 export * from "./care";
 export * from "./care-planning";
 export * from "./mca";
+export * from "./people";
 export * from "./records";
 export * from "./safety";
 export * from "./tasks";
