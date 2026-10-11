@@ -1,4 +1,5 @@
 import { StatusChip } from "@harbour/ui";
+import { t } from "@/lib/i18n";
 import type { CommunicationSummary } from "@/lib/people";
 import { CommunicationFlag } from "./CommunicationFlag";
 
@@ -36,7 +37,7 @@ export function CommunicationStatus({
           status="notRecorded"
           label={summary.label}
           data-communication="not_recorded"
-          {...(recordHref ? { href: recordHref } : {})}
+          {...(recordHref ? { href: recordHref, actionLabel: t("common.recordThem") } : {})}
         />
       );
   }

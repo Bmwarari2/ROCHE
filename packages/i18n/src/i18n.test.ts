@@ -42,8 +42,13 @@ describe("catalogues", () => {
   });
 
   it("use sentence case: messages start with a capital unless they continue a sentence", () => {
-    // "or" sits between two buttons and "preferred format" follows a comma.
-    const continuations = new Set(["common.or", "people.communication.preferredFormat"]);
+    // "or" sits between two buttons, "record them" follows a colon in a link's name and
+    // "preferred format" follows a comma.
+    const continuations = new Set([
+      "common.or",
+      "common.recordThem",
+      "people.communication.preferredFormat",
+    ]);
     for (const [key, message] of Object.entries(catalogues["en-GB"])) {
       if (continuations.has(key) || /^[{:]/.test(message)) continue;
       expect(message[0], `${key}: ${message}`).toBe(message[0]?.toLocaleUpperCase("en-GB"));

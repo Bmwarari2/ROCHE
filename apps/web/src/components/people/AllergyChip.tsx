@@ -1,5 +1,6 @@
 import { StatusChip } from "@harbour/ui";
 import { CircleCheck, TriangleAlert } from "lucide-react";
+import { t } from "@/lib/i18n";
 import type { AllergySummary, AllergyTone } from "@/lib/people";
 
 const toneClass: Record<Exclude<AllergyTone, "warning">, string> = {
@@ -25,7 +26,7 @@ export function AllergyChip({
         status="notRecorded"
         label={summary.label}
         data-allergy-tone="warning"
-        {...(recordHref ? { href: recordHref } : {})}
+        {...(recordHref ? { href: recordHref, actionLabel: t("common.recordThem") } : {})}
       />
     );
   }

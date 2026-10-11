@@ -753,6 +753,7 @@
     "common.next",
     "common.none",
     "common.notRecorded",
+    "common.recordThem",
     "common.or",
     "common.retry",
     "common.save",
@@ -914,6 +915,23 @@
     "sync.offline",
     "sync.queued",
     "sync.stale",
-    "sync.syncing"
+    "sync.syncing",
+    "care.entry.medicinesConflict",
+    "care.task.catchUp",
+    "care.task.restoredDone",
+    "care.taskDetails.missedTitle",
+    "care.taskDetails.missedItem",
+    "care.taskDetails.entriesTitle",
+    "care.taskDetails.entryItem",
+    "care.taskDetails.entryRefs",
+    "care.taskDetails.omitted",
+    "care.taskDetails.taskChanged",
+    "care.taskDetails.kind.note",
+    "care.taskDetails.kind.observation",
+    "care.taskDetails.kind.bodyMap",
+    "care.taskDetails.kind.assessment",
+    "care.taskDetails.kind.activity",
+    "care.taskDetails.kind.visit",
+    "care.taskDetails.kind.incident"
   ]
 }
