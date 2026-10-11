@@ -55,6 +55,23 @@ describe("seed", () => {
     });
   });
 
+  it("switches on the tools awaiting licence confirmation for the demo tenant only (H-25)", async () => {
+    const flags = await inContext(
+      db.pool("harbour_app"),
+      ctx(DEMO.tenantId, DEMO.users.manager.id, "locations", [DEMO.locationId]),
+      async (c) => {
+        const { rows } = await c.query<{ flag_key: string; enabled: boolean }>(
+          "SELECT flag_key, enabled FROM feature_flag WHERE flag_key LIKE 'care.tool.%' ORDER BY flag_key",
+        );
+        return rows;
+      },
+    );
+    expect(flags).toEqual([
+      { flag_key: "care.tool.braden", enabled: true },
+      { flag_key: "care.tool.waterlow", enabled: true },
+    ]);
+  });
+
   it("keeps bank holidays read-only for the application", async () => {
     await expect(
       inContext(db.pool("harbour_app"), ctx(DEMO.tenantId, null, "tenant"), (c) =>

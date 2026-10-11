@@ -71,6 +71,15 @@ export const PERMISSIONS = {
     description: "Admit, transfer and discharge people",
     careRecord: true,
   },
+  "people.movement.record": {
+    description:
+      "Record a person going to hospital or on leave, their return, or their death, and print the transfer pack",
+    careRecord: true,
+  },
+  "people.property.manage": {
+    description: "Record personal property, valuables and keys, and their return",
+    careRecord: true,
+  },
   "people.assignment.manage": { description: "Assign staff to people" },
   "people.sharing.manage": { description: "Manage family and professional sharing rules" },
   "people.demographics.read": { description: "Read names and room only (no care data)" },

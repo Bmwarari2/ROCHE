@@ -17,9 +17,13 @@ import {
   checkEntryTime,
   checkTaskTransition,
   hasClockDrift,
+  isClosedRecord,
   isPermission,
+  nextWeightDueOn,
   resolveCareRates,
   type TaskStatus,
+  ukDayBounds,
+  ukIsoDate,
 } from "@harbour/domain";
 import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import { problems } from "../http/problem";
@@ -62,7 +66,8 @@ export interface PersonContext {
   readonly id: string;
   readonly locationId: string;
   readonly nation: "england" | "wales" | "scotland" | "northern_ireland";
-  /** Discharged, deceased or archived people are read-only for charts (care.md rule 12). */
+  readonly status: typeof person.$inferSelect.status;
+  /** Discharged, deceased or archived people are read-only except post-event records (rule 12). */
   readonly closed: boolean;
 }
 
@@ -83,7 +88,8 @@ export async function personContext(tx: Transaction, personId: string): Promise<
     id: row.id,
     locationId: row.locationId,
     nation: row.nation,
-    closed: row.status === "discharged" || row.status === "deceased" || row.status === "archived",
+    status: row.status,
+    closed: isClosedRecord(row.status),
   };
 }
 
@@ -131,6 +137,18 @@ export function entryTimes(
   return { occurredAt, deviceTime, lateEntry: check.lateEntry, clockDrift };
 }
 
+/** The point-of-care entries that can stand as evidence that a task was done. */
+export type EvidenceType =
+  | "care_note"
+  | "observation"
+  | "body_map_mark"
+  | "assessment"
+  | "activity_record"
+  | "visit_log"
+  | "care_plan"
+  | "risk_assessment"
+  | "advance_care_record";
+
 const TASK_TITLES: Record<CareTaskKind, string> = {
   news2_response: "Respond to NEWS2 score",
   food_and_fluid_record: "Keep a food and fluid record",
@@ -156,7 +174,8 @@ const TASK_PERMISSIONS: Record<CareTaskKind, string> = {
   safeguarding_decision_guide: "safety.safeguarding.manage",
 };
 
-async function nurseInCharge(tx: Transaction, locationId: string): Promise<string[]> {
+/** The nurse or senior on shift at a location; the Registered Manager when nobody holds those roles. */
+export async function nurseInCharge(tx: Transaction, locationId: string): Promise<string[]> {
   const holders = await tx
     .selectDistinct({ id: roleAssignment.tenantUserId })
     .from(roleAssignment)
@@ -188,6 +207,92 @@ export interface TriggerSource {
   readonly locationId: string;
   readonly sourceType: "observation" | "body_map_mark" | "assessment";
   readonly sourceId: string;
+  /** UK date of the result, from which a weight schedule runs; defaults to today. */
+  readonly occurredOn?: string;
+}
+
+/** Repeat screenings scheduled from a result (care.md rule 5): generic titles, never the person. */
+const RESCREEN_TITLES: Record<string, string> = {
+  must: "Repeat the MUST screening",
+  waterlow: "Repeat the Waterlow assessment",
+  braden: "Repeat the Braden assessment",
+  ng249_falls: "Repeat the falls assessment",
+  news2: "Repeat observations",
+};
+
+/**
+ * Schedules a task for a whole UK day, replacing any open task of the same kind for the person:
+ * a schedule moves when a newer result changes it, so only one is ever open (hazard HZ-008).
+ */
+async function scheduleDayTask(
+  tx: Transaction,
+  source: TriggerSource,
+  spec: { kind: string; title: string; requiredPermission: string; dueOn: string },
+): Promise<void> {
+  await tx
+    .update(task)
+    .set({ status: "cancelled", statusReason: "Rescheduled from a newer result" })
+    .where(
+      and(
+        eq(task.personId, source.personId),
+        eq(task.kind, spec.kind),
+        inArray(task.status, ["open", "in_progress"]),
+        isNull(task.deletedAt),
+      ),
+    );
+  const day = ukDayBounds(spec.dueOn);
+  await tx.insert(task).values({
+    kind: spec.kind,
+    title: spec.title,
+    requiredPermission: spec.requiredPermission,
+    personId: source.personId,
+    locationId: source.locationId,
+    sourceType: source.sourceType,
+    sourceId: source.sourceId,
+    dueAt: day.startsAt,
+    windowStart: day.startsAt,
+    windowEnd: day.endsAt,
+    priority: "routine",
+  });
+}
+
+/**
+ * Marks the person's open tasks of a kind done, with the entry that answers them as evidence (a
+ * new MUST result answers the scheduled MUST rescreen; a weight answers the weight check).
+ */
+export async function completeOpenTasks(
+  tx: Transaction,
+  input: {
+    personId: string;
+    kind: string;
+    /** Only the tasks raised for this record (a review of one risk assessment, say). */
+    sourceId?: string;
+    evidenceType: EvidenceType;
+    evidenceId: string;
+    actorTenantUserId: string;
+    now: Date;
+  },
+): Promise<number> {
+  const done = await tx
+    .update(task)
+    .set({
+      status: "done",
+      completedAt: input.now,
+      completedBy: input.actorTenantUserId,
+      evidenceType: input.evidenceType,
+      evidenceId: input.evidenceId,
+    })
+    .where(
+      and(
+        eq(task.personId, input.personId),
+        eq(task.kind, input.kind),
+        input.sourceId ? eq(task.sourceId, input.sourceId) : undefined,
+        inArray(task.status, ["open", "in_progress"]),
+        isNull(task.deletedAt),
+      ),
+    )
+    .returning({ id: task.id });
+  return done.length;
 }
 
 /**
@@ -262,8 +367,23 @@ export async function raiseCareTriggers(
         priority: frequency.kind === "continuous" ? "urgent" : "routine",
       });
       raised++;
+    } else if (trigger.kind === "rescreen") {
+      await scheduleDayTask(tx, source, {
+        kind: `care.rescreen.${trigger.toolKey}`,
+        title: RESCREEN_TITLES[trigger.toolKey] ?? "Repeat the assessment",
+        requiredPermission: "care.assessment.write",
+        dueOn: trigger.dueOn,
+      });
+      raised++;
+    } else if (trigger.kind === "weight_interval") {
+      await scheduleDayTask(tx, source, {
+        kind: "care.weight_check",
+        title: "Weigh",
+        requiredPermission: "care.note.write",
+        dueOn: nextWeightDueOn(source.occurredOn ?? ukIsoDate(now), trigger.interval),
+      });
+      raised++;
     }
-    // Rescreen and weight intervals are scheduled by the care plan (slice 4b).
   }
   return raised;
 }
@@ -279,7 +399,7 @@ export async function completeTaskWithEvidence(
     personId: string;
     actorTenantUserId: string;
     actorPermissions: ReadonlySet<string>;
-    evidenceType: "care_note" | "observation" | "body_map_mark";
+    evidenceType: EvidenceType;
     evidenceId: string;
     now: Date;
   },

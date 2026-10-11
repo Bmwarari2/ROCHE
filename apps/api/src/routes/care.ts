@@ -30,23 +30,38 @@ import {
   type PressureUlcerCategory,
   UK_TIME_ZONE,
   ukDayBounds,
+  ukIsoDate,
   validateMark,
+  weightInterval,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
-import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
+import { type AppEnv, requirePermission, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { publish } from "../outbox";
 import {
   careProfile,
   careRates,
+  completeOpenTasks,
   completeTaskWithEvidence,
   entryTimes,
   personContext,
   raiseCareTriggers,
 } from "../services/care";
+import { latestMustBand } from "../services/care-planning";
+import {
+  entryOut,
+  PersonParam,
+  permissionsOf,
+  range,
+  requireCorrection,
+  requireOpenRecord,
+  SENT_AT_HEADER,
+  supersededIds,
+  window,
+} from "./care-shared";
 import {
   conflictResponse,
   createRouter,
@@ -61,67 +76,6 @@ import {
  * observations with the validated rules, body-map marks and the person's care profile. Entries are
  * append-only; a correction supersedes. Reads and writes are audited by record id, never content.
  */
-
-const PersonParam = z.object({ id: z.uuid() });
-const SENT_AT_HEADER = "x-harbour-sent-at";
-const DAY_MS = 86_400_000;
-const range = z.object({
-  from: z.iso.datetime({ offset: true }).optional(),
-  to: z.iso.datetime({ offset: true }).optional(),
-});
-
-function window(q: { from?: string; to?: string }, now: Date) {
-  const from = q.from ? new Date(q.from) : new Date(now.getTime() - 3 * DAY_MS);
-  const to = q.to ? new Date(q.to) : new Date(now.getTime() + DAY_MS);
-  if (to.getTime() - from.getTime() > 92 * DAY_MS)
-    throw problems.invalid("Ask for 92 days or fewer.");
-  return { from, to };
-}
-
-const iso = (d: Date | null) => (d ? d.toISOString() : null);
-
-function entryOut(
-  row: {
-    id: string;
-    personId: string;
-    locationId: string;
-    occurredAt: Date;
-    recordedAt: Date;
-    deviceTime: Date | null;
-    lateEntry: boolean;
-    clockDrift: boolean;
-    supersedesId: string | null;
-    correctionReason: string | null;
-    createdBy: string | null;
-  },
-  superseded: ReadonlySet<string>,
-) {
-  return {
-    id: row.id,
-    personId: row.personId,
-    locationId: row.locationId,
-    occurredAt: row.occurredAt.toISOString(),
-    recordedAt: row.recordedAt.toISOString(),
-    deviceTime: iso(row.deviceTime),
-    lateEntry: row.lateEntry,
-    clockDrift: row.clockDrift,
-    supersedesId: row.supersedesId,
-    correctionReason: row.correctionReason,
-    superseded: superseded.has(row.id),
-    recordedBy: row.createdBy,
-  };
-}
-
-function supersededIds(rows: readonly { supersedesId: string | null }[]): Set<string> {
-  return new Set(rows.flatMap((r) => (r.supersedesId ? [r.supersedesId] : [])));
-}
-
-/** A correction must point at an entry about the same person, and say why. */
-function requireCorrection(body: { supersedesId?: string; correctionReason?: string }) {
-  if (body.supersedesId && !body.correctionReason) {
-    throw problems.invalid("Say why the entry is being corrected.");
-  }
-}
 
 async function checkSuperseded(
   tx: Transaction,
@@ -138,10 +92,6 @@ async function checkSuperseded(
     throw problems.invalid("The entry being corrected was not found.");
 }
 
-function permissionsOf(access: TenantAccess): ReadonlySet<string> {
-  return new Set(access.effective.permissions);
-}
-
 async function writeContext(
   c: Context<AppEnv>,
   personId: string,
@@ -149,9 +99,7 @@ async function writeContext(
   chartsOnly: boolean,
 ) {
   const person = await personContext(tx, personId);
-  if (chartsOnly && person.closed) {
-    throw problems.invalid("This person's record is closed; only post-event notes can be added.");
-  }
+  if (chartsOnly) requireOpenRecord(person);
   const rates = await careRates(tx, c.get("access").tenantId, person.nation);
   return { person, rates };
 }
@@ -385,6 +333,35 @@ export const careRouter = createRouter()
               evidenceId: row.id,
               now,
             });
+          }
+          if (body.values.chart === "weight" && !body.supersedesId) {
+            // The weight answers the scheduled check and sets the next one: weekly while the
+            // latest MUST result is medium or high, otherwise monthly (care.md rule 6).
+            await completeOpenTasks(tx, {
+              personId,
+              kind: "care.weight_check",
+              evidenceType: "observation",
+              evidenceId: row.id,
+              actorTenantUserId: access.tenantUserId,
+              now,
+            });
+            await raiseCareTriggers(
+              tx,
+              {
+                personId,
+                locationId: person.locationId,
+                sourceType: "observation",
+                sourceId: row.id,
+                occurredOn: ukIsoDate(times.occurredAt),
+              },
+              [
+                {
+                  kind: "weight_interval",
+                  interval: weightInterval(await latestMustBand(tx, personId), rates),
+                },
+              ],
+              now,
+            );
           }
           await auditInTx(tx, access, {
             action: body.supersedesId ? "care.observation.correct" : "care.observation.create",

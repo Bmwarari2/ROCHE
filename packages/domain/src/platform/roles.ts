@@ -119,6 +119,8 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "safety.incident.manage",
       "workforce.competence.observe",
       "platform.task.manage",
+      "people.movement.record",
+      "people.property.manage",
     ],
   },
   {
@@ -133,6 +135,8 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "workforce.competence.observe",
       "people.assignment.manage",
       "platform.task.manage",
+      "people.movement.record",
+      "people.property.manage",
     ],
   },
   {

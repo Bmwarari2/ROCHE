@@ -4,6 +4,7 @@
  * are stored on every result so a later edition never rewrites an old score.
  */
 
+import type { FlagKey } from "../platform/feature-flags";
 import type { ValidatedToolKey } from "./assessment";
 import { BRADEN_TOOL_VERSION } from "./braden";
 import { MUST_TOOL_VERSION } from "./must";
@@ -51,13 +52,14 @@ export const VALIDATED_TOOLS: Readonly<Record<ValidatedToolKey, ValidatedToolSou
 
 /**
  * Tools whose terms of use in software are not yet confirmed (human action H-25). They stay off for
- * real tenants until the licence is confirmed; the feature flag that enforces this arrives with the
- * assessment screens.
+ * real tenants until the licence is confirmed: the feature flag named here defaults to off, and the
+ * assessment API refuses the tool while it is off (care.md section 10).
  */
 export const TOOLS_AWAITING_LICENCE_CONFIRMATION: readonly {
   readonly toolKey: ValidatedToolKey;
   readonly humanAction: "H-25";
+  readonly flagKey: FlagKey;
 }[] = [
-  { toolKey: "waterlow", humanAction: "H-25" },
-  { toolKey: "braden", humanAction: "H-25" },
+  { toolKey: "waterlow", humanAction: "H-25", flagKey: "care.tool.waterlow" },
+  { toolKey: "braden", humanAction: "H-25", flagKey: "care.tool.braden" },
 ];

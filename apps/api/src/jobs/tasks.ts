@@ -18,6 +18,7 @@ import {
 import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import type pg from "pg";
 import type { Logger } from "../logger";
+import { raiseOverdueCareReviews } from "../services/care-planning";
 import { escalateOverdueTasks, materialiseSeries } from "../services/tasks";
 
 /**
@@ -241,6 +242,23 @@ export async function escalateTasks(deps: TaskDeps, now = new Date()): Promise<n
   }
   if (escalated > 0) deps.logger.info({ escalated }, "overdue tasks escalated");
   return escalated;
+}
+
+/**
+ * Raises one task for the nurse in charge for each overdue first care plan, care plan review, risk
+ * assessment review and advance care record review (care.md rule 1, HZ-015), and none twice.
+ */
+export async function raiseCareReviews(deps: TaskDeps, now = new Date()): Promise<number> {
+  let raised = 0;
+  for (const tenantId of await activeTenants(deps)) {
+    raised += await withRequestContext(
+      deps.appDb,
+      { tenantId, userId: null, scope: "tenant", locationIds: [] },
+      (tx) => raiseOverdueCareReviews(tx, tenantId, now),
+    );
+  }
+  if (raised > 0) deps.logger.info({ raised }, "care review tasks raised");
+  return raised;
 }
 
 export interface DeliveryDeps extends TaskDeps {

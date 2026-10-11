@@ -62,6 +62,8 @@ people only (plus break-glass), `none` no person records.
 | `people.person.break_glass` | yes | yes | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `people.enquiry.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |
 | `people.admission.manage` |  | yes | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| `people.movement.record` |  | yes | yes |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| `people.property.manage` |  | yes | yes |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `people.assignment.manage` |  |  | yes |  | yes | yes |  | yes |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `people.sharing.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `people.demographics.read` |  |  | yes |  | yes | yes |  |  |  |  | yes | yes |  |  | yes | yes |  |  |  |  |  |  |  |

@@ -1,15 +1,15 @@
 # Data standards mapping
 
-**Status**: Phase 0 initial mapping (platform and people). **Owner**: whoever changes a mapped field
+**Status**: Phase 0 initial mapping (platform and people), extended in Phase 1 slice 4b (care planning). **Owner**: whoever changes a mapped field
 updates this file in the same PR (master prompt section 20, item 7).
 
 This document is the **contract for import and export**. The migration import wizard (PLAT-014) accepts
 data in this shape, and the free full tenant export (PLAT-015) produces it. It maps Harbour fields to
 the Minimum Operational Data Standard (MODS), the NHS Data Dictionary, SNOMED CT, the Organisation Data
-Service (ODS) and PRSB About Me (section 18, "Data-standard alignment"). A change to a mapped field, a
-code list or the export shape is a contract change: it bumps the export schema version and is listed in
-the release notes. Later phases extend this file with PRSB care plan (PCSP), dm+d and the DSCR data
-migration schema.
+Service (ODS), PRSB About Me and the PRSB personalised care and support plan (section 18, "Data-standard
+alignment"). A change to a mapped field, a code list or the export shape is a contract change: it bumps
+the export schema version and is listed in the release notes. Later phases extend this file with dm+d and
+the DSCR data migration schema.
 
 ## Export and import conventions
 
@@ -43,6 +43,7 @@ migration schema.
 | Accessible Information Standard (DAPB1605) | Communication and information needs | Identify, record, flag, share and meet needs |
 | Organisation Data Service (ODS) | GP practice and location organisation codes | Lookups through the ODS API arrive with the NHS adapters (Phase 5); Phase 0 validates format only |
 | PRSB About Me | `about_me` sections | v2.01 (May 2025), model downloaded from theprsb.org on 2026-10-11 |
+| PRSB Personalised Care and Support Plan | `care_plan`, `care_plan_section`, `care_plan_action`; additional support plans | v2.0 (December 2021), [theprsb.org](https://theprsb.org/standards/personalisedcareandsupportplan/); section list checked on 2026-10-11, element-level mapping still to verify |
 | ISO 639-1 and ISO 639-3 | `first_language` | Two-letter code where one exists, otherwise three-letter |
 | CQC identifiers | Provider and location IDs | Format `1-` followed by digits |
 
@@ -68,7 +69,8 @@ names below are the concepts this contract carries and must be kept in step with
 | `id` | UUIDv7 | - | - | Harbour identifier; never shown as the person's identifier. |
 | `tenant_id` | UUIDv7 | - | - | Ignored on import (see conventions). |
 | `location_id` | UUIDv7 | - | - | The location currently responsible for the person. |
-| `status` | enum | - | `enquiry`, `active`, `on_leave`, `in_hospital`, `discharged`, `deceased`, `archived` | Harbour lifecycle (section 9.2). `discharged` and `deceased` make the record read-only except post-event records. |
+| `status` | enum | - | `enquiry`, `pre_admission`, `active`, `on_leave`, `in_hospital`, `discharged`, `deceased`, `archived`, `not_admitted` | Harbour lifecycle (section 9.2; [people.md](people.md) rule 1). `pre_admission` and `not_admitted` arrive with the Phase 1 schema step. `discharged` and `deceased` make the record read-only except post-event records. |
+| `status_changed_at` | timestamp | - | ISO 8601 UTC | When the current status began (Phase 1). For `discharged` and `deceased` it equals `discharged_at` or `deceased_at`. |
 | `nhs_number` | 10 digits | NHS Data Dictionary NHS NUMBER; MODS person identifier | Modulus 11 check (below); stored without spaces, shown as `999 000 0018` | The consistent identifier (Health and Social Care (Safety and Quality) Act 2015) but never the only one. PDS verification arrives in Phase 5. |
 | `local_identifier` | text | MODS local identifier | Tenant's own reference | Required when there is no NHS number. |
 | `title` | text | MODS person name | Free text (Mr, Mrs, Ms, Mx, Dr and others) | |
@@ -90,6 +92,7 @@ names below are the concepts this contract carries and must be kept in step with
 | `legal_status` | enum | - | Harbour code list, defined in `docs/specs/people.md` | Legal frameworks that apply (for example DoLS, Mental Health Act, Court of Protection order). |
 | `photo_document_id` | UUIDv7 | - | Reference to `document` | Photo shown on every point-of-care screen (wrong-person hazard). Exported in `documents/`. |
 | `communication_needs` | JSON array | Accessible Information Standard; SNOMED CT | `[{ "code", "display", "preferredFormat" }]` (below) | Flags on every screen and print (section 5.4). |
+| `communication_needs_status` | code | Accessible Information Standard (identify and record) | `not_recorded`, `none_identified`, `recorded` | Phase 1. An empty list is never read as "no needs": `none_identified` is recorded positively with `communication_needs_confirmed_by` and `_at` (hazard HZ-023). |
 | `national_data_opt_out` | boolean | National data opt-out | `true` when the person has opted out | Honoured when publicly funded care data is used beyond direct care. Checking against the national service is a Phase 5 item. |
 | `deceased_at` | timestamp | NHS Data Dictionary PERSON DEATH DATE (date part) | ISO 8601 UTC | Sets `status` to `deceased`. |
 | `discharged_at` | timestamp | MODS discharge date | ISO 8601 UTC | Sets `status` to `discharged`. |
@@ -203,6 +206,8 @@ concept from the loaded UK edition.
 | --- | --- | --- |
 | `type` | Harbour code list | `permanent`, `respite`, `trial`, `package` (domiciliary or supported-living package of care) |
 | Admission and end dates, end reason | MODS admission and discharge | One person can hold several placements over time under one record (section 9.2). |
+| `trial_ends_on`, `trial_reviewed_on` | Harbour | `YYYY-MM-DD` | Phase 1. A trial placement's review is due by its end. |
+| `local_authority_funded`, `nhs_funded` | Harbour | `true` or `false` | Phase 1 flags for the review scheduler and exit notifications; funding detail moves to finance in Phase 3. |
 
 ### `about_me` (PRSB About Me v2.01)
 
@@ -235,13 +240,146 @@ role and contact details of whoever helped) and **Date last updated**.
 
 Every section is optional. Media is stored as documents (never inline) and exported in `documents/`.
 
+## Care planning (Phase 1, slice 4b)
+
+### Personalised care and support plan (PRSB PCSP v2.0)
+
+The PRSB standard has four main sections (About Me, Care and support plan, Contingency plans and
+Additional support plans) and supporting sections (person demographics, GP practice, professional
+contacts, personal contacts and, where appropriate, formulation). Harbour maps them as follows. A plan
+version is one `care_plan` row: drafts are edited, publishing makes a draft `active` and the previous
+version `superseded`, and every change is kept in `record_version`.
+
+| PRSB PCSP section | Harbour | Notes |
+| --- | --- | --- |
+| About Me | `about_me` (PRSB About Me, above) | Linked by person, not copied into the plan |
+| Care and support plan | `care_plan` (status, `published_version`, `review_due_on`, sign-off) with one `care_plan_section` per need domain (`need`, `outcome` in the person's words, `strengths`) and its `care_plan_action` rows (`action`; who: `role_key`; when: `recurrence` or `when_text`) | "Who is responsible for delivery" is a role, so the plan survives staff changes; `generates_tasks` marks actions that become scheduled tasks |
+| Contingency plans | `care_plan_section.contingency` | Per need domain: what to do and whom to contact if things get worse |
+| Additional support plans | `risk_assessment`, `advance_care_record` and the stored validated tool results (`assessment`) | Linked by person; an action may name the risk assessment it controls (`risk_assessment_id`) |
+| Person demographics, GP practice, personal and professional contacts | `person`, `contact` | See Person and Related tables |
+| Formulation | Not held in Phase 1 | Mental health formulation; considered with the PBS and mental health work in Phase 5 |
+
+Need domains (`care_plan_section.domain`), from master prompt 10.1. SNOMED CT record headings for the
+domains are not hard-coded; they are mapped from the PRSB model loaded from TRUD before the Phase 5
+assurance pack (open item below).
+
+| Code | Display |
+| --- | --- |
+| `mobility` | Mobility |
+| `skin` | Skin |
+| `nutrition_and_hydration` | Nutrition and hydration |
+| `continence` | Continence |
+| `communication` | Communication |
+| `cognition` | Cognition |
+| `mood` | Mood |
+| `behaviour` | Behaviour |
+| `sleep` | Sleep |
+| `pain` | Pain |
+| `breathing` | Breathing |
+| `medicines` | Medicines |
+| `personal_care` | Personal care |
+| `social_and_spiritual` | Social and spiritual |
+| `sexuality_and_relationships` | Sexuality and relationships |
+| `end_of_life` | End of life |
+
+Sign-off (`care_plan.sign_off_kind`): `person` (the person agreed), `representative` (with
+`sign_off_representative_name`, `sign_off_authority` and optionally the `contact`), or `unable` (with
+`sign_off_unable_reason`). Authority codes: `lpa_health_welfare`, `deputy`, `imca`, `advocate`,
+`next_of_kin`, `other`. Plan status: `draft`, `active`, `superseded`.
+
+### `risk_assessment`
+
+| Field | Code list or format | Notes |
+| --- | --- | --- |
+| `template_key`, `template_version` | `moving_and_handling`, `falls`, `choking`, `skin`, `bed_rails`, `smoking`, `going_out_alone`, `financial`, `environmental`, `self_harm_and_suicide`, `sexual_safety`, `fire_setting`, `absconding`, `substance_and_alcohol_use`, `general`; version `harbour-2026-10` | Templates are code constants (`packages/domain/src/care/risk-assessment.ts`); `answers` is keyed by the template's question keys |
+| `likelihood`, `severity`, `residual_likelihood`, `residual_severity` | Whole numbers 1 to 5 | Assessor's judgements: likelihood rare, unlikely, possible, likely, almost certain; severity negligible, minor, moderate, major, catastrophic. Null for `falls` (never rated, NICE NG249 1.1.1) |
+| `risk_rating`, `residual_rating`, `risk_band`, `residual_band` | Product of the two; `low`, `moderate`, `high`, `extreme` | NPSA risk matrix (2008), [ADR-0032](../decisions/0032-risk-assessment-rating.md) |
+| `findings` | `[{ questionKey, valueMm, rateKey, limitMm, rule, withinLimit }]` | Bed rail gaps against the MHRA figures in the rate table |
+| `status` | `active`, `closed` (with `closed_reason`) | |
+
+### `assessment` (stored results of the validated tools)
+
+| Field | Code list or format | Notes |
+| --- | --- | --- |
+| `tool_key`, `tool_version` | `must` (`bapen-2011`), `waterlow` (`waterlow-2005`), `braden` (`braden-1988`), `ng249_falls` (`nice-ng249-2025`) | The version calculated is stored with every result |
+| `answers` | The tool's inputs as entered | JSON matching the `CreateAssessment` contract |
+| `score`, `band` | Whole number; the publisher's band | Both null for `ng249_falls`, which never scores |
+| `workings` | `[{ item, value, points }]` | The calculation as shown to staff |
+| `triggers` | The follow-ups raised (tasks, alerts, the next screening, the weighing interval) | |
+| `next_due_on` | `YYYY-MM-DD` | MUST from the screening interval; the others at the care plan review interval |
+
+SNOMED CT codes for the tools' findings are not exported in Phase 1 (open item below).
+
+### `activity_record` and `visit_log`
+
+| Field | Code list |
+| --- | --- |
+| `activity_record.format` | `group` (with `group_session_id`), `one_to_one` |
+| `activity_record.attendance` | `attended`, `partly_attended`, `declined`, `not_able` |
+| `activity_record.engagement` | `engaged_throughout`, `engaged_some_of_the_time`, `engaged_briefly`, `did_not_engage` (only when the person took part) |
+| `visit_log.kind` | `facilitated_visit`, `visit_out`, `accompaniment` (Regulation 9A of the 2014 Regulations) |
+| `visit_log` visitor | `contact_id` (one of the person's contacts) or `visitor_name` and `visitor_relationship` in free text |
+| `visit_log.restrictions_applied`, `restriction_reason` | A restriction always has its reason |
+
+### `advance_care_record`
+
+| Field | Code list or format | Notes |
+| --- | --- | --- |
+| `kind` | `respect`, `dnacpr`, `adrt`, `advance_care_plan` | At most one active record of each kind per person |
+| `status` | `active`, `withdrawn` (with `withdrawn_reason`), `superseded` (with `superseded_by_record_id`) | |
+| `cpr_decision` | `attempt_cpr`, `do_not_attempt_cpr` | ReSPECT and DNACPR only; a DNACPR record is always `do_not_attempt_cpr` |
+| `clinician_name`, `clinician_role`, `completed_on`, `review_due_on`, `document_id` | Free text; `YYYY-MM-DD`; reference to `document` | The scanned form is exported in `documents/` |
+
+CPR decisions map to the SNOMED CT concepts in the NHS "EOL CPR Status Code" value set (HL7 UK, FHIR
+STU3 assets), checked on 2026-10-11 and to be confirmed against the UK edition loaded from TRUD:
+
+| `cpr_decision` | SNOMED CT | Display |
+| --- | --- | --- |
+| `attempt_cpr` | 450475007 | For cardiopulmonary resuscitation (finding) |
+| `do_not_attempt_cpr` | 450476008 | Not for cardiopulmonary resuscitation (finding) |
+
+The point-of-care header shows the decision in force from an active ReSPECT or DNACPR record, or "not
+recorded" when there is none (hazard HZ-015).
+
+## Lifecycle records (Phase 1)
+
+Code lists for the tables in [people.md](people.md) section 2. MODS and NHS Data Dictionary
+alignments are concept-level, like the rest of this file, and are cross-checked before the Phase 5
+assurance pack.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `pre_admission_assessment.sections` | Harbour; content aligned to the PRSB personalised care and support plan headings where they exist | JSON keyed by `PRE_ADMISSION_SECTIONS` (`personal_details_and_contacts`, `views_and_wishes`, `health_and_medical_history`, `medicines`, `allergies`, `communication`, `mobility_and_falls`, `eating_drinking_and_swallowing`, `skin_integrity`, `continence_and_personal_care`, `cognition_and_mental_health`, `capacity_and_legal_status`, `resuscitation_and_advance_care`, `infection_status`, `equipment`, `risks`, `dependency`, `funding`, `social_cultural_and_spiritual`, `hospital_passport`) with `status` (`in_progress`, `complete`, `not_applicable`), reason, completed by and at | Allergies follow the `allergy` mapping; IDDSI levels the care profile; communication needs the AIS mapping above. |
+| `pre_admission_assessment.sources` | Harbour | `person`, `family_or_representative`, `hospital`, `gp`, `social_worker`, `previous_provider`, `other` | At least one. |
+| `admission_decision.can_meet_needs` | Harbour | `yes`, `yes_with_conditions`, `no` | With reasons, conditions, decided by and at. |
+| `placement.start_date` | MODS admission date (concept) | `YYYY-MM-DD` | The admission date of the current placement. |
+| `bed_occupancy.from_date`, `to_date` | Harbour | `YYYY-MM-DD`, `to_date` exclusive | The person's room and bed over time; `person.room_label` is a display cache of the current one. |
+| `property_item.category` | Harbour | `clothing`, `jewellery`, `watch`, `electronics`, `mobility_aid`, `sensory_aid`, `dentures`, `documents`, `furniture`, `ornament_or_picture`, `toiletries`, `other` | Cash is never an inventory item (residents' money ledger). |
+| `property_item.status` | Harbour | `held`, `sent_with_person`, `returned`, `disposed`, `lost` | |
+| `property_item` recipient capacity | Harbour | `person`, `representative`, `personal_representative`, `receiving_provider` | After a death only `personal_representative` (executor or administrator). |
+| `property_item` signatures | Harbour typed-name signature | Signer `person`, `representative` or `unable_to_sign` with a reason; typed name; time | A second staff member witnesses valuables and unsigned items. |
+| `care_plan_change.kind` | Harbour | `return_from_hospital`, `fall`, `change_in_needs`, `new_diagnosis`, `safeguarding`, `end_of_life`, `other` | Raises the care plan review on change. |
+| `review_record.kind` | Harbour | `care_plan`, `la_review`, `family_involvement`, `trial_review` | |
+| `review_record` family involvement | Harbour | `attended_review`, `contributed`, `invited_declined`, `person_declines_involvement`, `no_family_or_representative` | The last two stop the family involvement clock. |
+| `hospital_transfer` pack sections | NHS England hospital transfer pathway (red bag) content; allergies as `allergy`; About Me as `about_me`; communication needs as AIS; resuscitation as the care module's advance care record (ReSPECT, DNACPR) | `photo`, `allergies`, `medicines`, `communication`, `resuscitation`, `about_me` (safety-critical); `reason_for_transfer`, `baseline`, `eating_and_drinking`, `capacity_and_legal`, `contacts`, `infection`, `items_sent`, `home_contact` | The snapshot is stored as JSON with its rendered PDF; medicines are dm+d-coded from Phase 2. |
+| `exit_record.kind` | Harbour | `discharge`, `transfer`, `death` | |
+| `exit_record` destination | MODS discharge destination (concept); NHS Data Dictionary discharge destination items to be checked | Destination type (`usual_residence`, `another_care_home`, `hospital`, `other`) and the receiving provider's CQC location ID or ODS code | Sets `person.discharged_at`. |
+| `exit_record` death details | NHS Data Dictionary PERSON DEATH DATE (date part of `person.deceased_at`); place of death (concept) | Place `care_home`, `hospital`, `elsewhere`; expected or not; verified by (name, role) and at | Sets `person.deceased_at`. |
+| `exit_checklist_item.status` | Harbour | `pending`, `done`, `not_required` (with a reason, only where allowed) | Item keys from `exitChecklist` in `packages/domain/src/people/exit.ts`. |
+| `sharing_decision.sections` | Harbour | `about_me`, `daily_updates`, `photos`, `activities_and_visits`, `care_plan`, `health_summary`, `medicines`, `appointments`, `finance`, `documents`; care plan domains as the PCSP domains | |
+| `sharing_decision.basis` | UK GDPR and Caldicott principle 7 (direct care) | `consent`, `legal_authority`, `best_interests`, `direct_care` | Consent covers optional processing only (records of processing B8). |
+| `sharing_decision` authority role | Mental Capacity Act 2005 (Office of the Public Guardian registrations, Court of Protection orders); DWP appointeeship | `lpa_health_welfare`, `lpa_property_finance`, `deputy_personal_welfare`, `deputy_property_affairs`, `appointee` | From `contact.role` and `contact.authority_scope`, with reference, evidence document and end date. |
+| `sharing_decision` capacity | Mental Capacity Act 2005 s.1(2) (presumption of capacity) | `presumed`, `assessed_has_capacity`, `assessed_lacks_capacity` | Links the capacity assessment where one exists. |
+| `break_glass_event.reason_code` | Harbour | `emergency_care`, `covering_another_area`, `safeguarding`, `incident_or_complaint`, `request_from_professional`, `other` | Phase 1; the typed justification is kept as well. |
+
 ## Platform operational tables (not part of the MODS export)
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but
 map to no national data standard: `audit_event` (hash-chained), `record_version`, `outbox_event`,
 `notification`, `notification_delivery`, `escalation_chain`, `feature_flag`, `form_template`,
 `form_submission`, `integration_connection`, `integration_inbound`, `support_access_request`,
-`break_glass_event`, `person_assignment`, `role`, `role_assignment`, `access_grant`. Field-level
+`break_glass_event`, `person_assignment`, `role`, `role_assignment`, `access_grant`, and from
+Phase 1 `break_glass_weekly_report`, `about_me_share_link` and `welcome_checklist_template`. Field-level
 detail is in `packages/db/src/schema/`; purposes and lawful bases are in
 [records of processing](../compliance/records-of-processing.md).
 
@@ -253,3 +391,9 @@ detail is in `packages/db/src/schema/`; purposes and lawful bases are in
 - Current NHS Data Dictionary items for sex and gender (national revisions are in progress).
 - SNOMED CT concepts for Accessible Information Standard needs and "no known allergy", loaded from TRUD.
 - ODS code formats for Scottish and Northern Irish GP practices (Phase 7).
+- PRSB PCSP v2.0 element-level names and SNOMED CT record headings for the care plan sections and
+  need domains, from the PRSB viewer and TRUD (before the Phase 5 assurance pack).
+- SNOMED CT concepts for ReSPECT, ADRT and advance care plan documents, and for the validated tools'
+  findings.
+- MODS and NHS Data Dictionary items for admission date, discharge destination and place of death
+  (people lifecycle, Phase 1).

@@ -65,6 +65,8 @@ The formula shown to users for the three Phase 1 tools:
 
 **Implementation (Phase 1)**: NEWS2, MUST, Waterlow and Braden are calculated exactly as published in `packages/domain/src/care/` (`news2.ts`, `must.ts`, `waterlow.ts`, `braden.ts`). Each scoring table is a versioned constant with the publisher, edition and source cited in a code comment; `VALIDATED_TOOLS` in `tools.ts` carries the same citation for the screen; every result stores its `toolVersion` and the workings (each item, the value recorded and its points). Incomplete or impossible input returns a typed error and no total. NEWS2 returns the RCP chart 2 and chart 4 wording unchanged. MUST and Waterlow band the exact BMI and round it to one decimal place only for display, so a MUST BMI of 18.49 scores 2. Braden bands use the publisher's wording (severe risk, high risk, moderate risk, at risk), and a total of 19 or more reads "Below the at-risk threshold". The NG249 falls pathway (`falls.ts`) follows NICE's recommendations by setting (1.1.7 in residential care; 1.1.3, 1.1.4 and 1.1.6 in the community), names the recommendation that applies, returns follow-up tasks only, and a test asserts that it returns no numeric score. Waterlow and Braden are listed in `TOOLS_AWAITING_LICENCE_CONFIRMATION` until H-25 is closed.
 
+**Stored results (Phase 1, slice 4b)**: `POST /v1/people/{id}/assessments` runs the calculator on the server by its tool key (`validated-assessment.ts`) and stores the tool key and version, the answers, the score, the band, the workings, the follow-ups raised and the next due date; the client never sends a score. The NG249 falls pathway is stored with no score and no band. Corrections are new rows that supersede the original with a reason. Waterlow and Braden are refused while their `care.tool.waterlow` and `care.tool.braden` flags are off: off by default for every tenant, on only in the demo tenant, until H-25 is closed. Follow-up intervals (MUST rescreening, weighing, reviews) come from the rate table; Harbour schedules them and adds no recommendation.
+
 Where the Waterlow card leaves room for reading, the reading taken is stated in the source comment of `waterlow.ts` for CSO review:
 
 | Reading | Card text | Harbour |
@@ -88,6 +90,7 @@ Where the Waterlow card leaves room for reading, the reading taken is stated in 
 | Wound photos with a ruler | 1 | Display only; no measurement from the image |
 | AI summaries that include clinical notes | 6 | Draft labelled "generated from records"; scope lock blocks interpretation; covered by the DPIA AI addendum |
 | Weight-loss or fluid alerts | 1 | Allowed only as tenant-configured thresholds, displayed as "your policy threshold", not as Harbour's assessment |
+| Risk assessment rating (likelihood x severity) | 1 | Decided in [ADR-0032](../decisions/0032-risk-assessment-rating.md) (proposed, CSO to accept, H-60): the assessor's own likelihood and severity, multiplied and banded with the published NPSA 2008 matrix (1 to 3 low, 4 to 6 moderate, 8 to 12 high, 15 to 25 extreme); the formula is shown and Harbour adds no parameters. The falls template is never rated (NICE NG249 1.1.1) |
 
 ## 7. The question every clinical PR answers
 

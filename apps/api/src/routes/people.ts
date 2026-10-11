@@ -22,8 +22,21 @@ import { auditInTx } from "../http/audit";
 import { requirePermission, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { publish } from "../outbox";
+import { resuscitationFor } from "../services/care-planning";
 import { contentHeaders, readDocumentContent } from "../services/documents";
 import { createRouter, errorResponses, jsonBody, notFoundResponse, security } from "./openapi";
+
+const NOT_RECORDED: PersonSummary["resuscitation"] = {
+  status: "not_recorded",
+  conflicting: false,
+  recordId: null,
+  kind: null,
+  completedOn: null,
+  clinicianName: null,
+  clinicianRole: null,
+  reviewDueOn: null,
+  reviewOverdue: false,
+};
 
 /** Break-glass access lasts long enough to deal with the situation, then lapses (section 4). */
 const BREAK_GLASS_MINUTES = 60;
@@ -57,6 +70,8 @@ async function summaries(tx: Transaction, personIds?: readonly string[]) {
               eq(allergy.status, "active"),
             ),
           );
+  // The resuscitation decision in force shows in every point-of-care header (hazard HZ-015).
+  const resuscitation = await resuscitationFor(tx, ids, new Date());
   return people.map(
     (p): PersonSummary => ({
       id: p.id,
@@ -74,6 +89,7 @@ async function summaries(tx: Transaction, personIds?: readonly string[]) {
         .filter((a) => a.personId === p.id)
         .map((a) => ({ substance: a.substance, severity: a.severity, reaction: a.reaction })),
       communicationNeeds: (p.communicationNeeds as CommunicationNeed[]) ?? [],
+      resuscitation: resuscitation.get(p.id) ?? NOT_RECORDED,
       version: p.version,
     }),
   );

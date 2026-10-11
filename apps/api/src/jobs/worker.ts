@@ -2,13 +2,14 @@ import { createDatabase, createPool } from "@harbour/db";
 import { PgBoss } from "pg-boss";
 import { loadConfig } from "../config";
 import { createAdapterResolver } from "../integrations/registry";
-import { createLogger } from "../logger";
+import { createLogger, idleErrorLogger } from "../logger";
 import {
   endExpiredAssignments,
   escalateTasks,
   materialiseTaskSeries,
   type OutboxHandler,
   processDeliveries,
+  raiseCareReviews,
   relayOutbox,
   runEscalations,
 } from "./tasks";
@@ -19,8 +20,12 @@ import {
  */
 const config = loadConfig();
 const logger = createLogger(config.LOG_LEVEL);
-const workerPool = createPool(config.DATABASE_WORKER_URL, { max: 4 });
-const appPool = createPool(config.DATABASE_APP_URL, { max: 4 });
+const workerPool = createPool(
+  config.DATABASE_WORKER_URL,
+  { max: 4 },
+  idleErrorLogger(logger, "worker"),
+);
+const appPool = createPool(config.DATABASE_APP_URL, { max: 4 }, idleErrorLogger(logger, "app"));
 const deps = { workerPool, appDb: createDatabase(appPool), logger };
 
 /** Module handlers subscribe to outbox events here as modules land (Phase 1 onwards). */
@@ -37,6 +42,7 @@ const QUEUES = {
   deliveries: "notification-deliveries",
   taskSeries: "task-series-materialise",
   taskEscalations: "task-escalations",
+  careReviews: "care-reviews",
 } as const;
 
 for (const name of Object.values(QUEUES)) await boss.createQueue(name);
@@ -63,6 +69,9 @@ await boss.work(QUEUES.taskSeries, async () => {
 await boss.work(QUEUES.taskEscalations, async () => {
   await escalateTasks(deps);
 });
+await boss.work(QUEUES.careReviews, async () => {
+  await raiseCareReviews(deps);
+});
 
 // Every minute: escalations are measured in minutes (section 9.1, e.g. on-call after 10 minutes).
 await boss.schedule(QUEUES.outbox, "* * * * *");
@@ -71,6 +80,8 @@ await boss.schedule(QUEUES.assignments, "*/5 * * * *");
 await boss.schedule(QUEUES.deliveries, "* * * * *");
 await boss.schedule(QUEUES.taskSeries, "*/15 * * * *");
 await boss.schedule(QUEUES.taskEscalations, "* * * * *");
+// Hourly: reviews fall due by the day; each overdue review raises one task, once.
+await boss.schedule(QUEUES.careReviews, "7 * * * *");
 
 logger.info("Harbour worker started");
 

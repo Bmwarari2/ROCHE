@@ -439,6 +439,9 @@
               "$ref": "#/components/schemas/CommunicationNeed"
             }
           },
+          "resuscitation": {
+            "$ref": "#/components/schemas/ResuscitationStatus"
+          },
           "version": {
             "type": "integer"
           }
@@ -457,6 +460,7 @@
           "allergyStatus",
           "allergies",
           "communicationNeeds",
+          "resuscitation",
           "version"
         ]
       },
@@ -486,6 +490,81 @@
           "code",
           "display"
         ]
+      },
+      "ResuscitationStatus": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "not_recorded",
+              "attempt_cpr",
+              "do_not_attempt_cpr"
+            ]
+          },
+          "conflicting": {
+            "type": "boolean"
+          },
+          "recordId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "respect",
+              "dnacpr",
+              null
+            ]
+          },
+          "completedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "clinicianName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "clinicianRole": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewDueOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "reviewOverdue": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "status",
+          "conflicting",
+          "recordId",
+          "kind",
+          "completedOn",
+          "clinicianName",
+          "clinicianRole",
+          "reviewDueOn",
+          "reviewOverdue"
+        ],
+        "description": "The CPR decision in force from a DNACPR or ReSPECT record; 'not_recorded' when there is none, never blank"
       },
       "RecordHistory": {
         "type": "object",
@@ -2877,6 +2956,2854 @@
         "required": [
           "version"
         ]
+      },
+      "CarePlanList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CarePlanSummary"
+            }
+          },
+          "due": {
+            "$ref": "#/components/schemas/CarePlanDue"
+          }
+        },
+        "required": [
+          "items",
+          "due"
+        ]
+      },
+      "CarePlanSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CarePlanStatus"
+          },
+          "publishedVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "basedOnPlanId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewDueOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "reviewReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "publishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "publishedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "supersededAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "signOff": {
+            "$ref": "#/components/schemas/CarePlanSignOff"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "locationId",
+          "status",
+          "publishedVersion",
+          "basedOnPlanId",
+          "summary",
+          "reviewDueOn",
+          "reviewReason",
+          "publishedAt",
+          "publishedBy",
+          "supersededAt",
+          "signOff",
+          "version"
+        ]
+      },
+      "CarePlanStatus": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "active",
+          "superseded"
+        ]
+      },
+      "CarePlanSignOff": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "agreedBy": {
+            "type": "string",
+            "enum": [
+              "person",
+              "representative",
+              "unable"
+            ]
+          },
+          "representativeName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "authority": {
+            "$ref": "#/components/schemas/SignOffAuthority"
+          },
+          "contactId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "unableReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "signedOffAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recordedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "agreedBy",
+          "representativeName",
+          "authority",
+          "contactId",
+          "unableReason",
+          "signedOffAt",
+          "recordedBy"
+        ]
+      },
+      "SignOffAuthority": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "lpa_health_welfare",
+          "deputy",
+          "imca",
+          "advocate",
+          "next_of_kin",
+          "other",
+          null
+        ]
+      },
+      "CarePlanDue": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "first_plan",
+              "review"
+            ]
+          },
+          "dueOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "overdue": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "dueOn",
+          "overdue"
+        ],
+        "description": "What is due next: the first plan, then its review"
+      },
+      "CarePlanDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CarePlanStatus"
+          },
+          "publishedVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "basedOnPlanId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewDueOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "reviewReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "publishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "publishedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "supersededAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "signOff": {
+            "$ref": "#/components/schemas/CarePlanSignOff"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CarePlanSectionItem"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "locationId",
+          "status",
+          "publishedVersion",
+          "basedOnPlanId",
+          "summary",
+          "reviewDueOn",
+          "reviewReason",
+          "publishedAt",
+          "publishedBy",
+          "supersededAt",
+          "signOff",
+          "version",
+          "sections"
+        ]
+      },
+      "CarePlanSectionItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "domain": {
+            "$ref": "#/components/schemas/PcspDomain"
+          },
+          "need": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The outcome in the person's words"
+          },
+          "strengths": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contingency": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CarePlanActionItem"
+            }
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "domain",
+          "need",
+          "outcome",
+          "strengths",
+          "contingency",
+          "actions",
+          "version"
+        ]
+      },
+      "PcspDomain": {
+        "type": "string",
+        "enum": [
+          "mobility",
+          "skin",
+          "nutrition_and_hydration",
+          "continence",
+          "communication",
+          "cognition",
+          "mood",
+          "behaviour",
+          "sleep",
+          "pain",
+          "breathing",
+          "medicines",
+          "personal_care",
+          "social_and_spiritual",
+          "sexuality_and_relationships",
+          "end_of_life"
+        ],
+        "description": "The 16 need domains of the care and support plan"
+      },
+      "CarePlanActionItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sectionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "action": {
+            "type": "string"
+          },
+          "roleKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recurrence": {
+            "$ref": "#/components/schemas/Recurrence"
+          },
+          "whenText": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "generatesTasks": {
+            "type": "boolean"
+          },
+          "evidenceRequired": {
+            "type": "boolean"
+          },
+          "riskAssessmentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "taskSeriesId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "sectionId",
+          "action",
+          "roleKey",
+          "recurrence",
+          "whenText",
+          "generatesTasks",
+          "evidenceRequired",
+          "riskAssessmentId",
+          "taskSeriesId",
+          "version"
+        ]
+      },
+      "CreateCarePlan": {
+        "type": "object",
+        "properties": {
+          "copyFromActive": {
+            "type": "boolean",
+            "default": true
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        }
+      },
+      "UpdateCarePlanSection": {
+        "type": "object",
+        "properties": {
+          "need": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4000
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4000
+          },
+          "strengths": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4000
+          },
+          "contingency": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4000
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "CreateCarePlanAction": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 1000
+          },
+          "roleKey": {
+            "type": "string",
+            "pattern": "^[a-z_]{2,40}$"
+          },
+          "recurrence": {
+            "$ref": "#/components/schemas/Recurrence"
+          },
+          "whenText": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "generatesTasks": {
+            "type": "boolean",
+            "default": false
+          },
+          "evidenceRequired": {
+            "type": "boolean",
+            "default": false
+          },
+          "riskAssessmentId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "UpdateCarePlanAction": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 1000
+          },
+          "roleKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[a-z_]{2,40}$"
+          },
+          "recurrence": {
+            "$ref": "#/components/schemas/Recurrence"
+          },
+          "whenText": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          },
+          "generatesTasks": {
+            "type": "boolean"
+          },
+          "evidenceRequired": {
+            "type": "boolean"
+          },
+          "riskAssessmentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "removed": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "PublishCarePlan": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reviewDueOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "SignOffCarePlan": {
+        "type": "object",
+        "properties": {
+          "agreedBy": {
+            "type": "string",
+            "enum": [
+              "person",
+              "representative",
+              "unable"
+            ]
+          },
+          "representativeName": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "authority": {
+            "$ref": "#/components/schemas/SignOffAuthority"
+          },
+          "contactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "unableReason": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "agreedBy",
+          "version"
+        ]
+      },
+      "RiskTemplateList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RiskTemplate"
+            }
+          },
+          "matrix": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string"
+              },
+              "likelihood": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "severity": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "source",
+              "likelihood",
+              "severity"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "matrix"
+        ]
+      },
+      "RiskTemplate": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "$ref": "#/components/schemas/RiskTemplateKey"
+          },
+          "title": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "rated": {
+            "type": "boolean"
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RiskQuestion"
+            }
+          },
+          "suggestedControls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "version",
+          "source",
+          "rated",
+          "questions",
+          "suggestedControls"
+        ]
+      },
+      "RiskTemplateKey": {
+        "type": "string",
+        "enum": [
+          "moving_and_handling",
+          "falls",
+          "choking",
+          "skin",
+          "bed_rails",
+          "smoking",
+          "going_out_alone",
+          "financial",
+          "environmental",
+          "self_harm_and_suicide",
+          "sexual_safety",
+          "fire_setting",
+          "absconding",
+          "substance_and_alcohol_use",
+          "general"
+        ]
+      },
+      "RiskQuestion": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "yes_no",
+              "text",
+              "measurement_mm"
+            ]
+          },
+          "limit": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "rateKey": {
+                "type": "string"
+              },
+              "valueMm": {
+                "type": "number"
+              },
+              "rule": {
+                "type": "string",
+                "enum": [
+                  "under",
+                  "at_least"
+                ]
+              },
+              "whenYes": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "questionKey": {
+                    "type": "string"
+                  },
+                  "rateKey": {
+                    "type": "string"
+                  },
+                  "valueMm": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "questionKey",
+                  "rateKey",
+                  "valueMm"
+                ]
+              }
+            },
+            "required": [
+              "rateKey",
+              "valueMm",
+              "rule",
+              "whenYes"
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "text",
+          "kind",
+          "limit"
+        ]
+      },
+      "RiskAssessmentList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RiskAssessmentItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "RiskAssessmentItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "templateKey": {
+            "$ref": "#/components/schemas/RiskTemplateKey"
+          },
+          "templateVersion": {
+            "type": "string"
+          },
+          "hazard": {
+            "type": "string"
+          },
+          "whoAtRisk": {
+            "type": "string"
+          },
+          "answers": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RiskFinding"
+            }
+          },
+          "outsideLimits": {
+            "type": "boolean"
+          },
+          "likelihood": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "severity": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "riskRating": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "riskBand": {
+            "$ref": "#/components/schemas/RiskBand"
+          },
+          "residualLikelihood": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "residualSeverity": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "residualRating": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "residualBand": {
+            "$ref": "#/components/schemas/RiskBand"
+          },
+          "controls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "positiveRiskStatement": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "personViews": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "assessedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reviewDueOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "closed"
+            ]
+          },
+          "closedReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "templateKey",
+          "templateVersion",
+          "hazard",
+          "whoAtRisk",
+          "answers",
+          "findings",
+          "outsideLimits",
+          "likelihood",
+          "severity",
+          "riskRating",
+          "riskBand",
+          "residualLikelihood",
+          "residualSeverity",
+          "residualRating",
+          "residualBand",
+          "controls",
+          "positiveRiskStatement",
+          "personViews",
+          "assessedOn",
+          "reviewDueOn",
+          "status",
+          "closedReason",
+          "version"
+        ]
+      },
+      "RiskFinding": {
+        "type": "object",
+        "properties": {
+          "questionKey": {
+            "type": "string"
+          },
+          "valueMm": {
+            "type": "number"
+          },
+          "rateKey": {
+            "type": "string"
+          },
+          "limitMm": {
+            "type": "number"
+          },
+          "rule": {
+            "type": "string",
+            "enum": [
+              "under",
+              "at_least"
+            ]
+          },
+          "withinLimit": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "questionKey",
+          "valueMm",
+          "rateKey",
+          "limitMm",
+          "rule",
+          "withinLimit"
+        ]
+      },
+      "RiskBand": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "low",
+          "moderate",
+          "high",
+          "extreme",
+          null
+        ]
+      },
+      "CreateRiskAssessment": {
+        "type": "object",
+        "properties": {
+          "templateKey": {
+            "$ref": "#/components/schemas/RiskTemplateKey"
+          },
+          "hazard": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          },
+          "whoAtRisk": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 300
+          },
+          "answers": {
+            "type": "object",
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "default": {}
+          },
+          "likelihood": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 5,
+            "default": null
+          },
+          "severity": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 5,
+            "default": null
+          },
+          "residualLikelihood": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 5,
+            "default": null
+          },
+          "residualSeverity": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 5,
+            "default": null
+          },
+          "controls": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 300
+            },
+            "maxItems": 30
+          },
+          "positiveRiskStatement": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000,
+            "default": null
+          },
+          "personViews": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000,
+            "default": null
+          },
+          "assessedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reviewDueOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "templateKey",
+          "hazard",
+          "whoAtRisk",
+          "controls",
+          "assessedOn"
+        ]
+      },
+      "UpdateRiskAssessment": {
+        "type": "object",
+        "properties": {
+          "hazard": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          },
+          "whoAtRisk": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 300
+          },
+          "answers": {
+            "type": "object",
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "default": {}
+          },
+          "likelihood": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 5,
+            "default": null
+          },
+          "severity": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 5,
+            "default": null
+          },
+          "residualLikelihood": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 5,
+            "default": null
+          },
+          "residualSeverity": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 5,
+            "default": null
+          },
+          "controls": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 300
+            },
+            "maxItems": 30
+          },
+          "positiveRiskStatement": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000,
+            "default": null
+          },
+          "personViews": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000,
+            "default": null
+          },
+          "assessedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reviewDueOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "hazard",
+          "whoAtRisk",
+          "controls",
+          "assessedOn",
+          "version"
+        ],
+        "description": "A review: the whole assessment as it now stands"
+      },
+      "CloseRiskAssessment": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "reason",
+          "version"
+        ]
+      },
+      "AssessmentItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deviceTime": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lateEntry": {
+            "type": "boolean"
+          },
+          "clockDrift": {
+            "type": "boolean"
+          },
+          "supersedesId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "correctionReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "superseded": {
+            "type": "boolean"
+          },
+          "recordedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "toolKey": {
+            "$ref": "#/components/schemas/AssessmentToolKey"
+          },
+          "toolVersion": {
+            "type": "string"
+          },
+          "answers": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "score": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "band": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "workings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScoreWorking"
+            }
+          },
+          "triggers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "nextDueOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "locationId",
+          "occurredAt",
+          "recordedAt",
+          "deviceTime",
+          "lateEntry",
+          "clockDrift",
+          "supersedesId",
+          "correctionReason",
+          "superseded",
+          "recordedBy",
+          "toolKey",
+          "toolVersion",
+          "answers",
+          "score",
+          "band",
+          "workings",
+          "triggers",
+          "details",
+          "nextDueOn"
+        ]
+      },
+      "AssessmentToolKey": {
+        "type": "string",
+        "enum": [
+          "must",
+          "waterlow",
+          "braden",
+          "ng249_falls"
+        ]
+      },
+      "ScoreWorking": {
+        "type": "object",
+        "properties": {
+          "item": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "points": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "item",
+          "value",
+          "points"
+        ]
+      },
+      "CreateAssessment": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "deviceTime": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "supersedesId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "correctionReason": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 500
+              },
+              "taskId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "toolKey": {
+                "type": "string",
+                "enum": [
+                  "must"
+                ]
+              },
+              "answers": {
+                "$ref": "#/components/schemas/MustAnswers"
+              }
+            },
+            "required": [
+              "occurredAt",
+              "toolKey",
+              "answers"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "deviceTime": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "supersedesId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "correctionReason": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 500
+              },
+              "taskId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "toolKey": {
+                "type": "string",
+                "enum": [
+                  "waterlow"
+                ]
+              },
+              "answers": {
+                "$ref": "#/components/schemas/WaterlowAnswers"
+              }
+            },
+            "required": [
+              "occurredAt",
+              "toolKey",
+              "answers"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "deviceTime": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "supersedesId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "correctionReason": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 500
+              },
+              "taskId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "toolKey": {
+                "type": "string",
+                "enum": [
+                  "braden"
+                ]
+              },
+              "answers": {
+                "$ref": "#/components/schemas/BradenAnswers"
+              }
+            },
+            "required": [
+              "occurredAt",
+              "toolKey",
+              "answers"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "deviceTime": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "supersedesId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "correctionReason": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 500
+              },
+              "taskId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "toolKey": {
+                "type": "string",
+                "enum": [
+                  "ng249_falls"
+                ]
+              },
+              "answers": {
+                "$ref": "#/components/schemas/FallsAnswers"
+              }
+            },
+            "required": [
+              "occurredAt",
+              "toolKey",
+              "answers"
+            ]
+          }
+        ],
+        "description": "Answers to a locked validated tool; the server calculates and stores the result. A correction names the result it supersedes and why."
+      },
+      "MustAnswers": {
+        "type": "object",
+        "properties": {
+          "bmi": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "calculated"
+                    ]
+                  },
+                  "weightKg": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1000
+                  },
+                  "heightM": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 5
+                  },
+                  "weightMethod": {
+                    "type": "string",
+                    "enum": [
+                      "measured",
+                      "documented_or_reported"
+                    ]
+                  },
+                  "heightMethod": {
+                    "type": "string",
+                    "enum": [
+                      "measured",
+                      "documented_or_reported",
+                      "ulna_length",
+                      "knee_height",
+                      "demispan"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind",
+                  "weightKg",
+                  "heightM",
+                  "weightMethod",
+                  "heightMethod"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "assessor_category"
+                    ]
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "over_20",
+                      "18_5_to_20",
+                      "under_18_5"
+                    ]
+                  },
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "mid_upper_arm_circumference",
+                      "subjective_criteria"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind",
+                  "category",
+                  "method"
+                ]
+              }
+            ]
+          },
+          "weightLoss": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "calculated"
+                    ]
+                  },
+                  "previousWeightKg": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1000
+                  },
+                  "currentWeightKg": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1000
+                  }
+                },
+                "required": [
+                  "kind",
+                  "previousWeightKg",
+                  "currentWeightKg"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "assessor_category"
+                    ]
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "under_5",
+                      "5_to_10",
+                      "over_10"
+                    ]
+                  },
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "reported_weight_loss",
+                      "subjective_criteria"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind",
+                  "category",
+                  "method"
+                ]
+              }
+            ]
+          },
+          "acuteDiseaseEffect": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "bmi",
+          "weightLoss",
+          "acuteDiseaseEffect"
+        ],
+        "description": "BAPEN 'MUST' steps 1 to 3"
+      },
+      "WaterlowAnswers": {
+        "type": "object",
+        "properties": {
+          "build": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "calculated"
+                    ]
+                  },
+                  "weightKg": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1000
+                  },
+                  "heightM": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 5
+                  }
+                },
+                "required": [
+                  "kind",
+                  "weightKg",
+                  "heightM"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "assessor_category"
+                    ]
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "average",
+                      "above_average",
+                      "obese",
+                      "below_average"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind",
+                  "category"
+                ]
+              }
+            ]
+          },
+          "skin": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "healthy",
+                "tissue_paper",
+                "dry",
+                "oedematous",
+                "clammy_or_pyrexia",
+                "discoloured_grade_1",
+                "broken_or_spots_grade_2_to_4"
+              ]
+            },
+            "maxItems": 7
+          },
+          "sex": {
+            "type": "string",
+            "enum": [
+              "male",
+              "female"
+            ]
+          },
+          "ageYears": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 130
+          },
+          "malnutrition": {
+            "type": "object",
+            "properties": {
+              "recentWeightLoss": {
+                "type": "string",
+                "enum": [
+                  "yes",
+                  "no",
+                  "unsure"
+                ]
+              },
+              "weightLossAmount": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "0.5_to_5_kg",
+                  "5_to_10_kg",
+                  "10_to_15_kg",
+                  "over_15_kg",
+                  "unsure",
+                  null
+                ]
+              },
+              "eatingPoorlyOrLackOfAppetite": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "recentWeightLoss",
+              "eatingPoorlyOrLackOfAppetite"
+            ]
+          },
+          "continence": {
+            "type": "string",
+            "enum": [
+              "complete_or_catheterised",
+              "urinary_incontinence",
+              "faecal_incontinence",
+              "urinary_and_faecal_incontinence"
+            ]
+          },
+          "mobility": {
+            "type": "string",
+            "enum": [
+              "fully",
+              "restless_or_fidgety",
+              "apathetic",
+              "restricted",
+              "bedbound",
+              "chairbound"
+            ]
+          },
+          "tissueMalnutrition": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "terminal_cachexia",
+                "multiple_organ_failure",
+                "single_organ_failure",
+                "peripheral_vascular_disease",
+                "anaemia",
+                "smoking"
+              ]
+            },
+            "maxItems": 6
+          },
+          "neurologicalDeficit": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "condition": {
+                  "type": "string",
+                  "enum": [
+                    "diabetes_ms_or_cva",
+                    "motor_or_sensory",
+                    "paraplegia"
+                  ]
+                },
+                "points": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 10
+                }
+              },
+              "required": [
+                "condition",
+                "points"
+              ]
+            },
+            "maxItems": 3
+          },
+          "majorSurgeryOrTrauma": {
+            "type": "object",
+            "properties": {
+              "orthopaedicOrSpinal": {
+                "type": "boolean"
+              },
+              "timeOnTable": {
+                "type": "string",
+                "enum": [
+                  "not_applicable",
+                  "over_2_hours",
+                  "over_6_hours"
+                ]
+              }
+            },
+            "required": [
+              "orthopaedicOrSpinal",
+              "timeOnTable"
+            ]
+          },
+          "medication": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "cytotoxics",
+                "long_term_or_high_dose_steroids",
+                "anti_inflammatory"
+              ]
+            },
+            "maxItems": 3
+          }
+        },
+        "required": [
+          "build",
+          "skin",
+          "sex",
+          "ageYears",
+          "malnutrition",
+          "continence",
+          "mobility",
+          "tissueMalnutrition",
+          "neurologicalDeficit",
+          "majorSurgeryOrTrauma",
+          "medication"
+        ],
+        "description": "Waterlow score card (2005 revision)"
+      },
+      "BradenAnswers": {
+        "type": "object",
+        "properties": {
+          "sensoryPerception": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10
+          },
+          "moisture": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10
+          },
+          "activity": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10
+          },
+          "mobility": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10
+          },
+          "nutrition": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10
+          },
+          "frictionAndShear": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10
+          }
+        },
+        "required": [
+          "sensoryPerception",
+          "moisture",
+          "activity",
+          "mobility",
+          "nutrition",
+          "frictionAndShear"
+        ],
+        "description": "Braden Scale subscale scores"
+      },
+      "FallsAnswers": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "setting": {
+                "type": "string",
+                "enum": [
+                  "residential"
+                ]
+              },
+              "occasion": {
+                "type": "string",
+                "enum": [
+                  "admission",
+                  "review",
+                  "after_fall"
+                ]
+              },
+              "fallenInLastYear": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "presentingAfterFall": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "setting",
+              "occasion"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "setting": {
+                "type": "string",
+                "enum": [
+                  "community"
+                ]
+              },
+              "fallenInLastYear": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "presentingAfterFall": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "criteria": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "livingWithFrailty": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "injuredAndNeededMedicalTreatment": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "lostConsciousness": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "unableToGetUpIndependently": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "twoOrMoreFallsInLastYear": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            },
+            "required": [
+              "setting"
+            ]
+          }
+        ],
+        "description": "NICE NG249 falls questions (no score)"
+      },
+      "AssessmentList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssessmentItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "ActivityRecordItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deviceTime": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lateEntry": {
+            "type": "boolean"
+          },
+          "clockDrift": {
+            "type": "boolean"
+          },
+          "supersedesId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "correctionReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "superseded": {
+            "type": "boolean"
+          },
+          "recordedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "activity": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "group",
+              "one_to_one"
+            ]
+          },
+          "groupSessionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "attendance": {
+            "$ref": "#/components/schemas/ActivityAttendance"
+          },
+          "engagement": {
+            "$ref": "#/components/schemas/ActivityEngagement"
+          },
+          "durationMinutes": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "locationId",
+          "occurredAt",
+          "recordedAt",
+          "deviceTime",
+          "lateEntry",
+          "clockDrift",
+          "supersedesId",
+          "correctionReason",
+          "superseded",
+          "recordedBy",
+          "activity",
+          "format",
+          "groupSessionId",
+          "attendance",
+          "engagement",
+          "durationMinutes",
+          "notes"
+        ]
+      },
+      "ActivityAttendance": {
+        "type": "string",
+        "enum": [
+          "attended",
+          "partly_attended",
+          "declined",
+          "not_able"
+        ]
+      },
+      "ActivityEngagement": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "engaged_throughout",
+          "engaged_some_of_the_time",
+          "engaged_briefly",
+          "did_not_engage",
+          null
+        ]
+      },
+      "CreateActivityRecord": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deviceTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "supersedesId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "correctionReason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "activity": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "group",
+              "one_to_one"
+            ]
+          },
+          "groupSessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "attendance": {
+            "$ref": "#/components/schemas/ActivityAttendance"
+          },
+          "engagement": {
+            "$ref": "#/components/schemas/ActivityEngagement"
+          },
+          "durationMinutes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 720
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "occurredAt",
+          "activity",
+          "format",
+          "attendance"
+        ]
+      },
+      "ActivityRecordList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActivityRecordItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "VisitItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deviceTime": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lateEntry": {
+            "type": "boolean"
+          },
+          "clockDrift": {
+            "type": "boolean"
+          },
+          "supersedesId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "correctionReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "superseded": {
+            "type": "boolean"
+          },
+          "recordedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/VisitKind"
+          },
+          "contactId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "visitorName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "visitorRelationship": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "endedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "restrictionsApplied": {
+            "type": "boolean"
+          },
+          "restrictionReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "locationId",
+          "occurredAt",
+          "recordedAt",
+          "deviceTime",
+          "lateEntry",
+          "clockDrift",
+          "supersedesId",
+          "correctionReason",
+          "superseded",
+          "recordedBy",
+          "kind",
+          "contactId",
+          "visitorName",
+          "visitorRelationship",
+          "endedAt",
+          "restrictionsApplied",
+          "restrictionReason",
+          "notes"
+        ]
+      },
+      "VisitKind": {
+        "type": "string",
+        "enum": [
+          "facilitated_visit",
+          "visit_out",
+          "accompaniment"
+        ],
+        "description": "Regulation 9A: visiting, visits out and accompaniment"
+      },
+      "CreateVisit": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deviceTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "supersedesId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "correctionReason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/VisitKind"
+          },
+          "contactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "visitorName": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "visitorRelationship": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "restrictionsApplied": {
+            "type": "boolean",
+            "default": false
+          },
+          "restrictionReason": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "occurredAt",
+          "kind"
+        ]
+      },
+      "VisitList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VisitItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "AdvanceCareList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdvanceCareItem"
+            }
+          },
+          "resuscitation": {
+            "$ref": "#/components/schemas/ResuscitationStatus"
+          }
+        },
+        "required": [
+          "items",
+          "resuscitation"
+        ]
+      },
+      "AdvanceCareItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AdvanceCareKind"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "withdrawn",
+              "superseded"
+            ]
+          },
+          "cprDecision": {
+            "$ref": "#/components/schemas/CprDecision"
+          },
+          "clinicianName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "clinicianRole": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "completedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reviewDueOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "reviewOverdue": {
+            "type": "boolean"
+          },
+          "documentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "details": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "withdrawnAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "withdrawnReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "supersededByRecordId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "kind",
+          "status",
+          "cprDecision",
+          "clinicianName",
+          "clinicianRole",
+          "completedOn",
+          "reviewDueOn",
+          "reviewOverdue",
+          "documentId",
+          "details",
+          "withdrawnAt",
+          "withdrawnReason",
+          "supersededByRecordId",
+          "version"
+        ]
+      },
+      "AdvanceCareKind": {
+        "type": "string",
+        "enum": [
+          "respect",
+          "dnacpr",
+          "adrt",
+          "advance_care_plan"
+        ]
+      },
+      "CprDecision": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "attempt_cpr",
+          "do_not_attempt_cpr",
+          null
+        ]
+      },
+      "CreateAdvanceCareRecord": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/AdvanceCareKind"
+          },
+          "cprDecision": {
+            "$ref": "#/components/schemas/CprDecision"
+          },
+          "clinicianName": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "clinicianRole": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "completedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reviewDueOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "documentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "details": {
+            "type": "string",
+            "maxLength": 4000
+          }
+        },
+        "required": [
+          "kind",
+          "completedOn"
+        ]
+      },
+      "UpdateAdvanceCareRecord": {
+        "type": "object",
+        "properties": {
+          "clinicianName": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "clinicianRole": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "reviewDueOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "documentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "details": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4000
+          },
+          "withdrawnReason": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "description": "A changed CPR decision is a new record, which supersedes this one"
       },
       "RateValue": {
         "type": "object",
@@ -6752,6 +9679,2220 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PersonCareProfile"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/care-plans": {
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Care plan versions, newest first, and what is due next",
+        "description": "The first plan is due within the rate table's working days of admission (skipping bank holidays); the active plan is reviewed at the review interval and on change.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Plans",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CarePlanList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Start a draft care plan (usually from the active plan)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCarePlan"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Draft started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CarePlanDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/care-plans/{planId}": {
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "One care plan version with its sections and actions",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "planId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Plan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CarePlanDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/care-plans/{planId}/sections/{domain}": {
+      "put": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Write one need domain of a draft: need, outcome in the person's words, strengths, contingency",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "planId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/PcspDomain"
+            },
+            "required": true,
+            "description": "The 16 need domains of the care and support plan",
+            "name": "domain",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCarePlanSection"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Section",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CarePlanSectionItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/care-plans/{planId}/sections/{domain}/actions": {
+      "post": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Add an action to a draft section: what, who (role) and when",
+        "description": "An action that generates tasks needs a schedule in the location's time zone and a role; only an active plan's actions generate tasks.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "planId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/PcspDomain"
+            },
+            "required": true,
+            "description": "The 16 need domains of the care and support plan",
+            "name": "domain",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCarePlanAction"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Action added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CarePlanActionItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/care-plans/{planId}/actions/{actionId}": {
+      "put": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Change or remove an action in a draft",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "planId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "actionId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCarePlanAction"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Action",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CarePlanActionItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/care-plans/{planId}/publish": {
+      "post": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Publish a draft: it becomes the active plan and supersedes the previous version",
+        "description": "Needs at least one section with the need and the outcome. Sets the review date from the rate table's review interval, or earlier when asked. Answers any open first-plan or review task.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "planId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishCarePlan"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Published",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CarePlanDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/care-plans/{planId}/sign-off": {
+      "post": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Record who agreed the plan: the person, a representative with authority, or why not",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "planId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignOffCarePlan"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed off",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CarePlanSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/care/risk-templates": {
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Risk assessment templates with their questions, controls and rate-table limits",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Templates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiskTemplateList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/risk-assessments": {
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "The person's risk assessments (active by default)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "closed",
+                "all"
+              ],
+              "default": "active"
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Risk assessments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiskAssessmentList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Record a positive risk assessment from a template",
+        "description": "Likelihood and severity are the assessor's judgements, rated with the NPSA matrix; falls are never rated (NICE NG249). Bed rail gaps are checked against the MHRA figures in the rate table.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRiskAssessment"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiskAssessmentItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/risk-assessments/{riskId}": {
+      "put": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Review a risk assessment (the earlier version stays in its history)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "riskId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRiskAssessment"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiskAssessmentItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/risk-assessments/{riskId}/close": {
+      "post": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Close a risk assessment that no longer applies, with the reason",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "riskId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseRiskAssessment"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Closed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiskAssessmentItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/care-history/{table}/{recordId}": {
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Every earlier version of a care plan, section, action, risk assessment or advance care record",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "care_plan",
+                "care_plan_section",
+                "care_plan_action",
+                "risk_assessment",
+                "advance_care_record"
+              ]
+            },
+            "required": true,
+            "name": "table",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "recordId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "History",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordHistory"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/assessments": {
+      "post": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Complete a validated tool (MUST, Waterlow, Braden or the NG249 falls questions)",
+        "description": "The server calculates the result exactly as published and stores the tool version, answers, score, band, workings, the follow-ups raised and when the tool is next due. MUST schedules the next screening and the weight checks; a changed band or a fall brings the care plan review forward. Waterlow and Braden are refused while their licence flags are off. Append-only: a correction supersedes with a reason.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAssessment"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Saved (or the earlier copy of a replayed upload)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Stored validated tool results, newest first, or the current result per tool",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/AssessmentToolKey"
+            },
+            "required": false,
+            "name": "toolKey",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "default": "false"
+            },
+            "required": false,
+            "name": "latest",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/activities": {
+      "post": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Record an activity: attendance and engagement (group sessions per person)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateActivityRecord"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Saved (or the earlier copy of a replayed upload)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityRecordItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Activities, newest first (default: the last three days)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": false,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": false,
+            "name": "to",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Activities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityRecordList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/visits": {
+      "post": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Record a visit, a visit out or an accompaniment (Regulation 9A)",
+        "description": "`occurredAt` is when the visit started. A restriction applied to the visit needs the reason it was necessary. A visit is late when it is recorded long after it ended.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVisit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Saved (or the earlier copy of a replayed upload)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "The visiting log, newest first (default: the last three days)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": false,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": false,
+            "name": "to",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Visits",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/advance-care": {
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "ReSPECT, DNACPR, ADRT and advance care plans, with the resuscitation status in force",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "default": "false"
+            },
+            "required": false,
+            "name": "includeInactive",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdvanceCareList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Record a ReSPECT plan, DNACPR decision, ADRT or advance care plan",
+        "description": "Records the clinician, the date completed, the review date and the scanned form. A new record supersedes the active one of the same kind. The signed original stays with the person.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAdvanceCareRecord"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdvanceCareItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/advance-care/{recordId}": {
+      "put": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Change the review date, clinician or form of a record, or withdraw it with the reason",
+        "description": "A changed CPR decision is a new record, which supersedes this one.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "recordId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAdvanceCareRecord"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdvanceCareItem"
                 }
               }
             }

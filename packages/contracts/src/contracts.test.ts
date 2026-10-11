@@ -1,25 +1,86 @@
 import { describe, expect, it } from "vitest";
-import { BreakGlassRequest, PersonSummary, ProblemDetails, SyncUpload } from "./index";
+import {
+  BreakGlassRequest,
+  CreateAssessment,
+  PersonSummary,
+  ProblemDetails,
+  PublishCarePlan,
+  ResuscitationStatus,
+  SyncUpload,
+  UpdateCarePlanSection,
+} from "./index";
+
+const NOT_RECORDED = {
+  status: "not_recorded",
+  conflicting: false,
+  recordId: null,
+  kind: null,
+  completedOn: null,
+  clinicianName: null,
+  clinicianRole: null,
+  reviewDueOn: null,
+  reviewOverdue: false,
+} as const;
+
+const ADA = {
+  id: "0193a000-0000-7000-8000-000000000401",
+  locationId: "0193a000-0000-7000-8000-000000000101",
+  status: "active",
+  givenName: "Ada",
+  familyName: "Example",
+  preferredName: null,
+  dateOfBirth: "1938-02-01",
+  nhsNumber: "9990000018",
+  roomLabel: "4",
+  photoUrl: null,
+  allergyStatus: "has_allergies",
+  allergies: [{ substance: "Penicillin", severity: "severe", reaction: null }],
+  communicationNeeds: [{ code: "fixture-large-print", display: "Requires large print" }],
+  resuscitation: NOT_RECORDED,
+  version: 1,
+} as const;
 
 describe("contracts", () => {
   it("parses a point-of-care person summary", () => {
-    const parsed = PersonSummary.parse({
-      id: "0193a000-0000-7000-8000-000000000401",
-      locationId: "0193a000-0000-7000-8000-000000000101",
-      status: "active",
-      givenName: "Ada",
-      familyName: "Example",
-      preferredName: null,
-      dateOfBirth: "1938-02-01",
-      nhsNumber: "9990000018",
-      roomLabel: "4",
-      photoUrl: null,
-      allergyStatus: "has_allergies",
-      allergies: [{ substance: "Penicillin", severity: "severe", reaction: null }],
-      communicationNeeds: [{ code: "fixture-large-print", display: "Requires large print" }],
-      version: 1,
+    expect(PersonSummary.parse(ADA).allergies).toHaveLength(1);
+  });
+
+  it("hazard HZ-015 needs a resuscitation status on every point-of-care summary", () => {
+    const { resuscitation: _omitted, ...withoutStatus } = ADA;
+    expect(PersonSummary.safeParse(withoutStatus).success).toBe(false);
+    expect(
+      PersonSummary.safeParse({ ...ADA, resuscitation: { ...NOT_RECORDED, status: "" } }).success,
+    ).toBe(false);
+    expect(ResuscitationStatus.parse(NOT_RECORDED).status).toBe("not_recorded");
+  });
+
+  it("uses inclusive bounds only on care planning numbers", () => {
+    expect(PublishCarePlan.shape.version.safeParse(0).success).toBe(false);
+    expect(PublishCarePlan.shape.version.safeParse(1).success).toBe(true);
+    expect(UpdateCarePlanSection.shape.version.safeParse(0).success).toBe(true);
+  });
+
+  it("tells the validated tools apart by key", () => {
+    const braden = CreateAssessment.safeParse({
+      toolKey: "braden",
+      occurredAt: "2026-10-11T10:00:00+01:00",
+      answers: {
+        sensoryPerception: 3,
+        moisture: 3,
+        activity: 2,
+        mobility: 2,
+        nutrition: 3,
+        frictionAndShear: 2,
+      },
     });
-    expect(parsed.allergies).toHaveLength(1);
+    expect(braden.success).toBe(true);
+    expect(
+      CreateAssessment.safeParse({
+        toolKey: "news2",
+        occurredAt: "2026-10-11T10:00:00Z",
+        answers: {},
+      }).success,
+    ).toBe(false);
   });
 
   it("requires a meaningful break-glass justification", () => {
