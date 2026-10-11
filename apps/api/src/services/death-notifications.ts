@@ -1,36 +1,92 @@
-import { exitRecord, location, statutoryNotification, type Transaction } from "@harbour/db";
+import { exitRecord, location, statutoryNotification, type Transaction, task } from "@harbour/db";
 import {
   exitNotifications,
   NOTIFICATION_KINDS,
   type StatutoryNotificationKind,
 } from "@harbour/domain";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, isNull, lte } from "drizzle-orm";
 import { contextOfExit } from "./people";
 import { upsertDraft } from "./safety";
 
 /**
  * The safety module's handlers for the people lifecycle's death events (people.md section 6;
- * safety.md rules 1, 6 and 8; HZ-013). `people.person.died` drafts the statutory notifications
- * the exit checklist names (`exitNotifications`): the regulator's death notification, the medical
- * examiner information unless the person died in hospital, and LeDeR for a person with a learning
- * disability or an autistic person. `people.person.status_corrected` flags those drafts as no
- * longer indicated, never closing them: a holder of `safety.notification.submit` decides.
- * Phase 1 drafts for locations in England only, like the incident classifier.
+ * safety.md rules 1, 6 and 8; HZ-013). `people.person.died` drafts the notifications the exit
+ * checklist names (`exitNotifications` with a `safetyKind`): the regulator's death notification,
+ * the medical examiner information unless the person died in hospital, and LeDeR for a person with
+ * a learning disability or an autistic person. Each draft belongs to its exit record (its source
+ * key), so a death recorded in error and corrected never stands in for a later real death.
+ * `people.person.status_corrected` flags that exit's drafts as no longer indicated, never closing
+ * them, and gives a holder of `safety.notification.submit` a task for any already submitted: the
+ * regulator must be told the earlier notification was made in error. Phase 1 drafts for
+ * locations in England only, like the incident classifier.
  */
 
-/** Exit checklist items whose notification is a statutory draft in the safety module. */
-export const DEATH_NOTIFICATION_KINDS: Readonly<Record<string, StatutoryNotificationKind>> = {
-  regulator_death_notification: "cqc_reg16_death",
-  medical_examiner_information: "medical_examiner",
-  leder_notification: "leder",
-};
+type ExitRow = typeof exitRecord.$inferSelect;
+type NotificationRow = typeof statutoryNotification.$inferSelect;
 
 const REQUIRED_CONTENT: Partial<Record<StatutoryNotificationKind, readonly string[]>> = {
   cqc_reg16_death: ["A description of the circumstances of the death (reg 16(3))"],
 };
 
-const sourceKey = (exitRecordId: string, kind: StatutoryNotificationKind) =>
+/** A classifier draft from an incident counts for this death when it is dated within a day. */
+const SAME_DEATH_WINDOW_MS = 24 * 3_600_000;
+
+export const exitSourceKey = (exitRecordId: string, kind: StatutoryNotificationKind) =>
   `exit:${exitRecordId}:${kind}`;
+
+/** The safety kinds an exit drafts, by exit checklist item. */
+export function draftedKinds(exit: ExitRow): Map<string, StatutoryNotificationKind> {
+  const kinds = new Map<string, StatutoryNotificationKind>();
+  for (const n of exitNotifications(contextOfExit(exit))) {
+    if (n.safetyKind) kinds.set(n.itemKey, n.safetyKind);
+  }
+  return kinds;
+}
+
+/**
+ * The notifications for this death, by kind: the drafts this exit made, or a draft the incident
+ * classifier made for the same death (an incident about the person within a day of it). Drafts of
+ * an earlier exit never count (HZ-013).
+ */
+export async function notificationsForExit(
+  tx: Transaction,
+  exit: ExitRow,
+): Promise<Map<StatutoryNotificationKind, NotificationRow>> {
+  const found = new Map<StatutoryNotificationKind, NotificationRow>();
+  if (exit.kind !== "death") return found;
+  const kinds = [...new Set(draftedKinds(exit).values())];
+  if (kinds.length === 0) return found;
+  const own = await tx
+    .select()
+    .from(statutoryNotification)
+    .where(
+      inArray(
+        statutoryNotification.sourceKey,
+        kinds.map((k) => exitSourceKey(exit.id, k)),
+      ),
+    );
+  for (const row of own) found.set(row.kind as StatutoryNotificationKind, row);
+  if (exit.leftAt) {
+    const fromIncidents = await tx
+      .select()
+      .from(statutoryNotification)
+      .where(
+        and(
+          eq(statutoryNotification.personId, exit.personId),
+          inArray(statutoryNotification.kind, kinds),
+          isNotNull(statutoryNotification.incidentId),
+          eq(statutoryNotification.noLongerIndicated, false),
+          gte(statutoryNotification.dueAt, new Date(exit.leftAt.getTime() - SAME_DEATH_WINDOW_MS)),
+          lte(statutoryNotification.dueAt, new Date(exit.leftAt.getTime() + SAME_DEATH_WINDOW_MS)),
+        ),
+      );
+    for (const row of fromIncidents) {
+      const kind = row.kind as StatutoryNotificationKind;
+      if (!found.has(kind)) found.set(kind, row);
+    }
+  }
+  return found;
+}
 
 export async function draftDeathNotifications(
   tx: Transaction,
@@ -47,30 +103,16 @@ export async function draftDeathNotifications(
   const { exit } = row;
   const diedAt = exit.leftAt;
   if (!diedAt) return 0;
+  const existing = await notificationsForExit(tx, exit);
   let drafted = 0;
-  for (const notification of exitNotifications(contextOfExit(exit))) {
-    const kind = DEATH_NOTIFICATION_KINDS[notification.itemKey];
-    if (!kind || !notification.statutory) continue;
-    // One draft per death: one the incident classifier already made for this person stands.
-    const existing = await tx
-      .select({ id: statutoryNotification.id })
-      .from(statutoryNotification)
-      .where(
-        and(
-          eq(statutoryNotification.personId, exit.personId),
-          eq(statutoryNotification.kind, kind),
-          eq(statutoryNotification.noLongerIndicated, false),
-          inArray(statutoryNotification.status, ["draft", "ready", "submitted"]),
-        ),
-      )
-      .limit(1);
-    if (existing.length > 0) continue;
+  for (const kind of new Set(draftedKinds(exit).values())) {
+    if (existing.has(kind)) continue;
     const info = NOTIFICATION_KINDS[kind];
     const result = await upsertDraft(
       tx,
       tenantId,
       {
-        sourceKey: sourceKey(exit.id, kind),
+        sourceKey: exitSourceKey(exit.id, kind),
         kind,
         locationId: exit.locationId,
         incidentId: null,
@@ -99,11 +141,20 @@ export async function draftDeathNotifications(
   return drafted;
 }
 
-/** A death corrected as recorded in error: its drafts are flagged, and a person decides. */
+export const CORRECTION_TASK_KIND = "safety.notification_correction";
+
+/**
+ * A death corrected as recorded in error: this exit's drafts are flagged and a person decides;
+ * a notification already submitted gets a task to tell the regulator it was made in error.
+ */
 export async function withdrawDeathNotifications(
   tx: Transaction,
   exitRecordId: string,
-): Promise<number> {
+  now: Date,
+): Promise<{ flagged: number; corrections: number }> {
+  const keys = Object.keys(NOTIFICATION_KINDS).map((kind) =>
+    exitSourceKey(exitRecordId, kind as StatutoryNotificationKind),
+  );
   const flagged = await tx
     .update(statutoryNotification)
     .set({
@@ -112,13 +163,48 @@ export async function withdrawDeathNotifications(
     })
     .where(
       and(
-        inArray(
-          statutoryNotification.sourceKey,
-          Object.values(DEATH_NOTIFICATION_KINDS).map((kind) => sourceKey(exitRecordId, kind)),
-        ),
+        inArray(statutoryNotification.sourceKey, keys),
         inArray(statutoryNotification.status, ["draft", "ready"]),
       ),
     )
     .returning({ id: statutoryNotification.id });
-  return flagged.length;
+  const submitted = await tx
+    .select()
+    .from(statutoryNotification)
+    .where(
+      and(
+        inArray(statutoryNotification.sourceKey, keys),
+        eq(statutoryNotification.status, "submitted"),
+      ),
+    );
+  let corrections = 0;
+  for (const n of submitted) {
+    const [open] = await tx
+      .select({ id: task.id })
+      .from(task)
+      .where(
+        and(
+          eq(task.kind, CORRECTION_TASK_KIND),
+          eq(task.sourceId, n.id),
+          inArray(task.status, ["open", "in_progress"]),
+          isNull(task.deletedAt),
+        ),
+      )
+      .limit(1);
+    if (open) continue;
+    await tx.insert(task).values({
+      kind: CORRECTION_TASK_KIND,
+      title: "Tell the regulator an earlier notification was made in error",
+      requiredPermission: "safety.notification.submit",
+      personId: n.personId,
+      locationId: n.locationId,
+      sourceType: "statutory_notification",
+      sourceId: n.id,
+      assigneeRoleKey: "registered_manager",
+      dueAt: now,
+      priority: "urgent",
+    });
+    corrections++;
+  }
+  return { flagged: flagged.length, corrections };
 }

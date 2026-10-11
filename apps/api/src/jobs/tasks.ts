@@ -327,7 +327,15 @@ export async function detectOutbreaks(deps: TaskDeps, now = new Date()): Promise
  * care plan (HZ-008).
  */
 export async function raiseReviews(deps: TaskDeps, now = new Date()): Promise<number> {
-  const raised = await eachTenant(deps, (tx, tenantId) => raisePeopleReviews(tx, tenantId, now));
+  const raised = await eachTenant(deps, (tx, tenantId) =>
+    raisePeopleReviews(tx, tenantId, now, (locationIds) =>
+      // Opaque ids only: which tenant and locations have no review figures for their nation.
+      deps.logger.warn(
+        { tenantId, locationIds },
+        "people reviews not scheduled: no rate-table review figures for the nation",
+      ),
+    ),
+  );
   if (raised > 0) deps.logger.info({ raised }, "people reviews raised");
   return raised;
 }
@@ -375,7 +383,9 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       async (event) => {
         const exitRecordId = exitIdOf(event.payload);
         if (!exitRecordId || (event.payload as { from?: unknown }).from !== "deceased") return;
-        await inTenant(event.tenantId, (tx) => withdrawDeathNotifications(tx, exitRecordId));
+        await inTenant(event.tenantId, (tx) =>
+          withdrawDeathNotifications(tx, exitRecordId, new Date()),
+        );
       },
     ],
   ]);
