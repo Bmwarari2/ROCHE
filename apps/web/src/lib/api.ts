@@ -9,7 +9,7 @@ import { redirectForProblem } from "./problems";
 
 /**
  * Server-side access to the Harbour API. Server components and server actions call the API
- * directly (not through the browser-facing rewrite), forwarding the person's session cookie and
+ * directly (the browser only reaches /api/auth), forwarding the person's session cookie and
  * the active organisation. The web tier holds no credentials of its own and no database access.
  */
 export const API_URL = (

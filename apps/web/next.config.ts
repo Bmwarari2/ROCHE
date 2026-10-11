@@ -2,17 +2,12 @@ import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
 
 /**
- * Harbour web (master prompt section 6). The browser talks to one origin: Better Auth and the
- * versioned API are proxied through this app, so the session cookie stays first-party and no
- * cross-origin requests are needed. The web tier never opens a database connection.
- *
- * Rewrites are resolved when the app is built, so API_URL (or API_BASE_URL, the name the
- * Terraform stack sets) must be present at build time as well as at run time.
+ * Harbour web (master prompt section 6). The browser talks to one origin: Better Auth calls are
+ * passed to the API by `src/app/api/auth/[...path]/route.ts`, and pages fetch the API on the
+ * server, so the session cookie stays first-party and no cross-origin requests are needed. The
+ * API's address (API_URL, or API_BASE_URL as Terraform names it) is read when the server starts,
+ * so one image serves every environment. The web tier never opens a database connection.
  */
-const apiUrl = (process.env.API_URL ?? process.env.API_BASE_URL ?? "http://localhost:4000").replace(
-  /\/+$/,
-  "",
-);
 
 // The Content Security Policy carries a per-request nonce, so it is set in src/proxy.ts.
 
@@ -58,13 +53,6 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@harbour/ui", "@harbour/contracts", "@harbour/i18n"],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
-  },
-  // Only Better Auth and the versioned API are proxied; /api/health is answered by this app.
-  async rewrites() {
-    return [
-      { source: "/api/auth/:path*", destination: `${apiUrl}/api/auth/:path*` },
-      { source: "/v1/:path*", destination: `${apiUrl}/v1/:path*` },
-    ];
   },
 };
 

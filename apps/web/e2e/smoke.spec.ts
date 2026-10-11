@@ -159,3 +159,10 @@ test("pages carry a per-request nonce policy and scripts run without violations"
   await expect(page.getByRole("button", { name: "Sign in with a passkey" })).toBeEnabled();
   expect(violations).toEqual([]);
 });
+
+test("the browser reaches only Better Auth through this origin, never the API's /v1 routes", async ({
+  page,
+}) => {
+  expect((await page.request.get("/v1/me")).status()).toBe(404);
+  expect((await page.request.get("/api/auth/get-session")).status()).toBe(200);
+});

@@ -3,8 +3,8 @@ import { twoFactorClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
 /**
- * Better Auth in the browser. Requests go to /api/auth on this origin, which next.config.ts
- * proxies to the API, so the session cookie is first-party and httpOnly.
+ * Better Auth in the browser. Requests go to /api/auth on this origin, which a route handler
+ * passes to the API, so the session cookie is first-party and httpOnly.
  */
 function create() {
   return createAuthClient({
