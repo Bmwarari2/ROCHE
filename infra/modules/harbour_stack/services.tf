@@ -25,10 +25,24 @@ resource "aws_ecs_cluster_capacity_providers" "this" {
 # Shared configuration
 # ---------------------------------------------------------------------------------------------
 
+# CloudFront's addresses towards origins: requests through CloudFront arrive from these.
+data "aws_ec2_managed_prefix_list" "cloudfront_origin_facing" {
+  name = "com.amazonaws.global.cloudfront.origin-facing"
+}
+
 locals {
   # Services reference the cluster through the capacity provider association so that they
   # are only created once Fargate and Fargate Spot are attached.
   cluster_name = aws_ecs_cluster_capacity_providers.this.cluster_name
+
+  # Hops between a person and the API that append to X-Forwarded-For: CloudFront (web), the web
+  # tier and load balancers in the VPC, and the NAT gateways the web tier calls the API through.
+  # The API skips these from the right to find the client address for sign-in throttling.
+  trusted_proxy_cidrs = concat(
+    [var.vpc_cidr_block],
+    [for ip in module.network.nat_public_ips : "${ip}/32"],
+    sort([for entry in data.aws_ec2_managed_prefix_list.cloudfront_origin_facing.entries : entry.cidr]),
+  )
 
   # Plain configuration for the API and the worker (one bundle, two commands). Never secrets.
   app_environment = {
@@ -40,7 +54,7 @@ locals {
     BETTER_AUTH_URL         = "https://${local.hosts.api}"
     WEB_ORIGINS             = "https://${local.hosts.web}"
     PASSKEY_RP_ID           = var.domain_name
-    TRUSTED_PROXY_CIDRS     = var.vpc_cidr_block
+    TRUSTED_PROXY_CIDRS     = join(",", local.trusted_proxy_cidrs)
     POWERSYNC_URL           = "https://${local.hosts.sync}"
     SYNC_JWT_AUDIENCE       = var.sync_jwt_audience
     S3_DOCUMENTS_BUCKET     = module.bucket_documents.bucket_id

@@ -19,6 +19,10 @@ mock_provider "aws" {
   mock_data "aws_iam_policy_document" {
     defaults = { json = "{}" }
   }
+
+  mock_data "aws_ec2_managed_prefix_list" {
+    defaults = { entries = [{ cidr = "198.51.100.0/24", description = "documentation range" }] }
+  }
 }
 
 mock_provider "aws" {
