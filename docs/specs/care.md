@@ -145,13 +145,45 @@ nothing outside the care plan (HZ-008). Body marks that prompt an incident or th
 create those tasks for the manager. Charts and marks are refused for discharged, deceased and
 archived people; post-event notes are allowed.
 
+Built in slice 4b: `GET` and `POST /v1/people/{id}/care-plans` (a draft, usually copied from the
+active plan; one draft and one active plan per person), `GET /v1/people/{id}/care-plans/{planId}`,
+`PUT .../sections/{domain}` for the 16 PCSP need domains (need, outcome in the person's words,
+strengths, contingency), `POST .../sections/{domain}/actions` and `PUT .../actions/{actionId}`
+(action, role, a `Recurrence` in the location's time zone, a task-generation flag for slice 5, an
+optional linked risk assessment), `POST .../publish` (supersedes the active version and sets the
+review date from `care_plan.review_interval_months`, or earlier) and `POST .../sign-off` (the
+person, a representative with authority, or unable with the reason). The list returns what is due:
+the first plan within `care_plan.initial_working_days` working days of admission, skipping the
+nation's bank holidays (England only until other nations have a figure), then the review. An hourly
+worker job raises one task and one alert to the nurse in charge for an overdue first plan, plan
+review, risk assessment review or advance care record review. `GET /v1/care/risk-templates`, and
+`GET`, `POST`, `PUT /v1/people/{id}/risk-assessments` with `/close`: fifteen code-constant
+templates, rated with the NPSA matrix on the assessor's likelihood and severity (ADR-0032; falls are
+never rated) and bed rail gaps checked against the MHRA figures in the rate table.
+`POST /v1/people/{id}/assessments` runs MUST, Waterlow, Braden or the NG249 falls questions on the
+server by tool key and stores the result with its version, workings, follow-ups and `next_due_on`;
+MUST rescreens every `must.care_home.screening_interval_months` months and schedules weighing every
+`weight.at_risk_interval_weeks` weeks at medium or high risk, otherwise every
+`weight.default_interval_months` months (a recorded weight answers the check and sets the next);
+Waterlow, Braden and the falls pathway repeat at the care plan review interval; a changed band or a
+fall brings the plan review forward. Waterlow and Braden sit behind the `care.tool.*` flags (off by
+default, on in the demo tenant, H-25). `GET` with `latest=true` returns the current result per tool.
+`POST` and `GET /v1/people/{id}/activities` and `/visits` (Regulation 9A kinds; a restriction needs
+its reason) are append-only with device ids. `GET`, `POST` and `PUT /v1/people/{id}/advance-care`
+record ReSPECT, DNACPR, ADRT and advance care plans (a new record supersedes the active one of its
+kind; withdrawal needs a reason), and the person summary carries the resuscitation status in force,
+or `not_recorded` (HZ-015). `GET /v1/people/{id}/care-history/{table}/{recordId}` shows earlier
+versions of the mutable records. Every write for a discharged, deceased or archived person is
+refused. Outbox events `care.plan.published` and `care.assessment.completed` are written.
+
 
 Resources under `/v1/people/{personId}/...`: `care-plans`, `risk-assessments`, `assessments`,
 `notes`, `observations`, `body-map`, `tasks`, `activities`, `visits`, `advance-care`, `consents`,
 `capacity-assessments`, `best-interests`, `dols`; location views `/v1/locations/{id}/round`,
 `/v1/locations/{id}/handovers`. Writes of append-only events accept a client UUID and are
 idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
-`care.assessment.completed`, `care.task.overdue`, `care.dols.expiring`, `care.dols.outcome_known`.
+`care.plan.published`, `care.assessment.completed`, `care.task.overdue`, `care.dols.expiring`,
+`care.dols.outcome_known`.
 
 ## 6. Offline behaviour (section 17.1)
 

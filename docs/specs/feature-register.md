@@ -9,9 +9,9 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 
 | Module | Prefix | Sections | Rows | todo | partial | done |
 | --- | --- | --- | --- | --- | --- | --- |
-| Platform core | `PLAT` | 9.1 | 23 | 13 | 10 | 0 |
+| Platform core | `PLAT` | 9.1 | 23 | 10 | 13 | 0 |
 | Service-user lifecycle | `PEOP` | 9.2 | 13 | 11 | 2 | 0 |
-| Care planning and delivery | `CARE` | 10.1, 10.4 | 22 | 17 | 5 | 0 |
+| Care planning and delivery | `CARE` | 10.1, 10.4 | 22 | 12 | 10 | 0 |
 | Medicines | `MEDS` | 10.2-10.3 | 14 | 14 | 0 | 0 |
 | Safety and notifications | `SAFE` | 11.1 | 16 | 16 | 0 | 0 |
 | Quality and governance | `QUAL` | 11.2 | 13 | 13 | 0 | 0 |
@@ -25,7 +25,7 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 | AI Management Copilot | `AI` | 16 | 11 | 11 | 0 | 0 |
 | Mobile apps | `MOB` | 17 | 13 | 11 | 2 | 0 |
 | Expansion (Phase 7) | `EXP` | 19 | 7 | 7 | 0 | 0 |
-| **Total** | | | **233** | **213** | **20** | **0** |
+| **Total** | | | **233** | **205** | **28** | **0** |
 
 | Phase | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -93,12 +93,12 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | PEOP-011 | Domiciliary client variant (address, access, environment and lone-working risk assessment, package, visit plan, preferred carers) | 9.2 | 4 | todo | - | - | - | - |
 | PEOP-012 | Supported-living tenancy separation (tenancy and care and support records signed separately) | 9.2, 13.3 | 4 | todo | - | - | - | - |
 | PEOP-013 | Family and professional sharing rules (per section, consent or legal basis, access expiry) | 9.2, 15.1 | 1 | todo | - | - | - | - |
-| CARE-001 | PRSB personalised care and support plan (needs by domain, outcomes in the person's words, actions, contingency, versioned sign-off) | 10.1 | 1 | todo | - | - | - | - |
-| CARE-002 | Positive risk assessments with templates (moving and handling, falls, choking, skin, bed rails and others) | 10.1 | 1 | todo | - | - | - | - |
-| CARE-003 | Locked validated tools: Waterlow, Braden and MUST | 10.1 | 1 | partial | [care](care.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/care/must.ts`, `waterlow.ts`, `braden.ts`, `tools.ts` | `packages/domain/src/care/must.test.ts`, `waterlow.test.ts`, `braden.test.ts` | - |
+| CARE-001 | PRSB personalised care and support plan (needs by domain, outcomes in the person's words, actions, contingency, versioned sign-off) | 10.1 | 1 | partial | [care](care.md#5-api-and-events) | `packages/domain/src/care/care-plan.ts`, `packages/db/src/schema/care.ts`, `apps/api/src/routes/care-plans.ts`, `apps/api/src/services/care-planning.ts`, `apps/api/src/jobs/tasks.ts` | `packages/domain/src/care/care-plan.test.ts`, `packages/db/test/care-planning.test.ts`, `apps/api/test/care-planning.test.ts` | - |
+| CARE-002 | Positive risk assessments with templates (moving and handling, falls, choking, skin, bed rails and others) | 10.1 | 1 | partial | [care](care.md#5-api-and-events) | `packages/domain/src/care/risk-assessment.ts`, `packages/db/src/schema/care.ts`, `apps/api/src/routes/care-plans.ts` | `packages/domain/src/care/risk-assessment.test.ts`, `packages/db/test/care-planning.test.ts`, `apps/api/test/care-planning.test.ts` | - |
+| CARE-003 | Locked validated tools: Waterlow, Braden and MUST | 10.1 | 1 | partial | [care](care.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/care/must.ts`, `waterlow.ts`, `braden.ts`, `tools.ts`, `validated-assessment.ts`, `apps/api/src/routes/care-records.ts` | `packages/domain/src/care/must.test.ts`, `waterlow.test.ts`, `braden.test.ts`, `validated-assessment.test.ts`, `packages/db/test/care-planning.test.ts`, `apps/api/test/care-planning.test.ts` | - |
 | CARE-004 | Dependency tool (tenant-editable categories with care hours per category) | 10.1, 12.3 | 2 | todo | - | - | - | - |
 | CARE-005 | Locked validated tools: OHAT with NG48 plan, Abbey, PAINAD, Cornell, Barthel, continence | 10.1 | 5 | todo | - | - | - | - |
-| CARE-006 | NG249 multifactorial falls assessment (no falls prediction scores) | 10.1 | 1 | partial | [care](care.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/care/falls.ts` | `packages/domain/src/care/falls.test.ts` | - |
+| CARE-006 | NG249 multifactorial falls assessment (no falls prediction scores) | 10.1 | 1 | partial | [care](care.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/care/falls.ts`, `validated-assessment.ts`, `apps/api/src/routes/care-records.ts` | `packages/domain/src/care/falls.test.ts`, `validated-assessment.test.ts`, `apps/api/test/care-planning.test.ts` | - |
 | CARE-007 | NEWS2 calculator with escalation log | 10.1 | 1 | partial | [care](care.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/care/news2.ts` | `packages/domain/src/care/news2.test.ts` | - |
 | CARE-008 | RESTORE2 soft-signs checklist and SBARD escalation | 10.1 | 5 | todo | - | - | - | - |
 | CARE-009 | Append-only daily notes with on-device voice-to-text and late-entry flag | 10.1 | 1 | partial | [care](care.md#5-api-and-events) | `packages/db/src/schema/care.ts`, `apps/api/src/routes/care.ts`, `apps/api/src/services/care.ts` | `packages/db/test/care-record.test.ts`, `apps/api/test/care.test.ts` | - |
@@ -106,8 +106,8 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | CARE-011 | Further charts: blood glucose, oxygen, seizure, sleep, behaviour ABC, pain, continence, wound, bath and oral care | 10.1 | 5 | todo | - | - | - | - |
 | CARE-012 | Body maps with pressure-ulcer categories and photos | 10.1 | 1 | partial | [care](care.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/care/body-map.ts`, `apps/api/src/routes/care.ts` | `packages/domain/src/care/body-map.test.ts`, `apps/api/test/care.test.ts` | - |
 | CARE-013 | Scheduled tasks, rounds and auto-compiled shift handover | 10.1 | 1 | todo | - | - | - | - |
-| CARE-014 | Activities and wellbeing record, life story and Reg 9A visiting log | 10.1 | 1 | todo | - | - | - | - |
-| CARE-015 | ReSPECT and DNACPR record (clinician, date, review) | 10.1 | 1 | todo | - | - | - | - |
+| CARE-014 | Activities and wellbeing record, life story and Reg 9A visiting log | 10.1 | 1 | partial | [care](care.md#5-api-and-events) | `packages/domain/src/care/activities.ts`, `packages/db/src/schema/care.ts`, `apps/api/src/routes/care-records.ts` | `packages/domain/src/care/activities.test.ts`, `packages/db/test/care-planning.test.ts`, `apps/api/test/care-planning.test.ts` | - |
+| CARE-015 | ReSPECT and DNACPR record (clinician, date, review) | 10.1 | 1 | partial | [care](care.md#5-api-and-events) | `packages/domain/src/care/advance-care.ts`, `packages/db/src/schema/care.ts`, `apps/api/src/routes/care-records.ts`, `apps/api/src/routes/people.ts` | `packages/domain/src/care/advance-care.test.ts`, `packages/db/test/care-planning.test.ts`, `packages/contracts/src/contracts.test.ts`, `apps/api/test/care-planning.test.ts` | - |
 | CARE-016 | End of life: advance care plan, ADRT, preferred place of care, anticipatory medicines, NG31 last-days care, GSF coding, after-death care | 10.1 | 5 | todo | - | - | - | - |
 | CARE-017 | Dementia and learning disability tools: This is me, communication and hospital passports, health action plan, annual health checks, STOMP/STAMP, RSRCRC checklist | 10.1 | 5 | todo | - | - | - | - |
 | CARE-018 | Positive behaviour support plans and restrictive-practice register | 10.1 | 5 | todo | - | - | - | - |
