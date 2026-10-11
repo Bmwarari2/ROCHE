@@ -206,6 +206,8 @@ export function createSyncRouter(signer: SyncTokenSigner) {
               kind: body.kind,
               reasonCode: body.reasonCode,
               ownerTenantUserId: body.ownerTenantUserId,
+              // As the device recorded it; the event's actor is whoever sent this request.
+              deletedByTenantUserId: body.deletedByTenantUserId ?? null,
               entryIds: body.entryIds,
               personIds: body.personIds,
               count: body.count,

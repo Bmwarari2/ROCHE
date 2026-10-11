@@ -230,6 +230,12 @@ export const SyncDiscard = z
     reason: z.string().trim().min(3).max(500).optional(),
     /** Who wrote the entries (tenant_user id), when the device knows. */
     ownerTenantUserId: uuid.nullable(),
+    /**
+     * Who deleted them (tenant_user id), as the device recorded it at the time: the owner, a
+     * manager, or the person signing out. The audit event's actor is whoever sends the request,
+     * which differs when a discard is sent again later.
+     */
+    deletedByTenantUserId: uuid.nullable().optional(),
     entryIds: z.array(uuid).max(500),
     personIds: z.array(uuid).max(200),
     /** How many entries were deleted; null when the device could not count them. */

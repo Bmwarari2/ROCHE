@@ -520,6 +520,7 @@ describe("offline sync", () => {
       reasonCode: "recorded_elsewhere",
       reason: "Recorded again on paper",
       ownerTenantUserId: DEMO.users.carer.id,
+      deletedByTenantUserId: DEMO.users.carer.id,
       entryIds: [crypto.randomUUID()],
       personIds: [crypto.randomUUID()],
       count: 1,
@@ -575,6 +576,7 @@ describe("offline sync", () => {
         kind: "refused_removed",
         reasonCode: "recorded_elsewhere",
         ownerTenantUserId: DEMO.users.carer.id,
+        deletedByTenantUserId: DEMO.users.carer.id,
         entryIds: body.entryIds,
         personIds: body.personIds,
         count: 1,
@@ -590,13 +592,19 @@ describe("offline sync", () => {
     });
 
     it("needs a manager to delete another member of staff's entries", async () => {
-      const someoneElse = discard({ kind: "held_deleted", ownerTenantUserId: DEMO.users.nurse.id });
+      const someoneElse = discard({
+        kind: "held_deleted",
+        ownerTenantUserId: DEMO.users.nurse.id,
+        deletedByTenantUserId: DEMO.users.manager.id,
+      });
       expect((await post(h.tokens.carer, someoneElse)).status).toBe(403);
       expect(await auditRows(someoneElse.id)).toEqual([]);
       const byManager = await post(h.tokens.manager, someoneElse);
       expect(byManager.status).toBe(200);
       const [row] = await auditRows(someoneElse.id);
       expect(row?.actor_tenant_user_id).toBe(DEMO.users.manager.id);
+      // Who deleted them on the device is kept as the device recorded it (M2).
+      expect(row?.scope).toMatchObject({ deletedByTenantUserId: DEMO.users.manager.id });
     });
 
     it("keeps the event in the caller's tenant only (HZ-011)", async () => {

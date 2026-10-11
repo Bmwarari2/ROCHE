@@ -6000,6 +6000,13 @@
             ],
             "format": "uuid"
           },
+          "deletedByTenantUserId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
           "entryIds": {
             "type": "array",
             "items": {

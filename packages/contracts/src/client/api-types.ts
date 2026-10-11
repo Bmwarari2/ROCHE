@@ -7520,6 +7520,8 @@ export interface components {
       reason?: string;
       /** Format: uuid */
       ownerTenantUserId: string | null;
+      /** Format: uuid */
+      deletedByTenantUserId?: string | null;
       entryIds: string[];
       personIds: string[];
       count: number | null;

@@ -135,6 +135,7 @@ describe("hazard HZ-040 device discards and reports", () => {
     ["an unknown kind", { kind: "anything" }],
     ["an unknown reason code", { reasonCode: "because" }],
     ["entry ids that are not ids", { entryIds: ["Ada's note"] }],
+    ["a deleter that is not an id", { deletedByTenantUserId: "Mo Manager" }],
     ["a reason over 500 characters", { reason: "x".repeat(501) }],
   ])("refuses %s", (_case, change) => {
     expect(SyncDiscard.safeParse({ ...discard, ...change }).success).toBe(false);
