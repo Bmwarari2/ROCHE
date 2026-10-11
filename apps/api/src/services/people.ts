@@ -28,6 +28,7 @@ import {
 } from "@harbour/db";
 import {
   type BedOccupancy,
+  catchUpTiming,
   checkPersonRecordWrite,
   checkPersonStatusChange,
   EXIT_WORKFLOWS,
@@ -37,6 +38,7 @@ import {
   exitReturnDeadlines,
   type FamilyInvolvementKind,
   LIVE_PERSON_STATUSES,
+  occurrences,
   PEOPLE_RATE_KEYS,
   PERSON_LIFECYCLE,
   type PeopleRates,
@@ -48,6 +50,7 @@ import {
   planBedRelease,
   planTaskRestore,
   type RateRow,
+  type Recurrence,
   type ReviewSchedule,
   type RoomView,
   resolvePeopleRates,
@@ -429,7 +432,8 @@ export async function applyStatusChange(
 ): Promise<StatusChangeOutcome> {
   const from = p.status as PersonStatus;
   // A discharge or death being corrected: the exit it cancels, and the status it returns to.
-  const correcting = from === "discharged" || from === "deceased" ? await openExit(tx, p.id) : null;
+  const correcting =
+    from === "discharged" || from === "deceased" ? await correctedExit(tx, p.id, from) : null;
   let exitWorkflowClosed: boolean | undefined;
   if (req.to === "archived" && (from === "discharged" || from === "deceased")) {
     const [latest] = await tx
@@ -544,7 +548,12 @@ export async function applyStatusChange(
         exitRecordId = await startExit(tx, actor, p, check.exitKind ?? "discharge", req, now);
         break;
       case "cancel_exit_workflow":
-        exitRecordId = await cancelExit(tx, actor, p.id, req.reason ?? "Recorded in error", now);
+        // An exit whose workflow has closed stays closed (its workflow cannot move again), but the
+        // correction still names it, so its notifications are withdrawn (C6; H-135).
+        exitRecordId =
+          (await cancelExit(tx, actor, p.id, req.reason ?? "Recorded in error", now)) ??
+          correcting?.id ??
+          null;
         break;
       case "reopen_record":
         roomLabel = await reopenRecord(tx, p, from, now);
@@ -648,15 +657,22 @@ async function pauseRounds(tx: Transaction, personId: string, from: Date) {
     );
 }
 
-/** The person's exit that is not yet closed or cancelled (the one a correction cancels). */
-async function openExit(tx: Transaction, personId: string) {
+/**
+ * The exit a correction of a discharge or death undoes: the person's latest exit of that kind,
+ * whatever its state (people.md rule 2). A closed exit workflow still kept the status the person
+ * had and stopped their rounds, so a correction after it has closed restores them too (C6; the
+ * CSO decides whether such a correction needs more, H-135).
+ */
+async function correctedExit(tx: Transaction, personId: string, from: PersonStatus) {
+  const kinds = from === "deceased" ? ["death"] : ["discharge", "transfer"];
   const [row] = await tx
     .select()
     .from(exitRecord)
     .where(
       and(
         eq(exitRecord.personId, personId),
-        notInArray(exitRecord.state, ["closed", "cancelled", "planned"]),
+        inArray(exitRecord.kind, kinds),
+        notInArray(exitRecord.state, ["planned", "cancelled"]),
         isNull(exitRecord.deletedAt),
       ),
     )
@@ -669,15 +685,74 @@ export const RESTORED_DONE_REASON =
   "Done before the exit was recorded: an entry answered it, so it is not due again";
 export const CATCH_UP_REASON =
   "Reopened to catch up: its time passed before the return or correction was recorded";
+/** How far back a late return or correction lists the rounds it missed, one by one. */
+export const RESTORE_LOOKBACK_HOURS = 7 * 24;
+
+/**
+ * The rounds that would have fallen due between where a series stopped making tasks and now, made
+ * as stopped tasks so the restore plans them like the rest (C5): a stay longer than the
+ * materialisation horizon, or a correction long after the exit, loses no round and never adds an
+ * extra one. Goes back at most `RESTORE_LOOKBACK_HOURS`.
+ */
+async function fillStoppedGap(
+  tx: Transaction,
+  series: readonly (typeof taskSeries.$inferSelect)[],
+  since: Date,
+  now: Date,
+  stop: { cancelCode: "paused_while_away" | "ended_at_exit"; exitRecordId: string | null },
+) {
+  const earliest = Math.max(since.getTime(), now.getTime() - RESTORE_LOOKBACK_HOURS * 3_600_000);
+  for (const s of series) {
+    const from = new Date(Math.max(earliest, s.materialisedUntil?.getTime() ?? earliest));
+    if (from.getTime() >= now.getTime()) continue;
+    const due = occurrences(
+      { rule: s.recurrence as Recurrence, startsOn: s.startsOn, endsOn: s.endsOn },
+      from,
+      now,
+    );
+    for (const dueAt of due) {
+      await tx
+        .insert(task)
+        .values({
+          seriesId: s.id,
+          locationId: s.locationId,
+          personId: s.personId,
+          kind: s.kind,
+          title: s.title,
+          requiredPermission: s.requiredPermission,
+          sourceType: s.sourceType,
+          sourceId: s.sourceId,
+          assigneeTenantUserId: s.assigneeTenantUserId,
+          assigneeRoleKey: s.assigneeRoleKey,
+          dueAt,
+          windowStart: new Date(dueAt.getTime() - s.windowBeforeMinutes * 60_000),
+          windowEnd: new Date(dueAt.getTime() + s.windowAfterMinutes * 60_000),
+          priority: s.priority,
+          evidenceRequired: s.evidenceRequired,
+          status: "cancelled",
+          statusReason:
+            stop.cancelCode === "paused_while_away"
+              ? PAUSED_ROUNDS_REASON
+              : "The round fell due after the exit was recorded",
+          cancelCode: stop.cancelCode,
+          stoppedByExitId: stop.exitRecordId,
+        })
+        .onConflictDoNothing();
+    }
+    await tx.update(taskSeries).set({ materialisedUntil: now }).where(eq(taskSeries.id, s.id));
+  }
+}
 
 /**
  * Brings back the tasks the lifecycle stopped, by their code (people.md rules 1 and 2;
  * `planTaskRestore`): after a return, the rounds paused while the person was away; after a
- * correction, what that exit ended, and its series start again. Only tasks still in their window
- * at `since` count. A task an entry answered while it was stopped is done, never due again
- * (HZ-003, HZ-004). One still in its window reopens. Of the rest, the latest occurrence of each
- * series reopens as overdue so the round is caught up once; earlier ones stay cancelled, coded as
- * missed. The nurse in charge gets one review task listing them all.
+ * correction, what that exit ended, and its series start again. Rounds that would have fallen
+ * due since then are made first (`fillStoppedGap`). Only tasks still in their window at `since`
+ * count. A task an entry answered while it was stopped is done, never due again (HZ-003,
+ * HZ-004). One still in its window reopens. Of the rest, the latest occurrence of each series is
+ * caught up once with a fresh window, unless a later one is done or open again, and never for
+ * medicines; the others stay cancelled, coded as missed. The nurse in charge gets one review task
+ * listing them all.
  */
 async function resumeRounds(
   tx: Transaction,
@@ -686,12 +761,32 @@ async function resumeRounds(
   now: Date,
   correctedExitId: string | null,
 ) {
+  const stoppedSeries = await tx
+    .select()
+    .from(taskSeries)
+    .where(
+      and(
+        eq(taskSeries.personId, p.id),
+        isNull(taskSeries.deletedAt),
+        correctedExitId
+          ? and(
+              eq(taskSeries.inactiveCode, "ended_at_exit"),
+              eq(taskSeries.stoppedByExitId, correctedExitId),
+            )
+          : eq(taskSeries.active, true),
+      ),
+    );
+  await fillStoppedGap(tx, stoppedSeries, since, now, {
+    cancelCode: correctedExitId ? "ended_at_exit" : "paused_while_away",
+    exitRecordId: correctedExitId,
+  });
   const stopped = await tx
     .select({
       id: task.id,
       seriesId: task.seriesId,
       kind: task.kind,
       dueAt: task.dueAt,
+      windowStart: task.windowStart,
       windowEnd: task.windowEnd,
       evidenceId: task.evidenceId,
     })
@@ -710,6 +805,7 @@ async function resumeRounds(
     stopped.map((t) => ({
       id: t.id,
       seriesId: t.seriesId,
+      kind: t.kind,
       dueAt: t.dueAt,
       windowEnd: t.windowEnd,
       hasEvidence: t.evidenceId !== null,
@@ -726,6 +822,7 @@ async function resumeRounds(
         completedAt: now,
         completedBy: null,
         statusReason: RESTORED_DONE_REASON,
+        restoreCode: "answered_while_stopped",
         ...cleared,
       })
       .where(inArray(task.id, [...plan.done]));
@@ -736,11 +833,21 @@ async function resumeRounds(
       .set({ status: "open", statusReason: null, ...cleared })
       .where(inArray(task.id, [...plan.reopen]));
   }
-  if (plan.reopenOverdue.length > 0) {
+  // A catch-up is due now with a fresh window of its own length, so it is not overdue (and does
+  // not escalate) the moment it reopens (HZ-008).
+  for (const t of stopped.filter((s) => plan.reopenOverdue.includes(s.id))) {
     await tx
       .update(task)
-      .set({ status: "open", statusReason: CATCH_UP_REASON, ...cleared })
-      .where(inArray(task.id, [...plan.reopenOverdue]));
+      .set({
+        status: "open",
+        statusReason: CATCH_UP_REASON,
+        restoreCode: "caught_up",
+        ...catchUpTiming(t, now),
+        escalationLevel: 0,
+        escalatedAt: null,
+        ...cleared,
+      })
+      .where(eq(task.id, t.id));
   }
   if (plan.missed.length > 0) {
     await tx
@@ -816,6 +923,7 @@ async function restorePausedRounds(
       completedAt: now,
       completedBy: null,
       statusReason: RESTORED_DONE_REASON,
+      restoreCode: "answered_while_stopped",
       cancelCode: null,
       stoppedByExitId: null,
     })
