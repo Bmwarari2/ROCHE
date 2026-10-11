@@ -13,7 +13,6 @@ import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
 import { getPerson, readOrFail } from "@/lib/person-record";
 import { firstParam, recordMetadata } from "@/lib/record-metadata";
-import { ukDateTimeInput } from "@/lib/uk-time";
 
 type Params = Promise<{ id: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -95,12 +94,7 @@ async function AssessmentsTab({
 
       {canRun && run && tools.includes(run) ? (
         <Card as="section" title={t("care.assessments.form.title", { tool: run })} headingLevel={3}>
-          <AssessmentForm
-            personId={id}
-            tool={run}
-            nowLocal={ukDateTimeInput()}
-            name={names.preferred}
-          />
+          <AssessmentForm personId={id} tool={run} name={names.preferred} />
         </Card>
       ) : null}
 

@@ -10,11 +10,17 @@ import type {
   CreateVisit,
   VisitItem,
 } from "@harbour/contracts";
-import { isRefusal, occurredAt, optionalText, sendForPerson } from "@/lib/care-actions";
+import {
+  type EntryTiming,
+  entryTime,
+  isRefusal,
+  optionalText,
+  sendForPerson,
+} from "@/lib/care-actions";
 import { isUuid } from "@/lib/context-cookies";
 import { t } from "@/lib/i18n";
 import { type ActionResult, refused } from "@/lib/outcome";
-import { isIsoDate } from "@/lib/uk-time";
+import { isIsoDate, isIsoInstant } from "@/lib/uk-time";
 
 /**
  * Writes for validated tools, advance care records, activities and visits (care.md slice 4b).
@@ -26,15 +32,16 @@ type AssessmentAnswers = Pick<CreateAssessment, "toolKey" | "answers">;
 
 export async function recordAssessment(
   personId: string,
-  input: AssessmentAnswers & { readonly occurredAtLocal: string },
+  input: AssessmentAnswers & EntryTiming,
 ): Promise<ActionResult<AssessmentItem>> {
-  const when = occurredAt(input.occurredAtLocal);
+  const when = entryTime(input);
   if (isRefusal(when)) return when;
-  const { occurredAtLocal: _local, ...assessment } = input;
+  const { occurredAt: _when, sentAt: _sent, ...assessment } = input;
   return sendForPerson(personId, (api) =>
     api.POST("/v1/people/{id}/assessments", {
       params: { path: { id: personId } },
-      body: { ...assessment, occurredAt: when } as CreateAssessment,
+      headers: when.headers,
+      body: { ...assessment, occurredAt: when.occurredAt } as CreateAssessment,
     }),
   );
 }
@@ -84,24 +91,23 @@ export async function withdrawAdvanceCare(
 
 export async function recordActivity(
   personId: string,
-  input: Omit<CreateActivityRecord, "occurredAt" | "groupSessionId"> & {
-    readonly occurredAtLocal: string;
-  },
+  input: Omit<CreateActivityRecord, "occurredAt" | "groupSessionId"> & EntryTiming,
 ): Promise<ActionResult<ActivityRecordItem>> {
-  const when = occurredAt(input.occurredAtLocal);
+  const when = entryTime(input);
   if (isRefusal(when)) return when;
-  const { occurredAtLocal: _local, notes, ...activity } = input;
+  const { occurredAt: _when, sentAt: _sent, notes, ...activity } = input;
   const text = optionalText(notes);
   return sendForPerson(personId, (api) =>
     api.POST("/v1/people/{id}/activities", {
       params: { path: { id: personId } },
+      headers: when.headers,
       body: {
         ...activity,
         ...(text ? { notes: text } : {}),
         // A group session recorded from one person's record is a session of its own; recording
         // a whole group at once is a follow-up.
         ...(activity.format === "group" ? { groupSessionId: crypto.randomUUID() } : {}),
-        occurredAt: when,
+        occurredAt: when.occurredAt,
       },
     }),
   );
@@ -109,20 +115,19 @@ export async function recordActivity(
 
 export async function recordVisit(
   personId: string,
-  input: Omit<CreateVisit, "occurredAt" | "endedAt"> & {
-    readonly occurredAtLocal: string;
-    readonly endedAtLocal: string;
-  },
+  input: Omit<CreateVisit, "occurredAt" | "endedAt"> &
+    EntryTiming & {
+      /** When the visit ended, as an ISO instant, or null when it is not recorded. */
+      readonly endedAt: string | null;
+    },
 ): Promise<ActionResult<VisitItem>> {
-  const when = occurredAt(input.occurredAtLocal);
+  const when = entryTime(input);
   if (isRefusal(when)) return when;
-  let endedAt: string | undefined;
-  if (input.endedAtLocal.trim()) {
-    const ended = occurredAt(input.endedAtLocal);
-    if (isRefusal(ended)) return ended;
-    endedAt = ended;
+  if (input.endedAt !== null && !isIsoInstant(input.endedAt)) {
+    return refused(t("care.errors.whenRequired"));
   }
-  const { occurredAtLocal: _start, endedAtLocal: _end, ...visit } = input;
+  const endedAt = input.endedAt ?? undefined;
+  const { occurredAt: _when, sentAt: _sent, endedAt: _end, ...visit } = input;
   const visitorName = optionalText(visit.visitorName);
   const visitorRelationship = optionalText(visit.visitorRelationship);
   const restrictionReason = optionalText(visit.restrictionReason);
@@ -130,10 +135,11 @@ export async function recordVisit(
   return sendForPerson(personId, (api) =>
     api.POST("/v1/people/{id}/visits", {
       params: { path: { id: personId } },
+      headers: when.headers,
       body: {
         kind: visit.kind,
         restrictionsApplied: visit.restrictionsApplied,
-        occurredAt: when,
+        occurredAt: when.occurredAt,
         ...(endedAt ? { endedAt } : {}),
         ...(visitorName ? { visitorName } : {}),
         ...(visitorRelationship ? { visitorRelationship } : {}),

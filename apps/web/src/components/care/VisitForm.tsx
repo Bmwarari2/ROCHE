@@ -1,11 +1,12 @@
 "use client";
 
 import type { CreateVisit } from "@harbour/contracts";
-import { Button, RadioGroup, TextArea, TextField } from "@harbour/ui";
+import { Button, DateTimeInput, RadioGroup, TextArea, TextField } from "@harbour/ui";
 import { type FormEvent, useState, useTransition } from "react";
 import { recordVisit } from "@/app/actions/care-records";
 import { characterCount, t } from "@/lib/i18n";
 import { type ActionResult, refused } from "@/lib/outcome";
+import { dateTimeLabels, readDateTimeField, readWhen } from "@/lib/uk-time";
 import { FormFeedback } from "./FormFeedback";
 import { WhenField } from "./WhenField";
 
@@ -17,11 +18,9 @@ type Kind = CreateVisit["kind"];
  */
 export function VisitForm({
   personId,
-  nowLocal,
   name,
 }: {
   readonly personId: string;
-  readonly nowLocal: string;
   readonly name: string;
 }) {
   const [restricted, setRestricted] = useState<"yes" | "no">("no");
@@ -38,11 +37,26 @@ export function VisitForm({
       return;
     }
     const text = (field: string) => String(form.get(field) ?? "");
+    const started = readWhen(form, "occurredAt", t, { subject: t("care.visits.startedSubject") });
+    if (!started.ok) {
+      setResult(refused(started.message));
+      return;
+    }
+    const ended = readDateTimeField(form, "endedAt", {
+      subject: t("care.visits.endedSubject"),
+      optional: true,
+      t,
+    });
+    if (!ended.ok) {
+      setResult(refused(ended.message));
+      return;
+    }
     startTransition(async () => {
       const outcome = await recordVisit(personId, {
         kind,
-        occurredAtLocal: text("occurredAt"),
-        endedAtLocal: text("endedAt"),
+        occurredAt: started.instant,
+        sentAt: new Date().toISOString(),
+        endedAt: ended.instant,
         visitorName: text("visitorName"),
         visitorRelationship: text("visitorRelationship"),
         restrictionsApplied: restricted === "yes",
@@ -76,15 +90,13 @@ export function VisitForm({
             maxLength={120}
           />
         </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <WhenField defaultValue={nowLocal} label={t("care.visits.form.started")} />
-          <TextField
-            type="datetime-local"
-            name="endedAt"
-            label={t("care.visits.form.ended")}
-            className="max-w-xs"
-          />
-        </div>
+        <WhenField legend={t("care.visits.form.started")} />
+        <DateTimeInput
+          legend={t("care.visits.form.ended")}
+          hint={t("care.visits.form.endedHint")}
+          name="endedAt"
+          labels={dateTimeLabels(t)}
+        />
         <RadioGroup<"yes" | "no">
           legend={t("care.visits.form.restrictions")}
           name="restrictionsApplied"

@@ -61,9 +61,9 @@ describe("risk assessment forms", () => {
         controls: ["Gaps measured at fitting"],
         otherControls: "Check gaps weekly\n\n  Rail bumpers fitted  ",
         positiveRiskStatement: "",
-        assessedOn: "2026-10-11",
       }),
       bedRails,
+      { assessedOn: "2026-10-11", reviewDueOn: null },
     );
     expect(fields).toMatchObject({
       answers: { entrapment_risk: true, gap_rail_to_mattress_mm: 70 },
@@ -75,6 +75,7 @@ describe("risk assessment forms", () => {
       positiveRiskStatement: null,
       personViews: null,
     });
+    expect(fields.assessedOn).toBe("2026-10-11");
     expect("reviewDueOn" in fields).toBe(false);
     expect(CreateRiskAssessment.safeParse({ templateKey: "bed_rails", ...fields }).success).toBe(
       true,
@@ -82,10 +83,11 @@ describe("risk assessment forms", () => {
   });
 
   it("never sends a rating for falls (NICE NG249 1.1.1)", () => {
-    const fields = readRiskFields(
-      form({ likelihood: "5", severity: "5", assessedOn: "2026-10-11" }),
-      falls,
-    );
+    const fields = readRiskFields(form({ likelihood: "5", severity: "5" }), falls, {
+      assessedOn: "2026-10-11",
+      reviewDueOn: "2027-01-11",
+    });
+    expect(fields.reviewDueOn).toBe("2027-01-11");
     expect([fields.likelihood, fields.severity, fields.residualLikelihood]).toEqual([
       null,
       null,
@@ -94,7 +96,10 @@ describe("risk assessment forms", () => {
   });
 
   it("refuses scale values off the 1 to 5 scale rather than guessing", () => {
-    const fields = readRiskFields(form({ likelihood: "6", severity: "0" }), bedRails);
+    const fields = readRiskFields(form({ likelihood: "6", severity: "0" }), bedRails, {
+      assessedOn: "2026-10-11",
+      reviewDueOn: null,
+    });
     expect([fields.likelihood, fields.severity]).toEqual([null, null]);
   });
 

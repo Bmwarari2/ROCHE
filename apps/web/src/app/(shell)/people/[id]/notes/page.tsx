@@ -12,7 +12,6 @@ import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
 import { getPerson, readOrFail } from "@/lib/person-record";
 import { recordMetadata } from "@/lib/record-metadata";
-import { ukDateTimeInput } from "@/lib/uk-time";
 
 type Params = Promise<{ id: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -54,7 +53,7 @@ async function NotesTab({
       <h2 className="m-0 text-eyebrow">{t("care.notes.title")}</h2>
       {canWrite ? (
         <Card as="section" title={t("care.notes.form.title")} headingLevel={3}>
-          <NoteForm personId={id} nowLocal={ukDateTimeInput()} />
+          <NoteForm personId={id} />
         </Card>
       ) : null}
       <section aria-labelledby="notes-list" className="flex flex-col gap-4">

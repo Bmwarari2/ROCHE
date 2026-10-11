@@ -6,19 +6,13 @@ import { type FormEvent, useState, useTransition } from "react";
 import { recordNote } from "@/app/actions/care-record";
 import { NOTE_CATEGORIES, NOTE_MAX_LENGTH } from "@/lib/care-record";
 import { characterCount, t } from "@/lib/i18n";
-import type { ActionResult } from "@/lib/outcome";
+import { type ActionResult, refused } from "@/lib/outcome";
+import { readWhen } from "@/lib/uk-time";
 import { FormFeedback } from "./FormFeedback";
 import { WhenField } from "./WhenField";
 
 /** Write a daily note (append-only, care.md rule 4). */
-export function NoteForm({
-  personId,
-  nowLocal,
-}: {
-  readonly personId: string;
-  /** Now in UK time, for the "when" field. */
-  readonly nowLocal: string;
-}) {
+export function NoteForm({ personId }: { readonly personId: string }) {
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const [round, setRound] = useState(0);
   const [pending, startTransition] = useTransition();
@@ -26,14 +20,20 @@ export function NoteForm({
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const when = readWhen(form, "occurredAt", t);
+    if (!when.ok) {
+      setResult(refused(when.message));
+      return;
+    }
     startTransition(async () => {
       const outcome = await recordNote(personId, {
         category: String(form.get("category")) as CreateCareNote["category"],
         body: String(form.get("body") ?? ""),
-        occurredAtLocal: String(form.get("occurredAt") ?? ""),
+        occurredAt: when.instant,
+        sentAt: new Date().toISOString(),
       });
       setResult(outcome);
-      // A fresh form for the next note, with the time moved on to now.
+      // A fresh form for the next note, with the time back to "now".
       if (outcome.ok) setRound((n) => n + 1);
     });
   };
@@ -60,7 +60,7 @@ export function NoteForm({
           maxLength={NOTE_MAX_LENGTH}
           formatCount={(remaining) => characterCount(remaining)}
         />
-        <WhenField defaultValue={nowLocal} />
+        <WhenField />
         <div>
           <Button type="submit" disabled={pending}>
             {pending ? t("common.saving") : t("care.notes.form.submit")}

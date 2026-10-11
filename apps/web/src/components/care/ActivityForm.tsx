@@ -7,6 +7,7 @@ import { recordActivity } from "@/app/actions/care-records";
 import { readWholeNumber } from "@/lib/assessments";
 import { characterCount, t } from "@/lib/i18n";
 import { type ActionResult, refused } from "@/lib/outcome";
+import { readWhen } from "@/lib/uk-time";
 import { FormFeedback } from "./FormFeedback";
 import { WhenField } from "./WhenField";
 
@@ -29,11 +30,9 @@ const ENGAGEMENT = [
 /** Record an activity: what, group or one to one, whether the person took part and how (CARE-014). */
 export function ActivityForm({
   personId,
-  nowLocal,
   name,
 }: {
   readonly personId: string;
-  readonly nowLocal: string;
   readonly name: string;
 }) {
   const [attendance, setAttendance] = useState<Attendance | null>(null);
@@ -53,9 +52,15 @@ export function ActivityForm({
     }
     const engagement = String(form.get("engagement") ?? "");
     const minutes = readWholeNumber(form.get("durationMinutes"));
+    const when = readWhen(form, "occurredAt", t);
+    if (!when.ok) {
+      setResult(refused(when.message));
+      return;
+    }
     startTransition(async () => {
       const outcome = await recordActivity(personId, {
-        occurredAtLocal: String(form.get("occurredAt") ?? ""),
+        occurredAt: when.instant,
+        sentAt: new Date().toISOString(),
         activity,
         format,
         attendance,
@@ -127,7 +132,7 @@ export function ActivityForm({
           maxLength={2000}
           formatCount={(remaining) => characterCount(remaining)}
         />
-        <WhenField defaultValue={nowLocal} />
+        <WhenField />
         <div>
           <Button type="submit" disabled={pending}>
             {pending ? t("common.saving") : t("care.activities.form.submit")}

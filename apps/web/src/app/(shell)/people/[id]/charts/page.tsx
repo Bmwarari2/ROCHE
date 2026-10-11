@@ -1,4 +1,4 @@
-import { Button, Card, Meter, StatusChip, TabNav, TextField } from "@harbour/ui";
+import { Button, Card, DateInput, Meter, StatusChip, TabNav } from "@harbour/ui";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ChartEntryForm } from "@/components/care/ChartEntryForm";
@@ -16,7 +16,7 @@ import { personNames } from "@/lib/people";
 import { getCareProfile, getPerson, readOrFail } from "@/lib/person-record";
 import { type CareProfileLoad, profileOf } from "@/lib/record-data";
 import { firstParam, recordMetadata } from "@/lib/record-metadata";
-import { addDays, isIsoDate, ukDateTimeInput, ukToday } from "@/lib/uk-time";
+import { addDays, isDatePart, isIsoDate, readDateField, ukToday } from "@/lib/uk-time";
 
 type Params = Promise<{ id: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -55,7 +55,20 @@ async function ChartsTab({
 
   const query = await searchParams;
   const today = ukToday();
-  const requestedDate = firstParam(query.date);
+  // The day to show: from the day, month and year boxes when they were sent, else `?date=`.
+  const typed = readDateField({ get: (name) => firstParam(query[name]) ?? null }, "date", {
+    subject: t("care.date.subject.chartDay"),
+    optional: true,
+    t,
+  });
+  const typedDate = typed.ok ? typed.date : null;
+  const requestedDate = typedDate ?? firstParam(query.date);
+  const future = requestedDate !== undefined && isIsoDate(requestedDate) && requestedDate > today;
+  const dateError = !typed.ok
+    ? typed.message
+    : future
+      ? t("care.charts.fluid.futureDay")
+      : undefined;
   const date =
     requestedDate && isIsoDate(requestedDate) && requestedDate <= today ? requestedDate : today;
   const recordParam = firstParam(query.record);
@@ -118,12 +131,17 @@ async function ChartsTab({
             ) : null}
             <form method="get" action={path} className="flex flex-wrap items-end gap-3">
               <input type="hidden" name="record" value={chart} />
-              <TextField
-                type="date"
+              <DateInput
+                legend={t("care.charts.fluid.day")}
                 name="date"
-                label={t("care.charts.fluid.day")}
                 defaultValue={date}
-                max={today}
+                labels={{
+                  day: t("care.date.day"),
+                  month: t("care.date.month"),
+                  year: t("care.date.year"),
+                }}
+                {...(dateError ? { error: dateError } : {})}
+                {...(!typed.ok ? { errorParts: typed.parts.filter(isDatePart) } : {})}
               />
               <Button type="submit" variant="secondary">
                 {t("care.charts.fluid.show")}
@@ -161,13 +179,7 @@ async function ChartsTab({
 
       {canWrite ? (
         <Card as="section" title={t("care.charts.record.title", { chart })} headingLevel={3}>
-          <ChartEntryForm
-            personId={id}
-            chart={chart}
-            nowLocal={ukDateTimeInput()}
-            profile={profile}
-            name={names.preferred}
-          />
+          <ChartEntryForm personId={id} chart={chart} profile={profile} name={names.preferred} />
         </Card>
       ) : null}
 

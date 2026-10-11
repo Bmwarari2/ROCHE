@@ -4,7 +4,6 @@ import { NotebookPen } from "lucide-react";
 import { entryAuthor, entryChains } from "@/lib/care-record";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import { ukDateTimeInput } from "@/lib/uk-time";
 import { EntryBadges } from "./EntryBadges";
 import { NoteCorrection } from "./NoteCorrection";
 
@@ -97,7 +96,7 @@ export function NoteList({
                 id: current.id,
                 category: current.category,
                 body: current.body,
-                occurredAtLocal: ukDateTimeInput(current.occurredAt),
+                occurredAt: current.occurredAt,
               }}
             />
           ) : null}

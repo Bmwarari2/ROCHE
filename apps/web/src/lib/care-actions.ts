@@ -6,7 +6,7 @@ import { tenantApi } from "./api";
 import { isUuid } from "./context-cookies";
 import { t } from "./i18n";
 import { type ActionResult, problemMessage, refused } from "./outcome";
-import { ukLocalToIso } from "./uk-time";
+import { isIsoInstant } from "./uk-time";
 
 /**
  * Runs one write to a person's record through the API as the signed-in person. On success the
@@ -34,12 +34,29 @@ export async function sendForPerson<T>(
   }
 }
 
-/** The time an entry happened, from a UK `datetime-local` value, or a refusal saying what to enter. */
-export function occurredAt(local: string): string | ActionResult<never> {
-  return ukLocalToIso(local) ?? refused(t("care.errors.whenRequired"));
+/** When an entry happened and when the form was sent, both from the form (lib/uk-time.ts). */
+export interface EntryTiming {
+  /** When it happened, as an ISO instant ("now" is the moment the form was sent). */
+  readonly occurredAt: string;
+  /** The device's clock when the form was sent, so the API can flag clock drift (HZ-010). */
+  readonly sentAt: string;
 }
 
-/** Whether a value from `occurredAt` is a refusal rather than a time. */
+/**
+ * The entry's time for the API, and the header that carries the device's clock reading
+ * (`x-harbour-sent-at`, care.md rule 3), or a refusal saying what to enter.
+ */
+export function entryTime(
+  timing: EntryTiming,
+): { readonly occurredAt: string; readonly headers: Record<string, string> } | ActionResult<never> {
+  if (!isIsoInstant(timing.occurredAt)) return refused(t("care.errors.whenRequired"));
+  return {
+    occurredAt: timing.occurredAt,
+    headers: isIsoInstant(timing.sentAt) ? { "x-harbour-sent-at": timing.sentAt } : {},
+  };
+}
+
+/** Whether a value from `entryTime` is a refusal rather than a time. */
 export function isRefusal(value: unknown): value is ActionResult<never> {
   return typeof value === "object" && value !== null && "ok" in value;
 }

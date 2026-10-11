@@ -38,9 +38,14 @@ export function controlLines(value: string): string[] {
 
 /**
  * Reads a risk assessment from its form. Unanswered questions are left out; the API says what is
- * still needed in words (for example a positive risk statement while a high risk remains).
+ * still needed in words (for example a positive risk statement while a high risk remains). The
+ * dates come from their date boxes, read with lib/uk-time.ts.
  */
-export function readRiskFields(form: FormLike, template: RiskTemplate): RiskFields {
+export function readRiskFields(
+  form: FormLike,
+  template: RiskTemplate,
+  dates: { readonly assessedOn: string; readonly reviewDueOn: string | null },
+): RiskFields {
   const answers: Record<string, boolean | number | string | null> = {};
   for (const question of template.questions) {
     const field = answerField(question.key);
@@ -58,7 +63,6 @@ export function readRiskFields(form: FormLike, template: RiskTemplate): RiskFiel
   const suggested = form
     .getAll("controls")
     .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
-  const reviewDueOn = text(form, "reviewDueOn");
   const positive = text(form, "positiveRiskStatement");
   const views = text(form, "personViews");
   const rated = template.rated;
@@ -73,8 +77,8 @@ export function readRiskFields(form: FormLike, template: RiskTemplate): RiskFiel
     controls: [...suggested, ...controlLines(text(form, "otherControls"))],
     positiveRiskStatement: positive || null,
     personViews: views || null,
-    assessedOn: text(form, "assessedOn"),
-    ...(reviewDueOn ? { reviewDueOn } : {}),
+    assessedOn: dates.assessedOn,
+    ...(dates.reviewDueOn ? { reviewDueOn: dates.reviewDueOn } : {}),
   };
 }
 

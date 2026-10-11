@@ -1,14 +1,21 @@
 "use client";
 
 import type { RiskAssessmentItem, RiskTemplateList } from "@harbour/contracts";
-import { Button, Checkbox, RadioGroup, TextArea, TextField } from "@harbour/ui";
+import { Button, Checkbox, DateInput, RadioGroup, TextArea, TextField } from "@harbour/ui";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState, useTransition } from "react";
 import { recordRiskAssessment, reviewRiskAssessment } from "@/app/actions/care-plan";
 import { characterCount, t } from "@/lib/i18n";
-import type { ActionResult } from "@/lib/outcome";
+import { type ActionResult, refused } from "@/lib/outcome";
 import { answerField, type RiskTemplate, readRiskFields, splitControls } from "@/lib/risk";
+import { readDateField } from "@/lib/uk-time";
 import { FormFeedback } from "./FormFeedback";
+
+const dateLabels = {
+  day: t("care.date.day"),
+  month: t("care.date.month"),
+  year: t("care.date.year"),
+};
 
 function Scale({
   legend,
@@ -65,7 +72,28 @@ export function RiskForm({
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const fields = readRiskFields(new FormData(event.currentTarget), template);
+    const form = new FormData(event.currentTarget);
+    const assessed = readDateField(form, "assessedOn", {
+      subject: t("care.date.subject.assessedOn"),
+      t,
+    });
+    if (!assessed.ok) {
+      setResult(refused(assessed.message));
+      return;
+    }
+    const review = readDateField(form, "reviewDueOn", {
+      subject: t("care.date.subject.reviewDueOn"),
+      optional: true,
+      t,
+    });
+    if (!review.ok) {
+      setResult(refused(review.message));
+      return;
+    }
+    const fields = readRiskFields(form, template, {
+      assessedOn: assessed.date ?? "",
+      reviewDueOn: review.date,
+    });
     startTransition(async () => {
       const outcome = existing
         ? await reviewRiskAssessment(personId, existing.id, {
@@ -223,21 +251,19 @@ export function RiskForm({
         maxLength={2000}
         formatCount={(remaining) => characterCount(remaining)}
       />
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <TextField
-          type="date"
-          name="assessedOn"
-          label={t("care.risk.form.assessedOn")}
-          defaultValue={today}
-          max={today}
-        />
-        <TextField
-          type="date"
-          name="reviewDueOn"
-          label={t("care.risk.form.reviewDueOn")}
-          hint={t("care.risk.form.reviewDueHint")}
-        />
-      </div>
+      <DateInput
+        legend={t("care.risk.form.assessedOn")}
+        hint={t("care.date.hint")}
+        name="assessedOn"
+        defaultValue={today}
+        labels={dateLabels}
+      />
+      <DateInput
+        legend={t("care.risk.form.reviewDueOn")}
+        hint={t("care.risk.form.reviewDueHint")}
+        name="reviewDueOn"
+        labels={dateLabels}
+      />
       <FormFeedback result={result} success={t("care.risk.form.saved")} />
       <div>
         <Button type="submit" disabled={pending}>

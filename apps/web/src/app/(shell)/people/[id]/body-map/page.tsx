@@ -12,7 +12,6 @@ import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
 import { getPerson, readOrFail } from "@/lib/person-record";
 import { recordMetadata } from "@/lib/record-metadata";
-import { ukDateTimeInput } from "@/lib/uk-time";
 
 type Params = Promise<{ id: string }>;
 
@@ -63,11 +62,7 @@ async function BodyMapTab({ params }: { readonly params: Params }) {
       </div>
       {can(me.permissions, "care.note.write") ? (
         <Card as="section" title={t("care.bodyMap.form.title")} headingLevel={3}>
-          <BodyMapRecorder
-            personId={id}
-            nowLocal={ukDateTimeInput()}
-            marks={{ front: drawn("front"), back: drawn("back") }}
-          />
+          <BodyMapRecorder personId={id} marks={{ front: drawn("front"), back: drawn("back") }} />
         </Card>
       ) : null}
       <section aria-labelledby="current-marks" className="flex flex-col gap-3">

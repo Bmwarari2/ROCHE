@@ -22,6 +22,7 @@ import {
 } from "@/lib/body-map";
 import { characterCount, t } from "@/lib/i18n";
 import { type ActionResult, refused } from "@/lib/outcome";
+import { readWhen } from "@/lib/uk-time";
 import { BodyDrawing, type DrawnMark } from "./BodyDrawing";
 import { FormFeedback } from "./FormFeedback";
 import { WhenField } from "./WhenField";
@@ -69,11 +70,9 @@ function placeLabel(view: BodyView, value: string): string | null {
  */
 export function BodyMapRecorder({
   personId,
-  nowLocal,
   marks,
 }: {
   readonly personId: string;
-  readonly nowLocal: string;
   /** Current marks on each view, drawn as dots. */
   readonly marks: Readonly<Record<BodyView, readonly DrawnMark[]>>;
 }) {
@@ -100,9 +99,12 @@ export function BodyMapRecorder({
     const category = String(form.get("pressureCategory") ?? "");
     const deviceRelated = readYesNo(form.get("deviceRelated"));
     const bruiseExplained = readYesNo(form.get("bruiseExplained"));
+    const when = readWhen(form, "occurredAt", t);
+    if (!when.ok) return setResult(refused(when.message));
     startTransition(async () => {
       const outcome = await recordBodyMark(personId, {
-        occurredAtLocal: String(form.get("occurredAt") ?? ""),
+        occurredAt: when.instant,
+        sentAt: new Date().toISOString(),
         view,
         region: drawn.region,
         drawnSide: drawn.side,
@@ -274,7 +276,7 @@ export function BodyMapRecorder({
             label: t("care.bodyMap.statusOption", { status }),
           }))}
         />
-        <WhenField defaultValue={nowLocal} />
+        <WhenField />
         <div>
           <Button type="submit" disabled={pending}>
             {pending ? t("common.saving") : t("care.bodyMap.submit")}

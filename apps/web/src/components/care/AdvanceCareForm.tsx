@@ -1,17 +1,24 @@
 "use client";
 
 import type { CreateAdvanceCareRecord } from "@harbour/contracts";
-import { Button, RadioGroup, SelectField, TextArea, TextField } from "@harbour/ui";
+import { Button, DateInput, RadioGroup, SelectField, TextArea, TextField } from "@harbour/ui";
 import { type FormEvent, useState, useTransition } from "react";
 import { recordAdvanceCare } from "@/app/actions/care-records";
 import { characterCount, t } from "@/lib/i18n";
-import type { ActionResult } from "@/lib/outcome";
+import { type ActionResult, refused } from "@/lib/outcome";
+import { readDateField } from "@/lib/uk-time";
 import { FormFeedback } from "./FormFeedback";
 
 type Kind = CreateAdvanceCareRecord["kind"];
 type CprDecision = NonNullable<CreateAdvanceCareRecord["cprDecision"]>;
 
 const KINDS = ["respect", "dnacpr", "adrt", "advance_care_plan"] as const satisfies readonly Kind[];
+
+const dateLabels = {
+  day: t("care.date.day"),
+  month: t("care.date.month"),
+  year: t("care.date.year"),
+};
 
 /**
  * Record a ReSPECT plan, DNACPR decision, ADRT or advance care plan (register row CARE-015;
@@ -35,10 +42,26 @@ export function AdvanceCareForm({
     const form = new FormData(event.currentTarget);
     const text = (name: string) => String(form.get(name) ?? "").trim();
     const decision = text("cprDecision") as CprDecision | "";
-    const reviewDueOn = text("reviewDueOn");
+    const completed = readDateField(form, "completedOn", {
+      subject: t("care.date.subject.completedOn"),
+      t,
+    });
+    if (!completed.ok) {
+      setResult(refused(completed.message));
+      return;
+    }
+    const review = readDateField(form, "reviewDueOn", {
+      subject: t("care.date.subject.reviewDueOn"),
+      optional: true,
+      t,
+    });
+    if (!review.ok) {
+      setResult(refused(review.message));
+      return;
+    }
     const input: CreateAdvanceCareRecord = {
       kind,
-      completedOn: text("completedOn"),
+      completedOn: completed.date ?? "",
       clinicianName: text("clinicianName"),
       clinicianRole: text("clinicianRole"),
       details: text("details"),
@@ -47,7 +70,7 @@ export function AdvanceCareForm({
         : kind === "respect" && decision
           ? { cprDecision: decision }
           : {}),
-      ...(reviewDueOn ? { reviewDueOn } : {}),
+      ...(review.date ? { reviewDueOn: review.date } : {}),
     };
     startTransition(async () => {
       const outcome = await recordAdvanceCare(personId, input);
@@ -97,15 +120,20 @@ export function AdvanceCareForm({
             hint={t("care.advance.form.clinicianRoleHint")}
             maxLength={120}
           />
-          <TextField
-            type="date"
-            name="completedOn"
-            label={t("care.advance.form.completedOn")}
-            defaultValue={today}
-            max={today}
-          />
-          <TextField type="date" name="reviewDueOn" label={t("care.advance.form.reviewDueOn")} />
         </div>
+        <DateInput
+          legend={t("care.advance.form.completedOn")}
+          hint={t("care.date.hint")}
+          name="completedOn"
+          defaultValue={today}
+          labels={dateLabels}
+        />
+        <DateInput
+          legend={t("care.advance.form.reviewDueOn")}
+          hint={t("care.date.hint")}
+          name="reviewDueOn"
+          labels={dateLabels}
+        />
         <TextArea
           name="details"
           label={t("care.advance.form.details")}

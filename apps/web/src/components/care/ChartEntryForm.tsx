@@ -9,6 +9,7 @@ import { IDDSI_DRINK_LEVELS, IDDSI_FOOD_LEVELS, iddsiLabel } from "@/lib/care-re
 import { type ChartKind, type News2Flags, news2FromFlags } from "@/lib/charts";
 import { t } from "@/lib/i18n";
 import { type ActionResult, refused } from "@/lib/outcome";
+import { readWhen } from "@/lib/uk-time";
 import { FormFeedback } from "./FormFeedback";
 import { News2Result } from "./News2Result";
 import { WhenField } from "./WhenField";
@@ -187,13 +188,11 @@ const numberField = { type: "text", inputMode: "decimal", autoComplete: "off" } 
 export function ChartEntryForm({
   personId,
   chart,
-  nowLocal,
   profile,
   name,
 }: {
   readonly personId: string;
   readonly chart: ChartKind;
-  readonly nowLocal: string;
   readonly profile: Profile | null;
   /** The person's preferred name. */
   readonly name: string;
@@ -212,9 +211,15 @@ export function ChartEntryForm({
       setResult(values);
       return;
     }
+    const when = readWhen(form, "occurredAt", t);
+    if (!when.ok) {
+      setResult(refused(when.message));
+      return;
+    }
     startTransition(async () => {
       const outcome = await recordObservation(personId, {
-        occurredAtLocal: text(form, "occurredAt"),
+        occurredAt: when.instant,
+        sentAt: new Date().toISOString(),
         values,
       });
       setResult(outcome);
@@ -436,7 +441,7 @@ export function ChartEntryForm({
             />
           </>
         ) : null}
-        <WhenField defaultValue={nowLocal} />
+        <WhenField />
         <div>
           <Button type="submit" disabled={pending}>
             {pending ? t("common.saving") : t("care.charts.submit")}

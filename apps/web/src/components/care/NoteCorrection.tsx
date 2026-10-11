@@ -24,8 +24,8 @@ export function NoteCorrection({
     readonly id: string;
     readonly category: CreateCareNote["category"];
     readonly body: string;
-    /** The note's own time in UK `datetime-local` form: a correction keeps the event's time. */
-    readonly occurredAtLocal: string;
+    /** When the note's event happened: a correction keeps that instant unchanged. */
+    readonly occurredAt: string;
   };
 }) {
   const [open, setOpen] = useState(false);
@@ -45,7 +45,8 @@ export function NoteCorrection({
       const outcome = await recordNote(personId, {
         category: note.category,
         body: String(form.get("body") ?? ""),
-        occurredAtLocal: note.occurredAtLocal,
+        occurredAt: note.occurredAt,
+        sentAt: new Date().toISOString(),
         supersedesId: note.id,
         correctionReason: String(form.get("reason") ?? ""),
       });

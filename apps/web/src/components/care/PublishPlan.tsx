@@ -3,6 +3,7 @@
 import type { SignOffCarePlan } from "@harbour/contracts";
 import {
   Button,
+  DateInput,
   RadioGroup,
   SelectField,
   Sheet,
@@ -16,7 +17,8 @@ import { type FormEvent, useState, useTransition } from "react";
 import { publishCarePlan } from "@/app/actions/care-plan";
 import { SIGN_OFF_AUTHORITIES } from "@/lib/care-plan";
 import { characterCount, t } from "@/lib/i18n";
-import type { ActionResult } from "@/lib/outcome";
+import { type ActionResult, refused } from "@/lib/outcome";
+import { readDateField } from "@/lib/uk-time";
 import { FormFeedback } from "./FormFeedback";
 
 type AgreedBy = SignOffCarePlan["agreedBy"];
@@ -46,6 +48,15 @@ export function PublishPlan({
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const review = readDateField(form, "reviewDueOn", {
+      subject: t("care.date.subject.reviewDueOn"),
+      optional: true,
+      t,
+    });
+    if (!review.ok) {
+      setResult(refused(review.message));
+      return;
+    }
     startTransition(async () => {
       const outcome = await publishCarePlan(personId, planId, {
         version,
@@ -53,7 +64,7 @@ export function PublishPlan({
         representativeName: String(form.get("representativeName") ?? ""),
         authority: String(form.get("authority") ?? "") as SignOffCarePlan["authority"] | "",
         unableReason: String(form.get("unableReason") ?? ""),
-        reviewDueOn: String(form.get("reviewDueOn") ?? ""),
+        reviewDueOn: review.date ?? "",
       });
       setResult(outcome);
       if (outcome.ok) {
@@ -120,12 +131,15 @@ export function PublishPlan({
             formatCount={(remaining) => characterCount(remaining)}
           />
         ) : null}
-        <TextField
-          type="date"
-          name="reviewDueOn"
-          label={t("care.plan.publish.reviewDueOn")}
+        <DateInput
+          legend={t("care.plan.publish.reviewDueOn")}
           hint={t("care.plan.publish.reviewHint")}
-          className="max-w-xs"
+          name="reviewDueOn"
+          labels={{
+            day: t("care.date.day"),
+            month: t("care.date.month"),
+            year: t("care.date.year"),
+          }}
         />
         <FormFeedback result={result} success={t("care.plan.published.toast")} />
         <div className="flex flex-wrap justify-end gap-2">

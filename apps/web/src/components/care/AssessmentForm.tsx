@@ -25,6 +25,7 @@ import {
 } from "@/lib/assessment-answers";
 import { t } from "@/lib/i18n";
 import { type ActionResult, refused } from "@/lib/outcome";
+import { readWhen } from "@/lib/uk-time";
 import { AssessmentResult } from "./AssessmentResult";
 import { FormFeedback } from "./FormFeedback";
 import { WhenField } from "./WhenField";
@@ -447,12 +448,10 @@ function readAnswers(tool: AssessmentToolKey, form: FormLike) {
 export function AssessmentForm({
   personId,
   tool,
-  nowLocal,
   name,
 }: {
   readonly personId: string;
   readonly tool: AssessmentToolKey;
-  readonly nowLocal: string;
   readonly name: string;
 }) {
   const [result, setResult] = useState<ActionResult<AssessmentItem> | null>(null);
@@ -467,10 +466,16 @@ export function AssessmentForm({
       setResult(refused(t("care.assessments.form.answerAll")));
       return;
     }
+    const when = readWhen(form, "occurredAt", t);
+    if (!when.ok) {
+      setResult(refused(when.message));
+      return;
+    }
     startTransition(async () => {
       const outcome = await recordAssessment(personId, {
         ...(read as Exclude<typeof read, { answers: null }>),
-        occurredAtLocal: String(form.get("occurredAt") ?? ""),
+        occurredAt: when.instant,
+        sentAt: new Date().toISOString(),
       } as Parameters<typeof recordAssessment>[1]);
       setResult(outcome);
       if (outcome.ok) setRound((n) => n + 1);
@@ -484,7 +489,7 @@ export function AssessmentForm({
         {tool === "ng249_falls" ? <FallsFields name={name} /> : null}
         {tool === "braden" ? <BradenFields /> : null}
         {tool === "waterlow" ? <WaterlowFields name={name} /> : null}
-        <WhenField defaultValue={nowLocal} label={t("care.assessments.form.when")} />
+        <WhenField legend={t("care.assessments.form.when")} />
         <div>
           <Button type="submit" disabled={pending}>
             {pending ? t("common.saving") : t("care.assessments.form.submit")}

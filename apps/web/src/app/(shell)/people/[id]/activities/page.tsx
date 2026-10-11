@@ -13,7 +13,7 @@ import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
 import { getPerson, readOrFail } from "@/lib/person-record";
 import { recordMetadata } from "@/lib/record-metadata";
-import { formatUkTime, ukDateTimeInput } from "@/lib/uk-time";
+import { formatUkTime } from "@/lib/uk-time";
 
 type Params = Promise<{ id: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -54,7 +54,6 @@ async function ActivitiesTab({
   if (!activities || !visits) return <NoAccess />;
   const names = personNames(person);
   const canWrite = can(me.permissions, "care.note.write");
-  const nowLocal = ukDateTimeInput();
   const by = (recordedBy: string | null) =>
     t("care.entry.recordedBy", { who: entryAuthor(recordedBy, me.tenantUserId) });
 
@@ -74,7 +73,7 @@ async function ActivitiesTab({
           </h3>
           {canWrite ? (
             <Card as="section" title={t("care.activities.form.title")} headingLevel={4}>
-              <ActivityForm personId={id} nowLocal={nowLocal} name={names.preferred} />
+              <ActivityForm personId={id} name={names.preferred} />
             </Card>
           ) : null}
           {activities.items.length === 0 ? (
@@ -128,7 +127,7 @@ async function ActivitiesTab({
           </h3>
           {canWrite ? (
             <Card as="section" title={t("care.visits.form.title")} headingLevel={4}>
-              <VisitForm personId={id} nowLocal={nowLocal} name={names.preferred} />
+              <VisitForm personId={id} name={names.preferred} />
             </Card>
           ) : null}
           {visits.items.length === 0 ? (
