@@ -84,7 +84,7 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | Back-entered care events (the back-entry columns on `care_note`, `observation` and the others) | care_record, as the event |
 | `evidence_pack`, `evidence_pack_item`, `evidence_pack_link` ([quality.md](quality.md)) | evidence_pack; the rendered bundle is deleted when the link ends |
 | `statement_of_purpose_version`, `letter_template`, `letter_template_version` ([comms.md](comms.md)) | organisation_document |
-| `letter` | the class of the record it belongs to: care_record, or serious_incident for incident and duty of candour letters |
+| `letter` | care_record; serious_incident only for an incident follow-up or duty of candour letter about an incident graded serious (`letterRetentionClass`) |
 
 ## Gaps to settle before the module that needs them ships
 

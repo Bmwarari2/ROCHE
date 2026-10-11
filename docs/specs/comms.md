@@ -28,7 +28,7 @@ rendered letters follow the person they are about.
 | --- | --- | --- | --- |
 | `letter_template` | mutable | name, kind (`TEMPLATE_KINDS`), channel (`letter`, `email`), current approved version | `organisation_document` |
 | `letter_template_version` | mutable while draft, then fixed | template, version, state (`TEMPLATE_WORKFLOW`), name, subject (email), body, author, contributors, approved by and at, retirement reason | `organisation_document` |
-| `letter` | append-only | template version, person, recipient (contact id or free-text recipient), channel, the personal-data fields used, whether it holds special category data, rendered document (PDF for letters; for email, the delivery and the document), sent by and at, delivery reference | the class of the record it belongs to: `care_record` for a person's letters, `serious_incident` for incident follow-up and duty of candour letters |
+| `letter` | append-only | template version, person, recipient (the person or one of their contacts), channel, the personal-data fields used, whether it holds special category data, results to follow (candour), incident and its grade (incident and candour letters), rendered document (PDF for letters; for email, the delivery and the document), sent by and at, delivery reference | `letterRetentionClass`: `serious_incident` for an incident or candour letter about an incident graded serious, otherwise `care_record` |
 
 Field mapping: [data-standards.md](data-standards.md#packs-and-governance-phase-1-slice-11);
 purposes: [records of processing](../compliance/records-of-processing.md).
@@ -57,21 +57,49 @@ controls that hazard). No figure is hard-coded: `fee.notice_days` is filled from
    `money` in whole pence, `number`), a data class (`none`, `personal`, `special_category`) and
    whether it belongs to one person receiving care (`personBound`: the person's own details, a
    contact's details, their fees, incidents and candour details). Incident and candour details are
-   special category data.
+   special category data. Three flags say where a field may go: `multiLine` (addresses, the
+   incident summary and the candour texts can run over several lines), `notInEmail` (the NHS
+   number and date of birth identify the person outright) and `allowsResultsToFollow` (only
+   `candour.results`).
 2. **Syntax** (`parseTemplateText`). Fields are written `{{field.name}}` (lower case, digits,
    underscores and dots). An unclosed field, a stray `}}`, a malformed name or a field not in the
    catalogue is refused with the field named. The parser is a loop, not a regular expression, so
    it cannot backtrack on long input (the CodeQL ReDoS gate); bodies are limited to
    `MAX_TEMPLATE_BODY_LENGTH` characters.
-3. **Where personal data may go** (`checkTemplateDefinition`; ADR-0051). An email needs a subject of
-   at most `MAX_TEMPLATE_SUBJECT_LENGTH` characters that uses only fields with no personal data
-   (subjects show in inbox previews and notifications); a special category field never goes in an
-   email body: such content goes as a letter (by post, by hand or through the portal). Personal
-   fields that are not special category may go in an email body and are flagged.
-4. **Required content.** A duty of candour letter must contain the written notification's
-   contents from regulation 20(4) of the 2014 Regulations: the account of the facts
-   (`candour.account`, 20(4)(a)), the enquiries to be made (`candour.enquiries`, (b)), the results
-   of further enquiries (`candour.results`, (c)) and an apology (`candour.apology`, (d)).
+3. **Where personal data may go** (`checkTemplateDefinition`; ADR-0051).
+   - An email needs a subject of at most `MAX_TEMPLATE_SUBJECT_LENGTH` characters that uses only
+     fields with no personal data (subjects show in inbox previews and notifications) and no
+     `multiLine` field (a line break in a subject is a header break).
+   - The subject may not hold a character that can break or disguise an email header
+     (`hasUnsafeHeaderCharacter`): C0 and C1 control characters (CR and LF among them), DEL,
+     U+2028 and U+2029, and the bidirectional controls (U+061C, U+200E, U+200F, U+202A to U+202E,
+     U+2066 to U+2069). The check runs on the template and again on the rendered subject, after
+     the values are merged (rule 7).
+   - Incident follow-up and duty of candour letters are letters only (`LETTER_ONLY_KINDS`): they
+     cannot be email templates at all.
+   - A special category field never goes in an email body, and nor does a `notInEmail` field (NHS
+     number, date of birth); such content goes as a letter (by post, by hand or through the
+     portal). Other personal fields may go in an email body and are flagged.
+4. **Required content and the relevant person.** A duty of candour letter must contain the
+   written notification's contents from regulation 20(4) of the 2014 Regulations: the account of
+   the facts (`candour.account`, 20(4)(a)), the enquiries to be made (`candour.enquiries`, (b)), the
+   results of further enquiries (`candour.results`, (c)) and an apology (`candour.apology`, (d)).
+   - **Results to follow.** The first notification usually comes before the enquiries end, so
+     `candour.results` alone may take a `results_to_follow` marker with an optional expected date.
+     It prints standard words (`resultsToFollowText`): "The results of our further enquiries are
+     not available yet. We will write to you with them by dd/mm/yyyy." The rendered letter carries
+     `resultsToFollow`, and the API step keeps the candour record's "enquiries and results shared"
+     step ([safety.md](safety.md) schema) open until a letter without the marker is sent. A blank
+     `candour.results` is still refused.
+   - **Who receives it** (`checkCandourRelevantPerson`). Regulation 20(7): the relevant person is
+     the service user or, on their death, where they are under 16 and not competent, or where they
+     are 16 or over and lack capacity in relation to the matter, a person lawfully acting on their
+     behalf. A representative recorded without one of those bases is refused
+     (`representative_basis_not_met`), and so is the service user when one applies
+     (`representative_required`). A candour letter renders only for the relevant person on the
+     candour record: the service user, or that representative as one of the person's contacts
+     (`candour_recipient_required`, `candour_wrong_recipient`). Harbour's reading, to confirm with
+     the CSO and a solicitor (H-103).
 5. **Approval and separation of duties** (`checkTemplateApproval`, `TEMPLATE_WORKFLOW`). Only a
    draft with no problems, that differs from the approved version, approved by a holder of
    `comms.template.approve` who neither wrote nor edited it (`checkTemplateEdit` adds every editor
@@ -90,7 +118,12 @@ controls that hazard). No figure is hard-coded: `fee.notice_days` is filled from
    - for HTML email every value and every piece of the template's own text is escaped
      (`escapeHtml`), paragraphs become `<p>` and line breaks `<br>`; nothing in a template or value
      can inject markup;
-   - an email subject must also pass the outbound title check (`outboundTitleProblem`);
+   - the rendered email subject is checked again for header-breaking characters (a value could
+     carry one) and must pass the outbound title check (`outboundTitleProblem`);
+   - a letter's text goes to the PDF renderer (Typst) as data, never as markup: values and template
+     text are passed as strings the template prints, so nothing typed can run as Typst code;
+   - a duty of candour letter needs the candour record's relevant person and the recipient, and
+     they must match (rule 4);
    - the result lists the personal-data fields used and whether special category data is present,
      for the "check before sending" screen and the audit trail.
 8. **Before sending** (the API step). The sender sees the person's name and photo (HZ-001), the
@@ -122,7 +155,9 @@ None: templates and letters are online-only office tasks.
 ## 7. Clinical safety
 
 HZ-051 (a letter or email carries another person's details, or wrong or unapproved content) is new
-with this spec. HZ-001 applies to the "check before sending" screen. Duty of candour letters relate
+with this spec. Its controls include the person check on every person-bound value, approval by a
+second person, letter-only kinds, identifiers kept out of email, header-safe subjects, the candour
+recipient check and the "results to follow" words that keep the follow-up due (rules 3, 4 and 7). HZ-001 applies to the "check before sending" screen. Duty of candour letters relate
 to HZ-013 through the candour clock in [safety.md](safety.md). Medical-device boundary: unchanged;
 templates merge recorded values and add no clinical content
 ([medical-device-boundary.md](../compliance/medical-device-boundary.md)).
@@ -132,25 +167,34 @@ templates merge recorded values and add no clinical content
 Templates hold no personal data. Rendered letters hold the person's and their contact's data and,
 for incident and candour letters, special category data; they are disclosures to the recipient
 under the purpose of the record they relate to (B1 or B2; candour letters B7). Email is used only
-for content without special category data (ADR-0051, for the DPO to accept, H-99). Retention:
-templates `organisation_document`; letters the class of their record ([retention.md](retention.md)).
+for content without special category data or identifiers such as the NHS number and date of birth
+(ADR-0051, for the DPO to accept, H-99). Recipient addresses are printable ASCII only, lower-cased
+without Unicode case-folding, so two different addresses cannot be treated as one. Retention:
+templates `organisation_document`; letters `care_record`, or `serious_incident` for an incident or
+candour letter about an incident graded serious (`letterRetentionClass`, [retention.md](retention.md)).
 Field mapping: [data-standards.md](data-standards.md#packs-and-governance-phase-1-slice-11).
 
 ## 9. Acceptance criteria and tests
 
 - Domain (built, slice 11): `packages/domain/src/comms/templates.test.ts` (catalogue; parsing and
-  hostile input; definition checks; candour contents; approval and separation of duties; edits and
-  versions; rendering, escaping and formatting; HZ-051 wrong person, missing values and unapproved
-  versions; permissions) and `packages/domain/src/comms/template-style.test.ts`.
+  hostile input; definition checks; header-unsafe characters and multi-line fields in subjects;
+  letter-only kinds; identifiers kept out of email; candour contents, results to follow and the
+  relevant person; approval and separation of duties; edits and versions; rendering, escaping and
+  formatting; HZ-051 wrong person, missing values and unapproved versions; letter retention;
+  permissions), `packages/domain/src/comms/template-style.test.ts` and
+  `packages/domain/src/shared/email.test.ts`.
 - Database: RLS for the new tables; fixed approved versions; append-only `letter`.
 - API: `hazard HZ-051 a letter cannot be made with another person's details`; email delivery
-  through the guarded `comms.email` port; audit without content.
+  through the guarded `comms.email` port, which refuses a header-unsafe subject again; a Typst
+  render test with a value full of Typst syntax that prints as text; audit without content.
 - Web: Playwright journeys (author, approve by another user, preview with flags, send) with axe.
 
 ## 10. Open questions
 
-- The DPO accepts ADR-0051 (no special category data in email bodies) and the data classes of the
-  merge fields (H-99).
+- The DPO accepts ADR-0051 (no special category data or identifiers in email bodies) and the data
+  classes of the merge fields (H-99).
+- The CSO and a solicitor confirm the "results to follow" wording and Harbour's reading of the
+  relevant person under regulation 20(7) (H-103).
 - Starter templates (admission, fee review, incident follow-up, duty of candour) need wording
   reviewed by the provider's adviser; Harbour ships the fields, not legal wording.
 - Welsh-language versions of a template (Phase 7) will be a second body per version.
@@ -162,5 +206,5 @@ schema, API or web changes in this slice.
 
 | Module | Main exports | For |
 | --- | --- | --- |
-| `templates.ts` | `MERGE_FIELDS`, `TEMPLATE_KINDS`, `TEMPLATE_REQUIRED_FIELDS`, `parseTemplateText`, `checkTemplateDefinition`, `TEMPLATE_WORKFLOW`, `checkTemplateApproval`, `checkTemplateEdit`, `startTemplateRevision`, `currentApprovedTemplate`, `renderTemplate`, `formatMergeValue`, `escapeHtml` | Rules 1 to 8 |
+| `templates.ts` | `MERGE_FIELDS`, `TEMPLATE_KINDS`, `LETTER_ONLY_KINDS`, `TEMPLATE_REQUIRED_FIELDS`, `parseTemplateText`, `hasUnsafeHeaderCharacter`, `checkTemplateDefinition`, `TEMPLATE_WORKFLOW`, `checkTemplateApproval`, `checkTemplateEdit`, `startTemplateRevision`, `currentApprovedTemplate`, `CANDOUR_REPRESENTATIVE_BASES`, `checkCandourRelevantPerson`, `resultsToFollowText`, `renderTemplate`, `formatMergeValue`, `escapeHtml`, `letterRetentionClass` | Rules 1 to 8 |
 | `template-style.ts` | `templateStyleWarnings`, `MAX_SENTENCE_WORDS`, `TEMPLATE_ACRONYMS` | Rule 9 |

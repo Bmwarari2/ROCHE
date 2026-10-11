@@ -43,8 +43,14 @@ correspondence work.
    whose body uses a special category field; letters may use any field.
 3. Rendering lists the personal-data fields used, for the "check before sending" screen and the
    audit trail, and the subject must also pass `outboundTitleProblem`.
-4. Duty of candour and incident follow-up letters therefore go as letters; email may carry a
-   generic notice that a letter is waiting in the portal (slice 12 onwards).
+4. Duty of candour and incident follow-up templates are letters only (`LETTER_ONLY_KINDS`): they
+   cannot be set up as email at all. Email may carry a generic notice that a letter is waiting in
+   the portal (slice 12 onwards).
+5. Added after the security review: the NHS number and date of birth (`notInEmail`) never go in an
+   email body, because together with a name they identify the person outright; a subject may not
+   use a multi-line field (an address, the incident summary) or hold a character that can break or
+   disguise a header (C0 and C1 controls, U+2028, U+2029, bidirectional controls), checked on the
+   template and again on the rendered subject (`hasUnsafeHeaderCharacter`).
 
 ### Consequences
 
