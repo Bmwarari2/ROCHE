@@ -37,7 +37,10 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   notifications and support-access approval need a sign-in within 10 minutes.
 - Break-glass: `POST /v1/people/break-glass` with a justification of at least 20 characters; access
   lapses after 60 minutes; the Registered Manager for the location and quality leads are notified;
-  the reason is audited. Weekly break-glass report: Phase 1.
+  the reason is audited. Weekly break-glass report: the aggregation by user, person and reason
+  with repeated-use flags is `breakGlassWeeklyReport` (`packages/domain/src/people/break-glass-report.ts`,
+  [people.md](people.md) rule 14); the Monday job, the stored report and the screen come with the
+  people API step.
 - Devices: `GET /v1/me/sessions` lists where the person is signed in (this device marked);
   `POST /v1/me/sessions/{id}/revoke` and `POST /v1/me/sessions/revoke-others` sign devices out.
   Identity-level, so no organisation header. Session tokens reach only the mobile app (`Origin:
