@@ -42,6 +42,7 @@ export interface Harness {
   readonly db: TestDatabase;
   readonly handle: AppHandle;
   readonly tokens: Record<string, string>;
+  readonly authIds: Record<string, string>;
   request(
     path: string,
     init?: { token?: string; tenant?: string; method?: string; body?: unknown },
@@ -137,6 +138,7 @@ export async function createHarness(): Promise<Harness> {
     NODE_ENV: "test",
     DATABASE_APP_URL: db.url("harbour_app"),
     DATABASE_AUTH_URL: db.url("harbour_auth"),
+    DATABASE_OPERATOR_URL: db.url("harbour_operator"),
     LOG_LEVEL: "silent",
   });
   const handle = createApp(config, createLogger("silent"));
@@ -199,6 +201,20 @@ export async function createHarness(): Promise<Harness> {
   tokens.rae = rae.token;
   authIds.rae = rae.id;
 
+  // Thapsus operators: an admin, a support engineer, and the nurse's identity as an operator without
+  // MFA (to prove the operator console refuses it).
+  const opsAdmin = await signUp("ops.admin@example.invalid", "Ola Admin");
+  const opsSupport = await signUp("ops.support@example.invalid", "Sam Support");
+  tokens.opsAdmin = opsAdmin.token;
+  tokens.opsSupport = opsSupport.token;
+  authIds.opsAdmin = opsAdmin.id;
+  authIds.opsSupport = opsSupport.id;
+  await owner.query(
+    `INSERT INTO operator_user (auth_user_id, display_name, role) VALUES
+       ($1, 'Ola Admin', 'admin'), ($2, 'Sam Support', 'support'), ($3, 'Nell as operator', 'support')`,
+    [opsAdmin.id, opsSupport.id, authIds.nurse],
+  );
+
   // Simulate completed TOTP enrolment for everyone except the nurse, after the session was issued
   // (with two-factor on, sign-in itself would require the code).
   await db
@@ -209,6 +225,7 @@ export async function createHarness(): Promise<Harness> {
     db,
     handle,
     tokens,
+    authIds,
     request,
     close: async () => {
       await handle.close();

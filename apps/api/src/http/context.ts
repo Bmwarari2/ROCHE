@@ -36,6 +36,7 @@ export interface Services {
   readonly db: Database;
   readonly appPool: pg.Pool;
   readonly authPool: pg.Pool;
+  readonly operatorPool: pg.Pool;
   readonly auth: Auth;
 }
 
@@ -66,12 +67,20 @@ export interface TenantAccess {
   readonly ip: string | null;
 }
 
+/** A Thapsus operator, set only on /operator routes. */
+export interface OperatorIdentity {
+  readonly id: string;
+  readonly authUserId: string;
+  readonly role: "support" | "admin";
+}
+
 export type AppEnv = {
   Variables: {
     services: Services;
     requestId: string;
     session: SessionInfo | null;
     access: TenantAccess;
+    operator: OperatorIdentity;
   };
 };
 

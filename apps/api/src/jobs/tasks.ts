@@ -2,11 +2,18 @@ import {
   type Database,
   escalationChain,
   notification,
+  notificationDelivery,
   role,
   roleAssignment,
+  tenantUser,
   withRequestContext,
 } from "@harbour/db";
-import { dueEscalationSteps, type EscalationStep, nextEscalationAt } from "@harbour/domain";
+import {
+  deliveryOutcome,
+  dueEscalationSteps,
+  type EscalationStep,
+  nextEscalationAt,
+} from "@harbour/domain";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type pg from "pg";
 import type { Logger } from "../logger";
@@ -182,4 +189,95 @@ export async function endExpiredAssignments(deps: TaskDeps): Promise<number> {
     );
   }
   return ended;
+}
+
+export interface DeliveryDeps extends TaskDeps {
+  /** Resolves the adapter for a tenant and channel (see integrations/registry.ts). */
+  readonly adapterFor: (
+    tenantId: string,
+    channel: "email" | "sms" | "push",
+    tx: import("@harbour/db").Transaction,
+  ) => Promise<import("../integrations/registry").ChannelAdapter>;
+}
+
+/**
+ * Sends pending email, SMS and push deliveries. Bodies carry a generic title and a link only. A
+ * delivery with no destination (no email, phone or registered device) is marked skipped so the
+ * in-app notification stays the record; failures retry with backoff and then surface as failed.
+ */
+export async function processDeliveries(deps: DeliveryDeps, now = new Date()): Promise<number> {
+  const pending = await deps.workerPool.query<{ id: string; tenant_id: string }>(
+    `SELECT id, tenant_id FROM notification_delivery
+     WHERE status = 'pending' AND (next_attempt_at IS NULL OR next_attempt_at <= $1)
+     ORDER BY created_at LIMIT 100`,
+    [now],
+  );
+  let handled = 0;
+  for (const row of pending.rows) {
+    await withRequestContext(
+      deps.appDb,
+      { tenantId: row.tenant_id, userId: null, scope: "tenant", locationIds: [] },
+      async (tx) => {
+        const [delivery] = await tx
+          .select()
+          .from(notificationDelivery)
+          .where(
+            and(eq(notificationDelivery.id, row.id), eq(notificationDelivery.status, "pending")),
+          )
+          .for("update", { skipLocked: true });
+        if (!delivery) return;
+        const [n] = await tx
+          .select()
+          .from(notification)
+          .where(eq(notification.id, delivery.notificationId));
+        if (!n) return;
+        const [recipient] = await tx
+          .select({ email: tenantUser.email })
+          .from(tenantUser)
+          .where(eq(tenantUser.id, n.recipientTenantUserId));
+        const channel = delivery.channel as "email" | "sms" | "push";
+        const adapter = await deps.adapterFor(row.tenant_id, channel, tx);
+        // Phone numbers and device push tokens arrive with staff profiles and device registration
+        // (Phase 1-2); until then those channels have no destination.
+        const destination = channel === "email" ? (recipient?.email ?? null) : null;
+        const attempts = delivery.attempts + 1;
+        if (destination === null) {
+          await tx
+            .update(notificationDelivery)
+            .set({
+              status: "skipped",
+              attempts,
+              provider: adapter.provider,
+              lastError: "No destination",
+            })
+            .where(eq(notificationDelivery.id, delivery.id));
+          return;
+        }
+        const result = await adapter.send({
+          idempotencyKey: delivery.id,
+          title: n.title,
+          link: n.link,
+          to: destination,
+        });
+        const outcome = deliveryOutcome(result, attempts);
+        await tx
+          .update(notificationDelivery)
+          .set({
+            status: outcome.status,
+            attempts,
+            provider: adapter.provider,
+            providerMessageId: outcome.status === "sent" ? outcome.providerMessageId : null,
+            lastError: outcome.status === "sent" ? null : outcome.error,
+            sentAt: outcome.status === "sent" ? now : null,
+            nextAttemptAt:
+              outcome.status === "pending"
+                ? new Date(now.getTime() + outcome.retryInSeconds * 1000)
+                : null,
+          })
+          .where(eq(notificationDelivery.id, delivery.id));
+        handled += 1;
+      },
+    );
+  }
+  return handled;
 }

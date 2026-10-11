@@ -3,8 +3,11 @@ import { DEMO, seedDemoTenant } from "@harbour/db/seed";
 import { createTestDatabase, type TestDatabase } from "@harbour/db/testing";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { MockEmail, MockPush, MockSms } from "../src/integrations/adapters";
+import { createAdapterResolver } from "../src/integrations/registry";
 import {
   endExpiredAssignments,
+  processDeliveries,
   relayOutbox,
   runEscalations,
   type TaskDeps,
@@ -140,5 +143,39 @@ describe("assignment expiry", () => {
     );
     expect(await endExpiredAssignments(deps)).toBe(1);
     expect(await endExpiredAssignments(deps)).toBe(0);
+  });
+});
+
+describe("notification deliveries", () => {
+  it("emails the recipient a generic title and skips channels without a destination", async () => {
+    const mocks = { email: new MockEmail(), sms: new MockSms(), push: new MockPush() };
+    const adapterFor = createAdapterResolver({ production: false, mocks });
+    await asTenant(appPool, (c) =>
+      c.query(
+        `INSERT INTO notification (recipient_tenant_user_id, kind, title, link, channels)
+         VALUES ($1, 'test.delivery', 'A visit was missed', '/visits/1', '{in_app,email,push}')`,
+        [DEMO.users.manager.id],
+      ),
+    );
+    expect(await processDeliveries({ ...deps, adapterFor })).toBe(1);
+    expect(mocks.email.sent).toEqual([
+      expect.objectContaining({
+        to: "manager@example.invalid",
+        title: "A visit was missed",
+        link: "/visits/1",
+      }),
+    ]);
+    const statuses = await asTenant(appPool, (c) =>
+      c.query(
+        `SELECT d.channel, d.status FROM notification_delivery d
+         JOIN notification n ON n.id = d.notification_id
+         WHERE n.kind = 'test.delivery' ORDER BY d.channel`,
+      ),
+    );
+    expect(statuses.rows).toEqual([
+      { channel: "email", status: "sent" },
+      { channel: "push", status: "skipped" },
+    ]);
+    expect(await processDeliveries({ ...deps, adapterFor })).toBe(0);
   });
 });

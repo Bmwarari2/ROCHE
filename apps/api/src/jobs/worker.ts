@@ -1,8 +1,15 @@
 import { createDatabase, createPool } from "@harbour/db";
 import { PgBoss } from "pg-boss";
 import { loadConfig } from "../config";
+import { createAdapterResolver } from "../integrations/registry";
 import { createLogger } from "../logger";
-import { endExpiredAssignments, type OutboxHandler, relayOutbox, runEscalations } from "./tasks";
+import {
+  endExpiredAssignments,
+  type OutboxHandler,
+  processDeliveries,
+  relayOutbox,
+  runEscalations,
+} from "./tasks";
 
 /**
  * Worker process: pg-boss queues and schedules (at-least-once delivery, idempotent handlers).
@@ -25,6 +32,7 @@ const QUEUES = {
   outbox: "outbox-relay",
   escalations: "notification-escalations",
   assignments: "end-expired-assignments",
+  deliveries: "notification-deliveries",
 } as const;
 
 for (const name of Object.values(QUEUES)) await boss.createQueue(name);
@@ -40,11 +48,16 @@ await boss.work(QUEUES.escalations, async () => {
 await boss.work(QUEUES.assignments, async () => {
   await endExpiredAssignments(deps);
 });
+const adapterFor = createAdapterResolver({ production: config.NODE_ENV === "production" });
+await boss.work(QUEUES.deliveries, async () => {
+  await processDeliveries({ ...deps, adapterFor });
+});
 
 // Every minute: escalations are measured in minutes (section 9.1, e.g. on-call after 10 minutes).
 await boss.schedule(QUEUES.outbox, "* * * * *");
 await boss.schedule(QUEUES.escalations, "* * * * *");
 await boss.schedule(QUEUES.assignments, "*/5 * * * *");
+await boss.schedule(QUEUES.deliveries, "* * * * *");
 
 logger.info("Harbour worker started");
 

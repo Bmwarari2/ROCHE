@@ -7,8 +7,10 @@ import type { Config } from "./config";
 import { type AppEnv, type Services, sessionMiddleware, tenantMiddleware } from "./http/context";
 import { HttpProblem, problemResponse, problems } from "./http/problem";
 import type { Logger } from "./logger";
+import { integrationsRouter, supportAccessRouter } from "./routes/integrations";
 import { membershipsRouter, meRouter } from "./routes/me";
 import { createRouter } from "./routes/openapi";
+import { operatorMiddleware, operatorRouter } from "./routes/operator";
 import { peopleRouter } from "./routes/people";
 import {
   auditRouter,
@@ -33,12 +35,14 @@ export interface AppHandle {
 export function createApp(config: Config, logger: Logger): AppHandle {
   const appPool = createPool(config.DATABASE_APP_URL);
   const authPool = createPool(config.DATABASE_AUTH_URL, { max: 5 });
+  const operatorPool = createPool(config.DATABASE_OPERATOR_URL, { max: 3 });
   const services: Services = {
     config,
     logger,
     db: createDatabase(appPool),
     appPool,
     authPool,
+    operatorPool,
     auth: createAuth(config, authPool),
   };
   const signer = new SyncTokenSigner(config.SYNC_SIGNING_KEY_ID, config.SYNC_SIGNING_KEY_PEM);
@@ -77,6 +81,12 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     c.header("cache-control", "no-store");
   });
   app.use("/v1/*", sessionMiddleware);
+  app.use("/operator/*", async (c, next) => {
+    await next();
+    c.header("cache-control", "no-store");
+  });
+  app.use("/operator/*", sessionMiddleware);
+  app.use("/operator/*", operatorMiddleware);
   app.use("/v1/*", async (c, next) => {
     if (TENANTLESS.has(c.req.path)) return next();
     return tenantMiddleware(c, next);
@@ -91,6 +101,9 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", formsRouter);
   app.route("/", ratesRouter);
   app.route("/", createSyncRouter(signer));
+  app.route("/", integrationsRouter);
+  app.route("/", supportAccessRouter);
+  app.route("/", operatorRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
     type: "http",
@@ -134,7 +147,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     services,
     signer,
     close: async () => {
-      await Promise.all([appPool.end(), authPool.end()]);
+      await Promise.all([appPool.end(), authPool.end(), operatorPool.end()]);
     },
   };
 }

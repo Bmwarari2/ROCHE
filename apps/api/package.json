@@ -35,7 +35,8 @@
     "pino": "^10.4.0",
     "zod": "^4.6.5",
     "@harbour/sync": "workspace:*",
-    "@harbour/i18n": "workspace:*"
+    "@harbour/i18n": "workspace:*",
+    "@aws-sdk/client-sesv2": "^3.1149.0"
   },
   "devDependencies": {
     "@harbour/config": "workspace:*",

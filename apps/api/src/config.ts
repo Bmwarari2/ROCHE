@@ -15,6 +15,10 @@ const Env = z.object({
   DATABASE_AUTH_URL: z
     .string()
     .default("postgres://harbour_auth:harbour_auth_local@localhost:5432/harbour"),
+  /** harbour_operator: the Thapsus operator console (provisioning and health only). */
+  DATABASE_OPERATOR_URL: z
+    .string()
+    .default("postgres://harbour_operator:harbour_operator_local@localhost:5432/harbour"),
   /** harbour_worker: outbox relay and escalation scheduler. */
   DATABASE_WORKER_URL: z
     .string()
