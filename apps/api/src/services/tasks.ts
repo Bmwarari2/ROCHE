@@ -51,8 +51,10 @@ export function toTaskItem(row: TaskRow, now: Date, escalateAfterMinutes: number
     evidenceRequired: row.evidenceRequired,
     evidenceType: row.evidenceType,
     evidenceId: row.evidenceId,
+    evidenceAfterClose: row.evidenceAfterClose,
     completedAt: iso(row.completedAt),
     escalated: row.escalationLevel > 0,
+    details: (row.details ?? null) as TaskItem["details"],
     version: row.version,
   };
 }

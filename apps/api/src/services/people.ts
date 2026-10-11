@@ -73,6 +73,7 @@ import {
 } from "drizzle-orm";
 import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
+import { appendTaskDetail } from "./care";
 import { bringPlanReviewForward } from "./care-planning";
 import { bankHolidays, rateNumber } from "./rates";
 import { withTenantWideScope } from "./safety";
@@ -244,8 +245,40 @@ export function requireWrite(
   return { recordedAfterExit: check.recordedAfterStatusChange };
 }
 
-/** One open review task for the nurse in charge per person (HZ-006; people.md rule 3). */
-export async function raiseLateEntryReview(tx: Transaction, p: PersonRow, now: Date) {
+/**
+ * One open review task for the nurse in charge per person (HZ-006; people.md rule 3), listing each
+ * refused entry by its kind, client id, device and user: opaque references only, never clinical
+ * text. The device keeps the entry under "Needs attention" until it is resolved.
+ */
+export async function raiseLateEntryReview(
+  tx: Transaction,
+  p: PersonRow,
+  now: Date,
+  entry: {
+    kind: string;
+    clientId: string | null;
+    occurredAt: string | null;
+    deviceId: string | null;
+    recordedBy: string | null;
+  },
+) {
+  const id = await lateEntryReviewTask(tx, p, now);
+  if (id) {
+    await appendTaskDetail(tx, id, "entries", [
+      {
+        kind: entry.kind,
+        clientId: entry.clientId,
+        occurredAt: entry.occurredAt,
+        deviceId: entry.deviceId,
+        recordedBy: entry.recordedBy,
+        at: now.toISOString(),
+      },
+    ]);
+  }
+  return id;
+}
+
+async function lateEntryReviewTask(tx: Transaction, p: PersonRow, now: Date) {
   const [open] = await tx
     .select({ id: task.id })
     .from(task)
@@ -745,7 +778,7 @@ async function cancelFutureTasks(tx: Transaction, personId: string, at: Date, re
     );
   await tx
     .update(taskSeries)
-    .set({ active: false, inactiveCode: "ended_at_exit" })
+    .set({ active: false, inactiveCode: "ended_at_exit", stoppedByExitId: exitRecordId })
     .where(
       and(
         eq(taskSeries.personId, personId),

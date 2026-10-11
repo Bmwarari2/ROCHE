@@ -328,111 +328,114 @@ export const incidentsRouter = createRouter()
       const now = new Date();
       requireMfaForPeople(access, body.people.filter((p) => p.kind === "service_user").length);
       checkAnswers(access, body.answers);
-      const detail = await withLateEntryReview(c, () =>
-        withTenant(c, async (tx) => {
-          if (body.id) {
-            const [replayed] = await tx
-              .select({ id: incident.id })
-              .from(incident)
-              .where(eq(incident.id, body.id));
-            if (replayed) return incidentDetail(tx, replayed.id, now);
-          }
-          const nation = await nationOf(tx, body.locationId);
-          const rates = await careRates(tx, access.tenantId, nation);
-          const times = entryTimes(body, c.req.header(SENT_AT_HEADER), now, rates);
-          if (body.foundAt && new Date(body.foundAt) < times.occurredAt) {
-            throw problems.invalid("The person cannot be found before the incident happened.");
-          }
-          for (const p of body.people) {
-            await checkPerson(tx, p, {
-              occurredAt: times.occurredAt,
-              toleranceMinutes: rates.clockDriftMinutes,
-            });
-          }
-          const personIds = body.people.flatMap((p) =>
-            p.kind === "service_user" && p.personId ? [p.personId] : [],
-          );
-          if (new Set(personIds).size !== personIds.length) {
-            throw problems.invalid("Each person is added to an incident once.");
-          }
-          const [row] = await tx
-            .insert(incident)
-            .values({
-              ...(body.id ? { id: body.id } : {}),
-              locationId: body.locationId,
-              type: body.type,
-              occurredAt: times.occurredAt,
-              deviceTime: times.deviceTime,
-              deviceId: access.deviceId,
-              lateEntry: times.lateEntry,
-              clockDrift: times.clockDrift,
-              foundAt: body.foundAt ? new Date(body.foundAt) : null,
-              severity: body.severity ?? null,
-              harmGrade: body.harmGrade ?? null,
-              description: body.description,
-              immediateActions: body.immediateActions ?? null,
-              emergencyServicesCalled: body.emergencyServicesCalled,
-              gpContacted: body.gpContacted,
-              contactNotes: body.contactNotes ?? null,
-              familyInformedWho: body.familyInformed?.who ?? null,
-              familyInformedAt: body.familyInformed ? new Date(body.familyInformed.at) : null,
-              raisedBy: access.tenantUserId,
-              personIds,
-            })
-            .onConflictDoNothing()
-            .returning();
-          if (!row) throw problems.invalid("That id is already used.");
-          for (const p of body.people) {
-            await tx
-              .insert(incidentPerson)
-              .values({ incidentId: row.id, ...personValues(p) })
-              .catch(onForeignKey("member of staff"));
-          }
-          for (const answer of body.answers) {
-            await tx.insert(classifierAnswer).values({
+      const detail = await withLateEntryReview(
+        c,
+        { kind: "incident", clientId: body.id, occurredAt: body.occurredAt },
+        () =>
+          withTenant(c, async (tx) => {
+            if (body.id) {
+              const [replayed] = await tx
+                .select({ id: incident.id })
+                .from(incident)
+                .where(eq(incident.id, body.id));
+              if (replayed) return incidentDetail(tx, replayed.id, now);
+            }
+            const nation = await nationOf(tx, body.locationId);
+            const rates = await careRates(tx, access.tenantId, nation);
+            const times = entryTimes(body, c.req.header(SENT_AT_HEADER), now, rates);
+            if (body.foundAt && new Date(body.foundAt) < times.occurredAt) {
+              throw problems.invalid("The person cannot be found before the incident happened.");
+            }
+            for (const p of body.people) {
+              await checkPerson(tx, p, {
+                occurredAt: times.occurredAt,
+                toleranceMinutes: rates.clockDriftMinutes,
+              });
+            }
+            const personIds = body.people.flatMap((p) =>
+              p.kind === "service_user" && p.personId ? [p.personId] : [],
+            );
+            if (new Set(personIds).size !== personIds.length) {
+              throw problems.invalid("Each person is added to an incident once.");
+            }
+            const [row] = await tx
+              .insert(incident)
+              .values({
+                ...(body.id ? { id: body.id } : {}),
+                locationId: body.locationId,
+                type: body.type,
+                occurredAt: times.occurredAt,
+                deviceTime: times.deviceTime,
+                deviceId: access.deviceId,
+                lateEntry: times.lateEntry,
+                clockDrift: times.clockDrift,
+                foundAt: body.foundAt ? new Date(body.foundAt) : null,
+                severity: body.severity ?? null,
+                harmGrade: body.harmGrade ?? null,
+                description: body.description,
+                immediateActions: body.immediateActions ?? null,
+                emergencyServicesCalled: body.emergencyServicesCalled,
+                gpContacted: body.gpContacted,
+                contactNotes: body.contactNotes ?? null,
+                familyInformedWho: body.familyInformed?.who ?? null,
+                familyInformedAt: body.familyInformed ? new Date(body.familyInformed.at) : null,
+                raisedBy: access.tenantUserId,
+                personIds,
+              })
+              .onConflictDoNothing()
+              .returning();
+            if (!row) throw problems.invalid("That id is already used.");
+            for (const p of body.people) {
+              await tx
+                .insert(incidentPerson)
+                .values({ incidentId: row.id, ...personValues(p) })
+                .catch(onForeignKey("member of staff"));
+            }
+            for (const answer of body.answers) {
+              await tx.insert(classifierAnswer).values({
+                incidentId: row.id,
+                questionKey: answer.key,
+                value: answer.value,
+                answeredAt: now,
+                answeredBy: access.tenantUserId,
+                deviceId: access.deviceId,
+              });
+            }
+            await startWorkflow(
+              tx,
+              access.tenantId,
+              INCIDENT_WORKFLOW,
+              { subjectType: "incident", subjectId: row.id, personId: null },
+              now,
+            );
+            const outcome = await classifyAndStore(tx, {
+              tenantId: access.tenantId,
               incidentId: row.id,
-              questionKey: answer.key,
-              value: answer.value,
-              answeredAt: now,
-              answeredBy: access.tenantUserId,
-              deviceId: access.deviceId,
+              actorTenantUserId: access.tenantUserId,
+              now,
             });
-          }
-          await startWorkflow(
-            tx,
-            access.tenantId,
-            INCIDENT_WORKFLOW,
-            { subjectType: "incident", subjectId: row.id, personId: null },
-            now,
-          );
-          const outcome = await classifyAndStore(tx, {
-            tenantId: access.tenantId,
-            incidentId: row.id,
-            actorTenantUserId: access.tenantUserId,
-            now,
-          });
-          await publish(tx, {
-            context: "safety",
-            aggregateType: "incident",
-            aggregateId: row.id,
-            type: "safety.incident.recorded",
-            payload: {
-              incidentId: row.id,
-              type: row.type,
-              locationId: row.locationId,
-              occurredAt: row.occurredAt.toISOString(),
-              lateEntry: row.lateEntry,
-              notificationsDrafted: outcome.notificationsCreated,
-            },
-          });
-          await audit(c, tx, access, {
-            action: "safety.incident.create",
-            resourceType: "incident",
-            resourceId: row.id,
-            scope: { type: row.type, people: personIds.length },
-          });
-          return incidentDetail(tx, row.id, now);
-        }),
+            await publish(tx, {
+              context: "safety",
+              aggregateType: "incident",
+              aggregateId: row.id,
+              type: "safety.incident.recorded",
+              payload: {
+                incidentId: row.id,
+                type: row.type,
+                locationId: row.locationId,
+                occurredAt: row.occurredAt.toISOString(),
+                lateEntry: row.lateEntry,
+                notificationsDrafted: outcome.notificationsCreated,
+              },
+            });
+            await audit(c, tx, access, {
+              action: "safety.incident.create",
+              resourceType: "incident",
+              resourceId: row.id,
+              scope: { type: row.type, people: personIds.length },
+            });
+            return incidentDetail(tx, row.id, now);
+          }),
       );
       return c.json(detail, 201);
     },
@@ -540,7 +543,7 @@ export const incidentsRouter = createRouter()
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const now = new Date();
-      const detail = await withLateEntryReview(c, () =>
+      const detail = await withLateEntryReview(c, { kind: "incident", clientId: id }, () =>
         withTenant(c, async (tx) => {
           const { row, people } = await loadForChange(c, tx, id);
           if (row.version !== body.version) throw problems.conflict();

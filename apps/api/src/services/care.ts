@@ -15,18 +15,20 @@ import {
   type CareTaskKind,
   type CareTrigger,
   checkEntryTime,
+  checkTaskLink,
   checkTaskTransition,
   hasClockDrift,
   isClosedRecord,
   isPermission,
   nextWeightDueOn,
   resolveCareRates,
+  type TaskLinkOutcome,
   type TaskStatus,
   ukDayBounds,
   ukIsoDate,
 } from "@harbour/domain";
-import { and, eq, inArray, isNull, or } from "drizzle-orm";
-import { problems } from "../http/problem";
+import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { HttpProblem, problems } from "../http/problem";
 import { OVERDUE_FIRST_RESPONDERS } from "./tasks";
 
 /**
@@ -388,66 +390,179 @@ export async function raiseCareTriggers(
   return raised;
 }
 
-/** What happened to the task an entry named (care.md rule 7; HZ-006). */
-export type TaskOutcome = "completed" | "task_cancelled" | "task_already_closed" | "not_linked";
+/** What happened to the task an entry named (care.md rule 7; HZ-004, HZ-006). */
+export type TaskOutcome = TaskLinkOutcome;
+
+/** What an entry will do to the task it names, decided before the entry is written. */
+export interface PlannedTaskLink {
+  readonly taskId: string;
+  readonly kind: string;
+  readonly status: TaskStatus;
+  readonly version: number;
+  readonly evidenceRequired: boolean;
+  /** Evidence already on the task (a cancelled task keeps the first entry that answered it). */
+  readonly evidenceId: string | null;
+  readonly outcome: TaskLinkOutcome;
+  /** The nurse in charge reviews it: the round may be repeated or counted twice. */
+  readonly review: boolean;
+}
 
 /**
- * Completes the task an entry answers, with the entry as evidence. The entry is never refused
- * because of the task (HZ-006): an entry recorded offline before the task was cancelled (the
- * person went to hospital, say) is linked to it and flagged, and the task stays cancelled; a task
- * already done or skipped is left alone; a task the user may not complete is not linked. A task
- * for another person is still refused: that is a wrong-person entry (HZ-001).
+ * Decides what an entry does to the task it names, before the entry is written, so the entry
+ * records the outcome (`checkTaskLink`). An entry is never lost because of its task (HZ-006),
+ * except that a medicines task the user may not complete, or one already done or skipped, is
+ * refused so a dose is never repeated (HZ-004); a task for another person is refused (HZ-001).
  */
-export async function completeTaskWithEvidence(
+export async function planTaskLink(
   tx: Transaction,
   input: {
     taskId: string;
     personId: string;
     actorTenantUserId: string;
     actorPermissions: ReadonlySet<string>;
-    evidenceType: EvidenceType;
-    evidenceId: string;
-    now: Date;
   },
-): Promise<TaskOutcome> {
+): Promise<PlannedTaskLink> {
   const [row] = await tx
     .select()
     .from(task)
     .where(and(eq(task.id, input.taskId), isNull(task.deletedAt)));
-  if (!row || row.personId !== input.personId)
-    throw problems.invalid("That task is not for this person.");
-  const allowed =
+  if (!row) throw problems.invalid("That task is not for this person.");
+  const mayComplete =
     row.assigneeTenantUserId === input.actorTenantUserId ||
     (isPermission(row.requiredPermission) && input.actorPermissions.has(row.requiredPermission));
-  if (!allowed) return "not_linked";
-  if (row.status === "cancelled") {
-    if (row.evidenceId === null) {
-      await tx
-        .update(task)
-        .set({
-          evidenceType: input.evidenceType,
-          evidenceId: input.evidenceId,
-          evidenceAfterClose: true,
-        })
-        .where(and(eq(task.id, row.id), eq(task.version, row.version)));
-    }
-    return "task_cancelled";
+  const check = checkTaskLink(
+    { personId: row.personId, kind: row.kind, status: row.status as TaskStatus },
+    { personId: input.personId, mayComplete },
+  );
+  if (!check.ok) {
+    throw new HttpProblem(422, `task_${check.problem}`, "The entry was not saved.", check.message);
   }
-  const check = checkTaskTransition(row.status as TaskStatus, {
-    to: "done",
-    evidenceId: input.evidenceId,
+  return {
+    taskId: row.id,
+    kind: row.kind,
+    status: row.status as TaskStatus,
+    version: row.version,
     evidenceRequired: row.evidenceRequired,
-  });
-  if (!check.ok) return "task_already_closed";
+    evidenceId: row.evidenceId,
+    outcome: check.outcome,
+    review: check.review,
+  };
+}
+
+/** The task kind of the review of an entry that did not complete the task it named. */
+export const ENTRY_REVIEW_TASK_KIND = "care.entry_review";
+
+/**
+ * Appends one item to a list in a task's details (opaque references only, never clinical text).
+ */
+export async function appendTaskDetail(
+  tx: Transaction,
+  taskId: string,
+  list: "entries" | "missedTasks",
+  items: readonly Record<string, string | boolean | null>[],
+): Promise<void> {
   await tx
     .update(task)
     .set({
-      status: "done",
-      completedAt: input.now,
-      completedBy: input.actorTenantUserId,
-      evidenceType: input.evidenceType,
-      evidenceId: input.evidenceId,
+      details: sql`jsonb_set(coalesce(${task.details}, '{}'::jsonb), ${`{${list}}`}::text[],
+        coalesce(${task.details} -> ${list}, '[]'::jsonb) || ${JSON.stringify(items)}::jsonb)`,
     })
-    .where(and(eq(task.id, row.id), eq(task.version, row.version)));
-  return "completed";
+    .where(eq(task.id, taskId));
+}
+
+/**
+ * Carries out a planned link once the entry is written: completes the task with the entry as
+ * evidence; keeps it on a cancelled task as late evidence, flagged (the task stays cancelled); or,
+ * for a task already closed or one the user may not complete, leaves the task alone and gives the
+ * nurse in charge one review task listing the entry (HZ-004, HZ-006).
+ */
+export async function applyTaskLink(
+  tx: Transaction,
+  link: PlannedTaskLink,
+  entry: {
+    evidenceType: EvidenceType;
+    evidenceId: string;
+    personId: string;
+    locationId: string;
+    actorTenantUserId: string;
+    deviceId: string | null;
+    now: Date;
+  },
+): Promise<void> {
+  if (link.outcome === "completed") {
+    const check = checkTaskTransition(link.status, {
+      to: "done",
+      evidenceId: entry.evidenceId,
+      evidenceRequired: link.evidenceRequired,
+    });
+    if (!check.ok) return;
+    await tx
+      .update(task)
+      .set({
+        status: "done",
+        completedAt: entry.now,
+        completedBy: entry.actorTenantUserId,
+        evidenceType: entry.evidenceType,
+        evidenceId: entry.evidenceId,
+      })
+      .where(and(eq(task.id, link.taskId), eq(task.version, link.version)));
+    return;
+  }
+  if (link.outcome === "task_cancelled") {
+    if (link.evidenceId === null) {
+      await tx
+        .update(task)
+        .set({
+          evidenceType: entry.evidenceType,
+          evidenceId: entry.evidenceId,
+          evidenceAfterClose: true,
+        })
+        .where(and(eq(task.id, link.taskId), isNull(task.evidenceId)));
+    }
+    return;
+  }
+  const [open] = await tx
+    .select({ id: task.id })
+    .from(task)
+    .where(
+      and(
+        eq(task.personId, entry.personId),
+        eq(task.kind, ENTRY_REVIEW_TASK_KIND),
+        inArray(task.status, ["open", "in_progress"]),
+        isNull(task.deletedAt),
+      ),
+    )
+    .limit(1);
+  const reviewId =
+    open?.id ??
+    (
+      await tx
+        .insert(task)
+        .values({
+          kind: ENTRY_REVIEW_TASK_KIND,
+          title: "Review an entry that did not complete the task it named",
+          requiredPermission: "care.plan.write",
+          personId: entry.personId,
+          locationId: entry.locationId,
+          sourceType: "task",
+          sourceId: link.taskId,
+          assigneeRoleKey: "clinical_lead",
+          dueAt: entry.now,
+          priority: "urgent",
+        })
+        .returning({ id: task.id })
+    )[0]?.id;
+  if (!reviewId) return;
+  await appendTaskDetail(tx, reviewId, "entries", [
+    {
+      kind: entry.evidenceType,
+      entryId: entry.evidenceId,
+      taskId: link.taskId,
+      taskKind: link.kind,
+      outcome: link.outcome,
+      recordedBy: entry.actorTenantUserId,
+      deviceId: entry.deviceId,
+      at: entry.now.toISOString(),
+    },
+  ]);
 }

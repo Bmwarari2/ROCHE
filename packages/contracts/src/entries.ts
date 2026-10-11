@@ -36,15 +36,19 @@ export const entryOutput = {
    * HZ-006); show it as recorded after the exit.
    */
   recordedAfterExit: z.boolean(),
+  /** The task the entry named (for example the 02:00 turn), or null. */
+  taskId: uuid.nullable(),
   /**
-   * On the response to an entry that named a `taskId`: whether it completed the task, or was
-   * kept and linked to a task that had already been cancelled (for example when the person went
-   * to hospital before the upload; the task stays cancelled), or already closed. The entry is
-   * never refused because of the task (HZ-006).
+   * What the entry did to that task: `completed` it; kept as late evidence for a task that had
+   * already been cancelled (`task_cancelled`, for example when the person went to hospital before
+   * the upload: the task stays cancelled); or kept, not linked, after the task had closed
+   * (`task_already_closed`) or for a task the user may not complete (`not_linked`), and given to
+   * the nurse in charge to review. Show anything but `completed` as a flag, an icon and words
+   * (HZ-004, HZ-006). Null when the entry named no task.
    */
   taskOutcome: z
     .enum(["completed", "task_cancelled", "task_already_closed", "not_linked"])
-    .optional(),
+    .nullable(),
   supersedesId: uuid.nullable(),
   correctionReason: z.string().nullable(),
   /** True when a later entry supersedes this one. */

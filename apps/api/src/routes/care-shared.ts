@@ -1,9 +1,11 @@
+import type { Transaction } from "@harbour/db";
 import type { CareTrigger, PersonRecordKind } from "@harbour/domain";
 import { z } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
 import { type AppEnv, type TenantAccess, withTenant } from "../http/context";
 import { problems } from "../http/problem";
+import { type PlannedTaskLink, planTaskLink } from "../services/care";
 import { CareEventAfterExit, loadPerson, raiseLateEntryReview } from "../services/people";
 
 /**
@@ -42,6 +44,8 @@ export function entryOut(
     lateEntry: boolean;
     clockDrift: boolean;
     recordedAfterExit: boolean;
+    taskId: string | null;
+    taskOutcome: string | null;
     supersedesId: string | null;
     correctionReason: string | null;
     createdBy: string | null;
@@ -58,6 +62,8 @@ export function entryOut(
     lateEntry: row.lateEntry,
     clockDrift: row.clockDrift,
     recordedAfterExit: row.recordedAfterExit,
+    taskId: row.taskId,
+    taskOutcome: row.taskOutcome as PlannedTaskLink["outcome"] | null,
     supersedesId: row.supersedesId,
     correctionReason: row.correctionReason,
     superseded: superseded.has(row.id),
@@ -78,6 +84,22 @@ export function requireCorrection(body: { supersedesId?: string; correctionReaso
 
 export function permissionsOf(access: TenantAccess): ReadonlySet<string> {
   return new Set(access.effective.permissions);
+}
+
+/** What an entry will do to the task it names (`planTaskLink`), or null when it names none. */
+export async function planLink(
+  tx: Transaction,
+  access: TenantAccess,
+  taskId: string | undefined,
+  personId: string,
+): Promise<PlannedTaskLink | null> {
+  if (!taskId) return null;
+  return planTaskLink(tx, {
+    taskId,
+    personId,
+    actorTenantUserId: access.tenantUserId,
+    actorPermissions: permissionsOf(access),
+  });
 }
 
 /**
@@ -112,14 +134,25 @@ export function requireOpenRecord(person: { closed: boolean }) {
   }
 }
 
+/** The refused entry as the late-entry review names it: opaque references, no clinical text. */
+export interface RefusedEntry {
+  /** The kind of entry (`care_note`, `observation`, `incident` and so on). */
+  readonly kind: string;
+  /** The device-generated id the entry was sent with, if any. */
+  readonly clientId?: string | null | undefined;
+  /** When the entry says the event happened. */
+  readonly occurredAt?: string | null | undefined;
+}
+
 /**
  * Runs a care write. A care event timed after the person left, died or went away (beyond the
  * clock tolerance) is refused, so the device keeps it to resolve, and one review task goes to the
- * nurse in charge in its own transaction, so it is not lost with the refusal (people.md rule 3;
- * HZ-006).
+ * nurse in charge in its own transaction, so it is not lost with the refusal. The task names the
+ * entry's kind, client id, device and user (people.md rule 3; HZ-006).
  */
 export async function withLateEntryReview<T>(
   c: Context<AppEnv>,
+  entry: RefusedEntry,
   write: () => Promise<T>,
 ): Promise<T> {
   try {
@@ -129,7 +162,13 @@ export async function withLateEntryReview<T>(
       const access = c.get("access");
       await withTenant(c, async (tx) => {
         const p = await loadPerson(tx, error.personId);
-        const taskId = await raiseLateEntryReview(tx, p, new Date());
+        const taskId = await raiseLateEntryReview(tx, p, new Date(), {
+          kind: entry.kind,
+          clientId: entry.clientId ?? null,
+          occurredAt: entry.occurredAt ?? null,
+          deviceId: access.deviceId,
+          recordedBy: access.tenantUserId,
+        });
         await auditInTx(tx, access, {
           action: "care.entry.after_exit",
           outcome: "denied",
