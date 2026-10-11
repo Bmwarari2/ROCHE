@@ -9,6 +9,7 @@ import type {
   LegalChangeReviewItem,
   LegalChangeReviewList,
   ProblemDetails,
+  RecordHistory,
   StatutoryNotificationDetail,
 } from "@harbour/contracts";
 import {
@@ -391,6 +392,13 @@ describe("hazard HZ-026 consent and capacity", () => {
       status: "none",
       problems: ["withdrawn"],
     });
+    const history = await json<RecordHistory>(
+      await as(
+        "manager",
+        `/v1/people/${resident(1)}/care-history/consent_record/${photosConsent.id}`,
+      ),
+    );
+    expect(history.versions.map((v) => [v.version, v.data.withdrawn_at])).toEqual([[1, null]]);
   });
 
   it("ignores a replayed capacity assessment with the same id", async () => {

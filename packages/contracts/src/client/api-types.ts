@@ -4053,7 +4053,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Every earlier version of a care plan, section, action, risk assessment or advance care record */
+    /** Every earlier version of a care plan, section, action, risk assessment, advance care record, consent, DoLS authorisation or legal-change review */
     get: {
       parameters: {
         query?: never;
@@ -4065,7 +4065,10 @@ export interface paths {
             | "care_plan_section"
             | "care_plan_action"
             | "risk_assessment"
-            | "advance_care_record";
+            | "advance_care_record"
+            | "consent_record"
+            | "dols_authorisation"
+            | "dols_legal_change_review";
           recordId: string;
         };
         cookie?: never;
