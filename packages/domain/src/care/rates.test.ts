@@ -4,8 +4,10 @@ import { RateNotFoundError, type RateRow } from "../platform/rates";
 import {
   addDaysToDate,
   addMonthsToDate,
-  bmiTenths,
-  formatTenths,
+  bmiValue,
+  compareBmi,
+  exactBmi,
+  formatBmi,
   InputCheck,
   isIsoDate,
 } from "./assessment";
@@ -85,14 +87,21 @@ describe("assessment helpers", () => {
   });
 
   it.each([
-    [60, 1.8, 185],
-    [51.2, 1.6, 200],
-    [80.2, 2, 201],
-    [73.6, 2, 184],
-  ])("BMI of %s kg at %s m is %i tenths, rounded half up", (weight, height, tenths) => {
-    expect(bmiTenths(weight, height)).toBe(tenths);
-    expect(formatTenths(tenths)).toBe((tenths / 10).toFixed(1));
-  });
+    [60, 1.8, 185, 1, "18.5"],
+    [51.2, 1.6, 200, 0, "20.0"],
+    [80.04, 2, 200, 1, "20.0"],
+    [80.2, 2, 200, 1, "20.1"],
+    [73.96, 2, 185, -1, "18.5"],
+    [74, 2, 185, 0, "18.5"],
+  ])(
+    "BMI of %s kg at %s m against %i tenths compares %i and shows %s",
+    (weight, height, tenths, sign, shown) => {
+      const bmi = exactBmi(weight, height);
+      expect(compareBmi(bmi, tenths)).toBe(sign);
+      expect(formatBmi(bmi)).toBe(shown);
+      expect(bmiValue(bmi)).toBeCloseTo(weight / height ** 2, 9);
+    },
+  );
 
   it("checks decimal places and options", () => {
     const check = new InputCheck();

@@ -48,16 +48,13 @@ describe("hazard HZ-012 MUST BMI, weight-loss and acute disease scores match the
     ["BMI 20.0 scores 1", 80.0, 2.0, 20.0, 1],
     ["BMI 18.5 scores 1", 74.0, 2.0, 18.5, 1],
     ["BMI 18.4 scores 2", 73.6, 2.0, 18.4, 2],
-    ["BMI 20.05 rounds half up to 20.1 and scores 0", 80.2, 2.0, 20.1, 0],
-    ["BMI 19.95 rounds half up to 20.0 and scores 1", 79.8, 2.0, 20.0, 1],
-    ["BMI 18.45 rounds half up to 18.5 and scores 1", 73.8, 2.0, 18.5, 1],
-    ["60 kg at 1.80 m is BMI 18.5", 60, 1.8, 18.5, 1],
-    ["51.2 kg at 1.60 m is BMI 20.0", 51.2, 1.6, 20.0, 1],
-    ["70 kg at 1.70 m is BMI 24.2 (BAPEN chart: 24)", 70, 1.7, 24.2, 0],
-    ["45 kg at 1.70 m is BMI 15.6 (BAPEN chart: 16)", 45, 1.7, 15.6, 2],
+    ["60 kg at 1.80 m is BMI 18.52", 60, 1.8, 18.52, 1],
+    ["51.2 kg at 1.60 m is BMI 20.00", 51.2, 1.6, 20.0, 1],
+    ["70 kg at 1.70 m is BMI 24.22 (BAPEN chart: 24)", 70, 1.7, 24.22, 0],
+    ["45 kg at 1.70 m is BMI 15.57 (BAPEN chart: 16)", 45, 1.7, 15.57, 2],
   ] as const)("step 1: %s", (_name, weightKg, heightM, bmi, points) => {
     const result = screened({ bmi: measured(weightKg, heightM) });
-    expect(result.bmi).toBe(bmi);
+    expect(result.bmi).toBeCloseTo(bmi, 2);
     expect(stepPoints(result, 1)).toBe(points);
   });
 
@@ -110,7 +107,7 @@ describe("hazard HZ-012 MUST BMI, weight-loss and acute disease scores match the
     expect(result.workings).toEqual([
       {
         item: "Step 1: BMI score",
-        value: "BMI 18.5 from 60.0 kg (measured) and 1.80 m (measured)",
+        value: "BMI 18.5 from 60.0 kg (measured) and 1.80 m (measured); exact BMI 18.5 to 20",
         points: 1,
       },
       {
@@ -129,6 +126,7 @@ describe("hazard HZ-012 MUST BMI, weight-loss and acute disease scores match the
 
   it("records obesity (BMI over 30) as BAPEN asks, without changing the score", () => {
     expect(screened({ bmi: measured(120.4, 2) })).toMatchObject({ obese: true, score: 0 });
+    expect(screened({ bmi: measured(120.04, 2) })).toMatchObject({ obese: true, score: 0 });
     expect(screened({ bmi: measured(120, 2) })).toMatchObject({ obese: false, score: 0 });
   });
 
@@ -143,7 +141,7 @@ describe("hazard HZ-012 MUST BMI, weight-loss and acute disease scores match the
       },
     });
     expect(result.workings[0]?.value).toBe(
-      "BMI 18.5 from 60.0 kg (documented or reported) and 1.80 m (estimated from ulna length)",
+      "BMI 18.5 from 60.0 kg (documented or reported) and 1.80 m (estimated from ulna length); exact BMI 18.5 to 20",
     );
   });
 
@@ -175,6 +173,27 @@ describe("hazard HZ-012 MUST BMI, weight-loss and acute disease scores match the
     });
     expect(stepPoints(result, 2)).toBe(points);
     expect(result).toMatchObject({ weightLossPercent: null, assessorJudgement: true });
+  });
+});
+
+describe("hazard HZ-012 MUST bands the exact BMI and rounds it only for display", () => {
+  // Height 2.00 m makes BMI a quarter of the weight. Rounding before banding would score 18.45 to
+  // 18.49 as 1 instead of 2, and 20.01 to 20.04 as 1 instead of 0: only the exact value is banded.
+  it.each([
+    ["18.45 scores 2 although it shows as 18.5", 73.8, "18.5", "under 18.5", 2],
+    ["18.49 scores 2 although it shows as 18.5", 73.96, "18.5", "under 18.5", 2],
+    ["18.5 scores 1", 74, "18.5", "18.5 to 20", 1],
+    ["19.99 scores 1 although it shows as 20.0", 79.96, "20.0", "18.5 to 20", 1],
+    ["20.0 scores 1", 80, "20.0", "18.5 to 20", 1],
+    ["20.01 scores 0 although it shows as 20.0", 80.04, "20.0", "over 20", 0],
+    ["20.05 scores 0 and shows as 20.1", 80.2, "20.1", "over 20", 0],
+  ] as const)("BMI %s", (_name, weightKg, shown, band, points) => {
+    const result = screened({ bmi: measured(weightKg, 2) });
+    expect(result.bmi).toBeCloseTo(weightKg / 4, 6);
+    expect(stepPoints(result, 1)).toBe(points);
+    expect(result.workings[0]?.value).toBe(
+      `BMI ${shown} from ${weightKg % 1 === 0 ? weightKg.toFixed(1) : weightKg} kg (measured) and 2.00 m (measured); exact BMI ${band}`,
+    );
   });
 });
 

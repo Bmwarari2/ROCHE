@@ -15,9 +15,11 @@
  */
 
 import {
-  bmiTenths,
+  bmiValue,
   type CareTrigger,
-  formatTenths,
+  compareBmi,
+  exactBmi,
+  formatBmi,
   InputCheck,
   type ScoreWorking,
   type ToolOutcome,
@@ -30,7 +32,9 @@ export const WATERLOW_TOOL_VERSION = "waterlow-2005";
 export type WaterlowBand = "not_at_risk" | "at_risk" | "high_risk" | "very_high_risk";
 
 // Build and weight for height: average BMI 20-24.9 0; above average 25-29.9 1; obese 30 and over 2;
-// below average under 20 3. Bounds in tenths of a kg/m².
+// below average under 20 3. The exact BMI is banded (under 20, 20 up to 25, 25 up to 30, 30 or
+// more), which closes the card's gaps between 24.9 and 25 and between 29.9 and 30; it is rounded
+// to one decimal place only in the workings text. Bounds in tenths of a kg/m².
 export type WaterlowBuild = "average" | "above_average" | "obese" | "below_average";
 const BUILD: Readonly<Record<WaterlowBuild, { label: string; points: number }>> = {
   average: { label: "Average (BMI 20 to 24.9)", points: 0 },
@@ -266,16 +270,16 @@ function buildWorking(check: InputCheck, build: WaterlowBuildInput) {
   );
   const height = check.number("build.heightM", "Height", build.heightM, MUST_INPUT_LIMITS.heightM);
   if (weight === undefined || height === undefined) return undefined;
-  const tenths = bmiTenths(weight, height);
+  const bmi = exactBmi(weight, height);
   let category: WaterlowBuild = "below_average";
-  if (tenths >= BMI_OBESE_FROM_TENTHS) category = "obese";
-  else if (tenths >= BMI_ABOVE_AVERAGE_FROM_TENTHS) category = "above_average";
-  else if (tenths >= BMI_AVERAGE_FROM_TENTHS) category = "average";
+  if (compareBmi(bmi, BMI_OBESE_FROM_TENTHS) >= 0) category = "obese";
+  else if (compareBmi(bmi, BMI_ABOVE_AVERAGE_FROM_TENTHS) >= 0) category = "above_average";
+  else if (compareBmi(bmi, BMI_AVERAGE_FROM_TENTHS) >= 0) category = "average";
   return {
-    bmi: tenths / 10,
+    bmi: bmiValue(bmi),
     working: {
       item: "Build and weight for height",
-      value: `BMI ${formatTenths(tenths)}: ${BUILD[category].label}`,
+      value: `BMI ${formatBmi(bmi)}: ${BUILD[category].label}`,
       points: BUILD[category].points,
     },
   };

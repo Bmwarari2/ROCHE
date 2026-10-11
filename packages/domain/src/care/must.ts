@@ -14,9 +14,13 @@
 
 import {
   addMonthsToDate,
-  bmiTenths,
+  bmiValue,
   type CareTrigger,
-  formatTenths,
+  compareBmi,
+  type ExactBmi,
+  exactBmi,
+  formatBmi,
+  formatMeasurement,
   InputCheck,
   isIsoDate,
   type ScoreWorking,
@@ -33,12 +37,13 @@ export type MustBand = "low" | "medium" | "high";
 export type MustBmiCategory = "over_20" | "18_5_to_20" | "under_18_5";
 export type MustWeightLossCategory = "under_5" | "5_to_10" | "over_10";
 
-// Step 1: BMI > 20 scores 0 (over 30 is obese), 18.5 to 20 scores 1, under 18.5 scores 2.
-// Bounds are in tenths of a kg/m².
-const BMI_SCORE: Readonly<Record<MustBmiCategory, { label: string; points: number }>> = {
-  over_20: { label: "BMI over 20", points: 0 },
-  "18_5_to_20": { label: "BMI 18.5 to 20", points: 1 },
-  under_18_5: { label: "BMI under 18.5", points: 2 },
+// Step 1: BMI > 20 scores 0 (over 30 is obese), 18.5 to 20 scores 1, under 18.5 scores 2. The
+// exact BMI is banded (BAPEN: "the black lines denote the exact cut off points"); it is rounded to
+// one decimal place only in the workings text. Bounds are in tenths of a kg/m².
+const BMI_SCORE: Readonly<Record<MustBmiCategory, { band: string; points: number }>> = {
+  over_20: { band: "over 20", points: 0 },
+  "18_5_to_20": { band: "18.5 to 20", points: 1 },
+  under_18_5: { band: "under 18.5", points: 2 },
 };
 const BMI_OVER_20_ABOVE_TENTHS = 200;
 const BMI_UNDER_18_5_BELOW_TENTHS = 185;
@@ -47,11 +52,11 @@ const BMI_OBESE_ABOVE_TENTHS = 300;
 // Step 2: unplanned weight loss in the past 3 to 6 months: under 5% scores 0, 5 to 10% scores 1,
 // over 10% scores 2.
 const WEIGHT_LOSS_SCORE: Readonly<
-  Record<MustWeightLossCategory, { label: string; points: number }>
+  Record<MustWeightLossCategory, { band: string; points: number }>
 > = {
-  under_5: { label: "under 5%", points: 0 },
-  "5_to_10": { label: "5 to 10%", points: 1 },
-  over_10: { label: "over 10%", points: 2 },
+  under_5: { band: "under 5%", points: 0 },
+  "5_to_10": { band: "5 to 10%", points: 1 },
+  over_10: { band: "over 10%", points: 2 },
 };
 const WEIGHT_LOSS_LOWER_PERCENT = 5;
 const WEIGHT_LOSS_UPPER_PERCENT = 10;
@@ -116,7 +121,7 @@ export interface MustInput {
 }
 
 export interface MustResult extends ToolResult<"must", MustBand> {
-  /** BMI to one decimal place when calculated, otherwise null. */
+  /** The exact BMI (kg/m²) when calculated, otherwise null; round it only for display. */
   readonly bmi: number | null;
   /** True when BMI is over 30, which BAPEN asks to be recorded. Null when BMI was not calculated. */
   readonly obese: boolean | null;
@@ -149,9 +154,9 @@ const METHOD_LABELS: Readonly<
   reported_weight_loss: "reported weight loss",
 };
 
-function bmiCategoryFor(tenths: number): MustBmiCategory {
-  if (tenths > BMI_OVER_20_ABOVE_TENTHS) return "over_20";
-  return tenths < BMI_UNDER_18_5_BELOW_TENTHS ? "under_18_5" : "18_5_to_20";
+function bmiCategoryFor(bmi: ExactBmi): MustBmiCategory {
+  if (compareBmi(bmi, BMI_OVER_20_ABOVE_TENTHS) > 0) return "over_20";
+  return compareBmi(bmi, BMI_UNDER_18_5_BELOW_TENTHS) < 0 ? "under_18_5" : "18_5_to_20";
 }
 
 /**
@@ -165,7 +170,7 @@ function weightLossCategoryFor(previousGrams: number, lossGrams: number): MustWe
 
 interface StepOne {
   readonly working: ScoreWorking;
-  readonly tenths: number | null;
+  readonly bmi: ExactBmi | null;
   readonly judgement: boolean;
 }
 
@@ -177,25 +182,25 @@ function stepOne(check: InputCheck, bmi: MustBmiInput): StepOne | undefined {
     return {
       working: {
         item: "Step 1: BMI score",
-        value: `${score.label} (${METHOD_LABELS[bmi.method]})`,
+        value: `BMI ${score.band} (${METHOD_LABELS[bmi.method]})`,
         points: score.points,
       },
-      tenths: null,
+      bmi: null,
       judgement: true,
     };
   }
   const weight = check.number("bmi.weightKg", "Weight", bmi.weightKg, MUST_INPUT_LIMITS.weightKg);
   const height = check.number("bmi.heightM", "Height", bmi.heightM, MUST_INPUT_LIMITS.heightM);
   if (weight === undefined || height === undefined) return undefined;
-  const tenths = bmiTenths(weight, height);
-  const score = BMI_SCORE[bmiCategoryFor(tenths)];
+  const exact = exactBmi(weight, height);
+  const score = BMI_SCORE[bmiCategoryFor(exact)];
   return {
     working: {
       item: "Step 1: BMI score",
-      value: `BMI ${formatTenths(tenths)} from ${weight.toFixed(1)} kg (${METHOD_LABELS[bmi.weightMethod]}) and ${height.toFixed(2)} m (${METHOD_LABELS[bmi.heightMethod]})`,
+      value: `BMI ${formatBmi(exact)} from ${formatMeasurement(weight, 1)} kg (${METHOD_LABELS[bmi.weightMethod]}) and ${formatMeasurement(height, 2)} m (${METHOD_LABELS[bmi.heightMethod]}); exact BMI ${score.band}`,
       points: score.points,
     },
-    tenths,
+    bmi: exact,
     judgement: false,
   };
 }
@@ -219,7 +224,7 @@ function stepTwo(check: InputCheck, loss: MustWeightLossInput): StepTwo | undefi
     return {
       working: {
         item: "Step 2: weight loss score",
-        value: `Unplanned weight loss ${score.label} (${METHOD_LABELS[loss.method]})`,
+        value: `Unplanned weight loss ${score.band} (${METHOD_LABELS[loss.method]})`,
         points: score.points,
       },
       percent: null,
@@ -247,7 +252,7 @@ function stepTwo(check: InputCheck, loss: MustWeightLossInput): StepTwo | undefi
   return {
     working: {
       item: "Step 2: weight loss score",
-      value: `${(lossGrams / 1000).toFixed(1)} kg lost from ${previous.toFixed(1)} kg: ${percent.toFixed(2)}% (${score.label})`,
+      value: `${formatMeasurement(lossGrams / 1000, 1)} kg lost from ${formatMeasurement(previous, 1)} kg: ${percent.toFixed(2)}% (${score.band})`,
       points: score.points,
     },
     percent,
@@ -325,8 +330,8 @@ export function calculateMust(
       band,
       workings,
       triggers,
-      bmi: one.tenths === null ? null : one.tenths / 10,
-      obese: one.tenths === null ? null : one.tenths > BMI_OBESE_ABOVE_TENTHS,
+      bmi: one.bmi === null ? null : bmiValue(one.bmi),
+      obese: one.bmi === null ? null : compareBmi(one.bmi, BMI_OBESE_ABOVE_TENTHS) > 0,
       weightLossPercent: two.percent,
       assessorJudgement: one.judgement || two.judgement,
       nextScreeningDueOn,

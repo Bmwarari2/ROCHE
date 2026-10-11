@@ -47,17 +47,22 @@ describe("hazard HZ-012 Waterlow totals and risk bands match the published scori
     expect(result.workings).toHaveLength(11);
   });
 
-  // Height 2.00 m makes BMI a quarter of the weight.
+  // Height 2.00 m makes BMI a quarter of the weight. Bands apply to the exact BMI: under 20, 20 up to
+  // 25, 25 up to 30, and 30 or more, which closes the card's gaps between 24.9 and 25 and 29.9 and 30.
   it.each([
     ["BMI 19.9 is below average", 79.6, 3],
+    ["BMI 19.99 is below average although it shows as 20.0", 79.96, 3],
     ["BMI 20.0 is average", 80, 0],
     ["BMI 24.9 is average", 99.6, 0],
+    ["BMI 24.99 is average", 99.96, 0],
     ["BMI 25.0 is above average", 100, 1],
     ["BMI 29.9 is above average", 119.6, 1],
+    ["BMI 29.99 is above average", 119.96, 1],
     ["BMI 30.0 is obese", 120, 2],
   ] as const)("build: %s", (_name, weightKg, points) => {
     const result = scored({ build: { kind: "calculated", weightKg, heightM: 2 } });
     expect(pointsFor(result, "Build")).toBe(points);
+    expect(result.bmi).toBeCloseTo(weightKg / 4, 6);
   });
 
   it.each([

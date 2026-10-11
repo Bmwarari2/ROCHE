@@ -230,15 +230,39 @@ export function addDaysToDate(isoDate: string, days: number): string {
 }
 
 /**
- * Body mass index in tenths of a kg/m², rounded half up, computed in whole grams and millimetres so
- * that a boundary such as 18.5 or 20.0 is never missed by floating-point error.
+ * Body mass index (kg/m²) held as whole grams over square millimetres. Tool bands are compared on
+ * this exact value, never on a rounded one, and without floating-point error, so a BMI of 18.49
+ * is under 18.5 and 20.01 is over 20 (HZ-012). Rounding is for display only (`formatBmi`).
  */
-export function bmiTenths(weightKg: number, heightM: number): number {
-  const grams = Math.round(weightKg * 1000);
-  const mmSquared = Math.round(heightM * 1000) ** 2;
-  return Math.floor((20_000 * grams + mmSquared) / (2 * mmSquared));
+export interface ExactBmi {
+  readonly grams: number;
+  readonly mmSquared: number;
 }
 
-export function formatTenths(tenths: number): string {
+export function exactBmi(weightKg: number, heightM: number): ExactBmi {
+  return { grams: Math.round(weightKg * 1000), mmSquared: Math.round(heightM * 1000) ** 2 };
+}
+
+/** -1, 0 or 1 as the exact BMI is below, equal to or above `tenths` / 10 kg/m². */
+export function compareBmi(bmi: ExactBmi, tenths: number): -1 | 0 | 1 {
+  // BMI x 10 = grams x 10,000 / mm², so compare grams x 10,000 with tenths x mm² in whole numbers.
+  const difference = bmi.grams * 10_000 - tenths * bmi.mmSquared;
+  if (difference === 0) return 0;
+  return difference < 0 ? -1 : 1;
+}
+
+export function bmiValue(bmi: ExactBmi): number {
+  return (bmi.grams * 1000) / bmi.mmSquared;
+}
+
+/** For display only: BMI to one decimal place, rounded half up. */
+export function formatBmi(bmi: ExactBmi): string {
+  const tenths = Math.floor((20_000 * bmi.grams + bmi.mmSquared) / (2 * bmi.mmSquared));
   return (tenths / 10).toFixed(1);
+}
+
+/** A measurement as entered, with at least `decimals` places: 60 kg shows as 60.0, 73.96 as 73.96. */
+export function formatMeasurement(value: number, decimals: number): string {
+  const fixed = value.toFixed(decimals);
+  return Number(fixed) === value ? fixed : String(value);
 }
