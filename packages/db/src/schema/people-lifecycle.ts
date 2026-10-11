@@ -713,7 +713,8 @@ export const exitRecord = pgTable(
     nhsFunded: boolean("nhs_funded").notNull().default(false),
     placeOfDeath: text("place_of_death"),
     deathExpected: boolean("death_expected"),
-    learningDisabilityOrAutism: boolean("learning_disability_or_autism").notNull().default(false),
+    /** An explicit answer for every death (LeDeR); no default, so it is never assumed. */
+    learningDisabilityOrAutism: boolean("learning_disability_or_autism").notNull(),
     dolsInPlace: boolean("dols_in_place").notNull().default(false),
     homeIsDwpAppointee: boolean("home_is_dwp_appointee").notNull().default(false),
     holdsResidentsMoney: boolean("holds_residents_money").notNull().default(false),

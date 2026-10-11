@@ -126,8 +126,9 @@ async function seedPerson(c: pg.PoolClient, personId: string, locationId: string
     [personId, locationId],
   );
   const exit = await c.query<{ id: string }>(
-    `INSERT INTO exit_record (person_id, location_id, kind, state, regulator)
-     VALUES ($1, $2, 'discharge', 'planned', 'cqc') RETURNING id`,
+    `INSERT INTO exit_record (person_id, location_id, kind, state, regulator,
+       learning_disability_or_autism)
+     VALUES ($1, $2, 'discharge', 'planned', 'cqc', false) RETURNING id`,
     [personId, locationId],
   );
   await c.query(
@@ -445,14 +446,16 @@ describe("integrity rules in the database", () => {
     ],
     [
       "a death recorded without the place",
-      `INSERT INTO exit_record (person_id, location_id, kind, state, regulator, left_at)
-       VALUES ('${a.personAda}', '${a.locationNorth}', 'death', 'recorded', 'cqc', now())`,
+      `INSERT INTO exit_record (person_id, location_id, kind, state, regulator, left_at,
+         learning_disability_or_autism)
+       VALUES ('${a.personAda}', '${a.locationNorth}', 'death', 'recorded', 'cqc', now(), false)`,
       /exit_record_death|exit_record_one_open/,
     ],
     [
       "a second open exit for the same person",
-      `INSERT INTO exit_record (person_id, location_id, kind, state, regulator)
-       VALUES ('${a.personAda}', '${a.locationNorth}', 'transfer', 'planned', 'cqc')`,
+      `INSERT INTO exit_record (person_id, location_id, kind, state, regulator,
+         learning_disability_or_autism)
+       VALUES ('${a.personAda}', '${a.locationNorth}', 'transfer', 'planned', 'cqc', false)`,
       /exit_record_one_open/,
     ],
     [
@@ -688,6 +691,53 @@ describe("existing tenants' role copies gain the new permissions (migration 0022
     expect(await roleRows()).toEqual(after);
   });
 
+  it("audits each copy migration 0022 changed once, as the system, in the tenant's chain (0024)", async () => {
+    const audit = readFileSync(
+      fileURLToPath(new URL("../drizzle/0024_builtin_role_permissions_audit.sql", import.meta.url)),
+      "utf8",
+    );
+    const runAudit = async () => {
+      const client = await db.pool("harbour_owner").connect();
+      try {
+        await client.query("BEGIN");
+        for (const statement of audit.split("--> statement-breakpoint")) {
+          if (statement.trim()) await client.query(statement);
+        }
+        await client.query("COMMIT");
+      } finally {
+        client.release();
+      }
+    };
+    const events = () =>
+      asOwner((c) =>
+        c.query<{ key: string; actor: string; roles: string[]; added: string[] }>(
+          `SELECT r.key, e.actor_auth_user_id AS actor, e.actor_role_keys AS roles,
+             ARRAY(SELECT jsonb_array_elements_text(e.scope -> 'added')) AS added
+           FROM audit_event e JOIN role r ON r.id::text = e.resource_id
+           WHERE e.action = 'platform.role.permissions_migrated' ORDER BY r.key`,
+        ),
+      ).then((r) => r.rows);
+    await runAudit();
+    const first = await events();
+    expect(first.find((e) => e.key === "clinical_lead")).toEqual({
+      key: "clinical_lead",
+      actor: "system",
+      roles: ["system"],
+      added: ["people.movement.record", "people.property.manage", "safety.incident.read"],
+    });
+    expect(first.find((e) => e.key === "team_leader")?.added).toEqual([
+      "people.property.manage",
+      "safety.incident.read",
+    ]);
+    expect(first.map((e) => e.key)).not.toContain("night_nurse");
+    await runAudit();
+    expect(await events()).toEqual(first);
+    const broken = await asOwner((c) =>
+      c.query<{ at: string | null }>("SELECT app.verify_audit_chain() AS at"),
+    );
+    expect(broken.rows[0]?.at).toBeNull();
+  });
+
   it("restores forced row-level security on the role table", async () => {
     const { rows: found } = await db
       .pool("harbour_owner")
@@ -695,5 +745,69 @@ describe("existing tenants' role copies gain the new permissions (migration 0022
         "SELECT relforcerowsecurity AS forced FROM pg_class WHERE relname = 'role'",
       );
     expect(found[0]?.forced).toBe(true);
+  });
+});
+
+describe("slice 8 review fixes (migration 0023)", () => {
+  it("keeps About Me, the pre-admission assessment and property out of device replication", async () => {
+    const { rows: published } = await db
+      .pool("harbour_owner")
+      .query<{ table: string }>(
+        "SELECT tablename AS table FROM pg_publication_tables WHERE pubname = 'powersync'",
+      );
+    const tables = published.map((r) => r.table);
+    for (const table of ["about_me", "pre_admission_assessment", "property_item"]) {
+      expect(tables).not.toContain(table);
+      await expect(
+        inContext(db.pool("harbour_sync"), null, (c) => c.query(`SELECT 1 FROM ${table}`)),
+      ).rejects.toThrow(/permission denied/);
+    }
+  });
+
+  it("hazard HZ-007 records who set the allergy status and when, not who last edited the person", async () => {
+    const found = await asManager(async (c) => {
+      await c.query("UPDATE person SET allergy_status = 'unknown' WHERE id = $1", [a.personBen]);
+      await c.query("UPDATE person SET allergy_status = 'no_known_allergies' WHERE id = $1", [
+        a.personBen,
+      ]);
+      const { rows: set } = await c.query<{ by: string | null; at: Date | null }>(
+        `SELECT allergy_status_confirmed_by AS by, allergy_status_confirmed_at AS at
+         FROM person WHERE id = $1`,
+        [a.personBen],
+      );
+      return set[0];
+    });
+    expect(found?.by).toBe(a.manager);
+    expect(found?.at).not.toBeNull();
+    const after = await inContext(app(), north, async (c) => {
+      await c.query("UPDATE person SET preferred_name = 'Benny' WHERE id = $1", [a.personBen]);
+      const { rows: kept } = await c.query<{ by: string | null }>(
+        "SELECT allergy_status_confirmed_by AS by FROM person WHERE id = $1",
+        [a.personBen],
+      );
+      return kept[0]?.by;
+    });
+    expect(after).toBe(a.manager);
+  });
+
+  it("codes the tasks the lifecycle cancels, and only cancelled tasks carry a code", async () => {
+    await expect(
+      asManager((c) =>
+        c.query(
+          `INSERT INTO task (kind, title, required_permission, due_at, status, cancel_code)
+           VALUES ('care.reposition', 'Reposition', 'care.note.write', now(), 'open',
+             'paused_while_away')`,
+        ),
+      ),
+    ).rejects.toThrow(/task_cancel_code/);
+    await expect(
+      asManager((c) =>
+        c.query(
+          `INSERT INTO task (kind, title, required_permission, due_at, status, cancel_code)
+           VALUES ('care.reposition', 'Reposition', 'care.note.write', now(), 'cancelled',
+             'because')`,
+        ),
+      ),
+    ).rejects.toThrow(/task_cancel_code/);
   });
 });

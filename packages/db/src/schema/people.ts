@@ -122,6 +122,12 @@ export const person = pgTable(
       withTimezone: true,
     }),
     allergyStatus: allergyStatus("allergy_status").notNull().default("unknown"),
+    /**
+     * Who set the allergy status and when ("no known allergies" is a positive statement, HZ-007).
+     * Set by a trigger whenever the status changes; never the last person to edit the row.
+     */
+    allergyStatusConfirmedBy: uuid("allergy_status_confirmed_by"),
+    allergyStatusConfirmedAt: timestamp("allergy_status_confirmed_at", { withTimezone: true }),
     nationalDataOptOut: boolean("national_data_opt_out").notNull().default(false),
     deceasedAt: timestamp("deceased_at", { withTimezone: true }),
     dischargedAt: timestamp("discharged_at", { withTimezone: true }),
@@ -148,6 +154,11 @@ export const person = pgTable(
     foreignKey({
       name: "person_communication_confirmed_by_fk",
       columns: [t.tenantId, t.communicationNeedsConfirmedBy],
+      foreignColumns: [tenantUser.tenantId, tenantUser.id],
+    }),
+    foreignKey({
+      name: "person_allergy_confirmed_by_fk",
+      columns: [t.tenantId, t.allergyStatusConfirmedBy],
       foreignColumns: [tenantUser.tenantId, tenantUser.id],
     }),
     check(
