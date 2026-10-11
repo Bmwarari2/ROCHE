@@ -92,6 +92,13 @@
       "when": 1791689606432,
       "tag": "0012_care_record_notes_and_charts_security",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791689963977,
+      "tag": "0013_body_map_mark_details",
+      "breakpoints": true
     }
   ]
 }

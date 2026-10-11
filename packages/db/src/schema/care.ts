@@ -136,6 +136,10 @@ export const bodyMapMark = pgTable(
     side: text("side").notNull(),
     markType: text("mark_type").notNull(),
     pressureCategory: text("pressure_category"),
+    /** Pressure ulcers: caused by a medical device (counted separately in reporting). */
+    deviceRelated: boolean("device_related"),
+    /** Bruises: whether the cause is known; unexplained bruises prompt the safeguarding guide. */
+    bruiseExplained: boolean("bruise_explained"),
     lengthMm: numeric("length_mm", { precision: 6, scale: 1 }),
     widthMm: numeric("width_mm", { precision: 6, scale: 1 }),
     depthMm: numeric("depth_mm", { precision: 6, scale: 1 }),

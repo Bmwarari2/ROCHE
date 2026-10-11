@@ -164,6 +164,31 @@ export const FluidDay = z
   .meta({ id: "FluidDay", description: "Fluid balance for one UK calendar day (00:00 to 24:00)" });
 export type FluidDay = z.infer<typeof FluidDay>;
 
+export const BodyMarkType = z
+  .enum([
+    "bruise",
+    "pressure_ulcer",
+    "moisture_associated_skin_damage",
+    "skin_tear",
+    "laceration",
+    "burn",
+    "rash",
+    "wound",
+    "other",
+  ])
+  .meta({ id: "BodyMarkType" });
+
+export const PressureUlcerCategory = z
+  .enum([
+    "category_1",
+    "category_2",
+    "category_3",
+    "category_4",
+    "unstageable",
+    "deep_tissue_injury",
+  ])
+  .meta({ id: "PressureUlcerCategory" });
+
 export const CreateBodyMapMark = z
   .object({
     ...entryInput,
@@ -172,11 +197,12 @@ export const CreateBodyMapMark = z
     /** The side as drawn (from the tap position); must agree with `side` (HZ-019). */
     drawnSide: z.enum(["left", "right", "midline"]),
     side: z.enum(["left", "right", "midline"]),
-    markType: z.string().regex(/^[a-z_]{2,40}$/),
-    pressureCategory: z
-      .string()
-      .regex(/^[a-z0-9_]{2,40}$/)
-      .optional(),
+    markType: BodyMarkType,
+    pressureCategory: PressureUlcerCategory.optional(),
+    /** Pressure ulcers: caused by a medical device (reported separately). */
+    deviceRelated: z.boolean().optional(),
+    /** Bruises: whether the cause is known; an unexplained bruise prompts the safeguarding guide. */
+    bruiseExplained: z.boolean().optional(),
     lengthMm: z.number().min(0).max(1000).optional(),
     widthMm: z.number().min(0).max(1000).optional(),
     depthMm: z.number().min(0).max(300).optional(),
@@ -193,8 +219,8 @@ export const BodyMapMarkItem = z
     view: z.enum(["front", "back"]),
     region: z.string(),
     side: z.enum(["left", "right", "midline"]),
-    markType: z.string(),
-    pressureCategory: z.string().nullable(),
+    markType: BodyMarkType,
+    pressureCategory: PressureUlcerCategory.nullable(),
     lengthMm: z.number().nullable(),
     widthMm: z.number().nullable(),
     depthMm: z.number().nullable(),
