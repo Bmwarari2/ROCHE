@@ -2,6 +2,7 @@ export * from "./care/assessment";
 export * from "./care/body-map";
 export * from "./care/bowel";
 export * from "./care/braden";
+export * from "./care/care-plan";
 export * from "./care/entries";
 export * from "./care/falls";
 export * from "./care/fluid-balance";
