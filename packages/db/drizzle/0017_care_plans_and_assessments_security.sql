@@ -58,6 +58,13 @@ END
 $$;
 --> statement-breakpoint
 
+-- A new advance care record supersedes the active one of its kind (HZ-015). The old row is
+-- marked superseded and pointed at the new one before the new one is inserted (the partial unique
+-- index allows one active record per kind), so that link is checked when the transaction commits.
+ALTER TABLE public.advance_care_record
+  ALTER CONSTRAINT advance_care_record_superseded_by_fk DEFERRABLE INITIALLY DEFERRED;
+--> statement-breakpoint
+
 GRANT SELECT, INSERT, UPDATE ON public.care_plan, public.care_plan_section, public.care_plan_action,
   public.risk_assessment, public.advance_care_record TO harbour_app;
 --> statement-breakpoint
