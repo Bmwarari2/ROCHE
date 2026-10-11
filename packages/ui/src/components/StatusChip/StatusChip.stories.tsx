@@ -24,7 +24,12 @@ export const NotRecorded: Story = { args: { status: "notRecorded" } };
 
 /** Linked to the action that records it, so the warning is one step from being resolved. */
 export const NotRecordedWithAction: Story = {
-  args: { status: "notRecorded", label: "Allergies not recorded", href: "#record-allergies" },
+  args: {
+    status: "notRecorded",
+    label: "Allergies not recorded",
+    href: "/people/example/allergies",
+    actionLabel: "record them",
+  },
 };
 
 export const CustomLabel: Story = { args: { status: "due", label: "Due at 14:00" } };

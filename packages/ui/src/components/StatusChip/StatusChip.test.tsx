@@ -83,10 +83,31 @@ describe("StatusChip", () => {
     expect(clinicalStatus.notRecorded.colorRole).toBe(clinicalStatus.due.colorRole);
   });
 
-  it("hazard HZ-007 links not recorded to the action that records it, with the words as the link text", () => {
-    render(<StatusChip status="notRecorded" label="Allergies not recorded" href="/record" />);
-    const link = screen.getByRole("link", { name: "Allergies not recorded" });
-    expect(link).toHaveAttribute("href", "/record");
+  it("hazard HZ-007 links not recorded to the action that records it, named so it makes sense alone", () => {
+    render(
+      <StatusChip
+        status="notRecorded"
+        label="Allergies not recorded"
+        href="/people/p1/allergies"
+        actionLabel="record them"
+        data-allergy-tone="warning"
+      />,
+    );
+    const link = screen.getByRole("link", { name: "Allergies not recorded: record them" });
+    expect(link).toHaveAttribute("href", "/people/p1/allergies");
+    expect(link).toHaveAttribute("data-allergy-tone", "warning");
     expect(link.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it.each([
+    "https://example.invalid/record",
+    "//example.invalid/record",
+    "javascript:alert(1)",
+    "/\\example.invalid",
+    "record",
+  ])("hazard HZ-007 never links to %s: the chip stays plain status", (href) => {
+    render(<StatusChip status="notRecorded" label="Allergies not recorded" href={href} />);
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.getByText("Allergies not recorded")).toBeInTheDocument();
   });
 });
