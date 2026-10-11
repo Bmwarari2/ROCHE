@@ -65,6 +65,11 @@ describe("whether a channel may carry an update notification", () => {
       { usable: false, reason: "hard_bounce" },
     ],
     [
+      "suspended with no reason recorded",
+      { suspendedAt: AT, suspendedReason: null },
+      { usable: false, reason: "suspended" },
+    ],
+    [
       "opted out and suspended (opt-out wins)",
       { optedOutAt: AT, suspendedAt: AT, suspendedReason: "complaint" },
       { usable: false, reason: "opted_out" },

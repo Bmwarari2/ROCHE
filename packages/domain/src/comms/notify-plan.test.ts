@@ -15,6 +15,7 @@ import {
   isValidQuietHours,
   planFamilyNotification,
   quietHoursRelease,
+  recheckPendingNotification,
 } from "./notify-plan";
 import {
   COMMS_RATE_KEYS,
@@ -190,6 +191,9 @@ describe("hazard HZ-060 notifications carry no health details", () => {
     ["a phone number", "Call 07700 900123 about the update", ["not_generic"]],
     ["an email address", "Reply to home@care.invalid", ["not_generic"]],
     ["a long message", "x".repeat(MAX_OUTBOUND_TITLE_LENGTH + 1), ["not_generic"]],
+    ["an event", "News about a fall at the home", ["event_or_wellbeing_term"]],
+    ["a wellbeing claim", "All is well. Sign in for more.", ["event_or_wellbeing_term"]],
+    ["the person's name in lookalike letters", "Update about \u0410da", ["names_the_person"]],
   ])("hazard HZ-060 refuses a template with %s", (_label, text, problems) => {
     const found = checkFamilyNotificationTemplate(template({ text }), {
       personNames: ["Ada", "Example"],
@@ -211,7 +215,10 @@ describe("hazard HZ-060 notifications carry no health details", () => {
       skipped: [{ channelId: "sms-1", channel: "sms", reason: "template_not_allowed" }],
     });
     if (plan.action === "none") {
-      expect(plan.skipped[0]?.problems.map((p) => p.problem)).toEqual(["names_the_person"]);
+      expect(plan.skipped[0]?.problems.map((p) => p.problem)).toEqual([
+        "event_or_wellbeing_term",
+        "names_the_person",
+      ]);
     }
   });
 
@@ -238,6 +245,28 @@ describe("hazard HZ-060 notifications carry no health details", () => {
         (p) => p.problem,
       ),
     ).toEqual(problems);
+  });
+});
+
+describe("a waiting notification is checked again before it goes", () => {
+  it.each<
+    [string, readonly string[], readonly string[], ReturnType<typeof recheckPendingNotification>]
+  >([
+    [
+      "every update still showable",
+      ["a", "b"],
+      ["a", "b"],
+      { action: "send", itemIds: ["a", "b"] },
+    ],
+    ["one update taken down", ["a", "b"], ["b"], { action: "send", itemIds: ["b"] }],
+    [
+      "every update taken down or closed",
+      ["a", "b"],
+      [],
+      { action: "cancel", reason: "nothing_left_to_tell" },
+    ],
+  ])("with %s", (_label, itemIds, showable, expected) => {
+    expect(recheckPendingNotification(itemIds, new Set(showable))).toEqual(expected);
   });
 });
 
@@ -350,7 +379,7 @@ describe("who is told, on which channels", () => {
   });
 });
 
-describe("quiet hours always apply to family updates, on the UK clock", () => {
+describe("hazard HZ-009 quiet hours always apply to family updates, on the UK clock", () => {
   const sendAt = (now: Date, ownQuietHours: QuietHours | null = null) => {
     const plan = planFamilyNotification(request({ now, ownQuietHours }));
     if (plan.action !== "send") throw new Error("Expected a send");
@@ -381,6 +410,25 @@ describe("quiet hours always apply to family updates, on the UK clock", () => {
     ["exactly 08:00 goes at once", "2026-10-12T07:00:00Z", "2026-10-12T07:00:00.000Z", false],
   ])("%s", (_label, now, at, held) => {
     expect(sendAt(new Date(now))).toEqual({ at, held });
+  });
+
+  it("hazard HZ-009 ends a window in the repeated autumn hour at the right occurrence", () => {
+    // 00:00 to 01:30, checked at 01:15 GMT on 25/10/2026 (the second 01:15): ends at 01:30 GMT.
+    const window = { start: "00:00", end: "01:30" };
+    expect(quietHoursRelease([window], new Date("2026-10-25T01:15:00Z"))).toEqual(
+      new Date("2026-10-25T01:30:00Z"),
+    );
+    // At 01:15 BST (the first 01:15) it ends at the first 01:30, an hour earlier in UTC.
+    expect(quietHoursRelease([window], new Date("2026-10-25T00:15:00Z"))).toEqual(
+      new Date("2026-10-25T00:30:00Z"),
+    );
+  });
+
+  it("hazard HZ-009 ends a window whose end is skipped when the clocks go forward an hour later", () => {
+    // 00:00 to 01:30 on 29/03/2026: 01:30 does not exist, so the window ends at 02:30 BST.
+    expect(
+      quietHoursRelease([{ start: "00:00", end: "01:30" }], new Date("2026-03-29T00:45:00Z")),
+    ).toEqual(new Date("2026-03-29T01:30:00Z"));
   });
 
   it("applies the family member's own window as well as the tenant's", () => {

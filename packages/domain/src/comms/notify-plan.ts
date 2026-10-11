@@ -6,7 +6,7 @@ import {
   type SmsMessage,
 } from "../integrations/ports";
 import { inQuietHours, type QuietHours } from "../platform/notifications";
-import { addUkDays, fromUkWallClock, toUkWallClock } from "../shared/time";
+import { addUkDays, fromUkWallClock, toUkWallClock, ukWallClockOccurrences } from "../shared/time";
 import {
   type ChannelUnusableReason,
   checkFamilyChannelAddress,
@@ -15,7 +15,12 @@ import {
   type FamilyChannelState,
   familyChannelUsability,
 } from "./channels";
-import { findClinicalTerms, findNameMentions } from "./feed-text";
+import {
+  findClinicalTerms,
+  findConfirmationTerms,
+  findNameMentions,
+  normaliseFeedText,
+} from "./feed-text";
 
 /**
  * Family update notifications (INTG-011 domain side; comms.md section 4 rules 13 and 15; hazard
@@ -55,12 +60,18 @@ export type FamilyTemplateProblem =
       readonly found: readonly string[];
       readonly message: string;
     }
+  | {
+      readonly problem: "event_or_wellbeing_term";
+      readonly found: readonly string[];
+      readonly message: string;
+    }
   | { readonly problem: "names_the_person"; readonly message: string };
 
 /**
  * Checks a template before any message is built from it. Approval is required; the text may hold
  * no placeholder, nothing the outbound guard refuses (NHS numbers, dates, email addresses, phone
- * numbers, more than a short line), no clinical word and none of the person's names.
+ * numbers, more than a short line), no clinical word, no event or wellbeing word, and none of
+ * the person's names (any case, lookalike letters folded).
  */
 export function checkFamilyNotificationTemplate(
   template: FamilyNotificationTemplate,
@@ -93,10 +104,18 @@ export function checkFamilyNotificationTemplate(
       message: "Notifications never carry health details.",
     });
   }
-  const lower = template.text.toLowerCase();
+  const events = findConfirmationTerms(template.text);
+  if (events.length > 0) {
+    problems.push({
+      problem: "event_or_wellbeing_term",
+      found: events.map((t) => t.found),
+      message: "Notifications never announce an event or say how the person is.",
+    });
+  }
+  const text = normaliseFeedText(template.text);
   const named = context.personNames.some(
     (name) =>
-      name.trim().length > 0 && findNameMentions(lower, name.trim().toLowerCase()).length > 0,
+      name.trim().length > 0 && findNameMentions(text, name, { ignoreCase: true }).length > 0,
   );
   if (named) {
     problems.push({
@@ -179,11 +198,29 @@ function ukMinuteOfDay(at: Date): number {
   return w.hour * 60 + w.minute;
 }
 
-/** The next instant strictly after `after` when the UK clock reads `minute`. */
+/**
+ * The next instant strictly after `after` when the UK clock reads `minute` (HZ-009). Both
+ * occurrences of a time in the hour repeated when the clocks go back are considered, so a window
+ * ending at 01:30 checked at 01:15 GMT ends at 01:30 GMT, not the next day; a time skipped when the
+ * clocks go forward falls an hour later, as for computed times.
+ */
 function nextUkClockTime(after: Date, minute: number): Date {
+  const hour = Math.floor(minute / 60);
+  const minutes = minute % 60;
   const w = toUkWallClock(after);
-  const today = fromUkWallClock(w.year, w.month, w.day, Math.floor(minute / 60), minute % 60);
-  return today.getTime() > after.getTime() ? today : addUkDays(today, 1);
+  for (let day = 0; day < 3; day++) {
+    const date = new Date(Date.UTC(w.year, w.month - 1, w.day + day));
+    const [y, m, d] = [date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate()];
+    const occurrences = ukWallClockOccurrences(y, m, d, hour, minutes);
+    const next = occurrences.find((o) => o.getTime() > after.getTime());
+    if (next) return next;
+    if (occurrences.length === 0) {
+      const moved = fromUkWallClock(y, m, d, hour, minutes);
+      if (moved.getTime() > after.getTime()) return moved;
+    }
+  }
+  /* v8 ignore next 2: three days always hold a later occurrence */
+  return addUkDays(fromUkWallClock(w.year, w.month, w.day, hour, minutes), 1);
 }
 
 /**
@@ -205,6 +242,30 @@ export function quietHoursRelease(windows: readonly QuietHours[], now: Date): Da
   }
   const first = windows[0] as QuietHours;
   return nextUkClockTime(now, hhMmToMinute(first.end) as number);
+}
+
+// ------------------------------------------------------------------------------------------------
+// Re-checking a waiting notification
+// ------------------------------------------------------------------------------------------------
+
+export type PendingNotificationCheck =
+  | { readonly action: "send"; readonly itemIds: readonly string[] }
+  | { readonly action: "cancel"; readonly reason: "nothing_left_to_tell" };
+
+/**
+ * Before a notification held for quiet hours goes, and whenever an update it covers is taken
+ * down, its updates are checked again: only those the family member may still see, and not
+ * withdrawn, count (`checkFeedItemVisibility` with display "item"). With none left it is
+ * cancelled, so nobody is told about an update that has gone.
+ */
+export function recheckPendingNotification(
+  itemIds: readonly string[],
+  stillShowable: ReadonlySet<string>,
+): PendingNotificationCheck {
+  const left = itemIds.filter((id) => stillShowable.has(id));
+  return left.length > 0
+    ? { action: "send", itemIds: left }
+    : { action: "cancel", reason: "nothing_left_to_tell" };
 }
 
 // ------------------------------------------------------------------------------------------------

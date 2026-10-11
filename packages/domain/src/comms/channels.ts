@@ -41,6 +41,7 @@ export type ChannelUnusableReason =
   | "not_verified"
   | "updates_off"
   | "opted_out"
+  | "suspended"
   | ChannelSuspension;
 
 export type ChannelUsability =
@@ -50,8 +51,9 @@ export type ChannelUsability =
 /** Whether a channel may carry an update notification now. */
 export function familyChannelUsability(state: FamilyChannelState): ChannelUsability {
   if (state.optedOutAt !== null) return { usable: false, reason: "opted_out" };
-  if (state.suspendedAt !== null && state.suspendedReason !== null) {
-    return { usable: false, reason: state.suspendedReason };
+  // Any suspension stops the channel, even one stored without its reason.
+  if (state.suspendedAt !== null) {
+    return { usable: false, reason: state.suspendedReason ?? "suspended" };
   }
   if (state.verifiedAt === null) return { usable: false, reason: "not_verified" };
   if (!state.updatesOn) return { usable: false, reason: "updates_off" };
