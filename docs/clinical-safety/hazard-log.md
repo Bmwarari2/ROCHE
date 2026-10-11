@@ -688,6 +688,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `apps/api/test/tasks.test.ts`: tasks about people outside a care worker's scope are hidden and cannot be completed; another tenant's person is not found | Passing (Phase 1) |
 | `apps/api`: `hazard HZ-011 agency access expires at shift end plus 2 hours` | Planned, Phase 2 |
 | `packages/db/test/care-record.test.ts` and `apps/api/test/care.test.ts`: notes, charts and marks follow the person's scope | Passing (Phase 1) |
+| `packages/db/test/mca-and-incidents.test.ts`: `hazard HZ-011 consent, capacity and DoLS records follow the person's scope` and `hazard HZ-011 incident scope across people and locations (ADR-0033)` (an incident is visible through any of its people, to its reporter, and by location only when nobody using the service is on it; per-person notifications and staff rows follow their own scope; location drafts follow location scope; another tenant sees nothing) | Passing (Phase 1) |
+| `apps/api/test/incidents.test.ts`: `hazard HZ-011 incident scope across people (ADR-0033)` (a reader who can see only some of the people gets the header and their own people, with no narrative or reasoning, and cannot change it) | Passing (Phase 1) |
 | `packages/domain/src/people/break-glass-report.test.ts`: `hazard HZ-011 weekly break-glass report` (UK weeks across clock changes; totals by user, person and reason; unreviewed openings; repeated use, the same person reopened and one person opened by many users flagged at the rate-table threshold) | Passing (Phase 1) |
 | `apps/api`: `hazard HZ-011 the weekly break-glass report reaches the Registered Manager and data protection lead every Monday` | Planned, Phase 1 |
 
@@ -787,6 +789,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Weekly digest of open notification decisions to the Registered Manager and Nominated Individual | Phase 1 |
 | Design | An "unsure" answer drafts a provisional notification with its clock; an unanswered question raises a task due at the event time; outside England the classifier says notifications are not checked rather than giving a partial answer (`packages/domain/src/safety/classifier.ts`) | Phase 1 (domain rules built) |
 | Design | An incident cannot close while a notification is a draft or ready, a classifier question is open or the candour record is open (`incidentCloseProblems`) | Phase 1 (domain rules built) |
+| Design | The classifier runs on the server whenever an incident is created, synced, changed or answered, with tenant-wide scope so it always reads every person on the incident (ADR-0033); it stores its version and reasoning, writes one draft per incident and kind (per person for deaths, LeDeR, the medical examiner pack and missing people) with clocks from `occurred_at`, and a draft that a later answer no longer supports is flagged, never closed, until a holder of `safety.notification.submit` marks it not required with a reason and step-up (`apps/api/src/services/safety.ts`) | Phase 1 (built) |
+| Design | An overdue draft alerts the holders of `safety.notification.submit` at its location once, through the tenant's `safety.notification.overdue` escalation chain (by default the Nominated Individual after `statutory_notification.escalation_minutes`, H-69), until it is submitted or marked not required; closing an incident counts drafts about people the closer cannot see | Phase 1 (built) |
 | Design | Safeguarding log and outbreak register feed the same clocks | Phase 2 |
 | Test | See Verification | Phase 1, Phase 2 |
 | Training and user documentation | User guide states that the classifier supports, and never replaces, the Registered Manager's judgement. Deployer control: tenant notifications policy and acting-up arrangements for absences | Phase 1 |
@@ -810,7 +814,14 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain` (safety): `hazard HZ-013 safety figures come from the rate table` | Passing |
 | `packages/domain` (safety): `hazard HZ-013 an unacted clock escalates to the Nominated Individual before breach` | Planned, Phase 1 |
 | `packages/domain` (safety): `hazard HZ-013 only a holder of safety.notification.submit with step-up can submit` (`workflows.test.ts`, the workflow rules) | Passing |
-| `apps/api`: `hazard HZ-013 only a holder of safety.notification.submit with step-up can submit` | Planned, Phase 1 |
+| `apps/api/test/incidents.test.ts`: `hazard HZ-013 only a holder of safety.notification.submit with step-up can submit` (and the submission time with a reference or the form) | Passing |
+| `apps/api/test/incidents.test.ts`: `hazard HZ-013 marking not required needs step-up and a reason, and is audited with it` | Passing |
+| `apps/api/test/incidents.test.ts`: `hazard HZ-013 an overdue notification escalates through the chain until it is submitted` (one alert per draft, the chain's step to the Nominated Individual, alerts acknowledged on submission) | Passing |
+| `apps/api/test/incidents.test.ts`: `hazard HZ-013 an incident recorded offline that syncs late runs its clocks from occurred_at` and `ignores an offline incident replayed with the same device id` | Passing |
+| `apps/api/test/incidents.test.ts`: `hazard HZ-013 the classifier runs on the server` (version and reasoning stored, open questions with a task due at the event time, provisional drafts for not sure, drafts no longer indicated kept for a person to decide, `nationSupported` false outside England) | Passing |
+| `apps/api/test/incidents.test.ts`: `hazard HZ-013 refuses to close while questions or drafts are open, and refuses the person who raised it` | Passing |
+| `packages/db/test/mca-and-incidents.test.ts`: `hazard HZ-013 refuses an incident closed by the person who raised it` (database check) | Passing |
+| `apps/api/test/incidents.test.ts`: `hazard HZ-013 drafts the UKHSA report once two linked respiratory cases start within the window` and `records the candour threshold decision, which the classifier follows, and the candour steps` | Passing |
 | `packages/domain` (safety): `hazard HZ-013 a decision cannot close without evidence or a not-notifiable reason` | Passing |
 | `packages/domain` (safety): `hazard HZ-013 incident workflow: the person who raised it cannot close it` | Passing |
 | `packages/domain` (safety): `hazard HZ-013 duty of candour steps follow regulation 20` | Passing |
@@ -1078,6 +1089,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain` (care): `hazard HZ-019 a mark whose drawn side and stated side differ cannot be saved` | Passing |
 | `packages/domain` (care): `hazard HZ-019 body map sides are the person's own left and right` | Passing |
 | `apps/api/test/care.test.ts`: `hazard HZ-019 body map` (a mark whose stated side differs from the drawing is refused; a category 3 ulcer prompts an incident and the safeguarding guide) | Passing |
+| `apps/api/test/incidents.test.ts`: `hazard HZ-019 links a mark recorded for the incident and refuses one for someone not on it` (marks keep the body map's checks; linked pressure ulcers reach the classifier) | Passing (Phase 1) |
 | `apps/web/src/lib/body-map.test.ts`: `hazard HZ-019 match the API's regions and the sides each allows, on both views`; `hazard HZ-019 places the person's left on your right on the front view and on your left on the back`; `hazard HZ-019 reads the midline and either side of it the same way as the domain, on both views`; `apps/web/src/lib/refusals.test.ts`: `hazard HZ-019 says a side mismatch in the catalogue's words, at the side and the area` (the rule run in the domain package) | Passing (Phase 1 slice 9) |
 | `apps/web/e2e/care-record.spec.ts` (Playwright with axe, WCAG 2.2 AA): `hazard HZ-019 a body map mark whose side in words differs from the drawing is refused` (a tap on the front view's knee on your right, the person's left, with "Right" chosen in words, is refused, with the error at the side question and the body area list; the list then records the person's right knee); `keyboard only: move between tabs and record a body map mark with the area list and the side in words` | Passing (local run; CI e2e-web on the PR) |
 
@@ -1110,6 +1122,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Tenant switch for the 2026 legal change turns on the review-of-existing-authorisations workflow and lists every authorisation awaiting review | Phase 1 |
 | Design | Authorisation dates are checked against Schedule A1 (urgent period, one extension request, extension period, standard period) before they are saved; the register shows status and days left; a reminder that would fall before an urgent authorisation starts fires at its start (`packages/domain/src/care/mca/dols.ts`) | Phase 1 (domain rules built) |
 | Design | The legal-change review records the DHSC guidance's multifactorial assessment, objection and consent signs, and cannot close without the local authority referral when the person is no longer deprived of liberty or there is doubt | Phase 1 (domain rules built) |
+| Design | The API stores the register and checks it with the domain rules; a known outcome drafts the CQC notification and publishes `care.dols.outcome_known`; an hourly job raises each expiry reminder once (task, alert to the Registered Manager, `care.dols.expiring`); each review step goes through the workflow engine | Phase 1 (built) |
 
 **Target residual risk**: severity Considerable, likelihood Low, **risk 2**.
 
@@ -1123,6 +1136,9 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain` (care): `hazard HZ-020 DoLS status and clocks` | Passing |
 | `packages/domain` (care): `hazard HZ-020 review of existing authorisations after the June 2026 judgment` | Passing |
 | `packages/domain/src/people/exit.test.ts`: `hazard HZ-020 a DoLS authorisation is closed with the supervisory body` (the discharge, transfer and death checklists) | Passing (Phase 1) |
+| `apps/api/test/mca.test.ts`: `hazard HZ-020 checks the dates against Schedule A1`, `a DoLS outcome creates the CQC regulation 18(4A) draft` and `does not notify an urgent authorisation on its own` | Passing (Phase 1) |
+| `apps/api/test/mca.test.ts`: `hazard HZ-020 expiry reminders fire once` | Passing (Phase 1) |
+| `apps/api/test/mca.test.ts`: `hazard HZ-020 lists authorisations from before the judgment and records their review` | Passing (Phase 1) |
 
 ---
 
@@ -1361,6 +1377,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Consent is checked by representative type: only a registered health and welfare attorney or a personal welfare deputy within their order may consent for a person who lacks capacity for the decision; relatives, appointees, IMCAs and advocates are refused with the reason; marketing and AI processing only from the person (`consent.ts`) | Phase 1 (domain rules built) |
 | Design | Bed rails need the restraint conditions (MCA s.11 and s.20); covert medicines need a lack of capacity and a best-interests decision (NICE SC1 1.15) | Phase 1 (domain rules built) |
 | Design | `consentStatus` decides at the time of use: expired, withdrawn, refused or superseded consent, and a representative's consent once the person has capacity, are not valid | Phase 1 (domain rules built) |
+| Design | The API finds the person's capacity for the decision from their assessments (`capacityFinding`), never from the request, refuses with the domain's words whatever `checkConsentRecord`, `checkCapacityAssessment` and `checkBestInterests` refuse, and shows each decision's status now | Phase 1 (built) |
 | Design | Capacity assessments are decision- and time-specific; "lacks capacity" only when stage 1 is met, a stage 2 element is not and the inability is because of the impairment, with practicable steps recorded (`capacity.ts`) | Phase 1 (domain rules built) |
 | Design | The best-interests checklist is complete only when every item is answered, with reasons for "not applicable", a consultation or the reason there was none, and the IMCA prompt (`best-interests.ts`) | Phase 1 (domain rules built) |
 | Test | See Verification | Phase 1 |
@@ -1378,7 +1395,10 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain` (care): `hazard HZ-026 capacity is assumed unless an assessment of that decision says otherwise` | Passing |
 | `packages/domain` (care): `hazard HZ-026 best-interests checklist is complete only when every item is answered` | Passing |
 | `packages/domain` (care): `hazard HZ-026 IMCA prompt when nobody appropriate can be consulted (MCA s.37 to s.39)` | Passing |
-| `apps/api`: `hazard HZ-026 a consent without authority is refused` | Planned, Phase 1 |
+| `apps/api/test/mca.test.ts`: `hazard HZ-026 a consent without authority is refused` (a relative, an attorney while capacity is assumed, a property and financial attorney) | Passing |
+| `apps/api/test/mca.test.ts`: `hazard HZ-026 lets a registered welfare attorney agree to bed rails, with the restraint conditions, once the person lacks capacity` (capacity found from the assessments, never the request) | Passing |
+| `apps/api/test/mca.test.ts`: `hazard HZ-026 needs a complete best-interests decision before covert medicines`, `prompts for an IMCA when nobody appropriate can be consulted about a move` and `records a withdrawal, keeps the record` | Passing |
+| `packages/db/test/mca-and-incidents.test.ts`: append-only capacity assessments and best-interests decisions; a lacks-capacity outcome the two-stage test does not support and a consent claiming an assessment it does not name are refused by the database | Passing |
 
 ---
 
@@ -1406,7 +1426,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | --- | --- | --- |
 | Design | Every fall creates the post-fall checklist; a head injury or anticoagulant or antiplatelet treatment, or either not ruled out, prompts urgent medical advice under the tenant's post-fall policy and creates timed observation tasks (`packages/domain/src/safety/post-fall.ts`) | Phase 1 (domain rules built) |
 | Design | Observation intervals and the monitoring period come from the rate table (`falls.*`), defaulting to NICE NG232 1.9.11, to be confirmed by the CSO (human action H-66); observation times are elapsed time, so a clock change does not move them | Phase 1 (domain rules built) |
-| Design | The tasks are created on the device when a fall is recorded offline and escalate when overdue | Phase 1 |
+| Design | The API creates the checklist through the task engine whenever a fall is recorded or synced, in every nation, with one task per timed observation counted from when the person was found; an answer that rules out both risks cancels the timed observations and starts general monitoring; overdue tasks escalate (HZ-008) | Phase 1 (built) |
+| Design | The tasks are created on the device when a fall is recorded offline, before it syncs | Phase 1 (offline slice) |
 | Test | See Verification | Phase 1 |
 | Training and user documentation | Deployer control: the tenant's post-fall policy and escalation route linked from the task; staff trained in post-fall observations | Phase 1 |
 
@@ -1420,7 +1441,9 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | --- | --- |
 | `packages/domain` (safety): `hazard HZ-027 head injury or anticoagulants shorten the observation schedule` (`post-fall.test.ts`) | Passing |
 | `packages/domain` (safety): `hazard HZ-013 open questions, provisional drafts and tasks` (a fall on anticoagulants raises urgent advice and timed observations) | Passing |
-| `apps/api`: `hazard HZ-027 a fall creates the post-fall tasks with the observation schedule` | Planned, Phase 1 |
+| `apps/api/test/incidents.test.ts`: `hazard HZ-027 a fall creates the post-fall tasks with the observation schedule, shortened for a head injury` (one task per timed observation from the rate table) | Passing |
+| `apps/api/test/incidents.test.ts`: `hazard HZ-027 ruling out both risks replaces the timed observations with general monitoring` and `counts the observations from when an unwitnessed fall was found` | Passing |
+| `packages/domain` (safety): `hazard HZ-027 counts post-fall observations from when the person was found` (`classifier.test.ts`; the found time was dropped before slice 7 stored it) | Passing |
 | Maestro `hazard-HZ-027-post-fall-observations.yaml` | Planned, Phase 1 |
 
 ---
