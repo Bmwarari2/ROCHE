@@ -16,6 +16,7 @@ export * from "./care/weight";
 export * from "./integrations/ports";
 export * from "./people/lifecycle";
 export * from "./people/nhs-number";
+export * from "./people/pre-admission";
 export * from "./platform/access";
 export * from "./platform/branding";
 export * from "./platform/documents";
