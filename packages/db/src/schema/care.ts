@@ -19,6 +19,7 @@ import {
 import { eventColumns, id, mutableColumns, tenantId } from "./_columns";
 import { contact, person } from "./people";
 import { document, location } from "./platform";
+import { incident } from "./safety";
 import { taskSeries } from "./work";
 
 /**
@@ -161,7 +162,14 @@ export const bodyMapMark = pgTable(
       columns: [t.tenantId, t.photoDocumentId],
       foreignColumns: [document.tenantId, document.id],
     }),
+    // A mark recorded for an incident (safety.md section 2; slice 7).
+    foreignKey({
+      name: "body_map_mark_incident_fk",
+      columns: [t.tenantId, t.incidentId],
+      foreignColumns: [incident.tenantId, incident.id],
+    }),
     index("body_map_mark_person_idx").on(t.tenantId, t.personId, t.occurredAt),
+    index("body_map_mark_incident_idx").on(t.tenantId, t.incidentId),
   ],
 );
 

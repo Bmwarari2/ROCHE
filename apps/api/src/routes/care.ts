@@ -15,6 +15,7 @@ import {
 import {
   bodyMapMark,
   careNote,
+  incident,
   observation,
   personCareProfile,
   type Transaction,
@@ -90,6 +91,22 @@ async function checkSuperseded(
     .where(eq(table.id, supersedesId));
   if (original?.personId !== personId)
     throw problems.invalid("The entry being corrected was not found.");
+}
+
+/** A mark recorded for an incident: the incident must be visible and the person on it. */
+async function checkMarkIncident(
+  tx: Transaction,
+  incidentId: string | undefined,
+  personId: string,
+) {
+  if (!incidentId) return;
+  const [found] = await tx
+    .select({ personIds: incident.personIds })
+    .from(incident)
+    .where(eq(incident.id, incidentId));
+  if (!found?.personIds.includes(personId)) {
+    throw problems.invalid("Add the person to the incident before recording a mark for it.");
+  }
 }
 
 async function writeContext(
@@ -553,6 +570,7 @@ export const careRouter = createRouter()
         const { person, rates } = await writeContext(c, personId, tx, true);
         const times = entryTimes(body, c.req.header(SENT_AT_HEADER), now, rates);
         await checkSuperseded(tx, bodyMapMark, body.supersedesId, personId);
+        await checkMarkIncident(tx, body.incidentId, personId);
         const [inserted] = await tx
           .insert(bodyMapMark)
           .values({
@@ -571,6 +589,7 @@ export const careRouter = createRouter()
             depthMm: body.depthMm?.toString() ?? null,
             description: body.description ?? null,
             photoDocumentId: body.photoDocumentId ?? null,
+            incidentId: body.incidentId ?? null,
             status: body.status,
             occurredAt: times.occurredAt,
             deviceTime: times.deviceTime,
@@ -903,6 +922,7 @@ function markItem(row: typeof bodyMapMark.$inferSelect, superseded: ReadonlySet<
     description: row.description,
     photoDocumentId: row.photoDocumentId,
     status: row.status as "present" | "healed",
+    incidentId: row.incidentId,
   };
 }
 

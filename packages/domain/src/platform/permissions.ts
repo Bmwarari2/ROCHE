@@ -91,7 +91,7 @@ export const PERMISSIONS = {
   "care.assessment.write": { description: "Complete validated assessments", careRecord: true },
   "care.handover.manage": { description: "Compile and acknowledge handovers", careRecord: true },
   "care.capacity.write": {
-    description: "Record capacity and best-interests decisions",
+    description: "Record consent, capacity assessments and best-interests decisions",
     careRecord: true,
   },
   "care.dols.manage": { description: "Manage the DoLS register", careRecord: true },
@@ -122,10 +122,16 @@ export const PERMISSIONS = {
   },
   // safety
   "safety.incident.report": { description: "Report incidents and near misses" },
+  "safety.incident.read": {
+    description: "Read incidents in scope, with the people on them that are in scope",
+    careRecord: true,
+  },
   "safety.incident.manage": { description: "Investigate and close incidents", careRecord: true },
   "safety.notification.submit": {
-    description: "Submit statutory notifications (CQC, RIDDOR, safeguarding)",
+    description:
+      "Submit statutory notifications (CQC, RIDDOR, safeguarding) or mark them not required",
     stepUp: true,
+    careRecord: true,
   },
   "safety.safeguarding.manage": { description: "Manage the safeguarding log", careRecord: true },
   "safety.complaint.manage": { description: "Manage complaints and compliments" },

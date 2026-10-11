@@ -84,8 +84,9 @@ people only (plus break-glass), `none` no person records.
 | `medicines.stock.manage` |  | yes | yes |  | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `medicines.override.approve` |  | yes | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `safety.incident.report` |  |  | yes |  | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes |  |  |  |  |  |  | yes |  |
+| `safety.incident.read` |  | yes | yes |  | yes | yes | yes | yes | yes | yes |  |  |  |  |  |  |  | yes |  |  |  | yes |  |
 | `safety.incident.manage` |  | yes | yes |  | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| `safety.notification.submit` | yes |  | yes |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| `safety.notification.submit` | yes | yes | yes |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `safety.safeguarding.manage` |  | yes | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `safety.complaint.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
 | `safety.whistleblowing.read` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
