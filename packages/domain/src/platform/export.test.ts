@@ -525,7 +525,7 @@ describe("hazard HZ-071 an incomplete export is never offered", () => {
   });
 });
 
-describe("export request: free, step-up, one at a time", () => {
+describe("hazard HZ-070 export request: free, step-up, one at a time", () => {
   const fresh = new Date(NOW.getTime() - 60_000);
   const stale = new Date(NOW.getTime() - (STEP_UP_SECONDS + 1) * 1000);
   const context = (extra: Partial<Parameters<typeof checkExportRequest>[0]> = {}) => ({

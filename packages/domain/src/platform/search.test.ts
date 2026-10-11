@@ -89,7 +89,7 @@ describe("search terms match the index's normalisation", () => {
   });
 });
 
-describe("query normalisation", () => {
+describe("query normalisation (hazard HZ-001: an NHS number is exact, never a near match)", () => {
   it.each<[string, string, SearchPlanProblem | null, string[] | string | null]>([
     ["an empty query", "", "empty", null],
     ["only spaces", "    ", "empty", null],
