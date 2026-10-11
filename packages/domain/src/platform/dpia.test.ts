@@ -106,13 +106,15 @@ describe("DPIA prefill", () => {
     expect(draft.risks.map((r) => r.id)).toEqual(["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8"]);
   });
 
-  it("uses the template's risk ids", () => {
+  it("uses the template's risk ids and wording for every risk", () => {
     const template = readFileSync(TEMPLATE, "utf8");
-    for (const risk of prefillDpia(config({}, ["module.domiciliary"]), NOW).risks.filter(
-      (r) => Number(r.id.slice(1)) <= 9,
-    )) {
-      expect(template).toContain(`| ${risk.id} | ${risk.risk}`);
-    }
+    const everything = config(
+      { aiProvider: "bedrock_london", optional: { marketing: true, ai_free_text: true } },
+      ["module.domiciliary", "module.ai", "module.family_portal"],
+    );
+    const risks = prefillDpia(everything, NOW).risks;
+    expect(risks.map((r) => r.id)).toEqual(Array.from({ length: 12 }, (_, i) => `R${i + 1}`));
+    for (const risk of risks) expect(template).toContain(`| ${risk.id} | ${risk.risk}`);
   });
 
   it.each<[string, Partial<DpiaConfig>, FlagKey[], string[], string[]]>([

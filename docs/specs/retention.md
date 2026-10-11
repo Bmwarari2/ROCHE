@@ -76,6 +76,9 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `document_signature` | the class of the signed document |
 | `legal_hold`, `destruction_certificate` | kept permanently (proof of records management); never destroyed by the engine |
 | `task`, `task_series`, `workflow_instance`, `workflow_transition` | the class of the record they concern (care_record for tasks about a person) |
+| `tenant_export` ([platform-completions.md](platform-completions.md)) | audit_event; the export file itself is deleted at `export.link_expiry_hours` and never kept as a record |
+| `dpia`, `sub_processor_response`, `tenant_setting_decision`, `retention_decision` | audit_event (interim: accountability evidence; H-115) |
+| Search audit events, sample data load and removal events | audit_event; sample records themselves are removed on demand, never retained |
 
 ## Gaps to settle before the module that needs them ships
 
@@ -90,5 +93,7 @@ of the record they attach to.
 - DBS certificate information: the DBS code of practice limits how long certificate details may be kept;
   confirm the period before the Phase 2 pre-employment file stores them.
 - DSAR cases, breach register entries and data-protection complaints (Phase 2).
+- DPIA versions and sign-offs, sub-processor notice responses and onboarding decisions: interim
+  audit_event (8 years from creation) until the DPO confirms a period (H-115).
 - ECM visit events (Phase 4): likely care_record and rota_and_timesheet together (longest wins).
 - Children's home records (Phase 7), which have their own statutory periods.

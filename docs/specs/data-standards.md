@@ -13,9 +13,13 @@ the DSCR data migration schema.
 
 ## Export and import conventions
 
-- **Files**: one CSV file and one JSON Lines file per table, named after the table (`person.csv`,
-  `person.jsonl`), plus a `documents/` folder keyed by document ID and a `manifest.json` holding the export
-  schema version, tenant ID, export time (UTC), row counts and SHA-256 checksums.
+- **Files**: one CSV file and one JSON Lines file per table under `tables/`, named after the table
+  (`tables/person.csv`, `tables/person.jsonl`), plus a `documents/` folder keyed by document ID
+  (`documents/<id>.<extension>`, never the title or file name), `destroyed.csv` (records destroyed past
+  retention, with their certificate ids), `schema.json` (JSON Schema 2020-12 for every table, generated
+  from the same plan as the files) and a `manifest.json` holding the export schema version, tenant ID,
+  export time (UTC), row counts and SHA-256 checksums (fields below). Rules for held, deleted, destroyed,
+  quarantined and sample records: [platform-completions.md](platform-completions.md) rule 11.
 - **Encoding**: UTF-8, no byte order mark; CSV per RFC 4180 with a header row of column names.
 - **Column names**: identical to the database column names (`snake_case`); JSON uses the same names.
 - **Identifiers**: `id` is a UUIDv7 string. Foreign keys keep their column names (`location_id`). On
@@ -372,6 +376,25 @@ assurance pack.
 | `sharing_decision` capacity | Mental Capacity Act 2005 s.1(2) (presumption of capacity) | `presumed`, `assessed_has_capacity`, `assessed_lacks_capacity` | Links the capacity assessment where one exists. |
 | `break_glass_event.reason_code` | Harbour | `emergency_care`, `covering_another_area`, `safeguarding`, `incident_or_complaint`, `request_from_professional`, `other` | Phase 1; the typed justification is kept as well. |
 
+## Platform completions (Phase 1, slice 13)
+
+Code lists for [platform-completions.md](platform-completions.md). None maps to a national standard.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `manifest.json` | Harbour export contract | `format` (`harbour-tenant-export`), `schemaVersion` (semantic version, `EXPORT_SCHEMA_VERSION`, 1.0.0), `exportId`, `tenantId`, `requestedBy`, `generatedAt` (UTC), `schema` (path, SHA-256, bytes), `tables` (name, documented, rows, legal-hold rows, excluded soft-deleted and sample, files with path, format `csv` or `jsonl`, SHA-256, bytes, rows), `notExported` (name, reason), `documents` (included, bytes, quarantined, excluded, destroyed, files with id, path, SHA-256, bytes), `destroyed` (path, count, by table, certificate ids), `auditChain` (verified, first broken position), `complete`, `problems`, `warnings` | An export with any problem is never offered (HZ-071). |
+| `destroyed.csv` | Harbour | `table`, `id`, `destroyed_at` (UTC), `certificate_id` | Records destroyed past retention; their rows are not in the table files. |
+| `tenant_export.status` | Harbour | `queued`, `running`, `ready`, `failed`, `expired`, `revoked` | A ready export past its expiry reads as `expired`. |
+| `dpia.status` | Harbour | `draft`, `prepared`, `signed`, `superseded` | The onboarding state adds `not_started` and `review_due`. |
+| DPIA risk ratings | ICO DPIA template terms | Likelihood `remote`, `possible`, `probable`; severity `minimal`, `significant`, `severe`; overall and residual `low`, `medium`, `high` | Risk ids R1 to R12 as the DPIA template. |
+| DPIA review triggers | Harbour | `new_purpose`, `new_sub_processor`, `new_data_category`, `feature_enabled`, `yearly_review` | |
+| `retention_decision.kind` | Harbour | `accepted`, `lengthened`, `period_set`, `not_used` | The last two only for classes set by tenant policy. |
+| `sub_processor_notice.kind` | Harbour | `new`, `replacement` | |
+| Sub-processor objection resolution | Harbour (DPA clause 6.2) | `objection_withdrawn`, `not_used_for_tenant`, `services_ended` | |
+| Sample flag | Harbour | `is_sample` (boolean), `sample_batch_id` (UUID) | Sample people: family name `Example`, 999-range NHS numbers, `example.invalid` emails. |
+| `person.national_data_opt_out_checked_at` | Harbour; NHS national data opt-out | Timestamp (UTC) or empty for "not checked" | The existing boolean cannot say "not checked". |
+| Search audit scope | Harbour | `queryKind` (`text`, `nhs_number`), `termCount`, `entityTypes` (`person`, `staff`, `document`, `note`), `omitted` (kind and reason `not_permitted`, `no_scope`, `mfa_required`, `not_applicable`), `includeArchived`, `resultCounts`, `total`; break-glass: `personIds`, `reasonCode` | Never the words typed. |
+
 ## Platform operational tables (not part of the MODS export)
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but
@@ -379,7 +402,10 @@ map to no national data standard: `audit_event` (hash-chained), `record_version`
 `notification`, `notification_delivery`, `escalation_chain`, `feature_flag`, `form_template`,
 `form_submission`, `integration_connection`, `integration_inbound`, `support_access_request`,
 `break_glass_event`, `person_assignment`, `role`, `role_assignment`, `access_grant`, and from
-Phase 1 `break_glass_weekly_report`, `about_me_share_link` and `welcome_checklist_template`. Field-level
+Phase 1 `break_glass_weekly_report`, `about_me_share_link`, `welcome_checklist_template`, `tenant_export`,
+`dpia`, `sub_processor_response`, `tenant_setting_decision` and `retention_decision` (the global
+`sub_processor_notice` table is Thapsus's and is not exported). Every exported table is described in
+`EXPORT_TABLES` (`packages/domain/src/platform/export.ts`), which a test keeps in step with the schema. Field-level
 detail is in `packages/db/src/schema/`; purposes and lawful bases are in
 [records of processing](../compliance/records-of-processing.md).
 
