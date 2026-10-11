@@ -141,16 +141,24 @@ describe("daily notes", () => {
 });
 
 describe("hazard HZ-040 an entry a device reported deleted, uploaded later (round 4, H1)", () => {
-  const discard = (entryId: string, stage: string, id: string) =>
-    as("carer", "/v1/sync/discards", {
+  const discard = (
+    entryId: string,
+    stage: string,
+    id: string,
+    by: { user: keyof Harness["tokens"]; owner: string } = {
+      user: "carer",
+      owner: DEMO.users.carer.id,
+    },
+  ) =>
+    as(by.user, "/v1/sync/discards", {
       method: "POST",
       body: {
         id,
         kind: "held_deleted",
         stage,
         reasonCode: "recorded_elsewhere",
-        ownerTenantUserId: DEMO.users.carer.id,
-        deletedByTenantUserId: DEMO.users.carer.id,
+        ownerTenantUserId: by.owner,
+        deletedByTenantUserId: by.owner,
         entryIds: [entryId],
         personIds: [resident(1)],
         count: 1,
@@ -192,6 +200,61 @@ describe("hazard HZ-040 an entry a device reported deleted, uploaded later (roun
     await discard(entryId, "failed", record);
     expect((await note(1, { id: entryId })).status).toBe(201);
     expect(await flags(entryId)).toEqual({ audit: 0, tasks: [] });
+  });
+
+  it("flags only a deletion whose owner is the uploader, so no one can mark someone else's entries (round 5, S-M2 and S-L1)", async () => {
+    const entryId = newId();
+    // The manager records deleting the manager's own entry with that id; the carer then uploads it.
+    const manager = { user: "manager" as const, owner: DEMO.users.manager.id };
+    expect((await discard(entryId, "requested", crypto.randomUUID(), manager)).status).toBe(200);
+    expect((await note(1, { id: entryId })).status).toBe(201);
+    expect(await flags(entryId)).toEqual({ audit: 0, tasks: [] });
+  });
+
+  it("stays fast with many deletion records in the tenant (round 5, S-M2)", async () => {
+    // Three thousand deletion records of 20 entry ids each, as a busy tenant might build up.
+    await asDemoTenant((c) =>
+      c.query(
+        `INSERT INTO audit_event (tenant_id, action, resource_type, resource_id, scope)
+         SELECT $1, 'sync.entries.discard_requested', 'device_discard', gen_random_uuid()::text,
+                jsonb_build_object('ownerTenantUserId', $2::text, 'entryIds',
+                  (SELECT jsonb_agg(gen_random_uuid()) FROM generate_series(1, 20 + n % 2)))
+         FROM generate_series(1, 3000) AS n`,
+        [DEMO.tenantId, DEMO.users.nurse.id],
+      ),
+    );
+    const entryId = newId();
+    await discard(entryId, "requested", crypto.randomUUID());
+    const started = performance.now();
+    expect((await note(1, { id: entryId })).status).toBe(201);
+    expect(performance.now() - started).toBeLessThan(1_500);
+    expect((await flags(entryId)).audit).toBe(1);
+  });
+
+  it("flags an entry a deletion lists that had already reached the server (round 5, C-L2)", async () => {
+    const entryId = newId();
+    expect((await note(1, { id: entryId })).status).toBe(201);
+    const record = crypto.randomUUID();
+    expect((await discard(entryId, "requested", record)).status).toBe(200);
+    const alreadyFlagged = () =>
+      asDemoTenant(async (c) => {
+        const audit = await c.query(
+          "SELECT 1 FROM audit_event WHERE action = 'sync.entry.before_discard' AND resource_id = $1",
+          [entryId],
+        );
+        const tasks = await c.query<{ kind: string; person_id: string }>(
+          "SELECT kind, person_id FROM task WHERE kind = 'sync.entry_deleted_after_upload' AND source_id = $1",
+          [entryId],
+        );
+        return { audit: audit.rowCount, tasks: tasks.rows };
+      });
+    expect(await alreadyFlagged()).toEqual({
+      audit: 1,
+      tasks: [{ kind: "sync.entry_deleted_after_upload", person_id: resident(1) }],
+    });
+    // The deletion's later stage flags nothing more.
+    expect((await discard(entryId, "deleted", record)).status).toBe(200);
+    expect((await alreadyFlagged()).tasks).toHaveLength(1);
   });
 });
 

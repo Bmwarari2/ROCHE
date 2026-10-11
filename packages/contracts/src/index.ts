@@ -233,6 +233,19 @@ export const SYNC_DISCARD_STAGES = ["requested", "deleted", "failed"] as const;
 /** Most entry ids one record carries; a larger hold sends a sample and its count. */
 export const SYNC_DISCARD_MAX_ENTRY_IDS = 500;
 
+/**
+ * What of the database a deletion recorded as `deleted` left on the device, though its entries can
+ * no longer be read (clinical review round 5, C-M1): recorded as a separate security event.
+ */
+export const SYNC_DISCARD_LEFTOVERS = ["file", "key"] as const;
+
+/**
+ * Why a deletion lists no entry ids (clinical review round 5, C-M2): the device had no key for the
+ * database (`key_absent`), or the key it had was not a valid one (`key_invalid`), so nothing on it
+ * could be read. A deletion is otherwise refused when its ids cannot be read.
+ */
+export const SYNC_DISCARD_IDS_MISSING = ["key_absent", "key_invalid"] as const;
+
 export const SyncDiscard = z
   .object({
     /** The device's tombstone id: each stage of the same deletion is recorded once. */
@@ -253,7 +266,13 @@ export const SyncDiscard = z
     /** How many entries were deleted; null when the device could not count them. */
     count: z.number().int().min(0).max(100_000).nullable(),
     discardedAt: isoDateTime,
+    /** On `deleted`: what was left on the device though the entries can no longer be read. */
+    leftover: z.array(z.enum(SYNC_DISCARD_LEFTOVERS)).max(2).optional(),
+    /** Why there are no entry ids, when there are none. */
+    idsMissing: z.enum(SYNC_DISCARD_IDS_MISSING).optional(),
   })
+  // Unknown keys are refused, not dropped (security review round 5, S-L6).
+  .strict()
   .refine((d) => d.count === null || d.entryIds.length <= d.count, {
     message: "There are more entry ids than entries.",
     path: ["entryIds"],
@@ -279,6 +298,11 @@ export const SyncDeviceReport = z
     refused: z.number().int().min(0).max(1_000_000),
     /** Entries held after a session ended. */
     held: z.number().int().min(0).max(1_000_000),
+    /**
+     * Entries left by a deletion that did not finish, which are never sent and wait for a person
+     * to check them (clinical review round 5, C-M3).
+     */
+    blocked: z.number().int().min(0).max(1_000_000),
     /** Age of the oldest unsent, refused or held entry in seconds; null when there is none. */
     oldestAgeSeconds: z
       .number()
@@ -290,6 +314,7 @@ export const SyncDeviceReport = z
     heldSince: isoDateTime.nullable().optional(),
     reportedAt: isoDateTime,
   })
+  .strict()
   .meta({ id: "SyncDeviceReport" });
 export type SyncDeviceReport = z.infer<typeof SyncDeviceReport>;
 

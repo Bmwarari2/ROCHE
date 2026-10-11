@@ -161,11 +161,24 @@ describe("hazard HZ-040 device discards and reports", () => {
     discardedAt: "2026-10-11T07:30:00.000Z",
   };
 
-  it("takes a coded reason and never the person's words (round 4, M3)", () => {
+  it("takes a coded reason and refuses the person's words (round 4, M3; round 5, S-L6)", () => {
     expect(SyncDiscard.safeParse(discard).success).toBe(true);
     expect(SyncDiscard.safeParse({ ...discard, reasonCode: "other" }).success).toBe(true);
-    const parsed = SyncDiscard.parse({ ...discard, reason: "Recorded on paper for Ada" });
-    expect(Object.keys(parsed)).not.toContain("reason");
+    expect(SyncDiscard.safeParse({ ...discard, reason: "Recorded on paper for Ada" }).success).toBe(
+      false,
+    );
+  });
+
+  it("takes what a deletion left behind, and why it has no ids (round 5, C-M1 and C-M2)", () => {
+    expect(
+      SyncDiscard.safeParse({ ...discard, stage: "deleted", leftover: ["file", "key"] }).success,
+    ).toBe(true);
+    expect(SyncDiscard.safeParse({ ...discard, leftover: ["rows"] }).success).toBe(false);
+    expect(
+      SyncDiscard.safeParse({ ...discard, entryIds: [], count: null, idsMissing: "key_absent" })
+        .success,
+    ).toBe(true);
+    expect(SyncDiscard.safeParse({ ...discard, idsMissing: "cancelled" }).success).toBe(false);
   });
 
   it.each(["requested", "deleted", "failed"])("takes the %s stage (round 4, H1)", (stage) => {
@@ -195,12 +208,15 @@ describe("hazard HZ-040 device discards and reports", () => {
       unsent: 3,
       refused: 1,
       held: 0,
+      blocked: 0,
       oldestAgeSeconds: 3600,
       reportedAt: "2026-10-11T07:30:00.000Z",
     };
     expect(SyncDeviceReport.safeParse(report).success).toBe(true);
     expect(SyncDeviceReport.safeParse({ ...report, unsent: -1 }).success).toBe(false);
-    expect(Object.keys(SyncDeviceReport.parse({ ...report, name: "Ada" }))).not.toContain("name");
+    // Unknown keys are refused, so nothing else can ride along (round 5, S-L6).
+    expect(SyncDeviceReport.safeParse({ ...report, name: "Ada" }).success).toBe(false);
+    expect(SyncDeviceReport.safeParse({ ...report, blocked: undefined }).success).toBe(false);
     expect(
       SyncDeviceReport.safeParse({ ...report, held: 2, heldSince: "2026-10-11T07:00:00.000Z" })
         .success,

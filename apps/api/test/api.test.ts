@@ -8,6 +8,7 @@ import type {
   RateValue,
   SyncToken,
   SyncUploadResult,
+  TaskList,
 } from "@harbour/contracts";
 import { DEVICE_HEADER, TENANT_HEADER } from "@harbour/contracts";
 import { DEMO } from "@harbour/db/seed";
@@ -586,12 +587,15 @@ describe("offline sync", () => {
       });
     });
 
-    it("keeps the person's words out of the hash-chained audit trail (round 4, M3)", async () => {
+    it("keeps the person's words out of the hash-chained audit trail (round 4, M3; round 5, S-L6)", async () => {
+      // Words sent anyway are refused, not quietly dropped: nothing is recorded.
       const body = discard({ reasonCode: "other", reason: "Recorded on paper for Ada Example" });
-      expect((await post(h.tokens.carer, body)).status).toBe(200);
-      const [row] = await auditRows(body.id);
+      expect((await post(h.tokens.carer, body)).status).toBe(422);
+      expect(await auditRows(body.id)).toEqual([]);
+      const coded = discard({ reasonCode: "other" });
+      expect((await post(h.tokens.carer, coded)).status).toBe(200);
+      const [row] = await auditRows(coded.id);
       expect(row?.reason).toBe("other");
-      expect(JSON.stringify(row)).not.toContain("Ada");
     });
 
     it("records each stage of a deletion once, and a failure supersedes the request (round 4, H1)", async () => {
@@ -662,6 +666,113 @@ describe("offline sync", () => {
       }
     });
 
+    it("records an unknown deleter as unknown, never as the sender (round 5, S-L2)", async () => {
+      const body = discard({
+        kind: "held_deleted",
+        ownerTenantUserId: DEMO.users.nurse.id,
+        deletedByTenantUserId: undefined,
+      });
+      expect((await post(h.tokens.manager, body)).status).toBe(200);
+      const [row] = await auditRows(body.id);
+      expect(row?.actor_tenant_user_id).toBe(DEMO.users.manager.id);
+      expect(row?.scope).toMatchObject({ deletedByTenantUserId: null });
+    });
+
+    it("ties a later stage to the deletion it continues: same kind and owner (round 5, S-L1)", async () => {
+      const body = discard({ kind: "held_deleted" });
+      expect((await post(h.tokens.carer, body)).status).toBe(200);
+      const otherKind = { ...body, stage: "deleted", kind: "signed_out_with_unsent" };
+      expect((await post(h.tokens.carer, otherKind)).status).toBe(422);
+      const otherOwner = { ...body, stage: "deleted", ownerTenantUserId: DEMO.users.nurse.id };
+      expect((await post(h.tokens.manager, otherOwner)).status).toBe(422);
+      expect((await auditRows(body.id)).map((r) => r.action)).toEqual([
+        "sync.entries.discard_requested",
+      ]);
+      // A manager may record the outcome of a carer's own deletion.
+      expect((await post(h.tokens.manager, { ...body, stage: "deleted" })).status).toBe(200);
+    });
+
+    it("records what a deletion left on the device as a security event, and why it has no ids (round 5, C-M1 and C-M2)", async () => {
+      const body = discard({
+        kind: "held_deleted",
+        entryIds: [],
+        personIds: [],
+        count: null,
+        idsMissing: "key_invalid",
+      });
+      await post(h.tokens.carer, body);
+      expect(
+        (await post(h.tokens.carer, { ...body, stage: "deleted", leftover: ["file"] })).status,
+      ).toBe(200);
+      const rows = await auditRows(body.id);
+      expect(rows.map((r) => r.action)).toEqual([
+        "sync.entries.discard_requested",
+        "sync.entries.discarded",
+        "sync.device.residue",
+      ]);
+      expect(rows[0]?.scope).toMatchObject({ idsMissing: "key_invalid" });
+      expect(rows[2]?.scope).toEqual({ leftover: ["file"] });
+    });
+
+    it("hazard HZ-040 closes the device's hold task when its held entries are recorded deleted (round 5, C-M3)", async () => {
+      const device = "0199d000-0000-4000-8000-00000000de08";
+      const reportFrom = (token: string | undefined, held: number) =>
+        h.handle.app.request("/v1/sync/device-report", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${token}`,
+            [TENANT_HEADER]: DEMO.tenantId,
+            [DEVICE_HEADER]: device,
+          },
+          body: JSON.stringify({
+            unsent: 0,
+            refused: 0,
+            held,
+            blocked: 0,
+            oldestAgeSeconds: null,
+            reportedAt: new Date().toISOString(),
+          }),
+        });
+      expect((await reportFrom(h.tokens.carer, 2)).status).toBe(204);
+      const status = async () =>
+        (
+          await asTenant<{ status: string }>(
+            DEMO.tenantId,
+            "SELECT status FROM task WHERE source_type = 'device_hold' AND source_id = $1",
+            [device],
+          )
+        ).map((r) => r.status);
+      expect(await status()).toEqual(["open"]);
+      // The Registered Manager deletes the held entries on that device: requested, then deleted.
+      const body = discard({
+        kind: "held_deleted",
+        ownerTenantUserId: DEMO.users.carer.id,
+        deletedByTenantUserId: DEMO.users.manager.id,
+      });
+      await post(h.tokens.manager, body, DEMO.tenantId, device);
+      expect(await status()).toEqual(["open"]);
+      await post(h.tokens.manager, { ...body, stage: "deleted" }, DEMO.tenantId, device);
+      expect(await status()).toEqual(["done"]);
+    });
+
+    it("counts each person's entry ids a day (round 5, S-M2)", async () => {
+      const ids = (n: number) => Array.from({ length: n }, () => crypto.randomUUID());
+      const big = () =>
+        discard({
+          ownerTenantUserId: DEMO.users.owner.id,
+          deletedByTenantUserId: DEMO.users.owner.id,
+          entryIds: ids(500),
+          personIds: [],
+          count: 500,
+        });
+      for (let i = 0; i < 4; i += 1) expect((await post(h.tokens.owner, big())).status).toBe(200);
+      const over = big();
+      const refused = await post(h.tokens.owner, over);
+      expect(refused.status).toBe(429);
+      expect(await auditRows(over.id)).toEqual([]);
+    });
+
     it("keeps the event in the caller's tenant only (HZ-011)", async () => {
       const body = discard();
       // The carer is not a member of the other tenant.
@@ -703,6 +814,7 @@ describe("offline sync", () => {
 
   describe("hazard HZ-006 device reports (POST /v1/sync/device-report)", () => {
     const DEVICE = "0199d000-0000-4000-8000-00000000de02";
+    const DAY = 86_400_000;
     const report = (token: string | undefined, body: Record<string, unknown>, device?: string) =>
       h.handle.app.request("/v1/sync/device-report", {
         method: "POST",
@@ -716,25 +828,49 @@ describe("offline sync", () => {
           unsent: 0,
           refused: 0,
           held: 0,
+          blocked: 0,
           oldestAgeSeconds: null,
           reportedAt: new Date().toISOString(),
           ...body,
         }),
       });
     type TaskRow = {
+      id: string;
       status: string;
       due_at: Date;
+      location_id: string | null;
+      assignee_tenant_user_id: string | null;
       assignee_role_key: string | null;
       required_permission: string;
       title: string;
       person_id: string | null;
+      created_by: string | null;
+      updated_by: string | null;
     };
     const deviceTasks = (device: string) =>
       asTenant<TaskRow>(
         DEMO.tenantId,
-        "SELECT status, due_at, assignee_role_key, required_permission, title, person_id FROM task WHERE source_type = 'device_hold' AND source_id = $1 ORDER BY created_at",
+        "SELECT id, status, due_at, location_id, assignee_tenant_user_id, assignee_role_key, required_permission, title, person_id, created_by, updated_by FROM task WHERE source_type = 'device_hold' AND source_id = $1 ORDER BY created_at",
         [device],
       );
+    const holdAudit = (device: string) =>
+      asTenant<{ action: string; outcome: string; resource_id: string | null }>(
+        DEMO.tenantId,
+        "SELECT action, outcome, resource_id FROM audit_event WHERE action LIKE 'sync.device_hold.%' AND scope ->> 'deviceId' = $1 ORDER BY seq",
+        [device],
+      );
+    /** The tasks a member can read through the API, over the next month. */
+    const visibleTo = async (token: keyof Harness["tokens"]) => {
+      const from = new Date(Date.now() - DAY).toISOString();
+      const to = new Date(Date.now() + 29 * DAY).toISOString();
+      const list = await json<TaskList>(
+        await demo(
+          token,
+          `/v1/tasks?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+        ),
+      );
+      return list.items.map((t) => t.id);
+    };
 
     it("hazard HZ-006 records a device's unsent counts without personal data", async () => {
       const response = await report(
@@ -752,14 +888,16 @@ describe("offline sync", () => {
         unsent: 3,
         refused: 1,
         held: 0,
+        blocked: 0,
         oldestAgeSeconds: 5400,
         heldSince: null,
         reportedAt: expect.any(String),
+        deviceClockAhead: false,
       });
     });
 
-    it("hazard HZ-040 raises one task for the Registered Manager while entries are held, due when the hold escalates, and closes it at zero (round 4, H2)", async () => {
-      const heldSince = new Date(Date.now() - 2 * 86_400_000);
+    it("hazard HZ-040 raises one task for the Registered Manager at the reporter's location, due when the hold escalates, never moved later, and closed at zero (round 5, C-H1 and S-M1)", async () => {
+      const heldSince = new Date(Date.now() - 2 * DAY);
       expect(
         (await report(h.tokens.carer, { held: 2, heldSince: heldSince.toISOString() }, DEVICE))
           .status,
@@ -768,33 +906,138 @@ describe("offline sync", () => {
       expect(tasks).toHaveLength(1);
       expect(tasks[0]).toMatchObject({
         status: "open",
+        location_id: DEMO.locationId,
+        assignee_tenant_user_id: null,
         assignee_role_key: "registered_manager",
         required_permission: "safety.incident.manage",
         title: "Unsent care entries are waiting on a device",
         person_id: null,
+        // Written as the reporter, not as nobody (S-M1).
+        created_by: DEMO.users.carer.id,
       });
       // Due at the hold's start plus mobile.held_entries_max_days (7 by default).
-      expect(new Date(tasks[0]?.due_at ?? 0).getTime()).toBe(heldSince.getTime() + 7 * 86_400_000);
-      // A later report while the hold lasts moves the same task, never a second one.
-      const later = new Date(heldSince.getTime() + 3_600_000);
-      await report(h.tokens.carer, { held: 3, heldSince: later.toISOString() }, DEVICE);
+      const due = heldSince.getTime() + 7 * DAY;
+      expect(new Date(tasks[0]?.due_at ?? 0).getTime()).toBe(due);
+      // The location's Registered Manager, whose role is scoped to the location, can read it.
+      expect(await visibleTo("manager")).toContain(tasks[0]?.id);
+      // A later start never moves the due time later; an earlier one brings it forward.
+      await report(
+        h.tokens.carer,
+        { held: 3, heldSince: new Date(heldSince.getTime() + DAY).toISOString() },
+        DEVICE,
+      );
+      expect(new Date((await deviceTasks(DEVICE))[0]?.due_at ?? 0).getTime()).toBe(due);
+      const earlier = new Date(heldSince.getTime() - 3_600_000);
+      await report(h.tokens.carer, { held: 3, heldSince: earlier.toISOString() }, DEVICE);
       tasks = await deviceTasks(DEVICE);
       expect(tasks).toHaveLength(1);
-      expect(new Date(tasks[0]?.due_at ?? 0).getTime()).toBe(later.getTime() + 7 * 86_400_000);
-      // Nothing waiting: the task closes.
+      expect(new Date(tasks[0]?.due_at ?? 0).getTime()).toBe(earlier.getTime() + 7 * DAY);
+      // Entries a failed deletion left behind keep it open (C-M3).
+      await report(h.tokens.carer, { blocked: 1 }, DEVICE);
+      expect((await deviceTasks(DEVICE)).map((t) => t.status)).toEqual(["open"]);
+      // Nothing waiting, from the reporter who raised it: the task closes.
       await report(h.tokens.carer, {}, DEVICE);
       tasks = await deviceTasks(DEVICE);
       expect(tasks.map((t) => t.status)).toEqual(["done"]);
+      expect(tasks[0]?.updated_by).toBe(DEMO.users.carer.id);
+      // Every raise, move and close is audited, with the task's opaque id.
+      expect((await holdAudit(DEVICE)).map((r) => [r.action, r.resource_id])).toEqual([
+        ["sync.device_hold.raised", tasks[0]?.id],
+        ["sync.device_hold.moved", tasks[0]?.id],
+        ["sync.device_hold.closed", tasks[0]?.id],
+      ]);
     });
 
-    it("hazard HZ-040 takes a hold's report from a member whose Care mode access was withdrawn (round 4, H2)", async () => {
-      // The agency worker is a member here with no role, so without people.person.read.
+    it("hazard HZ-040 another member can neither close nor postpone a known device's task (round 5, S-M1)", async () => {
+      const device = "0199d000-0000-4000-8000-00000000de05";
+      const heldSince = new Date(Date.now() - DAY);
+      await report(h.tokens.carer, { held: 1, heldSince: heldSince.toISOString() }, device);
+      const [raised] = await deviceTasks(device);
+      // The agency worker is a member with no role: no permission to act on the task.
+      expect((await report(h.tokens.agency, {}, device)).status).toBe(204);
+      await report(h.tokens.agency, { held: 1, heldSince: new Date().toISOString() }, device);
+      const [after] = await deviceTasks(device);
+      expect(after).toMatchObject({ id: raised?.id, status: "open" });
+      expect(after?.due_at).toEqual(raised?.due_at);
+      expect((await holdAudit(device)).map((r) => [r.action, r.outcome])).toContainEqual([
+        "sync.device_hold.close_refused",
+        "denied",
+      ]);
+      // Someone who can act on it (a Registered Manager) may close it with a report.
+      await report(h.tokens.manager, {}, device);
+      expect((await deviceTasks(device)).map((t) => t.status)).toEqual(["done"]);
+    });
+
+    it("hazard HZ-010 takes a hold's start no later than the server received the report (round 5, S-M1)", async () => {
+      const device = "0199d000-0000-4000-8000-00000000de06";
+      const future = new Date(Date.now() + 10 * DAY).toISOString();
+      const before = Date.now();
+      await report(h.tokens.carer, { held: 1, heldSince: future, reportedAt: future }, device);
+      const [raised] = await deviceTasks(device);
+      expect(new Date(raised?.due_at ?? 0).getTime()).toBeLessThanOrEqual(Date.now() + 7 * DAY);
+      expect(new Date(raised?.due_at ?? 0).getTime()).toBeGreaterThanOrEqual(before + 7 * DAY);
+      const [audited] = await asTenant<{ scope: Record<string, unknown> }>(
+        DEMO.tenantId,
+        "SELECT scope FROM audit_event WHERE action = 'sync.device.report' AND device_id = $1",
+        [device],
+      );
+      expect(audited?.scope).toMatchObject({ deviceClockAhead: true });
+      expect(Date.parse(String(audited?.scope.heldSince))).toBeLessThanOrEqual(Date.now());
+      await report(h.tokens.carer, {}, device);
+    });
+
+    it("hazard HZ-040 gives each Registered Manager the task when the reporter's location is not known (round 5, C-H1)", async () => {
+      // The agency worker is a member here with no role, so without people.person.read, and has
+      // never had a role at a location.
       const device = "0199d000-0000-4000-8000-00000000de04";
       const heldSince = new Date(Date.now() - 3_600_000).toISOString();
       expect((await report(h.tokens.agency, { held: 1, heldSince }, device)).status).toBe(204);
-      expect((await deviceTasks(device)).map((t) => t.status)).toEqual(["open"]);
+      const tasks = await deviceTasks(device);
+      expect(tasks.map((t) => [t.status, t.location_id, t.assignee_tenant_user_id])).toEqual([
+        ["open", null, DEMO.users.manager.id],
+      ]);
+      expect(await visibleTo("manager")).toContain(tasks[0]?.id);
       // Not a member at all: refused.
       expect((await report(h.tokens.rae, { held: 1, heldSince }, device)).status).toBe(403);
+      await report(h.tokens.manager, {}, device);
+    });
+
+    it("hazard HZ-040 finds the location of an agency worker whose role ended with the shift (round 5, C-H1)", async () => {
+      // The agency worker's role at the home was removed at the end of the shift plus 2 hours.
+      await asTenant(
+        DEMO.tenantId,
+        `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, reason, deleted_at)
+         SELECT tu.id, r.id, $1, 'Agency shift', now()
+         FROM tenant_user tu, role r
+         WHERE tu.email = 'agency@example.invalid' AND tu.tenant_id = $2
+           AND r.key = 'agency_worker' AND r.tenant_id = $2`,
+        [DEMO.locationId, DEMO.tenantId],
+      );
+      const device = "0199d000-0000-4000-8000-00000000de07";
+      const heldSince = new Date(Date.now() - 3_600_000).toISOString();
+      expect((await report(h.tokens.agency, { held: 2, heldSince }, device)).status).toBe(204);
+      const [raised] = await deviceTasks(device);
+      expect(raised).toMatchObject({ location_id: DEMO.locationId, assignee_tenant_user_id: null });
+      expect(await visibleTo("manager")).toContain(raised?.id);
+      await report(h.tokens.manager, {}, device);
+    });
+
+    it("hazard HZ-008 opens a few devices' tasks per reporter at most (round 5, S-M1)", async () => {
+      const devices = [1, 2, 3, 4].map((n) => `0199d000-0000-4000-8000-0000000d0e0${n}`);
+      for (const device of devices) {
+        expect((await report(h.tokens.manager, { held: 1 }, device)).status).toBe(204);
+      }
+      const open = await Promise.all(devices.map((d) => deviceTasks(d)));
+      expect(open.map((t) => t.length)).toEqual([1, 1, 1, 0]);
+      expect((await holdAudit(devices[3] ?? "")).map((r) => r.action)).toEqual([
+        "sync.device_hold.capped",
+      ]);
+      for (const device of devices) await report(h.tokens.manager, {}, device);
+    });
+
+    it("asks for MFA where the member's roles call for it (round 5, S-M1)", async () => {
+      // The nurse's roles need MFA, which this session does not have.
+      expect((await report(h.tokens.nurse, { held: 1 }, DEVICE)).status).toBe(403);
     });
 
     it("limits each person's reports per hour (round 4, M4)", async () => {

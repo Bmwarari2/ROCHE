@@ -7319,7 +7319,7 @@ export interface paths {
     put?: never;
     /**
      * Record that a device deleted entries that never reached the server
-     * @description Writes an append-only audit event for one stage of a deletion (requested, deleted or failed): who deleted them, whose they were, the coded reason, how many and from which device (HZ-040). Anyone but the caller's own entries, deleted by the caller, needs a manager's permission. Each stage of an id is recorded once.
+     * @description Writes an append-only audit event for one stage of a deletion (requested, deleted or failed): who deleted them, whose they were, the coded reason, how many and from which device (HZ-040). Anyone but the caller's own entries, deleted by the caller, needs a manager's permission. Each stage of an id is recorded once, and later stages must match the first (kind and owner) and come from its sender, the owner or a manager. A deletion recorded as deleted closes the device's hold task, and listed entries already on the server are flagged for the manager.
      */
     post: {
       parameters: {
@@ -7389,7 +7389,7 @@ export interface paths {
     put?: never;
     /**
      * A device's unsent work: counts and the oldest age, no personal data
-     * @description Writes an audit event with the device's queued, refused and held counts and the age of the oldest, so the server knows what a lost or wiped device held (HZ-006). Any member of the organisation may report, so a device whose Care mode access was withdrawn can still report its hold. While anything waits, the device has one task for the Registered Manager, due when its hold escalates; a report with nothing waiting closes it.
+     * @description Writes an audit event with the device's queued, refused, held and blocked counts and the age of the oldest, so the server knows what a lost or wiped device held (HZ-006). Any member of the organisation may report (with MFA when their roles call for it), so a device whose Care mode access was withdrawn can still report its hold. Times later than the server's are taken as the server's. While anything waits, the device has one task for the Registered Manager, due when its hold escalates and never moved later; a report with nothing waiting closes it only when it comes from whoever raised it or from a manager. Each reporter may have a few devices' tasks open.
      */
     post: {
       parameters: {
@@ -10948,11 +10948,15 @@ export interface components {
       count: number | null;
       /** Format: date-time */
       discardedAt: string;
+      leftover?: ("file" | "key")[];
+      /** @enum {string} */
+      idsMissing?: "key_absent" | "key_invalid";
     };
     SyncDeviceReport: {
       unsent: number;
       refused: number;
       held: number;
+      blocked: number;
       oldestAgeSeconds: number | null;
       /** Format: date-time */
       heldSince?: string | null;

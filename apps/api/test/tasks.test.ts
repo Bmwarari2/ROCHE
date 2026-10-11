@@ -292,3 +292,50 @@ describe("hazard HZ-008 overdue tasks escalate once", () => {
     expect(reread.items.find((x) => x.id === t.id)?.escalated).toBe(true);
   });
 });
+
+describe("hazard HZ-008 a sync task escalates only to people who can act on it (round 5, C-H1)", () => {
+  it("tells holders of the task's permission at its location, not team leaders", async () => {
+    const teamLeader = "0194d000-0000-7000-8000-0000000003f1";
+    const overdueAt = new Date(Date.now() - 3 * HOUR);
+    const [held, ordinary] = await asDemoTenant(async (c) => {
+      await c.query(
+        "INSERT INTO tenant_user (id, display_name, email, status) VALUES ($1, 'Tia Lead', 'tia@example.invalid', 'active')",
+        [teamLeader],
+      );
+      await c.query(
+        `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, reason)
+         SELECT $1, id, $2, 'Test' FROM role WHERE key = 'team_leader' AND tenant_id = $3`,
+        [teamLeader, DEMO.locationId, DEMO.tenantId],
+      );
+      const insert = (kind: string, permission: string) =>
+        c.query<{ id: string }>(
+          `INSERT INTO task (location_id, kind, title, required_permission, assignee_role_key, due_at)
+           VALUES ($1, $2, 'Check', $3, 'registered_manager', $4) RETURNING id`,
+          [DEMO.locationId, kind, permission, overdueAt],
+        );
+      return [
+        (await insert("sync.device_hold", "safety.incident.manage")).rows[0]?.id,
+        (await insert("platform.adhoc", "platform.task.complete")).rows[0]?.id,
+      ];
+    });
+    await escalateTasks(deps, new Date());
+    const recipients = (taskId: string | undefined) =>
+      asDemoTenant(async (c) =>
+        (
+          await c.query<{ recipient_tenant_user_id: string }>(
+            "SELECT recipient_tenant_user_id FROM notification WHERE source_type = 'task' AND source_id = $1",
+            [taskId],
+          )
+        ).rows.map((r) => r.recipient_tenant_user_id),
+      );
+    const toHold = await recipients(held);
+    // The Registered Manager and the nurse at the location, and the owner across the organisation.
+    expect(toHold).toEqual(
+      expect.arrayContaining([DEMO.users.manager.id, DEMO.users.nurse.id, DEMO.users.owner.id]),
+    );
+    expect(toHold).not.toContain(teamLeader);
+    expect(toHold).not.toContain(DEMO.users.carer.id);
+    // Other tasks are unchanged: the first responders at the location, team leaders included.
+    expect(await recipients(ordinary)).toContain(teamLeader);
+  });
+});

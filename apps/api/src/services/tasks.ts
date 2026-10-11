@@ -9,6 +9,7 @@ import {
 } from "@harbour/db";
 import { occurrences, type TaskStatus, taskTimeState } from "@harbour/domain";
 import { and, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { PERMISSION_ESCALATED_TASK_KINDS, permissionHolders } from "./device-holds";
 import { rateNumber } from "./rates";
 
 /** How far ahead recurring tasks exist as rows, so devices can sync tomorrow's round tonight. */
@@ -124,6 +125,11 @@ export const OVERDUE_FIRST_RESPONDERS = ["clinical_lead", "team_leader"] as cons
  * Raises one notification per overdue task once it passes the escalation threshold (hazard HZ-008:
  * one escalation, not a stream). Recipients: the assignee, and the clinical leads and team leaders
  * at the task's location; the Registered Manager when nobody holds those roles there.
+ *
+ * The sync tasks (a device holding entries, an entry uploaded after or before its deletion) go only
+ * to people who can act on them (clinical review round 5, C-H1): the assignee, and the holders of
+ * the task's required permission at its location; a task assigned to one Registered Manager with
+ * no location goes to that manager alone, and one with neither goes to the holders anywhere.
  */
 export async function escalateOverdueTasks(
   tx: Transaction,
@@ -161,9 +167,16 @@ export async function escalateOverdueTasks(
               : undefined,
           ),
         );
-    let responders = await atLocation(OVERDUE_FIRST_RESPONDERS);
-    if (responders.length === 0) responders = await atLocation(["registered_manager"]);
-    for (const r of responders) recipients.add(r.id);
+    if (PERMISSION_ESCALATED_TASK_KINDS.includes(t.kind)) {
+      if (t.locationId || !t.assigneeTenantUserId) {
+        const holders = await permissionHolders(tx, t.requiredPermission, t.locationId, now);
+        for (const id of holders) recipients.add(id);
+      }
+    } else {
+      let responders = await atLocation(OVERDUE_FIRST_RESPONDERS);
+      if (responders.length === 0) responders = await atLocation(["registered_manager"]);
+      for (const r of responders) recipients.add(r.id);
+    }
     for (const recipient of recipients) {
       await tx
         .insert(notification)
