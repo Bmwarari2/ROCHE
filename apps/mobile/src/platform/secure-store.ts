@@ -54,6 +54,17 @@ export async function readPlain(key: string): Promise<string | null> {
   }
 }
 
+/** Like `readPlain`, but a keystore error throws, for reads that must fail closed (S3). */
+export function readPlainStrict(key: string): Promise<string | null> {
+  return SecureStore.getItemAsync(key, plainOptions);
+}
+
+/** Where tombstones are kept (S4): the keystore, outside the database a deletion removes. */
+export const tombstoneStore = {
+  read: (key: string) => SecureStore.getItemAsync(key, plainOptions),
+  write: (key: string, value: string) => SecureStore.setItemAsync(key, value, plainOptions),
+};
+
 export async function writePlain(key: string, value: string): Promise<void> {
   await SecureStore.setItemAsync(key, value, plainOptions);
 }

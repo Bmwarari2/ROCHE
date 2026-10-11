@@ -27,6 +27,7 @@ describe("schema bridge", () => {
       activity_record: false,
       visit_log: false,
       upload_issue: true,
+      held_entry: true,
     });
   });
 

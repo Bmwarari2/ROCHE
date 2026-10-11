@@ -1,7 +1,6 @@
 import { Button, Text, useHaptics, useTheme } from "@harbour/ui-native";
 import { useRef, useState } from "react";
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -10,16 +9,19 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { HeldWorkOwnerError } from "../app-state/held-work";
+import { type HeldWork, HeldWorkOwnerError } from "../app-state/held-work";
 import { useSession } from "../app-state/session";
 import { useVault } from "../app-state/vault";
 import { AuthError, type TwoFactorChallenge } from "../auth/auth-client";
 import { authClient } from "../auth/clients";
+import { ukDateTimeParts } from "../care/time";
 import { Card } from "../components/Card";
+import { DeleteWithReason } from "../components/DeleteWithReason";
 import { TextField } from "../components/TextField";
 import { appEnv } from "../config/app-env";
 import { DEMO_TOTP_CODE } from "../demo/demo-auth";
 import { t } from "../i18n/t";
+import { heldTimeState } from "../sync/held-limit";
 
 type Step =
   | { readonly kind: "credentials" }
@@ -31,34 +33,19 @@ function messageFor(error: unknown): string {
 }
 
 /**
- * Entries kept on the device after the session ended (HZ-006): only their owner can sign in and
- * send them. "Sign out and delete N unsent entries" removes them for good after a confirmation that
- * names the count.
+ * Entries kept on the device after the session ended (HZ-006, S2): whose they are (C8), how many,
+ * and until when, with a final warning naming the count in the last day. Only their owner can sign
+ * in and send them. "Sign out and delete N unsent entries" needs a reason, a confirmation naming
+ * the count and device authentication (S4), and the vault checks the deletion (S5).
  */
-function HeldEntries({ entries }: { readonly entries: number | null }) {
+function HeldEntries({ held }: { readonly held: HeldWork }) {
   const theme = useTheme();
   const vault = useVault();
-  const [deleting, setDeleting] = useState(false);
-
-  const confirmDiscard = () => {
-    Alert.alert(
-      entries === null
-        ? t("mobile.held.discardTitleUnknown")
-        : t("mobile.held.discardTitle", { count: entries }),
-      t("mobile.held.discardBody"),
-      [
-        { text: t("common.cancel"), style: "cancel" },
-        {
-          text: t("mobile.held.discardConfirm"),
-          style: "destructive",
-          onPress: () => {
-            setDeleting(true);
-            vault.discardHeld().finally(() => setDeleting(false));
-          },
-        },
-      ],
-    );
-  };
+  const entries = held.entries;
+  const name = held.ownerName ?? t("mobile.held.someone");
+  const known = held.tenantId !== "";
+  const deadline = held.expiresAt ? ukDateTimeParts(new Date(held.expiresAt)) : null;
+  const final = heldTimeState(held.expiresAt, new Date()) === "final";
 
   return (
     <Card testID="held-entries">
@@ -68,19 +55,37 @@ function HeldEntries({ entries }: { readonly entries: number | null }) {
             ? t("mobile.held.titleUnknown")
             : t("mobile.held.title", { count: entries })}
         </Text>
+        <Text testID="held-owner">
+          {known ? t("mobile.held.owner", { name }) : t("mobile.held.ownerUnknown")}
+        </Text>
         <Text variant="bodyDense">{t("mobile.held.body")}</Text>
+        {deadline && final ? (
+          <Text tone="danger" emphasis testID="held-final-warning">
+            {entries === null
+              ? t("mobile.held.finalWarningUnknown", { ...deadline, name })
+              : t("mobile.held.finalWarning", { ...deadline, count: entries, name })}
+          </Text>
+        ) : deadline ? (
+          <Text variant="bodyDense" testID="held-deadline">
+            {t("mobile.held.deadline", deadline)}
+          </Text>
+        ) : null}
       </View>
-      <Button
-        label={
+      <DeleteWithReason
+        buttonLabel={
           entries === null
             ? t("mobile.held.discardUnknown")
             : t("mobile.held.discard", { count: entries })
         }
-        variant="destructive"
-        onPress={confirmDiscard}
-        loading={deleting}
-        fullWidth
-        testID="held-discard-button"
+        confirmTitle={
+          entries === null
+            ? t("mobile.held.discardTitleUnknown")
+            : t("mobile.held.discardTitle", { count: entries })
+        }
+        confirmBody={t("mobile.held.discardBody")}
+        reasonLabel={t("mobile.discard.reasonLabel")}
+        onConfirm={(reason) => vault.discardHeld(reason)}
+        testID="held-discard"
       />
     </Card>
   );
@@ -163,7 +168,7 @@ export default function SignInScreen() {
             </Text>
           </View>
 
-          {session.held ? <HeldEntries entries={session.held.entries} /> : null}
+          {session.held ? <HeldEntries held={session.held} /> : null}
 
           {session.notice ? (
             <Text tone="warning" accessibilityRole="alert" testID="sign-in-notice">

@@ -12,9 +12,14 @@
  * and the next online start corrects it.
  */
 
-import { isValidWindowDays, OFFLINE_WINDOW_RATE_KEY } from "@harbour/sync/client";
+import {
+  isValidWindowDays,
+  OFFLINE_WINDOW_RATE_KEY,
+  offlineWindowDays,
+} from "@harbour/sync/client";
 import type { AbstractPowerSyncDatabase } from "@powersync/common";
 import type { FetchLike } from "../auth/http";
+import { AGE_OUT_REFUSED_CONTENT_SQL } from "../care/queries";
 import { TENANT_HEADER } from "./connector";
 
 /** Days kept until the tenant's figure is known (today only). */
@@ -32,20 +37,25 @@ export interface FetchWindowOptions {
 }
 
 /** The tenant's figure from the rate table, or null when it cannot be read or is not usable. */
-export async function fetchOfflineWindowDays(options: FetchWindowOptions): Promise<number | null> {
+export function fetchOfflineWindowDays(options: FetchWindowOptions): Promise<number | null> {
+  return fetchRateDays(options, OFFLINE_WINDOW_RATE_KEY);
+}
+
+/** A whole number of days (1 to 31) from the rate table, or null when it cannot be read. */
+export async function fetchRateDays(
+  options: FetchWindowOptions,
+  key: string,
+): Promise<number | null> {
   try {
-    const response = await options.fetch(
-      `${options.apiUrl}/v1/rates/${encodeURIComponent(OFFLINE_WINDOW_RATE_KEY)}`,
-      {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-          Authorization: `Bearer ${options.token}`,
-          [TENANT_HEADER]: options.tenantId,
-        },
-        credentials: "omit",
+    const response = await options.fetch(`${options.apiUrl}/v1/rates/${encodeURIComponent(key)}`, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${options.token}`,
+        [TENANT_HEADER]: options.tenantId,
       },
-    );
+      credentials: "omit",
+    });
     if (!response.ok) return null;
     const body: unknown = await response.json();
     const value =
@@ -68,7 +78,7 @@ export function chooseWindowDays(fetched: number | null, cached: number | null):
   return fetched ?? cached ?? FAIL_SAFE_WINDOW_DAYS;
 }
 
-type MetaStore = Pick<AbstractPowerSyncDatabase, "getOptional" | "execute">;
+export type MetaStore = Pick<AbstractPowerSyncDatabase, "getOptional" | "execute">;
 
 export async function readCachedWindowDays(db: MetaStore): Promise<number | null> {
   const row = await db
@@ -102,4 +112,22 @@ export async function resolveOfflineWindow(
     await writeCachedWindowDays(db, fetched).catch(() => undefined);
   }
   return { days: chooseWindowDays(fetched, cached) };
+}
+
+/** The first instant inside the window: UTC midnight at the start of its oldest day. */
+export function windowStart(now: Date, days: number): string {
+  const list = offlineWindowDays(now, days);
+  return `${list[list.length - 1]}T00:00:00.000Z`;
+}
+
+/**
+ * Removes what was recorded from refusals older than the window (S7), as synced entries leave
+ * with it. The refusal stays listed, without its content, until someone removes it.
+ */
+export async function ageOutRefusedContent(
+  db: Pick<MetaStore, "execute">,
+  now: Date,
+  days: number,
+): Promise<void> {
+  await db.execute(AGE_OUT_REFUSED_CONTENT_SQL, [windowStart(now, days)]);
 }

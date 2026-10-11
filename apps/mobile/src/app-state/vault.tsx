@@ -8,10 +8,14 @@
  *   the lock screen; the database stays open so sync carries on, and unlocking again needs strong
  *   biometrics or the passcode.
  * - Sign-out wipes the device: the database is cleared, closed and deleted, and the key destroyed,
- *   so nothing readable remains. When the API says the session has ended (401 or 403), the device
- *   is wiped only if nothing is waiting to upload; otherwise the encrypted database is kept for its
- *   owner to sign in again and send, because an expired session looks the same as a revoked one
- *   (HZ-006, `held-work.ts`).
+ *   so nothing readable remains. With entries that have not reached the server, sign-out shows how
+ *   many, needs a reason and device authentication, and leaves a tombstone (C2, S4).
+ * - When the API says the session has ended (401 or 403), the device is wiped only if nothing is
+ *   waiting to upload. Otherwise only the unsent work is kept, encrypted, for its owner to sign in
+ *   again and send, for at most `mobile.held_entries_max_days`; everything else synced is
+ *   cleared (HZ-006, S2, `held-work.ts`). An expired session looks the same as a revoked one.
+ * - The database names its owner, checked before every connection: it is never opened for anyone
+ *   else (S3).
  */
 
 import { nextWindowChange } from "@harbour/sync/client";
@@ -30,9 +34,16 @@ import {
 } from "react";
 import { AppState, Platform } from "react-native";
 import { authClient, platformFetch } from "../auth/clients";
+import { DELETE_UPLOAD_ISSUE_SQL } from "../care/queries";
 import { appEnv } from "../config/app-env";
+import { t } from "../i18n/t";
 import { clearPhotoCache } from "../people/use-person-photo";
-import { keyOptions, preferredKeyProtection, secretStore } from "../platform/secure-store";
+import {
+  keyOptions,
+  preferredKeyProtection,
+  secretStore,
+  tombstoneStore,
+} from "../platform/secure-store";
 import { resolveAutoLockMs } from "../security/auto-lock";
 import {
   assertDeviceSecure,
@@ -43,18 +54,47 @@ import {
 import {
   DB_ID_ITEM,
   databaseFilename,
+  databaseKeyRemains,
   destroyDatabaseKey,
   loadOrCreateDatabaseKey,
 } from "../security/db-key";
 import { type DeviceIntegrityResult, stubIntegrityChecker } from "../security/device-integrity";
 import { IdleTimer } from "../security/idle-timer";
 import { HarbourConnector } from "../sync/connector";
-import { deleteDatabaseFile, EncryptionUnavailableError, openDatabase } from "../sync/database";
+import {
+  databaseFileGone,
+  deleteDatabaseFile,
+  EncryptionUnavailableError,
+  openDatabase,
+} from "../sync/database";
 import { seedDemoDatabase } from "../sync/demo-seed";
-import { resolveOfflineWindow } from "../sync/offline-window";
-import { countPendingWork, discardHeldWork, type HeldWork, handleSessionEnded } from "./held-work";
+import {
+  HELD_FAIL_SAFE_DAYS,
+  heldDeadline,
+  heldTimeState,
+  readCachedHeldMaxDays,
+  resolveHeldMaxDays,
+} from "../sync/held-limit";
+import { ageOutRefusedContent, resolveOfflineWindow } from "../sync/offline-window";
+import {
+  checkDeviceOwner,
+  countPendingWork,
+  DiscardIncompleteError,
+  discardHeldWork,
+  type HeldWork,
+  HeldWorkOwnerError,
+  type HoldDb,
+  handleSessionEnded,
+  holdUnsentWork,
+  ownerOf,
+  readDeviceOwner,
+  restoreHeldWork,
+  totalPending,
+  writeDeviceOwner,
+} from "./held-work";
 import { usePreferences } from "./preferences";
 import { useSession } from "./session";
+import { recordTombstone, type Tombstone } from "./tombstones";
 
 export type VaultStatus = "locked" | "unlocking" | "unlocked";
 
@@ -79,13 +119,23 @@ interface VaultValue {
   retrySync(): Promise<void>;
   forceResync(): Promise<ResyncResult>;
   signOutAndWipe(notice?: string): Promise<void>;
-  /** Counts what has not reached the server: queued changes and refused entries. */
-  countUnsent(): Promise<number>;
   /**
-   * "Sign out and delete N unsent entries": deletes the held database and its key for good (lost
-   * device or leaver), after a confirmation naming the count.
+   * Counts what has not reached the server: queued, refused and held entries. Null while the
+   * database is closed (a cold-start lock), when the count cannot be known.
    */
-  discardHeld(): Promise<void>;
+  countUnsent(): Promise<number | null>;
+  /**
+   * Sign-out that deletes entries which have not reached the server (C2): needs a reason and
+   * device authentication, and leaves a tombstone (S4).
+   */
+  signOutDiscarding(reason: string, count: number | null): Promise<void>;
+  /**
+   * "Sign out and delete N unsent entries" on held entries: device authentication, a reason and a
+   * tombstone (S4), then the file and key are deleted and checked (S5).
+   */
+  discardHeld(reason: string): Promise<void>;
+  /** Removes one refused entry: device authentication, a reason and a tombstone (S4, C1). */
+  removeRefused(id: string, reason: string): Promise<void>;
   dismissResetNotice(): void;
 }
 
@@ -99,11 +149,25 @@ const RESET_NOTICE =
 
 const SIGN_OUT_TIMEOUT_MS = 5_000;
 
+/** Device authentication before deleting entries that never reached the server (S4). */
+async function confirmIdentity(): Promise<void> {
+  const result = await authenticate(t("mobile.discard.authPrompt"));
+  if (!result.ok) throw new Error(unlockFailureMessages[result.reason]);
+}
+
+function tombstoneId(): string {
+  return Crypto.randomUUID();
+}
+
 /** How often to check whether the offline window has moved on (a UTC day boundary passed). */
 const WINDOW_CHECK_MS = 5 * 60_000;
 
 function errorMessage(error: unknown): string {
-  if (error instanceof DeviceNotSecureError || error instanceof EncryptionUnavailableError) {
+  if (
+    error instanceof DeviceNotSecureError ||
+    error instanceof EncryptionUnavailableError ||
+    error instanceof HeldWorkOwnerError
+  ) {
     return error.message;
   }
   const text = error instanceof Error ? error.message.toLowerCase() : "";
@@ -123,6 +187,8 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
   const [offlineWindowDays, setOfflineWindowDays] = useState<number | null>(null);
   /** When the window the device connected with stops being current (the next UTC midnight). */
   const windowValidUntilRef = useRef<Date | null>(null);
+  /** The tenant's `mobile.held_entries_max_days`, once read (S2). */
+  const heldMaxDaysRef = useRef<number | null>(null);
 
   const dbRef = useRef<AbstractPowerSyncDatabase | null>(null);
   const filenameRef = useRef<string | null>(null);
@@ -155,6 +221,11 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       );
       setOfflineWindowDays(window.days);
       windowValidUntilRef.current = nextWindowChange(now);
+      heldMaxDaysRef.current = await resolveHeldMaxDays(
+        database,
+        token && tenantId ? { apiUrl: appEnv.apiUrl, fetch: platformFetch, token, tenantId } : null,
+      ).catch(() => heldMaxDaysRef.current);
+      await ageOutRefusedContent(database, now, window.days).catch(() => undefined);
       await database.connect(connector);
     },
     [],
@@ -206,53 +277,98 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
     };
   }, [session.phase]);
 
-  const openVault = useCallback(async () => {
-    await assertDeviceSecure();
-    const { key, created, previousId } = await loadOrCreateDatabaseKey({
-      store: secretStore,
-      randomBytes: (length) => Crypto.getRandomBytes(length),
-      options: keyOptions,
-      preferredProtection: preferredKeyProtection(),
-    });
-    if (key.protection === "passcode") {
-      // The keystore read did not prompt, so ask for the passcode explicitly.
-      const result = await authenticate("Unlock Harbour");
-      if (!result.ok) throw new Error(unlockFailureMessages[result.reason]);
-    }
-    if (created && previousId) {
-      deleteDatabaseFile(databaseFilename(previousId, appEnv.demoMode));
-      setResetNotice(RESET_NOTICE);
-    }
-
-    const filename = databaseFilename(key.id, appEnv.demoMode);
-    const opened = await openDatabase({
-      filename,
-      encryptionKey: key.sqlcipherKey,
-      demo: appEnv.demoMode,
-    });
-    dbRef.current = opened;
-    filenameRef.current = filename;
-
-    if (appEnv.demoMode) {
-      setDemoSeededAt(await seedDemoDatabase(opened));
-    } else {
-      const connector = new HarbourConnector({
-        apiUrl: appEnv.apiUrl,
-        fetch: platformFetch,
-        getToken: async () => tokenRef.current,
-        onSessionRevoked: () => {
-          void sessionEndedRef.current();
-        },
+  const openVault = useCallback(
+    async (afterWipe = false): Promise<void> => {
+      await assertDeviceSecure();
+      const { key, created, previousId } = await loadOrCreateDatabaseKey({
+        store: secretStore,
+        randomBytes: (length) => Crypto.getRandomBytes(length),
+        options: keyOptions,
+        preferredProtection: preferredKeyProtection(),
       });
-      connectorRef.current = connector;
-      connectSync(opened, connector).catch(() => undefined);
-      session.refreshMe().then((result) => {
-        if (result === "ended") void sessionEndedRef.current();
+      if (key.protection === "passcode") {
+        // The keystore read did not prompt, so ask for the passcode explicitly.
+        const result = await authenticate("Unlock Harbour");
+        if (!result.ok) throw new Error(unlockFailureMessages[result.reason]);
+      }
+      if (created && previousId) {
+        deleteDatabaseFile(databaseFilename(previousId, appEnv.demoMode));
+        setResetNotice(RESET_NOTICE);
+      }
+
+      const filename = databaseFilename(key.id, appEnv.demoMode);
+      const opened = await openDatabase({
+        filename,
+        encryptionKey: key.sqlcipherKey,
+        demo: appEnv.demoMode,
       });
-    }
-    setDb(opened);
-    stubIntegrityChecker.check().then(setIntegrity, () => undefined);
-  }, [session.refreshMe, connectSync]);
+      dbRef.current = opened;
+      filenameRef.current = filename;
+
+      if (appEnv.demoMode) {
+        setDemoSeededAt(await seedDemoDatabase(opened));
+      } else {
+        // S3: the database names its owner, checked before the device connects.
+        const me = meRef.current;
+        if (!me) throw new HeldWorkOwnerError();
+        const stored = await readDeviceOwner(opened);
+        const check = checkDeviceOwner(stored, me, created);
+        if (check === "claim") await writeDeviceOwner(opened, ownerOf(me));
+        if (check === "other") {
+          const counts = await countPendingWork(opened).catch(() => null);
+          if (counts && totalPending(counts) === 0) {
+            // Nobody's unsent work: delete it and start a fresh database for this person.
+            await closeAndDeleteRef.current(true);
+            await destroyDatabaseKey(secretStore, keyOptions);
+            if (afterWipe) throw new Error(t("mobile.vault.resetFailed"));
+            return openVaultRef.current(true);
+          }
+          // Someone else's unsent work, or an owner that cannot be read: hold it for them and
+          // refuse this sign-in. It is never opened for the next person.
+          const now = new Date();
+          const days = (await readCachedHeldMaxDays(opened)) ?? HELD_FAIL_SAFE_DAYS;
+          await holdUnsentWork(opened as unknown as HoldDb, now).catch(() => 0);
+          await closeKeepingDataRef.current();
+          const owner = stored && stored !== "unreadable" ? stored : null;
+          const token = tokenRef.current;
+          if (token) void authClient.signOut(token).catch(() => undefined);
+          await session.holdSession(
+            {
+              tenantId: owner?.tenantId ?? "",
+              tenantUserId: owner?.tenantUserId ?? null,
+              userId: owner?.userId ?? "",
+              ownerName: owner?.name ?? null,
+              entries: counts ? totalPending(counts) : null,
+              heldAt: now.toISOString(),
+              expiresAt: heldDeadline(now, days).toISOString(),
+            },
+            t("mobile.held.otherUser"),
+          );
+          throw new HeldWorkOwnerError();
+        }
+        // The owner is back: held entries go into the upload queue again before connecting.
+        await restoreHeldWork(opened as unknown as HoldDb, new Date()).catch(() => undefined);
+        const connector = new HarbourConnector({
+          apiUrl: appEnv.apiUrl,
+          fetch: platformFetch,
+          getToken: async () => tokenRef.current,
+          onSessionRevoked: () => {
+            void sessionEndedRef.current();
+          },
+        });
+        connectorRef.current = connector;
+        connectSync(opened, connector).catch(() => undefined);
+        session.refreshMe().then((result) => {
+          if (result === "ended") void sessionEndedRef.current();
+        });
+      }
+      setDb(opened);
+      stubIntegrityChecker.check().then(setIntegrity, () => undefined);
+    },
+    [session.refreshMe, session.holdSession, connectSync],
+  );
+  const openVaultRef = useRef(openVault);
+  openVaultRef.current = openVault;
 
   const unlock = useCallback(async () => {
     if (busyRef.current || session.phase !== "signedIn") return;
@@ -279,6 +395,9 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
     }
   }, [openVault, session.phase]);
 
+  const closeAndDeleteRef = useRef<(clear: boolean) => Promise<void>>(async () => undefined);
+  const closeKeepingDataRef = useRef<() => Promise<void>>(async () => undefined);
+
   const closeAndDelete = useCallback(async (clear: boolean) => {
     const current = dbRef.current;
     const filename = filenameRef.current;
@@ -292,6 +411,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
     }
     if (filename) deleteDatabaseFile(filename);
   }, []);
+  closeAndDeleteRef.current = closeAndDelete;
 
   const signOutAndWipe = useCallback(
     async (notice?: string) => {
@@ -338,6 +458,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       await current.close().catch(() => undefined);
     }
   }, []);
+  closeKeepingDataRef.current = closeKeepingData;
 
   const holdingRef = useRef(false);
 
@@ -350,14 +471,23 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
     holdingRef.current = true;
     try {
       const current = dbRef.current;
+      const now = new Date();
+      const days =
+        heldMaxDaysRef.current ??
+        (current ? await readCachedHeldMaxDays(current) : null) ??
+        HELD_FAIL_SAFE_DAYS;
       await handleSessionEnded({
         countPending: async () => (current ? countPendingWork(current) : null),
         owner: meRef.current,
-        now: new Date(),
+        now,
+        expiresAt: heldDeadline(now, days),
         wipe: () => signOutAndWipe(REMOTE_WIPE_NOTICE),
         hold: async (held: HeldWork) => {
           idle.stop();
           setStatus("locked");
+          // Only the unsent work stays (S2). If the copy fails, the whole database stays
+          // encrypted rather than losing entries.
+          if (current) await holdUnsentWork(current as unknown as HoldDb, now).catch(() => 0);
           await closeKeepingData();
           clearPhotoCache();
           setOfflineWindowDays(null);
@@ -372,27 +502,145 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
   }, [closeKeepingData, idle, session.holdSession, signOutAndWipe]);
   sessionEndedRef.current = sessionEnded;
 
-  const countUnsent = useCallback(async () => {
+  const countUnsent = useCallback(async (): Promise<number | null> => {
     const current = dbRef.current;
-    if (!current) return 0;
-    const counts = await countPendingWork(current).catch(() => ({ queued: 0, refused: 0 }));
-    return counts.queued + counts.refused;
+    if (!current) return null;
+    const counts = await countPendingWork(current).catch(() => null);
+    return counts ? totalPending(counts) : null;
   }, []);
 
-  const discardHeld = useCallback(async () => {
-    await closeKeepingData();
-    await discardHeldWork({
-      readDatabaseId: () => secretStore.getItem(DB_ID_ITEM, keyOptions.plainOptions),
-      deleteDatabaseFile,
-      destroyKey: () => destroyDatabaseKey(secretStore, keyOptions),
-      clearHeld: session.clearHeld,
-      demo: appEnv.demoMode,
+  const signOutDiscarding = useCallback(
+    async (reason: string, count: number | null) => {
+      await confirmIdentity();
+      const me = meRef.current;
+      await recordTombstone(
+        tombstoneStore,
+        {
+          kind: "signed_out_with_unsent",
+          tenantId: me?.tenant.id ?? null,
+          ownerTenantUserId: me?.tenantUserId ?? null,
+          count,
+          recordIds: [],
+          reason,
+          at: new Date().toISOString(),
+        },
+        tombstoneId(),
+      );
+      await signOutAndWipe();
+    },
+    [signOutAndWipe],
+  );
+
+  /** Deletes the held entries for good, checking the file and key are gone (S5). */
+  const deleteHeld = useCallback(
+    async (tombstone: Tombstone) => {
+      await closeKeepingData();
+      await discardHeldWork({
+        readDatabaseId: () => secretStore.getItem(DB_ID_ITEM, keyOptions.plainOptions),
+        deleteDatabaseFile,
+        destroyKey: () => destroyDatabaseKey(secretStore, keyOptions),
+        databaseGone: databaseFileGone,
+        keyRemains: () => databaseKeyRemains(secretStore, keyOptions),
+        recordTombstone: (stone) => recordTombstone(tombstoneStore, stone, tombstoneId()),
+        tombstone,
+        clearHeld: session.clearHeld,
+        demo: appEnv.demoMode,
+      });
+      clearPhotoCache();
+      setError(null);
+    },
+    [closeKeepingData, session.clearHeld],
+  );
+
+  const discardHeld = useCallback(
+    async (reason: string) => {
+      await confirmIdentity();
+      const held = session.held;
+      await deleteHeld({
+        kind: "held_deleted",
+        tenantId: held?.tenantId || null,
+        ownerTenantUserId: held?.tenantUserId ?? null,
+        count: held?.entries ?? null,
+        recordIds: [],
+        reason,
+        at: new Date().toISOString(),
+      });
+      // A full sign-out: the kept app mode goes too, so the next person starts fresh.
+      await session.clearSession();
+    },
+    [deleteHeld, session.held, session.clearSession],
+  );
+
+  const removeRefused = useCallback(async (id: string, reason: string) => {
+    await confirmIdentity();
+    const current = dbRef.current;
+    const me = meRef.current;
+    if (!current || !me) throw new Error(t("mobile.discard.notOpen"));
+    await recordTombstone(
+      tombstoneStore,
+      {
+        kind: "refused_removed",
+        tenantId: me.tenant.id,
+        ownerTenantUserId: me.tenantUserId,
+        count: 1,
+        recordIds: [id],
+        reason,
+        at: new Date().toISOString(),
+      },
+      tombstoneId(),
+    );
+    await current.execute(DELETE_UPLOAD_ISSUE_SQL, [me.tenant.id, id]);
+  }, []);
+
+  // A hold that has run its time is deleted (S2): the final warning on the sign-in screen named
+  // the count during its last day; the notice afterwards says what was deleted and whose it was.
+  const expiringRef = useRef(false);
+  useEffect(() => {
+    const held = session.held;
+    if (session.phase !== "signedOut" || !held) return;
+    const check = () => {
+      if (expiringRef.current || heldTimeState(held.expiresAt, new Date()) !== "expired") return;
+      expiringRef.current = true;
+      deleteHeld({
+        kind: "held_expired",
+        tenantId: held.tenantId || null,
+        ownerTenantUserId: held.tenantUserId,
+        count: held.entries,
+        recordIds: [],
+        reason: t("mobile.held.expiredReason"),
+        at: new Date().toISOString(),
+      })
+        .then(() =>
+          session.clearSession(
+            held.entries === null
+              ? t("mobile.held.expiredNoticeUnknown")
+              : t("mobile.held.expiredNotice", {
+                  count: held.entries,
+                  name: held.ownerName ?? t("mobile.held.someone"),
+                }),
+          ),
+        )
+        .catch((caught: unknown) => {
+          setError(
+            caught instanceof DiscardIncompleteError
+              ? caught.message
+              : t("mobile.held.discardIncomplete"),
+          );
+        })
+        .finally(() => {
+          expiringRef.current = false;
+        });
+    };
+    check();
+    const interval = setInterval(check, WINDOW_CHECK_MS);
+    const subscription = AppState.addEventListener("change", (next) => {
+      if (next === "active") check();
     });
-    clearPhotoCache();
-    setError(null);
-    // A full sign-out: the kept app mode goes too, so the next person starts fresh.
-    await session.clearSession();
-  }, [closeKeepingData, session.clearHeld, session.clearSession]);
+    return () => {
+      clearInterval(interval);
+      subscription.remove();
+    };
+  }, [session.phase, session.held, session.clearSession, deleteHeld]);
 
   const retrySync = useCallback(async () => {
     const current = dbRef.current;
@@ -472,7 +720,9 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       forceResync,
       signOutAndWipe,
       countUnsent,
+      signOutDiscarding,
       discardHeld,
+      removeRefused,
       dismissResetNotice,
     }),
     [
@@ -491,7 +741,9 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       forceResync,
       signOutAndWipe,
       countUnsent,
+      signOutDiscarding,
       discardHeld,
+      removeRefused,
       dismissResetNotice,
     ],
   );

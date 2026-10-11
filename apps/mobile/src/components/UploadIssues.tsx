@@ -1,36 +1,24 @@
-import { Button, Text, useTheme } from "@harbour/ui-native";
-import { usePowerSync } from "@powersync/react";
-import { Alert, View } from "react-native";
+import { Text, useTheme } from "@harbour/ui-native";
+import { View } from "react-native";
+import { useVault } from "../app-state/vault";
 import { issueItem } from "../care/entry-view";
-import { useTenantId, useUploadIssues } from "../care/hooks";
-import { DELETE_UPLOAD_ISSUE_SQL } from "../care/queries";
+import { useUploadIssues } from "../care/hooks";
 import { t } from "../i18n/t";
 import { Card } from "./Card";
+import { DeleteWithReason } from "./DeleteWithReason";
 
 /**
  * Entries the server refused for good (HZ-006): never dropped silently. Each shows the person, the
  * server's reason and what was recorded, and leaves the device only when someone removes it after
- * recording it again or telling the nurse in charge.
+ * recording it again or telling the nurse in charge: with a reason and device authentication, and
+ * a tombstone kept for the audit trail (security review S4, clinical review C1).
  */
 export function UploadIssues({ personId }: { readonly personId?: string }) {
   const theme = useTheme();
-  const db = usePowerSync();
-  const tenantId = useTenantId();
+  const vault = useVault();
   const rows = useUploadIssues();
   const items = rows.map(issueItem).filter((i) => !personId || i.personId === personId);
   if (items.length === 0) return null;
-
-  const remove = (id: string) =>
-    Alert.alert(t("mobile.issues.removeTitle"), t("mobile.issues.removeBody"), [
-      { text: t("common.cancel"), style: "cancel" },
-      {
-        text: t("mobile.issues.remove"),
-        style: "destructive",
-        onPress: () => {
-          void db.execute(DELETE_UPLOAD_ISSUE_SQL, [tenantId, id]);
-        },
-      },
-    ]);
 
   return (
     <Card title={t("mobile.issues.title")} testID="upload-issues">
@@ -49,10 +37,13 @@ export function UploadIssues({ personId }: { readonly personId?: string }) {
             <Text variant="bodyDense">{item.reason}</Text>
             {item.content ? <Text variant="bodyDense">{item.content}</Text> : null}
           </View>
-          <Button
-            label={t("mobile.issues.remove")}
-            variant="secondary"
-            onPress={() => remove(item.id)}
+          <DeleteWithReason
+            buttonLabel={t("mobile.issues.remove")}
+            confirmTitle={t("mobile.issues.removeTitle")}
+            confirmBody={t("mobile.issues.removeBody")}
+            confirmLabel={t("mobile.issues.remove")}
+            reasonLabel={t("mobile.issues.removeReason")}
+            onConfirm={(reason) => vault.removeRefused(item.id, reason)}
             testID={`issue-${item.id}-remove`}
           />
         </View>

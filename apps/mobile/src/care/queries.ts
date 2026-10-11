@@ -214,12 +214,15 @@ export interface AssessmentRow {
   readonly supersedes_id: string | null;
 }
 
-/** Entries the server refused, kept on the device until dealt with. */
+/**
+ * Entries the server refused, kept on the device until dealt with. A refusal recorded without a
+ * tenant (an entry that lost its tenant) is listed too, so it can never sit unseen (S7).
+ */
 export const UPLOAD_ISSUES_SQL = `SELECT i.id, i.person_id, i.record_table, i.http_status, i.code,
   i.message, i.payload, i.rejected_at, p.preferred_name, p.given_name, p.family_name
 FROM upload_issue i
 LEFT JOIN person p ON p.id = i.person_id AND p.tenant_id = i.tenant_id
-WHERE i.tenant_id = ?
+WHERE (i.tenant_id = ? OR i.tenant_id IS NULL)
 ORDER BY i.rejected_at DESC, i.id`;
 
 export interface UploadIssueRow {
@@ -236,4 +239,13 @@ export interface UploadIssueRow {
   readonly family_name: string | null;
 }
 
-export const DELETE_UPLOAD_ISSUE_SQL = "DELETE FROM upload_issue WHERE tenant_id = ? AND id = ?";
+export const DELETE_UPLOAD_ISSUE_SQL =
+  "DELETE FROM upload_issue WHERE (tenant_id = ? OR tenant_id IS NULL) AND id = ?";
+
+/**
+ * Refused content ages out with the offline window (S7): once the refusal is older than the
+ * window, what was recorded is removed from the device and the entry stays listed, without its
+ * content, until someone removes it with a reason.
+ */
+export const AGE_OUT_REFUSED_CONTENT_SQL =
+  "UPDATE upload_issue SET payload = NULL WHERE payload IS NOT NULL AND rejected_at < ?";

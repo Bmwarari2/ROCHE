@@ -7,6 +7,7 @@ import { checkNote } from "./notes";
 import { resuscitationFlag } from "./person-summary";
 import {
   type AdvanceCareRow,
+  AGE_OUT_REFUSED_CONTENT_SQL,
   ALL_ADVANCE_CARE_SQL,
   ASSESSMENTS_SQL,
   byPerson,
@@ -185,5 +186,58 @@ describe("hazard HZ-006 refused uploads on the device", () => {
     expect(all(db, UPLOAD_ISSUES_SQL, [OTHER])).toEqual([]);
     db.prepare(DELETE_UPLOAD_ISSUE_SQL).run(DEMO_TENANT_ID, "issue-1");
     expect(all(db, UPLOAD_ISSUES_SQL, [DEMO_TENANT_ID])).toEqual([]);
+  });
+
+  it("hazard HZ-006 shows and removes a refusal recorded without a tenant (S7)", () => {
+    db.prepare(
+      "INSERT INTO upload_issue (id, tenant_id, person_id, record_table, code, message, payload, rejected_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    ).run(
+      "issue-orphan",
+      null,
+      null,
+      "care_note",
+      "entry_incomplete",
+      "Missing",
+      "{}",
+      "2026-10-11",
+    );
+    const rows = all<UploadIssueRow>(db, UPLOAD_ISSUES_SQL, [DEMO_TENANT_ID]);
+    expect(rows.map((r) => r.id)).toEqual(["issue-orphan"]);
+    db.prepare(DELETE_UPLOAD_ISSUE_SQL).run(DEMO_TENANT_ID, "issue-orphan");
+    expect(all(db, UPLOAD_ISSUES_SQL, [DEMO_TENANT_ID])).toEqual([]);
+  });
+
+  it("hazard HZ-028 ages refused content out with the window, keeping the refusal listed (S7)", () => {
+    const insert = db.prepare(
+      "INSERT INTO upload_issue (id, tenant_id, person_id, record_table, code, message, payload, rejected_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    );
+    insert.run(
+      "old",
+      DEMO_TENANT_ID,
+      BEA,
+      "care_note",
+      "invalid",
+      "Closed",
+      '{"body":"x"}',
+      "2026-10-01T09:00:00.000Z",
+    );
+    insert.run(
+      "new",
+      DEMO_TENANT_ID,
+      BEA,
+      "care_note",
+      "invalid",
+      "Closed",
+      '{"body":"y"}',
+      "2026-10-11T09:00:00.000Z",
+    );
+    // A 3-day window on 11/10/2026 starts at the beginning of 09/10/2026 (UTC).
+    db.prepare(AGE_OUT_REFUSED_CONTENT_SQL).run("2026-10-09T00:00:00.000Z");
+    const rows = all<UploadIssueRow>(db, UPLOAD_ISSUES_SQL, [DEMO_TENANT_ID]);
+    expect(rows.map((r) => [r.id, r.payload])).toEqual([
+      ["new", '{"body":"y"}'],
+      ["old", null],
+    ]);
+    db.prepare("DELETE FROM upload_issue").run();
   });
 });

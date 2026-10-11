@@ -20,10 +20,12 @@ import {
   ME_ITEM,
   MODE_ITEM,
   readPlain,
+  readPlainStrict,
   SESSION_TOKEN_ITEM,
   writePlain,
 } from "../platform/secure-store";
-import { admitSignIn, type HeldWork, parseHeldWork, serialiseHeldWork } from "./held-work";
+import { DB_ID_ITEM } from "../security/db-key";
+import { admitSignIn, type HeldWork, readHeldMarker, serialiseHeldWork } from "./held-work";
 import { type AppMode, parseAppMode } from "./preferences-model";
 
 export type SessionPhase = "loading" | "signedOut" | "signedIn";
@@ -48,13 +50,21 @@ interface SessionValue {
   /** Forgets the session. Callers wipe the device first (see the vault). */
   clearSession(notice?: string): Promise<void>;
   /** Ends the session but keeps the device's unsent entries for their owner. */
-  holdSession(held: HeldWork): Promise<void>;
+  holdSession(held: HeldWork, notice?: string): Promise<void>;
   /** Forgets the held entries marker (after the owner signed in, or a deliberate delete). */
   clearHeld(): Promise<void>;
   dismissNotice(): void;
 }
 
 const SessionContext = createContext<SessionValue | null>(null);
+
+/** The held marker, read failing closed: a keystore error means "held, owner unknown" (S3). */
+function readHeld(): Promise<HeldWork | null> {
+  return readHeldMarker({
+    readMarker: () => readPlainStrict(HELD_WORK_ITEM),
+    readDatabaseId: () => readPlainStrict(DB_ID_ITEM),
+  });
+}
 
 function parseStoredMe(raw: string | null): Me | null {
   if (!raw) return null;
@@ -80,10 +90,10 @@ export function SessionProvider({ children }: { readonly children: ReactNode }) 
         readPlain(SESSION_TOKEN_ITEM),
         readPlain(ME_ITEM),
         readPlain(MODE_ITEM),
-        readPlain(HELD_WORK_ITEM),
+        readHeld(),
       ]);
       if (!active) return;
-      setHeld(parseHeldWork(storedHeld));
+      setHeld(storedHeld);
       const parsedMe = parseStoredMe(storedMe);
       // Without the cached tenant the app cannot scope offline queries, so it starts signed out.
       if (storedToken && parsedMe) {
@@ -103,8 +113,10 @@ export function SessionProvider({ children }: { readonly children: ReactNode }) 
   const completeSignIn = useCallback(async (newToken: string) => {
     const loaded = await authClient.getMe(newToken);
     // Entries held for someone else stay held: this sign-in is ended and refused (HZ-006).
+    const current = await readHeld();
+    setHeld(current);
     const admitted = await admitSignIn({
-      held: parseHeldWork(await readPlain(HELD_WORK_ITEM)),
+      held: current,
       me: loaded,
       token: newToken,
       signOut: (token) => authClient.signOut(token),
@@ -153,14 +165,14 @@ export function SessionProvider({ children }: { readonly children: ReactNode }) 
     setPhase("signedOut");
   }, []);
 
-  const holdSession = useCallback(async (next: HeldWork) => {
+  const holdSession = useCallback(async (next: HeldWork, message?: string) => {
     await writePlain(HELD_WORK_ITEM, serialiseHeldWork(next));
     // The mode is kept so the owner goes straight back to Care mode after signing in again.
     await Promise.all([deletePlain(SESSION_TOKEN_ITEM), deletePlain(ME_ITEM)]);
     setHeld(next);
     setToken(null);
     setMe(null);
-    setNotice(null);
+    setNotice(message ?? null);
     setPhase("signedOut");
   }, []);
 
