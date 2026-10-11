@@ -965,8 +965,9 @@ Six hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014) have a target resid
 
 | Test | Status |
 | --- | --- |
-| `packages/domain` (care): `hazard HZ-018 handover includes every safety-critical item from the shift` | Planned, Phase 1 |
-| `packages/domain` (care): `hazard HZ-018 items synced after compilation are appended as late additions` | Planned, Phase 1 |
+| `packages/domain/src/care/handover.test.ts`: `hazard HZ-018 handover includes every safety-critical item from the shift` (falls, NEWS2 above low including a single parameter of 3, incidents, urgent alerts, new body-map marks, overdue tasks, MUST follow-ups, refusals; entries synced late count for the shift that received them) | Passing (domain) |
+| `packages/domain/src/care/handover.test.ts`: `hazard HZ-018 items synced after compilation are appended as late additions` (items are never removed; an acknowledgement made before a late addition no longer counts) | Passing (domain) |
+| `apps/api` (care): handover compiled, refreshed and acknowledged through the API | Planned, Phase 1 slice 5 |
 
 ---
 

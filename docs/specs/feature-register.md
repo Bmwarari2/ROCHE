@@ -105,7 +105,7 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | CARE-010 | Core charts: fluid balance, food intake with IDDSI levels, repositioning, bowel, weight, vital signs | 10.1 | 1 | partial | [care](care.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/care/fluid-balance.ts`, `iddsi.ts`, `repositioning.ts`, `bowel.ts`, `weight.ts`, `entries.ts`, `apps/api/src/routes/care.ts` | `packages/domain/src/care/fluid-balance.test.ts`, `iddsi.test.ts`, `charts.test.ts`, `entries.test.ts`, `apps/api/test/care.test.ts` | - |
 | CARE-011 | Further charts: blood glucose, oxygen, seizure, sleep, behaviour ABC, pain, continence, wound, bath and oral care | 10.1 | 5 | todo | - | - | - | - |
 | CARE-012 | Body maps with pressure-ulcer categories and photos | 10.1 | 1 | partial | [care](care.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/care/body-map.ts`, `apps/api/src/routes/care.ts` | `packages/domain/src/care/body-map.test.ts`, `apps/api/test/care.test.ts` | - |
-| CARE-013 | Scheduled tasks, rounds and auto-compiled shift handover | 10.1 | 1 | todo | - | - | - | - |
+| CARE-013 | Scheduled tasks, rounds and auto-compiled shift handover | 10.1 | 1 | partial | [care](care.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/care/handover.ts`, `rounds.ts`, `packages/domain/src/platform/tasks.ts` | `packages/domain/src/care/handover.test.ts`, `rounds.test.ts` | - |
 | CARE-014 | Activities and wellbeing record, life story and Reg 9A visiting log | 10.1 | 1 | todo | - | - | - | - |
 | CARE-015 | ReSPECT and DNACPR record (clinician, date, review) | 10.1 | 1 | todo | - | - | - | - |
 | CARE-016 | End of life: advance care plan, ADRT, preferred place of care, anticipatory medicines, NG31 last-days care, GSF coding, after-death care | 10.1 | 5 | todo | - | - | - | - |
@@ -237,7 +237,7 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | COMMS-003 | Person's own portal (About Me, notes feed, preferences, feedback) | 15.1 | 4 | todo | - | - | - | - |
 | COMMS-004 | Time-limited professional access | 15.1 | 4 | todo | - | - | - | - |
 | COMMS-005 | Internal messaging and announcements | 15.1 | 4 | todo | - | - | - | - |
-| COMMS-006 | Handover acknowledgement | 15.1 | 1 | todo | - | - | - | - |
+| COMMS-006 | Handover acknowledgement | 15.1 | 1 | partial | [care](care.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/care/handover.ts` | `packages/domain/src/care/handover.test.ts` | - |
 | COMMS-007 | Letter and email templates with approval | 15.1 | 1 | todo | - | - | - | - |
 | COMMS-008 | Optional public website module with vacancies, fees, rating widget and enquiry form | 15.1 | 4 | todo | - | - | - | - |
 | INSI-001 | Role dashboards | 15.2 | 1 | todo | - | - | - | - |

@@ -114,7 +114,16 @@ applies). Figures come from `rate_table` by key.
    safeguarding decision guide (see [safety.md](safety.md)).
 8. **Handover.** Compiled from the shift's late tasks, NEWS2 of 5 or more, incidents, new body-map
    marks, refusals, falls, and alerts; nothing safety-critical can be removed, only added to. Each
-   incoming member of staff acknowledges it.
+   incoming member of staff acknowledges it. As built (`packages/domain/src/care/handover.ts`):
+   shifts start at `handover.day_shift_start_hour` and `handover.night_shift_start_hour` in UK local
+   time, so a night shift over a clock change is 11 or 13 hours; an entry belongs to the shift it
+   happened in and to the shift that received it late; NEWS2 is included for any band above "low",
+   which also covers a single parameter scoring 3 (the RCP's urgent-response trigger), not only an
+   aggregate of 5 or more; tasks still overdue at the end of the shift and MUST follow-ups raised
+   in it are included; falls and refusals also come from notes tagged `fall` or `refusal`. Items
+   that sync after compilation are appended as late additions, and an acknowledgement made before
+   one no longer counts. The round view (`rounds.ts`) groups the shift's tasks by floor, then room
+   in natural order, then due time, and keeps unfinished tasks from before the round on it.
 9. **Capacity.** Assume capacity; a capacity assessment is decision-specific and time-specific, and
    records the practicable steps taken to support the person to decide. An outcome of "lacks
    capacity" is accepted only when stage 1 is met and at least one stage 2 element is not.
