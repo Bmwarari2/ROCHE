@@ -252,6 +252,23 @@ or `not_recorded` (HZ-015). `GET /v1/people/{id}/care-history/{table}/{recordId}
 versions of the mutable records. Every write for a discharged, deceased or archived person is
 refused. Outbox events `care.plan.published` and `care.assessment.completed` are written.
 
+Built in slice 9 (web, part 1): the person's record in `apps/web/src/app/(shell)/people/[id]/` as
+ten tabs (overview, care plan, assessments, risk assessments, notes, charts, body map, advance care,
+activities and visits, history), each its own page under a layout that keeps the point-of-care
+header above every tab (HZ-001). The header adds the resuscitation decision in force as a word and
+an icon with its source and review date, "not recorded" as a warning (HZ-015), and the prescribed
+IDDSI levels as number, name and colour (HZ-016). Notes are grouped by correction chain, the
+original struck through with who corrected it, when and why. Charts show the fluid day in UK time
+as the API summed it; vital signs show the NEWS2 score, the RCP's wording and the workings as
+stored; food and drink show the prescribed level beside the choice (HZ-014, HZ-016). The body map
+has front and back drawings labelled with the person's left and right and a list of the same areas
+for keyboard and screen reader users; the side is confirmed in words and the API's refusal of a
+mismatch is shown word for word (HZ-019). Care plan versions carry their status in word and icon; a
+draft is edited by need domain and published from a sheet that records who agreed it (HZ-024).
+Assessments, risk assessments, advance care records, activities, visits and record history follow
+the API. The web app never scores: every result, band and response is the API's. Playwright
+journeys with axe are in `apps/web/e2e/care-record.spec.ts`.
+
 
 Resources under `/v1/people/{personId}/...`: `care-plans`, `risk-assessments`, `assessments`,
 `notes`, `observations`, `body-map`, `tasks`, `activities`, `visits`, `advance-care`, `consents`,
@@ -310,3 +327,15 @@ through recorded sharing decisions ([people.md](people.md)).
   defaulting off in production tenants, on in the demo tenant.
 - Scale 2 SpO2 needs a clinician's record; Phase 1 stores who recorded it and when, Phase 5 links it
   to GP Connect.
+- API gaps found building the web screens (slice 9), for the API owners:
+  - Entries, sign-offs, publications and record versions carry a tenant user id only, so the screens
+    say "recorded by you" or "by a colleague". Regulation 17 attribution needs the staff member's
+    name (and role) on the output, or a staff lookup route.
+  - The NEWS2 flags omit the RCP's chart 4 clinical response lines, and nothing gives the tenant's
+    escalation policy to link from a result (medical-device boundary, section 5 rule 4).
+  - Validated tool citations (`VALIDATED_TOOLS`), body map regions, and the low-band MUST wording are
+    not served; the web keeps copies tested against `packages/domain`.
+  - Risk template titles and questions, and refusal details, come in English only, so a Welsh shell
+    would show them in English.
+  - A group activity is recorded per person, with a new session id each time; a route that records a
+    group session for several people at once is needed to count attendance.
