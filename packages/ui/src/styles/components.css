@@ -120,8 +120,12 @@
     color: var(--on-accent);
   }
 
+  /*
+   * Hover darkens the accent: white on the lighter --accent-hover (#0077ed) is about 4.3:1, below
+   * WCAG 2.2 AA for the button's text, and the pointer often rests on a button after a click.
+   */
   .hb-button--primary:hover:not(:disabled) {
-    background-color: var(--accent-hover);
+    background-color: color-mix(in srgb, var(--accent) 86%, #000000);
   }
 
   .hb-button--secondary {
@@ -1906,6 +1910,15 @@
     display: inline-flex;
     flex-wrap: wrap;
     gap: 4px;
+  }
+
+  /*
+   * Long lists: items beyond the first 20 are laid out and painted only when they come near the
+   * viewport, so a month of entries stays fast. They stay in the accessibility tree.
+   */
+  .hb-long-list > li:nth-child(n + 21) {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 120px;
   }
 
   .hb-timeline__footer {

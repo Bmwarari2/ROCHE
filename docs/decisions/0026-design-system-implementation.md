@@ -56,3 +56,6 @@ does not settle.
   decorative). `StatusChip` takes an `icon` for states with their own symbol, such as a care plan
   draft; `Timeline` takes translated correction words, status chips beside the time and a footer
   for actions and earlier versions.
+- The primary button's hover state darkens the accent instead of using `--accent-hover` (#0077ed):
+  white text on #0077ed is about 4.3:1, below AA, and Playwright's axe scans found it on a button
+  the pointer rested on after a click. The token stays for other uses.
