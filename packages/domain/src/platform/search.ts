@@ -17,12 +17,14 @@ import type { PlatformRates } from "./rates";
  *   searched in, from the user's permissions and attribute scope (locations, teams, assigned
  *   people, the time window and agency access ending at shift end plus a rate-table period).
  * - `buildBreakGlassSearchPlan` is the separate path for finding a person outside scope: it needs
- *   break-glass permission, a fresh sign-in, a reason code and a typed reason.
+ *   break-glass permission, an MFA sign-in within the step-up window, a reason code and a typed
+ *   reason; it matches whole name words only, withholds location and room, is rate-limited and
+ *   alerts the Registered Manager and the data protection lead.
  * - `filterSearchResults` applies the plan again to whatever the database returned (defence in
- *   depth behind row-level security) and counts only what the user may see, so a result count never
- *   reveals that an out-of-scope record exists.
- * - `searchAuditEvent` records what was searched and how many results were shown, never the words
- *   typed, which are often a person's name.
+ *   depth behind row-level security), ranks people first and exact matches first, warns when two
+ *   people share a name, and counts only what the user may see.
+ * - `searchAuditEvent` records the opaque ids shown, which count as care-record views, never the
+ *   words typed, which are often a person's name.
  */
 
 /** Bounds on what a search accepts. Input validation limits, not policy or statutory figures. */
@@ -110,6 +112,8 @@ export type NormalisedSearchQuery =
       readonly terms: readonly string[];
       /** Prefix query for `to_tsquery('harbour_search', $1)`, always as a bound parameter. */
       readonly tsQuery: string;
+      /** Whole-word query (no prefixes): break-glass search, and exact matches ranked first. */
+      readonly exactTsQuery: string;
       /** Terms dropped as too short or beyond the limit, so the screen can say so. */
       readonly ignoredTerms: number;
     }
@@ -128,14 +132,21 @@ const QUERY_MESSAGES: Record<SearchQueryProblem, string> = {
   invalid_nhs_number: "This is not a valid NHS number. Check the 10 digits and try again.",
 };
 
-/** Digits, spaces and hyphens only, with exactly ten digits: the shape of an NHS number. */
-function looksLikeNhsNumber(text: string): boolean {
+/**
+ * The shape of an attempted NHS number: digits with spaces, hyphens or dots between them, and 9 to
+ * 11 digits. Only exactly 10 digits without dots can be valid; the rest are near misses that are
+ * refused with the NHS number message rather than searched as text (HZ-001).
+ */
+function nhsNumberAttempt(text: string): "none" | "candidate" | "malformed" {
   let digits = 0;
+  let dotted = false;
   for (const ch of text) {
     if (ch >= "0" && ch <= "9") digits += 1;
-    else if (ch !== " " && ch !== "-") return false;
+    else if (ch === ".") dotted = true;
+    else if (ch !== " " && ch !== "-") return "none";
   }
-  return digits === 10;
+  if (digits < 9 || digits > 11) return "none";
+  return digits === 10 && !dotted ? "candidate" : "malformed";
 }
 
 export function normaliseSearchQuery(raw: string): SearchQueryCheck {
@@ -148,7 +159,9 @@ export function normaliseSearchQuery(raw: string): SearchQueryCheck {
   const text = raw.normalize("NFKC").trim();
   if (text.length === 0) return fail("empty");
 
-  if (looksLikeNhsNumber(text)) {
+  const attempt = nhsNumberAttempt(text);
+  if (attempt === "malformed") return fail("invalid_nhs_number");
+  if (attempt === "candidate") {
     const nhs = validateNhsNumber(text);
     // A mistyped number never falls back to a near match: the wrong person is worse than none.
     if (!nhs.valid) return fail("invalid_nhs_number");
@@ -174,6 +187,7 @@ export function normaliseSearchQuery(raw: string): SearchQueryCheck {
       kind: "text",
       terms,
       tsQuery: terms.map((t) => `${t}:*`).join(" & "),
+      exactTsQuery: terms.join(" & "),
       ignoredTerms: ignored,
     },
   };
@@ -198,6 +212,9 @@ export type SearchStaffScope =
   | { readonly kind: "tenant" }
   | { readonly kind: "locations"; readonly locationIds: readonly string[] };
 
+/** Which person fields the query is matched against. */
+export type PersonMatchField = "names" | "room_label" | "nhs_number";
+
 export interface SearchPlanEntity {
   readonly type: SearchEntityType;
   /** The permission the entity's results rest on. */
@@ -209,6 +226,8 @@ export interface SearchPlanEntity {
   readonly careRecord: boolean;
   /** For documents: the categories searched (titles and display file names only). */
   readonly documentCategories?: readonly DocumentCategoryKey[];
+  /** For people: the fields matched. */
+  readonly matchFields?: readonly PersonMatchField[];
 }
 
 export type SearchOmissionReason = "not_permitted" | "no_scope" | "mfa_required" | "not_applicable";
@@ -216,6 +235,8 @@ export type SearchOmissionReason = "not_permitted" | "no_scope" | "mfa_required"
 export interface SearchPlan {
   readonly kind: "scoped" | "break_glass";
   readonly query: NormalisedSearchQuery;
+  /** Prefix matching for ordinary search; whole name words only for break-glass search. */
+  readonly matching: "prefix" | "whole_word";
   readonly entities: readonly SearchPlanEntity[];
   /** Asked for but not searched, with why; says nothing about any record. */
   readonly omitted: readonly {
@@ -229,10 +250,7 @@ export interface SearchPlan {
   /** When the user's access ends (role expiry or agency shift end plus the post-shift period). */
   readonly validUntil: Date | null;
   readonly pageSize: number;
-  readonly breakGlass: {
-    readonly reason: string;
-    readonly reasonCode: BreakGlassReasonCode;
-  } | null;
+  readonly breakGlass: { readonly reasonCode: BreakGlassReasonCode } | null;
 }
 
 export type SearchPlanProblem =
@@ -240,13 +258,15 @@ export type SearchPlanProblem =
   | "not_permitted"
   | "archived_not_permitted"
   | "access_expired"
+  | "no_shift_recorded"
   | "mfa_required"
   | "nothing_to_search"
   | "step_up_required"
   | "reason_too_short"
   | "reason_too_long"
   | "reason_code_required"
-  | "query_not_specific";
+  | "query_not_specific"
+  | "rate_limited";
 
 export type SearchPlanCheck =
   | { readonly ok: true; readonly plan: SearchPlan }
@@ -257,15 +277,19 @@ const PLAN_MESSAGES: Record<Exclude<SearchPlanProblem, SearchQueryProblem>, stri
   archived_not_permitted:
     "Your role cannot search people who have left the service. Ask your manager if you need a past record.",
   access_expired: "Your access has ended. Sign in again if you are on shift.",
+  no_shift_recorded:
+    "No shift is recorded for you today, so search is not available. Ask the person in charge.",
   mfa_required:
     "Set up a second sign-in step (an authenticator app or a passkey) to search records.",
   nothing_to_search: "Your role cannot search any of the kinds of record you chose.",
-  step_up_required: "Sign in again to search outside your usual access.",
+  step_up_required: "Sign in again with your second step to search outside your usual access.",
   reason_too_short: `Explain why you need to find this person (${SEARCH_LIMITS.breakGlassReasonMinLength} characters or more).`,
   reason_too_long: `Keep the reason to ${SEARCH_LIMITS.breakGlassReasonMaxLength} characters or fewer.`,
   reason_code_required: "Choose the reason that fits best.",
   query_not_specific:
     "Search outside your usual access by full name (first and last) or by NHS number.",
+  rate_limited:
+    "You have made the most break-glass searches allowed in 24 hours. The data protection lead has been told.",
 };
 
 function planFail(problem: SearchPlanProblem): SearchPlanCheck {
@@ -287,12 +311,30 @@ export const PERSON_IDENTITY_FIELDS = [
   "room",
   "status",
 ] as const;
-/** What a names-and-rooms role (`people.demographics.read`) sees. */
+/**
+ * What a names-and-rooms role (`people.demographics.read`) sees. These roles record visitors,
+ * moves and incidents, so they get the photo and the age (not the date of birth) to tell two
+ * people apart, and the same-name warning (HZ-001).
+ */
 export const PERSON_DEMOGRAPHIC_FIELDS = [
   "name",
   "preferred_name",
+  "photo",
+  "age",
   "location",
   "room",
+  "status",
+] as const;
+/**
+ * What a break-glass search shows before the record is opened: enough to confirm identity, and
+ * never where the person is (location and room appear only after the alerting open step).
+ */
+export const BREAK_GLASS_RESULT_FIELDS = [
+  "name",
+  "preferred_name",
+  "date_of_birth",
+  "nhs_number",
+  "photo",
   "status",
 ] as const;
 
@@ -340,7 +382,9 @@ export function agencyAccessEndsAt(
 export interface SearchAccessWindow {
   /** The end of the time-boxed role (external professionals, agency, inspectors), if any. */
   readonly roleEndsAt: Date | null;
-  /** For agency and bank workers: the end of the shift they are working. */
+  /** Agency and bank workers: their access follows the shift they are working. */
+  readonly isAgencyWorker: boolean;
+  /** For agency and bank workers: the end of the shift they are working; null when none. */
   readonly agencyShiftEndsAt: Date | null;
 }
 
@@ -424,6 +468,7 @@ function decideEntity(
         fields: full ? PERSON_IDENTITY_FIELDS : PERSON_DEMOGRAPHIC_FIELDS,
         personScoped: true,
         careRecord: touchesCareRecords(permission),
+        matchFields: query.kind === "nhs_number" ? ["nhs_number"] : ["names", "room_label"],
       });
     }
     case "staff": {
@@ -479,7 +524,8 @@ function decideEntity(
 
 /**
  * Plans an ordinary search: only the kinds of record the user may read, only in their scope, only
- * while their access lasts, and only open records unless they may and do ask for closed ones.
+ * while their access lasts, and only open records unless they may and do ask for closed ones. An
+ * agency worker with no shift recorded has no window at all, so search fails closed.
  */
 export function buildSearchPlan(
   request: SearchRequest,
@@ -489,6 +535,9 @@ export function buildSearchPlan(
 ): SearchPlanCheck {
   const { access } = actor;
   if (!can(access, "platform.search.use")) return planFail("not_permitted");
+  if (actor.window.isAgencyWorker && actor.window.agencyShiftEndsAt === null) {
+    return planFail("no_shift_recorded");
+  }
   const validUntil = accessValidUntil(actor.window, rates);
   if (validUntil !== null && now.getTime() >= validUntil.getTime()) {
     return planFail("access_expired");
@@ -520,6 +569,7 @@ export function buildSearchPlan(
     plan: {
       kind: "scoped",
       query,
+      matching: "prefix",
       entities,
       omitted,
       personScope: entities.some((e) => e.personScoped)
@@ -541,6 +591,7 @@ function isBreakGlassReasonCode(value: string): value is BreakGlassReasonCode {
 
 export interface BreakGlassSearchRequest {
   readonly rawQuery: string;
+  /** The typed reason; stored in the break-glass record, never in the audit event. */
   readonly reason: string;
   readonly reasonCode: BreakGlassReasonCode | string | null;
   readonly includeArchived?: boolean;
@@ -549,28 +600,34 @@ export interface BreakGlassSearchRequest {
 export interface BreakGlassSearchActor {
   readonly access: EffectiveAccess;
   readonly mfaEnrolled: boolean;
-  readonly lastStrongAuthAt: Date | null;
+  /** The last sign-in completed with the second step (TOTP or passkey); step-up needs one. */
+  readonly lastMfaSignInAt: Date | null;
+  /** Break-glass searches this user ran in the 24 hours before now. */
+  readonly searchesInLast24Hours: number;
 }
 
 /**
  * Plans a break-glass search (master prompt section 4): finding a person outside the user's scope.
- * Needs `platform.search.use` and `people.person.break_glass` with a fresh sign-in, MFA, a reason
- * code and a typed reason, and a specific query (an NHS number, or at least two name terms), and
- * returns only identity fields for at most `breakGlassMaxResults` people. Opening a record found
- * this way is the ordinary break-glass step, which alerts the Registered Manager.
+ * Needs `platform.search.use` and `people.person.break_glass` with an MFA sign-in within the
+ * step-up window, a reason code and a typed reason, a specific query (an NHS number, or at least
+ * two name words), and fewer than `break_glass.search_max_per_day` such searches in 24 hours. It
+ * matches whole words of names only (no prefixes, no room labels), shows identity fields only for
+ * at most `breakGlassMaxResults` people, and withholds location and room until the record is
+ * opened through the ordinary break-glass step.
  */
 export function buildBreakGlassSearchPlan(
   request: BreakGlassSearchRequest,
   actor: BreakGlassSearchActor,
   now: Date,
   stepUpWindowSeconds: number,
+  rates: Pick<PlatformRates, "breakGlassSearchMaxPerDay">,
 ): SearchPlanCheck {
   const { access } = actor;
   if (!can(access, "platform.search.use")) return planFail("not_permitted");
   const decision = authorise(
     access,
     "people.person.break_glass",
-    actor.lastStrongAuthAt,
+    actor.lastMfaSignInAt,
     now,
     stepUpWindowSeconds,
   );
@@ -578,6 +635,9 @@ export function buildBreakGlassSearchPlan(
     return planFail(decision.reason === "step_up_required" ? "step_up_required" : "not_permitted");
   }
   if (!actor.mfaEnrolled) return planFail("mfa_required");
+  if (actor.searchesInLast24Hours >= rates.breakGlassSearchMaxPerDay) {
+    return planFail("rate_limited");
+  }
   const includeArchived = request.includeArchived === true;
   if (includeArchived && !can(access, "platform.search.archived")) {
     return planFail("archived_not_permitted");
@@ -598,13 +658,15 @@ export function buildBreakGlassSearchPlan(
     plan: {
       kind: "break_glass",
       query: checked.query,
+      matching: "whole_word",
       entities: [
         {
           type: "person",
           permission: "people.person.break_glass",
-          fields: PERSON_IDENTITY_FIELDS,
+          fields: BREAK_GLASS_RESULT_FIELDS,
           personScoped: true,
           careRecord: true,
+          matchFields: checked.query.kind === "nhs_number" ? ["nhs_number"] : ["names"],
         },
       ],
       omitted: [],
@@ -614,7 +676,7 @@ export function buildBreakGlassSearchPlan(
       includeArchived,
       validUntil: null,
       pageSize: SEARCH_LIMITS.breakGlassMaxResults,
-      breakGlass: { reason, reasonCode: request.reasonCode },
+      breakGlass: { reasonCode: request.reasonCode },
     },
   };
 }
@@ -623,11 +685,18 @@ export function buildBreakGlassSearchPlan(
 // Results
 // ------------------------------------------------------------------------------------------------
 
-/** One candidate row from the database, with what the plan needs to check it again. */
+/** One candidate row from the database, with what the plan needs to check and rank it. */
 export interface SearchHit {
   readonly entityType: SearchEntityType;
   readonly id: string;
+  /** Text-search relevance from the database; the last tie-breaker before the id. */
   readonly rank: number;
+  /** Whether every term matched a whole word (`exact`) or only as a prefix. */
+  readonly matchQuality: "exact" | "prefix";
+  /** The person's or colleague's full name, or the document title, for ordering and warnings. */
+  readonly sortName: string | null;
+  /** People only: their date of birth (YYYY-MM-DD), to order people with the same name. */
+  readonly dateOfBirth?: string | null;
   /** The person the record is about (people, their documents and notes); null otherwise. */
   readonly personId: string | null;
   readonly personStatus: PersonStatus | null;
@@ -642,12 +711,19 @@ export interface SearchHit {
   readonly staffLocationIds?: readonly string[] | null;
 }
 
+export interface SearchWarning {
+  readonly kind: "same_name";
+  /** People in the results who share a name: the screen flags each of them (HZ-001). */
+  readonly personIds: readonly string[];
+}
+
 export interface SearchResultPage {
   readonly items: readonly SearchHit[];
   /** Per kind, counted only over what the user may see. */
   readonly counts: Readonly<Record<SearchEntityType, number>>;
   readonly total: number;
   readonly hasMore: boolean;
+  readonly warnings: readonly SearchWarning[];
   /**
    * Rows the database returned that the plan does not allow. Never shown or counted for the user;
    * anything above zero means row-level security and the plan disagree, so the API raises a
@@ -691,9 +767,66 @@ function visible(plan: SearchPlan, hit: SearchHit): boolean {
     if (!rule.personScoped) return hit.personId === null;
   }
   if (hit.entityType === "note" && hit.superseded === true) return false;
+  // Break-glass search matches whole words only: a prefix match is never shown.
+  if (plan.matching === "whole_word" && hit.matchQuality !== "exact") return false;
   if (hit.personId === null || hit.personStatus === null || plan.personScope === null) return false;
   if (!plan.personStatuses.includes(hit.personStatus)) return false;
   return personInScope(plan.personScope, hit);
+}
+
+const ENTITY_ORDER: Readonly<Record<SearchEntityType, number>> = {
+  person: 0,
+  staff: 1,
+  document: 2,
+  note: 3,
+};
+
+/** Current people first (those receiving care before those being assessed), then people who left. */
+const STATUS_ORDER: readonly PersonStatus[] = [
+  "active",
+  "on_leave",
+  "in_hospital",
+  "pre_admission",
+  "enquiry",
+  "discharged",
+  "deceased",
+  "not_admitted",
+  "archived",
+];
+
+const statusRank = (s: PersonStatus | null) => (s === null ? -1 : STATUS_ORDER.indexOf(s));
+const nameCollator = new Intl.Collator("en-GB", { sensitivity: "base" });
+
+/**
+ * Result order (HZ-001): people before other kinds of record; whole-word matches before prefix
+ * matches; then by status (current before former), name, date of birth, relevance and id, so the
+ * order is stable and the right person is easiest to find.
+ */
+export function compareSearchHits(a: SearchHit, b: SearchHit): number {
+  return (
+    ENTITY_ORDER[a.entityType] - ENTITY_ORDER[b.entityType] ||
+    Number(a.matchQuality !== "exact") - Number(b.matchQuality !== "exact") ||
+    statusRank(a.personStatus) - statusRank(b.personStatus) ||
+    nameCollator.compare(a.sortName ?? "", b.sortName ?? "") ||
+    (a.dateOfBirth ?? "").localeCompare(b.dateOfBirth ?? "") ||
+    b.rank - a.rank ||
+    a.id.localeCompare(b.id)
+  );
+}
+
+/** People in the results who share a name, compared as the index compares names. */
+export function sameNameWarnings(hits: readonly SearchHit[]): SearchWarning[] {
+  const groups = new Map<string, string[]>();
+  for (const hit of hits) {
+    if (hit.entityType !== "person" || hit.personId === null || !hit.sortName) continue;
+    const key = searchTerms(hit.sortName).join(" ");
+    const ids = groups.get(key) ?? [];
+    if (!ids.includes(hit.personId)) ids.push(hit.personId);
+    groups.set(key, ids);
+  }
+  return [...groups.values()]
+    .filter((ids) => ids.length > 1)
+    .map((personIds) => ({ kind: "same_name" as const, personIds }));
 }
 
 /** Applies the plan to the candidate rows, ranks them and counts only what may be seen. */
@@ -709,19 +842,52 @@ export function filterSearchResults(
     number
   >;
   for (const hit of shown) counts[hit.entityType] += 1;
-  const ordered = [...shown].sort((a, b) => b.rank - a.rank || a.id.localeCompare(b.id));
+  const ordered = [...shown].sort(compareSearchHits);
   return {
     items: ordered.slice(0, plan.pageSize),
     counts,
     total: shown.length,
     hasMore: shown.length > plan.pageSize,
+    warnings: sameNameWarnings(shown),
     droppedByPlan: hits.length - shown.length,
   };
 }
 
 // ------------------------------------------------------------------------------------------------
-// Audit
+// Alerts and audit
 // ------------------------------------------------------------------------------------------------
+
+export interface BreakGlassSearchAlert {
+  /** Generic, with no personal data (checked again by `outboundTitleProblem` before sending). */
+  readonly title: string;
+  readonly body: string;
+  /** Registered Managers of these locations, and the data protection lead(s), are told. */
+  readonly recipientRoleKeys: readonly ["registered_manager", "data_protection_lead"];
+  /** Locations of the people shown, used only to route the alert; never shown to the searcher. */
+  readonly locationIds: readonly string[];
+  readonly personIds: readonly string[];
+}
+
+/**
+ * The alert a break-glass search raises as soon as it runs, before any record is opened: the
+ * Registered Manager for each location whose people were shown, and the data protection lead. A
+ * search refused for the daily limit tells the data protection lead too (`limitReached`).
+ */
+export function breakGlassSearchAlert(
+  page: Pick<SearchResultPage, "items"> | null,
+  limitReached = false,
+): BreakGlassSearchAlert {
+  const items = page?.items ?? [];
+  const unique = (values: (string | null)[]) =>
+    [...new Set(values.filter((v): v is string => v !== null))].sort();
+  return {
+    title: limitReached ? "Break-glass search limit reached" : "A break-glass search was made",
+    body: "Review the search and its reason in the audit log.",
+    recipientRoleKeys: ["registered_manager", "data_protection_lead"],
+    locationIds: unique(items.map((h) => h.personLocationId)),
+    personIds: unique(items.map((h) => h.personId)),
+  };
+}
 
 export interface SearchAuditEvent {
   readonly action:
@@ -730,8 +896,8 @@ export interface SearchAuditEvent {
     | "platform.search.refused";
   readonly outcome: "success" | "denied";
   readonly resourceType: "search";
-  /** The typed break-glass reason, as for opening a record with break-glass; otherwise null. */
-  readonly reason: string | null;
+  /** Always null: a break-glass reason lives in its break-glass record, referenced by id. */
+  readonly reason: null;
   readonly scope: {
     readonly queryKind: NormalisedSearchQuery["kind"] | null;
     readonly termCount: number;
@@ -741,41 +907,69 @@ export interface SearchAuditEvent {
       readonly reason: SearchOmissionReason;
     }[];
     readonly includeArchived: boolean;
+    readonly personScope: SearchPersonScope["kind"] | null;
+    readonly locationIds: readonly string[];
+    readonly validUntil: string | null;
     readonly resultCounts: Readonly<Record<SearchEntityType, number>> | null;
     readonly total: number;
-    /** Break-glass only: the people whose details were shown outside scope (opaque ids). */
-    readonly personIds?: readonly string[];
+    /** The opaque ids shown on the page, by kind. */
+    readonly resultIds: Readonly<Record<SearchEntityType, readonly string[]>> | null;
+    /** People whose details appeared: each counts as a view of their care record. */
+    readonly personIds: readonly string[];
+    readonly careRecordView: boolean;
+    readonly breakGlassRecordId?: string;
     readonly reasonCode?: BreakGlassReasonCode;
     readonly problem?: SearchPlanProblem;
   };
 }
 
 /**
- * The audit event for a search that ran. It never holds the words typed or the NHS number, not
- * even hashed: they are usually a name, and a hash of a name can be reversed by trying names
- * (platform-completions.md rule 8). Ordinary searches record counts; a break-glass search also
- * records the opaque ids of the people shown, because their details were outside scope.
+ * The audit event for a search that ran (platform-completions.md rule 8). It holds the opaque ids
+ * shown on the page, which count as views of those people's care records, the scope searched and
+ * when the user's access ends; never the words typed or the NHS number, not even hashed (a hash of
+ * a name can be reversed by trying names). A break-glass search refers to its break-glass record,
+ * which holds the typed reason, rather than copying the reason into the audit trail.
  */
-export function searchAuditEvent(plan: SearchPlan, page: SearchResultPage): SearchAuditEvent {
+export function searchAuditEvent(
+  plan: SearchPlan,
+  page: SearchResultPage,
+  context: { readonly breakGlassRecordId?: string } = {},
+): SearchAuditEvent {
   const breakGlass = plan.breakGlass;
+  if (breakGlass && !context.breakGlassRecordId) {
+    throw new RangeError("A break-glass search is audited with its break-glass record id.");
+  }
+  const resultIds = Object.fromEntries(
+    SEARCH_ENTITY_TYPES.map((t) => [
+      t,
+      page.items.filter((h) => h.entityType === t).map((h) => h.id),
+    ]),
+  ) as Record<SearchEntityType, string[]>;
+  const personIds = [
+    ...new Set(page.items.map((h) => h.personId).filter((id): id is string => id !== null)),
+  ].sort();
+  const scope = plan.personScope;
   return {
     action: breakGlass ? "platform.search.break_glass" : "platform.search.run",
     outcome: "success",
     resourceType: "search",
-    reason: breakGlass ? breakGlass.reason : null,
+    reason: null,
     scope: {
       queryKind: plan.query.kind,
       termCount: plan.query.kind === "text" ? plan.query.terms.length : 1,
       entityTypes: plan.entities.map((e) => e.type),
       omitted: plan.omitted,
       includeArchived: plan.includeArchived,
+      personScope: scope?.kind ?? null,
+      locationIds: scope?.kind === "locations" ? scope.locationIds : [],
+      validUntil: plan.validUntil ? plan.validUntil.toISOString() : null,
       resultCounts: page.counts,
       total: page.total,
+      resultIds,
+      personIds,
+      careRecordView: personIds.length > 0,
       ...(breakGlass
-        ? {
-            personIds: page.items.map((h) => h.personId).filter((id): id is string => id !== null),
-            reasonCode: breakGlass.reasonCode,
-          }
+        ? { breakGlassRecordId: context.breakGlassRecordId, reasonCode: breakGlass.reasonCode }
         : {}),
     },
   };
@@ -797,8 +991,14 @@ export function searchRefusalAuditEvent(
       entityTypes,
       omitted: [],
       includeArchived: false,
+      personScope: null,
+      locationIds: [],
+      validUntil: null,
       resultCounts: null,
       total: 0,
+      resultIds: null,
+      personIds: [],
+      careRecordView: false,
       problem,
     },
   };

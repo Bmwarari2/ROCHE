@@ -5,8 +5,12 @@ import { type EffectiveAccess, resolveAccess } from "./access";
 import { builtinRole } from "./roles";
 import {
   agencyAccessEndsAt,
+  BREAK_GLASS_RESULT_FIELDS,
+  type BreakGlassSearchRequest,
+  breakGlassSearchAlert,
   buildBreakGlassSearchPlan,
   buildSearchPlan,
+  compareSearchHits,
   filterSearchResults,
   normaliseSearchQuery,
   SEARCH_CLOSED_PERSON_STATUSES,
@@ -16,6 +20,7 @@ import {
   type SearchHit,
   type SearchPlan,
   type SearchPlanProblem,
+  sameNameWarnings,
   searchAuditEvent,
   searchRefusalAuditEvent,
   searchTerms,
@@ -27,6 +32,7 @@ const NORTH = "0193a000-0000-7000-8000-000000000101";
 const SOUTH = "0193a000-0000-7000-8000-000000000102";
 const STEP_UP_SECONDS = 600;
 const RATES = tablePlatformRates();
+const SHIFT_END = new Date("2026-10-11T20:00:00Z");
 
 function accessFor(roleKey: string, locationId: string | null = null): EffectiveAccess {
   const role = builtinRole(roleKey);
@@ -52,10 +58,15 @@ function actor(
   locationId: string | null = null,
   extra: Partial<SearchActor> = {},
 ): SearchActor {
+  const agency = roleKey === "agency_worker";
   return {
     access: accessFor(roleKey, locationId),
     mfaEnrolled: true,
-    window: { roleEndsAt: null, agencyShiftEndsAt: null },
+    window: {
+      roleEndsAt: null,
+      isAgencyWorker: agency,
+      agencyShiftEndsAt: agency ? SHIFT_END : null,
+    },
     ...extra,
   };
 }
@@ -69,6 +80,24 @@ function planFor(
   const result = buildSearchPlan({ rawQuery, ...extra }, who, now, RATES);
   if (!result.ok) throw new Error(`expected a plan, got ${result.problem}`);
   return result.plan;
+}
+
+let counter = 0;
+function hit(extra: Partial<SearchHit> = {}): SearchHit {
+  counter += 1;
+  return {
+    entityType: "person",
+    id: `hit-${String(counter).padStart(3, "0")}`,
+    rank: 1,
+    matchQuality: "exact",
+    sortName: `Person ${counter} Example`,
+    dateOfBirth: "1940-01-01",
+    personId: `p-${String(counter).padStart(3, "0")}`,
+    personStatus: "active",
+    personLocationId: NORTH,
+    assignedToActor: false,
+    ...extra,
+  };
 }
 
 describe("search terms match the index's normalisation", () => {
@@ -104,8 +133,16 @@ describe("query normalisation (hazard HZ-001: an NHS number is exact, never a ne
     ["an NHS number with hyphens", "999-000-0018", null, "9990000018"],
     ["an NHS number typed in full-width digits", "９９９０００００１８", null, "9990000018"],
     ["an NHS number with a wrong check digit", "999 000 0019", "invalid_nhs_number", null],
-    ["nine digits are a text search", "999 000 001", null, ["999", "000", "001"]],
-    ["eleven digits are a text search", "99900000181", null, ["99900000181"]],
+    [
+      "nine digits are a mistyped NHS number, not a text search",
+      "999 000 001",
+      "invalid_nhs_number",
+      null,
+    ],
+    ["eleven digits are a mistyped NHS number", "99900000181", "invalid_nhs_number", null],
+    ["a dotted ten-digit number is refused", "999.000.0018", "invalid_nhs_number", null],
+    ["eight digits are a text search", "1234 5678", null, ["1234", "5678"]],
+    ["a room number is a text search", "Room 12", null, ["room", "12"]],
   ])("%s", (_label, raw, problem, expected) => {
     const result = normaliseSearchQuery(raw);
     if (problem !== null) {
@@ -121,9 +158,12 @@ describe("query normalisation (hazard HZ-001: an NHS number is exact, never a ne
     }
   });
 
-  it("builds a prefix query from the terms alone", () => {
+  it("builds a prefix query and a whole-word query from the terms alone", () => {
     const result = normaliseSearchQuery("Ada Example");
-    expect(result).toMatchObject({ ok: true, query: { tsQuery: "ada:* & example:*" } });
+    expect(result).toMatchObject({
+      ok: true,
+      query: { tsQuery: "ada:* & example:*", exactTsQuery: "ada & example" },
+    });
   });
 
   it("keeps at most the term limit, cuts long terms and says how many were ignored", () => {
@@ -145,11 +185,12 @@ describe("query normalisation (hazard HZ-001: an NHS number is exact, never a ne
     ["separators", `${"-".repeat(199)}!`],
     ["tsquery operators", "ada & !example | (smith) <-> x:* 'quoted'"],
     ["mixed scripts", "Ада アダ Ada"],
-  ])("never lets operators into the prefix query (%s)", (_label, raw) => {
+  ])("never lets operators into either query (%s)", (_label, raw) => {
     const result = normaliseSearchQuery(raw);
     if (!result.ok || result.query.kind !== "text") return;
     for (const term of result.query.terms) expect(term).toMatch(/^[\p{L}\p{N}]+$/u);
     expect(result.query.tsQuery.split(" & ")).toEqual(result.query.terms.map((t) => `${t}:*`));
+    expect(result.query.exactTsQuery.split(" & ")).toEqual(result.query.terms);
   });
 });
 
@@ -192,7 +233,7 @@ describe("hazard HZ-011 search plan follows permission and scope", () => {
     ],
     ["the owner", "owner", null, ["person", "staff", "document", "note"], {}],
     [
-      "an agency worker",
+      "an agency worker on shift",
       "agency_worker",
       null,
       ["person", "document", "note"],
@@ -202,6 +243,7 @@ describe("hazard HZ-011 search plan follows permission and scope", () => {
     const plan = planFor(actor(role, location));
     expect(plan.entities.map((e) => e.type)).toEqual(searched);
     expect(Object.fromEntries(plan.omitted.map((o) => [o.type, o.reason]))).toEqual(omitted);
+    expect(plan.matching).toBe("prefix");
   });
 
   it.each<[string, string, string | null, SearchPlan["personScope"]]>([
@@ -239,12 +281,20 @@ describe("hazard HZ-011 search plan follows permission and scope", () => {
     expect(planFor(actor(role, location)).staffScope).toEqual(scope);
   });
 
-  it("shows identity fields to care roles and only names and rooms to an administrator (HZ-001)", () => {
+  it("shows identity fields to care roles, and the photo and age (never the date of birth) to an administrator (HZ-001)", () => {
     const care = planFor(actor("care_worker")).entities.find((e) => e.type === "person");
     const admin = planFor(actor("administrator", NORTH)).entities.find((e) => e.type === "person");
     expect(care?.fields).toEqual(expect.arrayContaining(["date_of_birth", "nhs_number", "photo"]));
+    expect(admin?.fields).toEqual(expect.arrayContaining(["photo", "age", "room"]));
     expect(admin?.fields).not.toContain("date_of_birth");
     expect(admin?.fields).not.toContain("nhs_number");
+  });
+
+  it("matches people by names and room label, or by NHS number alone", () => {
+    expect(planFor(actor("care_worker")).entities[0]?.matchFields).toEqual(["names", "room_label"]);
+    expect(planFor(actor("care_worker"), "999 000 0018").entities[0]?.matchFields).toEqual([
+      "nhs_number",
+    ]);
   });
 
   it.each<[string, string, string | null, string[]]>([
@@ -376,32 +426,41 @@ describe("hazard HZ-011 search plan follows permission and scope", () => {
 });
 
 describe("hazard HZ-011 agency access expires at shift end plus 2 hours", () => {
-  const shiftEnd = new Date("2026-10-11T20:00:00Z");
   const agency = (extra: Partial<SearchActor["window"]> = {}) =>
     actor("agency_worker", null, {
-      window: { roleEndsAt: null, agencyShiftEndsAt: shiftEnd, ...extra },
+      window: { roleEndsAt: null, isAgencyWorker: true, agencyShiftEndsAt: SHIFT_END, ...extra },
     });
 
   it("ends access the rate-table period after the shift ends", () => {
-    const ends = agencyAccessEndsAt(shiftEnd, RATES);
-    expect((ends.getTime() - shiftEnd.getTime()) / 3_600_000).toBe(RATES.agencyPostShiftHours);
+    const ends = agencyAccessEndsAt(SHIFT_END, RATES);
+    expect((ends.getTime() - SHIFT_END.getTime()) / 3_600_000).toBe(RATES.agencyPostShiftHours);
   });
 
   it.each<[string, Date, boolean]>([
     ["during the shift", new Date("2026-10-11T19:00:00Z"), true],
     ["just after the shift", new Date("2026-10-11T20:30:00Z"), true],
-    ["at the end of the post-shift period", agencyAccessEndsAt(shiftEnd, RATES), false],
+    ["at the end of the post-shift period", agencyAccessEndsAt(SHIFT_END, RATES), false],
     ["the next morning", new Date("2026-10-12T08:00:00Z"), false],
   ])("search %s: %s", (_label, now, allowed) => {
     const result = buildSearchPlan({ rawQuery: "Ada Example" }, agency(), now, RATES);
     if (allowed) {
       expect(result).toMatchObject({
         ok: true,
-        plan: { validUntil: agencyAccessEndsAt(shiftEnd, RATES) },
+        plan: { validUntil: agencyAccessEndsAt(SHIFT_END, RATES) },
       });
     } else {
       expect(result).toMatchObject({ ok: false, problem: "access_expired" });
     }
+  });
+
+  it("fails closed for an agency worker with no shift recorded", () => {
+    const result = buildSearchPlan(
+      { rawQuery: "Ada Example" },
+      agency({ agencyShiftEndsAt: null }),
+      NOW,
+      RATES,
+    );
+    expect(result).toMatchObject({ ok: false, problem: "no_shift_recorded" });
   });
 
   it("uses the earlier of the role's end and the agency window", () => {
@@ -427,38 +486,48 @@ describe("hazard HZ-011 agency access expires at shift end plus 2 hours", () => 
   });
 });
 
-describe("break-glass search", () => {
+describe("hazard HZ-011 break-glass search", () => {
   const fresh = new Date(NOW.getTime() - 60_000);
   const stale = new Date(NOW.getTime() - (STEP_UP_SECONDS + 60) * 1000);
   const reason = "Covering the night shift at South and the resident fell";
-  const base = { rawQuery: "Ada Example", reason, reasonCode: "covering_another_area" };
-  const who = (role: string, lastStrongAuthAt: Date | null = fresh, mfaEnrolled = true) => ({
-    access: accessFor(role, NORTH),
-    lastStrongAuthAt,
-    mfaEnrolled,
-  });
+  const base: BreakGlassSearchRequest = {
+    rawQuery: "Ada Example",
+    reason,
+    reasonCode: "covering_another_area",
+  };
+  const who = (
+    role: string,
+    lastMfaSignInAt: Date | null = fresh,
+    mfaEnrolled = true,
+    searchesInLast24Hours = 0,
+  ) => ({ access: accessFor(role, NORTH), lastMfaSignInAt, mfaEnrolled, searchesInLast24Hours });
+  const plan = (request = base, by = who("registered_manager")) =>
+    buildBreakGlassSearchPlan(request, by, NOW, STEP_UP_SECONDS, RATES);
 
-  it("plans a tenant-wide, identity-only search for a few people with the reason", () => {
-    const result = buildBreakGlassSearchPlan(base, who("registered_manager"), NOW, STEP_UP_SECONDS);
+  it("plans a tenant-wide, whole-word, identity-only search for a few people, without where they are", () => {
+    const result = plan();
     if (!result.ok) throw new Error(result.problem);
     expect(result.plan).toMatchObject({
       kind: "break_glass",
+      matching: "whole_word",
       personScope: { kind: "tenant" },
       pageSize: SEARCH_LIMITS.breakGlassMaxResults,
-      breakGlass: { reason, reasonCode: "covering_another_area" },
+      breakGlass: { reasonCode: "covering_another_area" },
     });
+    const person = result.plan.entities[0];
     expect(result.plan.entities.map((e) => e.type)).toEqual(["person"]);
-    expect(result.plan.entities[0]?.fields).toContain("date_of_birth");
+    expect(person?.fields).toEqual(BREAK_GLASS_RESULT_FIELDS);
+    expect(person?.fields).not.toContain("location");
+    expect(person?.fields).not.toContain("room");
+    expect(person?.matchFields).toEqual(["names"]);
+    expect(JSON.stringify(result.plan)).not.toContain(reason);
   });
 
   it("accepts an NHS number as a specific query", () => {
-    const result = buildBreakGlassSearchPlan(
-      { ...base, rawQuery: "999 000 0018" },
-      who("registered_manager"),
-      NOW,
-      STEP_UP_SECONDS,
-    );
-    expect(result).toMatchObject({ ok: true, plan: { query: { kind: "nhs_number" } } });
+    expect(plan({ ...base, rawQuery: "999 000 0018" })).toMatchObject({
+      ok: true,
+      plan: { query: { kind: "nhs_number" }, entities: [{ matchFields: ["nhs_number"] }] },
+    });
   });
 
   it.each<
@@ -471,9 +540,15 @@ describe("break-glass search", () => {
   >([
     ["a care worker has no break-glass", base, who("care_worker"), "not_permitted"],
     ["an external professional has no search", base, who("external_professional"), "not_permitted"],
-    ["an old sign-in", base, who("registered_manager", stale), "step_up_required"],
-    ["no strong sign-in at all", base, who("registered_manager", null), "step_up_required"],
+    ["an old MFA sign-in", base, who("registered_manager", stale), "step_up_required"],
+    ["no MFA sign-in at all", base, who("registered_manager", null), "step_up_required"],
     ["no MFA", base, who("registered_manager", fresh, false), "mfa_required"],
+    [
+      "the daily limit reached",
+      base,
+      who("registered_manager", fresh, true, RATES.breakGlassSearchMaxPerDay),
+      "rate_limited",
+    ],
     [
       "no reason code",
       { ...base, reasonCode: null },
@@ -517,43 +592,63 @@ describe("break-glass search", () => {
       "invalid_nhs_number",
     ],
     [
-      "a deputy without the archive asking for people who left",
+      "a care worker asking for people who have left",
       { ...base, includeArchived: true },
       who("care_worker"),
       "not_permitted",
     ],
   ])("refuses: %s", (_label, request, by, problem) => {
-    expect(buildBreakGlassSearchPlan(request, by, NOW, STEP_UP_SECONDS)).toMatchObject({
-      ok: false,
-      problem,
-    });
+    expect(plan(request, by)).toMatchObject({ ok: false, problem });
+  });
+
+  it("allows searches up to the daily limit", () => {
+    const below = who("registered_manager", fresh, true, RATES.breakGlassSearchMaxPerDay - 1);
+    expect(plan(base, below).ok).toBe(true);
   });
 
   it("includes people who have left only with the archive permission", () => {
-    const result = buildBreakGlassSearchPlan(
-      { ...base, includeArchived: true },
-      who("deputy_manager"),
+    expect(plan({ ...base, includeArchived: true }, who("deputy_manager"))).toMatchObject({
+      ok: true,
+      plan: { includeArchived: true },
+    });
+  });
+
+  it("never shows a prefix match", () => {
+    const result = plan();
+    if (!result.ok) throw new Error(result.problem);
+    const page = filterSearchResults(
+      result.plan,
+      [hit({ personLocationId: SOUTH }), hit({ personLocationId: SOUTH, matchQuality: "prefix" })],
       NOW,
-      STEP_UP_SECONDS,
     );
-    expect(result).toMatchObject({ ok: true, plan: { includeArchived: true } });
+    expect(page.total).toBe(1);
+  });
+
+  it("alerts the Registered Managers of the people's locations and the data protection lead", () => {
+    const result = plan();
+    if (!result.ok) throw new Error(result.problem);
+    const page = filterSearchResults(
+      result.plan,
+      [
+        hit({ personId: "p-1", personLocationId: SOUTH }),
+        hit({ personId: "p-2", personLocationId: NORTH }),
+      ],
+      NOW,
+    );
+    const alert = breakGlassSearchAlert(page);
+    expect(alert).toMatchObject({
+      recipientRoleKeys: ["registered_manager", "data_protection_lead"],
+      locationIds: [NORTH, SOUTH].sort(),
+      personIds: ["p-1", "p-2"],
+    });
+    expect(alert.title).not.toMatch(/Example|Ada/);
+    expect(breakGlassSearchAlert(null, true)).toMatchObject({
+      title: "Break-glass search limit reached",
+      locationIds: [],
+      personIds: [],
+    });
   });
 });
-
-let counter = 0;
-function hit(extra: Partial<SearchHit> = {}): SearchHit {
-  counter += 1;
-  return {
-    entityType: "person",
-    id: `hit-${String(counter).padStart(3, "0")}`,
-    rank: 1,
-    personId: `p-${String(counter).padStart(3, "0")}`,
-    personStatus: "active",
-    personLocationId: NORTH,
-    assignedToActor: false,
-    ...extra,
-  };
-}
 
 describe("hazard HZ-011 search results and counts stay in scope", () => {
   const manager = () => planFor(actor("registered_manager", NORTH));
@@ -570,6 +665,7 @@ describe("hazard HZ-011 search results and counts stay in scope", () => {
     ["a person with no location", { personLocationId: null }, false],
     ["a person-scoped row without a person", { personId: null }, false],
     ["a person-scoped row without a status", { personStatus: null }, false],
+    ["a prefix match in an ordinary search", { matchQuality: "prefix" }, true],
     ["a note at the location", { entityType: "note" }, true],
     ["a note replaced by a correction", { entityType: "note", superseded: true }, false],
     [
@@ -660,7 +756,7 @@ describe("hazard HZ-011 search results and counts stay in scope", () => {
     expect(outOfScope.droppedByPlan).toBe(1);
   });
 
-  it("counts by kind over visible rows only and pages by rank", () => {
+  it("counts by kind over visible rows only and pages after ordering", () => {
     const plan = manager();
     const rows = [
       ...Array.from({ length: 27 }, (_, i) => hit({ rank: i })),
@@ -672,14 +768,8 @@ describe("hazard HZ-011 search results and counts stay in scope", () => {
     expect(page.total).toBe(28);
     expect(page.items).toHaveLength(SEARCH_LIMITS.pageSize);
     expect(page.hasMore).toBe(true);
-    expect(page.items[0]?.entityType).toBe("note");
+    expect(page.items.every((h) => h.entityType === "person")).toBe(true);
     expect(page.droppedByPlan).toBe(1);
-  });
-
-  it("orders equal ranks by id so pages are stable", () => {
-    const plan = manager();
-    const page = filterSearchResults(plan, [hit({ id: "b" }), hit({ id: "a" })], NOW);
-    expect(page.items.map((h) => h.id)).toEqual(["a", "b"]);
   });
 
   it("shows people who have left only on an archive search", () => {
@@ -699,6 +789,7 @@ describe("hazard HZ-011 search results and counts stay in scope", () => {
       NOW,
     );
     expect(page.total).toBe(statuses.length);
+    expect(page.items[0]?.personStatus).toBe("active");
   });
 
   it("lets a break-glass search find a person outside scope, and nothing else", () => {
@@ -708,9 +799,15 @@ describe("hazard HZ-011 search results and counts stay in scope", () => {
         reason: "Covering the night shift at South tonight",
         reasonCode: "covering_another_area",
       },
-      { access: accessFor("registered_manager", NORTH), lastStrongAuthAt: NOW, mfaEnrolled: true },
+      {
+        access: accessFor("registered_manager", NORTH),
+        lastMfaSignInAt: NOW,
+        mfaEnrolled: true,
+        searchesInLast24Hours: 0,
+      },
       NOW,
       STEP_UP_SECONDS,
+      RATES,
     );
     if (!result.ok) throw new Error(result.problem);
     const page = filterSearchResults(
@@ -723,34 +820,138 @@ describe("hazard HZ-011 search results and counts stay in scope", () => {
   });
 });
 
-describe("hazard HZ-011 search audit events never hold the words typed", () => {
+describe("hazard HZ-001 search ranking puts the right person first", () => {
+  const order = (rows: SearchHit[]) => [...rows].sort(compareSearchHits).map((h) => h.id);
+
+  it.each<[string, Partial<SearchHit>, Partial<SearchHit>]>([
+    [
+      "a person before a note, whatever the relevance",
+      { id: "a", entityType: "person", rank: 0 },
+      { id: "b", entityType: "note", rank: 99 },
+    ],
+    ["a person before a colleague", { id: "a" }, { id: "b", entityType: "staff", personId: null }],
+    [
+      "a colleague before a document",
+      { id: "a", entityType: "staff", personId: null },
+      { id: "b", entityType: "document" },
+    ],
+    [
+      "a whole-word match before a prefix match",
+      { id: "a", matchQuality: "exact", rank: 0 },
+      { id: "b", matchQuality: "prefix", rank: 99 },
+    ],
+    [
+      "a current resident before one who left",
+      { id: "a", personStatus: "active", sortName: "Zed Example" },
+      { id: "b", personStatus: "discharged", sortName: "Ada Example" },
+    ],
+    [
+      "a resident before someone being assessed",
+      { id: "a", personStatus: "in_hospital" },
+      { id: "b", personStatus: "pre_admission" },
+    ],
+    [
+      "by name when the status is the same",
+      { id: "a", sortName: "ada example" },
+      { id: "b", sortName: "Bea Example" },
+    ],
+    [
+      "by date of birth when the name is the same",
+      { id: "a", sortName: "Ada Example", dateOfBirth: "1938-05-01" },
+      { id: "b", sortName: "Ada Example", dateOfBirth: "1941-02-03" },
+    ],
+    [
+      "by relevance when everything else is the same",
+      { id: "b", sortName: "Ada Example", rank: 5 },
+      { id: "a", sortName: "Ada Example", rank: 1 },
+    ],
+    [
+      "by id last, so pages are stable",
+      { id: "a", sortName: "Ada Example" },
+      { id: "b", sortName: "Ada Example" },
+    ],
+  ])("ranks %s", (_label, first, second) => {
+    const a = hit(first);
+    const b = hit(second);
+    expect(order([b, a])).toEqual([a.id, b.id]);
+  });
+
+  it("warns when two people in the results share a name, compared as the index compares names", () => {
+    const rows = [
+      hit({ personId: "p-1", sortName: "Ada O'Example" }),
+      hit({ personId: "p-2", sortName: "ADA OEXAMPLE" }),
+      hit({ personId: "p-3", sortName: "Bea Example" }),
+      hit({ entityType: "note", personId: "p-3", sortName: "Bea Example" }),
+      hit({ personId: "p-4", sortName: null }),
+    ];
+    expect(sameNameWarnings(rows)).toEqual([{ kind: "same_name", personIds: ["p-1", "p-2"] }]);
+    const page = filterSearchResults(planFor(actor("registered_manager", NORTH)), rows, NOW);
+    expect(page.warnings).toEqual([{ kind: "same_name", personIds: ["p-1", "p-2"] }]);
+  });
+
+  it("gives no warning for one person found twice", () => {
+    expect(
+      sameNameWarnings([
+        hit({ personId: "p-1", sortName: "Ada Example" }),
+        hit({ personId: "p-1", sortName: "Ada Example" }),
+      ]),
+    ).toEqual([]);
+  });
+});
+
+describe("hazard HZ-011 search audit events record what was shown, never the words typed", () => {
   it.each([
     ["a name", "Ada Example", ["ada", "example"]],
     ["a name with an apostrophe", "Bea O'Example", ["bea", "oexample", "o'example"]],
     ["an NHS number", "999 000 0018", ["9990000018", "999 000 0018"]],
-  ])("records counts, not the query: %s", (_label, raw, forbidden) => {
+  ])("records ids, scope and counts, not the query: %s", (_label, raw, forbidden) => {
     const plan = planFor(actor("registered_manager", NORTH), raw);
-    const page = filterSearchResults(plan, [hit({ id: "r-1", personId: "p-9" })], NOW);
+    const page = filterSearchResults(
+      plan,
+      [hit({ id: "r-1", personId: "p-9", sortName: "Person Nine" })],
+      NOW,
+    );
     const event = searchAuditEvent(plan, page);
     expect(event).toMatchObject({
       action: "platform.search.run",
       outcome: "success",
       resourceType: "search",
       reason: null,
-      scope: { total: 1, includeArchived: false },
+      scope: {
+        total: 1,
+        includeArchived: false,
+        personScope: "locations",
+        locationIds: [NORTH],
+        validUntil: null,
+        personIds: ["p-9"],
+        careRecordView: true,
+        resultIds: { person: ["r-1"], staff: [], document: [], note: [] },
+      },
     });
-    expect(event.scope.personIds).toBeUndefined();
     const stored = JSON.stringify(event).toLowerCase();
     for (const word of forbidden) expect(stored).not.toContain(word);
   });
 
-  it("records the reason, code and the ids of the people shown for a break-glass search", () => {
+  it("records when an agency worker's access ends", () => {
+    const plan = planFor(actor("agency_worker"), "Ada Example");
+    const event = searchAuditEvent(plan, filterSearchResults(plan, [], NOW));
+    expect(event.scope.validUntil).toBe(agencyAccessEndsAt(SHIFT_END, RATES).toISOString());
+    expect(event.scope.careRecordView).toBe(false);
+  });
+
+  it("refers to the break-glass record for the reason instead of copying it", () => {
     const reason = "Resident from South arrived at North during the night";
     const result = buildBreakGlassSearchPlan(
       { rawQuery: "Ada Example", reason, reasonCode: "emergency_care" },
-      { access: accessFor("registered_manager", NORTH), lastStrongAuthAt: NOW, mfaEnrolled: true },
+      {
+        access: accessFor("registered_manager", NORTH),
+        lastMfaSignInAt: NOW,
+        mfaEnrolled: true,
+        searchesInLast24Hours: 0,
+      },
       NOW,
       STEP_UP_SECONDS,
+      RATES,
     );
     if (!result.ok) throw new Error(result.problem);
     const page = filterSearchResults(
@@ -758,13 +959,23 @@ describe("hazard HZ-011 search audit events never hold the words typed", () => {
       [hit({ personId: "p-77", personLocationId: SOUTH })],
       NOW,
     );
-    const event = searchAuditEvent(result.plan, page);
+    expect(() => searchAuditEvent(result.plan, page)).toThrow(RangeError);
+    const event = searchAuditEvent(result.plan, page, { breakGlassRecordId: "bg-1" });
     expect(event).toMatchObject({
       action: "platform.search.break_glass",
-      reason,
-      scope: { personIds: ["p-77"], reasonCode: "emergency_care", termCount: 2, queryKind: "text" },
+      reason: null,
+      scope: {
+        personIds: ["p-77"],
+        breakGlassRecordId: "bg-1",
+        reasonCode: "emergency_care",
+        personScope: "tenant",
+        termCount: 2,
+        queryKind: "text",
+      },
     });
-    expect(JSON.stringify(event.scope).toLowerCase()).not.toContain("example");
+    const stored = JSON.stringify(event);
+    expect(stored).not.toContain("Resident from South");
+    expect(stored.toLowerCase()).not.toContain("example");
   });
 
   it("records a refusal with the problem and no query", () => {
@@ -779,8 +990,14 @@ describe("hazard HZ-011 search audit events never hold the words typed", () => {
         entityTypes: ["person"],
         omitted: [],
         includeArchived: false,
+        personScope: null,
+        locationIds: [],
+        validUntil: null,
         resultCounts: null,
         total: 0,
+        resultIds: null,
+        personIds: [],
+        careRecordView: false,
         problem: "archived_not_permitted",
       },
     });
