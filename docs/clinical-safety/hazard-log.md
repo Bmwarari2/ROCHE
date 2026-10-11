@@ -99,7 +99,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Probable duplicate check on create and import (same NHS number, or same date of birth and similar name) | Phase 1 |
 | Design | eMAR requires positive identification for each administration: wristband barcode scan or photo confirmation | Phase 2 |
 | Design | Shared and kiosk devices lock after 30 seconds by default and return to user sign-in, not to the last person ([kiosk.md](../compliance/kiosk.md)) | Phase 1 |
-| Design | The room on the header comes from the dated bed history, which never puts two people in one bed; a death or discharge recorded against the wrong person is corrected with a reason (and a fresh sign-in for a death), cancelling the exit workflow and the death notification drafts ([people.md](../specs/people.md) rules 2 and 6) | Phase 1 (domain rules built) |
+| Design | The room on the header comes from the dated bed history, which never puts two people in one bed; a death or discharge recorded against the wrong person is corrected with a reason (and a fresh sign-in for a death), cancelling the exit workflow and the death notification drafts ([people.md](../specs/people.md) rules 2 and 6) | Built in Phase 1 (slice 8 API) |
 | Test | See Verification | Phase 1, Phase 2 |
 | Training and user documentation | Care worker guide: check photo and date of birth before every administration and entry. Deployer control: photos taken at admission and refreshed under the tenant's policy | Phase 1 |
 
@@ -122,6 +122,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain/src/people/occupancy.test.ts`: `hazard HZ-001 two people in one bed on the same day`, `a bed someone else occupies`, `labels the room shown on the header from the history` | Passing (Phase 1) |
 | `packages/domain/src/people/lifecycle.test.ts` and `exit.test.ts`: `hazard HZ-001 a death recorded in error is corrected only with a reason and a fresh sign-in`, `cancels a death recorded in error only with a reason and step-up` | Passing (Phase 1) |
 | `packages/domain/src/people/transfer-pack.test.ts`: `hazard HZ-001 refuses a pack whose sections belong to someone else`, `hazard HZ-001 no photo`; `admission.test.ts`: `hazard HZ-001 accepts no photo with a reason` (welcome checklist) | Passing (Phase 1) |
+| `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-001 shows the room from the bed history on the header`, `refuses a pack when a section belongs to someone else` (a photo filed against another person), `corrects a death recorded in error only with a reason and step-up` | Passing (Phase 1) |
+| `packages/db/test/people-lifecycle.test.ts`: `hazard HZ-001 a bed holds one person and a person holds one bed` (both exclusion constraints, including an occupant the writer cannot see; half-open ranges; a bed the room does not have) | Passing (Phase 1) |
 
 ---
 
@@ -387,7 +389,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Sign-out warns and requires a reason when the queue is not empty; the device reports its queue depth at every sync so that the server knows how many changes a lost or wiped device held | Phase 1 |
 | Design | Manager dashboard lists devices on an active shift whose last sync is older than the threshold; on-call alert | Phase 1 |
 | Design | The app blocks new writes and prompts an update when it is more than one schema version behind | Phase 1 |
-| Design | Care events recorded offline before a person left or died are accepted after the exit and shown as recorded after it; the person leaves a device only after its queue has uploaded ([people.md](../specs/people.md) rule 3) | Phase 1 (domain rule built) |
+| Design | Care events recorded offline before a person left or died are accepted after the exit and shown as recorded after it; the person leaves a device only after its queue has uploaded ([people.md](../specs/people.md) rule 3) | Phase 1 (accepted on upload: built in slice 8; leaving the device after upload: offline work) |
 | Test | See Verification | Phase 1 |
 | Training and user documentation | Care worker guide: check the banner shows no queued changes before leaving at the end of a shift. Deployer control: devices charged and connected at handover | Phase 1 |
 
@@ -405,7 +407,10 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `apps/api`: `hazard HZ-006 a device on an active shift with no recent sync appears on the manager dashboard` | Planned, Phase 1 |
 | `apps/mobile` Maestro `hazard-HZ-006-signout-with-queue.yaml`: sign-out with queued changes warns and asks for a reason | Planned, Phase 1 |
 | `apps/mobile` Maestro `hazard-HZ-006-sync-recovery.yaml`: write offline, restore connectivity, queue empties and records appear on the web (the "sync recovery" CI journey) | Planned, Phase 1 |
-| `packages/domain/src/people/lifecycle.test.ts`: `hazard HZ-006 accepts an offline ... that happened before the death, flagged as recorded after it` (notes, observations, body-map marks, incidents) | Passing (Phase 1) |
+| `packages/domain/src/people/lifecycle.test.ts`: `hazard HZ-006 accepts an offline ... that happened before the death, flagged as recorded after it` (notes, observations, body-map marks, incidents) and `hazard HZ-006 a person who went ... is accepted` (in hospital or on leave) | Passing (Phase 1) |
+| `apps/api/test/care.test.ts`: `hazard HZ-006 accepts entries from before a discharge, flagged, and refuses later ones except post-event notes` | Passing (Phase 1) |
+| `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-006 accepts an observation from before the transfer, flagged, and refuses a later one`, `hazard HZ-006 accepts observations from before the death and post-event notes, and refuses later chart entries` | Passing (Phase 1) |
+| `packages/db/test/people-lifecycle.test.ts`: `hazard HZ-006 keeps the status time in step when only the status is written` | Passing (Phase 1) |
 
 ---
 
@@ -460,6 +465,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain` (medicines): `hazard HZ-007 administration view includes the person's recorded allergies` | Planned, Phase 2 |
 | `packages/domain/src/people/pre-admission.test.ts`: `hazard HZ-007 never lets allergies be marked not applicable`; `admission.test.ts`: `hazard HZ-007 refuses allergies as not applicable` (welcome checklist) | Passing (Phase 1) |
 | `packages/domain/src/people/transfer-pack.test.ts`: `hazard HZ-007 allergy status never recorded`, `allergies said to exist but none listed`, `lists the most severe allergies first` | Passing (Phase 1) |
+| `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-007 refuses 'not applicable' for allergies, and an unexplained one for equipment` (pre-admission); `ticks the welcome checklist, refusing 'not applicable' for allergies and a stale version` | Passing (Phase 1) |
 
 ---
 
@@ -512,6 +518,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `apps/api`: `hazard HZ-008 a tenant cannot disable escalation of time-critical medicines` | Planned, Phase 2 |
 | `apps/api`: `hazard HZ-008 alert volume and override metrics are reported per user and type` | Planned, Phase 2 |
 | `packages/domain/src/people/reviews.test.ts`: `hazard HZ-008 raises one review on change for several unreviewed changes` | Passing (Phase 1) |
+| `apps/api/test/people-lifecycle.test.ts`: `people.md rule 8: the review scheduler (HZ-008)` (one task for a local authority review in its window, once; one review on change for several changes, covered by a care plan review; recording the review completes the task) | Passing (Phase 1) |
 
 ---
 
@@ -648,7 +655,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | Design | Sync streams filtered by the token's tenant, location and assignment claims, tested on their own | Built in Phase 0 |
 | Design | Every view of a care record, export and permission change written to the append-only, hash-chained `audit_event` table | Built in Phase 0 for person views, lists, history, break-glass, refusals and sync tokens; extended per module |
 | Design | Attribute-based scoping (location, assigned people, time window) enforced in the API and in RLS | Built in Phase 0 (team scope with rotas, Phase 2) |
-| Design | Break-glass access with typed justification, alerting the Registered Manager and quality lead, audited with the reason, lapsing after an hour; a weekly report by user, person and reason flags repeated use for the Registered Manager and data protection lead | Built in Phase 0 (weekly report aggregation built in Phase 1; job and screen with the people API) |
+| Design | Break-glass access with typed justification, alerting the Registered Manager and quality lead, audited with the reason, lapsing after an hour; a weekly report by user, person and reason flags repeated use for the Registered Manager and data protection lead | Built in Phase 0 (weekly report job, storage and API built in Phase 1 slice 8; screen with the web work) |
 | Design | Short-lived presigned file URLs with tenant-prefixed keys; remote wipe and device revocation | Phase 1 |
 | Design | Time-limited grants expire automatically (agency workers at shift end plus 2 hours; external professionals at their expiry) | Phase 1 (professionals), Phase 2 (agency, with rota) |
 | Design | Operator support access only after the tenant owner approves a ticketed request with step-up; requests and decisions written to the tenant's audit chain | Request and approval built in Phase 0; read-only impersonation session, Phase 1 |
@@ -676,7 +683,9 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/db/test/mca-and-incidents.test.ts`: `hazard HZ-011 consent, capacity and DoLS records follow the person's scope` and `hazard HZ-011 incident scope across people and locations (ADR-0033)` (an incident is visible through any of its people, to its reporter, and by location only when nobody using the service is on it; per-person notifications and staff rows follow their own scope; location drafts follow location scope; another tenant sees nothing) | Passing (Phase 1) |
 | `apps/api/test/incidents.test.ts`: `hazard HZ-011 incident scope across people (ADR-0033)` (a reader who can see only some of the people gets the header and their own people, with no narrative or reasoning, and cannot change it) | Passing (Phase 1) |
 | `packages/domain/src/people/break-glass-report.test.ts`: `hazard HZ-011 weekly break-glass report` (UK weeks across clock changes; totals by user, person and reason; unreviewed openings; repeated use, the same person reopened and one person opened by many users flagged at the rate-table threshold) | Passing (Phase 1) |
-| `apps/api`: `hazard HZ-011 the weekly break-glass report reaches the Registered Manager and data protection lead every Monday` | Planned, Phase 1 |
+| `apps/api/test/people-lifecycle.test.ts`: `PLAT-006 the weekly break-glass report (HZ-011)` (one report per location for the week before, stored once; alerts the Registered Manager and the data protection lead; each reader sees only the locations in their access, with counts and opaque ids only; the review is recorded once; the reason code is stored). The worker runs it daily so a missed Monday catches up | Passing (Phase 1) |
+| `packages/db/test/people-lifecycle.test.ts`: `hazard HZ-011 the lifecycle tables follow the person's scope` (every new person table, the welcome checklist template per tenant, the weekly report per location) | Passing (Phase 1) |
+| `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-011 shows every occupied bed but names only the people in the reader's access`; `permissions per route` (out-of-scope people are not found; audit by record id) | Passing (Phase 1) |
 
 ---
 
@@ -809,6 +818,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain` (safety): `hazard HZ-013 duty of candour steps follow regulation 20` | Passing |
 | `packages/domain` (safety): `hazard HZ-013 the outbreak rule fires for linked cases within the configured window` (`outbreak.test.ts`; the rule landed in Phase 1) | Passing |
 | `packages/domain/src/people/exit.test.ts`: `hazard HZ-013 lists the statutory notifications first` (the death checklist names the regulator, medical examiner and LeDeR notifications that the safety module drafts) | Passing (Phase 1) |
+| `apps/api/test/people-lifecycle.test.ts`: `records a death at night: the room is held and the death notifications are drafted` (the regulator's death notification and the medical examiner drafts, and LeDeR where it applies, raised from `people.person.died` and linked as evidence on the exit checklist) and `hazard HZ-001 corrects a death recorded in error only with a reason and step-up` (the drafts are flagged no longer indicated, never closed) | Passing (Phase 1) |
 
 ---
 
@@ -897,7 +907,8 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/db/test/care-planning.test.ts`: `hazard HZ-015 only one advance care record of each kind is active` | Passing |
 | `packages/contracts/src/contracts.test.ts`: `hazard HZ-015 needs a resuscitation status on every point-of-care summary` | Passing |
 | `apps/api/test/care-planning.test.ts`: `hazard HZ-015 advance care records and the resuscitation status` (a DNACPR shows on the person summary and list; superseding and withdrawal) | Passing |
-| `apps/api`: `hazard HZ-015 the transfer pack and the downtime pack include the current resuscitation record` | Planned, Phase 1 |
+| `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-015 prints the current resuscitation record in the pack` | Passing (Phase 1) |
+| `apps/api`: `hazard HZ-015 the downtime pack includes the current resuscitation record` | Planned, Phase 1 |
 | `packages/domain/src/people/pre-admission.test.ts`: `hazard HZ-015 requires the resuscitation and advance care section` | Passing (Phase 1) |
 | `packages/domain/src/people/transfer-pack.test.ts`: `hazard HZ-015 no resuscitation record`, `only a withdrawn resuscitation record`, `prints only the active resuscitation record` | Passing (Phase 1) |
 
@@ -942,6 +953,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `apps/web`: `hazard HZ-016 the header shows the prescribed IDDSI levels with number and name` | Planned, Phase 1 |
 | `apps/api/test/care.test.ts`: `hazard HZ-016 IDDSI levels` (a level change needs who advised it; food above the prescribed level needs a reason and alerts) | Passing |
 | `packages/domain/src/people/pre-admission.test.ts`: `hazard HZ-016 never lets eating, drinking and swallowing be marked not applicable`; `transfer-pack.test.ts`: `hazard HZ-016 re-checks allergies, resuscitation decisions and IDDSI levels on return` | Passing (Phase 1) |
+| `packages/domain/src/people/transfer-pack.test.ts`: `hazard HZ-016 copies the IDDSI codes exactly, including easy to chew (7EC)` | Passing (Phase 1) |
 
 ---
 
@@ -985,6 +997,7 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/db/test/care-planning.test.ts`: `hazard HZ-017 assessments, activities and visits are append-only` (UPDATE and DELETE refused for the app and by trigger; a correction supersedes with a reason and only for the same person; replayed device ids ignored) | Passing |
 | `packages/domain/src/care/validated-assessment.test.ts`: `hazard HZ-017 corrections supersede with a reason` | Passing |
 | `apps/api/test/care-planning.test.ts`: `hazard HZ-017 corrects a result by superseding it with a reason, and reads the latest per tool`; `hazard HZ-017 ignores a replayed upload with the same device id` | Passing |
+| `packages/db/test/people-lifecycle.test.ts`: `hazard HZ-017 refuses to ...` (admission decisions, review records and weekly reports cannot be updated or deleted; a correction supersedes once) | Passing (Phase 1) |
 
 ---
 
@@ -1171,11 +1184,11 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 
 | Type | Control | When |
 | --- | --- | --- |
-| Design | Closed by default: every section is hidden from every family member, professional and share link until a sharing decision in force covers that section (and, for the care plan, that domain) for that recipient (`checkSectionVisibility` in `packages/domain/src/people/sharing.ts`) | Phase 1 (domain rule built; family feed in slice 12) |
-| Design | Every decision records its basis and is checked: no consent from a person assessed as lacking capacity for it; an authority needs evidence, must cover the section, and a welfare authority applies only when the person lacks capacity; a best-interests decision must be recorded; direct care only for professionals and clinical sections | Phase 1 (domain rule built) |
-| Design | Every decision expires; withdrawal, suspension (for example during a safeguarding enquiry) and the end of an authority close the section at once; a stored decision that breaks the rules is never honoured | Phase 1 (domain rule built) |
-| Design | Sharing closes when the person is discharged, dies or is archived; correcting a discharge or death does not reopen it without a manager | Phase 1 (domain rule built) |
-| Design | About Me share links carry About Me only, store only a hash of the token, and cannot outlive their decision | Phase 1 (domain rule built; links with the API step) |
+| Design | Closed by default: every section is hidden from every family member, professional and share link until a sharing decision in force covers that section (and, for the care plan, that domain) for that recipient (`checkSectionVisibility` in `packages/domain/src/people/sharing.ts`) | Built in Phase 1 slice 8 (family feed in slice 12) |
+| Design | Every decision records its basis and is checked: no consent from a person assessed as lacking capacity for it; an authority needs evidence, must cover the section, and a welfare authority applies only when the person lacks capacity; a best-interests decision must be recorded; direct care only for professionals and clinical sections | Built in Phase 1 slice 8 |
+| Design | Every decision expires; withdrawal, suspension (for example during a safeguarding enquiry) and the end of an authority close the section at once; a stored decision that breaks the rules is never honoured | Built in Phase 1 slice 8 |
+| Design | Sharing closes when the person is discharged, dies or is archived; correcting a discharge or death does not reopen it without a manager | Built in Phase 1 slice 8 |
+| Design | About Me share links carry About Me only, store only a hash of the token, and cannot outlive their decision | Phase 1 (links issued and revoked in slice 8; the link viewer with the portal) |
 | Design | Every view by a family member, professional or link holder is audited with the decision that allowed it | Phase 1 (slice 12) |
 | Design | Family device sync streams carry only the sections a decision covers, tested on their own (replication bypasses RLS) | Phase 4 (family app mode) |
 | Test | See Verification | Phase 1 |
@@ -1190,8 +1203,10 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain/src/people/sharing.test.ts`: `hazard HZ-022 a section is visible only under a sharing decision in force` (no decision; a section or care plan domain the decision does not name; another recipient; another person; expired; not yet started; withdrawn; suspended; lapsed authority; a stored decision that breaks the rules; a person who has died or left) | Passing (Phase 1) |
 | `packages/domain/src/people/sharing.test.ts`: recording a sharing decision (capacity, authority evidence and coverage, best interests, direct-care limits, share-link limits, expiry) and About Me share links | Passing (Phase 1) |
 | `apps/api`: `hazard HZ-022 the family feed returns nothing without a sharing decision in force` | Planned, Phase 1 (slice 12) |
-| `apps/api`: `hazard HZ-022 withdrawing or suspending a decision closes the section on the next request` | Planned, Phase 1 |
+| `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-022 withdrawing or suspending a decision closes the section on the next request` | Passing (Phase 1) |
 | `packages/sync`: `hazard HZ-022 family streams carry only shared sections` | Planned, Phase 4 |
+| `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-022 shows a family member nothing without a decision in force`, `hazard HZ-022 closes the sections once the decision expires`, `opens only the sections a decision in force covers`, `refuses a decision without a valid basis`; at exit, sharing decisions are withdrawn and links revoked (`starts the transfer workflow and closes sharing, the bed and future tasks`) | Passing (Phase 1) |
+| `apps/api/test/people-lifecycle.test.ts`: `makes an About Me link that stores only the token's hash and never outlives its decision`; `packages/db/test/people-lifecycle.test.ts`: `share links store the token's hash only` | Passing (Phase 1) |
 
 ---
 
@@ -1217,13 +1232,13 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 
 | Type | Control | When |
 | --- | --- | --- |
-| Design | One function assembles the pack from the record (`assembleHospitalTransferPack` in `packages/domain/src/people/transfer-pack.ts`); it refuses data from another person's record and an incomplete identity (HZ-001) | Phase 1 (domain rule built) |
-| Design | Photo, allergies, medicines, communication needs, resuscitation status and About Me are safety-critical: when missing they read "not recorded" on the first page, never blank; "none" must be recorded positively with who and when | Phase 1 (domain rule built) |
-| Design | Only active resuscitation records print (HZ-015); allergies print most severe first (HZ-007); time-critical medicines first; every section shows when it was last updated; a pack printed offline shows the last sync time (HZ-002) | Phase 1 (domain rule built; print with the API step) |
-| Design | The pack is never blocked, because a transfer must not wait, but recording the hand-over of an incomplete pack needs a named acknowledgement and a reason | Phase 1 (domain rule built) |
-| Design | Glasses, hearing aids, dentures and walking aids in the property inventory are offered for sending; items left behind are listed; items sent are checked back in on return | Phase 1 (domain rule built) |
+| Design | One function assembles the pack from the record (`assembleHospitalTransferPack` in `packages/domain/src/people/transfer-pack.ts`); it refuses data from another person's record and an incomplete identity (HZ-001) | Built in Phase 1 slice 8 |
+| Design | Photo, allergies, medicines, communication needs, resuscitation status and About Me are safety-critical: when missing they read "not recorded" on the first page, never blank; "none" must be recorded positively with who and when | Built in Phase 1 slice 8 |
+| Design | Only active resuscitation records print (HZ-015); allergies print most severe first (HZ-007); time-critical medicines first; every section shows when it was last updated; a pack printed offline shows the last sync time (HZ-002) | Built in Phase 1 slice 8 (PDF: ADR-0040) |
+| Design | The pack is never blocked, because a transfer must not wait, but recording the hand-over of an incomplete pack needs a named acknowledgement and a reason | Built in Phase 1 slice 8 |
+| Design | Glasses, hearing aids, dentures and walking aids in the property inventory are offered for sending; items left behind are listed; items sent are checked back in on return | Built in Phase 1 slice 8 |
 | Design | Return checks: discharge letter, medicines (HZ-005), new allergies, resuscitation decisions made in hospital, IDDSI changes (HZ-016), skin | Phase 1 (checks), Phase 2 (eMAR reconciliation) |
-| Design | The pre-admission assessment and the welcome checklist require allergies, medicines, communication needs and resuscitation status at admission, so the pack rarely lacks them | Phase 1 (domain rules built) |
+| Design | The pre-admission assessment and the welcome checklist require allergies, medicines, communication needs and resuscitation status at admission, so the pack rarely lacks them | Built in Phase 1 slice 8 |
 | Test | See Verification | Phase 1 |
 | Training and user documentation | Deployer control: the transfer procedure names who prints the pack and checks the red bag, agreed with the local hospital trust | Phase 1 |
 
@@ -1236,8 +1251,9 @@ Eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027) h
 | `packages/domain/src/people/transfer-pack.test.ts`: `hazard HZ-023 missing safety-critical information is flagged, never left blank` (each of the six sections; empty lists; a withdrawn-only resuscitation record; positive "none" statements accepted) | Passing (Phase 1) |
 | `packages/domain/src/people/transfer-pack.test.ts`: `hazard HZ-023 needs a named acknowledgement and reason when critical sections are missing` | Passing (Phase 1) |
 | `packages/domain/src/people/transfer-pack.test.ts`: `hazard HZ-001 refuses a pack whose sections belong to someone else`, `hazard HZ-015 prints only the active resuscitation record`, `hazard HZ-007 lists the most severe allergies first`, `hazard HZ-016 re-checks allergies, resuscitation decisions and IDDSI levels on return` | Passing (Phase 1) |
-| `apps/api`: `hazard HZ-023 the transfer pack PDF shows not recorded on the first page for each missing critical section` | Planned, Phase 1 |
+| `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-023 prints not recorded on the first page for each missing critical section` | Passing (Phase 1) |
 | `apps/mobile` Maestro `hazard-HZ-023-offline-transfer-pack.yaml`: print the pack offline with the last sync time shown | Planned, Phase 1 |
+| `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-023 previews the pack with every missing safety-critical section flagged`, `hazard HZ-023 records the hand-over of an incomplete pack only with a named acknowledgement`, `refuses a pack for someone not receiving care`, `hazard HZ-023 communication needs: an empty list is not 'none'` | Passing (Phase 1) |
 
 ---
 

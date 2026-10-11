@@ -262,11 +262,67 @@ Outbox events: `people.person.assessment_started`, `people.person.admitted`,
 the death notifications from `people.person.died` and withdraws them on `status_corrected`; care
 cancels and resumes rounds; comms recomputes the family feed on `people.sharing.changed`.
 
+Built in slice 8 (`apps/api/src/routes/people-lifecycle.ts`, `people-property.ts`,
+`people-records.ts`, `people-sharing.ts`, `people-transfers.ts`, `people-exit.ts`,
+`break-glass-report.ts`; services in `apps/api/src/services/people.ts`, `transfer-pack.ts`,
+`transfer-pack-pdf.ts`, `sharing.ts`, `death-notifications.ts` and `break-glass-report.ts`;
+tables in migrations 0020 to 0022). `POST /v1/people/{id}/status` runs `checkPersonStatusChange`
+with `version`, records the move on the person's `people.person_lifecycle` workflow instance and
+applies every effect in the same transaction: rounds paused (the person's open round tasks are
+cancelled with a reason and `materialiseSeries` makes none while they are off rounds) and reopened
+on return, future tasks cancelled at exit, sharing decisions withdrawn and share links revoked,
+the bed released or (after a death) the room held for clearance, the exit record and its workflow
+started or cancelled, and the review on change raised on return from hospital. A death needs
+`deathExpected`; correcting a death needs step-up. Admission is its own route (`POST .../admission`,
+after `checkAdmissionReadiness`, with the first bed and the welcome checklist from the tenant's
+template at `/v1/settings/welcome-checklist`), so the status route refuses `active` from
+`pre_admission`. `PUT .../pre-admission` stores sections through `preAdmissionCompleteness`
+(HZ-007); admission decisions are append-only and a new one supersedes the last, and each
+condition is confirmed met separately. `POST .../bed-moves` uses `planBedMove` and the exclusion
+constraints; the person header's room label is refreshed from the bed history (HZ-001); the bed
+board shows every occupied bed but names only people the reader can see (HZ-011);
+`POST /v1/rooms/{roomId}/clearance` frees a room held after a death. Property and keys use the
+property rules with device ids (a replay returns the first copy) and versions; property returned
+after a death goes only to the personal representative. About Me (`PUT` with `version`) and its
+links: the token is returned once, only its SHA-256 hash is stored, and a link never outlives its
+decision. The review schedule (`GET .../reviews`, `GET /v1/locations/{id}/reviews`) comes from
+`scheduleReviews`; review records are append-only and complete the matching task; care plan
+changes bring the care plan review forward. `GET .../transfer-pack` previews the pack with the
+missing safety-critical sections; `POST .../hospital-transfers` stores the snapshot, moves the
+person to hospital and never waits for missing sections (HZ-023), `GET .../pdf` prints "not
+recorded" on the first page for each one, the hand-over of an incomplete pack needs a named
+acknowledgement, and `POST .../return` brings the person back and opens the return checks; a pack
+for someone not receiving care or with a section that belongs to someone else is refused
+(`transfer_pack_not_receiving_care`, `transfer_pack_wrong_person`). Resuscitation comes from the
+advance care records (HZ-015), medicines from the pre-admission medicines section until the eMAR
+(Phase 2), communication needs from the person, and the PDF from a small in-house writer
+(ADR-0040). `POST .../exit` plans a discharge or transfer; the exit record, its checklist
+(`exitChecklist`), notifications and return deadlines are created when the person leaves or dies,
+with one task for the Registered Manager. Property and keys items are counted from their records
+and cannot be ticked by hand; safety items follow the statutory notifications; money is ticked by
+hand until the finance ledger. `POST .../exit/moves` runs `checkExitWorkflowMove`. In England the
+safety module drafts the regulator's death notification, the medical examiner information and the
+LeDeR notification from `people.person.died`, and flags the drafts no longer indicated on
+`people.person.status_corrected`. Sharing decisions are checked with `checkSharingDecision`, can
+be withdrawn or suspended with a reason, and `GET .../sharing-decisions/visibility` answers per
+section from `checkSectionVisibility`, closed by default (HZ-022). `PUT .../communication-needs`
+records needs or a positive "none identified"; an empty list reads `not_recorded` on the person
+summary (`communicationNeedsStatus`). The worker raises review tasks hourly and stores the weekly
+break-glass report daily for the UK week before (so a missed Monday catches up), one per location,
+alerting the Registered Manager and holders of the quality lead role as data protection lead
+(H-80); `POST /v1/break-glass/weekly-report/{reportId}/review` records the review once. Care events
+for a person who has left, died or gone to hospital follow rule 3 in the care routes (care.md
+rule 12). Existing tenants' role copies gained `people.movement.record` and
+`people.property.manage` (owner, Registered Manager, deputy, clinical lead and team leader) and
+`safety.incident.read` (every role the slice 7 built-in definitions gave it) in migration 0022, as
+a new role version.
+Tests: `packages/db/test/people-lifecycle.test.ts`, `apps/api/test/people-lifecycle.test.ts`.
+
 ## 7. Offline behaviour (section 17.1)
 
 | Data | On the device | Writes offline | Conflict handling |
 | --- | --- | --- | --- |
-| Status, room label, About Me, communication needs, photo, allergies, advance care records | Assigned people, never evicted while assigned | No (status changes, property, sharing and exits are online in Phase 1) | Not applicable |
+| Status, room label, About Me, communication needs, photo, allergies, advance care records, the pre-admission assessment (the pack's medicines until the eMAR) and the property inventory | Assigned people, never evicted while assigned. Slice 8 adds `about_me`, `pre_admission_assessment` and `property_item` to the replication publication; the sync streams and contacts (not yet published) come with the offline transfer pack | No (status changes, property, sharing and exits are online in Phase 1) | Not applicable |
 | Hospital transfer pack | Built on the device from synced data with the same domain function | Printing only | Every page shows the last sync time (HZ-002); the server rebuilds it on hand-over |
 | Care events for a person who has since left or died | Queued as usual | Yes | Accepted on upload when they happened before the exit (rule 3); the person leaves the device only after its queue has uploaded (HZ-006) |
 
