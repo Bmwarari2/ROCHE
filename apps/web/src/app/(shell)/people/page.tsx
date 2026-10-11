@@ -61,7 +61,6 @@ export default async function PeoplePage() {
           communication: t("people.header.communicationNeeds"),
           communicationFlag: t("people.header.communicationNeeds"),
           notRecorded: t("common.notRecorded"),
-          none: t("common.none"),
           empty: t("people.list.empty"),
         }}
       />

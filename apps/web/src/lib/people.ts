@@ -54,6 +54,30 @@ export function allergySummary(
   }
 }
 
+/**
+ * Communication needs (Accessible Information Standard; hazard HZ-023). Needs are listed when
+ * recorded. "None identified" is shown only when someone recorded that the person has none; an
+ * empty list otherwise reads "Not recorded", a warning with an icon and the words, never blank
+ * and never "none".
+ */
+export type CommunicationSummary =
+  | { readonly kind: "recorded"; readonly needs: readonly string[] }
+  | { readonly kind: "none_identified"; readonly label: string }
+  | { readonly kind: "not_recorded"; readonly label: string };
+
+export function communicationSummary(
+  person: Pick<PersonSummary, "communicationNeeds" | "communicationNeedsStatus">,
+  t: Translator,
+): CommunicationSummary {
+  if (person.communicationNeeds.length > 0) {
+    return { kind: "recorded", needs: person.communicationNeeds.map((need) => need.display) };
+  }
+  if (person.communicationNeedsStatus === "none_identified") {
+    return { kind: "none_identified", label: t("people.communication.noneIdentified") };
+  }
+  return { kind: "not_recorded", label: t("people.communication.notRecorded") };
+}
+
 export interface PersonNames {
   /** What to call the person: their preferred name, or their given name. */
   readonly preferred: string;
@@ -102,7 +126,7 @@ export interface PersonListItem {
   readonly dateOfBirth: string | null;
   readonly dateOfBirthIso: string | null;
   readonly allergy: AllergySummary;
-  readonly communicationNeeds: readonly string[];
+  readonly communication: CommunicationSummary;
   /** Family name first, for sorting. */
   readonly sortName: string;
 }
@@ -126,7 +150,7 @@ export function toPersonListItem(
     dateOfBirth: formatDate(person.dateOfBirth),
     dateOfBirthIso: person.dateOfBirth,
     allergy: allergySummary(person, t),
-    communicationNeeds: person.communicationNeeds.map((need) => need.display),
+    communication: communicationSummary(person, t),
     sortName: `${person.familyName} ${person.givenName}`,
   };
 }

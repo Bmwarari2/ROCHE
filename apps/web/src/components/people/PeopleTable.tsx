@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { PersonListItem } from "@/lib/people";
 import { AllergyChip } from "./AllergyChip";
-import { CommunicationFlag } from "./CommunicationFlag";
+import { CommunicationStatus } from "./CommunicationStatus";
 import { PersonAvatar } from "./PersonAvatar";
 
 export interface PeopleTableLabels {
@@ -19,7 +19,6 @@ export interface PeopleTableLabels {
   readonly communication: string;
   readonly communicationFlag: string;
   readonly notRecorded: string;
-  readonly none: string;
   readonly empty: string;
 }
 
@@ -100,16 +99,13 @@ export function PeopleTable({
     {
       id: "communication",
       header: labels.communication,
-      cell: (person) =>
-        person.communicationNeeds.length > 0 ? (
-          <CommunicationFlag
-            label={labels.communicationFlag}
-            needs={person.communicationNeeds}
-            compact
-          />
-        ) : (
-          <span className="text-text-secondary">{labels.none}</span>
-        ),
+      cell: (person) => (
+        <CommunicationStatus
+          summary={person.communication}
+          flagLabel={labels.communicationFlag}
+          compact
+        />
+      ),
     },
   ];
 
