@@ -40,6 +40,8 @@ Owners: **Brian** (Thapsus Cargo Ltd), **CSO** (Clinical Safety Officer, to be a
 | H-24 | Sign safety case v0.0 (Phase 0) with Brian | CSO, Brian | [Safety case v0.0](../clinical-safety/safety-case/safety-case-v0.0-phase0.md) | Any real tenant | open |
 | H-25 | Regulatory opinion that calculating published tools (NEWS2, MUST, Waterlow, Braden) exactly as published keeps Harbour outside the medical-device definition; confirm licence terms for using those tools in software (the Braden form asks for permission at bradenscale.com; BAPEN may charge a licence fee for commercial use of 'MUST') and the authoritative Waterlow source | Brian | [Medical-device boundary](../compliance/medical-device-boundary.md); calculators in `packages/domain/src/care/`, with Waterlow and Braden listed in `TOOLS_AWAITING_LICENCE_CONFIRMATION` | Phase 1 validated tools release | open |
 | H-26 | Accept ADR-0025 (shared and kiosk device sign-in factors) | CSO, DPO | [ADR-0025](../decisions/0025-shared-device-sign-in.md), [kiosk.md](../compliance/kiosk.md) | First shared-device deployment | open |
+| H-27 | Review HZ-022 and HZ-023 and accept or reject HZ-023's level-3 residual risk; confirm the six safety-critical transfer pack sections (in particular whether a missing About Me should need an acknowledgement, given the risk of acknowledgement fatigue, HZ-008), the return-from-hospital checks, and the rule that care events dated before a discharge or death are accepted after it | CSO | [Hazard log](../clinical-safety/hazard-log.md), [people.md](../specs/people.md) rules 3 and 10, `packages/domain/src/people/transfer-pack.ts` | Phase 1 people release | open |
+| H-28 | Confirm the default welcome checklist and its safety-critical items (photo, allergies, medicines, diet and IDDSI levels to the kitchen, evacuation plan) and the pre-admission sections that can never be marked not applicable | CSO with the design-partner Registered Manager (H-56) | `packages/domain/src/people/admission.ts`, `pre-admission.ts` | Phase 1 people release | open |
 
 ## Data protection and legal
 
@@ -53,6 +55,8 @@ Owners: **Brian** (Thapsus Cargo Ltd), **CSO** (Clinical Safety Officer, to be a
 | H-35 | Keep Thapsus's own controller register (staff, operators, prospects) | DPO | Operator register row noted in records of processing | Accountability | open |
 | H-36 | Publish an accessibility statement | Brian | [Accessibility checklist](../compliance/accessibility-checklist.md) | Public launch | open |
 | H-37 | Professional Welsh translation of the catalogues before any Welsh tenant | Brian | `packages/i18n/src/messages/cy.json` with every key marked untranslated | Welsh Active Offer | open |
+| H-38 | Confirm the lawful basis (Article 6 and Article 9 conditions) for sharing a person's information with family members and representatives under a legal authority or a best-interests decision, and whether sharing decisions need a maximum length | DPO | [people.md](../specs/people.md) rule 13, `packages/domain/src/people/sharing.ts`, notes in [records of processing](../compliance/records-of-processing.md) | Family feed (Phase 1 slice 12) | open |
+| H-39 | Set the retention period for enquiries and pre-admission assessments of people who are never admitted | DPO | Gap listed in [retention.md](../specs/retention.md); interim `care_record` | Phase 1 people release | open |
 
 ## Certification, assurance and insurance
 
@@ -77,6 +81,8 @@ Owners: **Brian** (Thapsus Cargo Ltd), **CSO** (Clinical Safety Officer, to be a
 | H-55 | Prod audit archive uses S3 Object Lock COMPLIANCE for 365 days (irreversible): confirm before the first prod apply | As written in infra | `infra/README.md` |
 | H-56 | Design partner care home for weekly feedback | Demo tenant only | ADR-0005 |
 | H-57 | Pricing and packaging | Drafted in Phase 3 | ADR-0018 |
+| H-58 | Tenant defaults for the people lifecycle: family involvement every 6 months, the break-glass repeat threshold of 3 a week, and money, property and keys returned within 28 days of an exit | As in the rate table, marked to verify | [rates.md](../specs/rates.md) notes |
+| H-59 | Track NHS Continuing Healthcare reviews by the integrated care board alongside the council review? | Not tracked | [people.md](../specs/people.md) open questions |
 
 ## Per tenant at onboarding
 

@@ -59,6 +59,8 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | Table or record | Record class |
 | --- | --- |
 | `person`, `contact`, `allergy`, `placement`, `about_me` | care_record |
+| `pre_admission_assessment`, `admission_decision`, `admission_condition`, `bed_occupancy`, `welcome_checklist_item`, `property_item`, `key_issue`, `care_plan_change`, `review_record`, `hospital_transfer`, `exit_record`, `exit_checklist_item`, `sharing_decision`, `about_me_share_link` ([people.md](people.md)) | care_record |
+| `break_glass_event`, `break_glass_weekly_report` | audit_event |
 | `care_plan`, `care_plan_item`, `assessment`, `risk_assessment`, `care_note`, `observation`, `capacity_record`, `dols_authorisation` | care_record |
 | `incident` (not serious), `investigation` | care_record |
 | `incident` (serious), `notification` | serious_incident |
@@ -81,6 +83,9 @@ These record types have no period in the master prompt, so no row exists yet. Ea
 spec decision (with its source) before its module ships; until then the engine treats them as the class
 of the record they attach to.
 
+- Enquiries and pre-admission assessments of people who are never admitted (Phase 1 people lifecycle;
+  human action H-39). Until a period is set they follow care_record, counted from the date the
+  enquiry closed.
 - Unsuccessful job applicants' data (Phase 2 recruitment).
 - DBS certificate information: the DBS code of practice limits how long certificate details may be kept;
   confirm the period before the Phase 2 pre-employment file stores them.
