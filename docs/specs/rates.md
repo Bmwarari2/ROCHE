@@ -112,6 +112,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | dsar.extension_months | 2 | months | 2018-05-25 | - | uk | master prompt 5.1 (extendable to three months in total) | master-prompt |
 | dp_complaint.acknowledge_days | 30 | days | 2026-06-19 | - | uk | master prompt 5.1 (Data (Use and Access) Act 2025 complaints duty) | master-prompt |
 | reg14.absence_notice_days | 28 | days | 2000-01-01 | - | england | master prompt 11.2 (CQC Registration Regulations 2009 reg 14) | master-prompt |
+| cqc.statement_of_purpose.revision_notice_days | 28 | days | 2010-04-01 | - | england | https://www.legislation.gov.uk/uksi/2009/3112/regulation/12 (reg 12(3): written details of any revision to the statement of purpose to the Commission within 28 days of the revision); master prompt 11.2 | verified |
 | riddor.report_days | 10 | days | 2013-10-01 | - | england | https://www.hse.gov.uk/riddor/when-do-i-report.htm; master prompt 11.1 | verified |
 | riddor.report_days | 10 | days | 2013-10-01 | - | wales | https://www.hse.gov.uk/riddor/when-do-i-report.htm; master prompt 11.1 | verified |
 | riddor.report_days | 10 | days | 2013-10-01 | - | scotland | https://www.hse.gov.uk/riddor/when-do-i-report.htm; master prompt 11.1 | verified |
@@ -167,6 +168,12 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | break_glass.weekly_repeat_threshold | 3 | count | 2000-01-01 | - | all | Harbour default for flagging repeated break-glass use in the weekly report (master prompt 4 requires the report but sets no number); tenant default | to-verify |
 | family_involvement.interval_months | 6 | months | 2000-01-01 | - | all | Harbour default for the family involvement record (master prompt 9.2 names the record but sets no interval); tenant default | to-verify |
 | exit.money_and_property_return_days | 28 | days | 2000-01-01 | - | all | Harbour default matching cma.deposit_return_days (master prompt 9.2); no statutory period for returning personal money and property; tenant default | to-verify |
+| downtime_pack.valid_hours | 36 | hours | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: a nightly downtime pack is in date for 36 hours from its information's time, longer than the nightly interval so one failed night does not leave a home with only an out-of-date pack (master prompt 13.4 "nightly"); tenant default; CSO to confirm (H-101) | to-verify |
+| downtime.duplicate_match_minutes | 10 | minutes | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: entries for the same person and kind within this many minutes of each other are listed as possible duplicates at outage reconciliation (master prompt 13.4 back-entry workflow); tenant default | to-verify |
+| downtime.back_entry_due_hours | 24 | hours | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: paper records from an outage are entered within 24 hours of its closure (master prompt 13.4 back-entry workflow); tenant default | to-verify |
+| evidence_pack.link_expiry_days.default | 7 | days | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: an inspector evidence pack link lasts 7 days unless the sender chooses otherwise (master prompt 11.2 "time-limited link"); tenant default | to-verify |
+| evidence_pack.code_valid_minutes | 10 | minutes | 2000-01-01 | - | all | Harbour security policy, not a statutory figure: a one-time code for opening an evidence pack link is valid for at most 10 minutes (ADR-0050; OWASP ASVS 5.0 out-of-band verifier lifetime) | to-verify |
+| evidence_pack.link_expiry_days.max | 30 | days | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: the longest an evidence pack link may last (data minimisation, UK GDPR Art 5(1)(c) and (e)); tenant default | to-verify |
 | ecm.tolerance_minutes.high | 15 | minutes | 2000-01-01 | - | all | master prompt 13.2 (defaults 15, 30, 60 by client risk); tenant default | master-prompt |
 | ecm.tolerance_minutes.medium | 30 | minutes | 2000-01-01 | - | all | master prompt 13.2 (defaults 15, 30, 60 by client risk); tenant default | master-prompt |
 | ecm.tolerance_minutes.low | 60 | minutes | 2000-01-01 | - | all | master prompt 13.2 (defaults 15, 30, 60 by client risk); tenant default | master-prompt |
@@ -191,6 +198,8 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | bowel.no_movement_prompt_days | 3 | days | 2026-10-01 | - | all | tenant default | to-verify |
 | handover.day_shift_start_minute | 480 | minute_of_day | 2026-10-01 | - | all | Harbour default (12-hour day and night shifts, day from 08:00); tenant setting for the shift handover (care.md rule 8) | to-verify |
 | handover.night_shift_start_minute | 1200 | minute_of_day | 2026-10-01 | - | all | Harbour default (12-hour day and night shifts, night from 20:00); tenant setting for the shift handover (care.md rule 8) | to-verify |
+| comms.family_notifications.quiet_start_minute | 1260 | minute_of_day | 2000-01-01 | - | all | Harbour tenant default for family update notifications (comms.md section 4 rule 15): from 21:00 UK time they wait; no statutory figure | to-verify |
+| comms.family_notifications.quiet_end_minute | 480 | minute_of_day | 2000-01-01 | - | all | Harbour tenant default for family update notifications (comms.md section 4 rule 15): waiting notifications go at 08:00 UK time; no statutory figure | to-verify |
 | ld.annual_health_check.min_age_years | 14 | years | 2000-01-01 | - | england | master prompt 10.1 (annual health check from 14) | master-prompt |
 | medicines.paracetamol.min_interval_hours | 4 | hours | 2000-01-01 | - | all | master prompt 10.2 (time-critical rules) | master-prompt |
 | medicines.bisphosphonate.before_food_minutes | 30 | minutes | 2000-01-01 | - | all | master prompt 10.2 (time-critical rules) | master-prompt |
@@ -228,6 +237,11 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | mobile.auto_lock_seconds.shared | 30 | seconds | 2000-01-01 | - | all | master prompt 17.2, ADR-0011; tenant default | master-prompt |
 | mobile.auto_lock_seconds.shared_max | 120 | seconds | 2000-01-01 | - | all | master prompt 17.2 (configurable from 30 seconds to 2 minutes) | master-prompt |
 | account_deletion.confirmation_days | 30 | days | 2000-01-01 | - | all | master prompt 17.3 | master-prompt |
+| export.link_expiry_hours | 72 | hours | 2000-01-01 | - | all | Harbour default: how long a ready full tenant export can be downloaded before the file is deleted (master prompt 5.1 asks for delivery by expiring link but sets no period; platform-completions.md rule 12); policy value, not statutory; tenant default | to-verify |
+| export.link_expiry_hours_max | 168 | hours | 2000-01-01 | - | all | Harbour ceiling on the tenant's export.link_expiry_hours setting, so no tenant can keep a full export downloadable for more than 7 days (platform-completions.md rule 12; security review); policy value, not statutory | to-verify |
+| break_glass.search_max_per_day | 5 | count | 2000-01-01 | - | all | Harbour default: break-glass searches one user may run in any 24 hours before further searches are refused and the data protection lead is told (platform-completions.md rule 9; security review); policy value, not statutory; tenant default | to-verify |
+| dpia.review_interval_months | 12 | months | 2000-01-01 | - | all | DPIA template section 8 ("at least annually"); UK GDPR Art 35(11) requires a review at least when the risk changes but sets no interval, https://www.legislation.gov.uk/eur/2016/679/article/35 (platform-completions.md rule 22); tenant default | to-verify |
+| sub_processor.notice_days | 30 | days | 2000-01-01 | - | all | DPA template clause 6.2 (bracketed default, solicitor to confirm, H-32): notice before a new or replacement sub-processor, and the window for objecting (platform-completions.md rule 24); contractual, not statutory; tenant setting from the tenant's DPA | to-verify |
 | benchmark.occupancy_percentage.low | 86 | percent | 2000-01-01 | - | uk | master prompt 13.1 (sector context, about 86 to 89%) | master-prompt |
 | benchmark.occupancy_percentage.high | 89 | percent | 2000-01-01 | - | uk | master prompt 13.1 (sector context, about 86 to 89%) | master-prompt |
 | benchmark.staff_cost_percentage_of_income | 55 | percent | 2000-01-01 | - | uk | master prompt 14.4 (target band around 55%) | master-prompt |
@@ -284,6 +298,11 @@ literals, and tests assert against the table, not a literal (section 7, section 
   the person wants their family or representative involved (master prompt section 9.2 names the
   record without an interval). The care plan review and the local authority review are separate
   clocks. Tenant default, confirmed by the Registered Manager (H-58).
+- `comms.family_notifications.quiet_start_minute` (1260, 21:00) and `.quiet_end_minute` (480,
+  08:00): family update notifications (email, SMS and push) found in this window wait until it ends
+  (comms.md section 4 rule 15). They are never urgent, so nothing bypasses the window. Harbour
+  default, not a published figure; the tenant confirms or changes it (human action H-107), and a
+  family member may set a stricter window of their own.
 - `exit.money_and_property_return_days` (28): the service level for returning personal money,
   property and keys after a discharge, transfer or death. No statute sets one; the default mirrors
   the CMA deposit-return period (`cma.deposit_return_days`) so the two clocks agree. Tenant default
@@ -300,13 +319,55 @@ literals, and tests assert against the table, not a literal (section 7, section 
   figure; the seed refuses a value outside 1 to 31 days. No statute sets it: it balances losing
   care records against keeping personal data on a device whose session has ended. The default
   matches the offline window. Tenant default, to be confirmed by the DPO with the CSO, with whether
-  clinical entries may ever be deleted automatically (H-85).
+  clinical entries may ever be deleted automatically (H-124).
 - `sync.clock_drift_flag_minutes` (5) is also the tolerance for a typed event time on the phone: a
   time later than the device clock by more than this is refused and never moved to an earlier day
   (HZ-010, clinical review round 3 H1). The device reads and caches it, and allows no tolerance
   until it has read the figure. `mobile.offline_window_days` is refused at seeding outside 1 to 31
   days, and the token route uses a one-day window with an alert when it meets a bad value
   (security review round 3, L3).
+- `downtime_pack.valid_hours` (36), `downtime.back_entry_due_hours` (24) and
+  `downtime.duplicate_match_minutes` (10): policy defaults for the downtime pack
+  ([operations.md](operations.md) rules 2, 10 and 14). A pack is in date for this many hours from
+  the time its information was read (the server's read time, or a kiosk's last sync). The figure is
+  longer than the nightly interval, so one failed nightly job does not leave the home with only an
+  out-of-date pack; after it, every page says in words that it is out of date, and during a
+  declared outage every page says it is the latest available and that anything since is on paper
+  (HZ-021). The CSO confirms the figure and the wording (H-101). Paper records from an outage are
+  due within `downtime.back_entry_due_hours` of the outage's closure; overdue back-entry escalates
+  to the Registered Manager. Entries for one person and kind within
+  `downtime.duplicate_match_minutes` of each other are listed as possible duplicates. No statute
+  sets any of these figures; the tenant's business continuity lead confirms them (H-98).
+- `evidence_pack.link_expiry_days.default` (7) and `.max` (30): policy defaults for the time-limited
+  link to an inspector evidence pack ([quality.md](quality.md) rule 7). The sender may choose a
+  shorter or longer expiry up to the maximum; a tenant may lower the maximum. No statute or CQC
+  guidance sets a period; the data protection lead confirms them (human action H-96).
+- `evidence_pack.code_valid_minutes` (10): how long a one-time code for opening an evidence pack
+  link stays valid ([quality.md](quality.md) rule 8, ADR-0050). A security policy value, not a
+  tenant preference: a tenant may shorten it, never lengthen it past 10 minutes
+  (`EVIDENCE_CODE_MAX_VALID_MINUTES`). Codes are 6 digits, single-use and stored hashed.
+
+- `export.link_expiry_hours` (72): how long a ready full tenant export stays downloadable before
+  the file is deleted (platform-completions.md rule 12). The master prompt asks for an expiring
+  link without a period. The link alone never opens the file (the requester signs in again with
+  step-up), so the period limits how long a copy sits in storage rather than how long a leaked
+  link works. A policy value, not a statutory figure: the tenant may shorten or lengthen it, and a
+  new export is always free. Confirmed by the tenant's data protection lead (H-118).
+- `export.link_expiry_hours_max` (168): the ceiling on `export.link_expiry_hours`. A tenant may
+  shorten the expiry or lengthen it up to 7 days, never beyond, so a full copy of every record
+  cannot sit in storage for weeks. Harbour policy, confirmed by Brian with the DPO (H-118).
+- `break_glass.search_max_per_day` (5): how many break-glass searches one user may run in any
+  24 hours. Break-glass search exists to find one person in an emergency; more than a handful a
+  day looks like browsing, so further searches are refused and the data protection lead is told.
+  Tenant default, confirmed by the tenant's data protection lead (H-118).
+- `dpia.review_interval_months` (12): the yearly re-review of a signed DPIA (platform-completions.md
+  rule 22). UK GDPR Art 35(11) requires a review "at least when there is a change of the risk"
+  and sets no interval; the yearly review comes from Harbour's DPIA template (section 8, "at least
+  annually") and common ICO practice. Tenant default, confirmed by the DPO (H-118).
+- `sub_processor.notice_days` (30): the notice Thapsus gives before a new or replacement
+  sub-processor processes a tenant's data, which is also the window in which the tenant may object
+  (DPA template clause 6.2, bracketed until the solicitor confirms it, H-32). It is contractual,
+  so a tenant whose signed DPA says otherwise has its own value; it is never a statutory period.
 
 ## Other notes
 
@@ -352,4 +413,11 @@ literals, and tests assert against the table, not a literal (section 7, section 
   staff decision recorded on each case (human action H-65).
 - `pressure_ulcer.decision_guide_hours` (48): DHSC, "Pressure ulcers: how to safeguard adults"
   (January 2024, updated June 2025), which replaced the 2018 protocol withdrawn on 26 June 2023.
+- `cqc.statement_of_purpose.revision_notice_days` (28): CQC (Registration) Regulations 2009
+  regulation 12(3), "The registered person must provide written details of any revision to the
+  statement of purpose to the Commission within 28 days of any such revision", read on
+  legislation.gov.uk on 11 October 2026 (no outstanding effects listed). `valid_from` is the
+  regulations' commencement for the clock's purposes (1 April 2010, as the other `cqc.*` rows).
+  England only; Wales, Scotland and Northern Ireland have their own regulators and rules (Phase 7
+  nation packs).
 - Retention periods are not in this table; they live in `docs/specs/retention.md`.

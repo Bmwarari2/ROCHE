@@ -120,8 +120,12 @@
     color: var(--on-accent);
   }
 
+  /*
+   * Hover darkens the accent: white on the lighter --accent-hover (#0077ed) is about 4.3:1, below
+   * WCAG 2.2 AA for the button's text, and the pointer often rests on a button after a click.
+   */
   .hb-button--primary:hover:not(:disabled) {
-    background-color: var(--accent-hover);
+    background-color: color-mix(in srgb, var(--accent) 86%, #000000);
   }
 
   .hb-button--secondary {
@@ -230,6 +234,7 @@
   }
 
   .hb-appbar__separator {
+    flex-shrink: 0;
     color: var(--text-secondary);
   }
 
@@ -260,24 +265,42 @@
     background-color: color-mix(in srgb, var(--text) 8%, transparent);
   }
 
+  /* The names shrink with an ellipsis (min-width: 0) rather than push the actions off screen. */
+  .hb-appbar__context-value,
   .hb-appbar__switcher-value {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   .hb-appbar__context-icon {
     display: inline-flex;
+    flex-shrink: 0;
     color: var(--text-secondary);
+  }
+
+  .hb-appbar__switcher-chevron {
+    flex-shrink: 0;
   }
 
   .hb-appbar__actions {
     display: flex;
+    flex-shrink: 0;
     align-items: center;
     gap: 4px;
     margin-inline-start: auto;
   }
 
+  /*
+   * Phones: the organisation and location names take the space left after the brand and the
+   * actions, and shorten with an ellipsis, so the account menu (and sign out) stays on screen. The
+   * group does not clip its overflow, so focus rings on the switchers stay visible.
+   */
   @media (max-width: 734px) {
+    .hb-appbar__switchers {
+      flex: 1 1 auto;
+    }
+
     .hb-appbar__context,
     .hb-appbar__switcher {
       font-size: 14px;
@@ -288,7 +311,56 @@
     }
   }
 
-  /* Menus (used by the app bar switchers) */
+  /* Account menu (the button at the end of the app bar) */
+
+  .hb-account-menu__trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: var(--touch-target);
+    min-height: var(--touch-target);
+    padding-inline: 8px;
+    border: 0;
+    border-radius: var(--corner-chip);
+    background-color: transparent;
+    color: var(--text);
+    font-family: inherit;
+    font-size: var(--nav-text-size);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color var(--motion-duration-fast) var(--motion-easing);
+  }
+
+  .hb-account-menu__trigger:hover,
+  .hb-account-menu__trigger[data-state="open"] {
+    background-color: color-mix(in srgb, var(--text) 8%, transparent);
+  }
+
+  .hb-account-menu__icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--text-secondary);
+  }
+
+  .hb-account-menu__name {
+    max-width: 16rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Phones show the icon only; the name stays in the button's accessible name and the menu. */
+  @media (max-width: 734px) {
+    .hb-account-menu__trigger {
+      justify-content: center;
+      padding-inline: 0;
+    }
+
+    .hb-account-menu__name {
+      display: none;
+    }
+  }
+
+  /* Menus (the app bar switchers and the account menu) */
 
   .hb-menu {
     z-index: 50;
@@ -346,6 +418,43 @@
 
   .hb-menu__item[data-highlighted] .hb-menu__item-description {
     color: inherit;
+  }
+
+  .hb-menu__item[data-disabled] {
+    color: var(--text-secondary);
+    cursor: not-allowed;
+  }
+
+  /* A menu item that is a link reads as an item, not as underlined link text. */
+  .hb-menu__item--link {
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .hb-menu__item--link:hover {
+    text-decoration: none;
+  }
+
+  /* Who the menu is for: name, then details such as email, organisation and location. */
+  .hb-menu__header {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 12px 6px;
+    color: var(--text-secondary);
+    font-size: var(--type-callout-size);
+    overflow-wrap: anywhere;
+  }
+
+  .hb-menu__header-name {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .hb-menu__separator {
+    height: var(--hairline);
+    margin: 4px 0;
+    background-color: var(--border);
   }
 
   /* Sidebar */
@@ -808,7 +917,7 @@
   .hb-tile__description {
     margin: 0;
     color: var(--text-secondary);
-    font-size: var(--type-callout-size);
+    font-size: var(--type-body-dense-size);
   }
 
   .hb-tile__link {
@@ -1374,7 +1483,7 @@
     gap: 2px 8px;
     margin: 0;
     color: var(--text-secondary);
-    font-size: var(--type-callout-size);
+    font-size: var(--type-body-dense-size);
     font-variant-numeric: tabular-nums;
   }
 
@@ -1421,7 +1530,7 @@
     align-items: center;
     gap: 6px;
     margin: 0;
-    font-size: var(--type-callout-size);
+    font-size: var(--type-body-dense-size);
     font-weight: 600;
   }
 
@@ -1429,7 +1538,7 @@
   .hb-timeline__correction-reason {
     margin: 0;
     color: var(--text-secondary);
-    font-size: var(--type-callout-size);
+    font-size: var(--type-body-dense-size);
     font-variant-numeric: tabular-nums;
   }
 
@@ -1443,11 +1552,14 @@
     padding: 2px 8px;
     border-radius: var(--corner-chip);
     color: var(--status-on-fill);
-    font-size: var(--type-callout-size);
+    font-size: var(--type-body-dense-size);
     font-weight: 600;
     line-height: 20px;
-    letter-spacing: var(--type-callout-tracking);
-    white-space: nowrap;
+    letter-spacing: var(--type-body-dense-tracking);
+    /* A long status ("CPR decision not recorded") wraps inside its chip on a narrow screen rather
+       than pushing the page sideways (WCAG 1.4.10 reflow at 320 px). */
+    max-width: 100%;
+    white-space: normal;
     vertical-align: middle;
   }
 
@@ -1714,7 +1826,7 @@
   .hb-banner__detail {
     margin: 0;
     color: var(--text-secondary);
-    font-size: var(--type-callout-size);
+    font-size: var(--type-body-dense-size);
   }
 
   .hb-banner__actions {
@@ -1742,7 +1854,7 @@
   .hb-field__hint {
     margin: 0;
     color: var(--text-secondary);
-    font-size: var(--type-callout-size);
+    font-size: var(--type-body-dense-size);
   }
 
   .hb-field__error {
@@ -1750,7 +1862,7 @@
     padding-inline-start: 8px;
     border-inline-start: 3px solid var(--danger);
     color: var(--text);
-    font-size: var(--type-callout-size);
+    font-size: var(--type-body-dense-size);
     font-weight: 600;
   }
 
@@ -1771,5 +1883,392 @@
   .hb-field--invalid .hb-field__input {
     border-color: var(--danger);
     box-shadow: 0 0 0 var(--hairline) var(--danger);
+  }
+
+  /* Text area: the same field, growing downwards only so the layout never scrolls sideways. */
+  .hb-field__input--multiline {
+    display: block;
+    min-height: calc(var(--touch-target) * 2);
+    line-height: 1.47;
+    resize: vertical;
+  }
+
+  .hb-field__count {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--type-callout-size);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Over the limit: the words say so; the bar and weight match an error, never colour alone. */
+  .hb-field__count--over {
+    padding-inline-start: 8px;
+    border-inline-start: 3px solid var(--danger);
+    color: var(--text);
+    font-weight: 600;
+  }
+  /* Timeline additions: status chips beside the time, and actions under an entry */
+
+  .hb-timeline__badges {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  /*
+   * Long lists: items beyond the first 20 are laid out and painted only when they come near the
+   * viewport, so a month of entries stays fast. They stay in the accessibility tree.
+   */
+  .hb-long-list > li:nth-child(n + 21) {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 120px;
+  }
+
+  .hb-timeline__footer {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  /* Tab navigation: links styled as tabs; the row scrolls sideways on its own on a phone */
+
+  .hb-tabnav {
+    max-width: 100%;
+    border-bottom: var(--hairline) solid var(--border);
+  }
+
+  /* When tabs are out of view, a soft shadow shows at that edge (the "scroll shadow" pattern: the
+     page-coloured covers move with the tabs and hide each shadow once its end is reached). */
+  .hb-tabnav__list {
+    --hb-tabnav-shadow: color-mix(in srgb, var(--text) 28%, transparent);
+    display: flex;
+    gap: 4px;
+    margin: 0;
+    padding: 0 2px;
+    overflow-x: auto;
+    list-style: none;
+    scrollbar-width: thin;
+    background:
+      linear-gradient(to right, var(--bg) 30%, transparent) left center / 40px 100% no-repeat local,
+      linear-gradient(to left, var(--bg) 30%, transparent) right center / 40px 100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%, var(--hb-tabnav-shadow), transparent) left center /
+      16px 100% no-repeat scroll,
+      radial-gradient(farthest-side at 100% 50%, var(--hb-tabnav-shadow), transparent) right center
+      / 16px 100% no-repeat scroll;
+  }
+
+  .hb-tabnav__item {
+    flex: none;
+  }
+
+  .hb-tabnav__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: var(--touch-target);
+    padding: 0 12px;
+    border-bottom: 3px solid transparent;
+    color: var(--text-secondary);
+    font-size: var(--type-body-dense-size);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: color var(--motion-duration-fast) var(--motion-easing);
+  }
+
+  .hb-tabnav__link:hover {
+    color: var(--text);
+  }
+
+  .hb-tabnav__link:focus-visible {
+    outline-offset: -3px;
+  }
+
+  /* The current tab: a bar, bold text and darker text together, never colour alone. */
+  .hb-tabnav__link:is([aria-current="page"], [aria-current="true"]) {
+    border-bottom-color: var(--accent);
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .hb-tabnav__icon {
+    display: inline-flex;
+  }
+
+  .hb-tabnav__icon > :where(svg) {
+    width: 16px;
+    height: 16px;
+  }
+
+  /* Radio group: native radios as cards; the whole card selects */
+
+  .hb-choice {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .hb-choice__legend {
+    margin-bottom: 6px;
+    padding: 0;
+    color: var(--text);
+    font-size: var(--type-body-dense-size);
+    font-weight: 600;
+  }
+
+  .hb-choice__options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .hb-choice__options--inline {
+    flex-flow: row wrap;
+  }
+
+  .hb-choice__options--grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  }
+
+  .hb-choice__option {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    min-height: var(--touch-target);
+    padding: 10px 14px;
+    border: var(--hairline) solid var(--text-tertiary);
+    border-radius: var(--corner-input);
+    background-color: var(--bg);
+    cursor: pointer;
+  }
+
+  .hb-choice__option:hover {
+    background-color: var(--bg-secondary);
+  }
+
+  .hb-choice__label {
+    color: var(--text);
+    font-size: var(--type-body-dense-size);
+  }
+
+  /* The chosen card: a thicker border and bold label as well as the filled dot. */
+  .hb-choice__option:has(.hb-choice__input:checked) {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+
+  .hb-choice__option:has(.hb-choice__input:checked) .hb-choice__label {
+    font-weight: 600;
+  }
+
+  .hb-choice__option:has(.hb-choice__input:focus-visible) {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .hb-choice__option--disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  .hb-choice__input {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    margin: 2px 0 0;
+    accent-color: var(--accent);
+  }
+
+  .hb-choice__input:focus-visible {
+    outline: none;
+  }
+
+  .hb-choice__text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .hb-choice__description {
+    color: var(--text-secondary);
+    font-size: var(--type-body-dense-size);
+  }
+
+  .hb-choice--invalid .hb-choice__option {
+    border-color: var(--danger);
+  }
+
+  /* Checkbox */
+
+  .hb-check {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  /* The box and its words are one label: the whole row, at least 44 px tall, ticks the box. */
+  .hb-check__target {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: var(--touch-target);
+    padding: 6px 0;
+    cursor: pointer;
+  }
+
+  .hb-check__input {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    margin: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
+  .hb-check__label {
+    min-width: 0;
+    color: var(--text);
+    font-size: var(--type-body-dense-size);
+  }
+
+  /* The hint and error line up with the words, past the box. */
+  .hb-check__detail {
+    padding-inline-start: 34px;
+  }
+
+  /* An error draws a ring in the danger colour as a shadow, so the focus ring (an outline) still
+     shows when the box has focus. The error message says what to do; the ring is not the only cue. */
+  .hb-check--invalid .hb-check__input {
+    box-shadow:
+      0 0 0 2px var(--bg),
+      0 0 0 4px var(--danger);
+  }
+
+  /* Date input: day, month and year (and hour and minute) in separate boxes, so a date reads
+     dd/mm/yyyy and a time is 24-hour whatever the browser's language (the GOV.UK pattern). */
+
+  .hb-date {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .hb-date__legend {
+    margin-bottom: 6px;
+    padding: 0;
+    color: var(--text);
+    font-size: var(--type-body-dense-size);
+    font-weight: 600;
+  }
+
+  .hb-date__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px 16px;
+  }
+
+  .hb-date__item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  /* A little more room between the date and the time. */
+  .hb-date__item--hour {
+    margin-inline-start: 8px;
+  }
+
+  .hb-date__label {
+    color: var(--text);
+    font-size: var(--type-body-dense-size);
+  }
+
+  .hb-date__input {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hb-date__input--2 {
+    inline-size: calc(2.5ch + 32px);
+  }
+
+  .hb-date__input--4 {
+    inline-size: calc(4.5ch + 32px);
+  }
+
+  .hb-date__input[aria-invalid="true"] {
+    border-color: var(--danger);
+    box-shadow: 0 0 0 var(--hairline) var(--danger);
+  }
+
+  .hb-datetime {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* Select field: the text field with the browser's own arrow */
+
+  .hb-field__select {
+    padding-inline-end: 36px;
+    cursor: pointer;
+  }
+
+  /* Meter: one amount against a limit; the words carry the meaning */
+
+  .hb-meter {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .hb-meter__header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 4px 16px;
+  }
+
+  .hb-meter__label {
+    color: var(--text);
+    font-size: var(--type-body-dense-size);
+    font-weight: 600;
+  }
+
+  .hb-meter__value {
+    color: var(--text);
+    font-size: var(--type-body-dense-size);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hb-meter__track {
+    position: relative;
+    height: 12px;
+    overflow: hidden;
+    border: var(--hairline) solid var(--text-tertiary);
+    border-radius: var(--corner-pill);
+    background-color: var(--bg-secondary);
+  }
+
+  .hb-meter__fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: var(--corner-pill);
+    background-color: var(--accent);
+  }
+
+  .hb-meter__description {
+    color: var(--text-secondary);
+    font-size: var(--type-body-dense-size);
   }
 }

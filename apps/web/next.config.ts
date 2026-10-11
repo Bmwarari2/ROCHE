@@ -50,7 +50,7 @@ const nextConfig: NextConfig = {
   images: { unoptimized: true },
   poweredByHeader: false,
   reactStrictMode: true,
-  transpilePackages: ["@harbour/ui", "@harbour/contracts", "@harbour/i18n"],
+  transpilePackages: ["@harbour/ui", "@harbour/contracts", "@harbour/i18n", "@harbour/domain"],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

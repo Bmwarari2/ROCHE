@@ -282,7 +282,8 @@ const SEVERITY_ORDER: Record<TransferAllergy["severity"], number> = {
   unknown: 3,
 };
 
-function normaliseAllergies(statement: AllergyStatement): AllergyStatement {
+/** Allergies most severe first; an empty "has allergies" list reads as unknown (HZ-007). */
+export function normaliseAllergies(statement: AllergyStatement): AllergyStatement {
   if (statement.status !== "has_allergies") return statement;
   if (statement.allergies.length === 0) return { status: "unknown" };
   return {
@@ -302,7 +303,8 @@ function normaliseMedicines(statement: MedicinesStatement): MedicinesStatement {
   };
 }
 
-function normaliseCommunication(statement: CommunicationStatement): CommunicationStatement {
+/** An empty "recorded" list reads as not recorded, never as no needs (HZ-023). */
+export function normaliseCommunication(statement: CommunicationStatement): CommunicationStatement {
   if (statement.status === "recorded" && statement.needs.length === 0)
     return { status: "not_recorded" };
   return statement;

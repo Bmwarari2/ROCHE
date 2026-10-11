@@ -71,7 +71,7 @@ describe("formatting and helpers", () => {
 
   it.each([
     ["9990000018", true],
-    ["4010232137", false],
+    ["1234567890", false],
   ])("test range %s -> %s", (input, expected) => {
     expect(isTestRangeNhsNumber(input)).toBe(expected);
   });

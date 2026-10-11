@@ -31,7 +31,13 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
 - Roles: per-tenant copies of the 21 built-in roles in `packages/domain/src/platform/roles.ts`;
   permission matrix: [permissions.md](permissions.md) (generated).
 - Effective access: `resolveAccess` unions active role assignments and time-boxed grants; the widest
-  scope wins (`tenant` > `locations` > `assigned` > `none`).
+  scope wins (`tenant` > `locations` > `assigned` > `none`). Staff and portal sessions never mix
+  (ADR-0061): a staff session (the default) skips portal roles and drops portal-only permissions
+  (`PORTAL_ONLY_PERMISSIONS`) from grants; a portal session (`resolveAccess(..., "portal")`, for
+  family members and later the person's own portal) takes portal roles only, with no grants and
+  scope `none`. `checkRoleDefinition` refuses a role mixing portal and staff permissions,
+  `checkGrantPermissions` refuses portal permissions in grants, and a stored mixed role is ignored.
+  The API passes `"portal"` from the family portal step onwards.
 - MFA: required for every permission that touches care records (`mfa_enrolment_required` otherwise).
 - Step-up: controlled drugs, residents' money approval, data export, break-glass, statutory
   notifications and support-access approval need a sign-in within 10 minutes.
@@ -130,6 +136,10 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
 - Permissions: person photos and documents need `people.person.update` (care attachments
   `care.note.write`); organisation documents `platform.document.manage`; reading a person's
   documents needs `people.person.read` and MFA.
+- Merge-field templates: letter and email templates with typed merge fields, approval by someone
+  other than the author and fixed approved versions are specified in [comms.md](comms.md)
+  (COMMS-007, rules in `packages/domain/src/comms/templates.ts`); a rendered letter is stored here
+  as a document about the person.
 
 ## Retention and legal hold (PLAT-012)
 
@@ -146,7 +156,7 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
 
 ## Statutory figures (PLAT-021)
 
-- `rate_table` seeded from [rates.md](rates.md) (169 rows), `retention_class` from
+- `rate_table` seeded from [rates.md](rates.md), `retention_class` from
   [retention.md](retention.md). Overlapping periods are refused by an exclusion constraint.
 - Lookup: tenant override, then nation, then `uk`, then `all` (`resolveRate`); unverified figures
   are flagged. `GET /v1/rates/{key}?nation&on`.
@@ -172,6 +182,14 @@ last year the calendar covers, no holiday is skipped, so a deadline can only fal
 - `packages/i18n`: ICU catalogues for en-GB and cy with key parity, British spelling and no-emoji
   tests; Welsh falls back to English until professionally translated (Phase 7). Per-tenant
   terminology (resident, client, person we support) drives navigation labels.
+- Every Welsh entry still in English is listed in `cy.status.json` (a test fails otherwise), and
+  English messages keep sentence case.
+- The web app reads every word from the catalogues through `apps/web/src/lib/i18n.ts`; plurals,
+  terminology and regulator names are ICU `plural` and `select` messages, never strings built in
+  code. `apps/web/src/copy.test.ts` fails on literal copy in JSX text or in attributes people read
+  or hear. Default copy inside `@harbour/ui` components is the English fallback; the web shell passes
+  translated words through component props (skip link, switcher menus, sidebar, account menu,
+  sheet close, character count).
 
 ## Integrations framework (INTG-001)
 
@@ -200,6 +218,14 @@ last year the calendar covers, no holiday is skipped, so a deadline can only fal
   `location_ids`, `people_location_ids`; 15-minute ES256 tokens from `POST /v1/sync/token`, JWKS
   at `GET /v1/sync/jwks`. Uploads (`POST /v1/sync/upload`) reject every table until modules add
   writable tables (Phase 1).
+
+## Search, export, onboarding and DPIA (PLAT-013, PLAT-015, PLAT-018, PLAT-023)
+
+Specified in [platform-completions.md](platform-completions.md): permission-aware search with
+break-glass search and query-free audit ([ADR-0070](../decisions/0070-search-on-postgres-full-text.md)),
+the free full tenant export with its manifest and documented schema, the onboarding checklist and
+sample data mode, and the DPIA prefill and sign-off with the records-of-processing and
+sub-processor registers. Domain rules are built; schema and API follow.
 
 ## Permission matrix
 

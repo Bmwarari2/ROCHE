@@ -5,17 +5,13 @@ import { ShellFrame } from "@/components/shell/ShellFrame";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { peopleLabel, t } from "@/lib/i18n";
 
-const REGULATOR: Record<LocationSummary["regulator"], string> = {
-  cqc: "CQC",
-  ciw: "CIW",
-  care_inspectorate: "Care Inspectorate",
-  rqia: "RQIA",
-  ofsted: "Ofsted",
-};
-
+/** "CQC location 1-000000001", for the location switcher. */
 function locationDescription(location: LocationSummary): string | undefined {
   return location.regulatorLocationId
-    ? `${REGULATOR[location.regulator]} location ${location.regulatorLocationId}`
+    ? t("shell.locationSwitcher.regulatorLocation", {
+        regulator: location.regulator,
+        id: location.regulatorLocationId,
+      })
     : undefined;
 }
 
@@ -39,13 +35,20 @@ export default async function ShellLayout({ children }: { readonly children: Rea
       locationId={locationId}
       unreadNotifications={unread}
       labels={{
+        skipLink: t("shell.skipLink"),
         organisation: t("shell.tenantSwitcher.label"),
+        organisationMenu: t("shell.tenantSwitcher.menuLabel"),
         location: t("shell.locationSwitcher.label"),
+        locationMenu: t("shell.locationSwitcher.menuLabel"),
         allLocations: t("shell.locationSwitcher.all"),
+        navigation: t("shell.nav.label"),
         home: t("shell.nav.home"),
         people: peopleLabel(me.tenant.terminology),
         notifications: t("shell.nav.notifications"),
+        unreadNotifications: t("shell.nav.unread", { count: unread }),
         settings: t("shell.nav.settings"),
+        accountMenu: t("shell.account.menu", { name: me.user.name }),
+        security: t("security.title"),
         signOut: t("common.signOut"),
       }}
     >

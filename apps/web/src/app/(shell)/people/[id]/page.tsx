@@ -1,125 +1,304 @@
-import { EmptyState, InspectorPanel } from "@harbour/ui";
-import { ClipboardList, Lock, SearchX } from "lucide-react";
+import { Meter, StatusChip, Tile } from "@harbour/ui";
+import {
+  Activity,
+  CircleCheck,
+  ClipboardCheck,
+  ClipboardList,
+  Droplets,
+  History,
+  NotebookPen,
+  PencilLine,
+  PersonStanding,
+  TriangleAlert,
+} from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BreakGlass } from "@/components/people/BreakGlass";
-import { PersonHeader } from "@/components/people/PersonHeader";
-import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
-import { isUuid } from "@/lib/context-cookies";
-import { peopleLabel, t } from "@/lib/i18n";
-import { canBreakGlass, personNames } from "@/lib/people";
+import { EntryBadges } from "@/components/care/EntryBadges";
+import { RecordFrame } from "@/components/care/RecordFrame";
+import { getShellContext, tenantApi } from "@/lib/api";
+import { bandChip, bandLabel } from "@/lib/assessments";
+import { planStatusChip, planVersions } from "@/lib/care-plan";
+import { can, entryChains, tabHref, windowStart } from "@/lib/care-record";
+import { fluidDayView, news2Chip, news2FromFlags } from "@/lib/charts";
+import { formatDate, formatDateTime } from "@/lib/format";
+import { t } from "@/lib/i18n";
+import { getPerson, readOrFail } from "@/lib/person-record";
+import { recordMetadata } from "@/lib/record-metadata";
+import { ukToday } from "@/lib/uk-time";
 
 type Params = Promise<{ id: string }>;
 
-async function loadPerson(id: string) {
-  if (!isUuid(id)) return { person: null, code: "not_found" } as const;
-  const api = await tenantApi();
-  const { data, error, response } = await api.GET("/v1/people/{id}", {
-    params: { path: { id } },
-  });
-  if (data) return { person: data, code: null } as const;
-  const code = problemCode(error);
-  if (code === "not_found" || code === "missing_permission" || response.status === 404) {
-    return { person: null, code: code ?? "not_found" } as const;
-  }
-  return failWith(error, response, `/people/${id}`);
-}
-
-export async function generateMetadata({ params }: { readonly params: Params }): Promise<Metadata> {
-  // The title names the module, not the person: browser history and tab titles are visible to
+export async function generateMetadata(): Promise<Metadata> {
+  // The title names the tab, not the person: browser history and tab titles are visible to
   // anyone who uses the computer next.
-  const { me } = await getShellContext();
-  await params;
-  return { title: peopleLabel(me.tenant.terminology) };
+  return recordMetadata("overview");
 }
 
-/** One person's point-of-care view. Phase 1 fills the panels with care plans, notes and medicines. */
-export default async function PersonPage({ params }: { readonly params: Params }) {
+const planIcons = { "circle-check": CircleCheck, "pencil-line": PencilLine, history: History };
+
+/** The overview's window for vital signs and notes, as the API reads by default. */
+const VITALS_DAYS = 3;
+
+/**
+ * The overview tab: what is in use and what was recorded lately, each a link into its section.
+ * Every figure is the API's; nothing is calculated here.
+ */
+async function PersonOverviewTab({ params }: { readonly params: Params }) {
   const { id } = await params;
+  const { person } = await getPerson(id);
+  if (!person) return null;
   const { me } = await getShellContext();
-  const { person, code } = await loadPerson(id);
-  const people = peopleLabel(me.tenant.terminology);
+  const readPlan = can(me.permissions, "care.plan.read");
+  const readNotes = can(me.permissions, "care.note.read");
+  const api = await tenantApi();
+  const path = tabHref(id, "overview");
+  const today = ukToday();
+  const from = windowStart(VITALS_DAYS);
 
-  if (!person) {
-    const forbidden = code === "missing_permission";
-    return (
-      <div className="mx-auto flex w-full max-w-content flex-col gap-6 py-6">
-        <EmptyState
-          headingLevel={1}
-          icon={
-            forbidden ? (
-              <Lock size={40} strokeWidth={1.5} aria-hidden="true" />
-            ) : (
-              <SearchX size={40} strokeWidth={1.5} aria-hidden="true" />
-            )
-          }
-          title={forbidden ? t("errors.forbidden") : t("errors.notFound")}
-          description={
-            forbidden
-              ? undefined
-              : "This record does not exist, or it is outside your access. Records outside your access can be opened only with a reason, which is recorded and shared with your Registered Manager."
-          }
-          action={
-            !forbidden && canBreakGlass(me.permissions) ? (
-              <BreakGlass
-                personId={id}
-                labels={{
-                  title: t("people.breakGlass.title"),
-                  body: t("people.breakGlass.body"),
-                  justification: t("people.breakGlass.justification"),
-                  cancel: t("common.cancel"),
-                  stepUpTitle: t("auth.stepUp.title"),
-                  stepUpBody: t("auth.stepUp.body"),
-                }}
-              />
-            ) : null
-          }
-          secondaryAction={
-            <Link href="/people" className="hb-button hb-button--tertiary">
-              <span className="hb-button__label">Back to {people.toLocaleLowerCase("en-GB")}</span>
-              <span className="hb-button__chevron" aria-hidden="true">
-                ›
-              </span>
-            </Link>
-          }
-        />
-      </div>
-    );
-  }
+  const [plans, assessments, vitals, fluid, marks, notes] = await Promise.all([
+    readPlan
+      ? api
+          .GET("/v1/people/{id}/care-plans", { params: { path: { id } } })
+          .then((r) => readOrFail(r, path))
+      : null,
+    readPlan
+      ? api
+          .GET("/v1/people/{id}/assessments", {
+            params: { path: { id }, query: { latest: "true" } },
+          })
+          .then((r) => readOrFail(r, path))
+      : null,
+    readNotes
+      ? api
+          .GET("/v1/people/{id}/observations", {
+            params: { path: { id }, query: { chart: "vitals", from } },
+          })
+          .then((r) => readOrFail(r, path))
+      : null,
+    readNotes
+      ? api
+          .GET("/v1/people/{id}/charts/fluid", { params: { path: { id }, query: { date: today } } })
+          .then((r) => readOrFail(r, path))
+      : null,
+    readNotes
+      ? api
+          .GET("/v1/people/{id}/body-map", {
+            params: { path: { id }, query: { includeHealed: "false" } },
+          })
+          .then((r) => readOrFail(r, path))
+      : null,
+    readNotes
+      ? api
+          .GET("/v1/people/{id}/notes", { params: { path: { id }, query: { from } } })
+          .then((r) => readOrFail(r, path))
+      : null,
+  ]);
 
-  const location = me.locations.find((l) => l.id === person.locationId);
-  const names = personNames(person);
+  const versions = plans ? planVersions(plans.items) : null;
+  const active = versions?.active ?? null;
+  const planChip = active ? planStatusChip(active.status, t) : null;
+  const PlanIcon = planChip ? planIcons[planChip.icon] : null;
+  const latestVitals = vitals?.items.find((item) => !item.superseded) ?? null;
+  const news2 = latestVitals ? news2FromFlags(latestVitals.flags) : null;
+  const fluidView = fluid ? fluidDayView(fluid, t) : null;
+  const recentNotes = notes ? entryChains(notes.items).slice(0, 3) : [];
 
   return (
-    <div className="flex w-full flex-col gap-6">
-      <nav aria-label="Breadcrumb" className="text-callout">
-        <Link href="/people">{people}</Link>
-        <span aria-hidden="true" className="px-2 text-text-secondary">
-          ›
-        </span>
-        <span aria-current="page">{names.hasPreferred ? names.preferred : names.full}</span>
-      </nav>
-      <div className="flex flex-col gap-6 md:flex-row md:items-start">
-        <div className="flex min-w-0 flex-1 flex-col gap-6">
-          <PersonHeader person={person} locationName={location?.name ?? null} />
-          <EmptyState
-            headingLevel={2}
-            icon={<ClipboardList size={32} strokeWidth={1.5} aria-hidden="true" />}
-            title="No care notes yet"
-            description={`Notes written by the team about ${names.preferred} will appear here.`}
+    <>
+      <h2 className="m-0 text-eyebrow">{t("care.overview.title")}</h2>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {versions ? (
+          <Tile
+            headingLevel={3}
+            icon={<ClipboardList size={24} strokeWidth={1.5} />}
+            title={t("care.overview.plan.title")}
+            status={
+              <span className="flex flex-wrap gap-2">
+                {planChip && PlanIcon ? (
+                  <StatusChip status={planChip.status} label={planChip.label} icon={PlanIcon} />
+                ) : (
+                  <StatusChip status="due" label={t("care.plan.none.title")} />
+                )}
+                {plans?.due?.overdue ? (
+                  <StatusChip status="overdue" label={t("care.plan.due.overdue")} />
+                ) : null}
+              </span>
+            }
+            description={
+              <>
+                {active?.reviewDueOn ? (
+                  <span className="block">
+                    {t("care.plan.reviewDue", { date: formatDate(active.reviewDueOn) ?? "" })}
+                  </span>
+                ) : null}
+                {plans?.due?.dueOn ? (
+                  <span className="block">
+                    {t(`care.plan.due.${plans.due.kind}`, {
+                      date: formatDate(plans.due.dueOn) ?? "",
+                    })}
+                  </span>
+                ) : null}
+                {versions.draft ? (
+                  <span className="block">{t("care.overview.plan.draftOpen")}</span>
+                ) : null}
+              </>
+            }
+            link={{ href: tabHref(id, "care-plan"), label: t("care.overview.plan.link") }}
+            linkComponent={Link}
           />
-        </div>
-        <InspectorPanel
-          title={`About ${names.preferred}`}
-          subtitle="Care plan, medicines and risk assessments"
-          className="md:w-[360px] md:shrink-0"
-        >
-          <p className="m-0 text-callout text-text-secondary">
-            Care plans, medicines and risk assessments will appear here once they are recorded in
-            Harbour.
-          </p>
-        </InspectorPanel>
+        ) : null}
+        {vitals ? (
+          <Tile
+            headingLevel={3}
+            icon={<Activity size={24} strokeWidth={1.5} />}
+            title={t("care.overview.vitals.title")}
+            value={news2 ? t("care.news2.score", { score: news2.score }) : undefined}
+            status={
+              news2 ? (
+                <StatusChip
+                  status={news2Chip(news2.band)}
+                  label={t("care.news2.clinicalRisk", { risk: news2.clinicalRisk })}
+                  icon={Activity}
+                />
+              ) : latestVitals ? (
+                // Readings exist but their NEWS2 result cannot be read: never shown as calm.
+                <StatusChip
+                  status="overdue"
+                  label={t("care.overview.vitals.unreadableChip")}
+                  icon={TriangleAlert}
+                />
+              ) : undefined
+            }
+            description={
+              latestVitals ? undefined : t("care.overview.vitals.none", { days: VITALS_DAYS })
+            }
+            link={{
+              href: `${tabHref(id, "charts")}?record=vitals`,
+              label: t("care.overview.vitals.link"),
+            }}
+            linkComponent={Link}
+          >
+            {latestVitals ? (
+              <div className="flex flex-col gap-1">
+                {news2 ? (
+                  <p className="m-0 font-semibold">
+                    {t("care.news2.response", { response: news2.response })}
+                  </p>
+                ) : (
+                  <p className="m-0 font-semibold">{t("care.overview.vitals.unreadable")}</p>
+                )}
+                <p className="m-0">
+                  {t("care.overview.vitals.when", {
+                    dateTime: formatDateTime(latestVitals.occurredAt) ?? "",
+                  })}
+                </p>
+                <p className="m-0 flex flex-wrap items-center gap-2">
+                  <EntryBadges entry={latestVitals} />
+                </p>
+              </div>
+            ) : null}
+          </Tile>
+        ) : null}
+        {fluid && fluidView ? (
+          <Tile
+            headingLevel={3}
+            icon={<Droplets size={24} strokeWidth={1.5} />}
+            title={t("care.overview.fluid.title")}
+            link={{ href: tabHref(id, "charts"), label: t("care.overview.fluid.link") }}
+            linkComponent={Link}
+          >
+            <Meter
+              label={t("care.charts.fluid.meter", { date: formatDate(fluid.date) ?? fluid.date })}
+              value={fluid.intakeMl}
+              max={fluidView.meterMax}
+              valueText={fluidView.valueText}
+              description={<StatusChip status={fluidView.status} label={fluidView.statusText} />}
+            />
+          </Tile>
+        ) : null}
+        {assessments ? (
+          <Tile
+            headingLevel={3}
+            icon={<ClipboardCheck size={24} strokeWidth={1.5} />}
+            title={t("care.overview.assessments.title")}
+            description={
+              assessments.items.length === 0 ? t("care.overview.assessments.none") : undefined
+            }
+            link={{ href: tabHref(id, "assessments"), label: t("care.overview.assessments.link") }}
+            linkComponent={Link}
+          >
+            {assessments.items.length > 0 ? (
+              <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                {assessments.items.map((item) => {
+                  const band = bandLabel(item, t);
+                  return (
+                    <li key={item.id} className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold">
+                        {t("care.assessments.tool", { tool: item.toolKey })}
+                      </span>
+                      {band ? (
+                        <StatusChip status={bandChip(item)} label={band} icon={ClipboardCheck} />
+                      ) : null}
+                      <span className="text-text-secondary">
+                        {formatDate(ukToday(new Date(item.occurredAt))) ?? ""}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+          </Tile>
+        ) : null}
+        {marks ? (
+          <Tile
+            headingLevel={3}
+            icon={<PersonStanding size={24} strokeWidth={1.5} />}
+            title={t("care.overview.bodyMap.title")}
+            value={t("care.overview.bodyMap.count", { count: marks.items.length })}
+            link={{ href: tabHref(id, "body-map"), label: t("care.overview.bodyMap.link") }}
+            linkComponent={Link}
+          />
+        ) : null}
+        {notes ? (
+          <Tile
+            headingLevel={3}
+            icon={<NotebookPen size={24} strokeWidth={1.5} />}
+            title={t("care.overview.notes.title")}
+            description={recentNotes.length === 0 ? t("care.overview.notes.none") : undefined}
+            link={{ href: tabHref(id, "notes"), label: t("care.overview.notes.link") }}
+            linkComponent={Link}
+          >
+            {recentNotes.length > 0 ? (
+              <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                {recentNotes.map(({ current }) => (
+                  <li key={current.id} className="flex flex-col gap-1">
+                    <span className="flex flex-wrap items-center gap-2 text-body-dense text-text-secondary">
+                      <span>
+                        {t("care.overview.notes.when", {
+                          dateTime: formatDateTime(current.occurredAt) ?? "",
+                          category: t("care.notes.category", { category: current.category }),
+                        })}
+                      </span>
+                      <EntryBadges entry={current} />
+                    </span>
+                    <span className="line-clamp-2 block">{current.body}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </Tile>
+        ) : null}
       </div>
-    </div>
+    </>
+  );
+}
+
+/** The tab inside the record's frame: the point-of-care header, read again on every tab, and the tabs. */
+export default async function PersonOverviewPage(props: { readonly params: Params }) {
+  const { id } = await props.params;
+  return (
+    <RecordFrame personId={id} tab="overview">
+      <PersonOverviewTab {...props} />
+    </RecordFrame>
   );
 }

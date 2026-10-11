@@ -4,7 +4,8 @@
  * rule. New modules add their permissions here; `docs/specs/platform.md` renders this table.
  *
  * `stepUp` marks actions that need fresh re-authentication (section 5.3): controlled drugs,
- * residents' money, data export, break-glass and statutory notification submission.
+ * residents' money, data export (`platform.export.create`), break-glass and statutory
+ * notification submission.
  */
 
 export const BOUNDED_CONTEXTS = [
@@ -41,10 +42,35 @@ export const PERMISSIONS = {
   "platform.role.manage": { description: "Design, clone and version roles" },
   "platform.flag.manage": { description: "Switch modules on or off for the tenant and locations" },
   "platform.audit.read": { description: "Read the audit log and record history" },
-  "platform.data.export": { description: "Export the tenant's full dataset", stepUp: true },
+  "platform.export.create": {
+    // The export holds every care record, so it needs MFA, and its step-up is an MFA sign-in.
+    description: "Create and download the organisation's full data export (free, at any time)",
+    stepUp: true,
+    careRecord: true,
+  },
   "platform.import.run": { description: "Run the migration import wizard" },
   "platform.billing.read": { description: "See the tenant's Harbour subscription and invoices" },
-  "platform.dpia.sign": { description: "Sign the DPIA and data processing agreement" },
+  "platform.search.use": {
+    description: "Search the people, staff, documents and notes you can already see",
+  },
+  "platform.search.archived": {
+    description: "Include discharged, deceased and archived people and their records in search",
+  },
+  "platform.onboarding.read": { description: "See the organisation's onboarding checklist" },
+  "platform.onboarding.manage": {
+    description: "Load and remove sample data and record onboarding decisions",
+  },
+  "platform.dpia.read": {
+    description: "Read the DPIA, the records of processing and the sub-processor register",
+  },
+  "platform.dpia.prepare": {
+    description: "Prepare the DPIA and keep the processing registers up to date",
+  },
+  "platform.dpia.sign": {
+    description:
+      "Sign the DPIA and data processing agreement as the named data protection lead, and answer sub-processor notices",
+    stepUp: true,
+  },
   "platform.grant.manage": { description: "Give time-boxed delegation and acting-up grants" },
   "platform.task.manage": { description: "Create, assign and reassign tasks for other people" },
   "platform.document.manage": { description: "Upload and manage organisation documents" },
@@ -140,9 +166,32 @@ export const PERMISSIONS = {
   // quality
   "quality.audit.manage": { description: "Run audits and mock inspections" },
   "quality.policy.manage": { description: "Publish policies and read-and-sign campaigns" },
-  "quality.evidence.manage": { description: "Manage the evidence library and inspector packs" },
+  "quality.evidence.manage": {
+    description: "Manage the evidence library (tag records against quality statements)",
+  },
   "quality.dsar.manage": { description: "Run the DSAR workbench and breach register" },
-  "quality.evidence.read": { description: "Read inspector evidence packs" },
+  "quality.evidence.read": {
+    description: "Open evidence packs released to you (inspectors only)",
+    careRecord: true,
+  },
+  "quality.evidence_pack.compose": {
+    description:
+      "Compose inspector evidence packs (evidence, people in scope, redactions) and revoke their links",
+    careRecord: true,
+  },
+  "quality.evidence_pack.release": {
+    description:
+      "Release an evidence pack to its recipient by a time-limited link (not the person who composed it)",
+    stepUp: true,
+    careRecord: true,
+  },
+  "quality.statement_of_purpose.write": {
+    description: "Draft changes to the statement of purpose",
+  },
+  "quality.statement_of_purpose.approve": {
+    description:
+      "Approve a statement of purpose revision (the registered provider or manager; not its author)",
+  },
   // workforce
   "workforce.recruitment.manage": { description: "Manage applicants and pre-employment files" },
   "workforce.training.manage": { description: "Manage the training matrix and competence" },
@@ -165,6 +214,15 @@ export const PERMISSIONS = {
   "operations.activities.manage": { description: "Manage the activities programme" },
   "operations.visitors.manage": { description: "Manage visitors and appointments" },
   "operations.occupancy.manage": { description: "Manage the bed board and enquiries" },
+  "operations.downtime.read": {
+    description: "Print or open the location's downtime pack",
+    careRecord: true,
+  },
+  "operations.downtime.manage": {
+    description:
+      "Declare and close outages and confirm that paper records from an outage were entered",
+    careRecord: true,
+  },
   // finance
   "finance.billing.manage": { description: "Manage funding, charges and invoices" },
   "finance.ledger.record": { description: "Record residents' money transactions" },
@@ -178,7 +236,35 @@ export const PERMISSIONS = {
   "comms.message.send": { description: "Send internal messages and announcements" },
   "comms.portal.family": { description: "Use the family portal for one person" },
   "comms.portal.self": { description: "Use the person's own portal" },
-  "comms.letter.manage": { description: "Manage letter templates" },
+  "comms.letter.manage": {
+    description: "Write letters and emails from approved templates and send them",
+  },
+  "comms.template.write": { description: "Write and change letter and email templates" },
+  "comms.template.approve": {
+    description: "Approve letter and email templates for use (not the template's author)",
+  },
+  "comms.feed.read": {
+    description: "Read the family feed and the care plan sections a sharing decision opens",
+    careRecord: true,
+  },
+  "comms.feed.publish": {
+    description: "Mark notes as shareable, choose photos and publish family updates",
+    careRecord: true,
+  },
+  "comms.feed.withdraw": {
+    description: "Take a family update down with a reason",
+    careRecord: true,
+  },
+  "comms.notification.subscribe": {
+    description: "Choose own channels and quiet hours for family update notifications",
+  },
+  "comms.notification.manage": {
+    description: "See family notification delivery problems and the location's settings",
+  },
+  "comms.visit_booking.request": { description: "Ask to book a visit through the family portal" },
+  "comms.visit_booking.manage": {
+    description: "See and cancel visit bookings and set online booking hours",
+  },
   // insights
   "insights.dashboard.read": { description: "Read role dashboards" },
   "insights.report.manage": { description: "Build and schedule reports" },
