@@ -57,6 +57,7 @@ for an answer.
 | [0051](0051-personal-data-in-template-emails.md) | Personal data in template emails: none in subjects, no special category data in bodies | proposed | 2026-10-11 | Phase 1 |
 | [0060](0060-family-notification-channels.md) | Family notification channels: provider-neutral ports and events, content-free messages | accepted | 2026-10-11 | Phase 1 |
 | [0061](0061-family-portal-scope-and-row-level-security.md) | Family portal scope: portal sessions, no person assignment, and a sharing-decision policy | accepted | 2026-10-11 | Phase 1 (schema step) |
+| [0070](0070-search-on-postgres-full-text.md) | Search on Postgres full-text search, under row-level security | accepted | 2026-10-11 | Phase 1 |
 
 ## Open items carried by these ADRs
 

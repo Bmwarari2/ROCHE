@@ -4,7 +4,8 @@
  * rule. New modules add their permissions here; `docs/specs/platform.md` renders this table.
  *
  * `stepUp` marks actions that need fresh re-authentication (section 5.3): controlled drugs,
- * residents' money, data export, break-glass and statutory notification submission.
+ * residents' money, data export (`platform.export.create`), break-glass and statutory
+ * notification submission.
  */
 
 export const BOUNDED_CONTEXTS = [
@@ -41,10 +42,35 @@ export const PERMISSIONS = {
   "platform.role.manage": { description: "Design, clone and version roles" },
   "platform.flag.manage": { description: "Switch modules on or off for the tenant and locations" },
   "platform.audit.read": { description: "Read the audit log and record history" },
-  "platform.data.export": { description: "Export the tenant's full dataset", stepUp: true },
+  "platform.export.create": {
+    // The export holds every care record, so it needs MFA, and its step-up is an MFA sign-in.
+    description: "Create and download the organisation's full data export (free, at any time)",
+    stepUp: true,
+    careRecord: true,
+  },
   "platform.import.run": { description: "Run the migration import wizard" },
   "platform.billing.read": { description: "See the tenant's Harbour subscription and invoices" },
-  "platform.dpia.sign": { description: "Sign the DPIA and data processing agreement" },
+  "platform.search.use": {
+    description: "Search the people, staff, documents and notes you can already see",
+  },
+  "platform.search.archived": {
+    description: "Include discharged, deceased and archived people and their records in search",
+  },
+  "platform.onboarding.read": { description: "See the organisation's onboarding checklist" },
+  "platform.onboarding.manage": {
+    description: "Load and remove sample data and record onboarding decisions",
+  },
+  "platform.dpia.read": {
+    description: "Read the DPIA, the records of processing and the sub-processor register",
+  },
+  "platform.dpia.prepare": {
+    description: "Prepare the DPIA and keep the processing registers up to date",
+  },
+  "platform.dpia.sign": {
+    description:
+      "Sign the DPIA and data processing agreement as the named data protection lead, and answer sub-processor notices",
+    stepUp: true,
+  },
   "platform.grant.manage": { description: "Give time-boxed delegation and acting-up grants" },
   "platform.task.manage": { description: "Create, assign and reassign tasks for other people" },
   "platform.document.manage": { description: "Upload and manage organisation documents" },

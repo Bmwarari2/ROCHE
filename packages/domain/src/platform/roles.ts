@@ -32,6 +32,7 @@ const pointOfCare: Permission[] = [
   "workforce.self.read",
   "comms.message.send",
   "insights.dashboard.read",
+  "platform.search.use",
 ];
 
 /**
@@ -63,6 +64,11 @@ const registeredManager: Permission[] = ALL_PERMISSIONS.filter(
   "platform.grant.manage",
   "platform.task.manage",
   "platform.document.manage",
+  "platform.search.use",
+  "platform.search.archived",
+  "platform.onboarding.read",
+  "platform.dpia.read",
+  "platform.dpia.prepare",
 ]);
 
 export const BUILTIN_ROLES: readonly BuiltinRole[] = [
@@ -93,6 +99,8 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "insights.report.manage",
       "insights.group.read",
       "platform.audit.read",
+      "platform.dpia.read",
+      "platform.search.use",
       "scheduling.rota.read",
       "comms.message.send",
     ],
@@ -116,6 +124,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       (p) =>
         p !== "safety.notification.submit" &&
         p !== "platform.grant.manage" &&
+        p !== "platform.dpia.prepare" &&
         p !== "quality.statement_of_purpose.approve",
     ),
   },
@@ -189,6 +198,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "safety.incident.read",
       "comms.message.send",
       "insights.dashboard.read",
+      "platform.search.use",
     ],
   },
   {
@@ -262,6 +272,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "comms.visit_booking.manage",
       "comms.template.write",
       "platform.document.manage",
+      "platform.search.use",
     ],
   },
   {
@@ -292,6 +303,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "workforce.casework.manage",
       "workforce.competence.observe",
       "insights.dashboard.read",
+      "platform.search.use",
     ],
   },
   {
@@ -319,6 +331,12 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "platform.audit.read",
       "platform.document.manage",
       "platform.retention.manage",
+      "platform.search.use",
+      "platform.search.archived",
+      "platform.onboarding.read",
+      "platform.dpia.read",
+      "platform.dpia.prepare",
+      "platform.dpia.sign",
       "insights.dashboard.read",
       "insights.report.manage",
     ],

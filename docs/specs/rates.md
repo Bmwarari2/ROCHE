@@ -236,6 +236,11 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | mobile.auto_lock_seconds.shared | 30 | seconds | 2000-01-01 | - | all | master prompt 17.2, ADR-0011; tenant default | master-prompt |
 | mobile.auto_lock_seconds.shared_max | 120 | seconds | 2000-01-01 | - | all | master prompt 17.2 (configurable from 30 seconds to 2 minutes) | master-prompt |
 | account_deletion.confirmation_days | 30 | days | 2000-01-01 | - | all | master prompt 17.3 | master-prompt |
+| export.link_expiry_hours | 72 | hours | 2000-01-01 | - | all | Harbour default: how long a ready full tenant export can be downloaded before the file is deleted (master prompt 5.1 asks for delivery by expiring link but sets no period; platform-completions.md rule 12); policy value, not statutory; tenant default | to-verify |
+| export.link_expiry_hours_max | 168 | hours | 2000-01-01 | - | all | Harbour ceiling on the tenant's export.link_expiry_hours setting, so no tenant can keep a full export downloadable for more than 7 days (platform-completions.md rule 12; security review); policy value, not statutory | to-verify |
+| break_glass.search_max_per_day | 5 | count | 2000-01-01 | - | all | Harbour default: break-glass searches one user may run in any 24 hours before further searches are refused and the data protection lead is told (platform-completions.md rule 9; security review); policy value, not statutory; tenant default | to-verify |
+| dpia.review_interval_months | 12 | months | 2000-01-01 | - | all | DPIA template section 8 ("at least annually"); UK GDPR Art 35(11) requires a review at least when the risk changes but sets no interval, https://www.legislation.gov.uk/eur/2016/679/article/35 (platform-completions.md rule 22); tenant default | to-verify |
+| sub_processor.notice_days | 30 | days | 2000-01-01 | - | all | DPA template clause 6.2 (bracketed default, solicitor to confirm, H-32): notice before a new or replacement sub-processor, and the window for objecting (platform-completions.md rule 24); contractual, not statutory; tenant setting from the tenant's DPA | to-verify |
 | benchmark.occupancy_percentage.low | 86 | percent | 2000-01-01 | - | uk | master prompt 13.1 (sector context, about 86 to 89%) | master-prompt |
 | benchmark.occupancy_percentage.high | 89 | percent | 2000-01-01 | - | uk | master prompt 13.1 (sector context, about 86 to 89%) | master-prompt |
 | benchmark.staff_cost_percentage_of_income | 55 | percent | 2000-01-01 | - | uk | master prompt 14.4 (target band around 55%) | master-prompt |
@@ -321,6 +326,28 @@ literals, and tests assert against the table, not a literal (section 7, section 
   link stays valid ([quality.md](quality.md) rule 8, ADR-0050). A security policy value, not a
   tenant preference: a tenant may shorten it, never lengthen it past 10 minutes
   (`EVIDENCE_CODE_MAX_VALID_MINUTES`). Codes are 6 digits, single-use and stored hashed.
+
+- `export.link_expiry_hours` (72): how long a ready full tenant export stays downloadable before
+  the file is deleted (platform-completions.md rule 12). The master prompt asks for an expiring
+  link without a period. The link alone never opens the file (the requester signs in again with
+  step-up), so the period limits how long a copy sits in storage rather than how long a leaked
+  link works. A policy value, not a statutory figure: the tenant may shorten or lengthen it, and a
+  new export is always free. Confirmed by the tenant's data protection lead (H-118).
+- `export.link_expiry_hours_max` (168): the ceiling on `export.link_expiry_hours`. A tenant may
+  shorten the expiry or lengthen it up to 7 days, never beyond, so a full copy of every record
+  cannot sit in storage for weeks. Harbour policy, confirmed by Brian with the DPO (H-118).
+- `break_glass.search_max_per_day` (5): how many break-glass searches one user may run in any
+  24 hours. Break-glass search exists to find one person in an emergency; more than a handful a
+  day looks like browsing, so further searches are refused and the data protection lead is told.
+  Tenant default, confirmed by the tenant's data protection lead (H-118).
+- `dpia.review_interval_months` (12): the yearly re-review of a signed DPIA (platform-completions.md
+  rule 22). UK GDPR Art 35(11) requires a review "at least when there is a change of the risk"
+  and sets no interval; the yearly review comes from Harbour's DPIA template (section 8, "at least
+  annually") and common ICO practice. Tenant default, confirmed by the DPO (H-118).
+- `sub_processor.notice_days` (30): the notice Thapsus gives before a new or replacement
+  sub-processor processes a tenant's data, which is also the window in which the tenant may object
+  (DPA template clause 6.2, bracketed until the solicitor confirms it, H-32). It is contractual,
+  so a tenant whose signed DPA says otherwise has its own value; it is never a statutory period.
 
 ## Other notes
 

@@ -2,7 +2,7 @@
 
 **For**: each tenant (care provider), as controller. **Required because** the processing involves special category data about people who may be vulnerable, on a large scale, using new technology including offline mobile devices; these match the ICO's criteria for when a DPIA is needed ([ICO: when do we need to do a DPIA?](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/accountability-and-governance/data-protection-impact-assessments-dpias/when-do-we-need-to-do-a-dpia/); UK GDPR Art 35).
 
-**How it works**: Harbour pre-fills this template from the tenant's configuration. Merge fields are shown as `{{field}}` and are filled from the tenant record; Harbour re-generates the pre-filled sections when configuration changes and flags the DPIA for review. The tenant's DPO or named lead completes the remaining sections and **signs it in-app before go-live** (master prompt 5.1). Enabling the AI module requires the AI addendum (section 9) to be signed as well (master prompt 16).
+**How it works**: Harbour pre-fills this template from the tenant's configuration. Merge fields are shown as `{{field}}` and are filled from the tenant record; Harbour re-generates the pre-filled sections when configuration changes and flags the DPIA for review. The tenant's DPO or named lead completes the remaining sections and **signs it in-app before go-live** (master prompt 5.1); the signer cannot be one of the people who prepared that version, and a risk still high after its measures needs the ICO's prior consultation reference first. A signed DPIA falls due for review when a purpose, sub-processor, data category or module appears that it did not cover, and yearly. Enabling the AI module requires the AI addendum (section 9) to be signed first (master prompt 16); the family portal and marketing add sections 10 and 11. Rules: [platform-completions.md](../specs/platform-completions.md) rules 17 to 22, `packages/domain/src/platform/dpia.ts`.
 
 ---
 
@@ -100,6 +100,9 @@ Likelihood of harm: remote, possible, probable. Severity of harm: minimal, signi
 | R7 | Transfer outside the UK through a sub-processor | Remote | Significant | Low |
 | R8 | Shared-device misuse (another user's session) | Possible | Significant | Medium |
 | R9 | Location data from electronic call monitoring used beyond its purpose | `{{modules.domiciliary.enabled ? "Possible" : "Not applicable"}}` | Significant | |
+| R10 | AI drafts relied on without review, prompt injection through notes, or disclosure to the provider | `{{modules.ai.enabled ? "Possible" : "Not applicable"}}` | Significant | Medium |
+| R11 | A photo or update shared beyond the consent given | `{{modules.familyPortal.enabled ? "Possible" : "Not applicable"}}` | Significant | Medium |
+| R12 | Marketing without valid consent | `{{settings.marketing ? "Possible" : "Not applicable"}}` | Minimal | Low |
 | R... | *Tenant adds local risks* | | | |
 
 ## 7. Measures to reduce risk
@@ -114,6 +117,10 @@ Likelihood of harm: remote, possible, probable. Severity of harm: minimal, signi
 | R6 | Recorded sharing decisions; consent records; scoped portal access | Sharing policy | Reduced | | |
 | R7 | UK hosting by default; AI off by default; register with geography | Choose providers knowingly | Reduced | | |
 | R8 | 30-second lock, PIN plus enrolled device, photo picker, shift-end sign-out | Device policy, PIN-sharing policy | Reduced | | |
+| R9 | Location used only to verify visits, scoped like the visit record (designed with the Phase 4 home care module) | Explain monitoring to people and staff | Reduced | | |
+| R10 | AI off by default; pseudonymisation; drafts labelled and never acted on alone; scope lock; 12-month audit (section 9) | AI policy, training, accountable owner | Reduced | | |
+| R11 | Per-person and per-family-member consent records; sections shared only under a sharing decision in force | Consent process; review of what is posted | Reduced | | |
+| R12 | Consent recorded before any marketing message; withdrawal stops it | Consent wording; PECR check of channels | Reduced | | |
 
 ## 8. Sign-off
 
@@ -154,3 +161,21 @@ The AI module is off by default. It is enabled per tenant only after this addend
 | Accountable owner | |
 | DPO | |
 | Clinical lead or CSO (for summaries that include care records) | |
+
+## 10. Family portal photos and updates (when the family portal is enabled)
+
+| Item | Value |
+| --- | --- |
+| Purpose | Records of processing B8: photos and updates shared with named family members |
+| Basis | Consent (Art 6(1)(a); Art 9(2)(a) explicit consent where a photo or update reveals health), recorded per person and per family member |
+| Consent process | *Tenant describes how consent is asked for, recorded, reviewed and withdrawn, including for people who lack capacity* |
+| What families see | *Tenant lists the sections shared and who decides (sharing decisions, people.md rule 13)* |
+
+## 11. Marketing (when marketing is switched on)
+
+| Item | Value |
+| --- | --- |
+| Purpose | Records of processing B9: marketing to families and enquirers |
+| Basis | Consent (Art 6(1)(a)), and PECR for electronic messages |
+| Consent wording | *Tenant records the wording used* |
+| Channels | *Tenant lists the channels and checks each against PECR* |

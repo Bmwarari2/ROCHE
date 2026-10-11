@@ -80,3 +80,36 @@ export function resolveRate(
     tenantOverride: best.tenantId !== null,
   };
 }
+
+/**
+ * The rate-table figures the platform completion rules read (platform-completions.md, rates.md).
+ * Policy values, not statutory figures: the agency post-shift window (master prompt 4), how long a
+ * ready export stays downloadable, the yearly DPIA review and the contractual sub-processor
+ * notice. Callers resolve them once per request (tenant override first) and pass them in.
+ */
+export const PLATFORM_RATE_KEYS = {
+  agencyPostShiftHours: "access.agency.post_shift_hours",
+  exportLinkExpiryHours: "export.link_expiry_hours",
+  exportLinkExpiryHoursMax: "export.link_expiry_hours_max",
+  breakGlassSearchMaxPerDay: "break_glass.search_max_per_day",
+  dpiaReviewIntervalMonths: "dpia.review_interval_months",
+  subProcessorNoticeDays: "sub_processor.notice_days",
+} as const;
+
+export type PlatformRateName = keyof typeof PLATFORM_RATE_KEYS;
+
+export type PlatformRates = { readonly [K in PlatformRateName]: number };
+
+/** Resolves every platform figure for a tenant on a date; fails loudly if one is missing. */
+export function resolvePlatformRates(
+  rows: readonly RateRow[],
+  nation: Exclude<RateNation, "uk" | "all">,
+  on: string,
+  tenantId: string | null,
+): PlatformRates {
+  const entries = (Object.keys(PLATFORM_RATE_KEYS) as PlatformRateName[]).map(
+    (name) =>
+      [name, resolveRate(rows, PLATFORM_RATE_KEYS[name], nation, on, tenantId).value] as const,
+  );
+  return Object.fromEntries(entries) as PlatformRates;
+}

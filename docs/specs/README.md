@@ -23,6 +23,7 @@ change.
 | File | Bounded context | Master prompt sections | First phase | Status |
 | --- | --- | --- | --- | --- |
 | platform.md | `platform` | 4, 5, 9.1 | 0 | Written by the lead engineer in Phase 0 |
+| [platform-completions.md](platform-completions.md) | `platform` | 4, 5.1, 9.1 | 1 | Written for Phase 1 slice 13 (search, export, onboarding, DPIA and registers) |
 | people.md | `people` | 9.2, 18 | 0 (schema), 1 | Written by the lead engineer in Phase 0 |
 | [care.md](care.md) | `care` | 10.1, 10.4 | 1 | Written for Phase 1 |
 | [safety.md](safety.md) | `safety` | 11.1 | 1 | Written for Phase 1 |
