@@ -1,8 +1,12 @@
 # Harbour mobile (`@harbour/mobile`)
 
-One Expo app for iOS and Android (master prompt section 17). Phase 0 delivers **Care mode**: sign in,
-unlock, and see the people assigned to you, from an encrypted on-device database that keeps working
-with no signal. Manage and Family modes are stubs behind the mode chooser shown after sign-in.
+One Expo app for iOS and Android (master prompt section 17). **Care mode** works with no signal from
+an encrypted on-device database: sign in, unlock, see the people assigned to you on Today with the
+sync status, and for each person read the point-of-care header, write or correct notes, record
+charts (fluids, food with IDDSI, repositioning, bowel, weight, vital signs with NEWS2), add body map
+marks, and read the care plan and risk assessments. Entries upload when the device is online
+(Phase 1 slice 10 part 1; tasks, handover and the conflict review come in part 2). Manage and Family
+modes are stubs behind the mode chooser shown after sign-in.
 
 Stack: Expo SDK 57 (React Native 0.86, New Architecture and Hermes, which are the only options in
 this SDK), expo-router (native stack, tabs), PowerSync (`@powersync/react-native` 2.x with its
@@ -48,8 +52,12 @@ email containing `+totp` exercises the authenticator step with code `123456`. Th
 separate encrypted database (`harbour-demo-<id>.db`, all tables local-only so nothing is queued for
 upload) and seeds three invented people: Ada Example (allergies recorded), Bea Sample (no known
 allergies) and Cal Placeholder (allergies not recorded, two communication needs). NHS numbers come
-from the 999 test range. The sync banner shows "Offline" with the time the demo data was seeded,
-and every screen says "Demo mode".
+from the 999 test range. Care records are invented too: Ada has a DNACPR decision whose review is
+overdue, IDDSI levels, a care plan, risk assessments and a MUST result; Bea has a ReSPECT plan and
+SpO2 scale 2; Cal has no resuscitation record, so the header reads "not recorded". Entries written in
+demo mode stay on the device and say so. The sync banner shows "Offline" with the time the demo data
+was seeded, and every screen says "Demo mode". A demo database seeded by an earlier version keeps its
+old seed; sign out and in again to see the care records.
 
 ## How it works
 
@@ -59,14 +67,16 @@ and every screen says "Demo mode".
 | Session | `src/app-state/session.tsx` | Token and cached `/v1/me` in the keystore (`WHEN_UNLOCKED_THIS_DEVICE_ONLY`) so the app starts offline. |
 | Encryption key | `src/security/db-key.ts` | Random 32-byte key per install in expo-secure-store with `requireAuthentication` and `WHEN_PASSCODE_SET_THIS_DEVICE_ONLY`: reading it shows Face ID or fingerprint, which is the unlock. Passed to SQLCipher as a raw key (`x'…'`). If biometrics are not available the key is passcode-gated and `expo-local-authentication` asks for the passcode. Devices without a screen lock are refused. |
 | Lock | `src/app-state/vault.tsx`, `src/security/idle-timer.ts` | Auto-lock after 2 minutes (personal) or 30 seconds to 2 minutes (shared device, set in Settings), counting time in the background. Re-unlock uses strong biometrics with passcode fallback. |
-| Sync | `src/sync/connector.ts` | `fetchCredentials` calls `POST /v1/sync/token`; `uploadData` posts `{ operations }` to `POST /v1/sync/upload` with an `Idempotency-Key`, retrying network errors, 408, 425, 429 (honouring `Retry-After`) and 5xx with full-jitter backoff. Rejected writes stay queued and surface as "Sync failed"; they are never discarded. |
+| Sync | `src/sync/connector.ts` | `fetchCredentials` calls `POST /v1/sync/token`. `uploadData` sends each care entry (notes, observations, body-map marks, activities, visits) to its own API endpoint (`src/sync/care-upload.ts`) with its UUIDv7, `deviceTime`, and the `x-harbour-tenant`, `x-harbour-device`, `Idempotency-Key` and `x-harbour-sent-at` headers (stamped as each request leaves); other tables go to `POST /v1/sync/upload` with `deviceSentAt`. Network errors, 408, 425, 429 (honouring `Retry-After`) and 5xx retry with full-jitter backoff and stay queued. A refusal moves the entry, with its content, to the local-only `upload_issue` table and the queue moves on; Today and the record show it as "not saved: needs attention" until someone removes it. Nothing is discarded silently. |
+| Offline window | `src/sync/offline-window.ts`, `vault.connectSync` | Reads `mobile.offline_window_days` from `GET /v1/rates/{key}` (cached in `sync_meta`; today only until first read) and connects with the `offline_days` connection parameter, so entries older than the window leave the device. Reconnects when the UTC day changes. |
+| Care mode | `src/app/(care)`, `src/care`, `src/components` | Pure rules in `src/care` (notes, charts, IDDSI, NEWS2 via `@harbour/domain`, body map sides, header flags, Today's sync summary, local SQL), tested in Node. Screens: Today, the person's record, note, chart, body map, care plan and risk assessments, each starting with `CarePersonHeader`. Words come from `@harbour/i18n` (`mobile.*` keys) through `src/i18n/t.ts`. |
 | Remote wipe | `vault.signOutAndWipe` | Sign-out, or a 401/403 from the sync token or upload endpoints, clears and deletes the database file and destroys its key. |
 | Schema | `src/sync/schema.ts` | Rebuilds `@harbour/sync`'s schema for PowerSync 2.x from its JSON form (the shared package still uses `@powersync/common` 1.x); a test proves both serialise identically. Remove once `@harbour/sync` moves to 2.x. |
 | Sync banner | `src/components/AppSyncBanner.tsx` | On every signed-in screen: offline, syncing, up to date, or sync failed with Retry; changes waiting to upload; a "may be out of date" warning after 15 minutes without a sync (HZ-002, HZ-006). |
 | People | `src/app/(care)/people` | `useQuery` over local SQLite, scoped to the signed-in tenant, virtualised `FlatList`. Rows show photo or initials, name, room, allergy flag (three states, HZ-007) and communication-needs flag. |
 | Photos | `src/people/photo.ts` | `GET /v1/people/{id}/photo` with the bearer token; held in memory only as data URIs. |
-| Screen capture | `src/security/use-record-protection.ts` | Record screens block screenshots and recording (Android `FLAG_SECURE`, iOS capture prevention); the iOS app-switcher snapshot is blurred while signed in. Identifiers are rendered non-selectable, so they cannot be copied. |
-| Root and jailbreak | `src/security/device-integrity.ts` | Interface with a stub that reports "unknown", so eMAR stays off. TODO before eMAR: `jail-monkey` (MIT) heuristics plus Play Integrity / App Attest verified by the API. |
+| Screen capture | `src/security/use-record-protection.ts` | Record screens (Today, People, the record and every Care mode form) block screenshots and recording (Android `FLAG_SECURE`, iOS capture prevention); the iOS app-switcher snapshot is blurred while signed in. Identifiers are rendered non-selectable, so they cannot be copied. |
+| Root and jailbreak | `src/security/device-integrity.ts` | Interface with a stub that reports "unknown", so eMAR stays off. A "compromised" result shows a warning on every screen. TODO before eMAR: `jail-monkey` (MIT) heuristics plus Play Integrity / App Attest verified by the API. |
 
 ### What the API must do for this client
 
@@ -77,6 +87,11 @@ and every screen says "Demo mode".
 - Accept `Idempotency-Key` on `/v1/sync/upload` and record business conflicts as review tasks
   rather than failing the upload.
 - Serve photos with `Cache-Control: no-store` so the native HTTP cache keeps no copy.
+- Accept care entries with the device's id on `POST /v1/people/{id}/notes`, `/observations`,
+  `/body-map`, `/activities` and `/visits`, answer a replayed id with the saved copy, compute
+  late-entry flags from `deviceTime` and clock drift from `x-harbour-sent-at`, and answer refusals
+  with problem details (the device shows `detail`, else `title`).
+- Serve `GET /v1/rates/mobile.offline_window_days` to a care worker (the device's offline window).
 
 ## Tests
 
@@ -86,15 +101,24 @@ pnpm --filter @harbour/mobile test      # Vitest: pure modules only (no React Na
 cd apps/mobile && npx expo export --platform android --output-dir <tmp>   # proves Metro bundles
 ```
 
-Unit tests cover the connector (credentials, upload mapping, retry and backoff, remote wipe), the
-idle timer and auto-lock policy, staleness and banner states, the schema bridge, the database key,
-the auth client, photos, environment parsing, and the People SQL, which runs against a real SQLite
-engine (`node:sqlite`) with the demo seed.
+Unit tests cover the connector (credentials, care uploads with their headers, refusals moved to
+"needs attention", retry and backoff, remote wipe), the care upload mapping checked against the API's
+own zod schemas, UUIDv7, the offline window, the Care mode rules (notes, charts, IDDSI, NEWS2 on the
+device, body map sides, the resuscitation status, Today's sync summary; named with their hazard
+ids), the idle timer and auto-lock policy, staleness and banner states, the schema bridge, the
+database key, the auth client, photos, environment parsing, and the People and Care SQL, which runs
+against a real SQLite engine (`node:sqlite`) with tables built from the shared PowerSync schema and
+the demo seed (`src/test-support/local-db.ts`). Screens are checked by typecheck, by
+`src/care/screens.test.ts` (every person screen shows the header and blocks capture) and by Maestro.
 
 ### End-to-end tests (Maestro)
 
-Flows live in `.maestro/`: `sign-in.yaml`, `offline-people-list.yaml`, `sync-recovery.yaml`. They
-cannot run in this repository's sandbox (no simulator). CI runs them like this:
+Flows live in `.maestro/`: `sign-in.yaml`, `offline-people-list.yaml`, `sync-recovery.yaml` and
+`hazard-HZ-006-offline-note-and-vitals.yaml` (a note and vital signs written offline, NEWS2 shown at
+once, both survive a restart and upload when the network returns). They cannot run in this
+repository's sandbox (no simulator). The offline flows need the live API stack: a demo build never
+syncs, and `.github/workflows/mobile.yml` currently builds demo mode only, so those flows need the
+`preview` build in step 1 below. CI runs them like this:
 
 1. Build a release-like binary: `eas build --profile e2e --platform android` (APK, demo mode for the
    sign-in smoke test) and a `preview` build pointed at the CI API for the offline flows; or

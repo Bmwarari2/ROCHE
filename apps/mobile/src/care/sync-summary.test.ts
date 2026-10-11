@@ -29,6 +29,15 @@ describe("hazard HZ-002 the sync status on Today", () => {
     });
   });
 
+  it("hazard HZ-028 says how many days of entries the device keeps", () => {
+    expect(syncSummary(input({ windowDays: 1 })).window).toBe(
+      "Entries from today are kept on this device.",
+    );
+    expect(syncSummary(input({ windowDays: 14 })).window).toBe(
+      "Entries from the last 14 days are kept on this device.",
+    );
+  });
+
   it("warns once the data is older than the threshold", () => {
     const summary = syncSummary(input({ lastSyncedAt: new Date("2026-10-11T09:00:00Z") }));
     expect(summary).toMatchObject({ tone: "warning", icon: "triangle-alert", stale: true });
