@@ -543,3 +543,42 @@ updated.
 **Tests**: `packages/domain` 3,914, `packages/db` 335, `packages/contracts` 30, `apps/api` 543,
 `packages/sync` 59, `apps/mobile` 853, `apps/web` 306, `packages/i18n` 48, all passing locally
 through `scripts/ci-local.sh`.
+
+## 2026-10-12: #25 review round 2 (sync and device integrity)
+
+**What changed**
+
+- Hand-over (security H1, clinical M3; HZ-040, HZ-004): taken only from a sender bound to the
+  device (the app sends its report from the sender's sign-in first), while the device's last
+  report shows a hold for the owner, within the count of the hold's report from someone other than
+  the sender, for entries timed while the owner used the device (and before any revocation),
+  about someone in the owner's care within the offline window. Each entry is recorded in
+  `handed_over_entry` (a hand-over id names one owner, device and sender) and keeps its sender in
+  `handed_over_by`, returned as `handedOverBy` ("Sent by"). Refusals are 422 `handover_refused`.
+- Device (clinical H1; HZ-006): on a hand-over, a 404, any 403 or `handover_refused` stops with
+  the entry still held, never parked; the database is deleted only when no held and no
+  needs-attention entry remains, whatever the server's copies.
+- Revocation (security M1, clinical M2; HZ-040): the sessions bound to a device are recorded
+  (`device_session`) and ended at revocation, and any request from one is refused whatever it
+  names; a revoked device's hold is due at once and urgent, its manager told, and a revocation of
+  a device with entries waiting needs the count confirmed.
+- Copies (security M2, clinical M1; HZ-006, HZ-008): content checked against the entry kind's
+  contract; only about someone the author cared for (refused like an unknown person otherwise); a
+  revoked device's copies only with a hand-over; the review escalates with the fallback and tells
+  the nurse in charge when urgent; copies the server will not keep are counted and said on the
+  phone.
+- Lows: device list filtered before its limit; a location role revokes only its own staff's
+  devices; RLS narrowed on `device_binding`, `device_discard_entry` and `request_quota`;
+  hand-over headers in OpenAPI; revoked-device refusals audited once an hour; 0034 carries
+  urgency, due time, progress and flagged entries to the kept task; copy limit after replay,
+  against the owner; copies paged; 0035's index lock noted.
+- Migrations 0041 and 0042 added; 0030, 0033, 0034, 0035 and 0040 amended in place (not on
+  `main`). A time-of-day flaky handover test now uses the sweep's own window.
+- Docs: hazard log (HZ-004, HZ-006, HZ-008, HZ-011, HZ-040), care.md, platform.md, retention,
+  records of processing, data standards, H-134, H-141, H-142, H-156 to H-159.
+
+**Human actions logged**: H-134, H-141, H-142 and H-156 to H-159 reworded.
+
+**Tests**: `packages/domain` 3,914, `packages/db` 338, `packages/contracts` 30, `apps/api` 553,
+`packages/sync` 59, `apps/mobile` 861, `apps/web` 306, `packages/i18n` 48, all passing locally
+through `scripts/ci-local.sh`.

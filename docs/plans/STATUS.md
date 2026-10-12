@@ -25,11 +25,15 @@ only when they link spec, code, tests and user documentation; no user guides exi
    `device_revoked` and the app's wipe or hold, deletion lists (`device_discard_entry`, closing the
    HZ-040 index blocker), one open sync task per source, the server copy of every refused entry
    with a review task (HZ-006), the manager hand-over of held entries, and per-user limits in
-   Postgres (migrations 0029 to 0040; hazards HZ-004, HZ-006, HZ-008, HZ-010, HZ-011, HZ-023,
-   HZ-040; human actions H-156 to H-159). Then the screens: devices and revocation, and refused
-   copies on the review task, in the web record (slice 9); the "copy sent" wording on the
-   phone's needs-attention list; the round and handover screens in the web record and Care mode
-   (slice 10 part 2, with sync streams for tasks and handovers and offline acknowledgement).
+   Postgres (migrations 0029 to 0042; hazards HZ-004, HZ-006, HZ-008, HZ-010, HZ-011, HZ-023,
+   HZ-040; human actions H-156 to H-159). Review round 2 answered: hand-overs tied to the
+   device's reported hold, the owner's time on the device and their care, with "Sent by" on the
+   entry; a hand-over that is not taken keeps the entry held, and the device keeps its database
+   while any refused entry waits; revocation ends the device's sessions and hurries its hold;
+   copies checked against their contracts and the author's care. Then the screens: devices and
+   revocation, and refused copies on the review task (which H-134 waits on), in the web record
+   (slice 9); the round and handover screens in the web record and Care mode (slice 10 part 2,
+   with sync streams for tasks and handovers and offline acknowledgement).
 2. API follow-ups from the #15 reviews still open: the stale-device check now that
    `device_binding` exists (H-141); the IDDSI drink level required when prescribed; client ids on
    the four remaining create routes; the escalation-policy link on validated-tool results; the
@@ -74,13 +78,13 @@ mocks and contract tests (section 20 rule 2).
 | Package | Tests |
 | --- | --- |
 | `packages/domain` | 3,914 |
-| `packages/db` | 335 (real Postgres: RLS coverage, isolation, scope, audit chain, seed, tasks, documents, care record, care planning, MCA and incidents, people lifecycle, bank holidays, pools, export catalogue, handovers, device integrity) |
+| `packages/db` | 338 (real Postgres: RLS coverage, isolation, scope, audit chain, seed, tasks, documents, care record, care planning, MCA and incidents, people lifecycle, bank holidays, pools, export catalogue, handovers, device integrity) |
 | `packages/sync` | 59 (PowerSync rules engine) |
 | `packages/contracts` | 30 |
 | `packages/i18n` | 48 |
 | `packages/ui` | 342 (231 axe runs) |
 | `packages/ui-native` | 141 |
-| `apps/api` | 543 |
-| `apps/mobile` | 853 |
+| `apps/api` | 553 |
+| `apps/mobile` | 861 |
 | `apps/web` | 306 unit; Playwright journeys with axe (WCAG 2.2 AA) in CI |
 | `infra` | `terraform test` 3, TFLint, Trivy and Checkov clean |

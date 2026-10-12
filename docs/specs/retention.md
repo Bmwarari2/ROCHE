@@ -64,7 +64,7 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `person`, `contact`, `allergy`, `placement`, `about_me` | care_record |
 | `pre_admission_assessment`, `admission_decision`, `admission_condition`, `bed_occupancy`, `welcome_checklist_item`, `property_item`, `key_issue`, `care_plan_change`, `review_record`, `hospital_transfer`, `exit_record`, `exit_checklist_item`, `sharing_decision`, `about_me_share_link` ([people.md](people.md)) | care_record |
 | `break_glass_event`, `break_glass_weekly_report` | audit_event |
-| `device_binding`, `device_discard_entry` (Care mode devices and the entries their deletions listed; [care.md](care.md) section 6) | audit_event |
+| `device_binding`, `device_session`, `device_discard_entry`, `handed_over_entry` (Care mode devices, the sessions bound to them, the entries their deletions listed and the entries hand-overs sent; [care.md](care.md) section 6) | audit_event |
 | `refused_entry` (the server copy of an entry the API refused from a device) | care_record |
 | `care_plan`, `care_plan_item`, `assessment`, `risk_assessment`, `care_note`, `observation` | care_record |
 | `consent_record`, `capacity_assessment`, `best_interests_decision`, `dols_authorisation`, `dols_legal_change_review` | care_record |

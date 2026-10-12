@@ -59,17 +59,23 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   harbour://`); browsers rely on the httpOnly cookie ([ADR-0030](../decisions/0030-web-session-and-browser-security.md)).
 - Care mode devices ([care.md](care.md) section 6, Device integrity): `device_binding` records
   which member of staff has used which device (the PowerSync client id), first and last seen,
-  written by the sync token and device report routes in the system's view. `GET /v1/devices`
-  (`platform.device.read`) lists them; `POST /v1/devices/{deviceId}/revoke`
+  written by the sync token and device report routes in the system's view, with the session that
+  did so (`device_session`). `GET /v1/devices` (`platform.device.read`) lists them with the
+  entries each last reported waiting; `POST /v1/devices/{deviceId}/revoke`
   (`platform.device.revoke`, step-up) revokes a lost or withdrawn device with a coded reason,
-  audited. Owner, Registered Manager and deputy hold both; a location role sees and revokes only
-  devices used by staff working at its locations. A revoked device is refused with 403
-  `device_revoked` on the sync token and uploads, and wipes, keeping unsent entries under the hold
-  rules. Revoking a device does not end the member's sessions elsewhere (identity-level; the
-  admin session revoke is a Phase 0 follow-up).
+  audited, once the manager has confirmed any entries it reported waiting. Owner, Registered
+  Manager and deputy hold both; a location role sees only devices used by staff working at its
+  locations, and revokes one only when every member bound to it is such staff. The revocation
+  ends the sessions bound to the device, and the tenant middleware refuses any request from a
+  session bound to a revoked device, whatever device it names (#25 review round 2, M1). A new
+  sign-in naming a revoked device is refused with 403 `device_revoked` on the sync token and
+  uploads, and the device wipes, keeping unsent entries under the hold rules. The member's
+  sessions on other devices are not ended (identity-level; the admin session revoke is a Phase 0
+  follow-up).
 - Per-user limits (`PerUserQuota`, `RateLimiter` in `apps/api/src/http`) keep their recent hits in
   Postgres (`request_quota`: one row per member and limit, updated under a row lock), so a limit
-  holds across API instances. A refusal is 429 with Retry-After.
+  holds across API instances. A row is read and written only in a view acting as its member (a
+  hand-over's copies count against their owner). A refusal is 429 with Retry-After.
 - Web: sign-in (password then TOTP, or a passkey), TOTP and passkey set-up and the device list are
   in `apps/web` (`/sign-in`, `/settings/security`).
 - Later: invitations and enrolment by email (Phase 1), admin revoke and idle timeouts per role
@@ -264,6 +270,6 @@ Generated: [permissions.md](permissions.md).
 
 Audit events, record versions and break-glass records keep the `audit_event` class (see
 [retention.md](retention.md)); deliveries and inbound data are operational and follow the class of
-the record they relate to (retention engine, Phase 1). `device_binding` keeps the `audit_event`
-class; `request_quota` is operational (a row holds at most a day's hits and is overwritten in
+the record they relate to (retention engine, Phase 1). `device_binding`, `device_session` and
+`handed_over_entry` keep the `audit_event` class; `request_quota` is operational (a row holds at most a day's hits and is overwritten in
 place).
