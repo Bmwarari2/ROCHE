@@ -121,7 +121,7 @@ mocks and contract tests (section 20 rule 2).
 | `packages/i18n` | 48 |
 | `packages/ui` | 342 (231 axe runs) |
 | `packages/ui-native` | 141 |
-| `apps/api` | 684 |
-| `apps/mobile` | 882 |
-| `apps/web` | 349 unit; Playwright journeys with axe (WCAG 2.2 AA) in CI |
+| `apps/api` | 694 |
+| `apps/mobile` | 886 |
+| `apps/web` | 359 unit; Playwright journeys with axe (WCAG 2.2 AA) in CI |
 | `infra` | `terraform test` 3, TFLint, Trivy and Checkov clean |

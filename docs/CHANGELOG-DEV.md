@@ -952,3 +952,41 @@ fast-forwards; three items are STATUS follow-ups.
 `apps/api` 684, `packages/sync` 62, `apps/mobile` 882, `apps/web` 349, `packages/ui` 342,
 `packages/ui-native` 141, all passing locally (`pnpm turbo run test --force --concurrency=2` on
 `118a916`, 0 cached) and through `scripts/ci-local.sh`.
+
+## 2026-10-12: Data scope per permission, review round 3 (ADR-0071)
+
+Security found no high or medium; clinical safety found four mediums. All are fixed on
+`fix/platform-scope-per-permission` as fast-forwards, with the clinical and security lows.
+
+- Every tab (C3-M1): `access.reaching` lists the permissions reaching the person without
+  break-glass; `writeAccess` gates every write form on the record (notes, charts, body map,
+  activities and visits, assessments, care plan and drafts, risk assessments, ReSPECT and advance
+  care), each showing the read-only line instead, now worded for every service ("tell the person
+  in charge of this shift or your manager", "record in it"). The Playwright break-glass journey
+  visits every tab with axe.
+- The phone per person (C3-M2): the sync token names the people the user is assigned to
+  (`entries_write_person_ids`, up to 100), so a coordinator who is also a carer records about
+  their clients; before the first token, recording is offered only with `care.note.write`; a held
+  session clears the write scope.
+- Escalations (C3-M3, C3-M4): an overdue task goes to first responders, then a Registered Manager
+  reaching the home (there or across the organisation), then care plan holders who can see the
+  person; with no one it is audited (`task.escalation_unrouted`), not marked escalated, and tried
+  again after an hour. A chain step with no holder falls back to a Registered Manager reaching
+  the home, else the owner; with no one it is audited (`platform.escalation.unrouted`). Only
+  active staff are told (`TOLD`); invited stays eligible for access and assignment.
+- Lows: urgent refused-entry notices prefer care plan holders at the home over those across the
+  organisation; the refused-entry unrouted audit is tested; docs say team leaders are told at
+  every home and no rota is checked; HZ-073 titles match and H-169 says both levels are 3; the
+  device check gives its cut-off in Europe/London and lists staff whose phone was never seen;
+  documents take an allow-list of organisation subject types and refuse a subject id without a
+  type; the new-version route does not find a person-category document with no person;
+  `roleInForce` and `accessRowsOf` check deleted roles and members, staff status and the
+  organisation on every join; `workLocationIds` skips portal and mixed roles; a refused
+  break-glass audit that fails is logged and still answers 404; `seed-users` needs
+  `HARBOUR_SEED_DEMO_USERS=1`; the runbook covers environments that ran round 1's 0048 and never
+  reactivating an organisation-wide grant without a decision.
+
+**Tests**: `packages/domain` 4,069, `packages/db` 393, `packages/contracts` 34, `packages/i18n` 48,
+`apps/api` 694, `packages/sync` 62, `apps/mobile` 886, `apps/web` 359, `packages/ui` 342,
+`packages/ui-native` 141, all passing locally (`pnpm turbo run test --force --concurrency=2` on
+`5f09cb1`, 0 cached) and through `scripts/ci-local.sh`.
