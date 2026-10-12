@@ -244,6 +244,7 @@
     "mobile.person.risks",
     "mobile.person.title",
     "mobile.person.writeNote",
+    "mobile.person.writeScopeUnavailable",
     "mobile.risks.assessmentBand",
     "mobile.risks.assessments",
     "mobile.risks.band",

@@ -146,13 +146,10 @@ describe("hazard HZ-073 where the phone may record (review rounds 2 to 4, C2-M3 
     expect(mayRecordFor(person, scope)).toBe(expected);
   });
 
-  it.each([
-    ["no permissions known yet", null, true],
-    ["permissions that include care.note.write", ["care.note.read", "care.note.write"], true],
-    // A coordinator signing in on a phone that has seen no token yet (round 3, low).
-    ["permissions without care.note.write", ["people.person.read", "care.plan.read"], false],
-  ] as const)("before any token, with %s", (_name, permissions, expected) => {
-    expect(mayRecordFor(ada, null, permissions)).toBe(expected);
+  it("records about no one while no scope is known, whatever the permissions (review round 5)", () => {
+    // Before any token, or once a token's scope could not be kept or read: never a guess.
+    expect(mayRecordFor(ada, null)).toBe(false);
+    expect(mayRecordFor(cara, null)).toBe(false);
   });
 
   it("keeps the scope across a restart, and reads one stored before the people were named", () => {

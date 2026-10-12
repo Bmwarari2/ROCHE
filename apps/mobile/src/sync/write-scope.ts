@@ -13,13 +13,10 @@
  * only when their home is not one whose people sync in full (`people_location_ids`), so one at a
  * home the user may only read is shown read only (fails closed); the API decides either way.
  *
- * Before any token has been seen (an app updated while offline), recording is offered only when
- * the user's permissions, as last read, include care.note.write; with no permissions known, as
- * before.
+ * While no scope is known (none kept since the last token, one that could not be kept or read,
+ * or an app updated while offline before its first token), the phone records about no one and
+ * says why (review round 5): it never guesses from the user's permissions.
  */
-
-/** The permission recording needs (notes, charts, body map marks). */
-export const RECORD_PERMISSION = "care.note.write";
 
 export interface WriteScope {
   /** Homes where the user may record about everyone. */
@@ -31,17 +28,6 @@ export interface WriteScope {
   /** Homes whose people sync to the phone in full (for the location rule when no ids are named). */
   readonly peopleLocationIds: readonly string[];
 }
-
-/**
- * A scope that records about no one: where the phone may record could not be kept, so it offers
- * nothing until the next token (review round 4).
- */
-export const NO_WRITE_SCOPE: WriteScope = {
-  locationIds: [],
-  assigned: false,
-  personIds: [],
-  peopleLocationIds: [],
-};
 
 const BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -100,13 +86,15 @@ export function writeScopeFromToken(token: string): WriteScope | null {
   };
 }
 
-/** Whether the phone offers recording about a person (see the module comment). */
+/**
+ * Whether the phone offers recording about a person (see the module comment): never while no
+ * scope is known.
+ */
 export function mayRecordFor(
   person: { readonly id: string; readonly locationId: string | null },
   scope: WriteScope | null,
-  permissions: readonly string[] | null = null,
 ): boolean {
-  if (scope === null) return permissions === null || permissions.includes(RECORD_PERMISSION);
+  if (scope === null) return false;
   if (person.locationId !== null && scope.locationIds.includes(person.locationId)) return true;
   if (!scope.assigned) return false;
   if (scope.personIds !== null) return scope.personIds.includes(person.id);
