@@ -113,6 +113,14 @@ only when they link spec, code, tests and user documentation; no user guides exi
    - (round 2 check of `fce5211`, clinical) one alarm notification can cover several
      organisations from the same daily run: the on-call runbook's action should say to read every
      `escalation.unrouted.daily` line from that run, not just the first.
+   - (#30 reviews, lows) add `hazard HZ-001 shows the shift running now by default...` to
+     HZ-001's evidence row in the hazard log; that test reads the shift twice and can fail if run
+     exactly across a shift change; list the task series and care review sweeps in the on-call
+     runbook's `worker.job.failed` row (a failed organisation now waits for the next run, 15
+     minutes or an hour, rather than a pg-boss retry).
+   - (#31 review, low) GitHub's own "Code scanning results / CodeQL" check now reports on pull
+     requests and can fail on new error-level quality alerts our gate passes; keep it optional in
+     branch protection, or set its failure threshold in Settings, Advanced Security.
 3. The screens the care API follow-ups (#26) wait on (slice 9 and slice 10 part 2): the
    escalation policy link on the phone, staff names on the web and phone (H-73); the settings for
    escalation policies and coded reasons; the phone offering the organisation's coded reasons (H-164);
