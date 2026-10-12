@@ -111,6 +111,9 @@ function common(id: string, data: Data) {
     deviceTime: text(data.device_time),
     supersedesId: text(data.supersedes_id),
     correctionReason: text(data.correction_reason),
+    // The round's task the entry is the evidence for: the API completes it, or keeps the entry
+    // for review when it cannot (closed, cancelled, or not the carer's to complete).
+    taskId: text(data.task_id),
   };
 }
 
