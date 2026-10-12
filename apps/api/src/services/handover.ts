@@ -61,6 +61,12 @@ export type HandoverRow = typeof handover.$inferSelect;
 export const HANDOVER_SWEEP_MINUTES = 5;
 /** Locked handovers take late additions for this long after the shift (the offline window). */
 export const OFFLINE_WINDOW_RATE_KEY = "mobile.offline_window_days";
+/**
+ * Entries recorded this long before a handover's last refresh are read again: an entry's recorded
+ * time is when its transaction began, so one that committed just after a refresh it began before is
+ * never missed. Twice the sweep interval; reading an entry twice adds nothing (items have keys).
+ */
+export const LATE_ENTRY_MARGIN_MINUTES = 2 * HANDOVER_SWEEP_MINUTES;
 
 /** The location's shift pattern: the rate table's two shifts until rotas define them (Phase 2). */
 export async function shiftPatternFor(
@@ -376,7 +382,12 @@ export async function compileOrRefresh(
   );
   if (!kept.ok) throw new Error(kept.message);
   const lock = input.lock === true && existing.lockedAt === null;
-  if (added.length === 0 && !lock && !input.advance) {
+  // The refresh time moves on only once it is older than the margin the late-entry check reads
+  // back over, so a late entry costs at most one write that adds nothing.
+  const advance =
+    input.advance === true &&
+    existing.refreshedAt.getTime() < now.getTime() - LATE_ENTRY_MARGIN_MINUTES * 60_000;
+  if (added.length === 0 && !lock && !advance) {
     return { row: existing, created: false, added: [] };
   }
   const [updated] = await tx
@@ -606,6 +617,9 @@ export async function sweepHandovers(
     .where(and(eq(location.status, "active"), isNull(location.deletedAt)));
   const offlineDays = await rateNumber(tx, tenantId, OFFLINE_WINDOW_RATE_KEY);
   const since = new Date(now.getTime() - (offlineDays + 1) * 86_400_000);
+  // An entry's recorded time is when its transaction began; one that committed after a refresh
+  // it began before is still found (HZ-018).
+  const margin = `${LATE_ENTRY_MARGIN_MINUTES} minutes`;
   let changed = 0;
   for (const loc of locations) {
     const pattern = await shiftPatternFor(tx, tenantId, loc.nation as Nation);
@@ -649,16 +663,16 @@ export async function sweepHandovers(
           gt(handover.shiftEnd, since),
           sql`(
             EXISTS (SELECT 1 FROM care_note e WHERE e.location_id = ${handover.locationId}
-              AND e.recorded_at > ${handover.refreshedAt}
+              AND e.recorded_at > ${handover.refreshedAt} - ${margin}::interval
               AND e.occurred_at >= ${handover.shiftStart} AND e.occurred_at < ${handover.shiftEnd})
             OR EXISTS (SELECT 1 FROM observation e WHERE e.location_id = ${handover.locationId}
-              AND e.recorded_at > ${handover.refreshedAt}
+              AND e.recorded_at > ${handover.refreshedAt} - ${margin}::interval
               AND e.occurred_at >= ${handover.shiftStart} AND e.occurred_at < ${handover.shiftEnd})
             OR EXISTS (SELECT 1 FROM body_map_mark e WHERE e.location_id = ${handover.locationId}
-              AND e.recorded_at > ${handover.refreshedAt}
+              AND e.recorded_at > ${handover.refreshedAt} - ${margin}::interval
               AND e.occurred_at >= ${handover.shiftStart} AND e.occurred_at < ${handover.shiftEnd})
             OR EXISTS (SELECT 1 FROM incident e WHERE e.location_id = ${handover.locationId}
-              AND e.deleted_at IS NULL AND e.recorded_at > ${handover.refreshedAt}
+              AND e.deleted_at IS NULL AND e.recorded_at > ${handover.refreshedAt} - ${margin}::interval
               AND e.occurred_at >= ${handover.shiftStart} AND e.occurred_at < ${handover.shiftEnd})
           )`,
         ),

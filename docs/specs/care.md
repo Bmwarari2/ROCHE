@@ -168,7 +168,9 @@ applies). Figures come from `rate_table` by key.
      location's last shift if nobody has, refreshes it and locks it once the shift has ended
      (`previousShift`). Locked handovers whose shift ended within `mobile.offline_window_days` days
      and a day are refreshed when an entry that happened in the shift arrives after the last
-     refresh, and open ones on every run. Late items are appended (`refreshHandover`); the shift a
+     refresh (read back 10 minutes, twice the run interval, because an entry's recorded time is
+     when its transaction began, so one that committed just after a refresh is never missed), and
+     open ones on every run. Late items are appended (`refreshHandover`); the shift a
      late entry arrived in gets it when its own handover is compiled.
    - **Sources** at the location: open tasks due by the end of the shift, MUST follow-ups raised in
      it and tasks staff skipped or cancelled in it (the task's completion time; tasks the people

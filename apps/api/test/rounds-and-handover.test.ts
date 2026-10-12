@@ -801,6 +801,22 @@ describe("the shift handover (care.md rule 8, COMMS-006)", () => {
       lastId,
     ]);
     expect(row?.version).toBe(refreshed.version);
+
+    // An entry whose transaction began before that refresh, and committed after it, is still
+    // found: its recorded time is earlier than the refresh.
+    await asDemoTenant((c) =>
+      c.query(
+        `INSERT INTO care_note (person_id, location_id, occurred_at, recorded_at, category, body, tags)
+         SELECT $1, $2, $3, h.refreshed_at - interval '2 minutes', 'health', 'Declined supper.', '{refusal}'
+         FROM handover h WHERE h.id = $4`,
+        [resident(2), DEMO.locationId, during, lastId],
+      ),
+    );
+    await compileHandovers(deps);
+    const caught = await json<HandoverDetail>(await as("manager", `${handoversPath()}/${lastId}`));
+    expect(
+      caught.items.filter((i) => i.lateAddition).map((i) => [i.kind, i.personId]),
+    ).toContainEqual(["refusal", resident(2)]);
   });
 
   it("refuses a shift that has not started, a location out of scope and a role without the permission", async () => {
