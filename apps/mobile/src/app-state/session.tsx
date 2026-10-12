@@ -30,6 +30,7 @@ import {
 import { DB_ID_ITEM } from "../security/db-key";
 import { flushPendingReport } from "../sync/device-report";
 import { CARE_ACCESS_PERMISSION } from "../sync/session-signals";
+import { clearWriteScope } from "../sync/write-scope-store";
 import { admitSignIn, type HeldWork, loadHeldMarker, serialiseHeldWork } from "./held-work";
 import { type AppMode, parseAppMode } from "./preferences-model";
 
@@ -196,6 +197,7 @@ export function SessionProvider({ children }: { readonly children: ReactNode }) 
       deletePlain(SESSION_TOKEN_ITEM),
       deletePlain(ME_ITEM),
       deletePlain(MODE_ITEM),
+      clearWriteScope(),
     ]);
     setToken(null);
     setMe(null);

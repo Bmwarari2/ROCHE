@@ -22,6 +22,7 @@ const inactivePlaceholders = INACTIVE_ALLERGY_STATUSES.map(() => "?").join(", ")
 
 const PERSON_COLUMNS = `
   p.id,
+  p.location_id,
   p.preferred_name,
   p.given_name,
   p.family_name,
@@ -41,6 +42,8 @@ const PERSON_COLUMNS = `
 /** Row shape returned by both queries. */
 export interface PersonRow {
   readonly id: string;
+  /** The person's home; absent in rows made before it was read (treated as unknown). */
+  readonly location_id?: string | null;
   readonly preferred_name: string | null;
   readonly given_name: string | null;
   readonly family_name: string | null;

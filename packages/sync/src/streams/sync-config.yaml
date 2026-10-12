@@ -11,15 +11,21 @@
 #   Each family of streams follows the scope of the one read permission it serves, from the roles
 #   and grants carrying that permission only (ADR-0071 and its review round 1, C-M1 and S-M1),
 #   never where another role reaches further:
-#     people (person, allergies)                      people.person.read
+#     people (person, allergies)                      people.person.read and care.plan.read (a
+#                                                     person syncs only with their care reference,
+#                                                     so the phone never shows a resuscitation
+#                                                     decision as not recorded; review round 2)
 #     care (care reference, active plan details)       care.plan.read
 #     entries (recent notes, charts, marks, visits)    care.note.read
 #   <family>_location_ids locations whose people sync in full for that family: managers and nurses
 #                         only; empty for care workers, who receive assigned people only
-#   <family>_assigned     true when a role scoped to assigned people carries the family's
-#                         permission: only then do the people the user is assigned to sync for that
-#                         family (the assigned_* streams). Missing or false syncs none (fails
-#                         closed). A break-glass record never syncs
+#   <family>_assigned     true when a role scoped to assigned people carries every one of the
+#                         family's permissions: only then do the people the user is assigned to sync
+#                         for that family (the assigned_* streams). Missing or false syncs none
+#                         (fails closed). A break-glass record never syncs
+#   entries_write_location_ids, entries_write_assigned
+#                         where the phone may record (care.note.write); read by no stream, only by
+#                         the phone, which offers recording only there (review round 2, C2-M3)
 #   offline_days          UTC calendar days (yyyy-mm-dd) of the offline window: tomorrow, today and
 #                         the days before it, `mobile.offline_window_days` in all, read by the API
 #                         from the rate table when it mints the token (offlineWindowDays in

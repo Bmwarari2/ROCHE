@@ -14,7 +14,13 @@ import {
   location,
   tenantUser,
 } from "@harbour/db";
-import { type EffectiveAccess, hasClockDrift, type Permission, scopeFor } from "@harbour/domain";
+import {
+  type EffectiveAccess,
+  hasClockDrift,
+  narrowestScope,
+  type Permission,
+  scopeFor,
+} from "@harbour/domain";
 import {
   isValidWindowDays,
   OFFLINE_WINDOW_RATE_KEY,
@@ -62,31 +68,37 @@ const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
 
 /**
- * The read permission each family of sync streams serves (packages/sync/src/streams/
+ * The permissions each family of sync streams follows (packages/sync/src/streams/
  * sync-config.yaml): the person and their allergies, the care reference (profile, active plan,
  * risk assessments, tool results, advance care records) with the active plan's details, and the
- * recent notes, charts, marks, activities and visits. Each family syncs where its own permission
- * reaches, from the roles and grants carrying it (ADR-0071 review round 1, C-M1).
+ * recent notes, charts, marks, activities and visits. Each family syncs where its own permissions
+ * reach, from the roles and grants carrying them (ADR-0071 review round 1, C-M1). A person syncs
+ * only where their care reference syncs too, so the phone never shows a resuscitation decision
+ * or IDDSI level as "not recorded" when it is merely absent from the device (review round 2).
+ * `entries_write` is not a stream: it tells the phone where it may record (care.note.write), so it
+ * never offers to record what the server would refuse (review round 2, C2-M3).
  */
 export const SYNCED_READS = {
-  people: "people.person.read",
-  care: "care.plan.read",
-  entries: "care.note.read",
-} as const satisfies Record<string, Permission>;
+  people: ["people.person.read", "care.plan.read"],
+  care: ["care.plan.read"],
+  entries: ["care.note.read"],
+  entries_write: ["care.note.write"],
+} as const satisfies Record<string, readonly Permission[]>;
 
 type SyncFamily = keyof typeof SYNCED_READS;
 
 /**
  * Where one family syncs for a member: the locations whose people it carries in full, and whether
  * the people the member is assigned to sync for it (only when a role scoped to assigned people
- * carries its permission; S-M1). A break-glass record never syncs.
+ * carries every one of its permissions; S-M1), each the narrowest of its permissions' scopes. A
+ * break-glass record never syncs.
  */
 export function familyReach(
   effective: EffectiveAccess,
   family: SyncFamily,
   allLocationIds: readonly string[],
 ): { readonly locationIds: string[]; readonly assigned: boolean } {
-  const scope = scopeFor(effective, SYNCED_READS[family]);
+  const scope = narrowestScope(SYNCED_READS[family].map((p) => scopeFor(effective, p)));
   return {
     locationIds:
       scope.scope === "tenant"
@@ -140,7 +152,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         tags: ["sync"],
         summary: "A short-lived token for the PowerSync service, scoped to tenant and assignments",
         description:
-          "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids and entries_location_ids with people_assigned, care_assigned and entries_assigned (each stream family where its own read permission reaches: people.person.read, care.plan.read and care.note.read), and offline_days (the offline window from the rate table, never from the device). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.",
+          "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids and entries_location_ids with people_assigned, care_assigned and entries_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read and care.note.read), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write), and offline_days (the offline window from the rate table, never from the device). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.",
         security,
         responses: { 200: jsonBody(SyncToken, "Token"), ...errorResponses },
       }),
@@ -173,6 +185,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
           const people = familyReach(access.effective, "people", allIds);
           const care = familyReach(access.effective, "care", allIds);
           const entries = familyReach(access.effective, "entries", allIds);
+          const recording = familyReach(access.effective, "entries_write", allIds);
           // The offline window comes from the rate table here, never from the device (care.md
           // section 6): the streams read it from this claim and ignore connection parameters.
           const rated = await rateNumber(tx, access.tenantId, OFFLINE_WINDOW_RATE_KEY).catch(
@@ -212,6 +225,8 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             people_assigned: people.assigned,
             care_assigned: care.assigned,
             entries_assigned: entries.assigned,
+            entries_write_location_ids: recording.locationIds,
+            entries_write_assigned: recording.assigned,
             offline_days: offlineDays,
           };
         });

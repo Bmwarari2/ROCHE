@@ -238,6 +238,7 @@
     "mobile.person.loading",
     "mobile.person.missing",
     "mobile.person.noEntries",
+    "mobile.person.readOnly",
     "mobile.person.recent",
     "mobile.person.recordChart",
     "mobile.person.risks",

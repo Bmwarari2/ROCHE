@@ -49,6 +49,8 @@ export class SyncTokenSigner {
       people_assigned: claims.people_assigned,
       care_assigned: claims.care_assigned,
       entries_assigned: claims.entries_assigned,
+      entries_write_location_ids: [...claims.entries_write_location_ids],
+      entries_write_assigned: claims.entries_write_assigned,
       offline_days: [...claims.offline_days],
     })
       .setProtectedHeader({ alg: "ES256", kid: this.keyId })

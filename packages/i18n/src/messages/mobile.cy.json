@@ -32,6 +32,7 @@
   "mobile.header.resuscitationReviewOverdue": "Review overdue since {date}.",
   "mobile.header.iddsiFood": "Food: {level}",
   "mobile.header.iddsiDrink": "Drinks: {level}",
+  "mobile.person.readOnly": "You can read this record but cannot record on it. If something needs recording, tell the nurse in charge.",
   "mobile.person.title": "Record",
   "mobile.person.loading": "Loading record",
   "mobile.person.missing": "This record is not on this device. It may no longer be assigned to you.",

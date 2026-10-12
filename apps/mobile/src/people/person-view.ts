@@ -58,6 +58,8 @@ export function parseCommunicationNeeds(raw: string | null | undefined): {
 
 export interface PersonView {
   readonly id: string;
+  /** The person's home, for where the phone may record (review round 2, C2-M3). */
+  readonly locationId: string | null;
   readonly preferredName: string | null;
   readonly givenName: string | null;
   readonly familyName: string | null;
@@ -113,6 +115,7 @@ export function toPersonView(row: PersonRow): PersonView {
 
   return {
     id: row.id,
+    locationId: row.location_id ?? null,
     preferredName: row.preferred_name,
     givenName: row.given_name,
     familyName: row.family_name,

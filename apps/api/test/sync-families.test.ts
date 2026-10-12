@@ -37,14 +37,24 @@ const cases: ReadonlyArray<{
   readonly people: Reach;
   readonly care: Reach;
   readonly entries: Reach;
+  /** Where the phone may record (care.note.write; review round 2, C2-M3). */
+  readonly write: Reach;
 }> = [
-  { name: "carer", roles: ["care_worker"], people: assigned, care: assigned, entries: assigned },
+  {
+    name: "carer",
+    roles: ["care_worker"],
+    people: assigned,
+    care: assigned,
+    entries: assigned,
+    write: assigned,
+  },
   {
     name: "agency worker",
     roles: ["agency_worker"],
     people: assigned,
     care: assigned,
     entries: assigned,
+    write: assigned,
   },
   {
     name: "senior carer or team leader",
@@ -52,6 +62,7 @@ const cases: ReadonlyArray<{
     people: at(NORTH),
     care: at(NORTH),
     entries: at(NORTH),
+    write: at(NORTH),
   },
   {
     name: "nurse",
@@ -59,6 +70,7 @@ const cases: ReadonlyArray<{
     people: at(NORTH),
     care: at(NORTH),
     entries: at(NORTH),
+    write: at(NORTH),
   },
   {
     // The coordinator holds no care.note.read: the person and the care reference sync at their
@@ -68,6 +80,7 @@ const cases: ReadonlyArray<{
     people: at(NORTH),
     care: at(NORTH),
     entries: nothing,
+    write: nothing,
   },
   {
     name: "Registered Manager",
@@ -75,6 +88,7 @@ const cases: ReadonlyArray<{
     people: at(NORTH),
     care: at(NORTH),
     entries: at(NORTH),
+    write: at(NORTH),
   },
   {
     name: "carer who is also a nurse at the home",
@@ -82,6 +96,7 @@ const cases: ReadonlyArray<{
     people: { locationIds: [NORTH], assigned: true },
     care: { locationIds: [NORTH], assigned: true },
     entries: { locationIds: [NORTH], assigned: true },
+    write: { locationIds: [NORTH], assigned: true },
   },
   {
     name: "coordinator who also works as a carer",
@@ -89,19 +104,22 @@ const cases: ReadonlyArray<{
     people: { locationIds: [NORTH], assigned: true },
     care: { locationIds: [NORTH], assigned: true },
     entries: assigned,
+    write: assigned,
   },
 ];
 
 describe("hazard HZ-011 sync stream families per built-in Care mode role (ADR-0071 review round 1, C-M1)", () => {
-  it("serves one read permission per family", () => {
+  it("serves each family's own permissions", () => {
     expect(SYNCED_READS).toEqual({
-      people: "people.person.read",
-      care: "care.plan.read",
-      entries: "care.note.read",
+      // A person syncs only where their care reference does too (review round 2).
+      people: ["people.person.read", "care.plan.read"],
+      care: ["care.plan.read"],
+      entries: ["care.note.read"],
+      entries_write: ["care.note.write"],
     });
   });
 
-  it.each(cases)("$name", ({ roles, people, care, entries }) => {
+  it.each(cases)("$name", ({ roles, people, care, entries, write }) => {
     const effective = resolveAccess(
       roles.map((key) => roleAt(key, NORTH)),
       [],
@@ -111,6 +129,25 @@ describe("hazard HZ-011 sync stream families per built-in Care mode role (ADR-00
     expect(familyReach(effective, "people", all)).toEqual(people);
     expect(familyReach(effective, "care", all)).toEqual(care);
     expect(familyReach(effective, "entries", all)).toEqual(entries);
+    expect(familyReach(effective, "entries_write", all)).toEqual(write);
+  });
+
+  it("syncs no person where people.person.read reaches but care.plan.read does not (review round 2)", () => {
+    const granted = resolveAccess(
+      [roleAt("care_coordinator", NORTH)],
+      [
+        {
+          permissions: ["people.person.read"],
+          locationId: SOUTH,
+          organisationWide: false,
+          validFrom: new Date("2026-01-01T00:00:00Z"),
+          validTo: new Date("2027-01-01T00:00:00Z"),
+          revokedAt: null,
+        },
+      ],
+      NOW,
+    );
+    expect(familyReach(granted, "people", [NORTH, SOUTH])).toEqual(at(NORTH));
   });
 
   it("syncs the whole organisation for a family only where its permission reaches it", () => {

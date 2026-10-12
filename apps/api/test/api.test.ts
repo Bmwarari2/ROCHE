@@ -471,6 +471,9 @@ describe("offline sync", () => {
       people_assigned: true,
       care_assigned: true,
       entries_assigned: true,
+      // The phone may record for the people the care worker is assigned to (review round 2, C2-M3).
+      entries_write_location_ids: [],
+      entries_write_assigned: true,
     });
   });
 
@@ -520,6 +523,8 @@ describe("offline sync", () => {
       people_assigned: false,
       care_assigned: false,
       entries_assigned: false,
+      entries_write_location_ids: [DEMO.locationId],
+      entries_write_assigned: false,
     });
   });
 

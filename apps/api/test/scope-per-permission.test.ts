@@ -197,12 +197,14 @@ describe("hazard HZ-011 data scope is per permission (ADR-0071)", () => {
       care_location_ids: [DEMO.locationId],
       entries_location_ids: [DEMO.locationId],
     });
-    // The grant carries the person and the notes, not the care plan: the care reference and plan
-    // details do not sync at the Lodge, the person and the recent entries do.
+    // The grant carries the person and the notes, not the care plan: the recent entries sync at
+    // the Lodge, and the phone may record there; the care reference does not, and nor does the
+    // person, who syncs only with their care reference (review round 2).
     expect(await claims("gil")).toMatchObject({
-      people_location_ids: [LODGE.locationId],
+      people_location_ids: [],
       care_location_ids: [],
       entries_location_ids: [LODGE.locationId],
+      entries_write_location_ids: [LODGE.locationId],
       people_assigned: false,
     });
     await asOwner(
@@ -217,7 +219,10 @@ describe("hazard HZ-011 data scope is per permission (ADR-0071)", () => {
         DEMO.users.owner.id,
       ],
     );
-    expect((await claims("gil")).care_location_ids).toEqual([LODGE.locationId]);
+    expect(await claims("gil")).toMatchObject({
+      people_location_ids: [LODGE.locationId],
+      care_location_ids: [LODGE.locationId],
+    });
   });
 
   it("lists and moves tasks about people only where the reader may open their record", async () => {
