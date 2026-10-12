@@ -20,13 +20,15 @@ only when they link spec, code, tests and user documentation; no user guides exi
 
 ## Next items (in order)
 
-1. Merge the slice 5 API (`feat/care-tasks-handover-api`, PR #24, review round 2 answered): care
+1. Merge the slice 5 API (`feat/care-tasks-handover-api`, PR #24, review rounds 2 and 3 answered): care
    plan actions generate the shift's rounds (one task series per action, carried forward unchanged
    across plan versions, never from the medicines domain, windows from the real instants of
    neighbouring rounds), the round view (IDDSI levels in the header, earlier-plan and not-a-round
-   notices), and the shift handover with items one row each under person scope, notes,
-   acknowledgements by the items the reader saw, the nurse in charge told of late additions nobody
-   else can see and of handovers the incoming shift has not acknowledged (migrations 0027 and
+   notices), and the shift handover with items one row each under person scope (items about nobody
+   only for whole readers), notes, acknowledgements by the items the reader saw (the incoming shift
+   counts only when every item is covered), the nurse in charge told of late additions nobody else
+   can see once the receiving shift starts and of handovers the incoming shift has not acknowledged
+   (else the longest-serving Registered Manager) (migrations 0027 and
    0028; hazards HZ-018, HZ-024, HZ-003, HZ-004, HZ-008, HZ-016, HZ-001, HZ-011; CSO decisions
    H-150 to H-155). Then the round and handover screens in
    the web record (slice 9) and Care mode (slice 10 part 2, with sync streams for tasks and

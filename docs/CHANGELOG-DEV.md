@@ -469,3 +469,31 @@ all passing locally through `scripts/ci-local.sh` (every gate).
 **Tests**: `packages/domain` 3,902, `packages/db` 313, `packages/contracts` 30, `apps/api` 513,
 `packages/sync` 59, `apps/mobile` 807, `apps/web` 306, `packages/i18n` 48, all passing locally
 through `scripts/ci-local.sh`.
+
+## 2026-10-12: #24 review round 3 (tasks, rounds and handover)
+
+**What changed**
+
+- Items about nobody (an incident with no residents, the safety tasks and alerts it raises, a
+  check of the building) are visible only to readers who see the handover whole, in the database
+  (`handover_item_scope` with `app.handover_whole`) and in the API's view of each member of staff
+  (`staffCanSee`); a note on an item follows its item (`app.handover_item_visible`), and a note on
+  the whole handover still reaches every reader.
+- The incoming shift has acknowledged only when every item is covered by at least one
+  acknowledgement made at or after the shift's end, by the keys each recorded, so one narrowly
+  scoped acknowledgement no longer clears the handover and access that ends later does not undo it.
+- Late-addition notices are never sent before the receiving shift starts (no flood from refreshing
+  a shift still running), and only acknowledgements on the receiving shift make someone a
+  recipient (an outgoing read-back never does).
+- With no nurse in charge at a location, the unacknowledged-handover alert goes to the
+  longest-serving Registered Manager anywhere, else the longest-serving holder of
+  `care.handover.manage`; with no one, the gap is audited once (`told: 0`).
+- Round times under 10 minutes apart are refused for every frequency (a weekly Monday 23:55 and
+  Tuesday 00:00 included); merge tests for 01:30 and 02:30 and 01:05 and 02:00.
+- The closed-handover message says a note timed within the closed shift is added to it, and the
+  next handover carries it.
+- Docs: hazard log (HZ-003, HZ-004, HZ-008, HZ-011, HZ-018), care.md, H-150, H-153 and H-154, and
+  the on-call runbook (`platform.job.tenant_failed` needs an alert once monitoring exists).
+
+**Tests**: `packages/domain` 3,914, `packages/db` 314, `apps/api` 514, all passing locally through
+`scripts/ci-local.sh`.

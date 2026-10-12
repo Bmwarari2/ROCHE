@@ -39,6 +39,7 @@ Alerts are defined as code with the infrastructure and route through Grafana Clo
 | Upload rejection rate or upload queue age above threshold across devices | Records may not be reaching the server (HZ-006) | Check API upload handlers, schema version mismatch after a release |
 | Device clock-drift flags above baseline | Recorded times may be wrong (HZ-010) | Check server time; check whether one tenant's MDM changed |
 | pg-boss queue age, failed jobs, or escalation jobs not firing | Reminders, escalations and notification clocks may be late (HZ-003, HZ-013) | Inspect failing job type; replay idempotent jobs |
+| `platform.job.tenant_failed` audit events (one organisation's part of a worker sweep failed: handovers, care plan rounds, reminders, escalations; the job name and error code are in the event's scope) | That organisation's handovers, rounds or alerts may be missing while every other organisation's run on (HZ-018, HZ-008). Not yet alerted: add the alert when monitoring exists | Read the job and code from the event (opaque ids only), fix the cause, and check the next sweep for that tenant succeeds |
 | Notification delivery failure rate (email, push, SMS) | Alerts may not reach staff | Check provider status; fail over channel where configured |
 | RDS: storage, CPU, connections, failover event, backup failure | Data at risk | Follow [restore.md](restore.md) if data is affected |
 | `audit_event` insert failures | Records must be attributable | Treat as SEV2; audit writes are in the same transaction as the change |

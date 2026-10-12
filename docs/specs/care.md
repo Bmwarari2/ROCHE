@@ -199,25 +199,32 @@ applies). Figures come from `rate_table` by key.
      retry is recorded once). A note on an item takes that item's person (a trigger, whatever the
      writer sends) and follows their scope; an item the writer cannot see cannot be annotated. Once
      closed, the refusal says "This handover has closed. Add a care note tagged "Include in
-     handover": the next handover will carry it."
+     handover" instead: the next handover carries it, and if you time it within this shift it is
+     added to this handover too."
    - **Acknowledgement** with a client id (a retry is recorded once) and the seen token
      (`you.seenToken`) of the view the person was shown: the server records the keys of the items
      they could see and the server time, and refuses an old token with 409, so nobody acknowledges
      what they were not shown; only for oneself (row-level security). Until rotas say who comes on
-     (Phase 2), the incoming staff are those who acknowledge: once the shift has ended without an
-     incoming acknowledgement (`incomingAcknowledged`), the handover is marked unacknowledged, and
-     after `handover.acknowledgement_grace_minutes` (60, to verify) the nurse in charge on duty gets
-     one acknowledgeable alert per handover ("A handover has not been acknowledged",
-     `care.handover.unacknowledged`, in the app, raised within a day of falling due; H-153).
-   - **Reading**: row-level security shows only the items, and notes on items, about people the
-     reader may see (HZ-011), and every count is over those; the reader's own state
+     (Phase 2), the incoming staff are those who acknowledge: the incoming shift has acknowledged
+     only when every item is covered by at least one acknowledgement made at or after the shift's
+     end, by the keys each recorded (`incomingAcknowledged`). Once the shift has ended without that,
+     the handover is marked unacknowledged, and after `handover.acknowledgement_grace_minutes` (60,
+     to verify) the nurse in charge on duty gets one acknowledgeable alert per handover ("A handover
+     has not been acknowledged", `care.handover.unacknowledged`, in the app, raised within a day of
+     falling due; with no nurse in charge, the longest-serving Registered Manager anywhere, else the
+     longest-serving holder of `care.handover.manage`, and with no one an audit with `told: 0`;
+     H-153).
+   - **Reading**: row-level security shows only the items about people the reader may see, items
+     about nobody (a staff injury, a fridge check) only to those who see the handover whole, and a
+     note on an item only with its item (HZ-011); every count is over those; the reader's own state
      (`viewerAcknowledgement`) counts only those, so a late addition about someone else does not ask
      them again. A reader who is not a tenant-wide role or a role at the location sees the handover
      `limitedToYourPeople`: only their own acknowledgements, `unacknowledged` null, and the refresh
      time of the last item they can see, so nothing tells them about the rest. Each item names its
      person; the people on the visible items come with the point-of-care header.
-   - **Late additions** are announced once per refresh and recipient (`lateAdditionNotices`):
-     while the receiving shift runs, to the staff who acknowledged, about what they can see, and to
+   - **Late additions** are announced once per refresh and recipient (`lateAdditionNotices`), never
+     before the receiving shift starts: while it runs, to the staff who acknowledged on it (an
+     outgoing read-back never counts), about what they can see, and to
      the nurse in charge (clinical leads and team leaders at the location whose assignment is in
      force, else the Registered Manager; never suspended or departed staff) about anything none of
      them can see (everything when nobody has acknowledged) and always about a fall, a raised NEWS2,
@@ -327,10 +334,11 @@ applies). Figures come from `rate_table` by key.
       are closer than that, the earlier one's time after and the later one's time before are cut
       to stay a minute short of the real gap between them (each under half of it), so no instant is
       inside two windows and no window is ever nothing, and an entry answers one round only. Times
-      of one action under `MIN_ROUND_GAP_MINUTES` (10) apart are refused when it is written
-      (`roundGapProblem`, counting from the last time of a day to the first of the next), and
-      occurrences a clock change brings that close are one round (01:00 and 02:00 are the same
-      instant on the night the clocks go forward). The series keeps the tenant's figures as the
+      of one action whose consecutive occurrences are under `MIN_ROUND_GAP_MINUTES` (10) apart on
+      the clock face are refused when it is written, for every frequency (`roundGapProblem`: across
+      midnight, from one weekday to the next, across the cycle), and occurrences a clock change
+      brings that close are one round (01:00 and 02:00, or 01:30 and 02:30, are the same instant on
+      the night the clocks go forward). The series keeps the tenant's figures as the
       most either side; the task engine (`seriesRoundTimes`) and the lifecycle's gap filling apply
       the rule, so the windows do not depend on when rounds are made.
     - **Generation** (`planActionTaskSeries`), when a version is published and by an hourly sweep
