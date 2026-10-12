@@ -2671,6 +2671,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description:
           "Where the PEEPs are kept, as the downtime pack prints it (location setting downtime.peep_location).",
       },
+      downtime_places_confirmed_at: {
+        description:
+          "When the two places were confirmed (instant, UTC); empty while the seeded wording stands or since a place changed.",
+      },
+      downtime_places_confirmed_by: "exported",
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -2879,6 +2884,9 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       cancelled_at: "exported",
       cancelled_by: "exported",
       cancellation_reason: { description: "Why the outage was cancelled (declared in error)." },
+      correction_reason: {
+        description: "Why the start or end was last corrected; earlier ones are in the history.",
+      },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",

@@ -65,8 +65,11 @@ export const downtimePack = pgTable(
     validUntil: timestamp("valid_until", { withTimezone: true }).notNull(),
     /** Null for the nightly job (the system); the member who built it otherwise. */
     generatedBy: uuid("generated_by"),
-    /** Everyone with a page in the pack: the row-level security policy reads it. */
-    personIds: uuid("person_ids").array().notNull(),
+    /**
+     * Everyone the pack names (its pages and anyone left out): the row-level security policy reads
+     * it. Worked out from `content` by a trigger, whatever the caller sends (migration 0051).
+     */
+    personIds: uuid("person_ids").array().notNull().default(sql`'{}'::uuid[]`),
     /** The `DowntimePack` snapshot as JSON. */
     content: jsonb("content").notNull(),
     /** Warnings by kind and section: counts and opaque ids only, never words. */
@@ -102,8 +105,8 @@ export const downtimePack = pgTable(
 /**
  * An outage at a location (`OUTAGE_WORKFLOW`): declared, closed when systems return, reconciled
  * once every paper record is entered and checked, or cancelled when declared in error. Mutable and
- * versioned; windows at a location never overlap (an exclusion constraint), and a guard keeps the
- * window back-entries rely on (migration 0051).
+ * versioned; windows at a location never overlap (an exclusion constraint); triggers declare it open
+ * and keep the window back-entries rely on, corrected only with a reason (migration 0051).
  */
 export const outage = pgTable(
   "outage",
@@ -137,6 +140,8 @@ export const outage = pgTable(
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
     cancelledBy: uuid("cancelled_by"),
     cancellationReason: text("cancellation_reason"),
+    /** Why the start or end was corrected; each correction gives its own (kept in the history). */
+    correctionReason: text("correction_reason"),
     ...mutableColumns(),
   },
   (t) => [
@@ -170,6 +175,12 @@ export const outage = pgTable(
         AND reconciliation_statement IS NOT NULL AND forms_entered IS NOT NULL)`,
     ),
     check("outage_forms_entered", sql`forms_entered IS NULL OR forms_entered >= 0`),
+    check(
+      "outage_words",
+      sql`(reconciliation_statement IS NULL OR btrim(reconciliation_statement) <> '')
+        AND (cancellation_reason IS NULL OR btrim(cancellation_reason) <> '')
+        AND (correction_reason IS NULL OR btrim(correction_reason) <> '')`,
+    ),
     check(
       "outage_cancelled",
       sql`(state = 'cancelled') = (cancelled_at IS NOT NULL AND cancelled_by IS NOT NULL

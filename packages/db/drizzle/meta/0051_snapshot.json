@@ -1,6 +1,6 @@
 {
-  "id": "5580fedc-2a1b-4a60-928a-188edeed7c00",
-  "prevId": "7d1865ce-d16b-4c8c-80ff-b7d2ae88fc14",
+  "id": "4f02b2c3-45aa-41b7-bb96-c37869448a9b",
+  "prevId": "89571f23-bb5d-48c7-beeb-4bf88329948a",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -6934,7 +6934,8 @@
           "name": "person_ids",
           "type": "uuid[]",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": "'{}'::uuid[]"
         },
         "content": {
           "name": "content",
@@ -7218,6 +7219,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "correction_reason": {
+          "name": "correction_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -7412,6 +7419,10 @@
         "outage_forms_entered": {
           "name": "outage_forms_entered",
           "value": "forms_entered IS NULL OR forms_entered >= 0"
+        },
+        "outage_words": {
+          "name": "outage_words",
+          "value": "(reconciliation_statement IS NULL OR btrim(reconciliation_statement) <> '')\n        AND (cancellation_reason IS NULL OR btrim(cancellation_reason) <> '')\n        AND (correction_reason IS NULL OR btrim(correction_reason) <> '')"
         },
         "outage_cancelled": {
           "name": "outage_cancelled",
@@ -14991,6 +15002,18 @@
           "notNull": true,
           "default": "'the person''s PEEP in the fire file'"
         },
+        "downtime_places_confirmed_at": {
+          "name": "downtime_places_confirmed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "downtime_places_confirmed_by": {
+          "name": "downtime_places_confirmed_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -15063,6 +15086,21 @@
           ],
           "onUpdate": "no action",
           "onDelete": "no action"
+        },
+        "location_downtime_places_confirmed_by_fk": {
+          "name": "location_downtime_places_confirmed_by_fk",
+          "tableFrom": "location",
+          "columnsFrom": [
+            "tenant_id",
+            "downtime_places_confirmed_by"
+          ],
+          "tableTo": "tenant_user",
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -15080,7 +15118,7 @@
       "checkConstraints": {
         "location_downtime_places": {
           "name": "location_downtime_places",
-          "value": "char_length(btrim(downtime_mar_location)) BETWEEN 1 AND 200\n        AND char_length(btrim(downtime_peep_location)) BETWEEN 1 AND 200"
+          "value": "char_length(btrim(downtime_mar_location)) BETWEEN 1 AND 200\n        AND char_length(btrim(downtime_peep_location)) BETWEEN 1 AND 200\n        AND (downtime_places_confirmed_at IS NULL) = (downtime_places_confirmed_by IS NULL)"
         }
       },
       "isRLSEnabled": false

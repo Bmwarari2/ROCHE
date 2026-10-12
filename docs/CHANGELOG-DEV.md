@@ -1100,3 +1100,26 @@ columns on the care events follow in part 2 (they reference `outage`), to keep t
 
 **Tests**: `packages/db` 406 (13 new in `downtime.test.ts`), `packages/domain` operations and export
 tests passing locally.
+
+## 2026-10-12: Slice 11 part 1, review round 1 (#32)
+
+Security and clinical safety reviews of the downtime pack and outage schema. Fixed in migrations
+0050 and 0051 (not yet on `main`, so edited in place):
+
+- (M1) An outage is declared open by a trigger: nothing closed, reconciled, cancelled or corrected
+  at declaration, `declared_at` is the database's time and `declared_late` is worked out from
+  `care_note.late_entry_hours` (late when no figure is found); neither changes afterwards except
+  the flag following a corrected start.
+- (M2) A pack's `person_ids` are worked out from its content (pages and anyone left out), so the
+  row-level security policy is never told less than the pack holds.
+- (clinical M2) The MAR and PEEP places gain a confirmation (`downtime_places_confirmed_at`,
+  `_by`); only holders of `platform.location.manage` change or confirm them; the HZ-021 control
+  now claims only what is built (H-201).
+- (clinical M3) An outage's start and end can be corrected before reconciliation with a
+  `correction_reason` of their own, kept in the history (H-202).
+- Lows: non-blank reconciliation statement and reasons; tests for non-holder and cross-tenant
+  updates, owner delete and truncate of a pack, final cancelled outages and closed to cancelled.
+- Logged: a pack hidden after a move (HZ-021, HZ-073, H-200, a planned part 3 test), pack PDFs
+  kept out of `document`'s general view, and STATUS follow-ups.
+
+**Tests**: `packages/db` 408 passing locally (15 in `downtime.test.ts`).
