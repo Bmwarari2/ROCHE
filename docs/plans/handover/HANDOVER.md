@@ -42,10 +42,11 @@ with a merge commit and `expectedHeadSha`.
    relies on PowerSync treating `FROM ... AS alias` as the device table name (simulator proof); a
    STATUS low for a test of a carer assigned to two people at different homes. A short round 2
    check of the migration, CI green, merge.
-3. **#34 Lane B, consent, capacity and DoLS tab part 1** (`feat/web-mca-tab`, head `daf4fa7`
-   when last checked; Lane B was mid-way through the round 1 fixes). Round 1 found 6 clinical and 3
-   accessibility mediums; the full fix list is below. Next: finish the fixes, round 2 on the fix
-   commits (accessibility and clinical), CI, merge.
+3. **#34 Lane B, consent, capacity and DoLS tab part 1** (`feat/web-mca-tab`, head `4982d19`).
+   Round 1 found 6 clinical and 3 accessibility mediums (list below); Lane B reports all 12 items
+   fixed in `daf4fa7..4982d19` (web unit 388, i18n 48, Playwright capacity and care-record 15
+   passing locally). Next: round 2 on those fix commits (accessibility and clinical), CI green,
+   summary comment, merge.
 
 ## Pushed branches not yet PRs (open them in this order as their bases merge)
 
@@ -60,7 +61,10 @@ with a merge commit and `expectedHeadSha`.
 - Lane C PR 2(a) `feat/mobile-offline-round-writes` (head `7d53fa8`, 703 lines, on #33) and PR
   2(b) `feat/mobile-offline-round-upload` (head `b4a06e8`, 744 lines, on (a)). Open after #33
   merges; full round 1 each. Delete the stale `feat/mobile-offline-round-actions`.
-- Lane B part 2 (record views; branch named in Lane B's last report, possibly `wip/web-mca-records`).
+- Lane B part 2 `feat/web-mca-records` (head `6c23c78`, about 900 lines over #34, on its fixes):
+  the capacity assessment, best-interests and consent record views. Not done: the round 1 standards
+  in its own views ("Refused" chip tone, the consent history link's name and 44 px size, `<time>`
+  elements), its Playwright journey re-run after the merge, and the forms. Open after #34 merges.
 - Lane D `feat/platform-flags-and-sessions`: not started (no commits). Plan from its reading:
   flags through one provider that drops soft-deleted overrides (today `/v1/me` counts them); admin
   revoke on `platform.user.manage` plus step-up (a new permission would need a 0031-style role data
