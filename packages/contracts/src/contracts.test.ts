@@ -88,6 +88,8 @@ const ADA = {
   communicationNeedsStatus: "recorded",
   communicationNeedsConfirmedBy: null,
   communicationNeedsConfirmedAt: null,
+  iddsiFoodLevel: "not_recorded",
+  iddsiDrinkLevel: "not_recorded",
   resuscitation: NOT_RECORDED,
   statusChangedAt: "2026-09-01T00:00:00+01:00",
   version: 1,
@@ -105,6 +107,15 @@ describe("contracts", () => {
       PersonSummary.safeParse({ ...ADA, resuscitation: { ...NOT_RECORDED, status: "" } }).success,
     ).toBe(false);
     expect(ResuscitationStatus.parse(NOT_RECORDED).status).toBe("not_recorded");
+  });
+
+  it("hazard HZ-016 needs both IDDSI levels on every point-of-care summary, or not_recorded", () => {
+    const { iddsiFoodLevel: _food, ...withoutFood } = ADA;
+    expect(PersonSummary.safeParse(withoutFood).success).toBe(false);
+    expect(PersonSummary.safeParse({ ...ADA, iddsiDrinkLevel: null }).success).toBe(false);
+    expect(
+      PersonSummary.parse({ ...ADA, iddsiFoodLevel: "5", iddsiDrinkLevel: "2" }),
+    ).toMatchObject({ iddsiFoodLevel: "5", iddsiDrinkLevel: "2" });
   });
 
   it("uses inclusive bounds only on care planning numbers", () => {

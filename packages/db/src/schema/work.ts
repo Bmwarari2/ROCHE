@@ -114,6 +114,14 @@ export const taskSeries = pgTable(
     locationRef("task_series_location_fk", t),
     assigneeRef("task_series_assignee_fk", t),
     index("task_series_active_idx").on(t.tenantId, t.active),
+    // One live series per care plan action (care.md rule 14): active, or stopped by the people
+    // lifecycle and waiting for the person's return or a correction. A series the plan ended is
+    // not live.
+    uniqueIndex("task_series_care_plan_action_key")
+      .on(t.tenantId, t.sourceId)
+      .where(
+        sql`source_type = 'care_plan_action' AND deleted_at IS NULL AND (active OR inactive_code IS NOT NULL)`,
+      ),
     check(
       "task_series_inactive_code",
       sql`inactive_code IS NULL OR (NOT active AND inactive_code IN (${TASK_STOP_CODES_SQL}))`,

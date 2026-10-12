@@ -114,7 +114,15 @@ export const CarePlanActionItem = z
     generatesTasks: z.boolean(),
     evidenceRequired: z.boolean(),
     riskAssessmentId: uuid.nullable(),
+    /** The task series that makes this action's rounds (care.md rule 14). */
     taskSeriesId: uuid.nullable(),
+    /** The action of the earlier version this one was copied from, if any. */
+    basedOnActionId: uuid.nullable(),
+    /**
+     * Shown with the action: "Not a round: see the medicines record" for a medicines action,
+     * which never generates rounds (HZ-003); null otherwise.
+     */
+    notice: z.string().nullable(),
     version: z.number().int(),
   })
   .meta({ id: "CarePlanActionItem" });

@@ -4,10 +4,12 @@ import { loadConfig } from "../config";
 import { createAdapterResolver } from "../integrations/registry";
 import { createLogger, idleErrorLogger } from "../logger";
 import {
+  compileHandovers,
   detectOutbreaks,
   endExpiredAssignments,
   escalateStatutoryNotifications,
   escalateTasks,
+  generatePlanTaskSeries,
   materialiseTaskSeries,
   outboxHandlers,
   processDeliveries,
@@ -53,6 +55,8 @@ const QUEUES = {
   outbreaks: "outbreak-detection",
   peopleReviews: "people-reviews",
   breakGlassReport: "break-glass-weekly-report",
+  planTasks: "care-plan-rounds",
+  handovers: "shift-handovers",
 } as const;
 
 for (const name of Object.values(QUEUES)) await boss.createQueue(name);
@@ -97,6 +101,12 @@ await boss.work(QUEUES.peopleReviews, async () => {
 await boss.work(QUEUES.breakGlassReport, async () => {
   await reportBreakGlass(deps);
 });
+await boss.work(QUEUES.planTasks, async () => {
+  await generatePlanTaskSeries(deps);
+});
+await boss.work(QUEUES.handovers, async () => {
+  await compileHandovers(deps);
+});
 
 // Every minute: escalations are measured in minutes (section 9.1, e.g. on-call after 10 minutes).
 await boss.schedule(QUEUES.outbox, "* * * * *");
@@ -118,6 +128,11 @@ await boss.schedule(QUEUES.peopleReviews, "29 * * * *");
 // Daily in the small hours: the week before is reported once it has ended (Monday), and a missed
 // Monday is caught up the next day.
 await boss.schedule(QUEUES.breakGlassReport, "37 2 * * *");
+// Hourly: care plan rounds follow each published plan at once; the sweep catches the rest.
+await boss.schedule(QUEUES.planTasks, "43 * * * *");
+// Every 5 minutes (HANDOVER_SWEEP_MINUTES): a shift's handover is locked soon after it ends and a
+// late addition reaches the incoming staff within minutes (HZ-018).
+await boss.schedule(QUEUES.handovers, "*/5 * * * *");
 
 logger.info("Harbour worker started");
 

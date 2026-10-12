@@ -14,9 +14,12 @@ import {
   type AccessGrantInput,
   isPermission,
   occurrences,
+  PLAN_ACTION_TASK_KIND,
   permissionsAtLocation,
   personStatusAllows,
   type RoleAssignmentInput,
+  type RoundTime,
+  roundTimes,
   type ScopeKind,
   type TaskStatus,
   taskTimeState,
@@ -83,6 +86,30 @@ export async function escalationMinutes(tx: Transaction, tenantId: string): Prom
 }
 
 /**
+ * The rounds of a series in [from, to), each with its window. A care plan round's window comes from
+ * the real instants of its neighbours (`roundTimes`, care.md rule 14; HZ-004), the series holding
+ * the tenant's figures as the most either side; every other series keeps its fixed window.
+ */
+export function seriesRoundTimes(series: SeriesRow, from: Date, to: Date): RoundTime[] {
+  const rule = {
+    rule: series.recurrence as Recurrence,
+    startsOn: series.startsOn,
+    endsOn: series.endsOn,
+  };
+  if (series.kind === PLAN_ACTION_TASK_KIND) {
+    return roundTimes(rule, from, to, {
+      beforeMinutes: series.windowBeforeMinutes,
+      afterMinutes: series.windowAfterMinutes,
+    });
+  }
+  return occurrences(rule, from, to).map((dueAt) => ({
+    dueAt,
+    windowStart: new Date(dueAt.getTime() - series.windowBeforeMinutes * 60_000),
+    windowEnd: new Date(dueAt.getTime() + series.windowAfterMinutes * 60_000),
+  }));
+}
+
+/**
  * Creates the tasks of a series that fall due before `now + MATERIALISE_AHEAD_HOURS`. Idempotent:
  * the unique (series, due time) index drops duplicates, so the worker and the API may both run it.
  */
@@ -110,17 +137,8 @@ export async function materialiseSeries(
         : now;
   const to = new Date(now.getTime() + MATERIALISE_AHEAD_HOURS * 3_600_000);
   if (from.getTime() >= to.getTime()) return 0;
-  const due = occurrences(
-    {
-      rule: series.recurrence as Recurrence,
-      startsOn: series.startsOn,
-      endsOn: series.endsOn,
-    },
-    from,
-    to,
-  );
   let created = 0;
-  for (const dueAt of due) {
+  for (const { dueAt, windowStart, windowEnd } of seriesRoundTimes(series, from, to)) {
     const inserted = await tx
       .insert(task)
       .values({
@@ -135,8 +153,8 @@ export async function materialiseSeries(
         assigneeTenantUserId: series.assigneeTenantUserId,
         assigneeRoleKey: series.assigneeRoleKey,
         dueAt,
-        windowStart: new Date(dueAt.getTime() - series.windowBeforeMinutes * 60_000),
-        windowEnd: new Date(dueAt.getTime() + series.windowAfterMinutes * 60_000),
+        windowStart,
+        windowEnd,
         priority: series.priority,
         evidenceRequired: series.evidenceRequired,
       })
@@ -287,6 +305,8 @@ export async function escalateOverdueTasks(
           channels: t.priority === "urgent" ? ["in_app", "push"] : ["in_app"],
           sourceType: "task",
           sourceId: t.id,
+          personId: t.personId,
+          locationId: t.locationId,
           dedupeKey: `task_overdue:${t.id}${occurrence}:${recipient}`,
         })
         .onConflictDoNothing();

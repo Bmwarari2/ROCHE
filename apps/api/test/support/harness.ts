@@ -157,6 +157,7 @@ export async function createHarness(): Promise<Harness> {
     LOG_LEVEL: "silent",
     LOCAL_DOCUMENTS_DIR: mkdtempSync(join(tmpdir(), "harbour-documents-")),
     TRANSFER_PACK_REQUESTS_PER_MINUTE: "1000",
+    HANDOVER_COMPILE_REQUESTS_PER_MINUTE: "1000",
   });
   const handle = createApp(config, createLogger("silent"));
 

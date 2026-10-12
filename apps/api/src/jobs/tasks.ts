@@ -1,4 +1,5 @@
 import {
+  auditEvent,
   type Database,
   escalationChain,
   notification,
@@ -25,8 +26,10 @@ import {
   draftDeathNotifications,
   withdrawDeathNotifications,
 } from "../services/death-notifications";
+import { sweepHandovers } from "../services/handover";
 import { raiseDolsReminders } from "../services/mca";
 import { raisePeopleReviews } from "../services/people";
+import { generatePlanTasks } from "../services/plan-tasks";
 import { detectLocationOutbreaks, escalateOverdueNotifications } from "../services/safety";
 import { escalateOverdueTasks, materialiseSeries } from "../services/tasks";
 
@@ -160,6 +163,8 @@ export async function runEscalations(deps: TaskDeps, now = new Date()): Promise<
                 channels: [...step.channels],
                 sourceType: "notification",
                 sourceId: n.id,
+                personId: n.personId,
+                locationId: n.locationId,
                 dedupeKey: `escalation:${n.id}:${index}`,
               })
               .onConflictDoNothing();
@@ -270,18 +275,46 @@ export async function raiseCareReviews(deps: TaskDeps, now = new Date()): Promis
   return raised;
 }
 
-/** Runs a per-tenant sweep as the application role in each active tenant's context. */
-async function eachTenant(
+/** The audit action recorded when one organisation's part of a sweep fails. */
+export const TENANT_SWEEP_FAILED_ACTION = "platform.job.tenant_failed";
+
+/**
+ * Runs a per-tenant sweep as the application role in each active tenant's context. One
+ * organisation's failure never stops the others' (a handover or an alert missed everywhere because
+ * of one tenant's data; HZ-018): its transaction rolls back, the failure is logged by opaque ids
+ * and error code only, and audited as the system in a transaction of its own, so it is seen.
+ */
+export async function eachTenant(
   deps: TaskDeps,
+  job: string,
   fn: (tx: Transaction, tenantId: string) => Promise<number>,
 ): Promise<number> {
   let total = 0;
   for (const tenantId of await activeTenants(deps)) {
-    total += await withRequestContext(
-      deps.appDb,
-      { tenantId, userId: null, scope: "tenant", locationIds: [] },
-      (tx) => fn(tx, tenantId),
-    );
+    const context = { tenantId, userId: null, scope: "tenant" as const, locationIds: [] };
+    try {
+      total += await withRequestContext(deps.appDb, context, (tx) => fn(tx, tenantId));
+    } catch (error) {
+      const code =
+        typeof error === "object" && error !== null && "code" in error
+          ? String((error as { code: unknown }).code)
+          : error instanceof Error
+            ? error.name
+            : "unknown";
+      deps.logger.error({ tenantId, job, code }, "tenant sweep failed");
+      try {
+        await withRequestContext(deps.appDb, context, (tx) =>
+          tx.insert(auditEvent).values({
+            tenantId,
+            action: TENANT_SWEEP_FAILED_ACTION,
+            resourceType: "job",
+            scope: { job, code },
+          }),
+        );
+      } catch {
+        deps.logger.error({ tenantId, job }, "tenant sweep failure could not be audited");
+      }
+    }
   }
   return total;
 }
@@ -291,7 +324,9 @@ async function eachTenant(
  * HZ-020): one task, one alert and one `care.dols.expiring` event per reminder, never twice.
  */
 export async function remindDolsExpiry(deps: TaskDeps, now = new Date()): Promise<number> {
-  const raised = await eachTenant(deps, (tx, tenantId) => raiseDolsReminders(tx, tenantId, now));
+  const raised = await eachTenant(deps, "dols-reminders", (tx, tenantId) =>
+    raiseDolsReminders(tx, tenantId, now),
+  );
   if (raised > 0) deps.logger.info({ raised }, "DoLS expiry reminders raised");
   return raised;
 }
@@ -305,7 +340,7 @@ export async function escalateStatutoryNotifications(
   deps: TaskDeps,
   now = new Date(),
 ): Promise<number> {
-  const escalated = await eachTenant(deps, (tx, tenantId) =>
+  const escalated = await eachTenant(deps, "statutory-notification-escalation", (tx, tenantId) =>
     escalateOverdueNotifications(tx, tenantId, now),
   );
   if (escalated > 0) deps.logger.info({ escalated }, "overdue statutory notifications escalated");
@@ -314,7 +349,7 @@ export async function escalateStatutoryNotifications(
 
 /** Outbreak detection across each location's infection cases (safety.md rule 7). */
 export async function detectOutbreaks(deps: TaskDeps, now = new Date()): Promise<number> {
-  const drafted = await eachTenant(deps, (tx, tenantId) =>
+  const drafted = await eachTenant(deps, "outbreak-detection", (tx, tenantId) =>
     detectLocationOutbreaks(tx, tenantId, now),
   );
   if (drafted > 0) deps.logger.info({ drafted }, "outbreak reports drafted");
@@ -327,7 +362,7 @@ export async function detectOutbreaks(deps: TaskDeps, now = new Date()): Promise
  * care plan (HZ-008).
  */
 export async function raiseReviews(deps: TaskDeps, now = new Date()): Promise<number> {
-  const raised = await eachTenant(deps, (tx, tenantId) =>
+  const raised = await eachTenant(deps, "people-reviews", (tx, tenantId) =>
     raisePeopleReviews(tx, tenantId, now, (locationIds) =>
       // Opaque ids only: which tenant and locations have no review figures for their nation.
       deps.logger.warn(
@@ -341,11 +376,35 @@ export async function raiseReviews(deps: TaskDeps, now = new Date()): Promise<nu
 }
 
 /**
+ * Care plan rounds (care.md rule 14): every active plan's task-generating actions drive one task
+ * series each; catches plans published before slice 5 and anything a failed publication left.
+ */
+export async function generatePlanTaskSeries(deps: TaskDeps, now = new Date()): Promise<number> {
+  const changed = await eachTenant(deps, "care-plan-rounds", (tx, tenantId) =>
+    generatePlanTasks(tx, tenantId, now),
+  );
+  if (changed > 0) deps.logger.info({ changed }, "care plan rounds generated");
+  return changed;
+}
+
+/**
+ * Shift handovers (care.md rule 8, HZ-018): each location's last shift compiled and locked,
+ * open handovers refreshed, and late additions from the offline window appended and announced.
+ */
+export async function compileHandovers(deps: TaskDeps, now = new Date()): Promise<number> {
+  const changed = await eachTenant(deps, "shift-handovers", (tx, tenantId) =>
+    sweepHandovers(tx, tenantId, now),
+  );
+  if (changed > 0) deps.logger.info({ changed }, "handovers compiled or refreshed");
+  return changed;
+}
+
+/**
  * The weekly break-glass report (people.md rule 14, PLAT-006): last week's report for each
  * location, stored once, and the alert to the Registered Manager and the data protection lead.
  */
 export async function reportBreakGlass(deps: TaskDeps, now = new Date()): Promise<number> {
-  const stored = await eachTenant(deps, (tx, tenantId) =>
+  const stored = await eachTenant(deps, "break-glass-reports", (tx, tenantId) =>
     generateBreakGlassReports(tx, tenantId, now),
   );
   if (stored > 0) deps.logger.info({ stored }, "weekly break-glass reports stored");

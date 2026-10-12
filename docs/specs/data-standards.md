@@ -282,7 +282,7 @@ version `superseded`, and every change is kept in `record_version`.
 | PRSB PCSP section | Harbour | Notes |
 | --- | --- | --- |
 | About Me | `about_me` (PRSB About Me, above) | Linked by person, not copied into the plan |
-| Care and support plan | `care_plan` (status, `published_version`, `review_due_on`, sign-off) with one `care_plan_section` per need domain (`need`, `outcome` in the person's words, `strengths`) and its `care_plan_action` rows (`action`; who: `role_key`; when: `recurrence` or `when_text`) | "Who is responsible for delivery" is a role, so the plan survives staff changes; `generates_tasks` marks actions that become scheduled tasks |
+| Care and support plan | `care_plan` (status, `published_version`, `review_due_on`, sign-off) with one `care_plan_section` per need domain (`need`, `outcome` in the person's words, `strengths`) and its `care_plan_action` rows (`action`; who: `role_key`; when: `recurrence` or `when_text`) | "Who is responsible for delivery" is a role, so the plan survives staff changes; `generates_tasks` marks actions that become scheduled tasks (slice 5: a task series of kind `care.plan_action`, never in the medicines domain) |
 | Contingency plans | `care_plan_section.contingency` | Per need domain: what to do and whom to contact if things get worse |
 | Additional support plans | `risk_assessment`, `advance_care_record` and the stored validated tool results (`assessment`) | Linked by person; an action may name the risk assessment it controls (`risk_assessment_id`) |
 | Person demographics, GP practice, personal and professional contacts | `person`, `contact` | See Person and Related tables |
@@ -369,6 +369,27 @@ STU3 assets), checked on 2026-10-11 and to be confirmed against the UK edition l
 
 The point-of-care header shows the decision in force from an active ReSPECT or DNACPR record, or "not
 recorded" when there is none (hazard HZ-015).
+
+## Tasks, rounds and handover (Phase 1, slice 5)
+
+Code lists for the tables in [care.md](care.md) section 2 (rules 8 and 14). They mirror the domain
+constants in `packages/domain/src/care/handover.ts` and `plan-tasks.ts`; no national standard
+codes a shift handover or a care round, so these are Harbour code lists, exported with their
+meanings in `schema.json`.
+
+| Harbour field | Code list or format | Notes |
+| --- | --- | --- |
+| `task.kind`, `task_series.kind` | `care.plan_action` for a round a care plan action generates | `source_type` `care_plan_action` and `source_id` the action; `title` "Care plan: " and the need domain in lower case; `assignee_role_key` the action's role; one live series per action |
+| `care_plan_action.based_on_action_id` | Reference to `care_plan_action` | The action of the earlier version a copied draft's action came from; an unchanged action takes over its series |
+| `handover.shift_name`, `shift_start`, `shift_end` | The shift's name in the location's pattern (`day`, `night` until rotas define others); instants in UTC, the end exclusive | Patterns are UK local time (`handover.day_shift_start_minute`, `handover.night_shift_start_minute`), so a shift over a clock change is an hour shorter or longer |
+| `handover_item.key`, `position`, `kind`, `person_id`, `source_type`, `source_id`, `at`, `late_addition`, `added_at` | One row per item: `kind` one of `fall`, `news2`, `incident`, `alert`, `body_map_mark`, `flagged_note`, `overdue_task`, `skipped_task`, `unfinished_task`, `must_follow_up`, `refusal` (`HANDOVER_ITEM_KINDS`, in order of urgency; a CHECK); `source_type` one of `task`, `observation`, `incident`, `body_map_mark`, `care_note`, `notification` (a CHECK); `position` the order compiled and added, from 0; instants in UTC | References only, never the source's words; append-only (never removed or changed); unique key and position per handover; readable only by those who can see the person |
+| `handover.compiled_at`, `refreshed_at`, `locked_at` | Instants in UTC | Notes close at `locked_at` or the shift's end; late additions and acknowledgements continue |
+| `handover_note.item_key`, `person_id`, `body` | The key of a `handover_item` of the same handover (a composite foreign key), or empty for the whole handover; the item's person, set from the item by a trigger; free text up to 2,000 characters | Append-only |
+| `handover_acknowledgement.item_keys`, `acknowledged_at` | The keys of the items the person could see when they acknowledged (recorded by the server, never sent by the device); server time in UTC | Append-only; one row per acknowledgement, so a late addition asks again |
+| `care_note.tags` value `handover` | Fixed tag "Include in handover" (`HANDOVER_NOTE_TAGS`, beside `fall` and `refusal`) | A tagged note is compiled as a `flagged_note` item; an untagged note never reaches the handover (H-155) |
+| `notification.person_id`, `location_id` | References to `person` and `location`, each a composite foreign key with the tenant | Set on urgent alerts (care triggers, overdue tasks, DoLS reminders, overdue statutory notifications and their escalation copies); migration 0028 filled them for earlier alerts from their source |
+| `notification.kind` `care.handover.updated`, `care.handover.unacknowledged` | Staff notices about a handover: late additions, and the alert to the nurse in charge when nobody on the incoming shift has acknowledged by `handover.acknowledgement_grace_minutes` | Generic titles naming nobody; never items of a handover |
+| `PersonSummary.iddsiFoodLevel`, `iddsiDrinkLevel` (API) | IDDSI food `3`, `4`, `5`, `6`, `7EC`, `7`; drink `0` to `4`; or `not_recorded` | The prescribed levels from `person_care_profile`, on every point-of-care header (round stops, handover people); never read as a normal diet when not recorded (HZ-016) |
 
 ## Consent, capacity and DoLS (Phase 1, slice 6)
 

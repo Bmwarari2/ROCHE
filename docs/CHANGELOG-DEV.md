@@ -381,3 +381,119 @@ when its entries fall on two days).
 `apps/web` 306, `packages/ui` 342, `packages/ui-native` 134, `packages/i18n` 34, all passing
 locally (run with `--concurrency=3`: under full parallel load a web time-zone test that reads every
 minute of a day can pass its 5-second limit).
+
+## 2026-10-12: Phase 1 slice 5 API (tasks, rounds and handover)
+
+**What changed**
+
+- Specs: care.md rule 8 as built in slice 5 and new rule 14 (care plan rounds), the slice 5 route
+  permission matrix, schema rows, tests and open questions; comms.md (COMMS-006 built with the
+  handover); two rate-table defaults for the window around a care plan round
+  (`care_plan.task_window_before_minutes` 30, `care_plan.task_window_after_minutes` 60, to
+  verify); retention.md (the handover tables are care records).
+- Domain (tests first): `plan-tasks.ts` (which series a plan needs, carried forward unchanged
+  across versions or ended; windows cut so no instant is inside two rounds' windows, even on a
+  clock-change night); the medicines domain never generates tasks; handover additions
+  (`previousShift`, `handoverOpen`, `alertConditions`, `viewerAcknowledgement`,
+  `checkHandoverAcknowledgement`, `checkHandoverNote`, `lateAdditionSeverity`).
+- Database: migrations 0027 and 0028: `handover` (items only ever added: a trigger refuses
+  removing, changing or reordering one, moving the shift or unlocking), `handover_note` and
+  `handover_acknowledgement` (append-only, client ids, acknowledgements only for oneself),
+  forced RLS with a location scope that follows the people a reader can see,
+  `care_plan_action.based_on_action_id`, one live task series per care plan action, and
+  `notification.person_id` and `location_id` with a backfill from each alert's source. Export
+  catalogue entries for the new tables and columns.
+- API: publishing a plan generates its rounds (and an hourly sweep, as the system); the round view
+  with the point-of-care header on every stop; the handover list, compile or refresh, detail,
+  notes and acknowledgements, compiled in the system's view and read in the reader's; who is
+  pending and who hears of a late addition worked out over each member's own scope with the
+  database's person-scope policy; a worker job every 5 minutes locks each shift's handover and
+  appends late additions (reading back 10 minutes so an entry committed just after a refresh is
+  never missed); urgent alerts carry their person and location; the task series end route
+  refuses a care plan series. OpenAPI and the client regenerated (no breaking change).
+- Docs: hazard log (HZ-018, HZ-024, HZ-003, HZ-004, HZ-008, HZ-001, HZ-011), records of
+  processing, data standards, feature register rows CARE-013 and COMMS-006.
+
+**Human actions logged**: H-150 to H-154 (CSO).
+
+**Follow-ups**: round and handover screens (web slice 9, Care mode slice 10 part 2, with sync
+streams for tasks and handovers and offline acknowledgement); moving a person's care plan rounds
+when they move location; a worded summary per handover item; rota-defined shifts and incoming
+staff (Phase 2).
+
+**Tests**: `packages/domain` 3,836, `packages/db` 306, `packages/contracts` 29, `apps/api` 506,
+`packages/sync` 59, `apps/mobile` 807, `apps/web` 306, `packages/ui` 342, `packages/ui-native` 141,
+all passing locally through `scripts/ci-local.sh` (every gate).
+
+## 2026-10-12: #24 review round 2 (tasks, rounds and handover)
+
+**What changed**
+
+- Handover security (S-M1, S-M2, S-M3): items moved from a JSON column into the append-only
+  `handover_item` table (one row each, unique key and position), readable only by staff who can
+  see the item's person; only the system's view (scope `tenant`) may insert or update a handover
+  or its items, and the guard also refuses a change of organisation or a soft delete; a note on an
+  item takes its person from the item by trigger and needs an item the writer can see (composite
+  foreign key). Readers who are not a tenant-wide role or a role at the location see counts over
+  their own items, only their own acknowledgements, and no hidden count or version. An
+  acknowledgement sends the seen token of the view the reader was shown; the server records the
+  keys of the items they could see and refuses an old token with 409. Compiling refuses a time
+  before the offline window and is limited per user a minute
+  (`HANDOVER_COMPILE_REQUESTS_PER_MINUTE`). Alerts reference their person by a composite foreign
+  key; notices about late additions are urgent only from items the recipient can see.
+- Round windows (C-M1): worked out from the real instants of consecutive rounds (`roundTimes`),
+  each side under half the real gap and capped by the rate table, never nothing; times under 10
+  minutes apart refused, and occurrences a clock change makes one instant merged; used by the task
+  engine and the lifecycle's gap filling. Table tests over the 2026 and 2027 clock changes.
+- Plans and rounds (C-M2, C-M7): a round from a changed plan says "From an earlier plan: check the
+  current plan" with the plan's status; a plan change no longer cancels a round in progress;
+  medicines actions say "Not a round: see the medicines record" on the plan and on the round stop.
+- Header (C-M3): the point-of-care summary carries the prescribed IDDSI food and drink levels, or
+  `not_recorded`.
+- Handover rules (C-M4 to C-M6): late additions reach the nurse in charge when no acknowledger can
+  see them, and always for falls, raised NEWS2, incidents and urgent alerts; only an acknowledgement
+  at or after the shift's end covering everything its author can see counts for the incoming
+  shift, and the nurse in charge gets one alert after `handover.acknowledgement_grace_minutes` (60,
+  to verify); a fixed `handover` note tag ("Include in handover") is compiled, and the
+  closed-handover message names it.
+- Worker: the sweep compiles and locks every shift missed within the offline window; one
+  organisation's failure no longer stops the others and is audited (`platform.job.tenant_failed`);
+  the nurse in charge and staff scope honour assignment validity and staff status.
+- Migrations 0027 and 0028 amended in place (not yet on `main`), snapshots and journal regenerated
+  with drizzle-kit; OpenAPI and the client regenerated.
+- Docs: hazard log (HZ-001, HZ-003, HZ-004, HZ-008, HZ-011, HZ-016, HZ-018, HZ-024), care.md,
+  comms.md, rates.md, data standards, records of processing.
+
+**Human actions logged**: H-150 to H-154 reworded; H-155 (which notes reach the handover).
+
+**Tests**: `packages/domain` 3,902, `packages/db` 313, `packages/contracts` 30, `apps/api` 513,
+`packages/sync` 59, `apps/mobile` 807, `apps/web` 306, `packages/i18n` 48, all passing locally
+through `scripts/ci-local.sh`.
+
+## 2026-10-12: #24 review round 3 (tasks, rounds and handover)
+
+**What changed**
+
+- Items about nobody (an incident with no residents, the safety tasks and alerts it raises, a
+  check of the building) are visible only to readers who see the handover whole, in the database
+  (`handover_item_scope` with `app.handover_whole`) and in the API's view of each member of staff
+  (`staffCanSee`); a note on an item follows its item (`app.handover_item_visible`), and a note on
+  the whole handover still reaches every reader.
+- The incoming shift has acknowledged only when every item is covered by at least one
+  acknowledgement made at or after the shift's end, by the keys each recorded, so one narrowly
+  scoped acknowledgement no longer clears the handover and access that ends later does not undo it.
+- Late-addition notices are never sent before the receiving shift starts (no flood from refreshing
+  a shift still running), and only acknowledgements on the receiving shift make someone a
+  recipient (an outgoing read-back never does).
+- With no nurse in charge at a location, the unacknowledged-handover alert goes to the
+  longest-serving Registered Manager anywhere, else the longest-serving holder of
+  `care.handover.manage`; with no one, the gap is audited once (`told: 0`).
+- Round times under 10 minutes apart are refused for every frequency (a weekly Monday 23:55 and
+  Tuesday 00:00 included); merge tests for 01:30 and 02:30 and 01:05 and 02:00.
+- The closed-handover message says a note timed within the closed shift is added to it, and the
+  next handover carries it.
+- Docs: hazard log (HZ-003, HZ-004, HZ-008, HZ-011, HZ-018), care.md, H-150, H-153 and H-154, and
+  the on-call runbook (`platform.job.tenant_failed` needs an alert once monitoring exists).
+
+**Tests**: `packages/domain` 3,914, `packages/db` 314, `apps/api` 514, all passing locally through
+`scripts/ci-local.sh`.

@@ -118,7 +118,10 @@ export const PERMISSIONS = {
   "care.note.write": { description: "Write daily notes and charts", careRecord: true },
   "care.note.read": { description: "Read daily notes and charts", careRecord: true },
   "care.assessment.write": { description: "Complete validated assessments", careRecord: true },
-  "care.handover.manage": { description: "Compile and acknowledge handovers", careRecord: true },
+  "care.handover.manage": {
+    description: "Read, compile, annotate and acknowledge shift handovers",
+    careRecord: true,
+  },
   "care.capacity.write": {
     description: "Record consent, capacity assessments and best-interests decisions",
     careRecord: true,

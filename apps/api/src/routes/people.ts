@@ -11,6 +11,7 @@ import {
   breakGlassEvent,
   notification,
   person,
+  personCareProfile,
   recordVersion,
   role,
   roleAssignment,
@@ -93,6 +94,21 @@ async function summaries(tx: Transaction, personIds?: readonly string[]) {
           );
   // The resuscitation decision in force shows in every point-of-care header (hazard HZ-015).
   const resuscitation = await resuscitationFor(tx, ids, new Date());
+  // So do the prescribed IDDSI levels, or that nobody has recorded them (hazard HZ-016).
+  const profiles =
+    ids.length === 0
+      ? []
+      : await tx
+          .select({
+            personId: personCareProfile.personId,
+            food: personCareProfile.iddsiFoodLevel,
+            drink: personCareProfile.iddsiDrinkLevel,
+          })
+          .from(personCareProfile)
+          .where(
+            and(inArray(personCareProfile.personId, ids), isNull(personCareProfile.deletedAt)),
+          );
+  const iddsi = new Map(profiles.map((p) => [p.personId, p]));
   return people.map(
     (p): PersonSummary => ({
       id: p.id,
@@ -112,6 +128,9 @@ async function summaries(tx: Transaction, personIds?: readonly string[]) {
       communicationNeeds: (p.communicationNeeds as CommunicationNeed[]) ?? [],
       ...communicationNeedsStatus(p),
       resuscitation: resuscitation.get(p.id) ?? NOT_RECORDED,
+      iddsiFoodLevel: (iddsi.get(p.id)?.food ?? "not_recorded") as PersonSummary["iddsiFoodLevel"],
+      iddsiDrinkLevel: (iddsi.get(p.id)?.drink ??
+        "not_recorded") as PersonSummary["iddsiDrinkLevel"],
       statusChangedAt: p.statusChangedAt.toISOString(),
       version: p.version,
     }),

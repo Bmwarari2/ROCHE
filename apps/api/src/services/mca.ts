@@ -223,6 +223,8 @@ export async function raiseDolsReminders(
             channels: ["in_app", "email"],
             sourceType: "task",
             sourceId: created?.id ?? null,
+            personId: auth.personId,
+            locationId: auth.locationId,
             dedupeKey: `dols_expiry:${auth.id}:${reminder.key}:${reminder.endsAt.toISOString()}`,
           })
           .onConflictDoNothing();

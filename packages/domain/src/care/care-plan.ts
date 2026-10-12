@@ -186,6 +186,23 @@ export interface PlanActionDraft {
   readonly generatesTasks: boolean;
   readonly recurrence: Recurrence | null;
   readonly roleKey: string | null;
+  /** The need domain of the action's section, where known. */
+  readonly domain?: PcspDomain;
+}
+
+/**
+ * Need domains whose actions never generate tasks (care.md rule 14). Medicines rounds come from
+ * the medicines record (the eMAR, Phase 2), never from the care plan, so a care plan task can never
+ * be ticked off as if it were a dose (HZ-003, HZ-004). The CSO confirms the rule (H-151).
+ */
+export const DOMAINS_WITHOUT_PLAN_TASKS: readonly PcspDomain[] = ["medicines"];
+
+export const MEDICINES_ACTION_MESSAGE =
+  "Medicines rounds come from the medicines record, so a medicines action cannot generate tasks. Describe the support here and leave the rounds to the MAR.";
+
+/** Whether an action in this need domain may generate tasks. */
+export function planActionGeneratesTasks(domain: PcspDomain): boolean {
+  return !DOMAINS_WITHOUT_PLAN_TASKS.includes(domain);
 }
 
 export interface PlanSectionDraft {
@@ -213,16 +230,74 @@ export type PublicationCheck =
 
 const filled = (value: string | null | undefined) => (value?.trim().length ?? 0) > 0;
 
-export type ActionCheck =
-  | { readonly ok: true }
-  | { readonly ok: false; readonly field: "recurrence" | "role"; readonly message: string };
+/**
+ * Two rounds of one action closer together than this are one round: such times are refused when
+ * the action is written (`checkPlanAction`), and where a clock change brings two rounds this close
+ * (01:00 and 02:00 are the same instant on the night the clocks go forward) they are merged, so a
+ * round is never made twice at the same moment (HZ-004).
+ */
+export const MIN_ROUND_GAP_MINUTES = 10;
 
 /**
- * An action that generates tasks (slice 5 turns it into a task series) needs a valid schedule in
- * the location's time zone and the role that carries it out. Other actions are done as needed.
+ * Consecutive occurrences of one action at least `MIN_ROUND_GAP_MINUTES` apart on the clock face,
+ * for every frequency: within a day, from one day's last time to the next day's first for a daily
+ * schedule, from one weekday's last time to the next weekday's first for a weekly one (Monday 23:55
+ * and Tuesday 00:00 are 5 minutes apart), and from the last time of the cycle to the first of the
+ * next. Returns the message when they are not.
+ */
+export function roundGapProblem(rule: Recurrence): string | null {
+  if (rule.freq === "every_hours") return null;
+  const DAY = 24 * 60;
+  const times = [...new Set(rule.times)].map((time) => {
+    const [h, m] = time.split(":").map(Number);
+    return (h ?? 0) * 60 + (m ?? 0);
+  });
+  const interval = rule.interval ?? 1;
+  // Each occurrence as minutes from the start of its cycle, and the cycle's length.
+  let offsets: number[];
+  let cycle: number;
+  if (rule.freq === "weekly") {
+    const days = [...new Set(rule.weekdays)].map((d) => WEEKDAYS.indexOf(d));
+    offsets = days.flatMap((d) => times.map((m) => d * DAY + m));
+    cycle = 7 * DAY * interval;
+  } else if (rule.freq === "daily") {
+    offsets = times;
+    cycle = DAY * interval;
+  } else {
+    // Monthly: the next month's first time is at least 28 days on.
+    offsets = times;
+    cycle = 28 * DAY * interval;
+  }
+  offsets.sort((x, y) => x - y);
+  const gaps = offsets.slice(1).map((m, i) => m - (offsets[i] as number));
+  const first = offsets[0];
+  const last = offsets.at(-1);
+  if (first !== undefined && last !== undefined) gaps.push(cycle - last + first);
+  return gaps.some((g) => g < MIN_ROUND_GAP_MINUTES)
+    ? `Times for one action must be at least ${MIN_ROUND_GAP_MINUTES} minutes apart.`
+    : null;
+}
+
+const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+
+export type ActionCheck =
+  | { readonly ok: true }
+  | {
+      readonly ok: false;
+      readonly field: "recurrence" | "role" | "generatesTasks";
+      readonly message: string;
+    };
+
+/**
+ * An action that generates tasks (a task series, care.md rule 14) needs a valid schedule in the
+ * location's time zone and the role that carries it out, and never sits in a domain without plan
+ * tasks (medicines). Other actions are done as needed.
  */
 export function checkPlanAction(action: PlanActionDraft, startsOn: string): ActionCheck {
   if (!action.generatesTasks) return { ok: true };
+  if (action.domain && !planActionGeneratesTasks(action.domain)) {
+    return { ok: false, field: "generatesTasks", message: MEDICINES_ACTION_MESSAGE };
+  }
   if (action.recurrence === null) {
     return { ok: false, field: "recurrence", message: "Say when the action happens." };
   }
@@ -234,6 +309,8 @@ export function checkPlanAction(action: PlanActionDraft, startsOn: string): Acti
     }
     throw error;
   }
+  const gap = roundGapProblem(action.recurrence);
+  if (gap) return { ok: false, field: "recurrence", message: gap };
   if (!filled(action.roleKey)) {
     return { ok: false, field: "role", message: "Say which role carries out the action." };
   }
@@ -268,7 +345,7 @@ export function checkPublication(plan: {
       });
     }
     for (const action of section.actions) {
-      const check = checkPlanAction(action, "2000-01-01");
+      const check = checkPlanAction({ ...action, domain: section.domain }, "2000-01-01");
       if (!check.ok) {
         issues.push({
           problem: "action_incomplete",

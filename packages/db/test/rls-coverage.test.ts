@@ -26,6 +26,9 @@ const APPEND_ONLY_TABLES = [
   "admission_decision",
   "review_record",
   "break_glass_weekly_report",
+  "handover_item",
+  "handover_note",
+  "handover_acknowledgement",
 ];
 /** Audit and history rows may be written before a tenant is chosen. */
 const NULLABLE_TENANT_TABLES = ["audit_event", "record_version"];

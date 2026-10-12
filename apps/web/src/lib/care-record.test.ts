@@ -222,6 +222,8 @@ describe("reading the header data with the API's schemas (hazards HZ-001 and HZ-
     communicationNeedsStatus: "not_recorded",
     communicationNeedsConfirmedBy: null,
     communicationNeedsConfirmedAt: null,
+    iddsiFoodLevel: "not_recorded",
+    iddsiDrinkLevel: "not_recorded",
     statusChangedAt: "2026-09-01T10:00:00.000Z",
     resuscitation: {
       status: "do_not_attempt_cpr",
