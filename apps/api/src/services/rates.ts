@@ -1,6 +1,25 @@
 import { bankHoliday, rateTable, type Transaction } from "@harbour/db";
-import { type BankHolidays, type RateNation, resolveRate } from "@harbour/domain";
-import { eq } from "drizzle-orm";
+import { type BankHolidays, type RateNation, type RateRow, resolveRate } from "@harbour/domain";
+import { eq, inArray } from "drizzle-orm";
+
+/** The rate-table rows for some keys, global and the tenant's own, for the domain's resolvers. */
+export async function rateRows(tx: Transaction, keys: readonly string[]): Promise<RateRow[]> {
+  const rows = await tx
+    .select()
+    .from(rateTable)
+    .where(inArray(rateTable.key, [...keys]));
+  return rows.map((r) => ({
+    key: r.key,
+    value: r.value,
+    unit: r.unit,
+    nation: r.nation,
+    validFrom: r.validFrom,
+    validTo: r.validTo,
+    tenantId: r.tenantId,
+    verificationStatus: r.verificationStatus,
+    source: r.source,
+  }));
+}
 
 /**
  * A figure from the rate table in force today (tenant override first), as a number. Statutory

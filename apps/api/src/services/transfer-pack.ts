@@ -97,6 +97,75 @@ const CPR_WORDS: Record<string, string> = {
   do_not_attempt_cpr: "Not for cardiopulmonary resuscitation",
 };
 
+/** The allergy statement as recorded (HZ-007): unknown is never shown as none. */
+export function allergyStatementOf(
+  p: Pick<PersonRecord, "allergyStatus" | "allergyStatusConfirmedBy" | "allergyStatusConfirmedAt">,
+  allergies: readonly { substance: string; reaction: string | null; severity: string }[],
+): AllergyStatement {
+  if (p.allergyStatus === "no_known_allergies") {
+    // Who set the status and when (a trigger keeps them), never the last edit of the row.
+    return {
+      status: "no_known_allergies",
+      recordedBy: p.allergyStatusConfirmedBy,
+      recordedAt: p.allergyStatusConfirmedAt,
+    };
+  }
+  if (p.allergyStatus === "has_allergies") {
+    return {
+      status: "has_allergies",
+      allergies: allergies.map(
+        (a): TransferAllergy => ({
+          substance: a.substance,
+          reaction: a.reaction,
+          severity: (SEVERITIES as readonly string[]).includes(a.severity)
+            ? (a.severity as TransferAllergy["severity"])
+            : "unknown",
+        }),
+      ),
+    };
+  }
+  return { status: "unknown" };
+}
+
+/** Communication needs (HZ-023): an empty list is "not recorded" until someone confirms none. */
+export function communicationStatementOf(
+  p: Pick<
+    PersonRecord,
+    | "communicationNeeds"
+    | "communicationNeedsStatus"
+    | "communicationNeedsConfirmedBy"
+    | "communicationNeedsConfirmedAt"
+  >,
+): CommunicationStatement {
+  const needs = Array.isArray(p.communicationNeeds)
+    ? (p.communicationNeeds as { code: string; display: string; preferredFormat?: string }[])
+    : [];
+  if (needs.length > 0) {
+    return {
+      status: "recorded",
+      needs: needs.map((n) => ({
+        code: n.code,
+        display: n.display,
+        preferredFormat: n.preferredFormat ?? "",
+      })),
+      confirmedBy: p.communicationNeedsConfirmedBy,
+      confirmedAt: p.communicationNeedsConfirmedAt,
+    };
+  }
+  if (
+    p.communicationNeedsStatus === "none_identified" &&
+    p.communicationNeedsConfirmedBy &&
+    p.communicationNeedsConfirmedAt
+  ) {
+    return {
+      status: "none_identified",
+      confirmedBy: p.communicationNeedsConfirmedBy,
+      confirmedAt: p.communicationNeedsConfirmedAt,
+    };
+  }
+  return { status: "not_recorded" };
+}
+
 export interface TransferPackRequest {
   readonly reasonForTransfer: string | null;
   readonly sendItemIds: readonly string[];
@@ -155,30 +224,7 @@ export async function transferPackInput(
     .where(
       and(eq(allergy.personId, p.id), eq(allergy.status, "active"), isNull(allergy.deletedAt)),
     );
-  let allergyStatement: AllergyStatement;
-  if (p.allergyStatus === "no_known_allergies") {
-    // Who set the status and when (a trigger keeps them), never the last edit of the row.
-    allergyStatement = {
-      status: "no_known_allergies",
-      recordedBy: p.allergyStatusConfirmedBy,
-      recordedAt: p.allergyStatusConfirmedAt,
-    };
-  } else if (p.allergyStatus === "has_allergies") {
-    allergyStatement = {
-      status: "has_allergies",
-      allergies: allergies.map(
-        (a): TransferAllergy => ({
-          substance: a.substance,
-          reaction: a.reaction,
-          severity: (SEVERITIES as readonly string[]).includes(a.severity)
-            ? (a.severity as TransferAllergy["severity"])
-            : "unknown",
-        }),
-      ),
-    };
-  } else {
-    allergyStatement = { status: "unknown" };
-  }
+  const allergyStatement = allergyStatementOf(p, allergies);
   const allergiesAsOf = allergies.reduce<Date | null>(
     (latest, a) => (latest === null || a.updatedAt > latest ? a.updatedAt : latest),
     p.allergyStatusConfirmedAt,
@@ -199,35 +245,7 @@ export async function transferPackInput(
     data: medicinesFrom(medicinesSection),
   };
 
-  // Communication needs (HZ-023): an empty list is "not recorded" until someone confirms none.
-  const needs = Array.isArray(p.communicationNeeds)
-    ? (p.communicationNeeds as { code: string; display: string; preferredFormat?: string }[])
-    : [];
-  let communication: CommunicationStatement;
-  if (needs.length > 0) {
-    communication = {
-      status: "recorded",
-      needs: needs.map((n) => ({
-        code: n.code,
-        display: n.display,
-        preferredFormat: n.preferredFormat ?? "",
-      })),
-      confirmedBy: p.communicationNeedsConfirmedBy,
-      confirmedAt: p.communicationNeedsConfirmedAt,
-    };
-  } else if (
-    p.communicationNeedsStatus === "none_identified" &&
-    p.communicationNeedsConfirmedBy &&
-    p.communicationNeedsConfirmedAt
-  ) {
-    communication = {
-      status: "none_identified",
-      confirmedBy: p.communicationNeedsConfirmedBy,
-      confirmedAt: p.communicationNeedsConfirmedAt,
-    };
-  } else {
-    communication = { status: "not_recorded" };
-  }
+  const communication = communicationStatementOf(p);
 
   // Resuscitation (HZ-015): the advance care records in force, as recorded.
   const records = await tx

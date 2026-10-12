@@ -17,6 +17,13 @@ export interface PdfLine {
   readonly size?: number;
   /** Blank space before the line, in points. */
   readonly gapBefore?: number;
+  /** Starts a new page (unless the page is still empty). */
+  readonly pageBreakBefore?: boolean;
+  /**
+   * Whose page this is, from this line on: passed to the footer of every page it reaches, so a
+   * page that continues someone's record still names them (HZ-001).
+   */
+  readonly owner?: string;
 }
 
 /** A photo as stored: JPEG or PNG bytes. */
@@ -395,21 +402,26 @@ interface Placed {
   readonly y: number;
 }
 
-function paginate(lines: readonly PdfLine[], withImage: boolean): Placed[][] {
+function paginate(lines: readonly PdfLine[], withImage: boolean, headerHeight = 0): Placed[][] {
   const pages: Placed[][] = [[]];
-  let y = PAGE_HEIGHT - MARGIN;
-  const imageBottom = PAGE_HEIGHT - MARGIN - IMAGE_BOX.height - 10;
+  const top = PAGE_HEIGHT - MARGIN - headerHeight;
+  let y = top;
+  const imageBottom = top - IMAGE_BOX.height - 10;
   for (const line of lines) {
     const size = line.size ?? 10;
     const font = packFont(line.bold ? "bold" : "regular");
     // Beside the photo on the first page, lines stop short of it.
     const besideImage = withImage && pages.length === 1 && y > imageBottom;
     const width = besideImage ? TEXT_WIDTH - IMAGE_BOX.width - 15 : TEXT_WIDTH;
+    if (line.pageBreakBefore && (pages.at(-1)?.length ?? 0) > 0) {
+      pages.push([]);
+      y = top;
+    }
     for (const [n, piece] of wrap(line.text, width, size, font).entries()) {
       const step = size * LINE_FACTOR + (n === 0 ? (line.gapBefore ?? 0) : 0);
       if (y - step < FOOTER_Y + 20) {
         pages.push([]);
-        y = PAGE_HEIGHT - MARGIN;
+        y = top;
       }
       y -= step;
       pages.at(-1)?.push({ line: { ...line, text: piece }, y });
@@ -479,15 +491,29 @@ function compressedFont(font: TrueTypeFont): Buffer {
   return file;
 }
 
-/** Builds the PDF bytes: every page carries the footer (for example the person's identity). */
+/** Header lines are 9 point bold, wrapped, with this much space below them. */
+const HEADER_SIZE = 9;
+const HEADER_GAP = 8;
+
+/**
+ * Builds the PDF bytes: every page carries the footer (for example the person's identity) and,
+ * when given, the same header lines at the top (for example a downtime pack's freshness words).
+ */
 export function renderPdf(input: {
   readonly title: string;
   readonly lines: readonly PdfLine[];
-  readonly footer: (page: number, pages: number) => string;
+  /** `owner`: the `owner` of the last line placed on or before this page, if any. */
+  readonly footer: (page: number, pages: number, owner: string | undefined) => string;
   readonly image?: ImageObject | null;
+  readonly header?: readonly string[];
 }): Uint8Array {
   const image = input.image ?? null;
-  const pages = paginate(input.lines, image !== null);
+  const headerLines = (input.header ?? []).flatMap((text) =>
+    wrap(text, TEXT_WIDTH, HEADER_SIZE, packFont("bold")),
+  );
+  const headerHeight =
+    headerLines.length === 0 ? 0 : headerLines.length * HEADER_SIZE * LINE_FACTOR + HEADER_GAP;
+  const pages = paginate(input.lines, image !== null, headerHeight);
   const fonts = { F1: packFont("regular"), F2: packFont("bold") } as const;
   const usage = { F1: new Usage(), F2: new Usage() };
 
@@ -513,14 +539,23 @@ export function renderPdf(input: {
   }
 
   const pageIds: number[] = [];
+  let owner: string | undefined;
   for (const [index, placed] of pages.entries()) {
+    const footerOwner = placed[0]?.line.owner ?? owner;
+    for (const { line } of placed) owner = line.owner ?? owner;
     let content = "";
+    for (const [n, piece] of headerLines.entries()) {
+      const hex = usage.F2.encode(fonts.F2, piece);
+      const y = PAGE_HEIGHT - MARGIN - (n + 1) * HEADER_SIZE * LINE_FACTOR;
+      content += `BT /F2 ${HEADER_SIZE} Tf ${MARGIN} ${y.toFixed(1)} Td <${hex}> Tj ET\n`;
+    }
     for (const { line, y } of placed) {
       const key = line.bold ? "F2" : "F1";
       const hex = usage[key].encode(fonts[key], line.text);
       content += `BT /${key} ${line.size ?? 10} Tf ${MARGIN} ${y.toFixed(1)} Td <${hex}> Tj ET\n`;
     }
-    for (const [n, piece] of wrap(input.footer(index + 1, pages.length), TEXT_WIDTH, 8).entries()) {
+    const footer = input.footer(index + 1, pages.length, footerOwner);
+    for (const [n, piece] of wrap(footer, TEXT_WIDTH, 8).entries()) {
       const hex = usage.F1.encode(fonts.F1, piece);
       content += `BT /F1 8 Tf ${MARGIN} ${FOOTER_Y - n * 10} Td <${hex}> Tj ET\n`;
     }
@@ -528,7 +563,7 @@ export function renderPdf(input: {
       const scale = Math.min(IMAGE_BOX.width / image.width, IMAGE_BOX.height / image.height);
       const w = image.width * scale;
       const h = image.height * scale;
-      content += `q ${w.toFixed(1)} 0 0 ${h.toFixed(1)} ${(PAGE_WIDTH - MARGIN - w).toFixed(1)} ${(PAGE_HEIGHT - MARGIN - h).toFixed(1)} cm /Im1 Do Q\n`;
+      content += `q ${w.toFixed(1)} 0 0 ${h.toFixed(1)} ${(PAGE_WIDTH - MARGIN - w).toFixed(1)} ${(PAGE_HEIGHT - MARGIN - headerHeight - h).toFixed(1)} cm /Im1 Do Q\n`;
     }
     const data = deflateSync(Buffer.from(content, "latin1"));
     const contentId = add(`<< /Length ${data.length} /Filter /FlateDecode >>`, data);
