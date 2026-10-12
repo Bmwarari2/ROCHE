@@ -187,6 +187,8 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | sync.clock_drift_flag_minutes | 5 | minutes | 2000-01-01 | - | all | master prompt 10.3 | master-prompt |
 | care_plan.initial_working_days | 7 | working_days | 2000-01-01 | - | england | master prompt 9.2 (tenant default from the EHCH framework) | master-prompt |
 | care_plan.review_interval_months | 1 | months | 2000-01-01 | - | all | master prompt 9.2 (monthly and on change); tenant default | master-prompt |
+| care_plan.task_window_before_minutes | 30 | minutes | 2000-01-01 | - | all | Harbour default for the rounds a care plan action generates (care.md rule 14): a round may be done from this many minutes before its time; no published figure; tenant default; CSO to confirm (H-150) | to-verify |
+| care_plan.task_window_after_minutes | 60 | minutes | 2000-01-01 | - | all | Harbour default for the rounds a care plan action generates (care.md rule 14): a round is on time until this many minutes after its time, then overdue, and escalates after task.overdue_escalation_minutes more; no published figure; tenant default; CSO to confirm (H-150) | to-verify |
 | la_review.first_min_weeks | 6 | weeks | 2000-01-01 | - | england | master prompt 9.2 (6 to 8 weeks after start) | master-prompt |
 | la_review.first_max_weeks | 8 | weeks | 2000-01-01 | - | england | master prompt 9.2 (6 to 8 weeks after start) | master-prompt |
 | la_review.interval_months | 12 | months | 2000-01-01 | - | england | master prompt 9.2 (then yearly) | master-prompt |
@@ -291,6 +293,13 @@ literals, and tests assert against the table, not a literal (section 7, section 
   from. A common care home pattern, not a published figure. A location whose staff start at another
   time, or work three shifts (early, late and night), must have its own pattern set before go-live
   (HZ-018); rotas (Phase 2) then define shifts per location.
+- `care_plan.task_window_before_minutes` (30) and `care_plan.task_window_after_minutes` (60): the
+  window around each round a care plan action generates ([care.md](care.md) rule 14). A round may be
+  done from 30 minutes before its time and is on time until 60 minutes after; it is then overdue and
+  escalates once after `task.overdue_escalation_minutes`. Where rounds come closer together than the
+  window is long (hourly checks), the window is cut so no instant is inside two rounds' windows
+  (HZ-004). No published figure sets them; they are Harbour defaults for the CSO to confirm or
+  change (human action H-150), and each organisation may set its own.
 - `break_glass.weekly_repeat_threshold` (3): the number of break-glass openings by one user in a week,
   or of different users opening one person's record in a week, at which the weekly report flags the
   pattern (master prompt section 4 asks for the report, not a number). It is a tenant default; the

@@ -6,8 +6,10 @@ plan, visit booking; attorneys see finance where their power covers it), section
 covers only optional processing such as photos in the family portal), section 8 (plain English at
 reading age 9 on family surfaces) and section 17 for offline behaviour. Phase 1 builds letter and
 email templates with approval (slice 11) and the family feed with the communications integrations
-(slice 12); handover acknowledgement (COMMS-006) is specified with the handover in
-[care.md](care.md) rule 8. The person's portal, professional access, messaging and the public site
+(slice 12); handover acknowledgement (COMMS-006) is specified and built with the handover in
+[care.md](care.md) rule 8 (slice 5: `POST /v1/locations/{id}/handovers/{handoverId}/acknowledgements`,
+the append-only `handover_acknowledgement` table, and the late-addition notice, which is a staff
+notification, never a family one). The person's portal, professional access, messaging and the public site
 arrive in Phase 4. Status per feature lives in the [feature register](feature-register.md).
 
 ## 1. Purpose and register rows

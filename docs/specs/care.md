@@ -27,14 +27,16 @@ Append-only tables have no UPDATE or DELETE grant for the app; a correction is a
 | --- | --- | --- | --- |
 | `care_plan` | mutable, versioned | person, status (`draft`, `active`, `superseded`), `review_due_on`, `signed_off_by_person` (person, representative or `unable` with reason), `signed_off_at`, `published_version` | `care_record` |
 | `care_plan_section` | mutable | plan, domain (one of the 16 PCSP domains), need, outcome in the person's words, strengths, contingency | `care_record` |
-| `care_plan_action` | mutable | section, action, who (role), when (recurrence rule in the person's location time zone), task generation flag, linked risk assessment | `care_record` |
+| `care_plan_action` | mutable | section, action, who (role), when (recurrence rule in the person's location time zone), task generation flag, linked risk assessment, the task series it drives, the action of the earlier version it was copied from (`based_on_action_id`, slice 5) | `care_record` |
 | `risk_assessment` | mutable, versioned | person, template key, hazard, who is at risk, likelihood, severity, controls, residual risk, positive-risk statement, review date | `care_record` |
 | `assessment` | append-only | person, tool key and tool version, answers, score, band, workings (the calculation shown), triggers raised, assessor, `next_due_on` | `care_record` |
 | `care_note` | append-only | person, category, text, tags, `occurred_at`, `device_time`, `recorded_at` (server), `device_id`, `late_entry` (derived), attachments, `supersedes_id` | `care_record` |
 | `observation` | append-only | person, chart type, values (typed per chart), units, method, `occurred_at`, `device_time`, `recorded_at`, flags (for example NEWS2 component scores), `supersedes_id` | `care_record` |
 | `body_map_mark` | append-only | person, view (`front`, `back`), region code, side (`left`, `right`, `midline`) stated separately from the drawing, mark type, pressure-ulcer category, size, photo document, linked incident or safeguarding concern, `supersedes_id` | `care_record` |
-| `care_task` | mutable | person, source (action, chart rule, assessment trigger, manual), due window, status, completed by, evidence (note or observation id), escalation state | `care_record` |
-| `handover` | mutable then locked | location, shift window, compiled items (references), free-text additions, acknowledged by and at | `care_record` |
+| `task`, `task_series` (the platform task engine) | mutable | person, location, source (care plan action, chart rule, assessment trigger, manual), kind (`care.plan_action` for a care plan round), title naming the need, role, due window, status, completed by, evidence (note or observation id), escalation state; one live series per care plan action (a unique index) | as the person (`care_record`) |
+| `handover` | mutable then locked | location, shift (name, start, end), compiled items (references only: kind, person, source table and id, when, whether and when added late), when compiled, refreshed and locked; a trigger refuses removing or changing an item, moving the shift or unlocking | `care_record` |
+| `handover_note` | append-only | handover, the item it annotates (or none for the whole handover) and that item's person, text, author, device | `care_record` |
+| `handover_acknowledgement` | append-only | handover, the member of staff (always the person acknowledging), how many items it held then, server time, device | `care_record` |
 | `activity_record` | append-only | person or group, activity, attendance, engagement rating, notes | `care_record` |
 | `visit_log` | append-only | person, visitor (contact or free text), kind (Reg 9A: facilitated visit, visit out, accompaniment), times, restrictions applied and why | `care_record` |
 | `advance_care_record` | mutable, versioned | person, kind (`respect`, `dnacpr`, `adrt`, `advance_care_plan`), clinician name and role, date completed, review date, document, status | `care_record` |
@@ -59,6 +61,21 @@ follows the person (tenant, location, assigned or break-glass). Care workers wri
 body-map marks and tasks for assigned people; nurses and seniors also complete assessments and
 publish care plans; capacity assessments and DoLS need the senior or manager roles. Every read of
 a person's care record is audited; writes are audited with the record id, never the content.
+
+Slice 5 routes (no new permission; `care.handover.manage` is held by every point-of-care role):
+
+| Route | Permission | Scope |
+| --- | --- | --- |
+| Publishing a care plan, which plans its rounds | `care.plan.write` | The person |
+| `GET /v1/locations/{id}/round` | `care.plan.read` (MFA) | The location; tasks and people as the viewer may see them |
+| `GET /v1/locations/{id}/handovers`, `GET .../handovers/{handoverId}` | `care.handover.manage` (MFA) | The location; items about people outside the viewer's scope are left out and counted |
+| `POST /v1/locations/{id}/handovers` (compile or refresh) | `care.handover.manage` (MFA) | The location; compiled in the system's view, never the requester's |
+| `POST .../handovers/{handoverId}/notes` | `care.handover.manage` (MFA) | The handover; a note on an item follows that item's person |
+| `POST .../handovers/{handoverId}/acknowledgements` | `care.handover.manage` (MFA) | The handover; only for oneself |
+| `POST /v1/task-series/{id}/end` on a care plan series | Refused for everyone: the plan ends its rounds | - |
+
+A location is in scope for tenant-wide roles, for location roles there, and for anyone who can see
+a person living there (an assigned care worker).
 
 ## 4. Rules that are easy to get wrong
 
@@ -141,6 +158,56 @@ applies). Figures come from `rate_table` by key.
      earlier rounds included) and later tasks whose window is already open, by floor, then room in
      natural order, then due time. Each stop shows the point-of-care header (photo, name,
      allergies; HZ-001), and offline views show the last sync time (HZ-002).
+
+   As built in slice 5 (`apps/api/src/services/handover.ts`, `routes/handovers.ts`, `routes/rounds.ts`):
+   - **Stored** as one `handover` per location and shift, with notes and acknowledgements in their
+     own append-only tables. It is compiled in the system's view of the organisation, never the
+     requester's, so nothing is missed because of who asked; who asked is audited.
+   - **When**: on request (`POST /v1/locations/{id}/handovers`, for the shift running at `at`,
+     never one that has not started), and by a worker job every 5 minutes, which compiles each
+     location's last shift if nobody has, refreshes it and locks it once the shift has ended
+     (`previousShift`). Locked handovers whose shift ended within `mobile.offline_window_days` days
+     and a day are refreshed when an entry that happened in the shift arrives after the last
+     refresh, and open ones on every run. Late items are appended (`refreshHandover`); the shift a
+     late entry arrived in gets it when its own handover is compiled.
+   - **Sources** at the location: open tasks due by the end of the shift, MUST follow-ups raised in
+     it and tasks staff skipped or cancelled in it (the task's completion time; tasks the people
+     lifecycle or a plan change cancelled are not "skipped"); vital signs by the NEWS2 band stored
+     with them, and refusals (`observationIsRefusal`); notes with the fixed tags; body-map marks;
+     incidents with their people; and urgent alerts naming the location. Alerts now name the person
+     and location they concern (`notification.person_id`, `location_id`; migration 0028 fills them
+     for earlier alerts from their source). Each alert is one item however many people it reached
+     (`alertConditions`), counted acknowledged from the first acknowledgement; escalation copies
+     and the handover's own notices are left out.
+   - **Only added to**: besides the API (`checkHandoverKeepsItems`), a database trigger refuses
+     any update that removes, changes or reorders an item, moves the shift or unlocks a locked
+     handover; every refresh is versioned in `record_version`.
+   - **Notes** by the outgoing staff, on the handover or on one of its items, until the shift ends
+     or it is locked (`handoverOpen`, `checkHandoverNote`; up to 2,000 characters, client id so a
+     retry is recorded once). A note on an item about a person follows that person's scope.
+   - **Acknowledgement** with a client id (a retry is recorded once), the number of items the person
+     saw (never more than the handover holds, `checkHandoverAcknowledgement`) and the server time;
+     only for oneself (row-level security). Until rotas say who comes on (Phase 2), the incoming
+     staff are those who have acknowledged: the list marks a handover nobody has acknowledged once
+     its receiving shift has started as unacknowledged, for the nurse in charge (H-153).
+   - **Reading**: items about people outside the reader's scope are left out and counted
+     (`hiddenItemCount`, HZ-011); the reader's own state (`viewerAcknowledgement`) counts only the
+     items they can see, so a late addition about someone else does not ask them again. Each
+     item names its person; the people on the visible items come with the point-of-care header.
+   - **Late additions** are announced once per refresh and recipient (`lateAdditionRecipients`):
+     to the staff who acknowledged earlier while the receiving shift runs, otherwise to the nurse in
+     charge (clinical leads and team leaders at the location, else the Registered Manager); urgent
+     with push when a fall, a raised NEWS2, an incident or an urgent alert was added, otherwise a
+     warning in the app (`lateAdditionSeverity`, HZ-008). The notice is generic ("A handover has
+     new items") and links to the handover.
+   - **Round view** (`GET /v1/locations/{id}/round`): the shift running now in the location's
+     pattern, or `from` and `to` (at most 24 hours); the location's open tasks that `roundView`
+     keeps, by area (the room's floor, else its unit, from the person's current bed) and room;
+     every stop with the point-of-care header (`PersonSummary`: photo, names, allergies,
+     communication needs and the resuscitation decision; HZ-001, HZ-007, HZ-015); every task with
+     its state, and a care plan round with the action as the active plan words it. The view says
+     when it was read, so a copy kept offline shows its age (HZ-002). Tasks and people follow the
+     viewer's scope.
 9. **Capacity and consent.** Assume capacity (Mental Capacity Act 2005 s.1(2)); a capacity
    assessment is decision-specific and time-specific, and records the practicable steps taken to
    support the person to decide (s.1(3)). An outcome of "lacks capacity" is accepted only when
@@ -218,6 +285,34 @@ applies). Figures come from `rate_table` by key.
     charge now. Only the person who gave a medicine records it.", so a dose is never given twice
     on the strength of the record (H-132); a task for another person is refused (HZ-001). Every
     entry view shows the outcome as an icon and words.
+14. **Care plan rounds** (`packages/domain/src/care/plan-tasks.ts`; HZ-024, HZ-003, HZ-004,
+    HZ-008). Each task-generating action of the person's active plan drives one task series of
+    kind `care.plan_action` in the task engine, sourced from the action. The series takes the
+    action's role and its need for evidence; its title names the need ("Care plan: skin"), never
+    the person or the action's words, which the round view reads from the plan. Anyone who writes
+    the person's care record completes a round (`care.note.write`), as with any task about a person.
+    - **Window**: a round may be done from `care_plan.task_window_before_minutes` minutes before
+      its time until `care_plan.task_window_after_minutes` after, then it is overdue and escalates
+      once after `task.overdue_escalation_minutes`, through the task engine. Where rounds come
+      closer together than that, the window is cut (the time after first) so no instant is inside
+      two rounds' windows, even on a clock-change night: a gap that passes 01:00 counts an hour
+      less (`planActionTaskWindow`), so an entry answers one round only.
+    - **Generation** (`planActionTaskSeries`), when a version is published and by an hourly sweep
+      (which also catches plans published before slice 5): an action already driving a series
+      keeps it, so generating again changes nothing; an action copied unchanged from the previous
+      version (same need, schedule, role and evidence, `sameTaskSchedule`) takes over that action's
+      series, so none of its rounds is cancelled or made twice; every other live series ends. A
+      series ends with its open rounds due from then cancelled with the reason, and rounds paused
+      while the person was away lose their pause code, so a return never brings back the old
+      schedule. A series the people lifecycle stopped stays with its action and is never replaced
+      by a second one (one live series per action, a unique index). A new series starts on the day
+      of publication and materialises 48 hours ahead; nothing is made for a person away, not yet
+      admitted or whose record is closed.
+    - **Never medicines**: an action in the medicines domain cannot generate tasks
+      (`checkPlanAction` refuses it when it is written and when the plan is published): medicines
+      rounds come from the medicines record, so a care plan task is never ticked off as if it
+      were a dose (H-151).
+    - **Changed only through the plan**: the task series end route refuses a care plan series.
 
 ### Domain modules for consent, capacity and DoLS (slice 6)
 
@@ -308,6 +403,29 @@ is no longer deprived of liberty or there is doubt). An hourly job raises each e
 (a task, an alert to the Registered Manager and `care.dols.expiring`), and none for an authorisation
 that has ended or a closed record. The history route covers these mutable records through
 `record_version`.
+
+Built in slice 5 (`apps/api/src/services/plan-tasks.ts`, `services/handover.ts`, `routes/rounds.ts`,
+`routes/handovers.ts`; tables in migrations 0027 and 0028; rules 8 and 14). Publishing a care plan
+plans its rounds in the same transaction (`syncPlanTaskSeries`, audited as
+`care.plan.tasks.generate` with the counts), and an hourly worker job (`care-plan-rounds`) does the
+same for every person with an active plan or running plan rounds, as the system; a copied draft's
+actions name the action they were copied from (`basedOnActionId`), and an action in the
+medicines domain that generates tasks is refused when written and at publication. `POST
+/v1/task-series/{id}/end` refuses a care plan series. `GET /v1/locations/{id}/round` returns the
+round (`RoundView`: the shift, the window, when it was read, whether it lists every open task, and
+the areas, stops and tasks with the point-of-care header and the plan action). `GET` and `POST
+/v1/locations/{id}/handovers` list the location's handovers (default the last 7 days, at most 31)
+and compile or refresh the one of the shift running at `at`; `GET .../handovers/{handoverId}`
+returns one (`HandoverDetail`: the items the reader may see, the count left out, notes,
+acknowledgements, the people's headers and where the reader stands); `POST .../notes` and `POST
+.../acknowledgements` take a client id. A worker job every 5 minutes (`shift-handovers`) locks each
+location's last shift and appends late additions. Urgent alerts now carry `person_id` and
+`location_id` (care triggers, overdue tasks, DoLS reminders, overdue statutory notifications and
+their escalation copies). Audit events: `care.round.view`, `care.handover.list`,
+`care.handover.view`, `care.handover.compile`, `care.handover.refresh`, `care.handover.lock`,
+`care.handover.note.create`, `care.handover.acknowledge` and `care.plan.tasks.generate`; the
+worker's writes are audited without an actor. Web and mobile screens follow in slices 9 and 10
+part 2.
 
 Built in slice 9 (web, part 1): the person's record in `apps/web/src/app/(shell)/people/[id]/` as
 ten tabs (overview, care plan, assessments, risk assessments, notes, charts, body map, advance care,
@@ -684,7 +802,14 @@ screening trigger not acted on), HZ-015 (resuscitation decision not visible), HZ
 HZ-017 (late entries), HZ-018 (handover omissions), HZ-019 (body-map side) and HZ-020 (DoLS
 lapses), and, with the consent and capacity rules, HZ-026 (restrictive or covert care under consent
 or authority that is not valid), and with offline Care mode HZ-028 (the history on a device mistaken
-for the complete record) and HZ-040 (held entries deleted to get past the lockout). Medical-device boundary: tools are calculated exactly as published and show the published
+for the complete record) and HZ-040 (held entries deleted to get past the lockout). Slice 5 adds
+controls to HZ-018 (the stored handover, its database guard, notes, acknowledgements over each
+reader's scope and late additions), HZ-024 (rounds follow only the active plan's actions, and a new
+version changes only the rounds it changed), HZ-003 (no rounds from the medicines domain; a plan
+change takes the pause code off the old schedule's rounds), HZ-004 (round windows never overlap;
+an unchanged action's rounds are carried forward rather than made again), HZ-008 (late additions
+interrupt only for what cannot wait, and only people who can see them) and HZ-001 (every stop on
+the round carries the point-of-care header). Medical-device boundary: tools are calculated exactly as published and show the published
 responses; no prediction or tenant-authored scoring (see
 [medical-device-boundary.md](../compliance/medical-device-boundary.md)).
 
@@ -709,6 +834,14 @@ through recorded sharing decisions ([people.md](people.md)).
   Built in slice 6: `packages/db/test/mca-and-incidents.test.ts` (HZ-011 person scope,
   append-only assessments, the consent and DoLS constraints) and `apps/api/test/mca.test.ts`
   (HZ-020, HZ-026).
+- Built in slice 5: `packages/domain/src/care/plan-tasks.test.ts` (which series a plan needs,
+  carried forward or ended; windows that never overlap, across both clock changes; no medicines
+  rounds; HZ-024, HZ-004, HZ-003), the slice 5 cases in `handover.test.ts` (the shift a handover is
+  locked after, alerts as one item, each reader's acknowledgement, notes, late-addition tiers;
+  HZ-018, HZ-008), `packages/db/test/handover.test.ts` (HZ-011 location and person scope, items only
+  added to, append-only notes and acknowledgements, one live series per action, the alert
+  backfill) and `apps/api/test/rounds-and-handover.test.ts` (HZ-024, HZ-004, HZ-003, HZ-008,
+  HZ-001, HZ-011 and HZ-018 through the routes and the worker jobs).
 - Web and mobile: Playwright journeys (care plan, notes, charts, body map, assessments, handover,
   capacity and DoLS) with axe; Maestro offline journey (notes and charts written offline, synced,
   conflict reviewed). Built in slice 10 part 1: `packages/sync/test/care-streams.test.ts` and
@@ -722,6 +855,22 @@ through recorded sharing decisions ([people.md](people.md)).
   offline survive a restart and upload when the network returns; the conflict review is part 2).
 
 ## 10. Open questions
+
+- Slice 5 (tasks, rounds and handover):
+  - Until rotas say who comes on each shift (Phase 2), the incoming staff are those who
+    acknowledge; a handover nobody has acknowledged once the next shift has started is marked for
+    the nurse in charge (H-153). Shift patterns come from the rate table's two shifts per nation
+    until rotas define them per location (HZ-018 deployer control).
+  - A care plan series keeps the location it was made at; a move to another location in the same
+    organisation should move the person's rounds with them (people transfers), not yet done.
+  - Handovers, their notes and acknowledgements do not yet sync to devices; the Care mode Today
+    screen and offline acknowledgement come with slice 10 part 2 (the contracts already take
+    client ids).
+  - The handover lists items as references; the web and mobile screens (slices 9 and 10 part 2)
+    read each source for its words. A worded summary per item would save a read per item.
+  - An entry recorded offline against a round the plan has since cancelled is kept as late
+    evidence on the cancelled round (care.md rule 13) while the new schedule's round at the same
+    time stays open; the review of such entries is part of the conflict review (slice 10 part 2).
 
 - Waterlow licence and authoritative source (H-25); until confirmed, the tool ships behind a flag
   defaulting off in production tenants, on in the demo tenant.
