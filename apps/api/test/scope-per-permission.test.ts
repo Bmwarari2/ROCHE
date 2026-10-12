@@ -225,6 +225,28 @@ describe("hazard HZ-011 data scope is per permission (ADR-0071)", () => {
     });
   });
 
+  it("lists where the member works from roles in force only, the same for the switcher and the phone (review round 2)", async () => {
+    const works = async () => {
+      const me = (await (await as("gil", "/v1/me")).json()) as Me;
+      const response = await as("gil", "/v1/sync/token", { method: "POST" });
+      const { token } = (await response.json()) as SyncToken;
+      const claims = (await jwtVerify(token, h.handle.signer.verificationKey)).payload;
+      return { switcher: me.locations.map((l) => l.id), phone: claims.location_ids };
+    };
+    // A role at the Lodge that starts tomorrow is not where Gil works yet; the grant there names
+    // no place of work either.
+    const [future] = await asOwner(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, valid_from)
+       SELECT $1, id, $2, $3 FROM role WHERE key = 'administrator' RETURNING id`,
+      [GIL, LODGE.locationId, new Date(Date.now() + DAY)],
+    );
+    try {
+      expect(await works()).toEqual({ switcher: [DEMO.locationId], phone: [DEMO.locationId] });
+    } finally {
+      await asOwner("UPDATE role_assignment SET deleted_at = now() WHERE id = $1", [future?.id]);
+    }
+  });
+
   it("lists and moves tasks about people only where the reader may open their record", async () => {
     const due = new Date(Date.now() + 60 * 60_000);
     const [house] = await asOwner(

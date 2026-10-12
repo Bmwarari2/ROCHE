@@ -73,6 +73,27 @@ export async function accessRowsOf(
   return result;
 }
 
+/**
+ * Where a member works (the location switcher and the sync token's `location_ids`): their role
+ * assignments in force at `now`, at a location, or across the organisation for a role scoped to it
+ * or marked organisation-wide (ADR-0071 review round 2); a role scoped to assigned people names
+ * its location only. Never a reach for data: each permission's scope decides that.
+ */
+export function workLocationIds(
+  rows: AccessRows,
+  allLocationIds: readonly string[],
+  now: Date,
+): string[] {
+  const inForce = rows.assignments.filter(
+    (a) => a.validFrom <= now && (a.validTo === null || a.validTo > now),
+  );
+  if (
+    inForce.some((a) => a.locationId === null && (a.scopeKind === "tenant" || a.organisationWide))
+  )
+    return [...allLocationIds];
+  return allLocationIds.filter((id) => inForce.some((a) => a.locationId === id));
+}
+
 /** One member's rows (`accessRowsOf`). */
 export async function accessRowsOfMember(
   tx: Transaction,

@@ -32,7 +32,7 @@ import { auditInTx } from "../http/audit";
 import { requirePermission, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { PerUserQuota } from "../http/quota";
-import { accessRowsOfMember } from "../services/access-rows";
+import { accessRowsOfMember, workLocationIds } from "../services/access-rows";
 import {
   closeDeviceHoldOnDeletion,
   DISCARD_ACTIONS,
@@ -166,20 +166,14 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             .select({ id: location.id })
             .from(location)
             .where(isNull(location.deletedAt));
-          // Where the member works: their roles in force now (`accessRowsOfMember`), at a location,
-          // or across the organisation for a role scoped to it or marked organisation-wide
-          // (ADR-0071 review round 2); a role scoped to assigned people names its location only.
-          const now = new Date();
-          const { assignments } = await accessRowsOfMember(tx, access.tenantUserId);
-          const inForce = assignments.filter(
-            (a) => a.validFrom <= now && (a.validTo === null || a.validTo > now),
-          );
+          // Where the member works (`workLocationIds`: their roles in force now; ADR-0071 review
+          // round 2), the same list as the location switcher in /v1/me.
           const allIds = locations.map((l) => l.id);
-          const workIds = inForce.some(
-            (a) => a.locationId === null && (a.scopeKind === "tenant" || a.organisationWide),
-          )
-            ? allIds
-            : allIds.filter((id) => inForce.some((a) => a.locationId === id));
+          const workIds = workLocationIds(
+            await accessRowsOfMember(tx, access.tenantUserId),
+            allIds,
+            new Date(),
+          );
           // Each family of streams syncs where its own read permission reaches, never where
           // another role reaches further (ADR-0071 review round 1, C-M1 and S-M1).
           const people = familyReach(access.effective, "people", allIds);
