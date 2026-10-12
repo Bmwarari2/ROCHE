@@ -15,7 +15,7 @@ import {
   roleAssignment,
   tenantUser,
 } from "@harbour/db";
-import { hasClockDrift, narrowestScope, type Permission, scopeFor } from "@harbour/domain";
+import { type EffectiveAccess, hasClockDrift, type Permission, scopeFor } from "@harbour/domain";
 import {
   isValidWindowDays,
   OFFLINE_WINDOW_RATE_KEY,
@@ -62,15 +62,41 @@ const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
 
 /**
- * The read permissions the location sync streams serve: the person and their allergies, the care
- * plan, risk assessments and tool results, and the recent notes, charts, marks, activities and
- * visits (packages/sync/src/streams/sync-config.yaml, `people_location_ids`).
+ * The read permission each family of sync streams serves (packages/sync/src/streams/
+ * sync-config.yaml): the person and their allergies, the care reference (profile, active plan,
+ * risk assessments, tool results, advance care records) with the active plan's details, and the
+ * recent notes, charts, marks, activities and visits. Each family syncs where its own permission
+ * reaches, from the roles and grants carrying it (ADR-0071 review round 1, C-M1).
  */
-const SYNCED_READS: readonly Permission[] = [
-  "people.person.read",
-  "care.plan.read",
-  "care.note.read",
-];
+export const SYNCED_READS = {
+  people: "people.person.read",
+  care: "care.plan.read",
+  entries: "care.note.read",
+} as const satisfies Record<string, Permission>;
+
+type SyncFamily = keyof typeof SYNCED_READS;
+
+/**
+ * Where one family syncs for a member: the locations whose people it carries in full, and whether
+ * the people the member is assigned to sync for it (only when a role scoped to assigned people
+ * carries its permission; S-M1). A break-glass record never syncs.
+ */
+export function familyReach(
+  effective: EffectiveAccess,
+  family: SyncFamily,
+  allLocationIds: readonly string[],
+): { readonly locationIds: string[]; readonly assigned: boolean } {
+  const scope = scopeFor(effective, SYNCED_READS[family]);
+  return {
+    locationIds:
+      scope.scope === "tenant"
+        ? [...allLocationIds]
+        : scope.scope === "locations"
+          ? [...scope.locationIds]
+          : [],
+    assigned: scope.scope !== "none" && scope.includesAssigned,
+  };
+}
 
 /** Deletions that remove a device's whole hold (or its unsent work at sign-out). */
 const WHOLE_HOLD_KINDS: ReadonlySet<string> = new Set(["held_deleted", "signed_out_with_unsent"]);
@@ -114,7 +140,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         tags: ["sync"],
         summary: "A short-lived token for the PowerSync service, scoped to tenant and assignments",
         description:
-          "Claims: sub, tenant_id, location_ids, people_location_ids and offline_days (the offline window from the rate table, never from the device). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.",
+          "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids and entries_location_ids with people_assigned, care_assigned and entries_assigned (each stream family where its own read permission reaches: people.person.read, care.plan.read and care.note.read), and offline_days (the offline window from the rate table, never from the device). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.",
         security,
         responses: { 200: jsonBody(SyncToken, "Token"), ...errorResponses },
       }),
@@ -141,16 +167,11 @@ export function createSyncRouter(signer: SyncTokenSigner) {
           const workIds = assignments.some((a) => a.locationId === null)
             ? allIds
             : allIds.filter((id) => assignments.some((a) => a.locationId === id));
-          // The location streams carry each person with their care record, so they sync only
-          // where every read permission those streams serve reaches (ADR-0071), never where
-          // another role reaches further.
-          const people = narrowestScope(SYNCED_READS.map((p) => scopeFor(access.effective, p)));
-          const peopleLocationIds =
-            people.scope === "tenant"
-              ? allIds
-              : people.scope === "locations"
-                ? [...people.locationIds]
-                : [];
+          // Each family of streams syncs where its own read permission reaches, never where
+          // another role reaches further (ADR-0071 review round 1, C-M1 and S-M1).
+          const people = familyReach(access.effective, "people", allIds);
+          const care = familyReach(access.effective, "care", allIds);
+          const entries = familyReach(access.effective, "entries", allIds);
           // The offline window comes from the rate table here, never from the device (care.md
           // section 6): the streams read it from this claim and ignore connection parameters.
           const rated = await rateNumber(tx, access.tenantId, OFFLINE_WINDOW_RATE_KEY).catch(
@@ -170,8 +191,12 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             // The device the token is for, when it says; the binding itself is `device_binding`.
             ...(access.deviceId ? { resourceType: "device", resourceId: access.deviceId } : {}),
             scope: {
-              scope: people.scope,
-              peopleLocations: peopleLocationIds.length,
+              peopleLocations: people.locationIds.length,
+              careLocations: care.locationIds.length,
+              entriesLocations: entries.locationIds.length,
+              peopleAssigned: people.assigned,
+              careAssigned: care.assigned,
+              entriesAssigned: entries.assigned,
               offlineWindowDays: windowDays,
             },
             requestId: c.get("requestId"),
@@ -180,7 +205,12 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             sub: access.tenantUserId,
             tenant_id: access.tenantId,
             location_ids: workIds,
-            people_location_ids: peopleLocationIds,
+            people_location_ids: people.locationIds,
+            care_location_ids: care.locationIds,
+            entries_location_ids: entries.locationIds,
+            people_assigned: people.assigned,
+            care_assigned: care.assigned,
+            entries_assigned: entries.assigned,
             offline_days: offlineDays,
           };
         });
@@ -252,7 +282,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         responses: { 200: jsonBody(SyncDiscardResult, "Recorded"), ...errorResponses },
       }),
       async (c) => {
-        const access = await requirePermission(c, "care.note.write");
+        let access = await requirePermission(c, "care.note.write");
         await withTenant(c, (tx) => discardQuota.take(tx, access.tenantUserId));
         const body = c.req.valid("json");
         // Who deleted, as the device recorded it; unknown stays unknown in the record (security
@@ -262,12 +292,39 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         // Anyone's but the caller's own entries, deleted by the caller, need a manager: an unknown
         // owner, another member of staff's entries, or a deletion the device says someone else made
         // (security review round 4, M1). Registered Managers, deputies and nurses hold it.
+        let asManager = false;
         if (
           !body.ownerTenantUserId ||
           body.ownerTenantUserId !== access.tenantUserId ||
           deleter !== access.tenantUserId
         ) {
-          await requirePermission(c, DISCARD_OTHERS_PERMISSION);
+          access = await requirePermission(c, DISCARD_OTHERS_PERMISSION);
+          asManager = true;
+        }
+        const owner = body.ownerTenantUserId?.toLowerCase() ?? null;
+        // A later stage from someone other than the first stage's sender or the owner needs a
+        // manager too. Decided before the deletion's transaction opens, so that transaction runs
+        // in the narrowed scope from its start and its audit carries it (ADR-0071 review round 1,
+        // L3); a first stage that appears in between is refused as a conflict below.
+        const needsManager = (first: { senderTenantUserId: string | null } | undefined) =>
+          first !== undefined &&
+          first.senderTenantUserId !== access.tenantUserId &&
+          owner !== access.tenantUserId;
+        if (!asManager) {
+          const [first] = await withTenant(c, (tx) =>
+            withTenantWideScope(tx, () =>
+              tx
+                .select({ senderTenantUserId: deviceDiscardRecord.senderTenantUserId })
+                .from(deviceDiscardRecord)
+                .where(eq(deviceDiscardRecord.discardId, body.id))
+                .orderBy(asc(deviceDiscardRecord.recordedAt), asc(deviceDiscardRecord.id))
+                .limit(1),
+            ),
+          );
+          if (needsManager(first)) {
+            access = await requirePermission(c, DISCARD_OTHERS_PERMISSION);
+            asManager = true;
+          }
         }
         const action = DISCARD_ACTIONS[body.stage];
         // The code the record carries: one the organisation added, or one of the five.
@@ -313,7 +370,6 @@ export function createSyncRouter(signer: SyncTokenSigner) {
               .where(eq(deviceDiscardRecord.discardId, body.id))
               .orderBy(asc(deviceDiscardRecord.recordedAt), asc(deviceDiscardRecord.id)),
           );
-          const owner = body.ownerTenantUserId?.toLowerCase() ?? null;
           // A later stage belongs to the deletion it continues (security review round 5, S-L1):
           // the same kind and owner, from the same sender, the owner, or a manager.
           const [earliest] = recorded;
@@ -321,11 +377,11 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             if (earliest.kind !== body.kind || earliest.ownerTenantUserId !== owner) {
               throw problems.invalid("This deletion was recorded for other entries.");
             }
-            if (
-              earliest.senderTenantUserId !== access.tenantUserId &&
-              owner !== access.tenantUserId
-            ) {
-              await requirePermission(c, DISCARD_OTHERS_PERMISSION);
+            // A first stage recorded since the check above: the device sends again.
+            if (needsManager(earliest) && !asManager) {
+              throw problems.conflict(
+                "Another stage of this deletion arrived first; send it again.",
+              );
             }
           }
           if (recorded.some((r) => r.stage === body.stage)) return { replay: true };

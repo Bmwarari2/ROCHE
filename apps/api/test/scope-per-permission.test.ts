@@ -177,16 +177,26 @@ describe("hazard HZ-011 data scope is per permission (ADR-0071)", () => {
     expect((await as("gil", `/v1/people/${HOUSE_PERSON}`)).status).toBe(404);
   });
 
-  it("syncs only the people at the home where every synced read permission reaches", async () => {
+  it("syncs each family of streams only where its own read permission reaches (review round 1, C-M1)", async () => {
     const claims = async (who: "tia" | "gil") => {
       const response = await as(who, "/v1/sync/token", { method: "POST" });
       expect(response.status).toBe(200);
       const { token } = (await response.json()) as SyncToken;
       return (await jwtVerify(token, h.handle.signer.verificationKey)).payload;
     };
-    expect((await claims("tia")).people_location_ids).toEqual([DEMO.locationId]);
-    // The location streams carry care plans too: a grant without care.plan.read syncs no one there.
-    expect((await claims("gil")).people_location_ids).toEqual([]);
+    expect(await claims("tia")).toMatchObject({
+      people_location_ids: [DEMO.locationId],
+      care_location_ids: [DEMO.locationId],
+      entries_location_ids: [DEMO.locationId],
+    });
+    // The grant carries the person and the notes, not the care plan: the care reference and plan
+    // details do not sync at the Lodge, the person and the recent entries do.
+    expect(await claims("gil")).toMatchObject({
+      people_location_ids: [LODGE.locationId],
+      care_location_ids: [],
+      entries_location_ids: [LODGE.locationId],
+      people_assigned: false,
+    });
     await asOwner(
       `INSERT INTO access_grant
          (tenant_user_id, permissions, location_id, valid_from, valid_to, reason, granted_by)
@@ -199,7 +209,7 @@ describe("hazard HZ-011 data scope is per permission (ADR-0071)", () => {
         DEMO.users.owner.id,
       ],
     );
-    expect((await claims("gil")).people_location_ids).toEqual([LODGE.locationId]);
+    expect((await claims("gil")).care_location_ids).toEqual([LODGE.locationId]);
   });
 
   it("lists and moves tasks about people only where the reader may open their record", async () => {

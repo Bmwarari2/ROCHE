@@ -12664,7 +12664,7 @@ export interface paths {
     put?: never;
     /**
      * A short-lived token for the PowerSync service, scoped to tenant and assignments
-     * @description Claims: sub, tenant_id, location_ids, people_location_ids and offline_days (the offline window from the rate table, never from the device). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.
+     * @description Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids and entries_location_ids with people_assigned, care_assigned and entries_assigned (each stream family where its own read permission reaches: people.person.read, care.plan.read and care.note.read), and offline_days (the offline window from the rate table, never from the device). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.
      */
     post: {
       parameters: {

@@ -182,12 +182,15 @@ export async function offlineWindowDaysOf(tx: Transaction, tenantId: string): Pr
 
 /**
  * True when the member could act on the person with `permission` at some time in `[since, until]`
- * (#25 review rounds 2 and 3): assigned to them, or holding the permission there by a tenant-wide
- * role, a location role at the person's location or a grant for there or the whole organisation,
- * in force then (an assignment, role or grant ended or deleted since counts up to its end; a
- * revoked grant never counts, as for completing a task). Only the roles and grants carrying the
- * permission count, never another role's reach (ADR-0071), and a role mixing portal and staff
- * permissions gives none. For an entry the window runs back from the entry's own time, so an owner
+ * (#25 review rounds 2 and 3): assigned to them while a role scoped to assigned people carried the
+ * permission (ADR-0071 review round 1, S-M1), or holding the permission there by a role scoped to
+ * the organisation (at the person's location when assigned at one; L2), a location role at the
+ * person's location or marked organisation-wide, or a grant for there or marked
+ * organisation-wide (L1), in force then (an assignment, role or grant ended or deleted since
+ * counts up to its end; a revoked grant never counts, as for completing a task). Only the roles
+ * and grants carrying the permission count, never another role's reach (ADR-0071), and a role
+ * mixing portal and staff permissions gives none. A break-glass record never counts: it opens
+ * reading only. For an entry the window runs back from the entry's own time, so an owner
  * whose access ended after the entry was written still counts. Call in the system's view. False
  * for a person who does not exist, so a refusal never says which.
  */
@@ -203,11 +206,20 @@ export async function personReachedBy(
     SELECT EXISTS (
       SELECT 1 FROM public.person p
       WHERE p.id = ${personId} AND (
-        EXISTS (
+        (EXISTS (
           SELECT 1 FROM public.person_assignment pa
           WHERE pa.person_id = p.id AND pa.tenant_user_id = ${tenantUserId}
             AND pa.valid_from <= ${until}
             AND coalesce(least(pa.valid_to, pa.deleted_at), 'infinity'::timestamptz) >= ${since})
+          AND EXISTS (
+          SELECT 1 FROM public.role_assignment ra
+          JOIN public.role r ON r.id = ra.role_id AND r.tenant_id = ra.tenant_id
+          WHERE ra.tenant_user_id = ${tenantUserId}
+            AND ra.valid_from <= ${until}
+            AND coalesce(least(ra.valid_to, ra.deleted_at), 'infinity'::timestamptz) >= ${since}
+            AND ${permission} = ANY (r.permissions)
+            AND NOT (r.permissions && ${PORTAL_ONLY_ARRAY})
+            AND r.scope_kind IN ('assigned', 'self')))
         OR EXISTS (
           SELECT 1 FROM public.role_assignment ra
           JOIN public.role r ON r.id = ra.role_id AND r.tenant_id = ra.tenant_id
@@ -216,9 +228,10 @@ export async function personReachedBy(
             AND coalesce(least(ra.valid_to, ra.deleted_at), 'infinity'::timestamptz) >= ${since}
             AND ${permission} = ANY (r.permissions)
             AND NOT (r.permissions && ${PORTAL_ONLY_ARRAY})
-            AND (r.scope_kind = 'tenant'
-              OR (r.scope_kind = 'location'
-                AND (ra.location_id IS NULL OR ra.location_id = p.location_id))))
+            AND r.scope_kind IN ('tenant', 'location')
+            AND (ra.location_id = p.location_id
+              OR (ra.location_id IS NULL
+                AND (r.scope_kind = 'tenant' OR ra.organisation_wide))))
         OR EXISTS (
           SELECT 1 FROM public.access_grant g
           WHERE g.tenant_user_id = ${tenantUserId}
@@ -226,7 +239,8 @@ export async function personReachedBy(
             AND g.revoked_at IS NULL
             AND g.valid_from <= ${until}
             AND coalesce(least(g.valid_to, g.deleted_at), 'infinity'::timestamptz) >= ${since}
-            AND (g.location_id IS NULL OR g.location_id = p.location_id))
+            AND (g.location_id = p.location_id
+              OR (g.location_id IS NULL AND g.organisation_wide)))
       )
     ) AS reached`);
   return result.rows[0]?.reached === true;

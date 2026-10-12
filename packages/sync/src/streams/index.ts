@@ -23,10 +23,19 @@ export interface SyncTokenClaims {
   /** Locations the user works at (for the location list). */
   readonly location_ids: readonly string[];
   /**
-   * Locations whose people sync in full; empty for care workers (assigned people only). Only where
-   * people.person.read, care.plan.read and care.note.read all reach (ADR-0071).
+   * Each stream family follows the scope of the one read permission it serves (ADR-0071 review
+   * round 1, C-M1): people and allergies people.person.read, the care reference and active plan
+   * details care.plan.read, recent entries care.note.read. `*_location_ids` are the locations
+   * whose people sync in full for that family (empty for care workers); `*_assigned` is true when
+   * a role scoped to assigned people carries the family's permission, and only then do the people
+   * the user is assigned to sync for it (S-M1). Missing claims sync nothing (fails closed).
    */
   readonly people_location_ids: readonly string[];
+  readonly care_location_ids: readonly string[];
+  readonly entries_location_ids: readonly string[];
+  readonly people_assigned: boolean;
+  readonly care_assigned: boolean;
+  readonly entries_assigned: boolean;
   /**
    * UTC days of the offline window (`offlineWindowDays` in ../client/window.ts), from the tenant's
    * `mobile.offline_window_days` in the rate table. Without it no point-of-care entries sync.

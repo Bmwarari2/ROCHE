@@ -119,11 +119,31 @@ function person(id: string, tenant: string, location: string, nhs: string) {
   };
 }
 
+/** A care worker's token by default: no location in full, assigned people for every family. */
 const claims = (overrides: Partial<SyncTokenClaims>): Partial<SyncTokenClaims> => ({
   location_ids: [],
   people_location_ids: [],
+  care_location_ids: [],
+  entries_location_ids: [],
+  people_assigned: true,
+  care_assigned: true,
+  entries_assigned: true,
   ...overrides,
 });
+
+/** The family of each people-carrying stream and its read permission (ADR-0071 review round 1). */
+const FAMILY: Record<string, "people" | "care" | "entries"> = {
+  assigned_people: "people",
+  assigned_allergies: "people",
+  location_people: "people",
+  location_allergies: "people",
+  assigned_care_reference: "care",
+  location_care_reference: "care",
+  assigned_care_plan_details: "care",
+  location_care_plan_details: "care",
+  assigned_recent_entries: "entries",
+  location_recent_entries: "entries",
+};
 
 let hydrated: ReturnType<typeof compile>["hydrated"];
 
@@ -159,9 +179,19 @@ describe("sync streams definition", () => {
   it("takes the people in scope from the token, never from the device", () => {
     for (const { stream, query } of streamQueries()) {
       if (stream === "my_locations") continue;
-      const scoped =
-        query.includes("auth.user_id()") || query.includes("auth.parameter('people_location_ids')");
-      expect(scoped, stream).toBe(true);
+      // Each family from its own claims (ADR-0071 review round 1, C-M1 and S-M1): assigned people
+      // only when the family's permission reaches them, locations only where it does.
+      const family = FAMILY[stream];
+      expect(family, stream).toBeDefined();
+      if (stream.startsWith("assigned_")) {
+        expect(query, stream).toContain("auth.user_id()");
+        expect(query, stream).toContain(`AND auth.parameter('${family}_assigned') = true`);
+      } else {
+        expect(query, stream).toContain(`IN auth.parameter('${family}_location_ids')`);
+        for (const other of ["people", "care", "entries"].filter((f) => f !== family)) {
+          expect(query, stream).not.toContain(`auth.parameter('${other}_location_ids')`);
+        }
+      }
       // Nothing the device sends is read: not the scope, and not the offline window (S1).
       expect(query, stream).not.toContain("connection.parameter");
     }

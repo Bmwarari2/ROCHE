@@ -460,6 +460,12 @@ describe("offline sync", () => {
       tenant_id: DEMO.tenantId,
       location_ids: [DEMO.locationId],
       people_location_ids: [],
+      care_location_ids: [],
+      entries_location_ids: [],
+      // The care worker role is scoped to assigned people and carries all three synced reads.
+      people_assigned: true,
+      care_assigned: true,
+      entries_assigned: true,
     });
   });
 
@@ -502,7 +508,14 @@ describe("offline sync", () => {
       await demo("manager", "/v1/sync/token", { method: "POST" }),
     );
     const { payload } = await jwtVerify(token, h.handle.signer.verificationKey);
-    expect(payload.people_location_ids).toEqual([DEMO.locationId]);
+    expect(payload).toMatchObject({
+      people_location_ids: [DEMO.locationId],
+      care_location_ids: [DEMO.locationId],
+      entries_location_ids: [DEMO.locationId],
+      people_assigned: false,
+      care_assigned: false,
+      entries_assigned: false,
+    });
   });
 
   it("hazard HZ-028 issues the fail-safe window when the tenant's rate is out of range (L3)", async () => {
