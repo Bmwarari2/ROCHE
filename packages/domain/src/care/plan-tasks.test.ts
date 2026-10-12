@@ -202,14 +202,20 @@ describe("hazard HZ-004 a round's window never reaches the next round's", () => 
   });
 
   it.each([
-    ["2026-03-29", "2026-03-29T01:00:00.000Z"],
-    ["2027-03-28", "2027-03-28T01:00:00.000Z"],
-  ])("merges 01:00 and 02:00 into one round on %s, when they are the same instant", (day, at) => {
-    const onTheDay = roundsOn(daily("01:00", "02:00"), day).filter((r) =>
-      r.dueAt.toISOString().startsWith(day),
-    );
-    expect(onTheDay.map((r) => r.dueAt.toISOString())).toEqual([at]);
-  });
+    ["01:00 and 02:00", ["01:00", "02:00"], "2026-03-29", "2026-03-29T01:00:00.000Z"],
+    ["01:00 and 02:00", ["01:00", "02:00"], "2027-03-28", "2027-03-28T01:00:00.000Z"],
+    ["01:30 and 02:30", ["01:30", "02:30"], "2026-03-29", "2026-03-29T01:30:00.000Z"],
+    // 01:05 does not exist that night and becomes 02:05, 5 minutes after 02:00.
+    ["01:05 and 02:00", ["01:05", "02:00"], "2026-03-29", "2026-03-29T01:00:00.000Z"],
+  ])(
+    "merges %s into one round on %s, when the clocks going forward brings them together",
+    (_label, times, day, at) => {
+      const onTheDay = roundsOn(daily(...times), day).filter((r) =>
+        r.dueAt.toISOString().startsWith(day),
+      );
+      expect(onTheDay.map((r) => r.dueAt.toISOString())).toEqual([at]);
+    },
+  );
 
   it("keeps both rounds, and full windows, on an ordinary day", () => {
     const rounds = roundsOn(daily("01:00", "02:00"), "2026-10-11").filter((r) =>
@@ -269,6 +275,41 @@ describe("hazard HZ-004 a round's window never reaches the next round's", () => 
       true,
     ],
     ["hourly turns", turns(1), true],
+    [
+      "Monday 23:55 and Tuesday 00:00, weekly",
+      { freq: "weekly", weekdays: ["mon", "tue"], times: ["23:55", "00:00"] } as Recurrence,
+      false,
+    ],
+    [
+      "Sunday 23:55 and Monday 00:02, weekly (across the week)",
+      { freq: "weekly", weekdays: ["sun", "mon"], times: ["23:55", "00:02"] } as Recurrence,
+      false,
+    ],
+    [
+      "Monday and Wednesday 23:55 and 00:00, weekly",
+      { freq: "weekly", weekdays: ["mon", "wed"], times: ["23:55", "00:00"] } as Recurrence,
+      true,
+    ],
+    [
+      "every other week, Sunday 23:55 and Monday 00:00 (the next Monday is a week later)",
+      {
+        freq: "weekly",
+        interval: 2,
+        weekdays: ["mon", "sun"],
+        times: ["23:55", "00:00"],
+      } as Recurrence,
+      true,
+    ],
+    [
+      "monthly at 08:00 and 08:05",
+      { freq: "monthly", dayOfMonth: 1, times: ["08:00", "08:05"] } as Recurrence,
+      false,
+    ],
+    [
+      "monthly at 23:58 and 00:03",
+      { freq: "monthly", dayOfMonth: 1, times: ["23:58", "00:03"] } as Recurrence,
+      true,
+    ],
   ])("refuses or accepts %s", (_label, rule, ok) => {
     const check = checkPlanAction(
       { generatesTasks: true, recurrence: rule, roleKey: "care_worker", domain: "skin" },

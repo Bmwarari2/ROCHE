@@ -582,26 +582,22 @@ export function viewerAcknowledgement(
 }
 
 /**
- * Whether the incoming shift has acknowledged the handover (COMMS-006; HZ-018, H-153): someone
- * acknowledged it at or after the end of the shift it hands over, and what they acknowledged from
- * then covers every item they can see now. An acknowledgement made before the shift ended (the
- * outgoing staff reading it back) never counts, nor one that late additions they can see have
- * overtaken, nor one from someone who can see none of a handover's items.
+ * Whether the incoming shift has acknowledged the handover (COMMS-006; HZ-018, H-153): there is at
+ * least one acknowledgement made at or after the end of the shift it hands over, and every item is
+ * covered by one of them. Coverage comes from the keys each acknowledgement recorded (what its
+ * author could see then), never from who can see what now, so access that ends later does not undo
+ * it; an acknowledgement made before the shift ended (the outgoing staff reading it back) never
+ * counts, and an item added since nobody on the incoming shift has acknowledged leaves it open.
  */
 export function incomingAcknowledged(
   shift: ShiftWindow,
   items: readonly HandoverItem[],
   acknowledgements: readonly HandoverAcknowledgement[],
-  canSee: (tenantUserId: string, item: HandoverItem) => boolean,
 ): boolean {
   const incoming = acknowledgements.filter((a) => a.at.getTime() >= shift.end.getTime());
-  for (const userId of new Set(incoming.map((a) => a.tenantUserId))) {
-    const theirs = items.filter((i) => canSee(userId, i));
-    if (items.length > 0 && theirs.length === 0) continue;
-    const seen = keysSeenBy(incoming, userId, shift.end);
-    if (theirs.every((i) => seen.has(i.key))) return true;
-  }
-  return false;
+  if (incoming.length === 0) return false;
+  const covered = new Set(incoming.flatMap((a) => a.itemKeys));
+  return items.every((i) => covered.has(i.key));
 }
 
 /** The alert to the nurse in charge that nobody on the incoming shift has acknowledged. */
@@ -635,10 +631,11 @@ export const MAX_HANDOVER_NOTE_LENGTH = 2000;
 /**
  * Why a closed handover takes no more notes, and how to reach the next one: a care note tagged
  * "Include in handover" (`HANDOVER_NOTE_TAGS.handover`) is compiled into the handover of the shift
- * it is recorded in, and into this one as a late addition if it happened in this shift (HZ-018).
+ * it is recorded in (the next one), and into this one as a late addition if it is timed within
+ * this shift (HZ-018).
  */
 export const HANDOVER_CLOSED_MESSAGE =
-  'This handover has closed. Add a care note tagged "Include in handover": the next handover will carry it.';
+  'This handover has closed. Add a care note tagged "Include in handover" instead: the next handover carries it, and if you time it within this shift it is added to this handover too.';
 
 /**
  * A note the outgoing staff add, on the handover or on one of its items, while it is open. Notes
@@ -698,25 +695,33 @@ export interface LateAdditionNotice {
 
 /**
  * Who hears about items added to a handover after it was compiled, and how loudly (care.md rule 8;
- * HZ-018, HZ-008, HZ-011). While the receiving shift runs, each member of staff who acknowledged
- * the handover hears about the additions they can see; the nurse in charge on duty hears about any
- * addition none of them can see (all of them when nobody has acknowledged) and always about a fall,
- * a raised NEWS2, an incident or an urgent alert. Once the receiving shift has ended, the nurse in
- * charge hears about everything added. Nobody hears about, or is interrupted by, an item they
- * cannot see; an item nobody can see is returned as `unheard`, for the record.
+ * HZ-018, HZ-008, HZ-011). Nothing is sent before the receiving shift starts: until then the
+ * additions are simply part of the handover the incoming staff will read. While the receiving
+ * shift runs, each member of staff who acknowledged it on that shift (at or after its start; an
+ * outgoing read-back never counts) hears about the additions they can see; the nurse in charge on
+ * duty hears about any addition none of them can see (all of them when nobody has) and always about
+ * a fall, a raised NEWS2, an incident or an urgent alert. Once the receiving shift has ended, the
+ * nurse in charge hears about everything added. Nobody hears about, or is interrupted by, an item
+ * they cannot see; an item nobody can see is returned as `unheard`, for the record.
  */
 export function lateAdditionNotices(input: {
   readonly receivingShift: ShiftWindow;
   readonly now: Date;
   readonly added: readonly HandoverItem[];
-  readonly acknowledgers: readonly string[];
+  readonly acknowledgements: readonly { readonly tenantUserId: string; readonly at: Date }[];
   readonly nurseInCharge: readonly string[];
   readonly canSee: (tenantUserId: string, item: HandoverItem) => boolean;
 }): { readonly notices: LateAdditionNotice[]; readonly unheard: HandoverItem[] } {
-  const { added, canSee } = input;
-  if (added.length === 0) return { notices: [], unheard: [] };
-  const running = input.now.getTime() < input.receivingShift.end.getTime();
-  const staff = running ? [...new Set(input.acknowledgers)] : [];
+  const { added, canSee, receivingShift } = input;
+  const now = input.now.getTime();
+  if (added.length === 0 || now < receivingShift.start.getTime()) {
+    return { notices: [], unheard: [] };
+  }
+  const running = now < receivingShift.end.getTime();
+  const incoming = input.acknowledgements
+    .filter((a) => a.at.getTime() >= receivingShift.start.getTime())
+    .map((a) => a.tenantUserId);
+  const staff = running ? [...new Set(incoming)] : [];
   const told = new Map<string, Set<string>>();
   const tell = (recipient: string, items: readonly HandoverItem[]) => {
     const keys = told.get(recipient) ?? new Set<string>();

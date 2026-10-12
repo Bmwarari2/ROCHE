@@ -239,32 +239,46 @@ const filled = (value: string | null | undefined) => (value?.trim().length ?? 0)
 export const MIN_ROUND_GAP_MINUTES = 10;
 
 /**
- * Clock times of one action at least `MIN_ROUND_GAP_MINUTES` apart, counting from the last time of
- * a day to the first of the next for a daily schedule. Returns the message when they are not.
+ * Consecutive occurrences of one action at least `MIN_ROUND_GAP_MINUTES` apart on the clock face,
+ * for every frequency: within a day, from one day's last time to the next day's first for a daily
+ * schedule, from one weekday's last time to the next weekday's first for a weekly one (Monday 23:55
+ * and Tuesday 00:00 are 5 minutes apart), and from the last time of the cycle to the first of the
+ * next. Returns the message when they are not.
  */
 export function roundGapProblem(rule: Recurrence): string | null {
   if (rule.freq === "every_hours") return null;
-  const minutes = [...new Set(rule.times)]
-    .map((time) => {
-      const [h, m] = time.split(":").map(Number);
-      return (h ?? 0) * 60 + (m ?? 0);
-    })
-    .sort((a, b) => a - b);
-  const gaps = minutes.slice(1).map((m, i) => m - (minutes[i] as number));
-  const first = minutes[0];
-  const last = minutes.at(-1);
-  if (
-    rule.freq === "daily" &&
-    (rule.interval ?? 1) === 1 &&
-    first !== undefined &&
-    last !== undefined
-  ) {
-    gaps.push(24 * 60 - last + first);
+  const DAY = 24 * 60;
+  const times = [...new Set(rule.times)].map((time) => {
+    const [h, m] = time.split(":").map(Number);
+    return (h ?? 0) * 60 + (m ?? 0);
+  });
+  const interval = rule.interval ?? 1;
+  // Each occurrence as minutes from the start of its cycle, and the cycle's length.
+  let offsets: number[];
+  let cycle: number;
+  if (rule.freq === "weekly") {
+    const days = [...new Set(rule.weekdays)].map((d) => WEEKDAYS.indexOf(d));
+    offsets = days.flatMap((d) => times.map((m) => d * DAY + m));
+    cycle = 7 * DAY * interval;
+  } else if (rule.freq === "daily") {
+    offsets = times;
+    cycle = DAY * interval;
+  } else {
+    // Monthly: the next month's first time is at least 28 days on.
+    offsets = times;
+    cycle = 28 * DAY * interval;
   }
+  offsets.sort((x, y) => x - y);
+  const gaps = offsets.slice(1).map((m, i) => m - (offsets[i] as number));
+  const first = offsets[0];
+  const last = offsets.at(-1);
+  if (first !== undefined && last !== undefined) gaps.push(cycle - last + first);
   return gaps.some((g) => g < MIN_ROUND_GAP_MINUTES)
     ? `Times for one action must be at least ${MIN_ROUND_GAP_MINUTES} minutes apart.`
     : null;
 }
+
+const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
 export type ActionCheck =
   | { readonly ok: true }

@@ -53,6 +53,7 @@ import {
 } from "@harbour/domain";
 import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { nurseInCharge } from "./care";
+import { fallbackRecipients } from "./device-holds";
 import { rateNumber } from "./rates";
 
 /**
@@ -490,23 +491,50 @@ export async function compileOrRefresh(
   return { row: updated, created: false, added };
 }
 
+/** What one member of staff may see now: the people, and where they see a handover whole. */
+export interface StaffView {
+  readonly people: ReadonlySet<string>;
+  readonly scope: string;
+  readonly locationIds: readonly string[];
+}
+
+const NO_VIEW: StaffView = { people: new Set(), scope: "none", locationIds: [] };
+
 /**
- * Which of these people each member of staff may see now, by the database's own person-scope
- * policy (`app.person_in_scope`): each member's scope is resolved from their roles and grants as
- * the API does at sign-in, set on the transaction while their view is read, and the caller's
- * context is put back afterwards. Used, in the system's view of the organisation, to say who still
- * has to acknowledge a handover and who hears about a late addition, so nobody is asked about, or
- * told of, items about people outside their scope (HZ-011, HZ-008).
+ * Whether a member of staff can see an item of a handover at a location, as row-level security
+ * decides for them (`handover_item_scope`): an item about a person when they can see that person,
+ * an item about nobody only when they see the handover whole (a tenant-wide role, or a role at
+ * that location; `app.handover_whole`).
  */
-export async function peopleVisibleTo(
+export function staffCanSee(
+  view: StaffView | undefined,
+  locationId: string,
+  item: HandoverItem,
+): boolean {
+  if (!view) return false;
+  if (item.personId !== null) return view.people.has(item.personId);
+  return (
+    view.scope === "tenant" || (view.scope === "locations" && view.locationIds.includes(locationId))
+  );
+}
+
+/**
+ * What each member of staff may see now, by the database's own person-scope policy
+ * (`app.person_in_scope`): each member's scope is resolved from their roles and grants as the API
+ * does at sign-in, set on the transaction while their view of these people is read, and the
+ * caller's context is put back afterwards. Used, in the system's view of the organisation, to say
+ * who still has to acknowledge a handover and who hears about a late addition, so nobody is asked
+ * about, or told of, items they cannot see (HZ-011, HZ-008).
+ */
+export async function staffViews(
   tx: Transaction,
   tenantUserIds: readonly string[],
   personIds: readonly string[],
   now: Date,
-): Promise<Map<string, Set<string>>> {
-  const result = new Map<string, Set<string>>(tenantUserIds.map((id) => [id, new Set<string>()]));
+): Promise<Map<string, StaffView>> {
+  const result = new Map<string, StaffView>(tenantUserIds.map((id) => [id, NO_VIEW]));
   const people = [...new Set(personIds)];
-  if (tenantUserIds.length === 0 || people.length === 0) return result;
+  if (tenantUserIds.length === 0) return result;
   // A suspended or departed member of staff sees nobody, whatever their roles still say.
   const current = await tx
     .select({ id: tenantUser.id })
@@ -567,16 +595,23 @@ export async function peopleVisibleTo(
         grants.filter((g) => g.tenantUserId === userId) as AccessGrantInput[],
         now,
       );
-      await tx.execute(
-        sql`SELECT set_config('app.user_id', ${userId}, true),
-                   set_config('app.scope', ${access.scope}, true),
-                   set_config('app.location_ids', ${access.locationIds.join(",")}, true)`,
-      );
-      const seen = await tx
-        .select({ id: person.id })
-        .from(person)
-        .where(and(inArray(person.id, people), isNull(person.deletedAt)));
-      result.set(userId, new Set(seen.map((r) => r.id)));
+      let seen: { id: string }[] = [];
+      if (people.length > 0) {
+        await tx.execute(
+          sql`SELECT set_config('app.user_id', ${userId}, true),
+                     set_config('app.scope', ${access.scope}, true),
+                     set_config('app.location_ids', ${access.locationIds.join(",")}, true)`,
+        );
+        seen = await tx
+          .select({ id: person.id })
+          .from(person)
+          .where(and(inArray(person.id, people), isNull(person.deletedAt)));
+      }
+      result.set(userId, {
+        people: new Set(seen.map((r) => r.id)),
+        scope: access.scope,
+        locationIds: access.locationIds,
+      });
     }
   } finally {
     await tx.execute(
@@ -593,15 +628,19 @@ export interface AcknowledgementState {
   readonly acknowledgedBy: string[];
   /** Of them, who has items they can see still to acknowledge. */
   readonly pending: string[];
-  /** The shift has ended and nobody on the incoming shift has acknowledged (`incomingAcknowledged`). */
+  /**
+   * The shift has ended and the incoming shift's acknowledgements do not cover every item
+   * (`incomingAcknowledged`).
+   */
   readonly unacknowledged: boolean;
 }
 
 /**
  * Where each handover stands with its acknowledgements, worked out over each member of staff's own
- * scope (`viewerAcknowledgement`, `incomingAcknowledged`): nobody is pending for items they cannot
- * see, and an acknowledgement counts for the incoming shift only if it covers everything its author
- * can see. Runs in the system's view, so it reads every item and acknowledgement.
+ * scope (`viewerAcknowledgement`): nobody is pending for items they cannot see. The incoming shift
+ * has acknowledged only when its acknowledgements together cover every item, by the keys each
+ * recorded (`incomingAcknowledged`). Runs in the system's view, so it reads every item and
+ * acknowledgement.
  */
 export async function acknowledgementSummary(
   tx: Transaction,
@@ -620,22 +659,26 @@ export async function acknowledgementSummary(
   const people = [...items.values()].flatMap((list) =>
     list.map((i) => i.personId).filter((p): p is string => p !== null),
   );
-  const visible = await peopleVisibleTo(tx, staff, people, now);
-  const canSee = (userId: string, i: HandoverItem) =>
-    i.personId === null || (visible.get(userId)?.has(i.personId) ?? false);
+  const views = await staffViews(tx, staff, people, now);
   const out = new Map<string, AcknowledgementState>();
   for (const row of rows) {
     const list = items.get(row.id) ?? [];
     const own = acks.filter((a) => a.handoverId === row.id).map(toAcknowledgement);
     const acknowledgedBy = [...new Set(own.map((a) => a.tenantUserId))];
     const pending = acknowledgedBy.filter(
-      (userId) => !viewerAcknowledgement(list, (i) => canSee(userId, i), own, userId).acknowledged,
+      (userId) =>
+        !viewerAcknowledgement(
+          list,
+          (i) => staffCanSee(views.get(userId), row.locationId, i),
+          own,
+          userId,
+        ).acknowledged,
     );
     const ended = now.getTime() >= row.shiftEnd.getTime();
     out.set(row.id, {
       acknowledgedBy,
       pending,
-      unacknowledged: ended && !incomingAcknowledged(rowShift(row), list, own, canSee),
+      unacknowledged: ended && !incomingAcknowledged(rowShift(row), list, own),
     });
   }
   return out;
@@ -643,10 +686,10 @@ export async function acknowledgementSummary(
 
 /**
  * Tells people about items added after a handover was first compiled (care.md rule 8; HZ-018,
- * HZ-008, HZ-011), by `lateAdditionNotices`: the staff who acknowledged it about the additions they
- * can see while the receiving shift runs; the nurse in charge on duty about anything none of them
- * can see and always about a fall, a raised NEWS2, an incident or an urgent alert; after the
- * receiving shift, the nurse in charge about everything. Each notice is generic and urgent with
+ * HZ-008, HZ-011), by `lateAdditionNotices`: nobody before the receiving shift starts; while it
+ * runs, the staff who acknowledged it on that shift about the additions they can see, and the nurse
+ * in charge on duty about anything none of them can see and always about a fall, a raised NEWS2,
+ * an incident or an urgent alert; after it, the nurse in charge about everything. Each notice is generic and urgent with
  * push only when an item the recipient can see cannot wait. Returns how many were told and how
  * many additions nobody on duty can see.
  */
@@ -658,14 +701,16 @@ async function announceLateAdditions(
 ): Promise<{ readonly told: number; readonly unheard: number }> {
   if (added.length === 0) return { told: 0, unheard: 0 };
   const acks = await tx
-    .selectDistinct({ id: handoverAcknowledgement.tenantUserId })
+    .select({
+      tenantUserId: handoverAcknowledgement.tenantUserId,
+      at: handoverAcknowledgement.acknowledgedAt,
+    })
     .from(handoverAcknowledgement)
     .where(eq(handoverAcknowledgement.handoverId, row.id));
-  const acknowledgers = acks.map((a) => a.id);
   const nurses = await nurseInCharge(tx, row.locationId);
-  const visible = await peopleVisibleTo(
+  const views = await staffViews(
     tx,
-    [...new Set([...acknowledgers, ...nurses])],
+    [...new Set([...acks.map((a) => a.tenantUserId), ...nurses])],
     added.map((i) => i.personId).filter((p): p is string => p !== null),
     now,
   );
@@ -678,9 +723,9 @@ async function announceLateAdditions(
     receivingShift: nextShift(rowShift(row), pattern),
     now,
     added,
-    acknowledgers,
+    acknowledgements: acks,
     nurseInCharge: nurses,
-    canSee: (userId, i) => i.personId === null || (visible.get(userId)?.has(i.personId) ?? false),
+    canSee: (userId, i) => staffCanSee(views.get(userId), row.locationId, i),
   });
   for (const notice of notices) {
     await tx
@@ -703,10 +748,16 @@ async function announceLateAdditions(
   return { told: notices.length, unheard: unheard.length };
 }
 
+/** The permission whose holders take the alert when a location has no nurse in charge. */
+const HANDOVER_PERMISSION = "care.handover.manage";
+
 /**
- * Alerts the nurse in charge on duty, once, when nobody on the incoming shift has acknowledged a
- * handover by the rate table's grace period after its shift ended (COMMS-006; HZ-018, H-153). The
- * alert can be acknowledged like any other, and each nurse in charge has one copy per handover.
+ * Alerts the nurse in charge on duty, once, when the incoming shift has not acknowledged a handover
+ * by the rate table's grace period after its shift ended (COMMS-006; HZ-018, H-153). The alert can
+ * be acknowledged like any other, and each recipient has one copy per handover. With no nurse in
+ * charge at the location it goes, as H-142 does for sync tasks, to the longest-serving Registered
+ * Manager anywhere in the organisation, else the longest-serving holder of
+ * `care.handover.manage`; with no one at all, the gap is audited once (`told: 0`).
  */
 async function alertUnacknowledged(
   tx: Transaction,
@@ -739,8 +790,32 @@ async function alertUnacknowledged(
       acknowledged: !(states.get(row.id)?.unacknowledged ?? true),
     });
     if (!due) continue;
+    const nurses = await nurseInCharge(tx, locationId);
+    const recipients =
+      nurses.length > 0
+        ? nurses
+        : (await fallbackRecipients(tx, HANDOVER_PERMISSION, now)).slice(0, 1);
+    if (recipients.length === 0) {
+      const [recorded] = await tx
+        .select({ id: auditEvent.id })
+        .from(auditEvent)
+        .where(
+          and(
+            eq(auditEvent.resourceId, row.id),
+            eq(auditEvent.action, "care.handover.alert.unacknowledged"),
+          ),
+        )
+        .limit(1);
+      if (!recorded) {
+        await systemAudit(tx, tenantId)("care.handover.alert.unacknowledged", row.id, {
+          locationId,
+          told: 0,
+        });
+      }
+      continue;
+    }
     let inserted = 0;
-    for (const recipient of await nurseInCharge(tx, locationId)) {
+    for (const recipient of recipients) {
       const made = await tx
         .insert(notification)
         .values({

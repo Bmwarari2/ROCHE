@@ -691,6 +691,12 @@ describe("the shift handover (care.md rule 8, COMMS-006)", () => {
   });
 
   it("hazard HZ-018 compiles every safety-critical item of the shift in the system's view, whoever asks", async () => {
+    // A task about nobody (a check of the building): an item only whole readers see (HZ-011).
+    const doors = await createTask({
+      title: "Check the fire doors",
+      locationId: DEMO.locationId,
+      dueAt: inShift,
+    });
     expect((await note(1, ["fall"], inShift)).status).toBe(201);
     expect((await note(2, ["refusal"], inShift)).status).toBe(201);
     await asDemoTenant((c) =>
@@ -732,6 +738,8 @@ describe("the shift handover (care.md rule 8, COMMS-006)", () => {
       unacknowledged: null,
     });
     expect(Object.keys(theirs)).not.toContain("hiddenItemCount");
+    // An item about nobody is not theirs to see.
+    expect(theirs.items.filter((i) => i.personId === null)).toEqual([]);
     expect(Object.keys(theirs)).not.toContain("version");
 
     // ...but the handover itself was compiled in the system's view, so nothing was missed.
@@ -742,6 +750,9 @@ describe("the shift handover (care.md rule 8, COMMS-006)", () => {
     expect(kinds(current, 5).filter((k) => k === "alert")).toHaveLength(1);
     expect(current.itemCount).toBe(current.items.length);
     expect(current.itemCount).toBeGreaterThan(theirs.itemCount);
+    expect(current.items.filter((i) => i.sourceId === doors.id).map((i) => i.personId)).toEqual([
+      null,
+    ]);
     // The header of each person on it carries their IDDSI levels (HZ-016).
     expect(current.people.every((p) => typeof p.iddsiFoodLevel === "string")).toBe(true);
 
@@ -807,7 +818,7 @@ describe("the shift handover (care.md rule 8, COMMS-006)", () => {
     expect(carerAfter.acknowledgedBy).toEqual([DEMO.users.carer.id]);
   });
 
-  it("hazard HZ-018 appends a late addition and asks again, for the new item only, those who can see it", async () => {
+  it("hazard HZ-018 appends a late addition and asks again, for the new item only, those who can see it, notifying nobody while its own shift runs", async () => {
     const before = current.itemCount;
     expect((await note(3, ["fall"], inShift)).status).toBe(201);
     const refreshed = await json<HandoverDetail>(await compile("manager"));
@@ -825,32 +836,13 @@ describe("the shift handover (care.md rule 8, COMMS-006)", () => {
     // The care worker's old view is out of date: acknowledging it is refused.
     const old = await acknowledge("carer", { seenToken: "stale" });
     expect(old.status).toBe(409);
-    // Told at once: a fall cannot wait (HZ-008), with a title that names nobody.
-    const told = await query<{
-      severity: string;
-      channels: string[];
-      title: string;
-      location_id: string;
-    }>(
-      `SELECT severity, channels, title, location_id FROM notification
-       WHERE kind = 'care.handover.updated' AND recipient_tenant_user_id = $1 AND source_id = $2`,
-      [DEMO.users.carer.id, current.id],
-    );
-    expect(told).toEqual([
-      {
-        severity: "urgent",
-        channels: ["in_app", "push"],
-        title: "A handover has new items",
-        location_id: DEMO.locationId,
-      },
-    ]);
-    // A fall cannot wait: the nurse in charge hears of it too (HZ-008).
-    const nurseTold = await query<{ severity: string }>(
-      `SELECT severity FROM notification WHERE kind = 'care.handover.updated'
-         AND recipient_tenant_user_id = $1 AND source_id = $2`,
-      [DEMO.users.nurse.id, current.id],
-    );
-    expect(nurseTold).toEqual([{ severity: "urgent" }]);
+    // The handover's own shift is still running: nobody is notified, the addition is simply part
+    // of the handover the incoming staff will read (HZ-008: no flood, no second push for a fall).
+    const notices = () =>
+      query(`SELECT id FROM notification WHERE kind = 'care.handover.updated' AND source_id = $1`, [
+        current.id,
+      ]);
+    expect(await notices()).toEqual([]);
     for (const user of ["carer", "manager"] as const) {
       const view = await read(user);
       expect((await acknowledge(user, { seenToken: view.you.seenToken })).status).toBe(201);
@@ -870,12 +862,7 @@ describe("the shift handover (care.md rule 8, COMMS-006)", () => {
     // Their counts and token did not move for an item they cannot see.
     expect(carerAgain.itemCount).toBe(carerView.itemCount);
     expect(carerAgain.you.seenToken).toBe(carerView.you.seenToken);
-    expect(
-      await query(
-        `SELECT id FROM notification WHERE kind = 'care.handover.updated' AND recipient_tenant_user_id = $1`,
-        [DEMO.users.carer.id],
-      ),
-    ).toHaveLength(1);
+    expect(await notices()).toEqual([]);
     current = again;
   });
 
@@ -945,6 +932,17 @@ describe("the shift handover (care.md rule 8, COMMS-006)", () => {
       );
     expect(await lateNotices(DEMO.users.nurse.id)).toEqual([{ severity: "urgent" }]);
     expect(await lateNotices(DEMO.users.manager.id)).toEqual([]);
+    const [shape] = await query<{ channels: string[]; title: string; location_id: string }>(
+      `SELECT channels, title, location_id FROM notification WHERE kind = 'care.handover.updated'
+         AND recipient_tenant_user_id = $1 AND source_id = $2`,
+      [DEMO.users.nurse.id, lastId],
+    );
+    // A fall cannot wait, and the title names nobody.
+    expect(shape).toEqual({
+      channels: ["in_app", "push"],
+      title: "A handover has new items",
+      location_id: DEMO.locationId,
+    });
 
     // Acknowledged on the incoming shift, by someone who saw every item they can see.
     expect(
@@ -1025,6 +1023,78 @@ describe("the shift handover (care.md rule 8, COMMS-006)", () => {
       [earlier?.id],
     );
     expect(audited).toHaveLength(1);
+  });
+
+  it("hazard HZ-018 with no nurse in charge at a location, alerts the longest-serving Registered Manager, else audits that nobody could be told", async () => {
+    // Nobody at Harbour Lodge is a nurse in charge: the Registered Manager of Harbour House is.
+    const lodge = await query<{ recipient_tenant_user_id: string }>(
+      `SELECT n.recipient_tenant_user_id FROM notification n JOIN handover h ON h.id::text = n.source_id
+       WHERE n.kind = 'care.handover.unacknowledged' AND h.location_id = $1`,
+      [LODGE.locationId],
+    );
+    expect(lodge.length).toBeGreaterThan(0);
+    expect(new Set(lodge.map((n) => n.recipient_tenant_user_id))).toEqual(
+      new Set([DEMO.users.manager.id]),
+    );
+    // In the other organisation, a new location and no Registered Manager or holder anywhere.
+    const hillside = "0194e000-0000-7000-8000-000000000102";
+    const asOther = async (statements: [string, unknown[]][]) => {
+      const client = await h.db.pool("harbour_owner").connect();
+      try {
+        await client.query("BEGIN");
+        await client.query(
+          "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+          [OTHER.tenantId],
+        );
+        const out = [];
+        for (const [text, params] of statements) out.push((await client.query(text, params)).rows);
+        await client.query("COMMIT");
+        return out;
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+    };
+    await asOther([
+      ["INSERT INTO location (id, name) VALUES ($1, 'Hillside')", [hillside]],
+      ["UPDATE role_assignment SET valid_to = now() WHERE tenant_user_id = $1", [OTHER.managerId]],
+    ]);
+    try {
+      await compileHandovers(deps);
+      await compileHandovers(deps);
+      const [audits, alerts] = await asOther([
+        [
+          `SELECT a.scope FROM audit_event a JOIN handover h ON h.id::text = a.resource_id
+           WHERE a.action = 'care.handover.alert.unacknowledged' AND h.location_id = $1`,
+          [hillside],
+        ],
+        [
+          `SELECT n.id FROM notification n JOIN handover h ON h.id::text = n.source_id
+           WHERE n.kind = 'care.handover.unacknowledged' AND h.location_id = $1`,
+          [hillside],
+        ],
+      ]);
+      expect(alerts).toEqual([]);
+      expect(audits?.length).toBeGreaterThan(0);
+      // Once per handover, however often the sweep runs.
+      expect(audits?.map((a) => a.scope)).toEqual(
+        audits?.map(() => ({ locationId: hillside, told: 0 })),
+      );
+      const [handovers] = await asOther([
+        [
+          `SELECT h.id FROM handover h WHERE h.location_id = $1
+             AND h.shift_end <= now() - interval '60 minutes' AND h.shift_end > now() - interval '24 hours'`,
+          [hillside],
+        ],
+      ]);
+      expect(audits).toHaveLength(handovers?.length ?? -1);
+    } finally {
+      await asOther([
+        ["UPDATE role_assignment SET valid_to = NULL WHERE tenant_user_id = $1", [OTHER.managerId]],
+      ]);
+    }
   });
 
   it("hazard HZ-018 one organisation's failure never stops another's sweep, and is audited", async () => {

@@ -19,7 +19,8 @@ $$;
 
 -- A location's handovers are visible to tenant-wide roles, to location roles there, and to anyone
 -- who can see at least one person at the location (an assigned care worker); each item is visible
--- only to those who can see its person (handover_item_scope). Invoker rights, like
+-- only to those who can see its person, and an item about nobody (a staff injury, a fridge check)
+-- only to those who see the handover whole (handover_item_scope). Invoker rights, like
 -- app.person_in_scope: they run under the caller's row-level security, so they can never widen
 -- access.
 CREATE OR REPLACE FUNCTION app.handover_location_visible(p_location_id uuid) RETURNS boolean
@@ -71,20 +72,34 @@ CREATE POLICY handover_system_update ON public.handover AS RESTRICTIVE FOR UPDAT
   USING (app.current_scope() = 'tenant')
   WITH CHECK (app.current_scope() = 'tenant');
 --> statement-breakpoint
--- An item about a person is visible only to those who can see that person (HZ-011).
+-- An item about a person is visible only to those who can see that person; an item about nobody
+-- (an incident with no residents, the safety tasks and alerts it raises) only to those who see the
+-- handover whole, as app.incident_in_scope and app.task_visible restrict those records (HZ-011).
 CREATE POLICY handover_item_scope ON public.handover_item AS RESTRICTIVE FOR SELECT
   TO harbour_app, harbour_owner
-  USING (app.handover_visible(handover_id) AND (person_id IS NULL OR app.person_visible(person_id)));
+  USING (app.handover_visible(handover_id) AND (
+    (person_id IS NOT NULL AND app.person_visible(person_id))
+    OR (person_id IS NULL AND app.handover_whole(handover_id))));
 --> statement-breakpoint
 CREATE POLICY handover_item_system_insert ON public.handover_item AS RESTRICTIVE FOR INSERT
   TO harbour_app, harbour_owner
   WITH CHECK (app.current_scope() = 'tenant');
 --> statement-breakpoint
--- A note on an item about a person follows that person's scope as well.
+-- Whether the caller can see an item of a handover (under their own row-level security).
+CREATE OR REPLACE FUNCTION app.handover_item_visible(p_handover_id uuid, p_key text) RETURNS boolean
+LANGUAGE sql STABLE AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.handover_item i WHERE i.handover_id = p_handover_id AND i.key = p_key)
+$$;
+--> statement-breakpoint
+-- A note on an item follows that item's visibility; a note on the whole handover (no item) is
+-- visible to every reader of the handover.
 CREATE POLICY handover_child_scope ON public.handover_note AS RESTRICTIVE FOR ALL
   TO harbour_app, harbour_owner
-  USING (app.handover_visible(handover_id) AND (person_id IS NULL OR app.person_visible(person_id)))
-  WITH CHECK (app.handover_visible(handover_id) AND (person_id IS NULL OR app.person_visible(person_id)));
+  USING (app.handover_visible(handover_id)
+    AND (item_key IS NULL OR app.handover_item_visible(handover_id, item_key)))
+  WITH CHECK (app.handover_visible(handover_id)
+    AND (item_key IS NULL OR app.handover_item_visible(handover_id, item_key)));
 --> statement-breakpoint
 -- Nobody acknowledges a handover for someone else; a reader limited to their own people sees only
 -- their own acknowledgements (each records the keys of the items its author could see).

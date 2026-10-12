@@ -76,7 +76,8 @@ beforeAll(async () => {
       `INSERT INTO handover_note (handover_id, item_key, person_id, body) VALUES
          ($1, NULL, $2, 'Lift out of order on the first floor.'),
          ($1, 'fall:ada', NULL, 'GP called back.'),
-         ($1, 'fall:ben', $2, 'Hip x-ray booked.')`,
+         ($1, 'fall:ben', $2, 'Hip x-ray booked.'),
+         ($1, 'incident:lift', NULL, 'Engineer booked for the lift.')`,
       [HANDOVER_NORTH, a.personAda],
     );
     // Only the person acknowledging can record it, so the manager does.
@@ -118,7 +119,12 @@ describe("hazard HZ-011 handovers follow the location, and their items the peopl
     expect(await visible(ctx(TENANT_A, a.manager, "tenant"))).toEqual({
       handovers: [HANDOVER_NORTH, HANDOVER_SOUTH],
       items: ["fall:ada", "fall:ben", "fall:cara", "incident:lift"],
-      notes: ["GP called back.", "Hip x-ray booked.", "Lift out of order on the first floor."],
+      notes: [
+        "Engineer booked for the lift.",
+        "GP called back.",
+        "Hip x-ray booked.",
+        "Lift out of order on the first floor.",
+      ],
       acknowledgements: 1,
     });
   });
@@ -127,7 +133,12 @@ describe("hazard HZ-011 handovers follow the location, and their items the peopl
     expect(await visible(ctx(TENANT_A, a.northManager, "locations", [a.locationNorth]))).toEqual({
       handovers: [HANDOVER_NORTH],
       items: ["fall:ada", "fall:ben", "incident:lift"],
-      notes: ["GP called back.", "Hip x-ray booked.", "Lift out of order on the first floor."],
+      notes: [
+        "Engineer booked for the lift.",
+        "GP called back.",
+        "Hip x-ray booked.",
+        "Lift out of order on the first floor.",
+      ],
       acknowledgements: 1,
     });
   });
@@ -135,10 +146,28 @@ describe("hazard HZ-011 handovers follow the location, and their items the peopl
   it("shows a care worker only the items and notes about their own people, and nobody else's acknowledgement", async () => {
     expect(await visible(ctx(TENANT_A, a.carer, "assigned"))).toEqual({
       handovers: [HANDOVER_NORTH],
-      items: ["fall:ada", "incident:lift"],
+      items: ["fall:ada"],
+      // A note on the whole handover reaches every reader of it.
       notes: ["GP called back.", "Lift out of order on the first floor."],
       acknowledgements: 0,
     });
+  });
+
+  it("hides an item about nobody, and a note on it, from an agency or assigned care worker", async () => {
+    const seen = await asCarer(async (c) => ({
+      items: (await c.query("SELECT key FROM handover_item WHERE key = 'incident:lift'")).rows,
+      notes: (await c.query("SELECT body FROM handover_note WHERE item_key = 'incident:lift'"))
+        .rows,
+    }));
+    expect(seen).toEqual({ items: [], notes: [] });
+    await expect(
+      asCarer((c) =>
+        c.query(
+          "INSERT INTO handover_note (handover_id, item_key, body) VALUES ($1, 'incident:lift', 'Seen.')",
+          [HANDOVER_NORTH],
+        ),
+      ),
+    ).rejects.toThrow(/an item of its handover that its writer can see/);
   });
 
   it("shows another organisation nothing, and a role with no person scope nothing", async () => {
@@ -170,6 +199,7 @@ describe("hazard HZ-011 handovers follow the location, and their items the peopl
       ),
     );
     expect(rows.rows.map((r) => [r.body, r.person_id])).toEqual([
+      ["Engineer booked for the lift.", null],
       ["GP called back.", a.personAda],
       ["Hip x-ray booked.", a.personBen],
       ["Lift out of order on the first floor.", null],
@@ -249,7 +279,7 @@ describe("hazard HZ-018 acknowledgements are each person's own and append-only",
     await asCarer((c) =>
       c.query("INSERT INTO handover_acknowledgement (handover_id, item_keys) VALUES ($1, $2)", [
         HANDOVER_NORTH,
-        ["fall:ada", "incident:lift"],
+        ["fall:ada"],
       ]),
     );
     const mine = await asCarer((c) =>
