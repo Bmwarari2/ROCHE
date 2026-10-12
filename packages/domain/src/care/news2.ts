@@ -322,7 +322,7 @@ export function calculateNews2(input: News2Input): ToolOutcome<News2Result> {
   if (published.band !== "low") {
     const reason = `NEWS2 ${score}: ${published.clinicalRisk.toLowerCase()} clinical risk`;
     triggers.unshift(
-      { kind: "urgent_alert", recipient: "nurse_in_charge", reason },
+      { kind: "urgent_alert", recipient: "nurse_in_charge", reason, code: "news2_threshold" },
       { kind: "task", task: "news2_response", reason },
     );
   }

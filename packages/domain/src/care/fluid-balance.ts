@@ -15,8 +15,13 @@ export type LocationTimeZone = typeof UK_TIME_ZONE;
 export interface FluidEntry {
   readonly occurredAt: Date;
   readonly kind: "intake" | "output";
-  /** Millilitres, a whole number above 0. */
+  /** Millilitres, a whole number above 0: for a drink refused, the amount offered. */
   readonly volumeMl: number;
+  /**
+   * An intake entry offered and refused (#26 review round 3): nothing was taken, so it adds 0 to
+   * the intake and the shortfall, and its amount is reported as offered, never as drunk.
+   */
+  readonly refused?: boolean;
 }
 
 export interface FluidDayInput {
@@ -50,7 +55,11 @@ export interface FluidDaySummary {
   readonly outputMl: number;
   /** Intake minus output. */
   readonly balanceMl: number;
+  /** Entries that add to the intake or the output (a refused drink adds nothing). */
   readonly entriesCounted: number;
+  /** Drinks offered and refused in the day, and the amount offered: never in `intakeMl`. */
+  readonly refusedEntries: number;
+  readonly refusedOfferedMl: number;
   readonly target: FluidTargetProgress;
 }
 
@@ -101,8 +110,11 @@ export function fluidDaySummary(input: FluidDayInput): FluidDayOutcome {
     // A day runs from 00:00 inclusive to the next 00:00 exclusive.
     return t >= startsAt.getTime() && t < endsAt.getTime() && t <= until;
   });
+  // A drink offered and refused was not taken: it never adds to the intake (#26 review round 3).
+  const refused = counted.filter((e) => e.kind === "intake" && e.refused === true);
+  const taken = counted.filter((e) => !(e.kind === "intake" && e.refused === true));
   const total = (kind: FluidEntry["kind"]) =>
-    counted.filter((e) => e.kind === kind).reduce((sum, e) => sum + e.volumeMl, 0);
+    taken.filter((e) => e.kind === kind).reduce((sum, e) => sum + e.volumeMl, 0);
   const intakeMl = total("intake");
   const outputMl = total("output");
   const target: FluidTargetProgress =
@@ -124,7 +136,9 @@ export function fluidDaySummary(input: FluidDayInput): FluidDayOutcome {
       intakeMl,
       outputMl,
       balanceMl: intakeMl - outputMl,
-      entriesCounted: counted.length,
+      entriesCounted: taken.length,
+      refusedEntries: refused.length,
+      refusedOfferedMl: refused.reduce((sum, e) => sum + e.volumeMl, 0),
       target,
     },
   };

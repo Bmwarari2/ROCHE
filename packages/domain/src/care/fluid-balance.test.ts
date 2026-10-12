@@ -139,6 +139,61 @@ describe("fluid balance totals and target", () => {
     expect(outcome).toMatchObject({ ok: false, issues: [{ item }] });
   });
 
+  const refusedDrink = (iso: string, volumeMl: number): FluidEntry => ({
+    ...intake(iso, volumeMl),
+    refused: true,
+  });
+
+  // #26 review round 3: a drink offered and refused was not taken, so it never hides a shortfall.
+  it.each([
+    {
+      name: "a refused drink adds nothing to the intake and is reported as offered",
+      entries: [intake("2026-10-11T07:00:00Z", 200), refusedDrink("2026-10-11T09:00:00Z", 250)],
+      intakeMl: 200,
+      shortfallMl: 1300,
+      entriesCounted: 1,
+      refusedEntries: 1,
+      refusedOfferedMl: 250,
+    },
+    {
+      name: "every drink refused leaves the whole target short",
+      entries: [
+        refusedDrink("2026-10-11T07:00:00Z", 200),
+        refusedDrink("2026-10-11T12:00:00Z", 300),
+      ],
+      intakeMl: 0,
+      shortfallMl: 1500,
+      entriesCounted: 0,
+      refusedEntries: 2,
+      refusedOfferedMl: 500,
+    },
+    {
+      name: "a drink not refused counts in full",
+      entries: [intake("2026-10-11T07:00:00Z", 1500)],
+      intakeMl: 1500,
+      shortfallMl: 0,
+      entriesCounted: 1,
+      refusedEntries: 0,
+      refusedOfferedMl: 0,
+    },
+    {
+      name: "a refused drink outside the day is neither counted nor offered",
+      entries: [refusedDrink("2026-10-10T22:30:00Z", 400), intake("2026-10-11T07:00:00Z", 100)],
+      intakeMl: 100,
+      shortfallMl: 1400,
+      entriesCounted: 1,
+      refusedEntries: 0,
+      refusedOfferedMl: 0,
+    },
+  ])(
+    "$name",
+    ({ entries, intakeMl, shortfallMl, entriesCounted, refusedEntries, refusedOfferedMl }) => {
+      const day = summary({ entries, targetMl: 1500 });
+      expect(day).toMatchObject({ intakeMl, entriesCounted, refusedEntries, refusedOfferedMl });
+      expect(day.target).toMatchObject({ shortfallMl, met: shortfallMl === 0 });
+    },
+  );
+
   it("refuses to compute the bounds of a day that does not exist", () => {
     expect(() => ukDayBounds("2026-02-30")).toThrow(RangeError);
   });

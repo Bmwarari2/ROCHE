@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { DEFAULT_DISCARD_REASONS, ESCALATION_POLICY_BANDS } from "@harbour/domain";
+import {
+  DEFAULT_DISCARD_REASONS,
+  ESCALATION_POLICY_BANDS,
+  PORTAL_ONLY_PERMISSIONS,
+} from "@harbour/domain";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ESCALATION_POLICY_TOOL_BANDS } from "../src/schema";
@@ -302,6 +306,162 @@ describe("hazard HZ-014 escalation policy links", () => {
         ]),
       );
     }
+  });
+});
+
+describe("hazard HZ-012 hazard HZ-040 who holds a permission is read only from roles and grants in force (#26 review round 3)", () => {
+  const PERMISSION = "quality.policy.manage";
+  const HOUR = 3_600_000;
+  const at = (hours: number) => new Date(Date.now() + hours * HOUR).toISOString();
+  type Holding =
+    | {
+        readonly kind: "role";
+        readonly scope?: "tenant" | "location" | "assigned";
+        readonly permissions?: readonly string[];
+        readonly organisationWide?: boolean;
+        readonly validFrom?: string;
+        readonly validTo?: string;
+        readonly deleted?: boolean;
+        readonly archived?: boolean;
+      }
+    | {
+        readonly kind: "grant";
+        readonly organisationWide?: boolean;
+        readonly validFrom?: string;
+        readonly validTo?: string;
+        readonly revoked?: boolean;
+        readonly deleted?: boolean;
+      };
+  const cases: readonly [string, Holding, { north: boolean; organisation: boolean }][] = [
+    ["a role in force at North House", { kind: "role" }, { north: true, organisation: false }],
+    [
+      "a role in force across the organisation",
+      { kind: "role", organisationWide: true },
+      { north: true, organisation: true },
+    ],
+    [
+      "a role whose assignment has ended",
+      { kind: "role", validFrom: at(-48), validTo: at(-1) },
+      { north: false, organisation: false },
+    ],
+    [
+      "a role whose assignment has not started",
+      { kind: "role", validFrom: at(24) },
+      { north: false, organisation: false },
+    ],
+    [
+      "a role whose assignment was deleted",
+      { kind: "role", deleted: true },
+      { north: false, organisation: false },
+    ],
+    ["an archived role", { kind: "role", archived: true }, { north: false, organisation: false }],
+    [
+      "a role mixing portal and staff permissions",
+      { kind: "role", permissions: [PERMISSION, "comms.portal.family"] },
+      { north: false, organisation: false },
+    ],
+    [
+      "a role scoped to assigned people",
+      { kind: "role", scope: "assigned", organisationWide: true },
+      { north: false, organisation: false },
+    ],
+    [
+      "a role without the permission",
+      { kind: "role", permissions: ["care.note.read"], organisationWide: true },
+      { north: false, organisation: false },
+    ],
+    ["a grant in force at North House", { kind: "grant" }, { north: true, organisation: false }],
+    [
+      "a grant in force across the organisation",
+      { kind: "grant", organisationWide: true },
+      { north: true, organisation: true },
+    ],
+    [
+      "an expired grant",
+      { kind: "grant", validFrom: at(-48), validTo: at(-1) },
+      { north: false, organisation: false },
+    ],
+    ["a revoked grant", { kind: "grant", revoked: true }, { north: false, organisation: false }],
+    ["a deleted grant", { kind: "grant", deleted: true }, { north: false, organisation: false }],
+  ];
+
+  it.each(cases.map(([name, holding, expected], n) => ({ name, holding, expected, n })))(
+    "$name",
+    async ({ holding, expected, n }) => {
+      const suffix = (700 + n).toString(16).padStart(12, "0");
+      const user = `0193a000-0000-7000-8000-${suffix}`;
+      const roleId = `0193a000-0000-7000-8001-${suffix}`;
+      const place = holding.organisationWide ? null : a.locationNorth;
+      await asOwner(TENANT_A, async (c) => {
+        await c.query(
+          "INSERT INTO tenant_user (id, display_name, email, status) VALUES ($1, $2, $3, 'active')",
+          [user, `Holder ${n}`, `holder${n}@example.invalid`],
+        );
+        if (holding.kind === "role") {
+          await c.query(
+            `INSERT INTO role (id, key, name, scope_kind, permissions, archived_at)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+            [
+              roleId,
+              `holder_${n}`,
+              `Holder ${n}`,
+              holding.scope ?? "location",
+              holding.permissions ?? [PERMISSION],
+              holding.archived ? at(-1) : null,
+            ],
+          );
+          await c.query(
+            `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, valid_from, valid_to, deleted_at)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+            [
+              user,
+              roleId,
+              place,
+              holding.validFrom ?? at(-1),
+              holding.validTo ?? null,
+              holding.deleted ? at(-1) : null,
+            ],
+          );
+        } else {
+          await c.query(
+            `INSERT INTO access_grant (tenant_user_id, permissions, location_id, valid_from, valid_to,
+             reason, granted_by, revoked_at, deleted_at)
+           VALUES ($1, $2, $3, $4, $5, 'Acting up', $6, $7, $8)`,
+            [
+              user,
+              [PERMISSION],
+              place,
+              holding.validFrom ?? at(-1),
+              holding.validTo ?? at(24),
+              a.manager,
+              holding.revoked ? at(-1) : null,
+              holding.deleted ? at(-1) : null,
+            ],
+          );
+        }
+      });
+      const held = await inContext(app(), ctx(TENANT_A, user, "tenant"), (c) =>
+        c
+          .query<{ north: boolean; organisation: boolean }>(
+            "SELECT app.holds_permission_at($1, $2) AS north, app.holds_permission_at($1, NULL) AS organisation",
+            [PERMISSION, a.locationNorth],
+          )
+          .then((r) => r.rows[0]),
+      );
+      expect(held).toEqual(expected);
+    },
+  );
+
+  it("knows every portal-only permission the domain lists, so a mixed role gives none", async () => {
+    const definition = await asOwner(TENANT_A, (c) =>
+      c
+        .query<{ body: string }>(
+          "SELECT pg_get_functiondef('app.holds_permission_at(text, uuid)'::regprocedure) AS body",
+        )
+        .then((r) => r.rows[0]?.body ?? ""),
+    );
+    for (const permission of PORTAL_ONLY_PERMISSIONS)
+      expect(definition).toContain(`'${permission}'`);
   });
 });
 

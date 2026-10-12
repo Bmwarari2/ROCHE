@@ -1003,6 +1003,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       published_version: { description: "Version number when published.", unit: "version number" },
       based_on_plan_id: { description: "The plan this draft started from (care_plan.id)." },
+      copy_from_active: {
+        description:
+          "Whether starting the draft asked for the active plan to be copied (null before this was kept).",
+      },
       summary: { description: "Summary of the plan." },
       review_due_on: { description: "Review date (UK calendar date)." },
       review_reason: { description: "Why a review was asked for." },

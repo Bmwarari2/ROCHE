@@ -382,6 +382,12 @@ export const carePlan = pgTable(
     publishedVersion: integer("published_version"),
     /** The active plan the draft was started from, if any. */
     basedOnPlanId: uuid("based_on_plan_id"),
+    /**
+     * Whether starting the draft asked for the active plan to be copied (`copyFromActive`), kept
+     * so a start sent again with its client id is compared with it (HZ-029; #26 review round 3).
+     * Null for drafts started before migration 0047.
+     */
+    copyFromActive: boolean("copy_from_active"),
     summary: text("summary"),
     reviewDueOn: date("review_due_on"),
     /** Why a review was brought forward (a change in needs) and when. */

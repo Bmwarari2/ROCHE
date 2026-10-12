@@ -25,6 +25,10 @@ LANGUAGE sql STABLE SET search_path = pg_catalog, public AS $$
         AND ra.valid_from <= now()
         AND (ra.valid_to IS NULL OR ra.valid_to > now())
         AND r.scope_kind::text IN ('tenant', 'location')
+        -- A role mixing portal and staff permissions gives none, as at sign-in
+        -- (`rolePermissionMix`; PORTAL_ONLY_PERMISSIONS in packages/domain; #26 review round 3).
+        AND NOT (r.permissions && ARRAY['comms.portal.family', 'comms.portal.self', 'comms.feed.read',
+          'comms.notification.subscribe', 'comms.visit_booking.request']::text[])
         AND p_permission = ANY (r.permissions)
         AND (ra.location_id IS NULL OR ra.location_id = p_location_id))
     OR EXISTS (
