@@ -299,8 +299,10 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
   has none of the paper details, and names an outage only with a reason it was not from paper.
   `app.entry_outage_guard` refuses an outage at another location, a cancelled one, or one the
   writer cannot see. `app.outage_guard` refuses to cancel an outage once a back-entry cites it
-  (rule 15) and a reconciler who entered any of its back-entries (rule 14), both counted in the
-  organisation's view, so a back-entry about someone the caller can no longer see still counts.
+  (rule 15), a reconciler who entered any of its back-entries (rule 14), and a correction of the
+  start or end that would leave a back-entry with no outside-the-outage reason outside it (#32
+  review round 2), all counted in the organisation's view (`app.outage_back_entries`), so a
+  back-entry about someone the caller can no longer see still counts.
 - Not yet: the API, nightly job and PDF (part 3); outages and packs in the sync streams (with the
   mobile step).
 - Part 3 requirements (#32 review round 1):

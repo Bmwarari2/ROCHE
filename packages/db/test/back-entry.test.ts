@@ -218,6 +218,42 @@ describe("hazard HZ-011 hazard HZ-017 cancelling and reconciling an outage with 
     );
   });
 
+  it("refuses a correction that would leave a back-entry outside the outage, unless it gave a reason", async () => {
+    const window = "0199f000-0000-7000-8000-0000000000c6";
+    await asOwner(TENANT_A, (c) =>
+      c.query(
+        `INSERT INTO outage (id, location_id, kind, description, started_at, ended_at, declared_by)
+         VALUES ($1, $2, 'power', 'Power cut, east wing only', now() - interval '12 hours',
+           now() - interval '10 hours', $3)`,
+        [window, a.locationNorth, a.northManager],
+      ),
+    );
+    await asManager((c) =>
+      c.query(
+        `INSERT INTO care_note (person_id, location_id, occurred_at, category, body,
+           late_entry_reason, outage_id, paper_date, paper_time, paper_occurrence,
+           outside_outage_reason)
+         VALUES ($1, $2, now() - interval '11 hours', 'personal_care', 'Assisted with a wash.',
+                 'downtime', $3, '2026-10-11', '03:05', 'only', NULL),
+                ($1, $2, now() - interval '9 hours', 'personal_care', 'Settled for the night.',
+                 'downtime', $3, '2026-10-11', '05:05', 'only', 'Form found after the power came back')`,
+        [a.personAda, a.locationNorth, window],
+      ),
+    );
+    const correct = (startedAgo: string, reason: string) =>
+      asNorthManager((c) =>
+        c.query(
+          `UPDATE outage SET started_at = now() - $2::interval, correction_reason = $3
+           WHERE id = $1`,
+          [window, startedAgo, reason],
+        ),
+      );
+    await expect(correct("10 hours 30 minutes", "The power went at 13:30")).rejects.toThrow(
+      /cannot leave a paper record entered against the outage outside it/,
+    );
+    await correct("11 hours 30 minutes", "The power went at 12:30");
+  });
+
   it("gives the caller back their own view after looking in the organisation's", async () => {
     const scopes = await asNorthManager(async (c) => {
       await c.query("SAVEPOINT attempt");

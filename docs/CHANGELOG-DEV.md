@@ -1146,5 +1146,7 @@ Stacked on #32. Migration 0053 (numbered after Lane C's 0052):
   entered any of its back-entries, both counted in the organisation's view and giving the caller
   their own view back.
 - The export catalogue describes the eight columns on each of the five entries.
+- (#32 review round 2) A correction of an outage's start or end may not leave a back-entry with
+  no reason for being outside the outage outside it.
 
-**Tests**: `packages/db` 415 passing locally (7 new in `back-entry.test.ts`).
+**Tests**: `packages/db` 416 passing locally (8 new in `back-entry.test.ts`).

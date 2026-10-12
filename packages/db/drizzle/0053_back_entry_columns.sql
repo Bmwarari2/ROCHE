@@ -137,9 +137,35 @@ END
 $$;
 --> statement-breakpoint
 
+-- The back-entries that cite an outage, from the five entries (who entered each, its event time
+-- and any reason it is outside the outage). Invoker rights: under the caller's row-level
+-- security, so it never shows more than they could read; the guard below calls it in the
+-- organisation's view.
+CREATE OR REPLACE FUNCTION app.outage_back_entries(p_outage_id uuid)
+RETURNS TABLE (created_by uuid, occurred_at timestamptz, outside_outage_reason text)
+LANGUAGE sql STABLE AS $$
+  SELECT created_by, occurred_at, outside_outage_reason FROM public.care_note
+    WHERE outage_id = p_outage_id AND late_entry_reason = 'downtime'
+  UNION ALL
+  SELECT created_by, occurred_at, outside_outage_reason FROM public.observation
+    WHERE outage_id = p_outage_id AND late_entry_reason = 'downtime'
+  UNION ALL
+  SELECT created_by, occurred_at, outside_outage_reason FROM public.body_map_mark
+    WHERE outage_id = p_outage_id AND late_entry_reason = 'downtime'
+  UNION ALL
+  SELECT created_by, occurred_at, outside_outage_reason FROM public.activity_record
+    WHERE outage_id = p_outage_id AND late_entry_reason = 'downtime'
+  UNION ALL
+  SELECT created_by, occurred_at, outside_outage_reason FROM public.visit_log
+    WHERE outage_id = p_outage_id AND late_entry_reason = 'downtime'
+$$;
+--> statement-breakpoint
+
 -- The outage guard of 0051 (with #32 review round 1), plus rules 14 and 15: an outage is not
 -- cancelled once a back-entry cites it, and is reconciled only by someone who entered none of its
--- back-entries. Both look in the organisation's view and restore the caller's before going on (as
+-- back-entries; and (#32 review round 2) a correction of the start or end never leaves a
+-- back-entry with no reason for being outside the outage outside it. These look in the
+-- organisation's view and restore the caller's before going on (as
 -- app.admit_handed_over_entry does; an error rolls the setting back with its statement), so a
 -- back-entry about someone the caller can no longer see still counts; tenant isolation still
 -- applies. A trigger function cannot be called on its own, so the wider view reaches nothing else.
@@ -176,22 +202,7 @@ BEGIN
       v_scope := coalesce(current_setting('app.scope', true), '');
       PERFORM set_config('app.scope', 'tenant', true);
       SELECT EXISTS (
-        SELECT 1 FROM (
-          SELECT created_by FROM public.care_note
-            WHERE tenant_id = OLD.tenant_id AND outage_id = OLD.id AND late_entry_reason = 'downtime'
-          UNION ALL
-          SELECT created_by FROM public.observation
-            WHERE tenant_id = OLD.tenant_id AND outage_id = OLD.id AND late_entry_reason = 'downtime'
-          UNION ALL
-          SELECT created_by FROM public.body_map_mark
-            WHERE tenant_id = OLD.tenant_id AND outage_id = OLD.id AND late_entry_reason = 'downtime'
-          UNION ALL
-          SELECT created_by FROM public.activity_record
-            WHERE tenant_id = OLD.tenant_id AND outage_id = OLD.id AND late_entry_reason = 'downtime'
-          UNION ALL
-          SELECT created_by FROM public.visit_log
-            WHERE tenant_id = OLD.tenant_id AND outage_id = OLD.id AND late_entry_reason = 'downtime'
-        ) e
+        SELECT 1 FROM app.outage_back_entries(OLD.id) e
         WHERE NEW.state = 'cancelled' OR e.created_by IS NOT DISTINCT FROM NEW.reconciled_by)
         INTO v_found;
       PERFORM set_config('app.scope', v_scope, true);
@@ -226,6 +237,20 @@ BEGIN
   ELSIF NEW.correction_reason IS DISTINCT FROM OLD.correction_reason THEN
     RAISE EXCEPTION 'A correction reason goes with a corrected start or end'
       USING ERRCODE = 'integrity_constraint_violation';
+  END IF;
+  IF NOT v_closing AND (NEW.started_at, NEW.ended_at) IS DISTINCT FROM (OLD.started_at, OLD.ended_at) THEN
+    v_scope := coalesce(current_setting('app.scope', true), '');
+    PERFORM set_config('app.scope', 'tenant', true);
+    SELECT EXISTS (
+      SELECT 1 FROM app.outage_back_entries(OLD.id) e
+      WHERE e.outside_outage_reason IS NULL
+        AND (e.occurred_at < NEW.started_at OR e.occurred_at > NEW.ended_at))
+      INTO v_found;
+    PERFORM set_config('app.scope', v_scope, true);
+    IF v_found THEN
+      RAISE EXCEPTION 'A correction cannot leave a paper record entered against the outage outside it'
+        USING ERRCODE = 'integrity_constraint_violation';
+    END IF;
   END IF;
   NEW.declared_late := CASE WHEN NEW.started_at IS DISTINCT FROM OLD.started_at
     THEN app.outage_declared_late(NEW.location_id, NEW.started_at, NEW.declared_at)
