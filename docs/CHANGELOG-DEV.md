@@ -674,4 +674,6 @@ care.
 staff names), H-162 (the body map drawing), H-163 (the escalation policy lookup), H-164 (coded
 reasons per organisation); H-73, H-74 and H-146 updated.
 
-**Tests**: see the totals in STATUS.md, all passing locally through `scripts/ci-local.sh`.
+**Tests**: `packages/domain` 3,996, `packages/db` 365, `packages/contracts` 34, `apps/api` 586,
+`packages/sync` 59, `apps/mobile` 869, `apps/web` 311, `packages/i18n` 48, all passing locally
+through `scripts/ci-local.sh`.
