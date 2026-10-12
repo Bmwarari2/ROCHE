@@ -6,15 +6,16 @@ import type {
   SyncToken,
   TaskList,
 } from "@harbour/contracts";
-import { withRequestContext } from "@harbour/db";
+import { type Transaction, task, taskSeries, withRequestContext } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { jwtVerify } from "jose";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MOBILE_APP_ORIGIN } from "../src/auth/token-exposure";
 import { inScopeOf, SCOPE_WITHOUT_PERMISSION } from "../src/http/context";
 import { fallbackRecipients } from "../src/services/device-holds";
 import { ENTRY_PERMISSION, personReachedBy } from "../src/services/devices";
+import { materialiseSeries } from "../src/services/tasks";
 import { createHarness, type Harness, LODGE, PASSWORD } from "./support/harness";
 
 /**
@@ -683,5 +684,172 @@ describe("hazard HZ-011 data scope per permission, review round 1 (ADR-0071)", (
       expect(forHouse).not.toContain(LOU);
       expect(forHouse?.[0]).toBe(DEMO.users.manager.id);
     });
+  });
+});
+
+describe("hazard HZ-011 hazard HZ-073 data scope per permission, review round 2 (ADR-0071)", () => {
+  // More invented staff:
+  // - Pip Porter holds break-glass and nothing that reads people (a role the organisation designed).
+  // - Wren Windowed was a care worker at Harbour House, assigned to a resident there.
+  const PIP = "0194d000-0000-7000-8000-0000000003c1";
+  const WREN = "0194d000-0000-7000-8000-0000000003c2";
+  const BREAK_GLASS_ONLY_ROLE = "0194d000-0000-7000-8000-0000000005c1";
+  const RETIRED_ROLE = "0194d000-0000-7000-8000-0000000005c2";
+  const PDF = new TextEncoder().encode("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF\n");
+  let pip = "";
+  const system = <T>(fn: (tx: Transaction) => Promise<T>) =>
+    withRequestContext(
+      h.handle.services.db,
+      { tenantId: DEMO.tenantId, userId: null, scope: "tenant", locationIds: [] },
+      fn,
+    );
+
+  beforeAll(async () => {
+    pip = await member(PIP, "Pip Porter", "pip.porter@example.invalid");
+    await asOwner(
+      `INSERT INTO role (id, key, name, scope_kind, permissions)
+       VALUES ($1, 'break_glass_only', 'Break-glass only', 'location', '{people.person.break_glass}')`,
+      [BREAK_GLASS_ONLY_ROLE],
+    );
+    await asOwner(
+      "INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES ($1, $2, $3)",
+      [PIP, BREAK_GLASS_ONLY_ROLE, DEMO.locationId],
+    );
+    await asOwner(
+      `INSERT INTO tenant_user (id, display_name, email, status)
+       VALUES ($1, 'Wren Windowed', 'wren.windowed@example.invalid', 'active')`,
+      [WREN],
+    );
+  }, 120_000);
+
+  it("audits a refused break-glass attempt after it is rolled back, with why", async () => {
+    const attempt = (personId: string) =>
+      h.request("/v1/people/break-glass", {
+        token: pip,
+        tenant: DEMO.tenantId,
+        method: "POST",
+        body: { personId, justification: "Checking on a resident during the fire alarm" },
+      });
+    const missing = "0194d000-0000-7000-8600-0000000009c1";
+    expect((await attempt(missing)).status).toBe(404);
+    // Pip's read permission reaches no one, so even break-glass opens nothing.
+    expect((await attempt(HOUSE_PERSON)).status).toBe(404);
+    const audited = await asOwner(
+      `SELECT resource_id, reason FROM audit_event
+       WHERE action = 'people.person.break_glass' AND outcome = 'denied'
+         AND actor_tenant_user_id = $1 ORDER BY seq`,
+      [PIP],
+    );
+    expect(audited).toEqual([
+      { resource_id: missing, reason: "person_not_found" },
+      { resource_id: HOUSE_PERSON, reason: "outside_read_scope" },
+    ]);
+    // Nothing was opened.
+    const opened = await asOwner("SELECT id FROM break_glass_event WHERE tenant_user_id = $1", [
+      PIP,
+    ]);
+    expect(opened).toEqual([]);
+  });
+
+  it("counts an assignment only while a role scoped to assigned people was in force with it, never an archived one", async () => {
+    await asOwner(
+      `INSERT INTO person_assignment (tenant_user_id, person_id, valid_from)
+       VALUES ($1, $2, now() - interval '10 days')`,
+      [WREN, HOUSE_PERSON],
+    );
+    // The care worker role ran from ten days ago to five days ago; the assignment runs on.
+    await asOwner(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, valid_from, valid_to)
+       SELECT $1, id, $2, now() - interval '10 days', now() - interval '5 days'
+       FROM role WHERE key = 'care_worker'`,
+      [WREN, DEMO.locationId],
+    );
+    const reached = (sinceDays: number) =>
+      system((tx) =>
+        personReachedBy(
+          tx,
+          WREN,
+          HOUSE_PERSON,
+          new Date(Date.now() - sinceDays * DAY),
+          new Date(),
+          ENTRY_PERMISSION,
+        ),
+      );
+    expect(await reached(2)).toBe(false);
+    expect(await reached(8)).toBe(true);
+    // A role scoped to assigned people, in force now, counts until it is archived.
+    await asOwner(
+      `INSERT INTO role (id, key, name, scope_kind, permissions)
+       VALUES ($1, 'retired_carer', 'Retired carer role', 'assigned',
+         '{people.person.read,care.note.write}')`,
+      [RETIRED_ROLE],
+    );
+    await asOwner(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, valid_from)
+       VALUES ($1, $2, $3, now() - interval '10 days')`,
+      [WREN, RETIRED_ROLE, DEMO.locationId],
+    );
+    expect(await reached(2)).toBe(true);
+    await asOwner("UPDATE role SET archived_at = now() WHERE id = $1", [RETIRED_ROLE]);
+    expect(await reached(2)).toBe(false);
+  });
+
+  it("gives a new round to the series' assignee only while they may still be given it", async () => {
+    const series = async (assignee: string) => {
+      const [row] = await asOwner(
+        `INSERT INTO task_series (person_id, location_id, kind, title, required_permission,
+           recurrence, starts_on, assignee_tenant_user_id, assignee_role_key)
+         VALUES ($1, $2, 'care.reposition', 'Round', 'care.note.write',
+           '{"freq":"every_hours","hours":1,"anchorTime":"00:00"}', '2026-09-01', $3, 'team_leader')
+         RETURNING id`,
+        [HOUSE_PERSON, DEMO.locationId, assignee],
+      );
+      return row?.id as string;
+    };
+    const rounds = (seriesId: string) =>
+      system(async (tx) => {
+        const [row] = await tx.select().from(taskSeries).where(eq(taskSeries.id, seriesId));
+        if (!row) throw new Error("no series");
+        await materialiseSeries(tx, row, new Date());
+        return tx
+          .select({ assignee: task.assigneeTenantUserId })
+          .from(task)
+          .where(eq(task.seriesId, seriesId));
+      });
+    // Tia (team leader at Harbour House) may still be given rounds about the resident there; Gil
+    // (administrator at Harbour House, grant at the Lodge) cannot see the resident.
+    const tia = await rounds(await series(TIA));
+    expect(tia.length).toBeGreaterThan(0);
+    expect(tia.every((r) => r.assignee === TIA)).toBe(true);
+    const gil = await rounds(await series(GIL));
+    expect(gil.length).toBeGreaterThan(0);
+    expect(gil.every((r) => r.assignee === null)).toBe(true);
+  });
+
+  it("does not find a document of a person's category that names no person", async () => {
+    const uploaded = await h.request(
+      `/v1/documents?${new URLSearchParams({
+        category: "organisation_document",
+        title: "Fire procedure",
+      })}`,
+      {
+        token: h.tokens.manager,
+        tenant: DEMO.tenantId,
+        method: "POST",
+        raw: { bytes: PDF, contentType: "application/pdf" },
+      },
+    );
+    expect(uploaded.status).toBe(201);
+    const { id } = (await uploaded.json()) as { id: string };
+    expect(
+      (await h.request(`/v1/documents/${id}`, { token: h.tokens.manager, tenant: DEMO.tenantId }))
+        .status,
+    ).toBe(200);
+    // A row of a person's category with no person (written before the upload refused it).
+    await asOwner("UPDATE document SET category = 'care_attachment' WHERE id = $1", [id]);
+    expect(
+      (await h.request(`/v1/documents/${id}`, { token: h.tokens.manager, tenant: DEMO.tenantId }))
+        .status,
+    ).toBe(404);
   });
 });
