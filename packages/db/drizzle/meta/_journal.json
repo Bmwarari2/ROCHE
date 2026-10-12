@@ -190,6 +190,20 @@
       "when": 1791755809044,
       "tag": "0026_people_lifecycle_round4",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1791773992957,
+      "tag": "0027_care_tasks_and_handover",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1791774016853,
+      "tag": "0028_care_tasks_and_handover_security",
+      "breakpoints": true
     }
   ]
 }

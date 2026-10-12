@@ -16,9 +16,9 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { eventColumns, id, mutableColumns, tenantId } from "./_columns";
+import { createdColumns, eventColumns, id, mutableColumns, tenantId } from "./_columns";
 import { contact, person } from "./people";
-import { document, location } from "./platform";
+import { document, location, tenantUser } from "./platform";
 import { incident } from "./safety";
 import { taskSeries } from "./work";
 
@@ -421,12 +421,22 @@ export const carePlanAction = pgTable(
     generatesTasks: boolean("generates_tasks").notNull().default(false),
     evidenceRequired: boolean("evidence_required").notNull().default(false),
     riskAssessmentId: uuid("risk_assessment_id"),
-    /** The task series slice 5 creates for this action. */
+    /** The task series this action created or took over (care.md rule 14). */
     taskSeriesId: uuid("task_series_id"),
+    /**
+     * The action of the earlier version this one was copied from: an unchanged action takes over
+     * that action's task series when the new version is published, so its rounds carry on.
+     */
+    basedOnActionId: uuid("based_on_action_id"),
     ...mutableColumns(),
   },
   (t) => [
     unique("care_plan_action_tenant_id_id_key").on(t.tenantId, t.id),
+    foreignKey({
+      name: "care_plan_action_based_on_fk",
+      columns: [t.tenantId, t.basedOnActionId],
+      foreignColumns: [t.tenantId, t.id],
+    }),
     personRef("care_plan_action_person_fk", t),
     foreignKey({
       name: "care_plan_action_plan_fk",
@@ -647,6 +657,117 @@ export const advanceCareRecord = pgTable(
     index("advance_care_record_person_idx").on(t.tenantId, t.personId, t.status),
   ],
 );
+
+// ------------------------------------------------------------------------------------------------
+// Slice 5: the shift handover (care.md rule 8, COMMS-006, hazard HZ-018). The handover is compiled
+// by rule from the shift's records, in the system's view of the organisation; its items are
+// references only and can only be added to. Notes and acknowledgements are append-only.
+// ------------------------------------------------------------------------------------------------
+
+/** One handover per location and shift: mutable while it is compiled, then locked. */
+export const handover = pgTable(
+  "handover",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    locationId: uuid("location_id").notNull(),
+    /** The shift's name in the location's pattern ("day", "night"). */
+    shiftName: text("shift_name").notNull(),
+    shiftStart: timestamp("shift_start", { withTimezone: true }).notNull(),
+    /** Exclusive. */
+    shiftEnd: timestamp("shift_end", { withTimezone: true }).notNull(),
+    /**
+     * The compiled items, `HandoverItem[]` from packages/domain: kind, person, source table and id,
+     * when, and whether and when it was added late. References only, never clinical text. A
+     * trigger refuses any update that removes or changes one.
+     */
+    items: jsonb("items").notNull().default(sql`'[]'::jsonb`),
+    compiledAt: timestamp("compiled_at", { withTimezone: true }).notNull(),
+    /** The last time the sources were read again for late additions. */
+    refreshedAt: timestamp("refreshed_at", { withTimezone: true }).notNull(),
+    /** Set at the end of the shift; notes close then, late additions and acknowledgements go on. */
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    ...mutableColumns(),
+  },
+  (t) => [
+    unique("handover_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("handover_location_shift_key").on(t.tenantId, t.locationId, t.shiftStart),
+    locationRef("handover_location_fk", t),
+    check("handover_shift", sql`shift_end > shift_start`),
+    check("handover_items_array", sql`jsonb_typeof(items) = 'array'`),
+    check("handover_refreshed", sql`refreshed_at >= compiled_at`),
+    index("handover_location_idx").on(t.tenantId, t.locationId, t.shiftEnd),
+  ],
+);
+
+/** A note the outgoing staff add to a handover or to one of its items, while it is open. */
+export const handoverNote = pgTable(
+  "handover_note",
+  {
+    /** May be generated on the device, so a retried save is recorded once (HZ-029). */
+    id: id(),
+    tenantId: tenantId(),
+    handoverId: uuid("handover_id").notNull(),
+    /** The item annotated (`HandoverItem.key`); null for a note on the whole handover. */
+    itemKey: text("item_key"),
+    /** The person the annotated item is about, so the note follows that person's scope. */
+    personId: uuid("person_id"),
+    body: text("body").notNull(),
+    deviceId: text("device_id"),
+    ...createdColumns(),
+  },
+  (t) => [
+    foreignKey({
+      name: "handover_note_handover_fk",
+      columns: [t.tenantId, t.handoverId],
+      foreignColumns: [handover.tenantId, handover.id],
+    }),
+    personRef("handover_note_person_fk", t),
+    check("handover_note_body", sql`length(trim(body)) BETWEEN 1 AND 2000`),
+    check("handover_note_person", sql`person_id IS NULL OR item_key IS NOT NULL`),
+    index("handover_note_handover_idx").on(t.tenantId, t.handoverId, t.createdAt),
+  ],
+);
+
+/**
+ * Each acknowledgement of a handover by a member of staff (COMMS-006): how many items it held when
+ * they acknowledged it, so a late addition asks them again for the new items only.
+ */
+export const handoverAcknowledgement = pgTable(
+  "handover_acknowledgement",
+  {
+    /** May be generated on the device, so a retried acknowledgement is recorded once. */
+    id: id(),
+    tenantId: tenantId(),
+    handoverId: uuid("handover_id").notNull(),
+    /** Always the person acknowledging (row-level security refuses anyone else). */
+    tenantUserId: uuid("tenant_user_id").notNull().default(sql`app.current_user_id()`),
+    itemsSeen: integer("items_seen").notNull(),
+    /** Server time. */
+    acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }).notNull().defaultNow(),
+    deviceId: text("device_id"),
+    ...createdColumns(),
+  },
+  (t) => [
+    foreignKey({
+      name: "handover_acknowledgement_handover_fk",
+      columns: [t.tenantId, t.handoverId],
+      foreignColumns: [handover.tenantId, handover.id],
+    }),
+    foreignKey({
+      name: "handover_acknowledgement_user_fk",
+      columns: [t.tenantId, t.tenantUserId],
+      foreignColumns: [tenantUser.tenantId, tenantUser.id],
+    }),
+    check("handover_acknowledgement_items_seen", sql`items_seen >= 0`),
+    index("handover_acknowledgement_handover_idx").on(t.tenantId, t.handoverId, t.tenantUserId),
+  ],
+);
+
+export const HANDOVER_APPEND_ONLY_TABLES = ["handover_note", "handover_acknowledgement"] as const;
+export type HandoverRow = typeof handover.$inferSelect;
+export type HandoverNoteRow = typeof handoverNote.$inferSelect;
+export type HandoverAcknowledgementRow = typeof handoverAcknowledgement.$inferSelect;
 
 export const CARE_PLANNING_MUTABLE_TABLES = [
   "care_plan",

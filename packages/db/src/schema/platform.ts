@@ -356,6 +356,13 @@ export const notification = pgTable(
     channels: text("channels").array().notNull().default(sql`'{in_app}'::text[]`),
     sourceType: text("source_type"),
     sourceId: text("source_id"),
+    /**
+     * The person and the location the alert concerns, so a shift handover lists an urgent alert
+     * at its location (care.md rule 8, HZ-018). Opaque references: the alert itself never names
+     * the person in its title or body.
+     */
+    personId: uuid("person_id"),
+    locationId: uuid("location_id"),
     dedupeKey: text("dedupe_key"),
     escalationChainId: uuid("escalation_chain_id"),
     escalationStep: integer("escalation_step").notNull().default(0),
@@ -375,7 +382,16 @@ export const notification = pgTable(
       columns: [t.tenantId, t.escalationChainId],
       foreignColumns: [escalationChain.tenantId, escalationChain.id],
     }),
+    foreignKey({
+      name: "notification_location_fk",
+      columns: [t.tenantId, t.locationId],
+      foreignColumns: [location.tenantId, location.id],
+    }),
     unique("notification_dedupe_key").on(t.tenantId, t.recipientTenantUserId, t.dedupeKey),
+    // The urgent alerts a location's handover reads (care.md rule 8).
+    index("notification_location_urgent_idx")
+      .on(t.tenantId, t.locationId, t.createdAt)
+      .where(sql`severity = 'urgent'`),
     index("notification_recipient_unread_idx")
       .on(t.tenantId, t.recipientTenantUserId, t.createdAt)
       .where(sql`read_at IS NULL`),

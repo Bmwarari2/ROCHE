@@ -111,6 +111,9 @@ export const CLINICAL_EXPORT_TABLES: readonly string[] = [
   "public.sharing_decision",
   "public.sharing_decision_suspension",
   "public.about_me_share_link",
+  "public.handover",
+  "public.handover_note",
+  "public.handover_acknowledgement",
 ];
 
 interface ConventionalDoc {
@@ -1006,7 +1009,13 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       generates_tasks: { description: "True when the action creates tasks on the rota." },
       evidence_required: { description: "True when a task needs evidence to be completed." },
       risk_assessment_id: { description: "The risk assessment it controls (risk_assessment.id)." },
-      task_series_id: { description: "The recurring task it created (task_series.id)." },
+      task_series_id: {
+        description: "The recurring task it created or took over (task_series.id).",
+      },
+      based_on_action_id: {
+        description:
+          "The action of the earlier plan version this one was copied from (care_plan_action.id); an unchanged action took over that action's recurring task.",
+      },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -1759,6 +1768,89 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.handover": {
+    context: "care",
+    description:
+      "Shift handovers compiled by rule from each shift's records (care.md rule 8): the items are references to the records, never their text, and are only ever added to.",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      location_id: "exported",
+      shift_name: {
+        description: "The shift's name in the location's pattern, for example day or night.",
+      },
+      shift_start: { description: "When the shift started (instant, UTC)." },
+      shift_end: { description: "When the shift ended (instant, UTC), exclusive." },
+      items: {
+        description:
+          "The compiled items, JSON array of { key, kind, personId, sourceType, sourceId, at, lateAddition, addedAt }: kind is fall, news2, incident, alert, body_map_mark, overdue_task, skipped_task, unfinished_task, must_follow_up or refusal; sourceType and sourceId name the record (task, observation, incident, body_map_mark, care_note or notification); at is when it happened or fell due and addedAt when it joined the handover (instants, UTC); lateAddition is true for an item added after the handover was first compiled. Items are never removed.",
+      },
+      compiled_at: { description: "When the handover was first compiled (instant, UTC)." },
+      refreshed_at: {
+        description: "When its sources were last read again for late additions (instant, UTC).",
+      },
+      locked_at: {
+        description:
+          "When it was locked at the end of the shift (instant, UTC); notes close then, late additions and acknowledgements continue.",
+      },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.handover_acknowledgement": {
+    context: "care",
+    description:
+      "Each acknowledgement of a handover by a member of staff, with how many items it held then (append-only).",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      handover_id: { description: "The handover acknowledged (handover.id)." },
+      tenant_user_id: { description: "The member of staff who acknowledged it (tenant_user.id)." },
+      items_seen: {
+        description:
+          "How many of the handover's items it held when they acknowledged it; items added later need a further acknowledgement.",
+        unit: "count",
+      },
+      acknowledged_at: {
+        description: "When they acknowledged it, by the server's clock (instant, UTC).",
+      },
+      device_id: "exported",
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.handover_note": {
+    context: "care",
+    description:
+      "Notes the outgoing staff added to a handover or to one of its items while it was open (append-only).",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      handover_id: { description: "The handover (handover.id)." },
+      item_key: {
+        description:
+          "The item annotated (the key of an item in handover.items); empty for a note on the whole handover.",
+      },
+      person_id: { description: "The person the annotated item is about (person.id), if any." },
+      body: { description: "The note text." },
+      device_id: "exported",
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
   "public.hospital_transfer": {
     context: "people",
     description:
@@ -2145,6 +2237,8 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       channels: { description: "Channels used: in_app, push, email, sms." },
       source_type: "exported",
       source_id: "exported",
+      person_id: { description: "The person the alert concerns (person.id), if any." },
+      location_id: { description: "The location the alert concerns (location.id), if any." },
       dedupe_key: { description: "Key that stops the same notification being raised twice." },
       escalation_chain_id: "exported",
       escalation_step: { description: "Escalation steps already fired.", unit: "count" },
