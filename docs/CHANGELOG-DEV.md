@@ -855,3 +855,51 @@ role bundles.
 `packages/sync` 59, `apps/mobile` 871, `apps/web` 338, `packages/ui` 342, `packages/ui-native`
 141, all passing locally (`pnpm turbo run test --force --concurrency=2`) and through
 `scripts/ci-local.sh`.
+
+## 2026-10-12: Data scope per permission, review round 1 (ADR-0071)
+
+The security review found three Mediums and the clinical safety review four (no Highs), with
+twelve lows. All are fixed on `fix/platform-scope-per-permission` as fast-forwards.
+
+- Assigned and break-glass people (S-M1): `PermissionScope` gains `includesAssigned` (a role
+  scoped to assigned people carries the permission) and `includesBreakGlass` (only
+  `BREAK_GLASS_PERMISSIONS`: `people.person.read`, `care.plan.read`, `care.note.read`; H-168).
+  `narrowestScope` ANDs them, `widestScope` ORs them. The request context, `inScopeOf` and
+  `staffViews` set `app.scope_assigned` and `app.scope_break_glass`; migration 0049 makes
+  `app.person_in_scope` honour them. Search, `permissionsReaching`, `personReachedBy` and the sync
+  token follow. A break-glass record the read scope does not open is rolled back (L6).
+- Places (L1, L2, L8): `organisation_wide` on `access_grant` and `role_assignment` (migration 0048
+  marks existing rows); a check and a trigger refuse an unmarked grant or location role with no
+  location; `app.holds_permission_at`, the domain, `holdsPermissionAt`, `permissionHolders`,
+  `submitHolders` and `personReachedBy` honour the mark; one loader (`services/access-rows.ts`)
+  reads roles and grants for the API. Restrictive policies limit giving grants and assigning people
+  to where the member holds `platform.grant.manage` or `people.assignment.manage`.
+- Sync (C-M1, L3): per-family claims (`people_*`, `care_*`, `entries_*` location ids and assigned
+  flags); the deletion route decides on the manager check before its transaction.
+- Documents (S-M2, L4, L5): category read permissions, per-category list scopes, a new version
+  found again where the upload permission reaches before storing, bytes stored after the insert
+  and destroyed on failure, HEAD judged as GET. Organisation documents stay readable by every
+  member (policies staff follow), a deliberate departure from search's mapping.
+- Audit trail (S-M3): whole only across the organisation; otherwise own events and events about
+  reached people, without reasons. STATUS follow-up: `location_id` on audit events.
+- Tasks (C-M3, C-M4, L10): `mayBeGiven` (people.person.read and the task permission must reach
+  the person) on create and assign; escalation holders and fallback filtered by the person; a
+  refused entry's urgent review told only to in-charge staff who hold its permission; holders must
+  reach the task's place with `people.person.read`. New hazard HZ-073 (H-169) with a table-driven
+  check of the routing role keys; HZ-014's control text updated.
+- Domain checks (L7, L9): `usablePermissions` (MFA met; step-up kept so the domain can ask for a
+  fresh sign-in) feeds `permissionsReaching` and the workflow, exit and admission guards, which
+  now see only permissions reaching the person.
+- Allow-list (L12): `route-gates.test.ts` scans the route sources for a scope gate before the
+  database, with ten listed exemptions and its limits stated; `useScopeOf` refuses unlisted routes.
+- Docs (C-M2, L11): the release note rewritten with its clinical safety changes, the
+  pre-deployment access report (`docs/runbooks/data-scope-per-permission-access-report.sql`, read
+  only), the DCB0160 deployer control, ADR-0071 review round 1, HZ-011 rows, `staffCanSee`'s
+  docstring, specs and registers.
+
+**Human actions logged**: H-168 (what break-glass opens, CSO and DPO), H-169 (HZ-073 rating, CSO).
+
+**Tests**: `packages/domain` 4,069, `packages/db` 390, `packages/contracts` 34, `apps/api` 675,
+`packages/sync` 62, `apps/mobile` 871, `apps/web` 338, `packages/ui` 342, `packages/ui-native`
+141, all passing locally (`pnpm turbo run test --force --concurrency=2`, 0 cached) and through
+`scripts/ci-local.sh`.
