@@ -532,7 +532,7 @@ export async function permissionsReaching(
   tx: Transaction,
   access: TenantAccess,
   personId: string,
-  options: { readonly freshOnly?: boolean } = {},
+  options: { readonly freshOnly?: boolean; readonly withoutBreakGlass?: boolean } = {},
 ): Promise<ReadonlySet<Permission>> {
   const reached = new Set<Permission>();
   const verdicts = new Map<string, boolean>();
@@ -541,7 +541,10 @@ export async function permissionsReaching(
     (p) => !options.freshOnly || refusalOf(access, p, now) === null,
   );
   for (const permission of usable) {
-    const scope = scopeFor(access.effective, permission);
+    // Without break-glass: what the caller's roles and grants reach, so a record opened by
+    // break-glass lists nothing (ADR-0071 review round 3, C3-M1).
+    const own = scopeFor(access.effective, permission);
+    const scope = options.withoutBreakGlass ? { ...own, includesBreakGlass: false } : own;
     const key = [
       scope.scope,
       scope.locationIds.join(","),

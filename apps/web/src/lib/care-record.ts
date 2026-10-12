@@ -49,48 +49,63 @@ export function can(permissions: readonly string[], permission: string): boolean
 
 /** What the API says the viewer may record about one person (`PersonSummary.access`). */
 export interface PersonAccess {
+  readonly reaching: readonly string[];
   readonly recordCare: boolean;
   readonly editCarePlan: boolean;
   readonly readOnlyReason: "break_glass" | "scope" | null;
 }
 
-/**
- * Whether the viewer may change this person's care plan settings (chart settings, the care
- * profile): they hold care.plan.write and the API says it reaches the person (review round 2).
- */
-export function mayEditCarePlan(
-  person: { readonly access?: PersonAccess | undefined },
-  permissions: readonly string[],
-): boolean {
-  return can(permissions, "care.plan.write") && (person.access?.editCarePlan ?? true);
-}
+/** The line that says why a form is not offered on a record open for reading only. */
+export type ReadOnlyNoticeKey = "care.readOnly.breakGlass" | "care.readOnly.scope";
 
 /**
- * Whether the viewer may record care (notes, charts and body map marks) about this person, and
- * the line that says why not when the record is open to them for reading only (ADR-0071 review
- * round 2, C2-M2): they must hold care.note.write, and it must reach the person, as the API says
- * on the person's record. A record opened by break-glass is for reading only. Someone who never
- * holds care.note.write sees no form and no line, as before; an API that does not say leaves the
+ * Whether the viewer may use one write permission on this person's record, and the line that
+ * says why not when the record is open to them for reading only (ADR-0071 review rounds 2 and 3,
+ * C2-M2 and C3-M1): they must hold the permission, and the API must list it among the
+ * permissions reaching the person without break-glass (`access.reaching`). Every write form on
+ * the record asks this. A record opened by break-glass is for reading only. Someone who never
+ * holds the permission sees no form and no line, as before; an API that does not say leaves the
  * form as before (the API refuses anything it would not take).
  */
-export function recordCareAccess(
+export function writeAccess(
   person: { readonly access?: PersonAccess | undefined },
   permissions: readonly string[],
-): {
-  readonly canRecord: boolean;
-  readonly readOnlyNotice: "care.readOnly.breakGlass" | "care.readOnly.scope" | null;
-} {
-  if (!can(permissions, "care.note.write")) return { canRecord: false, readOnlyNotice: null };
-  if (person.access === undefined || person.access.recordCare) {
-    return { canRecord: true, readOnlyNotice: null };
+  permission: string,
+): { readonly canWrite: boolean; readonly readOnlyNotice: ReadOnlyNoticeKey | null } {
+  if (!can(permissions, permission)) return { canWrite: false, readOnlyNotice: null };
+  if (person.access === undefined || person.access.reaching.includes(permission)) {
+    return { canWrite: true, readOnlyNotice: null };
   }
   return {
-    canRecord: false,
+    canWrite: false,
     readOnlyNotice:
       person.access.readOnlyReason === "break_glass"
         ? "care.readOnly.breakGlass"
         : "care.readOnly.scope",
   };
+}
+
+/**
+ * Whether the viewer may change this person's care plan settings (chart settings, the care
+ * profile): `writeAccess` for care.plan.write (review round 2).
+ */
+export function mayEditCarePlan(
+  person: { readonly access?: PersonAccess | undefined },
+  permissions: readonly string[],
+): boolean {
+  return writeAccess(person, permissions, "care.plan.write").canWrite;
+}
+
+/**
+ * Whether the viewer may record care (notes, charts, body map marks, activities and visits)
+ * about this person: `writeAccess` for care.note.write (review round 2, C2-M2).
+ */
+export function recordCareAccess(
+  person: { readonly access?: PersonAccess | undefined },
+  permissions: readonly string[],
+): { readonly canRecord: boolean; readonly readOnlyNotice: ReadOnlyNoticeKey | null } {
+  const { canWrite, readOnlyNotice } = writeAccess(person, permissions, "care.note.write");
+  return { canRecord: canWrite, readOnlyNotice };
 }
 
 /** The address of a tab: the overview is the person's own page. */

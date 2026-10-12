@@ -68,14 +68,18 @@ export const PersonSummary = z
     statusChangedAt: isoDateTime,
     version: z.number().int(),
     /**
-     * What the caller may record about this person, on `GET /v1/people/{id}` only (ADR-0071 review
-     * round 2, C2-M2): `recordCare` when their care.note.write reaches the person (notes, charts
-     * and body map marks), `editCarePlan` when their care.plan.write does (chart settings and the
-     * care profile); otherwise why they can only read: `break_glass` when the record is open to
-     * them only by break-glass, `scope` when their roles reach the person for reading only.
+     * What the caller may do about this person, on `GET /v1/people/{id}` only (ADR-0071 review
+     * rounds 2 and 3, C2-M2 and C3-M1): `reaching`, every permission the caller may use now whose
+     * scope reaches the person without break-glass, sorted, so each tab of the record offers a
+     * form only where its write permission is listed; `recordCare` when care.note.write is among
+     * them (notes, charts, body map marks, activities and visits), `editCarePlan` when
+     * care.plan.write is (chart settings and the care profile); and why a write the caller holds
+     * may not be listed: `break_glass` when the record is open to them only by break-glass,
+     * `scope` when their roles reach the person for reading only, null when they may record care.
      */
     access: z
       .object({
+        reaching: z.array(z.string()),
         recordCare: z.boolean(),
         editCarePlan: z.boolean(),
         readOnlyReason: z.enum(["break_glass", "scope"]).nullable(),

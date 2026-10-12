@@ -4,10 +4,11 @@ import type { Metadata } from "next";
 import { AssessmentForm } from "@/components/care/AssessmentForm";
 import { AssessmentResult } from "@/components/care/AssessmentResult";
 import { NoAccess } from "@/components/care/NoAccess";
+import { ReadOnlyNotice } from "@/components/care/ReadOnlyNotice";
 import { RecordFrame } from "@/components/care/RecordFrame";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { availableTools, bandChip, bandLabel, isToolKey, TOOL_KEYS } from "@/lib/assessments";
-import { can, tabHref } from "@/lib/care-record";
+import { can, tabHref, writeAccess } from "@/lib/care-record";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
@@ -62,7 +63,13 @@ async function AssessmentsTab({
   const tools = availableTools(me.flags);
   const runParam = (await searchParams).run;
   const run = typeof runParam === "string" && isToolKey(runParam) ? runParam : null;
-  const canRun = can(me.permissions, "care.assessment.write");
+  // Run a tool only where the viewer's care.assessment.write reaches the person: a NEWS2 the
+  // API would refuse stores no score and raises no alert (review round 3, C3-M1).
+  const { canWrite: canRun, readOnlyNotice } = writeAccess(
+    person,
+    me.permissions,
+    "care.assessment.write",
+  );
   const offTools = TOOL_KEYS.filter((tool) => !tools.includes(tool));
 
   return (
@@ -85,6 +92,8 @@ async function AssessmentsTab({
             </ButtonLink>
           ))}
         </div>
+      ) : readOnlyNotice ? (
+        <ReadOnlyNotice text={t(readOnlyNotice)} />
       ) : null}
       {offTools.map((tool) => (
         <p key={tool} className="m-0 text-body-dense text-text-secondary">

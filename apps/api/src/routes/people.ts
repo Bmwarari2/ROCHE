@@ -62,14 +62,29 @@ async function auditRefusedBreakGlass(
   personId: string,
   reason: "person_not_found" | "outside_read_scope",
 ): Promise<void> {
-  await writeAudit(c.get("services").appPool, access, {
-    action: "people.person.break_glass",
-    outcome: "denied",
-    resourceType: "person",
-    resourceId: personId,
-    reason,
-    requestId: c.get("requestId"),
-  });
+  try {
+    await writeAudit(c.get("services").appPool, access, {
+      action: "people.person.break_glass",
+      outcome: "denied",
+      resourceType: "person",
+      resourceId: personId,
+      reason,
+      requestId: c.get("requestId"),
+    });
+  } catch {
+    // The refusal still answers 404 (review round 3): the failure is logged by opaque ids only,
+    // never the justification typed.
+    c.get("services").logger.error(
+      {
+        tenantId: access.tenantId,
+        tenantUserId: access.tenantUserId,
+        personId,
+        reason,
+        requestId: c.get("requestId"),
+      },
+      "refused break-glass attempt could not be audited",
+    );
+  }
 }
 
 const PersonId = z.object({ id: z.uuid() });
@@ -220,9 +235,10 @@ export const peopleRouter = createRouter()
           resourceId: id,
           requestId: c.get("requestId"),
         });
-        // What the caller may record here, so the screens offer only what the API would take
-        // (ADR-0071 review round 2, C2-M2): a break-glass record opens reading only.
-        const reaching = await permissionsReaching(tx, access, id);
+        // What the caller may do here, so every tab offers only what the API would take (ADR-0071
+        // review rounds 2 and 3, C2-M2 and C3-M1): a break-glass record opens reading only, so
+        // nothing reaches the person without it.
+        const reaching = await permissionsReaching(tx, access, id, { withoutBreakGlass: true });
         const recordCare = reaching.has("care.note.write");
         const withoutBreakGlass = {
           ...scopeFor(access.effective, "people.person.read"),
@@ -236,6 +252,7 @@ export const peopleRouter = createRouter()
         return {
           ...summary,
           access: {
+            reaching: [...reaching].sort(),
             recordCare,
             editCarePlan: reaching.has("care.plan.write"),
             readOnlyReason: recordCare ? null : own ? ("scope" as const) : ("break_glass" as const),
