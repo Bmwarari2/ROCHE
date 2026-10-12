@@ -10,7 +10,7 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | Phase | Scope | State |
 | --- | --- | --- |
 | 0 Foundations | Repo, CI, docs, design system, tenancy and RLS, auth, audit, notifications, forms skeleton, rate table, integrations framework, operator API, API, web and mobile skeletons, Terraform | Merged to `main` (#1, with web copy, `TextArea` and `AccountMenu` in #7). See [phase-0.md](phase-0.md) |
-| 1 Residential MVP | People lifecycle, care plans, assessments, notes, charts, body map, tasks and handover, MCA and DoLS, incidents and classifier, downtime pack, offline Care mode, family feed | In progress: [phase-1.md](phase-1.md). On `main`: plan (#2), task and workflow engine (#3), documents and retention (#4), validated tools (#5), notes, charts, body map and care profile (#6), working days (#8), handover and round rules (#9), database pool resilience (#10), people lifecycle rules (#11), care planning schema and API (#12), consent, capacity, DoLS and incident rules (#13) and their schema and API (#14), one rule for event times typed during a clock change (#16), the web person record (#17), and the spec and rules for slice 11 packs and governance (#18), slice 12 family feed (#19) and slice 13 search, export, onboarding and DPIA (#20), offline Care mode with device holds (#15), local CI while Actions minutes are exhausted (#23) and the people lifecycle schema and API (#21). Open: slice 5 tasks, rounds and handover API (`feat/care-tasks-handover-api`) |
+| 1 Residential MVP | People lifecycle, care plans, assessments, notes, charts, body map, tasks and handover, MCA and DoLS, incidents and classifier, downtime pack, offline Care mode, family feed | In progress: [phase-1.md](phase-1.md). On `main`: plan (#2), task and workflow engine (#3), documents and retention (#4), validated tools (#5), notes, charts, body map and care profile (#6), working days (#8), handover and round rules (#9), database pool resilience (#10), people lifecycle rules (#11), care planning schema and API (#12), consent, capacity, DoLS and incident rules (#13) and their schema and API (#14), one rule for event times typed during a clock change (#16), the web person record (#17), and the spec and rules for slice 11 packs and governance (#18), slice 12 family feed (#19) and slice 13 search, export, onboarding and DPIA (#20), offline Care mode with device holds (#15), local CI while Actions minutes are exhausted (#23), the people lifecycle schema and API (#21) and the slice 5 tasks, rounds and handover API (#24). Open: sync and device integrity, the #15 follow-ups (`feat/sync-device-integrity`) |
 | 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Not started |
 | 3 Money and buildings | Funding, billing, council portals, residents' money, P&L, facilities, catering, enquiries, group reporting | Not started |
 | 4 Home care and family | Packages, runs, ECM, supported living, portals, Manage mode | Not started |
@@ -20,25 +20,21 @@ only when they link spec, code, tests and user documentation; no user guides exi
 
 ## Next items (in order)
 
-1. Merge the slice 5 API (`feat/care-tasks-handover-api`, PR #24, review rounds 2 and 3 answered): care
-   plan actions generate the shift's rounds (one task series per action, carried forward unchanged
-   across plan versions, never from the medicines domain, windows from the real instants of
-   neighbouring rounds), the round view (IDDSI levels in the header, earlier-plan and not-a-round
-   notices), and the shift handover with items one row each under person scope (items about nobody
-   only for whole readers), notes, acknowledgements by the items the reader saw (the incoming shift
-   counts only when every item is covered), the nurse in charge told of late additions nobody else
-   can see once the receiving shift starts and of handovers the incoming shift has not acknowledged
-   (else the longest-serving Registered Manager) (migrations 0027 and
-   0028; hazards HZ-018, HZ-024, HZ-003, HZ-004, HZ-008, HZ-016, HZ-001, HZ-011; CSO decisions
-   H-150 to H-155). Then the round and handover screens in
-   the web record (slice 9) and Care mode (slice 10 part 2, with sync streams for tasks and
-   handovers and offline acknowledgement).
-2. API follow-ups from the #15 reviews: the refused-entry server copy and review task; the IDDSI
-   drink level required when prescribed; client ids on the four remaining create routes; the
-   escalation-policy link on validated-tool results; the drawn body-map side derived on the
-   server; a device revocation signal and the manager hand-over of held entries (both go-live
-   blockers); staff names; a tenant table for discard reasons, the discard replay unique index
-   and a server-side discarded-id flag.
+1. Review and merge sync and device integrity (`feat/sync-device-integrity`; [care.md](../specs/care.md)
+   section 6, Device integrity): device bindings (`device_binding`), revocation with
+   `device_revoked` and the app's wipe or hold, deletion lists (`device_discard_entry`, closing the
+   HZ-040 index blocker), one open sync task per source, the server copy of every refused entry
+   with a review task (HZ-006), the manager hand-over of held entries, and per-user limits in
+   Postgres (migrations 0029 to 0040; hazards HZ-004, HZ-006, HZ-008, HZ-010, HZ-011, HZ-023,
+   HZ-040; human actions H-156 to H-159). Then the screens: devices and revocation, and refused
+   copies on the review task, in the web record (slice 9); the "copy sent" wording on the
+   phone's needs-attention list; the round and handover screens in the web record and Care mode
+   (slice 10 part 2, with sync streams for tasks and handovers and offline acknowledgement).
+2. API follow-ups from the #15 reviews still open: the stale-device check now that
+   `device_binding` exists (H-141); the IDDSI drink level required when prescribed; client ids on
+   the four remaining create routes; the escalation-policy link on validated-tool results; the
+   drawn body-map side derived on the server; staff names; a tenant table for discard reasons,
+   the discard replay unique index and a server-side discarded-id flag.
 3. Slice 5 follow-ups: move a person's care plan rounds with them when they move location
    (people transfers); a worded summary per handover item so screens need not read each source;
    rota-defined shifts and incoming staff (Phase 2, H-153).
@@ -67,24 +63,24 @@ only when they link spec, code, tests and user documentation; no user guides exi
 
 ## Human actions outstanding
 
-All of [human-actions.md](human-actions.md) is open (H-01 to H-154). The project owner has
+All of [human-actions.md](human-actions.md) is open (H-01 to H-159). The project owner has
 scheduled the accounts (H-01, H-02, H-04, H-10, H-11) and the named roles (H-20 Clinical Safety
 Officer, H-30 data protection lead, H-31 ICO registration) for after the build, and is choosing
 the UK SMS provider (H-09, which also settles H-105). Until then the build continues against the
 mocks and contract tests (section 20 rule 2).
 
-## Test totals (local, the slice 5 API branch on the current `main`)
+## Test totals (local, the sync and device integrity branch on the current `main`)
 
 | Package | Tests |
 | --- | --- |
-| `packages/domain` | 3,836 |
-| `packages/db` | 306 (real Postgres: RLS coverage, isolation, scope, audit chain, seed, tasks, documents, care record, care planning, MCA and incidents, people lifecycle, bank holidays, pools, export catalogue, handovers) |
+| `packages/domain` | 3,914 |
+| `packages/db` | 335 (real Postgres: RLS coverage, isolation, scope, audit chain, seed, tasks, documents, care record, care planning, MCA and incidents, people lifecycle, bank holidays, pools, export catalogue, handovers, device integrity) |
 | `packages/sync` | 59 (PowerSync rules engine) |
-| `packages/contracts` | 29 |
-| `packages/i18n` | 34 |
+| `packages/contracts` | 30 |
+| `packages/i18n` | 48 |
 | `packages/ui` | 342 (231 axe runs) |
 | `packages/ui-native` | 141 |
-| `apps/api` | 506 |
-| `apps/mobile` | 807 |
+| `apps/api` | 543 |
+| `apps/mobile` | 853 |
 | `apps/web` | 306 unit; Playwright journeys with axe (WCAG 2.2 AA) in CI |
 | `infra` | `terraform test` 3, TFLint, Trivy and Checkov clean |

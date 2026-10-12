@@ -497,3 +497,49 @@ through `scripts/ci-local.sh`.
 
 **Tests**: `packages/domain` 3,914, `packages/db` 314, `apps/api` 514, all passing locally through
 `scripts/ci-local.sh`.
+
+## 2026-10-12: Sync and device integrity (the #15 follow-ups)
+
+**What changed**
+
+- Device binding (`device_binding`, migrations 0029 and 0030): one row per device and member of
+  staff, written by the sync token and by device reports and filled from the audit trail; the
+  bound owner of a hold and its start floor read it instead of scanning `audit_event`.
+- Revocation: `GET /v1/devices` and `POST /v1/devices/{deviceId}/revoke`
+  (`platform.device.read`, `platform.device.revoke` with step-up; migration 0031 gives existing
+  role copies both, audited). A revoked device is refused with 403 `device_revoked` on the sync
+  token, batch upload and care entry uploads; the app wipes as a remote wipe, or keeps its
+  unsent entries under the hold rules, marked revoked, and never resumes syncing.
+- Deletion lists (`device_discard_entry`, migrations 0032 and 0033): each stage of a deletion
+  lists its entry ids, and the flag on entries uploaded after their deletion reads them with one
+  index, closing the HZ-040 go-live blocker on that lookup.
+- One open sync task per source: migration 0034 closes duplicates an earlier race left and
+  0035 adds a partial unique index on open device-hold, flagged-entry and refused-entry review
+  tasks; flagged tasks carry their owner, count and entries in `task.details`.
+- Server copy of refused entries (`refused_entry`, migrations 0036 and 0037):
+  `POST /v1/sync/refused-entries`, `GET /v1/people/{id}/refused-entries` and
+  `GET /v1/refused-entries/{id}`, one review task per person for the nurse in charge (HZ-006);
+  the app sends each refusal's content at once and again after each sync until the server has
+  it (`upload_issue.server_copy`).
+- Hand-over of held entries (`care.held_entry.hand_over`, step-up; migration 0038): a manager,
+  or the owner on a revoked device, sends another member's held entries from the device, written
+  as the owner's with the sender audited (`sync.entry.handed_over`).
+- Shared quotas (`request_quota`, migrations 0039 and 0040): `PerUserQuota` and `RateLimiter`
+  count in Postgres, so the limits hold across API instances.
+- OpenAPI and the client regenerated; permission matrix regenerated; export catalogue entries
+  for the four tables; Welsh catalogue keys added and listed as untranslated.
+- Docs: care.md and platform.md (Device integrity), retention mapping, hazard log (HZ-004,
+  HZ-006, HZ-008, HZ-010, HZ-011, HZ-023, HZ-040), records of processing, data standards,
+  feature register (PLAT-004, PLAT-011, MOB-005, MOB-006, MOB-010).
+
+**Next**: review of this branch; the device and refused-copy screens in the web record
+(slice 9) and the "copy sent" wording on the phone; the stale-device check (H-141); the rest of
+the #15 API follow-ups (STATUS.md item 2).
+
+**Human actions logged**: H-156 (a revoked device's held entries), H-157 (the refused-entry
+review), H-158 (the hand-over), H-159 (the new processing); H-68, H-126, H-134, H-141 and H-142
+updated.
+
+**Tests**: `packages/domain` 3,914, `packages/db` 335, `packages/contracts` 30, `apps/api` 543,
+`packages/sync` 59, `apps/mobile` 853, `apps/web` 306, `packages/i18n` 48, all passing locally
+through `scripts/ci-local.sh`.
