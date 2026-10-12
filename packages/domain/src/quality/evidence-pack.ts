@@ -283,6 +283,10 @@ export interface EvidencePackRequest {
   /** yyyy-mm-dd, inclusive, in UK time. */
   readonly from: string;
   readonly to: string;
+  /**
+   * Within the composer's scope for `quality.evidence_pack.compose` only (`scopeFor`, ADR-0071),
+   * never another role's; likewise `peopleInScope`.
+   */
   readonly locationIds: readonly string[];
   /** Only items tagged to these statements; null for every tagged item. */
   readonly qualityStatementIds: readonly string[] | null;
