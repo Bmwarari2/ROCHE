@@ -199,23 +199,43 @@ describe("hazard HZ-011 hazard HZ-021 a downtime pack follows its location and i
     expect(stored.rows[0]?.person_ids).toEqual([a.personAda, a.personCara].sort());
     expect(await asNorthManager(packIds)).toEqual([PACK_NORTH]);
     expect(await asManager(packIds)).toContain(id);
-    for (const content of [
-      "{}",
-      '{"pages": {}}',
-      '{"pages": [{"name": "No id"}]}',
-      '{"pages": [], "excluded": [{}]}',
-    ]) {
-      await expect(
-        asSystem((c) =>
-          c.query(
-            `INSERT INTO downtime_pack (location_id, source, generated_at, as_at, valid_until, content)
-             VALUES ($1, 'server_nightly', now(), now(), now() + interval '1 hour', $2)`,
-            [a.locationNorth, content],
-          ),
+    const ada = `{"personId": "${a.personAda}"}`;
+    const nightly = (location: string, content: string, warnings = "{}") =>
+      asSystem((c) =>
+        c.query(
+          `INSERT INTO downtime_pack (location_id, source, generated_at, as_at, valid_until, content,
+             warnings)
+           VALUES ($1, 'server_nightly', now(), now(), now() + interval '1 hour', $2, $3)`,
+          [location, content, warnings],
         ),
-        content,
-      ).rejects.toThrow(/downtime pack/);
+      );
+    // Round 2: no one left out is named, no other keys, warnings about the pack's own people and
+    // counts only, and no empty pack while anyone is receiving care at the location.
+    const cara = `"personId": "${a.personCara}"`;
+    for (const [content, warnings] of [
+      ["{}", "{}"],
+      ['{"pages": {}}', "{}"],
+      ['{"pages": [{"name": "No id"}]}', "{}"],
+      [`{"pages": [${ada}], "excluded": [{${cara}, "reason": "other_location"}]}`, "{}"],
+      [`{"pages": [${ada}], "extra": true}`, "{}"],
+      [`{"pages": [${ada}], "warnings": [{${cara}, "kind": "critical_not_recorded"}]}`, "{}"],
+      [`{"pages": [${ada}]}`, `{"people": ["${a.personAda}"]}`],
+      ['{"pages": [], "excluded": []}', "{}"],
+    ] as const) {
+      await expect(nightly(a.locationNorth, content, warnings), content).rejects.toThrow(
+        /downtime pack/,
+      );
     }
+    await nightly(
+      a.locationNorth,
+      `{"pages": [${ada}], "excluded": [], "warnings": []}`,
+      '{"critical_not_recorded": 2}',
+    );
+    const empty = "0199e000-0000-7000-8000-000000000105";
+    await asOwner(TENANT_A, (c) =>
+      c.query("INSERT INTO location (id, name) VALUES ($1, 'Empty House')", [empty]),
+    );
+    await nightly(empty, '{"pages": []}');
   });
 
   it("lets a holder build a pack at their location in their own name only", async () => {
@@ -230,8 +250,9 @@ describe("hazard HZ-011 hazard HZ-021 a downtime pack follows its location and i
         c.query(
           `INSERT INTO downtime_pack (location_id, source, generated_at, as_at, valid_until,
              generated_by, content)
-           VALUES ($1, 'server_on_demand', now(), now(), now() + interval '1 hour', $2, '{"pages": []}')`,
-          [a.locationNorth, a.manager],
+           VALUES ($1, 'server_on_demand', now(), now(), now() + interval '1 hour', $2,
+             jsonb_build_object('pages', jsonb_build_array(jsonb_build_object('personId', $3::uuid))))`,
+          [a.locationNorth, a.manager, a.personAda],
         ),
       ),
     ).rejects.toThrow(/row-level security/);
@@ -246,8 +267,9 @@ describe("hazard HZ-011 hazard HZ-021 a downtime pack follows its location and i
       asManager((c) =>
         c.query(
           `INSERT INTO downtime_pack (location_id, source, generated_at, as_at, valid_until, content)
-           VALUES ($1, 'server_nightly', now(), now(), now() + interval '1 hour', '{"pages": []}')`,
-          [a.locationNorth],
+           VALUES ($1, 'server_nightly', now(), now(), now() + interval '1 hour',
+             jsonb_build_object('pages', jsonb_build_array(jsonb_build_object('personId', $2::uuid))))`,
+          [a.locationNorth, a.personAda],
         ),
       ),
     ).rejects.toThrow(/row-level security/);

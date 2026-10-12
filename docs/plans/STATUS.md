@@ -153,6 +153,12 @@ only when they link spec, code, tests and user documentation; no user guides exi
      - store an outage's start as typed with the occurrence chosen in a repeated hour (needs the
        domain's declaration to carry the written form, as `resolvePaperTime` does);
      - who may change the other `location` columns is still enforced only by the API.
+   - Follow-ups from #32 review round 2:
+     - a missing `care_note.late_entry_hours` rate marks every outage late without saying why:
+       audit it as a configuration gap;
+     - the database does not refuse a corrected start in the future;
+     - `rate_table` writes have no permission check, so any member could override
+       `care_note.late_entry_hours` (an existing gap).
    - Slice 11 part 2, back-entry columns (`feat/operations-back-entry-columns`, stacked on #32,
      migration 0053; operations.md section 12): built, PR to follow #32. Next, part 3: the API,
      nightly job and PDF, with the round 1 part 3 requirements.
