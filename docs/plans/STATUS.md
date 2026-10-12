@@ -74,6 +74,9 @@ only when they link spec, code, tests and user documentation; no user guides exi
      of the review, close, withdraw and correct controls on the record (risk review and close,
      withdrawing an advance care record, correcting a note or chart), each with axe and with the
      read-only case.
+   - (found in review round 4) the round view tests in `apps/api/test/rounds-and-handover.test.ts`
+     create tasks due 5 to 15 minutes ahead and fail between 19:45 and 20:00 London time, when
+     those fall in the next shift; pin the clock or the shift pattern in those tests.
 3. The screens the care API follow-ups (#26) wait on (slice 9 and slice 10 part 2): the
    escalation policy link on the phone, staff names on the web and phone (H-73); the settings for
    escalation policies and coded reasons; the phone offering the organisation's coded reasons (H-164);
@@ -134,7 +137,7 @@ mocks and contract tests (section 20 rule 2).
 | `packages/i18n` | 48 |
 | `packages/ui` | 342 (231 axe runs) |
 | `packages/ui-native` | 141 |
-| `apps/api` | 694 |
-| `apps/mobile` | 886 |
-| `apps/web` | 359 unit; Playwright journeys with axe (WCAG 2.2 AA) in CI |
+| `apps/api` | 700 |
+| `apps/mobile` | 890 |
+| `apps/web` | 360 unit; Playwright journeys with axe (WCAG 2.2 AA) in CI |
 | `infra` | `terraform test` 3, TFLint, Trivy and Checkov clean |

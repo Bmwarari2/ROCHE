@@ -990,3 +990,33 @@ Security found no high or medium; clinical safety found four mediums. All are fi
 `apps/api` 694, `packages/sync` 62, `apps/mobile` 886, `apps/web` 359, `packages/ui` 342,
 `packages/ui-native` 141, all passing locally (`pnpm turbo run test --force --concurrency=2` on
 `5f09cb1`, 0 cached) and through `scripts/ci-local.sh`.
+
+## 2026-10-12: Data scope per permission, review round 4 (ADR-0071)
+
+Security found no high or medium; clinical safety found one medium (C4-M1), fixed with the lows on
+`fix/platform-scope-per-permission` as fast-forwards.
+
+- Escalation needs someone other than the assignee (C4-M1): each tier leaves the assignee out;
+  with no one else the assignee is reminded, the task stays at level 0 and
+  `task.escalation_unrouted` (`assignee_only`, `no_one_sees_person`, `no_one_reaches_location`)
+  is audited at most once a day, while a new hourly run (`task-escalation-retries`) retries the
+  routing. A daily job (`unrouted-daily-report`) logs one `escalation.unrouted.daily` line per
+  organisation with counts per unrouted audit action; the on-call runbook alarms on it. H-170
+  asks the CSO whether the organisation needs an in-product signal too.
+- Lows: a task about a person with no location takes the person's home (escalation and
+  `POST /v1/tasks`); a break-glass alert no one active receives is audited and counted;
+  `submitHolders` tells only active staff; above 100 assigned people the phone falls back to the
+  location rule; a write scope the phone cannot keep is logged and fails closed; a tab says when
+  two-step sign-in is the reason (`access.mfaRequired`), and the charts tab says why chart
+  settings are hidden; the device check counts grant-only staff and ignores deleted, portal and
+  mixed roles; a one-off check lists organisation documents outside the subject allow-list.
+- Follow-ups in STATUS: future-dated assignments and the write claim; Playwright coverage of the
+  draft plan page and the review, close, withdraw and correct controls.
+- The round view tests in `rounds-and-handover.test.ts` create tasks due 5 to 15 minutes ahead,
+  so between 19:45 and 20:00 London time (the default night shift starts at 20:00) they fall in
+  the next shift and three tests fail; a run outside that window passes. Not changed here.
+
+**Tests**: `packages/domain` 4,069, `packages/db` 393, `packages/contracts` 34, `packages/i18n` 48,
+`apps/api` 700, `packages/sync` 62, `apps/mobile` 890, `apps/web` 360, `packages/ui` 342,
+`packages/ui-native` 141, all passing locally (`pnpm turbo run test --force --concurrency=2` on
+`6517b9d`, 0 cached) and through `scripts/ci-local.sh`.
