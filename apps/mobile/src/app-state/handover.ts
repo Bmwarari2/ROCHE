@@ -7,18 +7,21 @@
  * a revoked device the owner may do the same. The sign-in is the step-up the API asks for, and
  * device authentication opens the held database.
  *
- * The device first sends its report from the signer's session, so the server binds the signer to
- * the device and knows the hold's count (#25 review round 2, H1). Then each held entry goes, in the
- * order it was written, to its own endpoint with the hand-over headers (the owner, an id for the
- * hand-over, and the device that held it): sent ones leave `held_entry`; one the API refuses for
- * what it is moves to "needs attention" (`upload_issue`), and every needs-attention entry's content
- * then goes to the server's copy in the owner's name. A session refusal or any other 403, a 404 (a
- * person outside the signer's scope), a hand-over the server will not take (`handover_refused`) or a
- * network failure stops the hand-over with the entry and the rest still held, never parked as
- * refused (#25 review round 2, H2). The hold is over, and the caller wipes the device, only when
- * nothing is left: no held entry and no needs-attention entry, whether or not the server has a copy,
- * until a screen shows the copies and the CSO closes H-134; otherwise the hold stays with its count
- * brought up to date.
+ * Anything still in the upload queue (a hold whose copy failed) is first moved into `held_entry`
+ * (#25 review round 3, M4). The device then sends its report from the signer's session, so the
+ * server binds the signer to the device and knows the hold's count (#25 review round 2, H1). Then
+ * each held entry goes, in the order it was written, to its own endpoint with the hand-over headers
+ * (the owner, an id for the hand-over, and the device that held it): sent ones leave `held_entry`;
+ * one the API refuses for what it is moves to "needs attention" (`upload_issue`), and every
+ * needs-attention entry's content then goes to the server's copy in the owner's name. A 404 (a
+ * person outside the signer's scope) or a hand-over the server will not take for that entry
+ * (`handover_refused`) keeps the entry held with the server's reason (`handover_refusal`), never
+ * parked as refused, and the rest are still sent (#25 review rounds 2 and 3, H2 and M1). A session
+ * refusal or any other 403, or a network failure, stops the hand-over with the rest still held.
+ * The hold is over, and the caller wipes the device, only when nothing is left: no held entry, no
+ * needs-attention entry (whether or not the server has a copy, until a screen shows the copies and
+ * the CSO closes H-134) and nothing in the upload queue. When any of that cannot be read, nothing
+ * is taken as gone (HZ-006): the hold stays with its count brought up to date.
  *
  * Pure apart from the injected dependencies, so the rules are unit-tested.
  */
@@ -92,6 +95,10 @@ export interface HandOverDeps {
    * against the hold the device reported.
    */
   readonly sendReport: () => Promise<boolean>;
+  /** Moves anything still in the upload queue into `held_entry` (`holdUnsentWork`). */
+  readonly holdQueue: () => Promise<unknown>;
+  /** How many changes are still in the upload queue (`getUploadQueueStats`). */
+  readonly queueCount: () => Promise<number>;
 }
 
 export interface HandOverResult {
@@ -101,14 +108,16 @@ export interface HandOverResult {
   readonly parked: number;
   /** Needs-attention entries whose copy the server now has. */
   readonly copied: number;
-  /** Entries still on this device: held, or needing attention (with a server copy or not). */
-  readonly remaining: number;
+  /** Held entries the server did not take (a 404 or `handover_refused`): still held, with why. */
+  readonly notTaken: number;
   /**
-   * Why sending stopped early, when it did: the signer's session or permission, the network, or
-   * the server not taking the hand-over (a 404, or `handover_refused`).
+   * Entries still on this device: held, needing attention (with a server copy or not), or in the
+   * upload queue. Null when that could not be read: never taken as none (HZ-006).
    */
-  readonly stopped: "session" | "offline" | "not_taken" | null;
-  /** The server's reason when it did not take the hand-over. */
+  readonly remaining: number | null;
+  /** Why sending stopped early, when it did: the signer's session or permission, or the network. */
+  readonly stopped: "session" | "offline" | null;
+  /** The server's reason for the first entry it did not take. */
   readonly reason?: string;
 }
 
@@ -183,14 +192,27 @@ async function sendEntry(
 }
 
 /**
- * Counts what is still on this device: held entries, and every needs-attention entry, copied to the
- * server or not. A server copy is not yet something anyone reads (no screen shows it, H-134), so a
- * refused entry keeps the database (#25 review round 2, H2).
+ * Counts what is still on this device: held entries, every needs-attention entry, copied to the
+ * server or not, and the upload queue (#25 review round 3, M4). A server copy is not yet something
+ * anyone reads (no screen shows it, H-134), so a refused entry keeps the database (#25 review round
+ * 2, H2). Null when any count cannot be read, so the caller never deletes on a guess (HZ-006).
  */
-async function stillOnDevice(db: HandOverDb): Promise<number> {
-  const held = await db.getOptional<{ n: number }>("SELECT COUNT(*) AS n FROM held_entry");
-  const refused = await db.getOptional<{ n: number }>("SELECT COUNT(*) AS n FROM upload_issue");
-  return Number(held?.n ?? 0) + Number(refused?.n ?? 0);
+async function stillOnDevice(deps: HandOverDeps): Promise<number | null> {
+  try {
+    const count = async (sql: string) => {
+      const row = await deps.db.getOptional<{ n: number }>(sql);
+      const n = Number(row?.n);
+      if (!row || !Number.isInteger(n) || n < 0) throw new Error("Not counted");
+      return n;
+    };
+    const held = await count("SELECT COUNT(*) AS n FROM held_entry");
+    const refused = await count("SELECT COUNT(*) AS n FROM upload_issue");
+    const queued = await deps.queueCount();
+    if (!Number.isInteger(queued) || queued < 0) return null;
+    return held + refused + queued;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -200,13 +222,17 @@ async function stillOnDevice(db: HandOverDb): Promise<number> {
 export async function handOverHeldWork(deps: HandOverDeps): Promise<HandOverResult> {
   const owner = deps.held.tenantUserId;
   if (!owner || !deps.held.tenantId) throw new HandOverNotAllowedError("unknown_owner");
+  // Anything a failed hold left in the upload queue is held first, so it is counted, reported and
+  // sent like the rest (#25 review round 3, M4). If that fails, the count below says so.
+  await deps.holdQueue().catch(() => undefined);
   // The signer's report first: the server binds them to the device and learns the hold's count.
   if (!(await deps.sendReport().catch(() => false))) {
     return {
       sent: 0,
       parked: 0,
       copied: 0,
-      remaining: await stillOnDevice(deps.db),
+      notTaken: 0,
+      remaining: await stillOnDevice(deps),
       stopped: "offline",
     };
   }
@@ -215,6 +241,7 @@ export async function handOverHeldWork(deps: HandOverDeps): Promise<HandOverResu
   );
   let sent = 0;
   let parked = 0;
+  let notTaken = 0;
   let stopped: HandOverResult["stopped"] = null;
   let reason: string | undefined;
   for (const row of rows) {
@@ -224,9 +251,14 @@ export async function handOverHeldWork(deps: HandOverDeps): Promise<HandOverResu
       break;
     }
     if (typeof outcome === "object" && "notTaken" in outcome) {
-      stopped = "not_taken";
-      reason = outcome.notTaken;
-      break;
+      // Kept held with the server's reason; the rest are still sent (#25 review round 3, M1).
+      await deps.db.execute("UPDATE held_entry SET handover_refusal = ? WHERE id = ?", [
+        outcome.notTaken,
+        row.id,
+      ]);
+      notTaken += 1;
+      reason ??= outcome.notTaken;
+      continue;
     }
     if (outcome === "sent") {
       await deps.db.execute("DELETE FROM held_entry WHERE id = ?", [row.id]);
@@ -271,7 +303,8 @@ export async function handOverHeldWork(deps: HandOverDeps): Promise<HandOverResu
     sent,
     parked,
     copied,
-    remaining: await stillOnDevice(deps.db),
+    notTaken,
+    remaining: await stillOnDevice(deps),
     stopped,
     ...(reason ? { reason } : {}),
   };
@@ -280,9 +313,11 @@ export async function handOverHeldWork(deps: HandOverDeps): Promise<HandOverResu
 /** What the person sees when the hand-over ends. */
 export function handOverMessage(result: HandOverResult): string {
   if (result.remaining === 0) return t("mobile.held.handOverDone", { count: result.sent });
-  if (result.stopped === "not_taken") {
+  if (result.remaining === null) return t("mobile.held.handOverUncounted", { sent: result.sent });
+  if (result.notTaken > 0) {
     return t("mobile.held.handOverNotTaken", {
       sent: result.sent,
+      notTaken: result.notTaken,
       reason: result.reason ?? t("mobile.issues.unknownReason"),
     });
   }

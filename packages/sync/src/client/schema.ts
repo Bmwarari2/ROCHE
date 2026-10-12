@@ -351,6 +351,8 @@ const held_entry = new Table(
     payload: column.text,
     position: column.integer,
     held_at: column.text,
+    /** Why the server did not take it in a hand-over, kept with it (#25 review round 3, M1). */
+    handover_refusal: column.text,
   },
   { localOnly: true },
 );

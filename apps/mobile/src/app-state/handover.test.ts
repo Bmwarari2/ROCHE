@@ -127,6 +127,10 @@ const deps = (
   fetch: FetchLike,
   hold = held,
   sendReport: () => Promise<boolean> = async () => true,
+  queue: {
+    readonly holdQueue?: () => Promise<unknown>;
+    readonly queueCount?: () => Promise<number>;
+  } = {},
 ) => ({
   held: hold,
   db,
@@ -134,6 +138,8 @@ const deps = (
   handoverId: HANDOVER,
   now: () => NOW,
   sendReport,
+  holdQueue: queue.holdQueue ?? (async () => 0),
+  queueCount: queue.queueCount ?? (async () => 0),
 });
 
 const problem = (status: number, code: string, detail: string) =>
@@ -185,7 +191,14 @@ describe("hazard HZ-040 hazard HZ-006 handing over held entries (Device integrit
     const { db, rows } = await heldDatabase([{ id: E1 }, { id: E2 }]);
     const { fetch, calls } = fakeFetch([201, 201]);
     const result = await handOverHeldWork(deps(db, fetch));
-    expect(result).toEqual({ sent: 2, parked: 0, copied: 0, remaining: 0, stopped: null });
+    expect(result).toEqual({
+      sent: 2,
+      parked: 0,
+      copied: 0,
+      notTaken: 0,
+      remaining: 0,
+      stopped: null,
+    });
     expect(rows("held_entry")).toEqual([]);
     expect(calls.map((c) => c.url)).toEqual([
       `${API}/v1/people/${PERSON}/notes`,
@@ -216,29 +229,104 @@ describe("hazard HZ-040 hazard HZ-006 handing over held entries (Device integrit
     expect(copy?.url).toBe(`${API}/v1/sync/refused-entries`);
     expect(new Headers(copy?.init?.headers).get(HANDOVER_OWNER_HEADER)).toBe(sam.tenantUserId);
     expect(JSON.parse(String(copy?.init?.body))).toMatchObject({ entryId: E1, code: "invalid" });
-    expect(handOverMessage(result)).toContain("wait under Not saved: needs attention");
+    // Nobody is sent to a list on a device no one can open (#25 review round 3, M3).
+    expect(handOverMessage(result)).not.toContain("needs attention");
+    expect(handOverMessage(result)).toContain("Nobody can open them here.");
   });
 
-  it("hazard HZ-006 stops and keeps the entry held when the server cannot find the person in the sender's scope, never parking it (#25 review round 2, H2)", async () => {
+  it("hazard HZ-006 keeps an entry held when the server cannot find the person in the sender's scope, never parking it, and sends the rest (#25 review rounds 2 and 3, H2 and M1)", async () => {
     const { db, rows } = await heldDatabase([{ id: E1 }, { id: E2 }]);
-    const { fetch, calls } = fakeFetch([problem(404, "not_found", "We could not find that.")]);
+    const { fetch, calls } = fakeFetch([problem(404, "not_found", "We could not find that."), 201]);
     const result = await handOverHeldWork(deps(db, fetch));
-    expect(result).toMatchObject({ sent: 0, parked: 0, remaining: 2, stopped: "not_taken" });
-    expect(calls).toHaveLength(1);
-    expect(rows("held_entry").map((r) => r.id)).toEqual([E1, E2]);
-    expect(rows("upload_issue")).toEqual([]);
-  });
-
-  it("hazard HZ-040 stops and keeps the entry held when the server will not take the hand-over, saying why (#25 review round 2, H1 and H2)", async () => {
-    const { db, rows } = await heldDatabase([{ id: E1 }]);
-    const reason = "This entry is timed after the device was withdrawn.";
-    const result = await handOverHeldWork(
-      deps(db, fakeFetch([problem(422, "handover_refused", reason)]).fetch),
-    );
-    expect(result).toMatchObject({ sent: 0, parked: 0, remaining: 1, stopped: "not_taken" });
+    expect(result).toMatchObject({ sent: 1, parked: 0, notTaken: 1, remaining: 1, stopped: null });
+    expect(calls).toHaveLength(2);
     expect(rows("held_entry").map((r) => r.id)).toEqual([E1]);
     expect(rows("upload_issue")).toEqual([]);
-    expect(handOverMessage(result)).toContain(reason);
+  });
+
+  it("hazard HZ-040 hazard HZ-006 keeps an entry the server will not take held with its reason, and carries on with the rest (#25 review rounds 2 and 3, H1, H2 and M1)", async () => {
+    const E3 = "0199d000-0000-7000-8000-0000000000f3";
+    const { db, rows } = await heldDatabase([{ id: E1 }, { id: E2 }, { id: E3 }]);
+    const reason = "This entry is timed after the device was withdrawn.";
+    const result = await handOverHeldWork(
+      deps(db, fakeFetch([201, problem(422, "handover_refused", reason), 201]).fetch),
+    );
+    expect(result).toMatchObject({
+      sent: 2,
+      parked: 0,
+      notTaken: 1,
+      remaining: 1,
+      stopped: null,
+      reason,
+    });
+    expect(rows("held_entry")).toEqual([
+      expect.objectContaining({ id: E2, handover_refusal: reason }),
+    ]);
+    expect(rows("upload_issue")).toEqual([]);
+    expect(handOverMessage(result)).toBe(
+      `2 entries were sent. Harbour did not take 1 entry: ${reason} They are still on this device, protected, with anything else not sent. Tell the Registered Manager.`,
+    );
+  });
+
+  it("hazard HZ-006 holds and sends what a failed hold left in the upload queue, and counts the queue before the database may go (#25 review round 3, M4)", async () => {
+    const { db, rows } = await heldDatabase([{ id: E1 }]);
+    const order: string[] = [];
+    let queued = 1;
+    const result = await handOverHeldWork(
+      deps(
+        db,
+        fakeFetch([201]).fetch,
+        held,
+        async () => {
+          order.push("report");
+          return true;
+        },
+        {
+          holdQueue: async () => {
+            order.push("hold");
+            queued = 0;
+            return 1;
+          },
+          queueCount: async () => queued,
+        },
+      ),
+    );
+    expect(order).toEqual(["hold", "report"]);
+    expect(result).toMatchObject({ sent: 1, remaining: 0 });
+    expect(rows("held_entry")).toEqual([]);
+    // A queue the hold could not empty is still on the device: nothing is deleted.
+    const again = await heldDatabase([{ id: E2 }]);
+    const left = await handOverHeldWork(
+      deps(again.db, fakeFetch([201]).fetch, held, async () => true, {
+        holdQueue: async () => {
+          throw new Error("The copy failed.");
+        },
+        queueCount: async () => 2,
+      }),
+    );
+    expect(left).toMatchObject({ sent: 1, remaining: 2 });
+  });
+
+  it("hazard HZ-006 never takes what it cannot count as gone: the database stays (#25 review round 3, M4)", async () => {
+    const { db } = await heldDatabase([{ id: E1 }]);
+    const result = await handOverHeldWork(
+      deps(db, fakeFetch([201]).fetch, held, async () => true, {
+        queueCount: async () => {
+          throw new Error("The queue could not be read.");
+        },
+      }),
+    );
+    expect(result).toMatchObject({ sent: 1, remaining: null });
+    expect(handOverMessage(result)).toBe(
+      "1 entry was sent. This device could not count what is left, so it keeps everything, protected. Try again, or tell the Registered Manager.",
+    );
+    const broken = {
+      ...db,
+      getOptional: async <T>(query: string) =>
+        query.includes("upload_issue") ? (null as T | null) : db.getOptional<T>(query),
+    };
+    const again = await handOverHeldWork(deps(broken, fakeFetch([]).fetch));
+    expect(again.remaining).toBeNull();
   });
 
   it("hazard HZ-040 sends the device's report from the sender's sign-in first, and sends nothing when it cannot (#25 review round 2, H1)", async () => {
@@ -276,10 +364,17 @@ describe("hazard HZ-040 hazard HZ-006 handing over held entries (Device integrit
     const result = await handOverHeldWork(
       deps(db, fakeFetch([201, new TypeError("offline")]).fetch),
     );
-    expect(result).toEqual({ sent: 1, parked: 0, copied: 0, remaining: 1, stopped: "offline" });
+    expect(result).toEqual({
+      sent: 1,
+      parked: 0,
+      copied: 0,
+      notTaken: 0,
+      remaining: 1,
+      stopped: "offline",
+    });
     expect(rows("held_entry").map((r) => r.id)).toEqual([E2]);
     expect(handOverMessage(result)).toBe(
-      "1 entry was sent. 1 entry is still on this device. Entries Harbour could not save wait under Not saved: needs attention for the nurse in charge. Send the rest again when the device is online, or a manager can delete them with a reason.",
+      "1 entry was sent. 1 entry is still on this device, protected. Nobody can open them here. A manager can send them again from this screen when the device is online, or delete them with a reason. Tell the Registered Manager.",
     );
   });
 
