@@ -288,8 +288,9 @@ last year the calendar covers, no holiday is skipped, so a deadline can only fal
   `people_assigned`, `care_assigned` and `entries_assigned` (each family of streams where its own
   read permissions reach: `people.person.read` with `care.plan.read`, `care.plan.read`,
   `care.note.read`; ADR-0071 review rounds 1 and 2), `entries_write_location_ids` and
-  `entries_write_assigned` (where the phone may record, `care.note.write`; no stream reads them),
-  `offline_days`; `location_ids` is where the member's roles in force work (`workLocationIds`,
+  `entries_write_assigned` (where the phone may record, `care.note.write`; no stream reads them)
+  with `entries_write_person_ids` (the people the user is assigned to, when recording reaches
+  them, up to 100; review round 3), `offline_days`; `location_ids` is where the member's roles in force work (`workLocationIds`,
   the same list as the location switcher in `/v1/me`); 15-minute ES256 tokens from `POST
   /v1/sync/token`, JWKS at `GET /v1/sync/jwks`. The token route binds the device to the member
   (`device_binding`) and refuses a revoked device (403 `device_revoked`). Uploads (`POST

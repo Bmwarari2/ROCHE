@@ -39,8 +39,13 @@ only when they link spec, code, tests and user documentation; no user guides exi
    (`access` on the person, `entries_write_*` on the sync token); signing a person's document
    needs its write permission; migration 0048 stops on a live grant with no location; everyone
    told by role holds the role now (`roleHolders`); the access report lists narrows and widens.
-   Before deploying to a live tenant: sync every device (checked on Today and in the device
-   list), run the pre-deployment access report
+   Review round 3: every tab of the record follows `access.reaching` (no form under break-glass
+   on any tab); the phone decides per person for a coordinator who is also a carer
+   (`entries_write_person_ids`); an overdue task and an escalation chain step go down their order
+   until someone active is told, else the gap is audited and nothing is marked done; only active
+   staff are told; document subjects are an allow-list; `seed-users` needs an explicit opt-in.
+   Before deploying to a live tenant: sync every device (checked on Today, in the device list and
+   with the device check), run the pre-deployment access report
    ([runbook](../runbooks/data-scope-per-permission-access-report.md)), end or place any grant
    with no location, and have the Registered Manager review role bundles (release note).
 2. Follow-ups from data scope per permission:

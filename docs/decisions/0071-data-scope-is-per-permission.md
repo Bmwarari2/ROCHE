@@ -239,7 +239,7 @@ refuses, and two writes the scope did not yet bound.
 
 **The nurse in charge (C2-M1).** One definition serves urgent result alerts (HZ-014, HZ-016), care
 plan and risk review notices and refused-entry reviews: `nurseInCharge`, the clinical leads and
-team leaders (the nurse or senior on shift) whose roles, in force, reach the home, else its
+team leaders whose roles, in force, reach the home (at every home; no rota is checked), else its
 Registered Manager; and `nurseInChargeSeeing` keeps only those whose read permissions reach the
 person (or, about no one, whose `people.person.read` reaches the home). It never filters by a
 permission to act that awareness does not need. A refused entry's urgent review goes to the nurse
@@ -253,15 +253,17 @@ with team leaders and no clinical lead tells its team leader.
 `care.plan.write` does) and `readOnlyReason` (`break_glass` when only break-glass opens the record,
 `scope` when their roles reach it for reading only), from `permissionsReaching`. The web shows the
 notes, charts and body map forms and the chart settings only when the matching flag is true, and
-otherwise says, in English and Welsh, "You opened this record for reading only. To record
-something, tell the nurse in charge at this home, or record it on paper and enter it when you have
-access." (or its scope variant); the break-glass sheet says the record opens for reading only. The
+otherwise says, in English and Welsh (the Welsh still to be translated), that the record is
+open for reading only (or its scope variant; round 3 extends this to every tab and rewords it);
+the break-glass sheet says the record opens for reading only. The
 sync token carries `entries_write_location_ids` and `entries_write_assigned` (where
 `care.note.write` reaches, by the same rule as the families); no stream reads them. The phone
 keeps the last token's claims and offers recording only for a person at a home in the list, or
-assigned to the user when the flag is set, and otherwise says "You can read this record but cannot
-record on it." Before the first token on a device the phone does not know, and offers recording as
-before; the server still refuses what is not allowed, and the refused entry is kept as a copy.
+assigned to the user when the flag is set, and otherwise says it can read the record but cannot
+record in it. Round 3 corrects two parts of this: the phone decides per person for the clients
+assigned to the user, and before its first token it offers recording only to a user whose
+permissions include `care.note.write`; the server keeps a copy of a refused entry only about
+someone the author could reach with `care.note.write`.
 
 **Signing (S2-M1).** Signing a person's document is a write: it needs the category's write
 permission (`people.person.update` for `person_photo` and `person_document`, `care.note.write`
@@ -316,6 +318,73 @@ attempt audited, assignment and role windows together, a series' assignee rechec
 live grant with no location; the `assignment_change` policy); `apps/web/src/lib/care-record.test.ts`
 and `apps/web/e2e/break-glass.spec.ts` (no form under break-glass, with axe);
 `apps/mobile/src/sync/write-scope.test.ts` and the connector test.
+
+### Review round 3 (security and clinical safety reviews of #27)
+
+Security found nothing high or medium. Clinical safety found four mediums: forms still offered on
+five tabs of a record open for reading only, a coordinator who is also a carer unable to record on
+the phone, and two escalations that could be marked done with no one told.
+
+**Every tab follows `access.reaching` (C3-M1).** `GET /v1/people/{id}` adds `access.reaching`, the
+permissions the caller may use whose scope reaches the person without break-glass
+(`permissionsReaching(..., { withoutBreakGlass: true })`), sorted; `recordCare` and `editCarePlan`
+stay as before. On the web, `writeAccess(person, permissions, permission)` decides every write on
+the record: notes, charts, the body map, activities and visits (`care.note.write`), assessments
+(`care.assessment.write`: MUST and the others; NEWS2 is a chart), the care plan and its drafts,
+risk assessments and chart settings (`care.plan.write`), and ReSPECT and advance care records
+(`care.respect.record`). A tab that hides its form says why: "You opened this record for reading
+only. To record something in it, tell the person in charge of this shift or your manager, or
+record it on paper and enter it when you have access." under break-glass, and "You can read this
+record but cannot record in it. If something needs recording, tell the person in charge of this
+shift or your manager." where roles reach for reading only (the phone uses the second). The
+wording fits home care and supported living as well as care homes; the Welsh copies are listed
+for translation.
+
+**The phone decides per person (C3-M2).** The sync token adds `entries_write_person_ids`, the
+people the user is assigned to now, when `entries_write_assigned` is true, up to 100
+(`MAX_WRITE_PERSON_IDS`; beyond that the claim is left out and the phone lets the server decide).
+The phone offers recording for a person at a home in `entries_write_location_ids`, or named in
+`entries_write_person_ids`; a token that names no one while `entries_write_assigned` is true
+leaves the decision to the server. Before its first token the phone offers recording only to a
+user whose cached permissions include `care.note.write`, and a held session clears the write
+scope so the next person never inherits it. Person assignment rows do not sync, so the token
+carries the ids.
+
+**Escalations go down their order (C3-M3, C3-M4).** An overdue task's recipients are its assignee
+(while active) and the first of: the clinical leads and team leaders whose roles reach its home;
+a Registered Manager whose role reaches it (there, or across the organisation); the holders of
+`care.plan.write` who can see the person (or reach the location, for a task about no one). With no
+one, the task is not marked escalated, the gap is audited (`task.escalation_unrouted`, reason
+`no_one_sees_person` or `no_one_reaches_location`), and it is tried again after an hour (a sync
+task still waits a day). An escalation chain step goes to its named member while active and the
+holders of its role reaching the location; with none, a Registered Manager reaching it, else the
+owner (`chainStepRecipients`); with no one, `platform.escalation.unrouted` (`no_recipient`) is
+audited and the later steps still fire. Everyone told is active (`TOLD`): an invited member who
+has never signed in reads nothing and is never the one told; `ON_STAFF` (invited or active)
+remains for holding access and being given work.
+
+**Lows.** A refused entry's urgent review tells the `care.plan.write` holders at the home itself
+when there are any, and only otherwise those across the organisation
+(`permissionHolders(..., { preferAtLocation: true })`), so an owner is not told about every home
+(HZ-008). `accessRowsOf` gives nothing to a member suspended, gone or deleted, and joins roles and
+members on the organisation; `roleInForce` checks the role and member are not deleted, on the
+same organisation; `workLocationIds` ignores portal and mixed roles. An organisation's document
+is attached only to the organisation's own records (an allow-list: `location`,
+`escalation_policy`, `statement_of_purpose_version`, `letter_template_version`), a subject needs
+its type, and a new version of a person-category document with no person is not found. A
+refused break-glass attempt whose audit cannot be written is logged by opaque ids and still
+answers 404. `seed-users` runs only with `HARBOUR_SEED_DEMO_USERS=1`. The device check gives its
+cut-off in Europe/London and lists Care mode staff whose phone has never been seen; the runbook
+says how to check environments that ran the round 1 version of migration 0048, and that an
+organisation-wide grant is never reactivated without a new decision.
+
+Confirmation for round 3: `apps/web/e2e/break-glass.spec.ts` (`hazard HZ-073 a record opened by
+break-glass offers no form to record in on any tab`, axe on each); `care-record.test.ts`
+(`writeAccess` for each write permission); `write-scope.test.ts` (per person, before a token);
+`scope-per-permission.test.ts` (review round 3: the coordinator who is also a carer, the
+suspended member, documents); `tasks.test.ts` (`an overdue task goes down the order until someone
+active is told`); `jobs.test.ts` (the chain step fallback and its audit); `device-integrity.test.ts`
+(the unrouted refused-entry audit; the owner no longer told where the home has holders).
 
 ## Pros and cons of the options
 

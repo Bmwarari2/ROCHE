@@ -14,11 +14,14 @@ reach. Before, a member of staff with two roles (for example a care worker at on
 views finance across the organisation) could open and add to care records at every home, and the
 people anyone was assigned to, or had opened by break-glass, counted for everything they held.
 Now the people you are assigned to count only for what your care worker role gives you, and
-break-glass opens a record for reading only: the web offers no form on such a record and says
-"You opened this record for reading only. To record something, tell the nurse in charge at this
-home, or record it on paper and enter it when you have access.", the break-glass sheet says so
-before it opens, and a person's document cannot be signed through it. The audit trail is shown
-whole only to those who hold it across the organisation.
+break-glass opens a record for reading only: no tab of the record on the web (notes, charts, body
+map, activities and visits, assessments, care plan, risk assessments, ReSPECT and advance care)
+offers a form on such a record, and each says "You opened this record for reading only. To
+record something in it, tell the person in charge of this shift or your manager, or record it on
+paper and enter it when you have access."; the break-glass sheet says so before it opens, and a
+person's document cannot be signed through it. Where your roles let you read a record but not
+write to one part of it, that tab says so instead of offering a form the server would refuse. The
+audit trail is shown whole only to those who hold it across the organisation.
 
 Clinical safety changes
 
@@ -33,14 +36,29 @@ Clinical safety changes
 - Care coordinators: the people and their care reference at their home still sync to the phone;
   recent notes and charts no longer do, because the role does not read care notes. The phone
   offers recording (notes, charts, body map) only for people its user may record about, and
-  otherwise says "You can read this record but cannot record on it. If something needs
-  recording, tell the nurse in charge." Add care note permissions to the coordinator's role if
-  they need them.
+  otherwise says "You can read this record but cannot record in it. If something needs
+  recording, tell the person in charge of this shift or your manager." A coordinator who also
+  works as a care worker records about the clients assigned to them, as before: the sync token
+  names those clients. Add care note permissions to the coordinator's role if they need more.
+- Before a phone has had its first sync token after this update, it offers recording only if the
+  user's permissions include recording care notes. The server refuses anything it would not
+  take; it keeps a copy of a refused entry only about someone the author could record about, so
+  an entry about anyone else stays on the phone among the entries needing attention until someone
+  removes it with a reason.
 - A person syncs to a phone only where the care reference does too, so the phone never shows a
   resuscitation decision or IDDSI level as not recorded when it is merely not on the phone.
-- An urgent review of an entry the server refused goes to the nurse or senior in charge on site
-  who can read the person's record and notes (a team leader, at a home with no nurse) and to
-  whoever can act on the care plan; with no one at all, the gap is audited.
+- An urgent review of an entry the server refused goes to the clinical leads and team leaders
+  whose roles reach the person's home and who can read the person's record and notes (at every
+  home; no rota is checked), and to whoever can act on the care plan there, or across the
+  organisation only when no one holds that at the home; with no one at all, the gap is audited.
+- An overdue task goes, besides its assignee, to the clinical leads and team leaders at its home;
+  with none, to a Registered Manager whose role reaches it (there or across the organisation);
+  with none, to whoever can act on the care plan and see the person. With no one at all it is
+  not marked escalated: the gap is audited and it is tried again an hour later. A step of an
+  escalation chain no one holds goes to a Registered Manager reaching the home, else the owner,
+  and one that can reach no one is audited.
+- Only staff who have signed in (active) are told about anything: someone invited who has never
+  signed in, suspended or who has left is never the one told, so the next in line is.
 - Administrators, and any role that cannot open people's records, see in the task list only the
   tasks given to them that are about no one.
 - A task about a person can be given only to someone who can open that person's record and do
@@ -50,4 +68,4 @@ Clinical safety changes
   that can no longer send it. Announce a cut-off; on each phone, Today shows a last sync after it
   and "No changes waiting to upload"; the device list (Registered Manager, deputy or owner) shows
   every device seen after the cut-off with nothing reported waiting. The runbook has a read-only
-  query for devices not seen since.
+  query for devices not seen since, or never seen.

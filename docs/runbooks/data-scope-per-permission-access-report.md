@@ -51,18 +51,16 @@ Typical rows:
      deputy or owner) shows each device's last seen time after the cut-off and its last reported
      waiting count (`entriesWaiting`) at 0. A device not seen since the cut-off is found and
      synced, or revoked (`staff_left`, `replaced` or `lost_or_stolen`) once any entries it reported
-     waiting are resolved. As `harbour_owner`, read-only, the devices not seen since the cut-off are:
+     waiting are resolved;
+   - read-only, as `harbour_owner`, the device check lists the devices not seen since the cut-off
+     and the staff who may use Care mode whose phone the server has never seen (ask each whether
+     they use one; if so it syncs first). Give the cut-off as a UK time: it is read in
+     Europe/London, so British Summer Time is applied when in force; the output is in UTC.
 
-     ```sql
-     BEGIN READ ONLY;
-     SELECT set_config('app.tenant_id', '<organisation uuid>', true),
-            set_config('app.scope', 'tenant', true);
-     SELECT device_id, max(last_seen_at) AS last_seen
-     FROM device_binding
-     WHERE tenant_id = '<organisation uuid>' AND revoked_at IS NULL
-     GROUP BY device_id
-     HAVING max(last_seen_at) < '<cut-off, UTC>';
-     ROLLBACK;
+     ```sh
+     psql "$OWNER_DATABASE_URL" -v tenant_id=<organisation uuid> \
+       -v cutoff='2026-10-20 18:00' \
+       -f docs/runbooks/data-scope-per-permission-device-check.sql
      ```
 
 2. **Run the report** read-only, as `harbour_owner`, once per organisation, before migrations 0048
@@ -85,9 +83,19 @@ Typical rows:
    so nothing is changed) while any grant with no location is live (not deleted, not revoked, not
    yet ended), because marking it organisation-wide would widen it and nothing can mark it
    narrower. For each, end it, or replace it with a grant at the home it was meant for, then deploy
-   again. Ended, revoked or deleted ones reach no one and are marked without stopping.
+   again. Ended, revoked or deleted ones reach no one and are marked without stopping. An
+   organisation-wide grant (one with no location, marked) is never reactivated or extended
+   without a new, recorded decision that it should reach every home: reactivating an old one would
+   widen it as the guard exists to prevent.
 5. Run the report again until the remaining rows are the change the organisation intends, and
    record the review in the organisation's DCB0160 assessment (HZ-011 and HZ-073 rows).
+
+**Environments that ran the round 1 version of migration 0048.** Before review round 2, 0048
+marked every grant with no location as organisation-wide, live ones included, without stopping.
+Any development, staging or pilot environment that applied that version (not `main`, which never
+carried it) may hold a grant widened that way. Run the access report there: a `widens` row
+"gains the whole organisation (through a grant with no location)" is such a grant; end it, or
+replace it with a grant at the home it was meant for, and record the decision.
 
 The report holds staff ids, location names and counts only, never people receiving care. Keep the
 output with the deployment record, not in a ticket or chat.
