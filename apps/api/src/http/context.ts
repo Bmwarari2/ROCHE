@@ -459,31 +459,36 @@ export function useScopeOf(c: Context<AppEnv>, permission: Permission): TenantAc
 }
 
 /**
- * Runs `fn` in the caller's transaction under another permission's scope, then puts the request's
- * own back: to ask whether a row the request can see is also within that permission's reach
- * (ADR-0071). Use it only for such checks; what `fn` reads never widens what the request shows.
+ * Runs `fn` in the caller's transaction under another permission's scope, then puts back exactly
+ * the scope the transaction had: to ask whether a row the request can see is also within that
+ * permission's reach (ADR-0071). Use it only for such checks; what `fn` reads never widens what
+ * the request shows.
  */
 export async function inScopeOf<T>(
   tx: Transaction,
-  access: TenantAccess,
   scope: PermissionScope,
   fn: () => Promise<T>,
 ): Promise<T> {
-  const set = (s: { readonly scope: string; readonly locationIds: readonly string[] }) =>
+  const saved = await tx.execute<{ scope: string | null; locations: string | null }>(
+    sql`SELECT current_setting('app.scope', true) AS scope,
+               current_setting('app.location_ids', true) AS locations`,
+  );
+  const before = saved.rows[0];
+  const set = (s: string, locations: string) =>
     tx.execute(
-      sql`SELECT set_config('app.scope', ${s.scope}, true),
-                 set_config('app.location_ids', ${s.locationIds.join(",")}, true)`,
+      sql`SELECT set_config('app.scope', ${s}, true), set_config('app.location_ids', ${locations}, true)`,
     );
-  await set(scope);
+  const restore = () => set(before?.scope || "none", before?.locations ?? "");
+  await set(scope.scope, scope.locationIds.join(","));
   let result: T;
   try {
     result = await fn();
   } catch (error) {
-    // Put the request's scope back while the transaction can still run; an aborted one rolls back.
-    await set(access.context).catch(() => undefined);
+    // Put the scope back while the transaction can still run; an aborted one rolls back anyway.
+    await restore().catch(() => undefined);
     throw error;
   }
-  await set(access.context);
+  await restore();
   return result;
 }
 
@@ -507,7 +512,7 @@ export async function permissionsReaching(
     if (sees === undefined) {
       sees =
         scope.scope !== "none" &&
-        (await inScopeOf(tx, access, scope, async () => {
+        (await inScopeOf(tx, scope, async () => {
           const [row] = await tx
             .select({ id: person.id })
             .from(person)

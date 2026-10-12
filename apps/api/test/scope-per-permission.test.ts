@@ -1,9 +1,11 @@
 import type { CareNoteList, Me, PersonList, SyncToken, TaskList } from "@harbour/contracts";
+import { withRequestContext } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
+import { sql } from "drizzle-orm";
 import { jwtVerify } from "jose";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MOBILE_APP_ORIGIN } from "../src/auth/token-exposure";
-import { SCOPE_WITHOUT_PERMISSION } from "../src/http/context";
+import { inScopeOf, SCOPE_WITHOUT_PERMISSION } from "../src/http/context";
 import { createHarness, type Harness, LODGE, PASSWORD } from "./support/harness";
 
 /**
@@ -278,5 +280,34 @@ describe("hazard HZ-011 data scope is per permission (ADR-0071)", () => {
       "POST /v1/documents/:id/signatures": "people.person.read",
       "POST /v1/documents/:id/versions": "people.person.read",
     });
+  });
+
+  it("puts back the transaction's own scope after a check in another permission's scope", async () => {
+    const scopeNow = async (tx: Parameters<Parameters<typeof withRequestContext>[2]>[0]) => {
+      const { rows } = await tx.execute<{ scope: string; locations: string }>(
+        sql`SELECT current_setting('app.scope', true) AS scope,
+                   current_setting('app.location_ids', true) AS locations`,
+      );
+      return rows[0];
+    };
+    const seen = await withRequestContext(
+      h.handle.services.db,
+      { tenantId: DEMO.tenantId, userId: TIA, scope: "locations", locationIds: [DEMO.locationId] },
+      async (tx) => {
+        const inside = await inScopeOf(tx, { scope: "tenant", locationIds: [] }, () =>
+          scopeNow(tx),
+        );
+        const after = await scopeNow(tx);
+        await expect(
+          inScopeOf(tx, { scope: "tenant", locationIds: [] }, () =>
+            Promise.reject(new Error("refused")),
+          ),
+        ).rejects.toThrow("refused");
+        return { inside, after, afterRefusal: await scopeNow(tx) };
+      },
+    );
+    expect(seen.inside).toEqual({ scope: "tenant", locations: "" });
+    expect(seen.after).toEqual({ scope: "locations", locations: DEMO.locationId });
+    expect(seen.afterRefusal).toEqual({ scope: "locations", locations: DEMO.locationId });
   });
 });

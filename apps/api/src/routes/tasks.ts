@@ -84,7 +84,7 @@ async function completionRefusal(
 ): Promise<string | null> {
   const permission = row.requiredPermission;
   if (isPermission(permission) && can(access.effective, permission)) {
-    const here = await inScopeOf(tx, access, scopeFor(access.effective, permission), () =>
+    const here = await inScopeOf(tx, scopeFor(access.effective, permission), () =>
       findTask(tx, row.id),
     );
     if (here) return null;

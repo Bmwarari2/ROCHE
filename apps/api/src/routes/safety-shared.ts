@@ -289,7 +289,7 @@ export async function managesIncident(
   incidentId: string,
 ): Promise<boolean> {
   if (!can(access.effective, MANAGE)) return false;
-  return inScopeOf(tx, access, scopeFor(access.effective, MANAGE), async () => {
+  return inScopeOf(tx, scopeFor(access.effective, MANAGE), async () => {
     try {
       return !(await readIncident(tx, incidentId)).restricted;
     } catch (error) {
