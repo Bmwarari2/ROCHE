@@ -188,6 +188,10 @@ only when they link spec, code, tests and user documentation; no user guides exi
     - Follow-up (#33 review round 1): `location_open_tasks` keeps tasks about people active, on
       leave or in hospital, while the web round has no status filter, so tasks about someone at
       pre-admission are on the web round only.
+    - Offline writes for the round and the handover: the local writes (a task done or not
+      done, a handover acknowledged) on `feat/mobile-offline-round-writes`, and their upload
+      (each to its own route, a refusal to "needs attention") on
+      `feat/mobile-offline-round-upload`, stacked on #33; then the screens, behind the gate.
 
 ## Human actions outstanding
 

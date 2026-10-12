@@ -1133,3 +1133,19 @@ permission and API suites (128), passing locally; typecheck clean for sync, API 
 
 **Tests**: `packages/sync` 81, `apps/mobile` 891, passing locally; typecheck clean for sync and
 mobile.
+
+## 2026-10-12: The round and the handover on the phone, offline writes (slice 10 part 2, Lane C)
+
+Second of four pull requests (`feat/mobile-offline-round-writes`, stacked on #33); no screen yet.
+
+- A task is marked done, or not done with a reason, on the device: checked with the API's own
+  rules (`checkTaskTransition`), written on the synced row with the move in `queued_transition`
+  (its own UUIDv7 and the version seen) only while the row is the open task the carer saw. A
+  task that needs evidence is done by recording the entry it asks for, which now carries
+  `task_id` and is sent as `taskId`.
+- A handover is acknowledged on the device as a new row with the seen token worked out over the
+  items shown, exactly as the API does (tested against its algorithm).
+- HZ-018 test row; care.md section 6 and data standards updated.
+
+**Tests**: `apps/mobile` 910, `packages/sync` 81, `packages/i18n` 48, passing locally;
+typecheck clean for mobile and sync.

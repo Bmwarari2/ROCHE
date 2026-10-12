@@ -1304,6 +1304,19 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   computed flag (HZ-024; H-303); (c) the publication migration has landed; and (d) an empty list
   never reads as "nothing due" or "nothing to hand over" while the streams have no data (the
   screen says what the phone holds, from when, and that it may be incomplete; HZ-028).
+- **The round and the handover: writing offline (slice 10 part 2, second PR; no screen yet).**
+  `apps/mobile/src/care/round-actions.ts` checks a task's move with the API's own rules
+  (`checkTaskTransition`: done, or not done with a reason of 3 to 500 characters; a task that
+  needs evidence is done only by recording the entry it asks for, which carries `task_id`, sent
+  as `taskId`) and writes it on the synced row (`status`, and `queued_transition`: the move's own
+  UUIDv7, the version seen, who and when), only while the row is still the open task the carer
+  saw (read back, as SQLite does not count changes made through PowerSync's views). An
+  acknowledgement is a new `handover_acknowledgement` row with its own UUIDv7, the location (for
+  the route) and the seen token worked out over the keys of the items shown, in their compiled
+  order, exactly as the API does (SHA-256, base64url, 43 characters). Hooks for the screens:
+  `useMoveTask`, `useAcknowledgeHandover`. Until the upload (the third PR) lands, the connector
+  sends neither to its route: one queued in between goes to `POST /v1/sync/upload`, which
+  refuses it, and stays as needs attention.
 - **API follow-ups**: the revocation signal, the manager hand-over and the server copy of refused
   entries are built (Device integrity, above), and so, with the care API follow-ups, are keeping an
   IDDSI entry from a device with a flag and an alert to the nurse in charge instead of refusing it
