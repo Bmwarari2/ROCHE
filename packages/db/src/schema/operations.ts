@@ -10,6 +10,7 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
   uuid,
 } from "drizzle-orm/pg-core";
 import { sqlList } from "./_codes";
@@ -139,6 +140,7 @@ export const outage = pgTable(
     ...mutableColumns(),
   },
   (t) => [
+    unique("outage_tenant_id_id_key").on(t.tenantId, t.id),
     foreignKey({
       name: "outage_location_fk",
       columns: [t.tenantId, t.locationId],
