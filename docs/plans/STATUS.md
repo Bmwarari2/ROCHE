@@ -10,7 +10,7 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | Phase | Scope | State |
 | --- | --- | --- |
 | 0 Foundations | Repo, CI, docs, design system, tenancy and RLS, auth, audit, notifications, forms skeleton, rate table, integrations framework, operator API, API, web and mobile skeletons, Terraform | Merged to `main` (#1, with web copy, `TextArea` and `AccountMenu` in #7). See [phase-0.md](phase-0.md) |
-| 1 Residential MVP | People lifecycle, care plans, assessments, notes, charts, body map, tasks and handover, MCA and DoLS, incidents and classifier, downtime pack, offline Care mode, family feed | In progress: [phase-1.md](phase-1.md). On `main`: plan (#2), task and workflow engine (#3), documents and retention (#4), validated tools (#5), notes, charts, body map and care profile (#6), working days (#8), handover and round rules (#9), database pool resilience (#10), people lifecycle rules (#11), care planning schema and API (#12), consent, capacity, DoLS and incident rules (#13) and their schema and API (#14), one rule for event times typed during a clock change (#16), the web person record (#17), and the spec and rules for slice 11 packs and governance (#18), slice 12 family feed (#19) and slice 13 search, export, onboarding and DPIA (#20), offline Care mode with device holds (#15), local CI while Actions minutes are exhausted (#23), the people lifecycle schema and API (#21), the slice 5 tasks, rounds and handover API (#24), sync and device integrity (#25) and the care API follow-ups from the #15 reviews (#26). Open: data scope per permission, a security fix (`fix/platform-scope-per-permission`, ADR-0071) |
+| 1 Residential MVP | People lifecycle, care plans, assessments, notes, charts, body map, tasks and handover, MCA and DoLS, incidents and classifier, downtime pack, offline Care mode, family feed | In progress: [phase-1.md](phase-1.md). On `main`: plan (#2), task and workflow engine (#3), documents and retention (#4), validated tools (#5), notes, charts, body map and care profile (#6), working days (#8), handover and round rules (#9), database pool resilience (#10), people lifecycle rules (#11), care planning schema and API (#12), consent, capacity, DoLS and incident rules (#13) and their schema and API (#14), one rule for event times typed during a clock change (#16), the web person record (#17), and the spec and rules for slice 11 packs and governance (#18), slice 12 family feed (#19) and slice 13 search, export, onboarding and DPIA (#20), offline Care mode with device holds (#15), local CI while Actions minutes are exhausted (#23), the people lifecycle schema and API (#21), the slice 5 tasks, rounds and handover API (#24), sync and device integrity (#25), the care API follow-ups from the #15 reviews (#26) and data scope per permission, a security fix (#27, ADR-0071). Hosted CI runs again from 12/10/2026 (the repository is public) |
 | 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Not started |
 | 3 Money and buildings | Funding, billing, council portals, residents' money, P&L, facilities, catering, enquiries, group reporting | Not started |
 | 4 Home care and family | Packages, runs, ECM, supported living, portals, Manage mode | Not started |
@@ -20,7 +20,7 @@ only when they link spec, code, tests and user documentation; no user guides exi
 
 ## Next items (in order)
 
-1. Review and merge data scope per permission (`fix/platform-scope-per-permission`;
+1. Data scope per permission is merged (#27, with the round 5 check's alarm fix;
    [ADR-0071](../decisions/0071-data-scope-is-per-permission.md); hazard HZ-011; PLAT-004): each
    permission reaches only the people its own roles and grants reach (`scopeFor`), and each
    request runs under the scope of the permission it uses (the narrowest of several, `none` when
@@ -82,18 +82,12 @@ only when they link spec, code, tests and user documentation; no user guides exi
      of the review, close, withdraw and correct controls on the record (risk review and close,
      withdrawing an advance care record, correcting a note or chart), each with axe and with the
      read-only case.
-   - (found in review round 4) the round view tests in `apps/api/test/rounds-and-handover.test.ts`
-     create tasks due 5 to 15 minutes ahead and fail between 19:45 and 20:00 London time, when
-     those fall in the next shift; pin the clock or the shift pattern in those tests.
    - (review round 5) cap overdue task notifications per recipient per run and send one summary
      ("N overdue tasks need you") instead, so a home with many unrouted tasks does not flood the
      person who returns; needs a notification kind, its copy in English and Welsh, and a test.
    - (review round 5) `escalateOverdueNotifications` reads 500 overdue drafts a run, and a draft no
      active member of staff can submit stays in that set; page through them as the task retry now
      does, so such drafts cannot crowd out others.
-   - (review round 5) `materialiseTaskSeries` and `raiseCareReviews` still loop over organisations
-     directly; put them through `eachTenant` like the other sweeps, so one organisation's failure
-     cannot stop the rest.
    - (round 5 check, security L1) when the phone's keystore can neither delete nor overwrite the
      stored write scope, the older, wider scope survives a restart and a shared phone's next user
      sees it until their first token (the API still refuses); tie the stored scope to the user or
@@ -116,6 +110,9 @@ only when they link spec, code, tests and user documentation; no user guides exi
    - (round 5 check, clinical) the `worker-job-failed` alarm stays in ALARM while one
      organisation's sweep keeps failing every run, hiding another's first failure; consider a
      per-job metric dimension or a shorter period once the job counts are known (H-171).
+   - (round 2 check of `fce5211`, clinical) one alarm notification can cover several
+     organisations from the same daily run: the on-call runbook's action should say to read every
+     `escalation.unrouted.daily` line from that run, not just the first.
 3. The screens the care API follow-ups (#26) wait on (slice 9 and slice 10 part 2): the
    escalation policy link on the phone, staff names on the web and phone (H-73); the settings for
    escalation policies and coded reasons; the phone offering the organisation's coded reasons (H-164);
@@ -146,8 +143,8 @@ only when they link spec, code, tests and user documentation; no user guides exi
 10. Role matrix question from slice 4b: care workers hold `care.assessment.write` and team leaders
    lack `care.plan.write`, while the spec says nurses and seniors assess and publish.
 11. Dependencies: the two high advisories are recorded exceptions (build tooling, no fixed
-    version; [vulnerability-exceptions.md](../compliance/vulnerability-exceptions.md)). Still to
-    do: esbuild in `apps/api` to 0.28.1, and a tracked note for the moderate ones
+    version; [vulnerability-exceptions.md](../compliance/vulnerability-exceptions.md)). esbuild in
+    `apps/api` is on 0.28. Still to do: a tracked note for the moderate ones
     (decode-uri-component in the app waits for the next Expo SDK; the rest are build tools).
 12. Urgent alert fallback cost (#26 review round 4): when no nurse in charge can open the record,
     `alertFallback` reads every Registered Manager's and care plan holder's view of the person in
