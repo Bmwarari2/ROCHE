@@ -3,9 +3,11 @@ flows:
   - sign-in.yaml
   - offline-people-list.yaml
   - sync-recovery.yaml
+  - hazard-HZ-006-offline-note-and-vitals.yaml
 executionOrder:
   continueOnFailure: false
   flowsOrder:
     - sign-in
     - offline-people-list
     - sync-recovery
+    - hazard-HZ-006-offline-note-and-vitals

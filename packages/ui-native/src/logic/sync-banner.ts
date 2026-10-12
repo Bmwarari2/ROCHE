@@ -3,7 +3,9 @@
  *
  * Hazards: HZ-002 (stale offline data shown as current) is mitigated by an explicit "may be out of
  * date" warning once the last successful sync is older than the threshold; HZ-006 (silent sync
- * failure) by a "Sync failed" state with a retry action that is announced to screen readers.
+ * failure) by a "Sync failed" state with a retry action that is announced to screen readers, and
+ * by the count of entries the server refused: while any is on the device the banner says so on
+ * every screen and never reads "Up to date" (clinical review C1).
  */
 import { isStale } from "./staleness";
 import type { Tone } from "./theme";
@@ -27,6 +29,11 @@ export interface SyncBannerInput {
   readonly staleAfterMs: number;
   /** Local changes waiting to upload. */
   readonly queuedChanges?: number;
+  /**
+   * Entries kept on the device as "needs attention" (refused by the server, or still held). Null
+   * when they could not be counted, which needs attention too (clinical review round 4, M4).
+   */
+  readonly refusedEntries?: number | null;
 }
 
 export interface SyncBannerContent {
@@ -59,6 +66,21 @@ function queuedText(count: number): string | null {
   return count === 1 ? "1 change waiting to upload." : `${count} changes waiting to upload.`;
 }
 
+/** Title shown instead of "Up to date" while refused entries are on the device. */
+export const REFUSED_TITLE = "Not all saved";
+
+/** Shown when the entries needing attention could not be counted (clinical review round 4, M4). */
+export const UNCOUNTED_TEXT =
+  "Some entries on this device could not be counted and need attention.";
+
+export function refusedText(count: number | null): string | null {
+  if (count === null) return UNCOUNTED_TEXT;
+  if (count <= 0) return null;
+  return count === 1
+    ? "1 entry was not saved and needs attention."
+    : `${count} entries were not saved and need attention.`;
+}
+
 export function describeSyncBanner(input: SyncBannerInput): SyncBannerContent {
   const { state, lastSyncedAt, now, staleAfterMs } = input;
   const stale = isStale(lastSyncedAt, now, staleAfterMs);
@@ -68,6 +90,8 @@ export function describeSyncBanner(input: SyncBannerInput): SyncBannerContent {
   const detailParts = [`${formatLastSynced(lastSyncedAt, now)}.`];
   const queued = queuedText(input.queuedChanges ?? 0);
   if (queued) detailParts.push(queued);
+  const refused = refusedText(input.refusedEntries === undefined ? 0 : input.refusedEntries);
+  if (refused) detailParts.push(refused);
   const detail = detailParts.join(" ");
 
   let warning: string | null = null;
@@ -95,8 +119,13 @@ export function describeSyncBanner(input: SyncBannerInput): SyncBannerContent {
       break;
   }
 
-  const title = titles[state];
-  const urgent = state === "failed" || warning !== null;
+  // Refused entries outrank every calm state: never "Up to date" while one is on the device.
+  if (refused) {
+    tone = "danger";
+    icon = "cloud-alert";
+  }
+  const title = refused && state === "synced" ? REFUSED_TITLE : titles[state];
+  const urgent = state === "failed" || warning !== null || refused !== null;
   const accessibilityLabel = [`${title}.`, detail, warning].filter(Boolean).join(" ");
 
   return {

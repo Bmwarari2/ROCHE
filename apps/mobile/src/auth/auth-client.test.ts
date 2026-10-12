@@ -28,6 +28,7 @@ const json = (body: unknown, init: ResponseInit = {}) =>
 const me = {
   user: { id: "u1", name: "Ada Example" },
   tenant: { id: "t1", name: "Example Care Ltd" },
+  tenantUserId: "tu-1",
   locations: [{ id: "l1", name: "Example House" }],
   permissions: ["people.person.read"],
 };
@@ -150,11 +151,36 @@ describe("getMe and signOut", () => {
     await expect(client(fetch).getMe("tok")).resolves.toEqual(me);
     expect(calls[0]?.url).toBe("https://api.example.invalid/v1/me");
     expect(headerOf(calls[0], "authorization")).toBe("Bearer tok");
+    expect(headerOf(calls[0], "x-harbour-tenant")).toBeNull();
+  });
+
+  it("asks in the session's organisation when it knows it (security review round 4, H1)", async () => {
+    const { fetch, calls } = fakeFetch([json(me)]);
+    await client(fetch).getMe("tok", "00000000-0000-4000-8000-0000000000a1");
+    expect(headerOf(calls[0], "x-harbour-tenant")).toBe("00000000-0000-4000-8000-0000000000a1");
   });
 
   it("treats 401 as an ended session", async () => {
     const { fetch } = fakeFetch([json({}, { status: 401 })]);
     await expect(client(fetch).getMe("tok")).rejects.toMatchObject({ kind: "session_expired" });
+  });
+
+  it("hazard HZ-006 treats a 403 as an ended session only with a session problem code (H1)", async () => {
+    const session = fakeFetch([
+      json({ code: "mfa_enrolment_required", title: "Set up MFA" }, { status: 403 }),
+    ]);
+    await expect(client(session.fetch).getMe("tok")).rejects.toMatchObject({
+      kind: "session_expired",
+    });
+    const edge = fakeFetch([
+      new Response("<html>Request blocked</html>", {
+        status: 403,
+        headers: { "content-type": "text/html" },
+      }),
+    ]);
+    await expect(client(edge.fetch).getMe("tok")).rejects.toMatchObject({ kind: "server" });
+    const unknown = fakeFetch([json({ code: "edge_blocked" }, { status: 403 })]);
+    await expect(client(unknown.fetch).getMe("tok")).rejects.toMatchObject({ kind: "server" });
   });
 
   it("never throws from signOut, even offline", async () => {
@@ -164,6 +190,11 @@ describe("getMe and signOut", () => {
 });
 
 describe("parseMe", () => {
+  it("keeps the tenant_user id, which owns the entries written on this device", () => {
+    expect(parseMe(me).tenantUserId).toBe("tu-1");
+    expect(parseMe({ ...me, tenantUserId: undefined }).tenantUserId).toBeNull();
+  });
+
   it.each([
     null,
     {},

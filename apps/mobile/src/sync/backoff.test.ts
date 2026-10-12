@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type BackoffPolicy, backoffDelay, retryWithBackoff } from "./backoff";
+import { type BackoffPolicy, backoffDelay, retryWithBackoff, UPLOAD_BACKOFF } from "./backoff";
 
 const policy: BackoffPolicy = { baseDelayMs: 1000, maxDelayMs: 8000, maxAttempts: 4 };
 
@@ -116,6 +116,28 @@ describe("retryWithBackoff", () => {
       },
     );
     expect(sleeps).toEqual([3000, 8000]);
+  });
+
+  it("waits the firewall's full 300 seconds on upload, and caps a longer hint at 10 minutes", async () => {
+    const sleeps: number[] = [];
+    let calls = 0;
+    await retryWithBackoff(
+      async () => {
+        calls += 1;
+        if (calls < 3) throw transient;
+        return "ok";
+      },
+      {
+        policy: UPLOAD_BACKOFF,
+        classify: () => ({ retry: true, afterMs: calls === 1 ? 300_000 : 3_600_000 }),
+        random: () => 0,
+        sleep: async (ms) => {
+          sleeps.push(ms);
+        },
+      },
+    );
+    expect(UPLOAD_BACKOFF.maxRetryAfterMs).toBeGreaterThan(300_000);
+    expect(sleeps).toEqual([300_000, UPLOAD_BACKOFF.maxRetryAfterMs]);
   });
 
   it("reports each retry", async () => {

@@ -66,6 +66,7 @@ import {
   REVIEW_TASKS,
   toRecordState,
 } from "../services/care-planning";
+import { flagIfReportedDeleted } from "../services/device-holds";
 import {
   entryOut,
   iso,
@@ -341,6 +342,13 @@ export const careRecordsRouter = createRouter()
           personId,
         );
         if (inserted) {
+          // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
+          await flagIfReportedDeleted(tx, access, {
+            resourceType: "assessment",
+            id: row.id,
+            locationId: person.locationId,
+            requestId: c.get("requestId"),
+          });
           await completeAnsweredTask(tx, access, {
             taskId: body.taskId,
             personId,
@@ -538,6 +546,13 @@ export const careRecordsRouter = createRouter()
           personId,
         );
         if (inserted) {
+          // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
+          await flagIfReportedDeleted(tx, access, {
+            resourceType: "activity_record",
+            id: row.id,
+            locationId: person.locationId,
+            requestId: c.get("requestId"),
+          });
           await completeAnsweredTask(tx, access, {
             taskId: body.taskId,
             personId,
@@ -701,6 +716,13 @@ export const careRecordsRouter = createRouter()
           personId,
         );
         if (inserted) {
+          // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
+          await flagIfReportedDeleted(tx, access, {
+            resourceType: "visit_log",
+            id: row.id,
+            locationId: person.locationId,
+            requestId: c.get("requestId"),
+          });
           await completeAnsweredTask(tx, access, {
             taskId: body.taskId,
             personId,

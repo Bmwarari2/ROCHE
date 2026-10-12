@@ -65,3 +65,21 @@ export function deleteDatabaseFile(filename: string): void {
     }
   }
 }
+
+/**
+ * Checks that a deleted database is really gone (S5). Opening a name with no file creates an empty
+ * one, which is then deleted again; the old file, still encrypted, cannot be read without its key
+ * ("file is not a database"), and any table in it means it was not deleted.
+ */
+export async function databaseFileGone(filename: string): Promise<boolean> {
+  try {
+    const raw = openRawDatabase({ name: filename });
+    const result = await raw.execute("SELECT count(*) AS n FROM sqlite_master");
+    const rows = (result as { rows?: Array<Record<string, unknown>> }).rows ?? [];
+    const tables = Number(rows[0]?.n ?? 0);
+    raw.delete();
+    return tables === 0;
+  } catch {
+    return false;
+  }
+}

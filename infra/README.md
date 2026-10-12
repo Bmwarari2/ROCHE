@@ -15,7 +15,8 @@ infra/
     ecs_service/      Fargate service or task definition, hardened container, autoscaling
     alb/              HTTPS-only load balancer with WAF and access logs
     cloudfront/       CDN for the web tier (origin: the ALB)
-    waf/              AWS managed rule groups and a per-IP rate limit
+    waf/              AWS managed rule groups and a per-IP rate limit; blocks answer as JSON
+                      problems (403 edge_blocked, 429 rate_limited with Retry-After)
     ecr/              immutable, scanned, KMS-encrypted image repositories
     acm_certificate/  DNS-validated certificates
     ses/              SES domain identity with DKIM and a configuration set

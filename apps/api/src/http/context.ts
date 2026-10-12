@@ -32,6 +32,14 @@ import type { Logger } from "../logger";
 import { writeAudit } from "./audit";
 import { problems } from "./problem";
 
+// The device id is the PowerSync client id, a UUID. Anything else is not trusted into the audit
+// trail or a task, and reads as no device (security review round 4).
+const DEVICE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function deviceIdOf(header: string | undefined): string | null {
+  return header && DEVICE_ID.test(header) ? header.toLowerCase() : null;
+}
+
 export interface Services {
   readonly config: Config;
   readonly logger: Logger;
@@ -244,7 +252,7 @@ export const tenantMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
       locationIds: effective.locationIds,
     },
     mfaSatisfied,
-    deviceId: c.req.header(DEVICE_HEADER) ?? null,
+    deviceId: deviceIdOf(c.req.header(DEVICE_HEADER)),
     ip: clientIp(c),
   });
   await next();

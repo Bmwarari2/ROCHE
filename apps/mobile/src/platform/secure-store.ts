@@ -43,6 +43,8 @@ export const SESSION_TOKEN_ITEM = "harbour.session-token.v1";
 export const ME_ITEM = "harbour.me.v1";
 export const MODE_ITEM = "harbour.mode.v1";
 export const PREFERENCES_ITEM = "harbour.preferences.v1";
+/** Marker that the database holds unsent entries for a session that ended (HZ-006). */
+export const HELD_WORK_ITEM = "harbour.held-work.v1";
 
 export async function readPlain(key: string): Promise<string | null> {
   try {
@@ -51,6 +53,27 @@ export async function readPlain(key: string): Promise<string | null> {
     return null;
   }
 }
+
+/** Like `readPlain`, but a keystore error throws, for reads that must fail closed (S3). */
+export function readPlainStrict(key: string): Promise<string | null> {
+  return SecureStore.getItemAsync(key, plainOptions);
+}
+
+/**
+ * The device's opaque id (the PowerSync client id), kept so a deletion recorded from the sign-in
+ * screen, with no database open, still names the device.
+ */
+export const DEVICE_ID_ITEM = "harbour.device-id.v1";
+
+/**
+ * Where tombstones (S4, M1) and a waiting device report are kept: the keystore, outside the
+ * database a deletion removes. Neither holds personal data.
+ */
+export const tombstoneStore = {
+  read: (key: string) => SecureStore.getItemAsync(key, plainOptions),
+  write: (key: string, value: string) => SecureStore.setItemAsync(key, value, plainOptions),
+  remove: (key: string) => SecureStore.deleteItemAsync(key, plainOptions),
+};
 
 export async function writePlain(key: string, value: string): Promise<void> {
   await SecureStore.setItemAsync(key, value, plainOptions);

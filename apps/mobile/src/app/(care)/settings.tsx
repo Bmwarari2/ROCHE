@@ -1,6 +1,5 @@
 import { Button, Text, useTheme } from "@harbour/ui-native";
 import { isSQLCipher } from "@op-engineering/op-sqlite";
-import { usePowerSync } from "@powersync/react";
 import * as Application from "expo-application";
 import { useRouter } from "expo-router";
 import { type ReactNode, useState } from "react";
@@ -9,6 +8,7 @@ import { usePreferences } from "../../app-state/preferences";
 import { useSession } from "../../app-state/session";
 import { useVault } from "../../app-state/vault";
 import { Screen } from "../../components/Screen";
+import { SignOutControl } from "../../components/SignOutControl";
 import { appEnv } from "../../config/app-env";
 import { describeTimeout, SHARED_AUTO_LOCK_CHOICES_MS } from "../../security/auto-lock";
 
@@ -89,33 +89,10 @@ function encryptionLabel(): string {
 export default function SettingsScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const db = usePowerSync();
   const session = useSession();
   const vault = useVault();
   const { preferences, update } = usePreferences();
   const [resyncing, setResyncing] = useState(false);
-
-  const confirmSignOut = async () => {
-    const queue = await db.getUploadQueueStats().catch(() => ({ count: 0 }));
-    const unsent =
-      queue.count > 0
-        ? ` ${queue.count === 1 ? "1 change has" : `${queue.count} changes have`} not uploaded yet and will be lost.`
-        : "";
-    Alert.alert(
-      "Sign out and remove data?",
-      `This removes all care records stored on this device.${unsent}`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Sign out",
-          style: "destructive",
-          onPress: () => {
-            void vault.signOutAndWipe();
-          },
-        },
-      ],
-    );
-  };
 
   const confirmResync = () => {
     Alert.alert(
@@ -154,15 +131,7 @@ export default function SettingsScreen() {
             onPress={() => router.push("/mode")}
             testID="settings-change-mode"
           />
-          <Button
-            label="Sign out"
-            variant="destructive"
-            onPress={() => {
-              void confirmSignOut();
-            }}
-            accessibilityHint="Removes all care records stored on this device"
-            testID="settings-sign-out"
-          />
+          <SignOutControl variant="destructive" testID="settings-sign-out" />
         </Section>
 
         <Section title="Sync">

@@ -7,6 +7,7 @@
  * `Authorization: Bearer <token>`. For accounts with TOTP, sign-in answers `twoFactorRedirect`
  * and sets a short-lived two-factor cookie that must accompany the verify call.
  */
+import { isSessionProblem, readProblemBody, TENANT_HEADER } from "../sync/session-signals";
 import { cookiePairsFromSetCookie, type FetchLike, HttpError } from "./http";
 
 export type AuthErrorKind =
@@ -53,6 +54,11 @@ export type SignInResult =
 export interface Me {
   readonly user: { readonly id: string; readonly name: string };
   readonly tenant: { readonly id: string; readonly name: string };
+  /**
+   * The tenant_user id: who owns entries written on this device. Null when an older cached answer
+   * lacks it (the auth user id and tenant are compared instead).
+   */
+  readonly tenantUserId: string | null;
   readonly locations: ReadonlyArray<{ readonly id: string; readonly name: string }>;
   readonly permissions: readonly string[];
 }
@@ -62,7 +68,8 @@ export interface AuthClient {
   verifyTotp(challenge: TwoFactorChallenge, code: string): Promise<string>;
   /** Best effort: revokes the session server-side; never throws. */
   signOut(token: string): Promise<void>;
-  getMe(token: string): Promise<Me>;
+  /** The signed-in user; `tenantId` picks the organisation for staff who belong to more than one. */
+  getMe(token: string, tenantId?: string | null): Promise<Me>;
 }
 
 export interface AuthClientOptions {
@@ -96,6 +103,8 @@ export function parseMe(value: unknown): Me {
   return {
     user: { id: value.user.id, name: value.user.name },
     tenant: { id: value.tenant.id, name: value.tenant.name },
+    tenantUserId:
+      typeof value.tenantUserId === "string" && value.tenantUserId ? value.tenantUserId : null,
     locations: value.locations.map((l) => ({ id: l.id, name: l.name })),
     permissions: [...value.permissions],
   };
@@ -196,12 +205,22 @@ export function createAuthClient(options: AuthClientOptions): AuthClient {
       }
     },
 
-    async getMe(token) {
+    async getMe(token, tenantId) {
       const response = await doFetch(`${baseUrl}/v1/me`, {
         method: "GET",
-        headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+          ...(tenantId ? { [TENANT_HEADER]: tenantId } : {}),
+        },
         credentials: "omit",
       });
+      // A 403 ends the session only with a session problem code; an edge block or an unknown
+      // code is not evidence that it has ended (security review round 3, H1).
+      if (response.status === 403) {
+        const problem = await readProblemBody(response);
+        throw new AuthError(isSessionProblem(problem.code) ? "session_expired" : "server");
+      }
       if (!response.ok) throw errorForStatus(response.status, "session_expired");
       return parseMe(await readJson(response));
     },

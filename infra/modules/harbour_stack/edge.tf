@@ -29,12 +29,13 @@ module "cert_cloudfront" {
 module "waf_regional" {
   source = "../waf"
 
-  name                     = "${local.name_prefix}-alb"
-  scope                    = "REGIONAL"
-  rate_limit_per_5_minutes = var.waf_rate_limit_per_5_minutes
-  enable_logging           = true
-  log_kms_key_arn          = module.kms.key_arns["logs"]
-  log_retention_days       = var.log_retention_days
+  name                        = "${local.name_prefix}-alb"
+  scope                       = "REGIONAL"
+  rate_limit_per_5_minutes    = var.waf_rate_limit_per_5_minutes
+  managed_rule_group_versions = var.waf_managed_rule_group_versions
+  enable_logging              = true
+  log_kms_key_arn             = module.kms.key_arns["logs"]
+  log_retention_days          = var.log_retention_days
 }
 
 # CLOUDFRONT scope must be created in us-east-1. Sampling and logging stay off so that no
@@ -46,11 +47,41 @@ module "waf_cloudfront" {
     aws = aws.us_east_1
   }
 
-  name                     = "${local.name_prefix}-cloudfront"
-  scope                    = "CLOUDFRONT"
-  rate_limit_per_5_minutes = var.waf_rate_limit_per_5_minutes
-  sampled_requests_enabled = false
-  enable_logging           = false
+  name                        = "${local.name_prefix}-cloudfront"
+  scope                       = "CLOUDFRONT"
+  rate_limit_per_5_minutes    = var.waf_rate_limit_per_5_minutes
+  managed_rule_group_versions = var.waf_managed_rule_group_versions
+  sampled_requests_enabled    = false
+  enable_logging              = false
+}
+
+# Prod pins every managed rule group whose rules block with the edge_blocked body (security
+# review round 5, S-L5): a plan without the pins fails here. A group AWS publishes no static
+# versions for is exempted only by name, with its reason (security review round 6; H-140).
+locals {
+  waf_groups_needing_pins = setunion(
+    module.waf_regional.managed_rule_groups_with_blocks,
+    module.waf_cloudfront.managed_rule_groups_with_blocks,
+  )
+  waf_unpinned_groups = sort([
+    for group in local.waf_groups_needing_pins : group
+    if !contains(keys(var.waf_managed_rule_group_versions), group)
+    && !contains(keys(var.waf_managed_rule_groups_unversioned), group)
+  ])
+}
+
+resource "terraform_data" "waf_version_pins" {
+  input = {
+    versions    = var.waf_managed_rule_group_versions
+    unversioned = var.waf_managed_rule_groups_unversioned
+  }
+
+  lifecycle {
+    precondition {
+      condition     = var.environment != "prod" || length(local.waf_unpinned_groups) == 0
+      error_message = "Pin these AWS managed rule groups in waf_managed_rule_group_versions before a prod plan (or, only for a group with no versions, name it with a reason in waf_managed_rule_groups_unversioned): ${join(", ", local.waf_unpinned_groups)}."
+    }
+  }
 }
 
 # ---------------------------------------------------------------------------------------------

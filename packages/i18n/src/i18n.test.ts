@@ -1,6 +1,60 @@
 import { IntlMessageFormat } from "intl-messageformat";
 import { describe, expect, it } from "vitest";
 import { catalogues, createTranslator, isLocale, LOCALES, untranslatedWelshKeys } from "./index";
+import enGBShared from "./messages/en-GB.json" with { type: "json" };
+import cyMobile from "./messages/mobile.cy.json" with { type: "json" };
+import enGBMobile from "./messages/mobile.en-GB.json" with { type: "json" };
+
+describe("mobile catalogue", () => {
+  it("keeps the mobile copy under its own prefix, apart from the shared keys", () => {
+    for (const key of Object.keys(enGBMobile)) {
+      expect(key.startsWith("mobile."), key).toBe(true);
+      expect(key in enGBShared, key).toBe(false);
+    }
+    expect(Object.keys(cyMobile).sort()).toEqual(Object.keys(enGBMobile).sort());
+  });
+
+  it("marks every Welsh mobile entry that is still English as untranslated", () => {
+    for (const [key, message] of Object.entries(cyMobile)) {
+      if (message === enGBMobile[key as keyof typeof enGBMobile]) {
+        expect(untranslatedWelshKeys.has(key), key).toBe(true);
+      }
+    }
+  });
+
+  it("uses sentence case: a message starts with a capital unless it starts with a value", () => {
+    for (const [key, message] of Object.entries(enGBMobile)) {
+      if (message.startsWith("{")) continue;
+      expect(message[0], `${key}: ${message}`).toBe(message[0]?.toLocaleUpperCase("en-GB"));
+    }
+  });
+
+  const t = createTranslator("en-GB");
+
+  it.each([
+    ["mobile.sync.queued", { count: 0 }, "No changes waiting to upload"],
+    ["mobile.sync.queued", { count: 1 }, "1 change waiting to upload"],
+    ["mobile.sync.queued", { count: 3 }, "3 changes waiting to upload"],
+    ["mobile.sync.issues", { count: 1 }, "1 entry was not saved and needs attention"],
+    ["mobile.sync.window", { days: 7 }, "Entries from the last 7 days are kept on this device."],
+    [
+      "mobile.header.resuscitation",
+      { status: "do_not_attempt_cpr" },
+      "Resuscitation: do not attempt CPR",
+    ],
+    ["mobile.header.resuscitation", { status: "not_recorded" }, "Resuscitation: not recorded"],
+    ["mobile.entry.status", { status: "queued" }, "Waiting to upload"],
+    [
+      "mobile.news2.working",
+      { item: "Pulse", value: "95 per minute", points: 1 },
+      "Pulse: 95 per minute, 1 point",
+    ],
+    ["mobile.carePlan.actionWho", { role: "care_worker" }, "Who: Care worker"],
+    ["mobile.carePlan.actionWho", { role: "unknown_role" }, "Who: Staff"],
+  ] as const)("%s %o", (key, values, expected) => {
+    expect(t(key, values)).toBe(expected);
+  });
+});
 
 const EMOJI = /\p{Extended_Pictographic}/u;
 // Common American spellings that must not appear in British English copy (section 5.4).

@@ -345,6 +345,312 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
 | Tasks | Today and tomorrow for assigned people | Complete or skip with reason | Last writer wins on status, both actions kept in history; a task completed on two devices shows in the conflict review |
 | Assessments | Last result per tool | Yes | Append-only |
 
+**As built (Phase 1 slice 10 part 1, `packages/sync` and `apps/mobile`).**
+
+- **Streams** (`packages/sync/src/streams/sync-config.yaml`). The twelve care tables sync in the two
+  scopes the people streams use: people assigned to the user (`person_assignment`, not ended) and,
+  for managers and nurses, everyone receiving care at the token's `people_location_ids`: every
+  location-scope stream (people, allergies and the care record) carries only people who are active,
+  on leave or in hospital, so an enquiry, or a person discharged, deceased or archived, leaves
+  managers' devices with their care record (security reviews S8 and round 3 L1). The tenant, the people and the offline window
+  always come from the signed token, and the streams read no connection parameters; logical
+  replication bypasses row-level security, so `packages/sync/test/care-streams.test.ts` proves
+  through the real sync-rules engine that a person who is not assigned, an ended assignment, another
+  tenant or a token without a tenant never reaches the device (HZ-011).
+  - Reference data, never evicted while the person is in scope: `person_care_profile`, the active
+    `care_plan` only (no drafts or superseded versions, HZ-024) with the sections and actions of that
+    plan, active `risk_assessment` rows, every `assessment` result (summary columns only; the device
+    shows the latest per tool, because a stream cannot pick the latest row) and active
+    `advance_care_record` rows (HZ-015). Answers, workings and document ids are not sent.
+  - Point-of-care entries (`care_note`, `observation`, `body_map_mark`, `activity_record`,
+    `visit_log`) sync only for the days in the `offline_days` claim of the signed sync token,
+    matched on the UTC date of `occurred_at`. `POST /v1/sync/token` builds the list (tomorrow, today
+    and the days before it, `mobile.offline_window_days` days in all) with `offlineWindowDays` from
+    the tenant's figure in the rate table, so a device cannot widen it: a window sent by the device
+    is ignored, a script with a normal session gets the same claim, and a token without the claim
+    gets no entries (security review S1; tests in `care-streams.test.ts` and `apps/api`). The
+    token lasts 15 minutes and the device reconnects when the UTC day changes, so the oldest day
+    leaves the device on time. The device reads the same figure through `GET /v1/rates/{key}` only
+    to say how many days it keeps (HZ-028). A rate the seed or the token route finds outside 1 to
+    31 days is refused at seeding, and at the token route the fail-safe window of one day is used
+    with an alert carrying opaque ids only (security review round 3, L3). Entries for one person
+    and day share a bucket across the five tables. `observation.values` arrives as `chart_values`
+    (a reserved word in SQLite).
+- **Writes** (`apps/mobile/src/care`, `apps/mobile/src/sync`). Every entry gets a UUIDv7 made on the
+  device and is inserted, never updated, into its synced table in its own transaction, so it enters
+  PowerSync's upload queue in the encrypted database and survives an app restart. The connector
+  sends each entry to its own endpoint (`POST /v1/people/{id}/notes`, `/observations`, `/body-map`,
+  `/activities`, `/visits`; `POST /v1/sync/upload` writes no care tables) with the id, `deviceTime`
+  (the device clock when the entry was written) and the headers `x-harbour-tenant`,
+  `x-harbour-device` (the PowerSync client id), `Idempotency-Key` (the entry id) and
+  `x-harbour-sent-at` stamped as each request leaves, so the API flags late entries from the time
+  written and clock drift from the time sent (HZ-010, HZ-017). A replay returns the saved copy and
+  is treated as success. Network failures, 408, 425, 429 and 5xx retry with backoff and stay queued;
+  a Retry-After is honoured up to 10 minutes, above the firewall's 300 seconds. A 403 is read from
+  its RFC 9457 problem body (security reviews S6, round 3 H1 and round 4 H1). A session code
+  (`not_a_member`, `mfa_enrolment_required`, `step_up_required`) ends the session. Any other code
+  from the API (`missing_permission`, `feature_disabled`, or one the build does not know) on the
+  sync token or a batch upload means the access Care mode needs was withdrawn, so the session ends
+  for Care mode; on a single care entry it moves that entry to "needs attention". Only a 403 with
+  no JSON body, an HTML page or the edge's `edge_blocked` asks `GET /v1/me` first, sending
+  `x-harbour-tenant`: a 401, a session code or an answer without `people.person.read` ends the
+  session; otherwise a care entry moves to "needs attention" and the sync token and batch uploads
+  back off and try again, and if `/v1/me` cannot be reached the entry stays queued. Every request
+  names the session's organisation. The web application firewall answers its blocks in the same
+  shape: 403 with code `edge_blocked`, and 429 with code `rate_limited` and Retry-After.
+  A typed event time goes through `resolveRecordedUkTime` from `@harbour/domain`, the rule the web
+  uses, with the tenant's `sync.clock_drift_flag_minutes` as the tolerance (read and cached like
+  the window; none until known): see Screens below.
+- **When the session ends** (`apps/mobile/src/app-state/held-work.ts`; HZ-006, HZ-040). A 401, a
+  403 with a session code, an API 403 on the sync token or a batch upload, or `/v1/me` answering
+  without `people.person.read` ends the session. A session lasts 12
+  hours while a device may work offline for the whole window, and the API answers an expired
+  session with the same 401 as a revoked one, so the device first counts its unsent work:
+  PowerSync's upload queue, `upload_issue` rows and `held_entry` rows.
+  - Nothing unsent: it signs out and wipes (the database cleared, closed and deleted, the key
+    destroyed).
+  - Work unsent: it copies the upload queue into the local-only `held_entry` table, keeps
+    `upload_issue`, and clears everything else synced (identities, NHS numbers, resuscitation
+    decisions, care plans) with PowerSync's `disconnectAndClear`, keeping only the owner and the
+    hold's time limit in `sync_meta` (security review S2). Uploads stop and the encrypted database
+    and its key stay. The sign-in screen reads "Sign in again to send N entries" and names whose
+    they are (C8).
+  - Nothing is deleted automatically (security review round 3, M3; clinical review round 3, H2).
+    Held entries stay, encrypted, until their owner sends them or the owner or a manager deletes
+    them as below. At `mobile.held_entries_max_days` (rate table, tenant default 7, to-verify; one
+    day until the figure has been read) the hold escalates: during its last day the sign-in screen
+    shows a final warning with the count and the time, then it says a manager must resolve the
+    entries. Local notifications (`expo-notifications`, scheduled on the device, no push service,
+    no names or counts) fire when the last day starts and at the escalation, and are cancelled when
+    the hold ends. A hold never acts on the device clock: a clock earlier than when the hold started
+    or than the last time the server was reached changes nothing, and a clock that jumped forward
+    only brings the escalation sooner. A marker without a usable deadline gets now plus the
+    fail-safe day and is saved, never after a keystore error (L2).
+  - When a hold starts the device reports its counts and the hold's start (below) at once, with the
+    session that is ending, and again whenever the app comes back to the foreground or every few
+    minutes for an hour; a report that cannot go waits in the keystore, counts and times only, for
+    the next session in the tenant, even one refused because the entries are someone else's
+    (clinical review round 4, H2). A report that could not be built is replaced by one from the
+    marker's count, never taken as sent (round 5, C-M4). Once the report has gone, or the hour has
+    passed, the ended session is signed out on the server, so access withdrawn does not leave a
+    12-hour session alive (security review round 5, S-L3). A hold whose session ended with a 401,
+    `not_a_member` or `mfa_enrolment_required` is reported only when someone signs in on that
+    device again: the owner's own sign-in sends the waiting report, as does another member's in the
+    organisation; until then the server knows only the last report (clinical review round 6, M3;
+    human action H-141). The report names the hold's owner and the locations of the owner's sync
+    scope (opaque ids kept in the hold's marker and the database's owner record), and is sent under
+    the id of the device that held the entries, so in the forwarded case the task goes where the
+    owner or that member works and the owner can close it (round 6, M1 and M2; below).
+  - Ownership fails closed (security review S3). The owner (`tenant_user` id, sign-in id, tenant
+    and name) is written into `sync_meta` inside the encrypted database when the database is made,
+    and checked before the device connects. Only the owner resumes: their held entries go back into
+    their tables, so into the upload queue with the same ids, each in its own transaction, and the
+    queue drains under the new session. One that cannot go back moves to "needs attention" with
+    its content; one that cannot even be moved stays held and is counted on the banner and Today.
+    The held marker stays until every entry is back, so the next unlock tries again (clinical review
+    round 3, M2). A restore that failed, or left entries held, is said in words on every screen until
+    the next unlock puts them back, and a held count that cannot be read shows as needing attention
+    (clinical review round 4, M4). The check before connecting is `admitToDatabase`, tested on its
+    own (L4). Anyone else is refused ("Entries from another member of staff are waiting. They need
+    to sign in to send them.") and their new session is ended. A keystore that cannot be read means
+    "held, owner unknown". A database whose owner is someone else, unreadable or not recorded is
+    never opened for the next person: its unsent work is held for its owner, or it is wiped when
+    there is none.
+  - Deleting unsent work (security reviews S4, S5, round 3 M1, M2 and L4 and round 4 M2 and M3;
+    clinical reviews C2 and round 4 H1 and M3). Held entries are deleted from the sign-in screen:
+    "Delete N unsent entries" asks for a coded reason, then the owner or a manager
+    (`safety.incident.manage` in the same tenant; only a manager when the owner is unknown, and then
+    only when the entries name the manager's organisation and no other) signs in on the device for
+    this alone, the confirmation names the count, and device authentication follows; the device
+    passcode alone is never enough, and the signer's session ends straight after. Sign-out from
+    Settings or the lock screen with entries unsent (counted with `vault.countUnsent`, which
+    includes refused and held entries; the count is unknown while the database is closed after a
+    cold start, and the screen says so), and removing one refused entry, need a coded reason, a
+    confirmation naming the count and device authentication.
+  - A deletion always says which entries it removes, read before anything is deleted (clinical
+    reviews round 4 M3 and round 5 C-M2; `readHeldIds`). Reading the key is the device
+    authentication. A key that is there but could not be read this time (a cancelled prompt)
+    refuses the deletion and asks to try again, and so do entries that could not be read with a key
+    that was. A deletion goes ahead without ids only when nothing could ever be read: no key at all
+    (`key_absent`) or a key kept that is not a valid one (`key_invalid`); the reason goes to the
+    server (`idsMissing`). A sign-out from the lock screen after a cold start opens the database
+    with its key to read them (human action H-144).
+  - Every deletion is put on record as requested before anything is deleted, and its outcome
+    after. A tombstone goes into the keystore with only a coded reason (`recorded_elsewhere`,
+    `entered_in_error`, `staff_left`, `nurse_in_charge_informed`, `other`), its stage, the stages
+    not yet acknowledged, opaque ids (tenant, owner, who deleted, up to 20 entry and 10 person ids,
+    kind, and the device the entries were held on), a count and the time; a tombstone that cannot
+    be written refuses the deletion, and so does a full list (40) of tombstones the server does not
+    have yet: one is never dropped before the server has it. The device sends `POST /v1/sync/discards` for each stage, with the coded
+    reason and no words, and the ids it has (up to 500, never more than the count). A member of
+    staff's own entries may be deleted while the request waits to be sent; anyone else's, or entries
+    whose owner is unknown, only once the server has acknowledged it, and a 403 or a refusal deletes
+    nothing. Stages still waiting go again at each sync, in order; a record the session may not send
+    (403), or that the server will not take, is skipped for that session and kept. A request sent
+    at once carries up to 500 entry ids; one that has to wait keeps 20 in the keystore and sends
+    those (each keystore item stays under 2 KB). At the API a later stage must match the first
+    stage's kind and owner and come from its sender, the owner or a manager; an unknown deleter is
+    recorded as unknown; each person may send 30 records an hour, start 20 new records a day
+    (with or without ids) and list 2,000 new entry ids a day (security reviews round 5, S-L1, S-L2
+    and S-M2, and round 6, M2). Every stage names the device the entries were held on
+    (`deviceId`), so a stage sent from the device's next database still closes that device's task
+    (clinical review round 6, M1).
+  - Only the coded reason leaves the device (security review round 4, M3). Deleting held entries
+    and signing out offer the listed codes without "Other" and without words, because the database
+    the words would be kept in is deleted. Removing one refused entry also offers "Other" with the
+    person's own words, kept in `sync_meta` inside the encrypted database (`discard-note:<id>`) until
+    the server has the whole deletion, then deleted at the next sync (security review round 5,
+    S-L4; human action H-146).
+  - A deletion is checked, and its outcome means one thing (`discardHeldWork`; clinical reviews
+    round 4 H1 and round 5 C-M1 and C-L1). It refuses if the database id cannot be read. With the
+    request it marks the entries never to be uploaded (the held marker in the keystore); if that
+    write fails, it records "failed" and deletes nothing. Then it clears the rows (on sign-out, where
+    the database is open), deletes the file and destroys the key, each checked. "Failed",
+    superseding the request at the server, is recorded only while the entries can still be read:
+    the file, its key and the rows all remain. The entries then stay held and blocked: when their
+    owner signs in they move to "needs attention" (code `held_discard_failed`), the device does not
+    connect until they have, and if they cannot be moved every screen says they will never be sent.
+    Otherwise it records "deleted", with any file or key left behind (`leftover`), which the server
+    records as a separate security event (`sync.device.residue`), and the marker clears. Signing
+    out with unsent entries uses the same steps (human action H-143).
+  - The API keeps an entry uploaded after its own owner's device recorded deleting it ("deleted",
+    and not later "failed"), and flags it with an audit event on the entry
+    (`sync.entry.after_discard`); only a deletion whose owner is the uploader counts. An entry a
+    deletion lists that had already reached the server, written by the deletion's owner (a response
+    lost on the way back), is flagged the same way when the deletion is recorded as done
+    (`sync.entry.before_discard`; clinical review round 5, C-L2). Each deletion record has one
+    review task per kind and location for the Registered Manager there
+    (`sync.entry_reported_deleted` or `sync.entry_deleted_after_upload`, source `device_discard`),
+    so each location's managers see only their own people's entries (clinical review round 7, M4),
+    whatever its number of entries: the first flagged entry there raises it, later ones add to its
+    count, and its audit events (`sync.entry_flag.raised`, `sync.entry_flag.added`) carry the count
+    and up to 20 opaque entry ids. A transaction-scoped lock on the tenant, kind, record and
+    location, and a check for an open task, stop a second, and one owner's flags are taken in turn;
+    an entry flagged before, under an earlier record or on its upload, is not flagged again, and
+    every flagged entry is on a task. Each owner's deletions have at most 5 such tasks open at a
+    location; past that the entries join the oldest of them (`added` with `merged`), the cap is
+    audited (`sync.entry_flag.capped`, naming the task) and the location's Registered Managers get
+    one notice a day (below): no cap stops a task (round 7, M2; human action H-149). The task is due
+    at once when any of its entries is an observation (fluids, repositioning, vital signs and every
+    other chart), because a possible duplicate counts towards the day's totals and can complete a
+    round; otherwise 24 hours after it is raised, and an observation added later brings it forward
+    (hazard HZ-008; clinical review round 7, M3; human actions H-147 and H-148). Before go-live, a
+    partial GIN index on `audit_event` scope `entryIds` for `device_discard` rows, or a
+    `device_discard_entry` table, replaces the read of the tenant's deletion records (a migration;
+    go-live blocker, HZ-040).
+  - Until the API can signal a revocation apart from an expiry, a revoked device that still holds
+    unsent entries keeps them, encrypted, until the owner or a manager deals with them; that
+    signal, and the manager hand-over upload (a manager sending another member of staff's held
+    entries to the server, task 29), are go-live blockers (human action H-68). Until the API can
+    tell a mistaken role edit from a real withdrawal, access withdrawn removes the care record from
+    the phone at once, except the unsent work (human action H-145).
+- **What the device tells the server** (security review round 3, queue depth; HZ-006).
+  `POST /v1/sync/device-report` takes the device's unsent, refused, held and blocked counts (blocked:
+  entries a failed deletion left), the age of the oldest and when the hold started, with no names
+  and no care data, as an audit event whose resource is the device. It also names whose entries
+  they are (`ownerTenantUserId`, which must be staff of the organisation) and the locations of
+  the owner's sync scope (`locationIds`, opaque ids, at most 50). Any member of the organisation
+  may send it, with MFA where their roles call for it; the device sends it after each sync when the
+  counts have changed, every half hour while anything waits, and as soon as a hold starts. Reports
+  for one device are handled one at a time. The named owner counts only when bound to the device:
+  they already have an event from it whose resource is the device, a sync token issued to it (the
+  device sends its id with every token request) or a report sent from it, as the real owner has from
+  syncing before the hold. A named owner who is not bound is recorded as a claim
+  (`claimedOwnerTenantUserId`) and changes nothing: routing uses the reporter's assignments alone,
+  the claim gives no right to close, and the owner taken for the hold stays the device's last bound
+  owner (security review round 7, M1). The server takes the report's times as no later than it
+  received them, and a hold's start as no earlier than the device's last report for that hold (still
+  waiting, whoever is named as owner) said, nor than the server first heard from the device.
+  While held, unsent or blocked entries wait, the server keeps the device's task (source
+  `device_hold`) for a Registered Manager, due at the hold's start plus
+  `mobile.held_entries_max_days`. It is raised at each location the report names where the reporter,
+  or the owner when bound, has a live or most recent role assignment (any of the organisation's when
+  the reporter is assigned across it), one task per location, closed together; with none left, at the
+  reporter's live locations, then at their most recent one (including one just removed); with no
+  location at all, one for each Registered Manager, assigned to them. A later report can bring the
+  due time earlier, never later. Overdue, the task escalates only to holders of
+  `safety.incident.manage` at its location; with no one there (a vacant post), it is assigned to the
+  longest-serving live Registered Manager anywhere in the organisation (else holder of the
+  permission anywhere), who alone is told and, as its assignee, can see and complete it; with no one
+  at all it is not marked escalated, the gap is audited once a day (`sync.escalation_unrouted`) and
+  the task waits a day before it is tried again (clinical reviews round 7 M5 and round 8 M1). A
+  report with nothing waiting, or recording "deleted" for the device's whole hold,
+  closes every copy when it comes from the hold's owner (as recorded when the task was raised or
+  reopened), from whoever raised it, or from a holder of `safety.incident.manage` at one of its
+  locations; anyone else's close is refused and audited. A task closed less than a day ago is
+  reopened instead of a new one being raised. A new hold after a refused close, and a reopen of a
+  task that had escalated, reset the escalation under one check, at most once a day
+  (`DEVICE_HOLD_RESET_HOURS`) and with the due time never later; a reopen that finds the day's reset
+  used is reset by a later report once it is due, once, so a new hold always signals (clinical
+  reviews round 7 M1 and round 8 M2). Each reporter raises
+  tasks for at most 3 devices in a rolling day, whatever became of them, counted under a
+  per-reporter lock; past that, each further hold joins the reporter's one capped-holds task (source
+  `device_hold_capped`, its source id the reporter), raised at the hold's locations when none is
+  open, otherwise brought forward to the earliest capped hold's due time, escalating like a device
+  task until a manager completes it (`sync.device_hold.merged`; round 7, M2). The cap is audited and
+  the location's Registered Managers (else every Registered Manager) also get one notice
+  (`sync.reporter_capped`, in-app, no personal data, linking to the task list) per reporter a day.
+  Raises, reopens, moves, resets, merges, closes, refused closes, caps and notices are audited with
+  opaque ids (clinical reviews round 4 H2, round 5 C-H1 and C-M3, round 6 M1 and M2 and round 7;
+  security reviews round 5 S-M1, round 6 N2 and round 7 M1; human actions H-142 and H-149).
+  Discards and reports each have a per-person limit, and `/v1/sync/*` bodies are limited to 64 KB
+  (security review round 4, M4).
+  The PowerSync client id is kept in the keystore so a deletion recorded from the sign-in screen,
+  with no database open, still names the device.
+- **Refused entries.** Any refusal of an entry moves it, with its content, to the local-only
+  `upload_issue` table and the queue moves on, as does a `rejected` operation inside a 200 from
+  `/v1/sync/upload`. Today and the person's record list them as "not saved: needs attention" with
+  the API's reason, and the banner on every screen counts them and never reads "Up to date" while
+  any is on the device (clinical review C1). A refusal recorded without a tenant is listed and
+  removable. What was recorded stays with the refusal, encrypted, until someone removes it with a
+  recorded reason: the server keeps no copy, so it never ages out with the window (clinical review
+  round 3, M1, replacing the security review S7 age-out).
+- **Conflicts.** Entries are append-only, so they never conflict; a correction is a new entry with
+  `supersedes_id` and a reason, uploaded after the original because the queue keeps its order.
+  Reference data is read only on the phone. Tasks and the conflict review arrive with slice 10 part 2.
+- **Screens** (`apps/mobile/src/app/(care)`). Today lists the user's people with their resuscitation
+  status and spells out the last successful sync, the changes waiting to upload and any refused
+  entries (HZ-002). Every screen about a person starts with the point-of-care header: photo, names,
+  date of birth and NHS number, room, allergies, communication needs, the resuscitation status as
+  word and icon or "not recorded", and the prescribed IDDSI levels, or "Food and drink levels are
+  not on this device. Check with the nurse in charge." when the care profile is not on the device
+  (HZ-001, HZ-015, HZ-016). Every form pins a compact identity bar (photo, name, allergies,
+  communication needs, resuscitation status) while it scrolls, names the person in its title, and
+  shows Save only once the person has loaded (clinical reviews C7 and round 3 M4; rendered in
+  tests). A carer
+  writes or corrects a note; records fluid intake and output (with a drink level prescribed, the
+  level given is required), food (IDDSI level given beside the prescribed one, refused without a
+  reason when they differ; with no care profile on the device a level, or a drink recorded with no
+  level, needs the carer's confirmation that they checked it with the nurse in charge, HZ-016, C3
+  and round 3 M3), repositioning, bowel
+  (Bristol scale), weight and vital signs, where NEWS2 is calculated on the device by
+  `calculateNews2` from `@harbour/domain` on the SpO2 scale the person's profile sets and shown with
+  the formula, the published bands, the workings, the RCP chart 4 clinical response and a link to the
+  source as they type; with no SpO2 scale on the device no total is shown and the server scores the
+  readings on upload (C6). "When" is now, a time on a day the carer chooses within the window (today
+  unless they choose another), or for a correction the original entry's instant, kept exactly,
+  which is the default (C4). A typed time goes through `resolveRecordedUkTime` (clinical review
+  round 3, H1): a time later than now beyond the tolerance is refused and never moved to yesterday,
+  so 23:45 typed at 00:30 is refused unless the carer chooses yesterday; on the spring clock change
+  a time that did not happen is refused; in the repeated autumn hour, once both have passed, the
+  carer chooses "BST, before the clocks went back" or "GMT, after", with no default; and on a
+  clock-change day times show BST or GMT. A
+  body map mark is placed by tapping the drawing, read against the body's midline with a narrow
+  centre band over the head and trunk only, and the side chosen in words must agree (HZ-019, C5).
+  The carer reads the care plan summary and current risk assessments with the latest validated-tool
+  results. Lists show each entry's state in words (waiting to upload, saved, late entry, device
+  clock wrong), and a chart says how many days the device keeps even when it has no entries (C9).
+- **Not yet on the device**: tasks, rounds and handover; writing assessments, activities and visits
+  (the upload path takes activities and visits already); photos; incidents; the conflict review.
+  Body-map marks and chart history older than the window are not on the device (HZ-028).
+- **API follow-ups** (left to the API work, not built here):
+  - a revocation signal distinct from expiry (a go-live blocker, H-68);
+  - the manager hand-over upload of another member of staff's held entries (task #29; a go-live
+    blocker, H-68);
+  - keep a copy of every refused care entry on the server and raise a review task for the manager
+    (C1);
+  - store an unsafe IDDSI entry with an alert to the nurse in charge instead of refusing it (C3).
+
 ## 7. Clinical safety
 
 Hazards touched: HZ-001 (header on every screen), HZ-002 and HZ-006 (stale data and sync state on
@@ -353,7 +659,8 @@ HZ-012 (validated tools), and the Phase 1 hazards added with this spec: HZ-014 (
 screening trigger not acted on), HZ-015 (resuscitation decision not visible), HZ-016 (IDDSI level),
 HZ-017 (late entries), HZ-018 (handover omissions), HZ-019 (body-map side) and HZ-020 (DoLS
 lapses), and, with the consent and capacity rules, HZ-026 (restrictive or covert care under consent
-or authority that is not valid). Medical-device boundary: tools are calculated exactly as published and show the published
+or authority that is not valid), and with offline Care mode HZ-028 (the history on a device mistaken
+for the complete record) and HZ-040 (held entries deleted to get past the lockout). Medical-device boundary: tools are calculated exactly as published and show the published
 responses; no prediction or tenant-authored scoring (see
 [medical-device-boundary.md](../compliance/medical-device-boundary.md)).
 
@@ -380,7 +687,15 @@ through recorded sharing decisions ([people.md](people.md)).
   (HZ-020, HZ-026).
 - Web and mobile: Playwright journeys (care plan, notes, charts, body map, assessments, handover,
   capacity and DoLS) with axe; Maestro offline journey (notes and charts written offline, synced,
-  conflict reviewed).
+  conflict reviewed). Built in slice 10 part 1: `packages/sync/test/care-streams.test.ts` and
+  `window.test.ts` (stream isolation, the window and never-evicted reference data; HZ-011, HZ-002),
+  `apps/mobile/src/sync/*.test.ts` (UUIDv7, the upload mapping checked against the API's own
+  schemas, the connector's headers, retries and refusals; HZ-006, HZ-010, HZ-017),
+  `apps/mobile/src/care/*.test.ts` (notes, charts, IDDSI, NEWS2 on the device, body map sides,
+  the header's resuscitation status, Today's sync summary, the local SQL; HZ-001, HZ-002, HZ-015,
+  HZ-016, HZ-017, HZ-019), and the Maestro flow
+  `apps/mobile/.maestro/hazard-HZ-006-offline-note-and-vitals.yaml` (a note and vital signs written
+  offline survive a restart and upload when the network returns; the conflict review is part 2).
 
 ## 10. Open questions
 

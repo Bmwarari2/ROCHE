@@ -7,11 +7,13 @@ interface TextFieldProps extends Omit<TextInputProps, "style"> {
   readonly label: string;
   readonly hint?: string;
   readonly errorText?: string | null;
+  /** Taller box for multi-line text such as a care note. */
+  readonly minHeight?: number;
 }
 
 /** Labelled text input: 44 pt minimum height, 17 pt text, visible label and error. */
 export const TextField = forwardRef<TextInput, TextFieldProps>(function TextField(
-  { label, hint, errorText, testID, ...inputProps },
+  { label, hint, errorText, testID, minHeight, ...inputProps },
   ref,
 ) {
   const theme = useTheme();
@@ -32,7 +34,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
         style={[
           styles.input,
           {
-            minHeight: theme.touchTarget,
+            minHeight: Math.max(theme.touchTarget, minHeight ?? 0),
             borderRadius: theme.radius.input,
             borderColor: invalid ? theme.colors.danger : theme.colors.border,
             backgroundColor: theme.colors.card,

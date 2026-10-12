@@ -138,6 +138,22 @@ export function describeAllergyFlag(
   };
 }
 
+/**
+ * A further safety flag for the point-of-care header or a list row, worded by the app through its
+ * message catalogue: for example the resuscitation status (HZ-015) or the prescribed IDDSI level
+ * (HZ-016). Shown as an icon plus words, never colour alone.
+ */
+export interface HeaderFlag {
+  /** Stable key, also used in the test id. */
+  readonly key: string;
+  readonly tone: "danger" | "warning" | "success" | "info" | "neutral";
+  /** A Lucide icon name from `namedIcons`; an unknown name shows the alert circle. */
+  readonly icon: string;
+  readonly label: string;
+  /** Spoken instead of the label when the label alone would be ambiguous. */
+  readonly accessibilityLabel?: string;
+}
+
 /** Communication-needs flag wording (Accessible Information Standard). */
 export function communicationFlagLabel(count: number): string {
   if (count <= 0) return "";
