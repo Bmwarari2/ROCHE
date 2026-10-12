@@ -82,6 +82,15 @@ describe("chart entries read from the form", () => {
     ).toMatchObject({ chart: "fluid_intake", iddsiLevel: "2" });
   });
 
+  it("hazard HZ-016 asks no level for a drink refused, since none was given", () => {
+    const values = readChartValues("fluid_intake", form({ ml: "200", refused: "on" }), t, {
+      food: null,
+      drink: "2",
+    });
+    expect(values).toMatchObject({ chart: "fluid_intake", ml: 200, refused: true });
+    expect(values).not.toHaveProperty("iddsiLevel");
+  });
+
   it("refuses amounts the API would refuse, at the field", () => {
     expect(readChartValues("fluid_output", form({ ml: "6000" }), t, noLevels)).toMatchObject({
       ok: false,

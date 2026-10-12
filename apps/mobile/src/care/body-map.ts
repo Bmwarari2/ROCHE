@@ -25,6 +25,7 @@ import {
   sideFromDrawing,
   validateMark,
   zoneAtPoint,
+  zoneForPersonSide,
 } from "@harbour/domain";
 import {
   type Correction,
@@ -65,11 +66,12 @@ export function drawnSide(view: BodyView, zone: ViewerZone): BodySide {
 }
 
 /**
- * The zone of the drawing that reads as a side on a view: the inverse of `drawnSide`. Used for an
- * entry queued before the device stored the zone, which kept only the side it worked out.
+ * The zone of the drawing that reads as a side on a view, as the API reads it (`zoneForPersonSide`):
+ * the inverse of `drawnSide`. Used for an entry queued before the device stored the zone, which
+ * kept only the side it worked out.
  */
 export function zoneForSide(view: BodyView, side: BodySide): ViewerZone | null {
-  return VIEWER_ZONES.find((zone) => drawnSide(view, zone) === side) ?? null;
+  return zoneForPersonSide(view, side);
 }
 
 /**

@@ -402,6 +402,10 @@ test("hazard HZ-014 vital signs show the NEWS2 result and the RCP response the A
   // The saved entry shows the total and the response, with the workings one tap away.
   await expect(entry).toContainText("NEWS2 score 6");
   await expect(entry).toContainText("Response: Key threshold for urgent response");
+  // The demo organisation links its own policy to NEWS2 results (HZ-014; #26 review round 2, C6).
+  await expect(entry).toContainText(
+    "Your organisation's escalation policy: Deterioration and escalation policy (CP-07)",
+  );
   await entry.getByText("How the score was worked out").click();
   await expect(entry.getByRole("table", { name: "How the result was worked out" })).toBeVisible();
   await expectAccessible(page, "NEWS2 result");
@@ -590,6 +594,13 @@ test("hazard HZ-012 a nurse runs MUST and sees the API's score, band, workings, 
       name: "Source: BAPEN, Malnutrition Universal Screening Tool (MUST), 2003, reviewed August 2011",
     }),
   ).toHaveAttribute("href", "https://www.bapen.org.uk/must-and-self-screening/must-calculator");
+  // No escalation policy is linked for MUST in the demo: the result says so, never nothing
+  // (HZ-012; #26 review round 2, C6).
+  await expect(
+    result.getByText(
+      "No escalation policy is configured for this result. Follow your organisation's procedures and tell the nurse in charge.",
+    ),
+  ).toBeVisible();
   await expectAccessible(page, "MUST result");
 });
 

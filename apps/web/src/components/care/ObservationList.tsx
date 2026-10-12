@@ -5,6 +5,7 @@ import { entryAuthor } from "@/lib/care-record";
 import {
   iddsiOutcome,
   iddsiProblem,
+  iddsiProblemMessage,
   news2Chip,
   news2FromFlags,
   observationSummary,
@@ -12,14 +13,17 @@ import {
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { EntryBadges } from "./EntryBadges";
+import { EscalationPolicyLine } from "./EscalationPolicyLine";
 import { Workings } from "./Workings";
 
 /**
  * Chart entries, newest first, as the API stored them: what was recorded in words, the NEWS2
- * result for vital signs (score, the RCP's response and monitoring wording, and the workings one
- * tap away), the IDDSI comparison for food and drink, late and corrected flags. A corrected entry
- * is struck through and stays readable. A vital signs entry whose NEWS2 result cannot be read says
- * so, rather than showing nothing (HZ-014).
+ * result for vital signs (score, the RCP's response and monitoring wording, the workings one tap
+ * away, and the organisation's escalation policy for the band or that none is configured), the
+ * IDDSI comparison for food and drink with any problem an entry kept from a device has, late,
+ * corrected and deleted-on-a-device flags. A corrected entry is struck through and stays readable.
+ * A vital signs entry whose NEWS2 result cannot be read says so, rather than showing nothing
+ * (HZ-014).
  */
 export function ObservationList({
   items,
@@ -37,6 +41,7 @@ export function ObservationList({
         const news2 = item.chart === "vitals" ? news2FromFlags(item.flags) : null;
         const iddsi = iddsiOutcome(item.flags);
         const problem = iddsiProblem(item.flags);
+        const problemMessage = iddsiProblemMessage(item);
         const summary = parts.join(" · ");
         return (
           <li
@@ -93,6 +98,7 @@ export function ObservationList({
                     <Workings workings={news2.workings} />
                   </details>
                 ) : null}
+                <EscalationPolicyLine policy={item.escalationPolicy} />
               </div>
             ) : null}
             {item.chart === "vitals" && !news2 && !item.superseded ? (
@@ -106,7 +112,7 @@ export function ObservationList({
                 {t("care.news2.unreadable")}
               </p>
             ) : null}
-            {problem === "level_not_recorded" || problem === "reason_missing" ? (
+            {problem && problemMessage ? (
               <p className="m-0 flex items-start gap-2 font-semibold" data-iddsi-problem={problem}>
                 <TriangleAlert
                   size={18}
@@ -114,11 +120,7 @@ export function ObservationList({
                   aria-hidden="true"
                   className="mt-0.5 shrink-0"
                 />
-                {t(
-                  problem === "level_not_recorded"
-                    ? "care.charts.iddsiKeptNoLevel"
-                    : "care.charts.iddsiKeptNoReason",
-                )}
+                {t(problemMessage)}
               </p>
             ) : null}
             {(iddsi === "mismatch" || iddsi === "unsafe_mismatch") && problem === null ? (

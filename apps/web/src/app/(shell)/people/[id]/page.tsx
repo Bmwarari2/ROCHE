@@ -4,6 +4,7 @@ import {
   CircleCheck,
   ClipboardCheck,
   ClipboardList,
+  Copy,
   Droplets,
   History,
   NotebookPen,
@@ -212,7 +213,24 @@ async function PersonOverviewTab({ params }: { readonly params: Params }) {
               value={fluid.intakeMl}
               max={fluidView.meterMax}
               valueText={fluidView.valueText}
-              description={<StatusChip status={fluidView.status} label={fluidView.statusText} />}
+              description={
+                <span className="flex flex-col gap-1">
+                  <span>
+                    <StatusChip status={fluidView.status} label={fluidView.statusText} />
+                  </span>
+                  {fluidView.flaggedText ? (
+                    <span className="flex items-start gap-2 font-semibold" data-fluid-flagged="">
+                      <Copy
+                        size={18}
+                        strokeWidth={1.5}
+                        aria-hidden="true"
+                        className="mt-0.5 shrink-0"
+                      />
+                      {fluidView.flaggedText}
+                    </span>
+                  ) : null}
+                </span>
+              }
             />
           </Tile>
         ) : null}

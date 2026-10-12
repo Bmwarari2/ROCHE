@@ -57,4 +57,22 @@ describe("EntryBadges", () => {
       "Late entry Recorded 11/10/2026 14:05 Recorded after the person left Not linked to its round: for review",
     );
   });
+
+  it.each([
+    ["uploaded_after_deletion", "Sent after its device deleted it: check for a duplicate"],
+    ["deleted_after_upload", "Deleted on its device after it was saved: check for a duplicate"],
+  ] as const)(
+    "hazard HZ-040 says an entry its device recorded deleting (%s) may be a duplicate, in words and an icon",
+    (deviceDeletion, wording) => {
+      const html = render({
+        lateEntry: false,
+        clockDrift: false,
+        recordedAt: "2026-10-11T13:05:00Z",
+        deviceDeletion,
+      });
+      expect(words(html)).toBe(wording);
+      expect(html).toContain(`data-device-deletion="${deviceDeletion}"`);
+      expect(html).toContain("<svg");
+    },
+  );
 });

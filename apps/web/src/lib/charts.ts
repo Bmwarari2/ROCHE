@@ -165,6 +165,41 @@ export function iddsiProblem(
     : null;
 }
 
+export type IddsiProblemMessage =
+  | "care.charts.iddsiKeptNoLevel"
+  | "care.charts.iddsiKeptUnsafeDrink"
+  | "care.charts.iddsiKeptUnsafeFood"
+  | "care.charts.iddsiKeptNoReason"
+  | "care.charts.iddsiKeptUnreadable";
+
+/**
+ * What to say about a food or drink entry kept from a device with an IDDSI problem (HZ-016; #26
+ * review round 2, C1), every problem in words: no level, a level that may not be safe (a thinner
+ * drink or more solid food than prescribed, which alerted the nurse in charge) given with no
+ * reason, a safer level with no reason, or a prescribed level that could not be read. Null when
+ * there is no problem.
+ */
+export function iddsiProblemMessage(
+  item: Pick<ObservationItem, "chart" | "flags">,
+): IddsiProblemMessage | null {
+  const problem = iddsiProblem(item.flags);
+  switch (problem) {
+    case null:
+      return null;
+    case "level_not_recorded":
+      return "care.charts.iddsiKeptNoLevel";
+    case "prescribed_unreadable":
+      return "care.charts.iddsiKeptUnreadable";
+    case "reason_missing":
+      if (item.flags.iddsiAlert === true) {
+        return item.chart === "food"
+          ? "care.charts.iddsiKeptUnsafeFood"
+          : "care.charts.iddsiKeptUnsafeDrink";
+      }
+      return "care.charts.iddsiKeptNoReason";
+  }
+}
+
 // ------------------------------------------------------------------------------------------------
 // Fluid balance day
 // ------------------------------------------------------------------------------------------------
@@ -177,12 +212,26 @@ export interface FluidDayView {
   readonly statusText: string;
   readonly outputText: string;
   readonly entriesText: string;
+  /**
+   * Entries in the totals that a device recorded deleting, with what they add, so staff check for
+   * duplicates (HZ-040; #26 review round 2, C3); null when there are none. They are never taken
+   * out of the totals here: whether they count is for the CSO (H-165).
+   */
+  readonly flaggedText: string | null;
 }
 
 /** The day as the API summed it: intake against the target, the shortfall so far, the output. */
 export function fluidDayView(day: FluidDay, t: Translator): FluidDayView {
   const outputText = t("care.charts.fluid.output", { ml: day.outputMl });
   const entriesText = t("care.charts.fluid.entries", { count: day.entries });
+  const flaggedText =
+    day.flaggedEntries > 0
+      ? t("care.charts.fluid.flagged", {
+          count: day.flaggedEntries,
+          intakeMl: day.flaggedIntakeMl,
+          outputMl: day.flaggedOutputMl,
+        })
+      : null;
   if (day.targetMl === null) {
     return {
       meterMax: Math.max(day.intakeMl, 1),
@@ -191,6 +240,7 @@ export function fluidDayView(day: FluidDay, t: Translator): FluidDayView {
       statusText: t("care.charts.fluid.noTarget"),
       outputText,
       entriesText,
+      flaggedText,
     };
   }
   const short = day.shortfallMl !== null && day.shortfallMl > 0;
@@ -206,6 +256,7 @@ export function fluidDayView(day: FluidDay, t: Translator): FluidDayView {
       : t("care.charts.fluid.targetReached"),
     outputText,
     entriesText,
+    flaggedText,
   };
 }
 

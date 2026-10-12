@@ -4,6 +4,7 @@ import {
   fluidDayView,
   iddsiOutcome,
   iddsiProblem,
+  iddsiProblemMessage,
   isChart,
   news2Chip,
   news2FromFlags,
@@ -97,6 +98,9 @@ describe("fluid balance day", () => {
     targetMl: 1500,
     shortfallMl: 600,
     entries: 5,
+    flaggedEntries: 0,
+    flaggedIntakeMl: 0,
+    flaggedOutputMl: 0,
   };
 
   it("shows the intake against the target and the shortfall the API worked out", () => {
@@ -107,6 +111,18 @@ describe("fluid balance day", () => {
     expect(view.meterMax).toBe(1500);
     expect(view.outputText).toBe("Output: 400 ml");
     expect(view.entriesText).toBe("5 fluid entries");
+    expect(view.flaggedText).toBeNull();
+  });
+
+  it("hazard HZ-040 says beside the totals how much a device recorded deleting, never taking it out", () => {
+    const view = fluidDayView(
+      { ...day, flaggedEntries: 2, flaggedIntakeMl: 300, flaggedOutputMl: 0 },
+      t,
+    );
+    expect(view.flaggedText).toBe(
+      "Includes 2 entries that a device recorded as deleted (300 ml in, 0 ml out): check for duplicates.",
+    );
+    expect(view.valueText).toBe("900 ml of a 1,500 ml target");
   });
 
   it("says when the target is reached and when there is no target", () => {
@@ -171,5 +187,41 @@ describe("chart entries in words", () => {
     expect(iddsiProblem({})).toBeNull();
     expect(isChart("vitals")).toBe(true);
     expect(isChart("blood_glucose")).toBe(false);
+  });
+
+  it.each<[string, "fluid_intake" | "food", Record<string, unknown>, string | null]>([
+    ["no problem", "fluid_intake", {}, null],
+    [
+      "a drink with no level",
+      "fluid_intake",
+      { iddsiProblem: "level_not_recorded", iddsiAlert: true },
+      "care.charts.iddsiKeptNoLevel",
+    ],
+    [
+      "a thinner drink with no reason, which alerted",
+      "fluid_intake",
+      { iddsiProblem: "reason_missing", iddsiAlert: true },
+      "care.charts.iddsiKeptUnsafeDrink",
+    ],
+    [
+      "more solid food with no reason, which alerted",
+      "food",
+      { iddsiProblem: "reason_missing", iddsiAlert: true },
+      "care.charts.iddsiKeptUnsafeFood",
+    ],
+    [
+      "a safer level with no reason",
+      "food",
+      { iddsiProblem: "reason_missing", iddsiAlert: false },
+      "care.charts.iddsiKeptNoReason",
+    ],
+    [
+      "a prescription that could not be read",
+      "fluid_intake",
+      { iddsiProblem: "prescribed_unreadable", iddsiAlert: true },
+      "care.charts.iddsiKeptUnreadable",
+    ],
+  ])("hazard HZ-016 says every IDDSI problem of a kept entry: %s", (_name, chart, flags, key) => {
+    expect(iddsiProblemMessage({ chart, flags })).toBe(key);
   });
 });

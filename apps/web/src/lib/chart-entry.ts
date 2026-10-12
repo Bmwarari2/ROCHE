@@ -84,10 +84,16 @@ export function readChartValues(
     case "fluid_intake": {
       const ml = readMl(form);
       const level = text(form, "iddsiLevel");
-      // With a drink level prescribed, the level given must be recorded (HZ-016).
+      // With a drink level prescribed, the level given must be recorded (HZ-016); a drink refused
+      // was not given, so it has no level to record (#26 review round 2, low).
+      const refused = form.get("refused") === "on";
       const missing = problems([
         ["ml", ml === null, t("care.charts.amountRequired")],
-        ["iddsiLevel", prescribed.drink !== null && !level, t("care.charts.drinkLevelRequired")],
+        [
+          "iddsiLevel",
+          prescribed.drink !== null && !level && !refused,
+          t("care.charts.drinkLevelRequired"),
+        ],
       ]);
       if (missing || ml === null) return fieldErrors(missing ?? {});
       return {

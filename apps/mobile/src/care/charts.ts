@@ -376,13 +376,14 @@ export function checkChart(
       const level = draft.choice.iddsiLevel ?? undefined;
       const reason = optionalText(text.overrideReason, CHART_LIMITS.overrideReason.max);
       // C3: with a drink level prescribed, a drink is recorded with the level given.
-      if (!level && profile?.iddsi_drink_level) {
+      // A drink refused was not given, so it has no level to record (#26 review round 2, low).
+      if (!level && profile?.iddsi_drink_level && draft.yesNo.refused !== true) {
         errors.iddsiLevel = { key: "mobile.iddsi.levelRequired" };
       }
       // Clinical review round 3, M3: with no care profile on the device a drink level may be
       // prescribed without the device knowing, so a drink given with no level needs the same
       // confirmation as one given at a level.
-      if (!level && !profile && draft.yesNo.levelChecked !== true) {
+      if (!level && !profile && draft.yesNo.refused !== true && draft.yesNo.levelChecked !== true) {
         errors.levelChecked = { key: "mobile.iddsi.confirmNoLevel" };
       }
       if (level) {

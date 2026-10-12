@@ -213,6 +213,12 @@ describe("hazard HZ-016 food and drink levels on the device (C3)", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("asks no level for a drink refused, since none was given (#26 review round 2)", () => {
+    const refused = draft("fluid_intake", { text: { ml: "200" }, yesNo: { refused: true } });
+    expect(checkChart(refused, profile, context, NOW).ok).toBe(true);
+    expect(checkChart(refused, null, context, NOW).ok).toBe(true);
+  });
+
   it.each([
     ["food", draft("food", { choice: { meal: "lunch", portion: "all", iddsiLevel: "7" } })],
     ["fluid_intake", draft("fluid_intake", { text: { ml: "200" }, choice: { iddsiLevel: "0" } })],
