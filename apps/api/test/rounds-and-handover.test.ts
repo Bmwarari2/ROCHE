@@ -102,6 +102,10 @@ const rate = async (key: string) =>
 
 const plansPath = (n: number) => `/v1/people/${resident(n)}/care-plans`;
 const roundPath = (locationId: string = DEMO.locationId) => `/v1/locations/${locationId}/round`;
+// The round for the hour either side of now rather than the shift running now: the tasks these
+// tests create fall due 5 to 15 minutes ahead, which near a shift change is the next shift.
+const roundAhead = () =>
+  `${roundPath()}?from=${new Date(Date.now() - HOUR).toISOString()}&to=${new Date(Date.now() + HOUR).toISOString()}`;
 const handoversPath = (locationId: string = DEMO.locationId) =>
   `/v1/locations/${locationId}/handovers`;
 
@@ -490,7 +494,7 @@ describe("the round view (CARE-013)", () => {
       locationId: DEMO.locationId,
       dueAt: new Date(Date.now() + 5 * MIN).toISOString(),
     });
-    const response = await as("manager", roundPath());
+    const response = await as("manager", roundAhead());
     expect(response.status).toBe(200);
     const view = await json<RoundView>(response);
     expect(["day", "night"]).toContain(view.shift.name);
@@ -535,7 +539,7 @@ describe("the round view (CARE-013)", () => {
         [resident(6)],
       );
     });
-    const view = await json<RoundView>(await as("manager", roundPath()));
+    const view = await json<RoundView>(await as("manager", roundAhead()));
     const stops = view.areas.flatMap((a) => a.stops);
     expect(stops.find((s) => s.personId === resident(4))?.person).toMatchObject({
       iddsiFoodLevel: "5",
@@ -560,7 +564,7 @@ describe("the round view (CARE-013)", () => {
       [resident(4)],
     );
     expect(old).toBeDefined();
-    const view = await json<RoundView>(await as("manager", roundPath()));
+    const view = await json<RoundView>(await as("manager", roundAhead()));
     const round = view.areas
       .flatMap((a) => a.stops)
       .flatMap((s) => s.tasks)
@@ -591,7 +595,7 @@ describe("the round view (CARE-013)", () => {
         [actionId, resident(6), plan.rows[0]?.id, section.rows[0]?.id],
       );
     });
-    const view = await json<RoundView>(await as("manager", roundPath()));
+    const view = await json<RoundView>(await as("manager", roundAhead()));
     const stop = view.areas.flatMap((a) => a.stops).find((s) => s.personId === resident(6));
     expect(stop?.notRounds).toEqual([
       {
@@ -620,7 +624,7 @@ describe("the round view (CARE-013)", () => {
       locationId: DEMO.locationId,
       dueAt: new Date(Date.now() + 15 * MIN).toISOString(),
     });
-    const view = await json<RoundView>(await as("carer", roundPath()));
+    const view = await json<RoundView>(await as("carer", roundAhead()));
     const people = view.areas.flatMap((a) => a.stops.map((s) => s.personId));
     expect(people).toContain(resident(1));
     expect(people.every((p) => [resident(1), resident(2), resident(3)].includes(p ?? ""))).toBe(
