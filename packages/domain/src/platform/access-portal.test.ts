@@ -3,9 +3,11 @@ import {
   type AccessGrantInput,
   checkGrantPermissions,
   checkRoleDefinition,
+  NO_SCOPE,
   type RoleAssignmentInput,
   resolveAccess,
   rolePermissionMix,
+  scopeFor,
 } from "./access";
 import { BUILTIN_ROLES, builtinRole, PORTAL_ONLY_PERMISSIONS } from "./roles";
 
@@ -97,7 +99,13 @@ describe("hazard HZ-022 portal and staff permissions never mix", () => {
     expect(access.permissions.has("care.note.write")).toBe(true);
     expect(access.permissions.has("safety.notification.submit")).toBe(true);
     expect(access.roleKeys).toEqual(["care_worker"]);
-    expect(access.scope).toBe("assigned");
+    expect(scopeFor(access, "care.note.write")).toEqual({ scope: "assigned", locationIds: [] });
+    // The grant reaches the whole organisation for the one permission it carries (ADR-0071).
+    expect(scopeFor(access, "safety.notification.submit")).toEqual({
+      scope: "tenant",
+      locationIds: [],
+    });
+    expect(scopeFor(access, "comms.feed.read")).toEqual(NO_SCOPE);
   });
 
   it("resolves a portal session from portal roles only, with no person scope and no grants", () => {
@@ -107,15 +115,15 @@ describe("hazard HZ-022 portal and staff permissions never mix", () => {
       NOW,
       "portal",
     );
+    const permissions = [
+      "comms.portal.family",
+      "comms.feed.read",
+      "comms.notification.subscribe",
+      "comms.visit_booking.request",
+    ] as const;
     expect(access).toEqual({
-      permissions: new Set([
-        "comms.portal.family",
-        "comms.feed.read",
-        "comms.notification.subscribe",
-        "comms.visit_booking.request",
-      ]),
-      scope: "none",
-      locationIds: [],
+      permissions: new Set(permissions),
+      scopes: new Map(permissions.map((p) => [p, NO_SCOPE])),
       roleKeys: ["family_representative"],
       session: "portal",
     });
@@ -125,7 +133,7 @@ describe("hazard HZ-022 portal and staff permissions never mix", () => {
     for (const session of ["staff", "portal"] as const) {
       const access = resolveAccess([mixed], [], NOW, session);
       expect(access.permissions.size).toBe(0);
-      expect(access.scope).toBe("none");
+      expect(scopeFor(access, "care.note.read")).toEqual(NO_SCOPE);
     }
   });
 });

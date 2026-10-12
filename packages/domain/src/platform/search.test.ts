@@ -820,6 +820,127 @@ describe("hazard HZ-011 search results and counts stay in scope", () => {
   });
 });
 
+describe("hazard HZ-011 each kind of record is searched in the scope of its own permission (ADR-0071)", () => {
+  const role = (roleKey: string, locationId: string | null) => {
+    const found = builtinRole(roleKey);
+    if (!found) throw new Error(`unknown role ${roleKey}`);
+    return {
+      roleKey,
+      scopeKind: found.scopeKind,
+      permissions: found.permissions,
+      locationId,
+      validFrom: PAST,
+      validTo: null,
+    };
+  };
+  const financeViewer = {
+    roleKey: "tenant_finance_viewer",
+    scopeKind: "tenant" as const,
+    permissions: ["finance.reporting.read"],
+    locationId: null,
+    validFrom: PAST,
+    validTo: null,
+  };
+  const withAccess = (access: EffectiveAccess): SearchActor => ({
+    ...actor("care_worker"),
+    access,
+  });
+
+  it("keeps a team leader at North who also views finance everywhere to North", () => {
+    const plan = planFor(
+      withAccess(resolveAccess([role("team_leader", NORTH), financeViewer], [], NOW)),
+    );
+    expect(plan.personScope).toEqual({ kind: "locations", locationIds: [NORTH], teamIds: null });
+    const page = filterSearchResults(
+      plan,
+      [
+        hit({ personLocationId: NORTH }),
+        hit({ personLocationId: SOUTH }),
+        hit({ entityType: "note", personLocationId: SOUTH }),
+      ],
+      NOW,
+    );
+    expect(page.items.map((h) => h.personLocationId)).toEqual([NORTH]);
+  });
+
+  it("holds people and notes each to their own permission's scope", () => {
+    // An administrator at North (names and rooms there) given notes at South by an acting-up grant.
+    const access = resolveAccess(
+      [role("administrator", NORTH)],
+      [
+        {
+          permissions: ["care.note.read"],
+          locationId: SOUTH,
+          validFrom: PAST,
+          validTo: new Date("2027-01-01T00:00:00Z"),
+          revokedAt: null,
+        },
+      ],
+      NOW,
+    );
+    const plan = planFor(withAccess(access));
+    const scopes = Object.fromEntries(plan.entities.map((e) => [e.type, e.personScope]));
+    expect(scopes.person).toEqual({ kind: "locations", locationIds: [NORTH], teamIds: null });
+    expect(scopes.note).toEqual({ kind: "locations", locationIds: [SOUTH], teamIds: null });
+    // The search runs over both; each result is held to its own kind's scope.
+    expect(plan.personScope).toEqual({
+      kind: "locations",
+      locationIds: [NORTH, SOUTH].sort(),
+      teamIds: null,
+    });
+    const shown = filterSearchResults(
+      plan,
+      [
+        hit({ personLocationId: NORTH }),
+        hit({ personLocationId: SOUTH }),
+        hit({ entityType: "note", personLocationId: NORTH }),
+        hit({ entityType: "note", personLocationId: SOUTH }),
+      ],
+      NOW,
+    ).items.map((h) => `${h.entityType}@${h.personLocationId === NORTH ? "north" : "south"}`);
+    expect(shown.sort()).toEqual(["note@south", "person@north"]);
+  });
+
+  it("holds each document category to its own permission's scope", () => {
+    // A Registered Manager at North given care notes at South: letters at North, attachments at both.
+    const access = resolveAccess(
+      [role("registered_manager", NORTH)],
+      [
+        {
+          permissions: ["care.note.read"],
+          locationId: SOUTH,
+          validFrom: PAST,
+          validTo: new Date("2027-01-01T00:00:00Z"),
+          revokedAt: null,
+        },
+      ],
+      NOW,
+    );
+    const plan = planFor(withAccess(access), "Ada Example", { entityTypes: ["document"] });
+    const shown = filterSearchResults(
+      plan,
+      [NORTH, SOUTH].flatMap((personLocationId) =>
+        (["person_document", "care_attachment"] as const).map((documentCategory) =>
+          hit({ entityType: "document", documentCategory, personLocationId }),
+        ),
+      ),
+      NOW,
+    ).items.map((h) => `${h.documentCategory}@${h.personLocationId === NORTH ? "north" : "south"}`);
+    expect(shown.sort()).toEqual([
+      "care_attachment@north",
+      "care_attachment@south",
+      "person_document@north",
+    ]);
+  });
+
+  it("searches colleagues only where a staff-search permission reaches", () => {
+    const plan = planFor(
+      withAccess(resolveAccess([role("team_leader", NORTH), financeViewer], [], NOW)),
+    );
+    expect(plan.staffScope).toEqual({ kind: "locations", locationIds: [NORTH] });
+  });
+});
+
 describe("hazard HZ-001 search ranking puts the right person first", () => {
   const order = (rows: SearchHit[]) => [...rows].sort(compareSearchHits).map((h) => h.id);
 
