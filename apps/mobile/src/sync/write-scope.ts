@@ -9,8 +9,9 @@
  * A coordinator who is also a care worker records about the people assigned to them wherever
  * they live, even at a home whose people sync to the phone for reading only: the phone decides
  * per person from the ids. A token that does not name the people (more than it carries, or one
- * from before) leaves the phone offering recording to anyone who may record about assigned
- * people; the server decides, and keeps a copy of an entry about an assigned person.
+ * from before) falls back to the location rule (review round 4): a person is taken as assigned
+ * only when their home is not one whose people sync in full (`people_location_ids`), so one at a
+ * home the user may only read is shown read only (fails closed); the API decides either way.
  *
  * Before any token has been seen (an app updated while offline), recording is offered only when
  * the user's permissions, as last read, include care.note.write; with no permissions known, as
@@ -27,7 +28,20 @@ export interface WriteScope {
   readonly assigned: boolean;
   /** The people the user is assigned to, or null when the token did not name them. */
   readonly personIds: readonly string[] | null;
+  /** Homes whose people sync to the phone in full (for the location rule when no ids are named). */
+  readonly peopleLocationIds: readonly string[];
 }
+
+/**
+ * A scope that records about no one: where the phone may record could not be kept, so it offers
+ * nothing until the next token (review round 4).
+ */
+export const NO_WRITE_SCOPE: WriteScope = {
+  locationIds: [],
+  assigned: false,
+  personIds: [],
+  peopleLocationIds: [],
+};
 
 const BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -82,6 +96,7 @@ export function writeScopeFromToken(token: string): WriteScope | null {
     locationIds,
     assigned: record.entries_write_assigned,
     personIds: strings(record.entries_write_person_ids),
+    peopleLocationIds: strings(record.people_location_ids) ?? [],
   };
 }
 
@@ -94,7 +109,9 @@ export function mayRecordFor(
   if (scope === null) return permissions === null || permissions.includes(RECORD_PERMISSION);
   if (person.locationId !== null && scope.locationIds.includes(person.locationId)) return true;
   if (!scope.assigned) return false;
-  return scope.personIds === null || scope.personIds.includes(person.id);
+  if (scope.personIds !== null) return scope.personIds.includes(person.id);
+  // No ids named (more than the token carries): the location rule (review rounds 2 and 4).
+  return person.locationId === null || !scope.peopleLocationIds.includes(person.locationId);
 }
 
 /** Stored form of the scope (plain JSON), so it is known again after a restart while offline. */
@@ -108,7 +125,12 @@ export function parseStoredWriteScope(text: string | null): WriteScope | null {
     const value = JSON.parse(text) as Record<string, unknown>;
     const locationIds = strings(value.locationIds);
     if (locationIds === null || typeof value.assigned !== "boolean") return null;
-    return { locationIds, assigned: value.assigned, personIds: strings(value.personIds) };
+    return {
+      locationIds,
+      assigned: value.assigned,
+      personIds: strings(value.personIds),
+      peopleLocationIds: strings(value.peopleLocationIds) ?? [],
+    };
   } catch {
     return null;
   }

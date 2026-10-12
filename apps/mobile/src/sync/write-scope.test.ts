@@ -27,7 +27,7 @@ const token = (claims: Record<string, unknown>) =>
     "signature",
   ].join(".");
 
-describe("hazard HZ-073 where the phone may record (review rounds 2 and 3, C2-M3 and C3-M2)", () => {
+describe("hazard HZ-073 where the phone may record (review rounds 2 to 4, C2-M3 and C3-M2)", () => {
   it("reads the write claims from the sync token, with the assigned people", () => {
     expect(
       writeScopeFromToken(
@@ -38,11 +38,22 @@ describe("hazard HZ-073 where the phone may record (review rounds 2 and 3, C2-M3
           entries_write_person_ids: [ADA],
         }),
       ),
-    ).toEqual({ locationIds: [NORTH], assigned: true, personIds: [ADA] });
-    // A token that does not name the people.
+    ).toEqual({
+      locationIds: [NORTH],
+      assigned: true,
+      personIds: [ADA],
+      peopleLocationIds: [NORTH],
+    });
+    // A token that does not name the people (more than it carries).
     expect(
-      writeScopeFromToken(token({ entries_write_location_ids: [], entries_write_assigned: true })),
-    ).toEqual({ locationIds: [], assigned: true, personIds: null });
+      writeScopeFromToken(
+        token({
+          people_location_ids: [NORTH],
+          entries_write_location_ids: [],
+          entries_write_assigned: true,
+        }),
+      ),
+    ).toEqual({ locationIds: [], assigned: true, personIds: null, peopleLocationIds: [NORTH] });
   });
 
   it("reads nothing from a token without write claims or one it cannot read", () => {
@@ -51,12 +62,44 @@ describe("hazard HZ-073 where the phone may record (review rounds 2 and 3, C2-M3
     expect(writeScopeFromToken("a.%%%.b")).toBeNull();
   });
 
-  const coordinator: WriteScope = { locationIds: [], assigned: false, personIds: null };
-  const carer: WriteScope = { locationIds: [], assigned: true, personIds: [ADA] };
-  const nurse: WriteScope = { locationIds: [NORTH], assigned: false, personIds: null };
+  const coordinator: WriteScope = {
+    locationIds: [],
+    assigned: false,
+    personIds: null,
+    peopleLocationIds: [NORTH],
+  };
+  const carer: WriteScope = {
+    locationIds: [],
+    assigned: true,
+    personIds: [ADA],
+    peopleLocationIds: [],
+  };
+  const nurse: WriteScope = {
+    locationIds: [NORTH],
+    assigned: false,
+    personIds: null,
+    peopleLocationIds: [NORTH],
+  };
   // Reads everyone at North as a coordinator; records about Ada, assigned to them, as a carer.
-  const coordinatorAndCarer: WriteScope = { locationIds: [], assigned: true, personIds: [ADA] };
-  const unnamed: WriteScope = { locationIds: [], assigned: true, personIds: null };
+  const coordinatorAndCarer: WriteScope = {
+    locationIds: [],
+    assigned: true,
+    personIds: [ADA],
+    peopleLocationIds: [NORTH],
+  };
+  // More than 100 assigned people: the token names none (review round 4).
+  const unnamedCarer: WriteScope = {
+    locationIds: [],
+    assigned: true,
+    personIds: null,
+    peopleLocationIds: [],
+  };
+  const unnamedCoordinatorAndCarer: WriteScope = {
+    locationIds: [],
+    assigned: true,
+    personIds: null,
+    peopleLocationIds: [NORTH],
+  };
   const ada = { id: ADA, locationId: NORTH };
   const ben = { id: BEN, locationId: NORTH };
   const cara = { id: CARA, locationId: SOUTH };
@@ -80,8 +123,25 @@ describe("hazard HZ-073 where the phone may record (review rounds 2 and 3, C2-M3
       ben,
       false,
     ],
-    // The token did not name the people: the server decides.
-    ["a carer whose token did not name the people", unnamed, ben, true],
+    // Over 100 assigned people, the token names none: the location rule (review round 4).
+    [
+      "a carer with over 100 clients, about someone at a home synced only for them",
+      unnamedCarer,
+      ben,
+      true,
+    ],
+    [
+      "a coordinator who is also a carer with over 100 clients, at the home they read",
+      unnamedCoordinatorAndCarer,
+      ada,
+      false,
+    ],
+    [
+      "a coordinator who is also a carer with over 100 clients, about someone elsewhere",
+      unnamedCoordinatorAndCarer,
+      cara,
+      true,
+    ],
   ] as const)("%s", (_name, scope, person, expected) => {
     expect(mayRecordFor(person, scope)).toBe(expected);
   });
@@ -102,7 +162,12 @@ describe("hazard HZ-073 where the phone may record (review rounds 2 and 3, C2-M3
       parseStoredWriteScope(
         JSON.stringify({ locationIds: [NORTH], assigned: true, peopleLocationIds: [NORTH] }),
       ),
-    ).toEqual({ locationIds: [NORTH], assigned: true, personIds: null });
+    ).toEqual({
+      locationIds: [NORTH],
+      assigned: true,
+      personIds: null,
+      peopleLocationIds: [NORTH],
+    });
     expect(parseStoredWriteScope("{}")).toBeNull();
     expect(parseStoredWriteScope("not json")).toBeNull();
     expect(parseStoredWriteScope(null)).toBeNull();

@@ -230,7 +230,9 @@ describe("fetchCredentials", () => {
       onWriteScope: (scope) => scopes.push(scope),
     });
     await reading.fetchCredentials();
-    expect(scopes).toEqual([{ locationIds: [], assigned: false, personIds: null }]);
+    expect(scopes).toEqual([
+      { locationIds: [], assigned: false, personIds: null, peopleLocationIds: ["loc-north"] },
+    ]);
   });
 
   it("hazard HZ-040 names the device when it asks for credentials, so the server knows who has used it (security review round 7, M1)", async () => {
