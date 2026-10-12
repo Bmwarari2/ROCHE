@@ -98,12 +98,14 @@ describe("Regulation 9A visiting log", () => {
 describe("rule 12: people who have left are read-only except post-event records", () => {
   it.each([
     ["enquiry", false],
+    ["pre_admission", false],
     ["active", false],
     ["on_leave", false],
     ["in_hospital", false],
     ["discharged", true],
     ["deceased", true],
     ["archived", true],
+    ["not_admitted", true],
   ] as const)("%s is closed: %s", (status, closed) => {
     expect(isClosedRecord(status)).toBe(closed);
   });

@@ -7,10 +7,17 @@ import { ResuscitationStatus } from "@/components/care/ResuscitationStatus";
 import { iddsiLabel } from "@/lib/care-record";
 import { formatDate, formatNhsNumber } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import { allergySummary, initials, personNames, roomLabel } from "@/lib/people";
+import {
+  allergySummary,
+  communicationSummary,
+  initials,
+  personNames,
+  roomLabel,
+} from "@/lib/people";
 import type { CareProfileLoad, PersonRecord } from "@/lib/record-data";
 import { AllergyChip } from "./AllergyChip";
 import { CommunicationFlag } from "./CommunicationFlag";
+import { CommunicationStatus } from "./CommunicationStatus";
 import { PersonAvatar } from "./PersonAvatar";
 
 function Detail({ term, children }: { readonly term: string; readonly children: ReactNode }) {
@@ -87,6 +94,7 @@ export function PersonHeader({
   const dateOfBirth = formatDate(person.dateOfBirth);
   const nhsNumber = formatNhsNumber(person.nhsNumber);
   const needs = person.communicationNeeds;
+  const communication = communicationSummary(person, t);
 
   return (
     <Card as="section" aria-label={t("people.header.label")}>
@@ -171,11 +179,11 @@ export function PersonHeader({
           <h2 id="communication-heading" className="m-0 text-body font-semibold">
             {t("people.header.communicationNeeds")}
           </h2>
-          {needs.length > 0 ? (
+          {communication.kind === "recorded" ? (
             <>
               <CommunicationFlag
                 label={t("people.header.communicationNeeds")}
-                needs={needs.map((n) => n.display)}
+                needs={communication.needs}
               />
               <ul className="m-0 flex list-none flex-col gap-2 p-0">
                 {needs.map((need) => (
@@ -183,7 +191,10 @@ export function PersonHeader({
                     <span className="font-semibold">{need.display}</span>
                     {need.preferredFormat ? (
                       <span className="text-text-secondary">
-                        , {t("people.header.preferredFormat", { format: need.preferredFormat })}
+                        {", "}
+                        {t("people.communication.preferredFormat", {
+                          format: need.preferredFormat,
+                        })}
                       </span>
                     ) : null}
                   </li>
@@ -191,7 +202,12 @@ export function PersonHeader({
               </ul>
             </>
           ) : (
-            <p className="m-0 text-text-secondary">{t("people.header.communicationNeedsNone")}</p>
+            <p className="m-0">
+              <CommunicationStatus
+                summary={communication}
+                flagLabel={t("people.header.communicationNeeds")}
+              />
+            </p>
           )}
         </section>
       </div>

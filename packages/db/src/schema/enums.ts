@@ -45,14 +45,21 @@ export const tenantUserStatus = pgEnum("tenant_user_status", [
 /** Who a role may act on (section 4 attribute-based scoping). */
 export const scopeKind = pgEnum("scope_kind", ["tenant", "location", "assigned", "self", "none"]);
 
+/**
+ * The person lifecycle (docs/specs/people.md rule 1; `PERSON_STATUSES` in packages/domain). New
+ * values are added with `ALTER TYPE ... ADD VALUE` (expand only): a device one schema version
+ * behind never sees `pre_admission` or `not_admitted` people, because nobody is assigned to them.
+ */
 export const personStatus = pgEnum("person_status", [
   "enquiry",
+  "pre_admission",
   "active",
   "on_leave",
   "in_hospital",
   "discharged",
   "deceased",
   "archived",
+  "not_admitted",
 ]);
 
 /** HZ-007: "no known allergies" is a recorded fact, distinct from "not yet asked". */

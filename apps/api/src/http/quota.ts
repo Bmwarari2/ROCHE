@@ -53,7 +53,7 @@ export class PerUserQuota {
 }
 
 export class QuotaExceeded extends HttpProblem {
-  constructor(readonly retryAfterSeconds: number) {
+  constructor(override readonly retryAfterSeconds: number) {
     super(429, "rate_limited", "Too many requests. Try again in a few minutes.");
     this.name = "QuotaExceeded";
   }

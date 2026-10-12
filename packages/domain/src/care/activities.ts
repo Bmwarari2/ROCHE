@@ -129,10 +129,12 @@ export function checkVisit(
 // Rule 12: closed records
 // ------------------------------------------------------------------------------------------------
 
+/** Statuses whose record takes post-event records at most (people.md rule 1). */
 export const CLOSED_PERSON_STATUSES: readonly PersonStatus[] = [
   "discharged",
   "deceased",
   "archived",
+  "not_admitted",
 ];
 
 export function isClosedRecord(status: PersonStatus): boolean {

@@ -141,6 +141,55 @@
       "when": 1791695984982,
       "tag": "0019_mca_and_incidents_security",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791710454291,
+      "tag": "0020_people_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1791710505949,
+      "tag": "0021_people_lifecycle_security",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791710583692,
+      "tag": "0022_builtin_role_permissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791728409033,
+      "tag": "0023_people_lifecycle_review",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791728455513,
+      "tag": "0024_builtin_role_permissions_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791754231803,
+      "tag": "0025_sharing_suspensions",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1791755809044,
+      "tag": "0026_people_lifecycle_round4",
+      "breakpoints": true
     }
   ]
 }

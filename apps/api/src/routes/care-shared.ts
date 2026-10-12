@@ -1,6 +1,12 @@
+import type { Transaction } from "@harbour/db";
+import type { CareTrigger, PersonRecordKind } from "@harbour/domain";
 import { z } from "@hono/zod-openapi";
-import type { TenantAccess } from "../http/context";
+import type { Context } from "hono";
+import { auditInTx } from "../http/audit";
+import { type AppEnv, type TenantAccess, withTenant } from "../http/context";
 import { problems } from "../http/problem";
+import { applyTaskLink, type PlannedTaskLink, planTaskLink } from "../services/care";
+import { CareEventAfterExit, loadPerson, raiseLateEntryReview } from "../services/people";
 
 /**
  * Helpers shared by the point-of-care routes (care.ts, care-plans.ts and care-records.ts): the
@@ -37,6 +43,9 @@ export function entryOut(
     deviceTime: Date | null;
     lateEntry: boolean;
     clockDrift: boolean;
+    recordedAfterExit: boolean;
+    taskId: string | null;
+    taskOutcome: string | null;
     supersedesId: string | null;
     correctionReason: string | null;
     createdBy: string | null;
@@ -52,6 +61,9 @@ export function entryOut(
     deviceTime: iso(row.deviceTime),
     lateEntry: row.lateEntry,
     clockDrift: row.clockDrift,
+    recordedAfterExit: row.recordedAfterExit,
+    taskId: row.taskId,
+    taskOutcome: row.taskOutcome as PlannedTaskLink["outcome"] | null,
     supersedesId: row.supersedesId,
     correctionReason: row.correctionReason,
     superseded: superseded.has(row.id),
@@ -74,9 +86,152 @@ export function permissionsOf(access: TenantAccess): ReadonlySet<string> {
   return new Set(access.effective.permissions);
 }
 
+/**
+ * What an entry will do to the task it names (`planTaskLink`), or null when it names none. The
+ * author's permission is judged when the care was recorded (`occurredAt`; HZ-004, HZ-006).
+ */
+export async function planLink(
+  tx: Transaction,
+  access: TenantAccess,
+  taskId: string | undefined,
+  personId: string,
+  occurredAt: Date,
+): Promise<PlannedTaskLink | null> {
+  if (!taskId) return null;
+  return planTaskLink(tx, {
+    taskId,
+    personId,
+    actorTenantUserId: access.tenantUserId,
+    actorPermissions: permissionsOf(access),
+    occurredAt,
+  });
+}
+
+/**
+ * Carries out a planned link once this request has inserted the entry (`applyTaskLink`). An
+ * assignee who may not complete the task has the completion refused and audited with the entry,
+ * which is kept, flagged and reviewed (S1 follow-on; HZ-004, HZ-006); a duplicate upload that lost
+ * the race to insert writes nothing, so no refusal is recorded for an entry it did not create.
+ */
+export async function applyLink(
+  tx: Transaction,
+  access: TenantAccess,
+  requestId: string | undefined,
+  link: PlannedTaskLink,
+  entry: Parameters<typeof applyTaskLink>[2],
+): Promise<void> {
+  await applyTaskLink(tx, link, entry);
+  if (link.assigneeRefused) {
+    await auditInTx(tx, access, {
+      action: "platform.task.done",
+      outcome: "denied",
+      resourceType: "task",
+      resourceId: link.taskId,
+      reason: "assignee_lacks_permission",
+      requestId,
+    });
+  }
+}
+
+/**
+ * The kind of a care event for people.md rule 3: once a person has left or died, an entry about an
+ * event at or before then is a care event (accepted and flagged as recorded after the exit), and
+ * a note about anything later is a post-event note.
+ */
+export function eventKind(
+  person: {
+    status: string;
+    statusChangedAt: Date;
+    dischargedAt: Date | null;
+    deceasedAt: Date | null;
+  },
+  kind: "care_note" | "observation" | "body_map_mark" | "assessment",
+  occurredAt: Date,
+): PersonRecordKind {
+  if (kind !== "care_note" || (person.status !== "discharged" && person.status !== "deceased")) {
+    return kind;
+  }
+  const exit =
+    person.status === "deceased"
+      ? (person.deceasedAt ?? person.statusChangedAt)
+      : (person.dischargedAt ?? person.statusChangedAt);
+  return occurredAt.getTime() > exit.getTime() ? "post_event_note" : "care_note";
+}
+
 /** Rule 12: a closed record takes post-event records only. */
 export function requireOpenRecord(person: { closed: boolean }) {
   if (person.closed) {
     throw problems.invalid("This person's record is closed; only post-event notes can be added.");
   }
+}
+
+/** The refused entry as the late-entry review names it: opaque references, no clinical text. */
+export interface RefusedEntry {
+  /** The kind of entry (`care_note`, `observation`, `incident` and so on). */
+  readonly kind: string;
+  /** The device-generated id the entry was sent with, if any. */
+  readonly clientId?: string | null | undefined;
+  /** When the entry says the event happened. */
+  readonly occurredAt?: string | null | undefined;
+}
+
+/**
+ * Runs a care write. A care event timed after the person left, died or went away (beyond the
+ * clock tolerance) is refused, so the device keeps it to resolve, and one review task goes to the
+ * nurse in charge in its own transaction, so it is not lost with the refusal. The task names the
+ * entry's kind, client id, device and user (people.md rule 3; HZ-006).
+ */
+export async function withLateEntryReview<T>(
+  c: Context<AppEnv>,
+  entry: RefusedEntry,
+  write: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await write();
+  } catch (error) {
+    if (error instanceof CareEventAfterExit) {
+      const access = c.get("access");
+      await withTenant(c, async (tx) => {
+        const p = await loadPerson(tx, error.personId);
+        const taskId = await raiseLateEntryReview(tx, p, new Date(), {
+          kind: entry.kind,
+          clientId: entry.clientId ?? null,
+          occurredAt: entry.occurredAt ?? null,
+          deviceId: access.deviceId,
+          recordedBy: access.tenantUserId,
+        });
+        await auditInTx(tx, access, {
+          action: "care.entry.after_exit",
+          outcome: "denied",
+          resourceType: "person",
+          resourceId: p.id,
+          reason: "occurred_after_status_change",
+          scope: { reviewTaskId: taskId },
+          requestId: c.get("requestId"),
+        });
+      });
+    }
+    throw error;
+  }
+}
+
+/** Follow-ups that stay relevant whoever is left to act: the incident and safeguarding prompts. */
+const SAFETY_TASKS = new Set(["incident_report", "safeguarding_decision_guide"]);
+
+/**
+ * The follow-ups an entry recorded after a status change still raises (people.md rule 3): before
+ * a move to hospital or on leave, the urgent alert to the nurse in charge (the result may matter
+ * to the hospital) and the safety prompts; after a discharge or death, the safety prompts only.
+ * Point-of-care follow-ups (repeat observations, rescreens) are not raised for someone not here.
+ */
+export function triggersAfterChange(
+  triggers: readonly CareTrigger[],
+  recordedAfterExit: boolean,
+  status: string,
+): CareTrigger[] {
+  if (!recordedAfterExit) return [...triggers];
+  const away = status === "on_leave" || status === "in_hospital";
+  return triggers.filter(
+    (t) => (t.kind === "urgent_alert" && away) || (t.kind === "task" && SAFETY_TASKS.has(t.task)),
+  );
 }

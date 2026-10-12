@@ -20,6 +20,56 @@ export type TaskTimeState = z.infer<typeof TaskTimeState>;
 
 export const TaskPriority = z.enum(["routine", "urgent"]).meta({ id: "TaskPriority" });
 
+/**
+ * What a review task is about, as opaque references only (never clinical text): the entries it
+ * concerns (a late entry refused after an exit, or an entry that did not complete the task it
+ * named) and the rounds missed before a return or a correction was recorded.
+ */
+export const TaskDetails = z
+  .object({
+    entries: z
+      .array(
+        z.object({
+          /** The kind of entry: care_note, observation, incident and so on. */
+          kind: z.string(),
+          /** The device-generated id it was sent with (a refused entry has no server copy). */
+          clientId: uuid.nullable().optional(),
+          /** The stored entry, when it was kept. */
+          entryId: uuid.nullable().optional(),
+          occurredAt: isoDateTime.nullable().optional(),
+          taskId: uuid.nullable().optional(),
+          taskKind: z.string().nullable().optional(),
+          outcome: z.string().nullable().optional(),
+          deviceId: z.string().nullable().optional(),
+          recordedBy: uuid.nullable().optional(),
+          at: isoDateTime.nullable().optional(),
+        }),
+      )
+      .optional(),
+    missedTasks: z
+      .array(
+        z.object({
+          taskId: uuid,
+          kind: z.string(),
+          dueAt: isoDateTime,
+          /** Reopened, overdue, to be caught up (the latest of its series); otherwise missed. */
+          reopened: z.boolean(),
+        }),
+      )
+      .optional(),
+    /** Entries beyond the 50 listed. */
+    entriesOmitted: z.number().int().optional(),
+    /** Missed rounds beyond the 50 listed (never a medicines round: those are all listed). */
+    missedTasksOmitted: z.number().int().optional(),
+    /**
+     * A late return or correction lists rounds from 00:00 UK time on this date: rounds due before
+     * it are not all listed, so the reviewer checks the record (HZ-003).
+     */
+    missedTasksNotListedBefore: isoDate.optional(),
+  })
+  .meta({ id: "TaskDetails" });
+export type TaskDetails = z.infer<typeof TaskDetails>;
+
 export const TaskItem = z
   .object({
     id: uuid,
@@ -39,8 +89,24 @@ export const TaskItem = z
     evidenceRequired: z.boolean(),
     evidenceType: z.string().nullable(),
     evidenceId: uuid.nullable(),
+    /**
+     * True when the evidence arrived after the task had been cancelled (an entry recorded offline
+     * before the person went to hospital): show it as a flag, an icon and words (HZ-006).
+     */
+    evidenceAfterClose: z.boolean(),
+    /**
+     * Brought back after a late return or correction to catch up a missed round once, with a fresh
+     * window (people.md rule 2): show it as a flag, an icon and words.
+     */
+    catchUp: z.boolean(),
+    /**
+     * Done because an entry answered it while the lifecycle had stopped it (an offline entry
+     * uploaded after a move or an exit recorded in error), so it is not due again.
+     */
+    restoredDone: z.boolean(),
     completedAt: isoDateTime.nullable(),
     escalated: z.boolean(),
+    details: TaskDetails.nullable(),
     version: z.number().int(),
   })
   .meta({ id: "TaskItem" });

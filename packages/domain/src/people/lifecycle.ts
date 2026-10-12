@@ -158,7 +158,8 @@ export const PERSON_RECORD_KINDS = {
   statutory_notification: "post_event_records",
   exit_checklist_item: "post_event_records",
   money_return: "post_event_records",
-  key_return: "post_event_records",
+  // A key can be handed back at any time while the person lives here, and after they leave (rule 7).
+  key_return: "property_return",
   post_event_note: "post_event_records",
   document: "post_event_records",
   correspondence: "post_event_records",
@@ -201,10 +202,28 @@ const CARE_EVENT_KINDS: readonly PersonRecordKind[] = [
   "incident",
 ];
 
+/**
+ * Statuses a person enters from receiving care. A care event that happened before the change is
+ * still accepted when it uploads, flagged as recorded after it: observations a phone recorded just
+ * before the person went to hospital or on leave, or before they left or died (HZ-006).
+ */
+const EVENTS_BEFORE_CHANGE_STATUSES: readonly PersonStatus[] = [
+  "on_leave",
+  "in_hospital",
+  "discharged",
+  "deceased",
+];
+
 export interface PersonRecordContext {
   readonly status: PersonStatus;
   /** When the person entered their current status (for discharged or deceased: when they left or died). */
   readonly statusChangedAt: Date | null;
+  /**
+   * Minutes after the status change within which a care event is still accepted, flagged: a
+   * phone's clock may run a little fast (rate table `sync.clock_drift_flag_minutes`, the same
+   * tolerance `resolveRecordedUkTime` gives a typed time). Zero when not supplied.
+   */
+  readonly clockToleranceMinutes?: number;
 }
 
 export interface PersonRecordWrite {
@@ -224,8 +243,19 @@ export type PersonRecordCheck =
       readonly ok: true;
       /** True when a care event is accepted after the person left or died; show it as such. */
       readonly recordedAfterStatusChange: boolean;
+      /** Present when the event is timed after the change but within the clock tolerance. */
+      readonly withinClockTolerance?: true;
     }
-  | { readonly ok: false; readonly problem: PersonRecordProblem; readonly message: string };
+  | {
+      readonly ok: false;
+      readonly problem: PersonRecordProblem;
+      readonly message: string;
+      /**
+       * Present when a care event was refused because it is timed after the person left, died
+       * or went away: the caller raises a review task rather than losing it (HZ-006).
+       */
+      readonly careEventAfterChange?: true;
+    };
 
 const RECORD_MESSAGES: Record<PersonRecordProblem, string> = {
   record_closed: "This record is closed. Nothing more can be added to it.",
@@ -235,7 +265,7 @@ const RECORD_MESSAGES: Record<PersonRecordProblem, string> = {
   death_only: "This record is only used after a person has died.",
 };
 
-function recordProblem(problem: PersonRecordProblem): PersonRecordCheck {
+function recordProblem(problem: PersonRecordProblem): Extract<PersonRecordCheck, { ok: false }> {
   return { ok: false, problem, message: RECORD_MESSAGES[problem] };
 }
 
@@ -252,13 +282,22 @@ export function checkPersonRecordWrite(
   if (personStatusAllows(status, PERSON_RECORD_KINDS[write.kind])) {
     return { ok: true, recordedAfterStatusChange: false };
   }
-  if ((status === "discharged" || status === "deceased") && CARE_EVENT_KINDS.includes(write.kind)) {
+  if (EVENTS_BEFORE_CHANGE_STATUSES.includes(status) && CARE_EVENT_KINDS.includes(write.kind)) {
     const occurredAt = write.occurredAt ?? null;
     const changedAt = person.statusChangedAt;
+    const tolerance = Math.max(0, person.clockToleranceMinutes ?? 0) * 60_000;
     if (occurredAt && changedAt && occurredAt.getTime() <= changedAt.getTime()) {
       return { ok: true, recordedAfterStatusChange: true };
     }
-    return recordProblem("occurred_after_status_change");
+    if (occurredAt && changedAt && occurredAt.getTime() <= changedAt.getTime() + tolerance) {
+      return { ok: true, recordedAfterStatusChange: true, withinClockTolerance: true };
+    }
+    const refused = recordProblem(
+      status === "discharged" || status === "deceased"
+        ? "occurred_after_status_change"
+        : "not_allowed_in_status",
+    );
+    return occurredAt ? { ...refused, careEventAfterChange: true } : refused;
   }
   return recordProblem("not_allowed_in_status");
 }
@@ -266,6 +305,16 @@ export function checkPersonRecordWrite(
 // ------------------------------------------------------------------------------------------------
 // Status changes
 // ------------------------------------------------------------------------------------------------
+
+/**
+ * The statuses a discharge or death recorded in error is corrected back to: the one the person had
+ * when it was recorded (people.md rule 2; HZ-003, HZ-008).
+ */
+export const CORRECTABLE_STATUSES = [
+  "active",
+  "on_leave",
+  "in_hospital",
+] as const satisfies readonly PersonStatus[];
 
 /**
  * The lifecycle as a workflow (platform workflow engine). Nothing is terminal: a discharged person
@@ -307,21 +356,22 @@ export const PERSON_LIFECYCLE = defineWorkflow<PersonStatus>({
       to: "deceased",
       permission: "people.movement.record",
     },
-    // A discharge recorded in error is corrected (the person never left).
-    {
-      from: "discharged",
-      to: "active",
-      permission: "people.admission.manage",
+    // A discharge recorded in error is corrected (the person never left): back to the status the
+    // person had before it was recorded (`checkPersonStatusChange` checks which).
+    ...CORRECTABLE_STATUSES.map((to) => ({
+      from: "discharged" as const,
+      to,
+      permission: "people.admission.manage" as const,
       requiresReason: true,
-    },
+    })),
     // A death recorded in error is corrected with a reason and a fresh sign-in (HZ-001).
-    {
-      from: "deceased",
-      to: "active",
-      permission: "people.admission.manage",
+    ...CORRECTABLE_STATUSES.map((to) => ({
+      from: "deceased" as const,
+      to,
+      permission: "people.admission.manage" as const,
       requiresReason: true,
       requiresStepUp: true,
-    },
+    })),
     // Re-admission on the same record: a new pre-admission assessment and placement.
     {
       from: ["discharged", "archived"],
@@ -347,6 +397,8 @@ export type PersonStatusEffect =
   | "schedule_first_care_plan"
   | "pause_rounds"
   | "resume_rounds"
+  /** A correction back to on leave or in hospital: what the exit ended waits for the return. */
+  | "restore_paused_rounds"
   | "offer_hospital_transfer_pack"
   | "start_return_from_hospital_checks"
   | "raise_care_plan_review_on_change"
@@ -380,6 +432,11 @@ export interface PersonLifecycleView {
   readonly statusChangedAt: Date | null;
   /** Set when a death has ever been recorded and not corrected; a deceased person is never re-admitted. */
   readonly deceasedAt: Date | null;
+  /**
+   * For a discharged or deceased person: the status they had when the exit was recorded (from the
+   * exit record). Null for exits recorded before it was kept: a correction then returns to active.
+   */
+  readonly statusBeforeExit?: PersonStatus | null;
 }
 
 export interface PersonStatusChangeRequest {
@@ -410,7 +467,8 @@ export type PersonStatusProblem =
   | "admission_not_ready"
   | "exit_kind_required"
   | "exit_not_closed"
-  | "deceased_cannot_be_readmitted";
+  | "deceased_cannot_be_readmitted"
+  | "correction_to_other_status";
 
 export type PersonStatusChangeCheck =
   | {
@@ -434,6 +492,8 @@ const STATUS_MESSAGES: Record<Exclude<PersonStatusProblem, WorkflowTransitionPro
   exit_kind_required: "Say whether this is a discharge or a transfer to another provider.",
   exit_not_closed: "Finish the discharge, transfer or death checklist before archiving the record.",
   deceased_cannot_be_readmitted: "A person who has died cannot be re-admitted.",
+  correction_to_other_status:
+    "A correction returns the person to the status they had when the discharge or death was recorded.",
 };
 
 function statusProblem(
@@ -442,10 +502,27 @@ function statusProblem(
   return { ok: false, problem, message: STATUS_MESSAGES[problem] };
 }
 
+const isCorrection = (from: PersonStatus, to: PersonStatus) =>
+  (from === "discharged" || from === "deceased") &&
+  (CORRECTABLE_STATUSES as readonly PersonStatus[]).includes(to);
+
 function effectsFor(
   from: PersonStatus,
   to: PersonStatus,
 ): { effects: PersonStatusEffect[]; event: PersonLifecycleEvent } {
+  if (isCorrection(from, to)) {
+    // Sharing stays closed until a manager reinstates the decisions, and the bed is re-checked by
+    // the API before the person is shown in it. A person who was away when the exit was recorded
+    // is still away: what the exit ended waits, paused, for their return.
+    return {
+      effects: [
+        "cancel_exit_workflow",
+        "reopen_record",
+        to === "active" ? "resume_rounds" : "restore_paused_rounds",
+      ],
+      event: "people.person.status_corrected",
+    };
+  }
   if (to === "pre_admission") {
     return {
       effects: ["start_pre_admission_assessment"],
@@ -498,13 +575,7 @@ function effectsFor(
       event: "people.person.returned",
     };
   }
-  if (from === "on_leave") return { effects: ["resume_rounds"], event: "people.person.returned" };
-  // Correction of a discharge or death recorded in error. Sharing stays closed until a manager
-  // reinstates the decisions, and the bed is re-checked by the API before the person is shown in it.
-  return {
-    effects: ["cancel_exit_workflow", "reopen_record", "resume_rounds"],
-    event: "people.person.status_corrected",
-  };
+  return { effects: ["resume_rounds"], event: "people.person.returned" };
 }
 
 /**
@@ -547,6 +618,9 @@ export function checkPersonStatusChange(
   if (to === "pre_admission" && from === "archived" && person.deceasedAt !== null) {
     return statusProblem("deceased_cannot_be_readmitted");
   }
+  if (isCorrection(from, to) && to !== (person.statusBeforeExit ?? "active")) {
+    return statusProblem("correction_to_other_status");
+  }
 
   const { effects, event } = effectsFor(from, to);
   let exitKind: ExitKind | null = null;
@@ -558,6 +632,6 @@ export function checkPersonStatusChange(
     effects,
     exitKind,
     event,
-    correction: to === "active" && (from === "discharged" || from === "deceased"),
+    correction: isCorrection(from, to),
   };
 }

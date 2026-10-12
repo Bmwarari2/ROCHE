@@ -118,8 +118,9 @@ names below are the concepts this contract carries and must be kept in step with
 | `legal_status` | enum | - | Harbour code list, defined in `docs/specs/people.md` | Legal frameworks that apply (for example DoLS, Mental Health Act, Court of Protection order). |
 | `photo_document_id` | UUIDv7 | - | Reference to `document` | Photo shown on every point-of-care screen (wrong-person hazard). Exported in `documents/`. |
 | `communication_needs` | JSON array | Accessible Information Standard; SNOMED CT | `[{ "code", "display", "preferredFormat" }]` (below) | Flags on every screen and print (section 5.4). |
-| `communication_needs_status` | code | Accessible Information Standard (identify and record) | `not_recorded`, `none_identified`, `recorded` | Phase 1. An empty list is never read as "no needs": `none_identified` is recorded positively with `communication_needs_confirmed_by` and `_at` (hazard HZ-023). |
+| `communication_needs_status` | code | Accessible Information Standard (identify and record) | `not_recorded`, `none_identified`, `recorded` | Phase 1. An empty list is never read as "no needs": `none_identified` is recorded positively, and `communication_needs_confirmed_by` and `_at` name who recorded the needs, or that there are none, on every change (hazard HZ-023). |
 | `allergy_status` | code | MODS allergies and adverse reactions (the "no known allergies" statement; see `allergy` below) | `unknown` (nobody has recorded whether the person has allergies), `no_known_allergies` (checked and recorded: none known), `has_allergies` (one or more rows in `allergy`) | Defaults to `unknown`, which never means none (hazard HZ-007). Read with the `allergy` rows; go-live waits until no current person is `unknown` ([platform-completions.md](platform-completions.md) rule 26). |
+| `allergy_status_confirmed_by`, `allergy_status_confirmed_at` | UUIDv7, timestamp | - | Reference to `tenant_user`; ISO 8601 UTC | Phase 1 (migration 0023). Who set the allergy status and when, kept by a database trigger on every write that touches the status or either of these columns: always the signed-in user (`app.current_user_id()`) and the time of the write, never values the client sends, and null when no user is signed in; cleared when the status returns to `unknown`; never the last person to edit the row. Null for statuses set before the migration (printed as "who confirmed this is not recorded"). |
 | `national_data_opt_out` | boolean | National data opt-out | `true` when the person has opted out | Honoured when publicly funded care data is used beyond direct care. Checking against the national service is a Phase 5 item. |
 | `deceased_at` | timestamp | NHS Data Dictionary PERSON DEATH DATE (the UK date of this instant) | ISO 8601 UTC | Sets `status` to `deceased`. The export adds `deceased_at_uk_date`. |
 | `discharged_at` | timestamp | MODS discharge date (the UK date of this instant) | ISO 8601 UTC | Sets `status` to `discharged`. The export adds `discharged_at_uk_date`. |
@@ -211,6 +212,7 @@ illustrative: the display text is whatever the loaded concept's preferred term i
 | --- | --- | --- |
 | `role` | Harbour code list, aligned to MODS related-person roles and MCA 2005 | `next_of_kin`, `lpa_health_welfare` (lasting power of attorney for health and welfare), `lpa_property_finance` (lasting power of attorney for property and financial affairs), `deputy` (Court of Protection deputy), `imca` (independent mental capacity advocate), `advocate`, `appointee` (DWP appointee), `other` |
 | Authority evidence | Document reference, OPG reference where registered, expiry | An attorney or deputy sees only what the authority covers (section 15.1). Evidence is required before a legal role grants portal access. |
+| `authority_scope` | Mental Capacity Act 2005 (Court of Protection deputyship orders) | `personal_welfare`, `property_affairs`, `both`; null for other roles | Phase 1, deputies only. Sharing checks what the authority covers (people.md rule 13). |
 
 ### `allergy`
 
@@ -222,8 +224,8 @@ illustrative: the display text is whatever the loaded concept's preferred term i
 | `severity` | Aligned to HL7 FHIR UK Core AllergyIntolerance reaction severity | `mild`, `moderate`, `severe` |
 | `status` | Aligned to FHIR AllergyIntolerance clinical status | `active`, `inactive`, `resolved` |
 
-"No known allergies" must be recorded explicitly (as a dated, attributed statement) so that an empty
-list is never displayed as "no allergies": this mitigates hazard HZ-007 (incorrect or missing allergy
+"No known allergies" must be recorded explicitly (as a dated, attributed statement: `person.allergy_status_confirmed_by`
+and `_at`) so that an empty list is never displayed as "no allergies": this mitigates hazard HZ-007 (incorrect or missing allergy
 display) in `docs/clinical-safety/hazard-log.md`. The coded form uses the SNOMED CT "no known allergy" situation
 concept from the loaded UK edition.
 
@@ -430,17 +432,23 @@ assurance pack.
 | `care_plan_change.kind` | Harbour | `return_from_hospital`, `fall`, `change_in_needs`, `new_diagnosis`, `safeguarding`, `end_of_life`, `other` | Raises the care plan review on change. |
 | `review_record.kind` | Harbour | `care_plan`, `la_review`, `family_involvement`, `trial_review` | |
 | `review_record` family involvement | Harbour | `attended_review`, `contributed`, `invited_declined`, `person_declines_involvement`, `no_family_or_representative` | The last two stop the family involvement clock. |
-| `hospital_transfer` pack sections | NHS England hospital transfer pathway (red bag) content; allergies as `allergy`; About Me as `about_me`; communication needs as AIS; resuscitation as the care module's advance care record (ReSPECT, DNACPR) | `photo`, `allergies`, `medicines`, `communication`, `resuscitation`, `about_me` (safety-critical); `reason_for_transfer`, `baseline`, `eating_and_drinking`, `capacity_and_legal`, `contacts`, `infection`, `items_sent`, `home_contact` | The snapshot is stored as JSON with its rendered PDF; medicines are dm+d-coded from Phase 2. |
+| `hospital_transfer` pack sections | NHS England hospital transfer pathway (red bag) content; allergies as `allergy`; About Me as `about_me`; communication needs as AIS; resuscitation as the care module's advance care record (ReSPECT, DNACPR); IDDSI levels as the care profile | `photo`, `allergies`, `medicines`, `communication`, `resuscitation`, `about_me`, `eating_and_drinking` (safety-critical); `reason_for_transfer`, `baseline`, `capacity_and_legal`, `contacts`, `infection`, `items_sent`, `home_contact` | The snapshot is stored as JSON (`pack`) with the missing critical sections and `attention` (codes `resuscitation_conflict`, `resuscitation_review_overdue`, `medicines_need_checking`, `photo_not_printable`, `allergy_confirmation_not_recorded`); the resuscitation section holds the CPR `decision` in force, `conflicting`, the review date and the ReSPECT and DNACPR records; the PDF is rendered from it on request (ADR-0040), never from the live record. Packs stored before the review keep their older shape and print as they were. Medicines are dm+d-coded from Phase 2. |
 | `exit_record.kind` | Harbour | `discharge`, `transfer`, `death` | |
-| `exit_record` destination | MODS discharge destination (concept); NHS Data Dictionary discharge destination items to be checked | Destination type (`usual_residence`, `another_care_home`, `hospital`, `other`) and the receiving provider's CQC location ID or ODS code | Sets `person.discharged_at`. |
+| `exit_record` destination | MODS discharge destination (concept); NHS Data Dictionary discharge destination items to be checked | Destination type (`own_home`, `family_home`, `care_home`, `hospital`, `hospice`, `supported_living`, `other`) and the receiving provider's CQC location ID or ODS code | Sets `person.discharged_at`. |
 | `exit_record` death details | NHS Data Dictionary PERSON DEATH DATE (date part of `person.deceased_at`); place of death (concept) | Place `care_home`, `hospital`, `elsewhere`; expected or not; verified by (name, role) and at | Sets `person.deceased_at`. |
+| `exit_record.learning_disability_or_autism` | LeDeR (concept) | `true` or `false`, no default (migration 0023) | An explicit answer for every death, never assumed; a discharge or transfer that does not say records `false`. Decides the LeDeR notification. |
+| `exit_record.status_before`, `status_before_since` | Harbour | `active`, `on_leave`, `in_hospital`; ISO 8601 UTC | Phase 1 (migration 0023). The person's status when the exit was recorded and when it began: a correction of the exit as recorded in error returns the person to it (people.md rule 2). Null for exits recorded before the migration, which return to `active`. |
+| `exit_record.state` | Harbour (`DISCHARGE_WORKFLOW`, `TRANSFER_WORKFLOW`, `DEATH_WORKFLOW`) | `planned`, `left`, `recorded`, `awaiting_return`, `closed`, `cancelled` (with a reason) | Mirrors the exit workflow instance; `regulator` is `cqc`, `ciw`, `care_inspectorate` or `rqia`. |
 | `exit_checklist_item.status` | Harbour | `pending`, `done`, `not_required` (with a reason, only where allowed) | Item keys from `exitChecklist` in `packages/domain/src/people/exit.ts`. |
 | `sharing_decision.sections` | Harbour | `about_me`, `daily_updates`, `photos`, `activities_and_visits`, `care_plan`, `health_summary`, `medicines`, `appointments`, `finance`, `benefits`, `documents`; care plan domains as the PCSP domains | `benefits` is the only section a DWP appointee covers; `finance` and `benefits` need a property and financial affairs authority. |
 | `sharing_decision.basis` | UK GDPR and Caldicott principle 7 (direct care) | `consent`, `legal_authority`, `best_interests`, `direct_care` | Consent covers optional processing only (records of processing B8). |
 | `sharing_decision` authority role | Mental Capacity Act 2005 (Office of the Public Guardian registrations, Court of Protection orders); DWP appointeeship | `lpa_health_welfare`, `lpa_property_finance`, `deputy_personal_welfare`, `deputy_property_affairs`, `appointee` | From `contact.role` and `contact.authority_scope`, with reference, evidence document and end date. |
 | `sharing_decision` deputy order sections | Court of Protection order (Mental Capacity Act 2005 s.16 and s.20) | `sharing_decision.sections` codes, as recorded from the order | Required for `deputy_personal_welfare` and `deputy_property_affairs`; a deputy is never shown a section outside it. |
-| `sharing_decision_suspension` | Harbour | `from`, `to` (UTC; `to` empty while it lasts), reason | Periods, not a single flag: an update from a suspension period stays closed after it ends (comms.md rule 2). `to` after `from`. |
+| `sharing_decision_suspension` | Harbour | `suspended_at`, `lifted_at` (UTC; `lifted_at` empty while it lasts), reason, lifted by and the reason it was lifted | Periods, not a single flag (migration 0025): an update from a suspension period stays closed after it ends (comms.md rule 2). `lifted_at` after `suspended_at`; one open period per decision; `sharing_decision.suspended_at` mirrors the open one. |
 | `sharing_decision` capacity | Mental Capacity Act 2005 s.1(2) (presumption of capacity) | `presumed`, `assessed_has_capacity`, `assessed_lacks_capacity` | Links the capacity assessment where one exists. |
+| `about_me_share_link.token_hash` | Harbour | Lower-case hex SHA-256 of the link token (64 characters) | The token itself is shown once and never stored; expiry no later than the sharing decision's end. |
+| `recorded_after_exit` on `care_note`, `observation`, `body_map_mark`, `assessment`, `activity_record` and `visit_log` | Harbour | `true` or `false` | Phase 1. True when an entry about an event at or before a discharge, death or move to hospital, or within the clock tolerance after it (`sync.clock_drift_flag_minutes`), is accepted after it (people.md rule 3, HZ-006); shown with the late-entry flag. |
+| `task_id`, `task_outcome` on `care_note`, `observation`, `body_map_mark`, `assessment`, `activity_record` and `visit_log` | Harbour (`TASK_LINK_OUTCOMES`) | UUIDv7; `completed`, `task_cancelled`, `task_already_closed`, `not_linked`, `medicines_conflict` (migration 0026) | Phase 1 (migration 0023). The task the entry named and what the entry did to it (care.md rule 13, HZ-004, HZ-006): set together or not at all (check `<table>_task_outcome`). `task_already_closed` and `not_linked` are listed for review by the nurse in charge; `medicines_conflict` (a medicines task the entry could not complete) for an urgent conflict review. |
 | `break_glass_event.reason_code` | Harbour | `emergency_care`, `covering_another_area`, `safeguarding`, `incident_or_complaint`, `request_from_professional`, `other` | Phase 1; the typed justification is kept as well. |
 
 ## Packs and governance (Phase 1, slice 11)
@@ -540,9 +548,22 @@ map to no national data standard: `audit_event` (hash-chained), `record_version`
 Phase 1 `break_glass_weekly_report`, `about_me_share_link`, `welcome_checklist_template`,
 `tenant_export`, `dpia`, `sub_processor_response`, `tenant_setting_decision`, `retention_decision`,
 `family_notification`, `visit_booking_setting` and `family_portal_user` (the global
-`sub_processor_notice` table is Thapsus's and is not exported). Every exported table is described
-in `EXPORT_TABLES` (`packages/domain/src/platform/export.ts`), which a test keeps in step with the
-schema. Field-level
+`sub_processor_notice` table is Thapsus's and is not exported). Every exported table is described in
+`EXPORT_TABLES` (`packages/domain/src/platform/export.ts`), which a test keeps in step with the
+schema. The task engine's `task` and `task_series` are exported the same way; from migration 0023
+they carry `cancel_code` and `inactive_code` (`paused_while_away`, `ended_at_exit`,
+`exit_recorded_in_error`, `planned_exit_cancelled`, `missed_before_return_recorded`: why the people
+lifecycle stopped them) and `task.evidence_after_close` (evidence that arrived after the task was
+cancelled), and `stopped_by_exit_id` on both (the exit record that ended the task or series, so a
+correction brings back only what that exit stopped); from migration 0026 `task.restore_code`
+(`caught_up`, `answered_while_stopped`: how a return or correction brought the task back) and
+`document.image_printable` (whether a JPEG or PNG prints on the transfer pack, decided once at
+upload). `task.details` is JSON a review task carries:
+`missedTasks` (task id, kind, due time and whether it was reopened; missed medicines rounds first
+and never dropped, then the rest newest first), `missedTasksOmitted` (how many more were not
+listed), `missedTasksNotListedBefore` (an ISO date, UK time: rounds due before it are not all
+listed) and `entries` (entry kind, client id, device id, user id and times; opaque ids only,
+never clinical text). Field-level
 detail is in `packages/db/src/schema/`; purposes and lawful bases are in
 [records of processing](../compliance/records-of-processing.md).
 

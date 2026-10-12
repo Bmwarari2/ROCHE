@@ -23,6 +23,9 @@ const APPEND_ONLY_TABLES = [
   "capacity_assessment",
   "best_interests_decision",
   "classifier_answer",
+  "admission_decision",
+  "review_record",
+  "break_glass_weekly_report",
 ];
 /** Audit and history rows may be written before a tenant is chosen. */
 const NULLABLE_TENANT_TABLES = ["audit_event", "record_version"];

@@ -44,6 +44,9 @@ export const DEMO = {
 
 export type DemoUserKey = keyof typeof DEMO.users;
 
+/** When the demo residents were admitted (their placements start on 1 September). */
+export const DEMO_ADMITTED_AT = "2026-09-01T00:00:00+01:00";
+
 interface DemoPerson {
   readonly n: number;
   readonly given: string;
@@ -306,10 +309,13 @@ export async function seedDemoTenant(ownerPool: pg.Pool): Promise<{ created: boo
 
       for (const p of PEOPLE) {
         const personId = uuid("600", p.n);
+        // Admitted on 1 September: the status began then (people.md rule 2), and a list of needs
+        // is a record of them while an empty one stays "not recorded" (HZ-023).
         await client.query(
           `INSERT INTO person (id, location_id, status, nhs_number, given_name, family_name, preferred_name,
-                               date_of_birth, room_label, allergy_status, communication_needs, first_language)
-           VALUES ($1, $2, 'active', $3, $4, $5, $6, $7, $8, $9, $10, 'en')`,
+                               date_of_birth, room_label, allergy_status, communication_needs, first_language,
+                               communication_needs_status, status_changed_at)
+           VALUES ($1, $2, 'active', $3, $4, $5, $6, $7, $8, $9, $10, 'en', $11, $12)`,
           [
             personId,
             DEMO.locationId,
@@ -321,6 +327,8 @@ export async function seedDemoTenant(ownerPool: pg.Pool): Promise<{ created: boo
             p.room,
             p.allergyStatus,
             JSON.stringify(p.communication),
+            p.communication.length > 0 ? "recorded" : "not_recorded",
+            DEMO_ADMITTED_AT,
           ],
         );
         for (const allergy of p.allergies) {
@@ -338,6 +346,12 @@ export async function seedDemoTenant(ownerPool: pg.Pool): Promise<{ created: boo
             p.n % 2 === 0 ? DEMO.residentialServiceId : DEMO.nursingServiceId,
             uuid("400", Number(p.room)),
           ],
+        );
+        // The room label on the header comes from this history (people.md rule 6, HZ-001).
+        await client.query(
+          `INSERT INTO bed_occupancy (person_id, room_id, bed, from_date, reason)
+           VALUES ($1, $2, 1, '2026-09-01', 'Admission')`,
+          [personId, uuid("400", Number(p.room))],
         );
         await client.query(
           `INSERT INTO contact (person_id, role, given_name, family_name, relationship, email, is_next_of_kin)

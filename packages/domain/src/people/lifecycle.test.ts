@@ -169,6 +169,48 @@ describe("rule 12: discharged and deceased people are read-only except post-even
     },
   );
 
+  it.each(["active", "on_leave", "in_hospital", "discharged", "deceased"] as const)(
+    "accepts a key or property return while the person is %s (rule 7)",
+    (status) => {
+      for (const kind of ["key_return", "property_return"] as const) {
+        expect(checkPersonRecordWrite({ status, statusChangedAt: died }, { kind })).toEqual({
+          ok: true,
+          recordedAfterStatusChange: false,
+        });
+      }
+    },
+  );
+
+  it.each<[string, string, boolean, boolean]>([
+    ["at the death", "2026-10-10T03:00:00Z", true, false],
+    ["two minutes after (a fast phone clock)", "2026-10-10T03:02:00Z", true, true],
+    ["exactly at the tolerance", "2026-10-10T03:05:00Z", true, true],
+    ["a minute beyond the tolerance", "2026-10-10T03:06:00Z", false, false],
+  ])(
+    "hazard HZ-006 an observation timed %s is accepted within the clock tolerance: %s",
+    (_label, occurredAt, accepted, tolerated) => {
+      const result = checkPersonRecordWrite(
+        { ...deceased, clockToleranceMinutes: 5 },
+        { kind: "observation", occurredAt: new Date(occurredAt) },
+      );
+      if (!accepted) {
+        expect(result).toMatchObject({
+          ok: false,
+          problem: "occurred_after_status_change",
+          careEventAfterChange: true,
+        });
+      } else if (tolerated) {
+        expect(result).toEqual({
+          ok: true,
+          recordedAfterStatusChange: true,
+          withinClockTolerance: true,
+        });
+      } else {
+        expect(result).toEqual({ ok: true, recordedAfterStatusChange: true });
+      }
+    },
+  );
+
   it("refuses everything for archived and not-admitted records", () => {
     for (const kind of Object.keys(PERSON_RECORD_KINDS) as PersonRecordKind[]) {
       for (const status of ["archived", "not_admitted"] as const) {
@@ -179,6 +221,24 @@ describe("rule 12: discharged and deceased people are read-only except post-even
       }
     }
   });
+
+  it.each<["on_leave" | "in_hospital", PersonRecordKind, string, boolean]>([
+    ["in_hospital", "observation", "2026-09-30T23:00:00Z", true],
+    ["in_hospital", "body_map_mark", "2026-10-01T00:00:00Z", true],
+    ["on_leave", "assessment", "2026-09-30T08:00:00Z", true],
+    ["in_hospital", "observation", "2026-10-01T00:30:00Z", false],
+    ["on_leave", "body_map_mark", "2026-10-02T10:00:00Z", false],
+  ])(
+    "hazard HZ-006 a person who went %s: an offline %s at %s is accepted: %s",
+    (status, kind, occurredAt, accepted) => {
+      const result = checkPersonRecordWrite(
+        { status, statusChangedAt: new Date("2026-10-01T00:00:00Z") },
+        { kind, occurredAt: new Date(occurredAt) },
+      );
+      if (accepted) expect(result).toEqual({ ok: true, recordedAfterStatusChange: true });
+      else expect(result).toMatchObject({ ok: false, problem: "not_allowed_in_status" });
+    },
+  );
 
   it("lets live records take care events at any time", () => {
     expect(
@@ -351,6 +411,98 @@ describe("status changes", () => {
       event: "people.person.status_corrected",
       effects: ["cancel_exit_workflow", "reopen_record", "resume_rounds"],
     });
+  });
+
+  it.each<
+    [string, PersonStatus, PersonStatus | null | undefined, PersonStatus, string | null, string[]]
+  >([
+    [
+      "a death recorded while active, back to active",
+      "deceased",
+      "active",
+      "active",
+      null,
+      ["cancel_exit_workflow", "reopen_record", "resume_rounds"],
+    ],
+    [
+      "a death recorded while in hospital, back to in hospital",
+      "deceased",
+      "in_hospital",
+      "in_hospital",
+      null,
+      ["cancel_exit_workflow", "reopen_record", "restore_paused_rounds"],
+    ],
+    [
+      "a death recorded while on leave, back to on leave",
+      "deceased",
+      "on_leave",
+      "on_leave",
+      null,
+      ["cancel_exit_workflow", "reopen_record", "restore_paused_rounds"],
+    ],
+    [
+      "a discharge recorded while in hospital, back to in hospital",
+      "discharged",
+      "in_hospital",
+      "in_hospital",
+      null,
+      ["cancel_exit_workflow", "reopen_record", "restore_paused_rounds"],
+    ],
+    [
+      "a death recorded while in hospital is not corrected to active",
+      "deceased",
+      "in_hospital",
+      "active",
+      "correction_to_other_status",
+      [],
+    ],
+    [
+      "a death recorded while active is not corrected to in hospital",
+      "deceased",
+      "active",
+      "in_hospital",
+      "correction_to_other_status",
+      [],
+    ],
+    [
+      "an exit recorded before the status was kept goes back to active",
+      "deceased",
+      null,
+      "active",
+      null,
+      ["cancel_exit_workflow", "reopen_record", "resume_rounds"],
+    ],
+    [
+      "an exit recorded before the status was kept is not corrected to in hospital",
+      "discharged",
+      undefined,
+      "in_hospital",
+      "correction_to_other_status",
+      [],
+    ],
+  ])("hazards HZ-003 and HZ-008 correct %s", (_label, from, before, to, problem, effects) => {
+    const result = checkPersonStatusChange(
+      person(from, {
+        deceasedAt: from === "deceased" ? EARLIER : null,
+        statusChangedAt: EARLIER,
+        statusBeforeExit: before,
+      }),
+      change(to, {
+        effectiveAt: NOW,
+        reason: "Recorded against the wrong person",
+        stepUpFresh: true,
+      }),
+    );
+    if (problem) {
+      expect(result).toMatchObject({ ok: false, problem });
+    } else {
+      expect(result).toMatchObject({
+        ok: true,
+        correction: true,
+        event: "people.person.status_corrected",
+        effects,
+      });
+    }
   });
 
   it("never re-admits a person who has died", () => {

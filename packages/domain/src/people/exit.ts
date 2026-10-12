@@ -1,4 +1,5 @@
 import { defineWorkflow, type WorkflowDefinition } from "../platform/workflow";
+import { NOTIFICATION_KINDS, type StatutoryNotificationKind } from "../safety/notifications";
 import { addUkDays } from "../shared/time";
 import { hasReason } from "./dates";
 import type { ExitKind } from "./lifecycle";
@@ -44,6 +45,14 @@ function leavingWorkflow(key: string): WorkflowDefinition<ExitState> {
       },
       { from: "left", to: "awaiting_return", permission: "people.admission.manage" },
       { from: ["left", "awaiting_return"], to: "closed", permission: "people.admission.manage" },
+      // A discharge or transfer recorded in error (the person never left) is cancelled with a
+      // reason alongside the lifecycle correction, which emits `cancel_exit_workflow`.
+      {
+        from: ["left", "awaiting_return"],
+        to: "cancelled",
+        permission: "people.admission.manage",
+        requiresReason: true,
+      },
     ],
     sla: RETURN_SLA,
   });
@@ -62,9 +71,9 @@ export const DEATH_WORKFLOW = defineWorkflow<DeathExitState>({
     { from: "recorded", to: "awaiting_return", permission: "people.admission.manage" },
     { from: ["recorded", "awaiting_return"], to: "closed", permission: "people.admission.manage" },
     // A death recorded in error (HZ-001): cancelled with a reason and a fresh sign-in, alongside
-    // the lifecycle correction.
+    // the lifecycle correction, also while money and property are being returned.
     {
-      from: "recorded",
+      from: ["recorded", "awaiting_return"],
       to: "cancelled",
       permission: "people.admission.manage",
       requiresReason: true,
@@ -94,9 +103,14 @@ export type ExitItemDue =
 export interface ExitNotification {
   /** Who is told. */
   readonly recipient: string;
-  /** True when a law requires it (drafted and submitted in the safety module). */
+  /** True when a law requires it, as the safety module's `NOTIFICATION_KINDS` says. */
   readonly statutory: boolean;
   readonly due: ExitItemDue;
+  /**
+   * The safety module's notification kind when it is drafted and submitted there (HZ-013), whether
+   * or not a law requires it; null for notifications made by the exit checklist alone.
+   */
+  readonly safetyKind: StatutoryNotificationKind | null;
 }
 
 export interface ExitChecklistItem {
@@ -164,12 +178,18 @@ const tell = (
   recipient,
   statutory: false,
   due,
+  safetyKind: null,
 });
 
-const statutory = (recipient: string): ExitNotification => ({
+/**
+ * A notification drafted in the safety module: whether the law requires it comes from that
+ * module's `NOTIFICATION_KINDS`, so the exit checklist and the notification never disagree.
+ */
+const drafted = (recipient: string, kind: StatutoryNotificationKind): ExitNotification => ({
   recipient,
-  statutory: true,
+  statutory: NOTIFICATION_KINDS[kind].statutory,
   due: { kind: "without_delay" },
+  safetyKind: kind,
 });
 
 function returnItems(context: ExitContext): ExitChecklistItem[] {
@@ -266,7 +286,15 @@ export function exitChecklist(context: ExitContext): ExitChecklistItem[] {
       item("regulator_death_notification", `${regulator} death notification`, {
         owner: "safety",
         allowNotRequired: true,
-        notification: statutory(regulator),
+        notification:
+          context.regulator === "cqc"
+            ? drafted(regulator, "cqc_reg16_death")
+            : {
+                recipient: regulator,
+                statutory: true,
+                due: { kind: "without_delay" },
+                safetyKind: null,
+              },
         hazardIds: ["HZ-013"],
       }),
       item("gp_informed", "GP told", { allowNotRequired: true, notification: tell("GP practice") }),
@@ -276,7 +304,7 @@ export function exitChecklist(context: ExitContext): ExitChecklistItem[] {
         item("medical_examiner_information", "Information sent to the medical examiner", {
           owner: "safety",
           allowNotRequired: true,
-          notification: statutory("Medical examiner office"),
+          notification: drafted("Medical examiner office", "medical_examiner"),
           hazardIds: ["HZ-013"],
         }),
       );
@@ -296,7 +324,7 @@ export function exitChecklist(context: ExitContext): ExitChecklistItem[] {
       items.push(
         item("leder_notification", "LeDeR notification", {
           owner: "safety",
-          notification: statutory("LeDeR programme"),
+          notification: drafted("LeDeR programme", "leder"),
           hazardIds: ["HZ-013"],
         }),
       );
@@ -334,6 +362,34 @@ export function exitChecklist(context: ExitContext): ExitChecklistItem[] {
     ...sharedNotifications(context),
     ...returnItems(context),
   ];
+}
+
+/** Every item an exit of any kind can have, with every flag on, to look items up by key. */
+const EVERY_ITEM: readonly ExitChecklistItem[] = (
+  ["discharge", "transfer", "death"] as const
+).flatMap((kind) =>
+  exitChecklist({
+    kind,
+    regulator: "cqc",
+    funding: { localAuthority: true, nhs: true },
+    placeOfDeath: "care_home",
+    deathExpected: false,
+    learningDisabilityOrAutism: true,
+    dolsInPlace: true,
+    homeIsDwpAppointee: true,
+    holdsResidentsMoney: true,
+    holdsDeposit: true,
+    hasLoanEquipment: true,
+  }),
+);
+
+/**
+ * Who owns an exit checklist item, by its key alone (the same for every kind of exit), or null for
+ * a key no checklist has. The API decides from this, before reading anything, whether confirming
+ * an item needs the finance approval permission (residents' money, deposits, the DWP).
+ */
+export function exitItemOwner(key: string): ExitItemOwner | null {
+  return EVERY_ITEM.find((item) => item.key === key)?.owner ?? null;
 }
 
 /** The notifications an exit makes, statutory ones first. */

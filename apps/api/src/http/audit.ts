@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
 import { auditEvent, type Transaction } from "@harbour/db";
 import { drizzle } from "drizzle-orm/node-postgres";
+import type { Context } from "hono";
 import type pg from "pg";
-import type { TenantAccess } from "./context";
+import type { AppEnv, TenantAccess } from "./context";
+import type { HttpProblem } from "./problem";
 
 /**
  * Audit trail writer (section 5.5). Every view of a care record, change, export, permission
@@ -86,5 +88,38 @@ export async function writeAudit(
     throw error;
   } finally {
     client.release();
+  }
+}
+
+/**
+ * A refusal decided inside a transaction whose audit row must survive it: thrown in the
+ * transaction, and turned into the problem by `withAuditedRefusal` after the transaction has
+ * ended and released its connection, so writing the audit never needs a second connection while
+ * one is held (S-L7).
+ */
+export class AuditedRefusal extends Error {
+  constructor(
+    readonly problem: HttpProblem,
+    readonly audit: AuditInput,
+  ) {
+    super(problem.message);
+  }
+}
+
+/** Runs a transaction and, if it ends in an `AuditedRefusal`, records the refusal, then throws. */
+export async function withAuditedRefusal<T>(
+  c: Context<AppEnv>,
+  access: TenantAccess,
+  run: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    if (!(error instanceof AuditedRefusal)) throw error;
+    await writeAudit(c.get("services").appPool, access, {
+      ...error.audit,
+      requestId: c.get("requestId"),
+    });
+    throw error.problem;
   }
 }

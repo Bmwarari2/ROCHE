@@ -40,6 +40,8 @@ const Env = z.object({
   SYNC_SIGNING_KEY_ID: z.string().default("harbour-sync-1"),
   /** Seconds a sign-in counts as fresh for step-up actions (section 5.3). */
   STEP_UP_WINDOW_SECONDS: z.coerce.number().int().positive().default(600),
+  /** Transfer pack previews, creations and prints per user a minute, per API instance (S2). */
+  TRANSFER_PACK_REQUESTS_PER_MINUTE: z.coerce.number().int().positive().default(30),
   /** Where document bytes live: local disk (development and tests) or S3 (AWS). */
   DOCUMENT_STORAGE: z.enum(["local", "s3"]).default("local"),
   LOCAL_DOCUMENTS_DIR: z.string().default(".data/documents"),

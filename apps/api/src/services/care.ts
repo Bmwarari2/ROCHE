@@ -15,19 +15,24 @@ import {
   type CareTaskKind,
   type CareTrigger,
   checkEntryTime,
+  checkTaskLink,
   checkTaskTransition,
+  entryPermissionTime,
   hasClockDrift,
   isClosedRecord,
+  isMedicinesTask,
   isPermission,
   nextWeightDueOn,
   resolveCareRates,
+  type TaskLinkOutcome,
+  type TaskLinkReview,
   type TaskStatus,
   ukDayBounds,
   ukIsoDate,
 } from "@harbour/domain";
 import { and, eq, inArray, isNull, or } from "drizzle-orm";
-import { problems } from "../http/problem";
-import { OVERDUE_FIRST_RESPONDERS } from "./tasks";
+import { HttpProblem, problems } from "../http/problem";
+import { anyoneMayBeGiven, mayBeAssigned, OVERDUE_FIRST_RESPONDERS } from "./tasks";
 
 /**
  * Shared rules for the point-of-care record (docs/specs/care.md): rate-table figures, the person's
@@ -388,46 +393,238 @@ export async function raiseCareTriggers(
   return raised;
 }
 
+/** What happened to the task an entry named (care.md rule 13; HZ-004, HZ-006). */
+export type TaskOutcome = TaskLinkOutcome;
+
+/** What an entry will do to the task it names, decided before the entry is written. */
+export interface PlannedTaskLink {
+  readonly taskId: string;
+  readonly kind: string;
+  readonly status: TaskStatus;
+  readonly version: number;
+  readonly evidenceRequired: boolean;
+  /** Evidence already on the task (a cancelled task keeps the first entry that answered it). */
+  readonly evidenceId: string | null;
+  readonly outcome: TaskLinkOutcome;
+  /** Who reviews it: nobody, the nurse in charge, or the nurse in charge now (a medicines conflict). */
+  readonly review: TaskLinkReview;
+  /**
+   * The author is the task's assignee but may no longer complete it (an acting-up grant that has
+   * ended): the entry is kept and reviewed, and the refusal is audited (S1 follow-on).
+   */
+  readonly assigneeRefused: boolean;
+}
+
 /**
- * Completes the task an entry answers (for example the 02:00 turn) with the entry as evidence, in
- * the same transaction. The caller must be the assignee or hold the task's permission.
+ * Decides what an entry does to the task it names, before the entry is written, so the entry
+ * records the outcome (`checkTaskLink`). The task row is locked until the transaction ends, so two
+ * entries for the same round never both complete it: the second waits and is planned against the
+ * closed task (HZ-004). An entry is never lost because of its task (HZ-006); only a task for
+ * another person is refused (HZ-001).
  */
-export async function completeTaskWithEvidence(
+export async function planTaskLink(
   tx: Transaction,
   input: {
     taskId: string;
     personId: string;
     actorTenantUserId: string;
     actorPermissions: ReadonlySet<string>;
-    evidenceType: EvidenceType;
-    evidenceId: string;
-    now: Date;
+    /** When the care was recorded (bounded by the clock-drift limit; never after the upload). */
+    occurredAt: Date;
   },
-): Promise<void> {
+): Promise<PlannedTaskLink> {
   const [row] = await tx
     .select()
     .from(task)
-    .where(and(eq(task.id, input.taskId), isNull(task.deletedAt)));
-  if (!row || row.personId !== input.personId)
-    throw problems.invalid("That task is not for this person.");
-  const allowed =
-    row.assigneeTenantUserId === input.actorTenantUserId ||
-    (isPermission(row.requiredPermission) && input.actorPermissions.has(row.requiredPermission));
-  if (!allowed) throw problems.forbidden();
-  const check = checkTaskTransition(row.status as TaskStatus, {
-    to: "done",
-    evidenceId: input.evidenceId,
+    .where(and(eq(task.id, input.taskId), isNull(task.deletedAt)))
+    .for("update");
+  if (!row) throw problems.invalid("That task is not for this person.");
+  // The permission the task names, held at its location when the care was recorded
+  // (`entryPermissionTime`): a grant that ended before the device uploaded still counts, so the
+  // round a carer acting up did is not left open, inviting a repeat dose; a revoked grant never
+  // counts, so nobody completes a task by backdating past a revocation, and neither does a grant
+  // that ended before the task existed (HZ-004, HZ-006; H-138). Holding it now also counts, and an
+  // owner's investigation action is completed by its owner (S1 follow-on; HZ-005).
+  const at = entryPermissionTime(input.occurredAt, row.createdAt, new Date());
+  const heldWhenRecorded = await mayBeAssigned(tx, input.actorTenantUserId, row, at);
+  const holdsNow =
+    isPermission(row.requiredPermission) && input.actorPermissions.has(row.requiredPermission);
+  const asOwner = row.assigneeTenantUserId === input.actorTenantUserId && anyoneMayBeGiven(row);
+  const mayComplete = heldWhenRecorded || holdsNow || asOwner;
+  const assigneeRefused =
+    !mayComplete &&
+    row.assigneeTenantUserId === input.actorTenantUserId &&
+    (row.status === "open" || row.status === "in_progress");
+  const check = checkTaskLink(
+    {
+      personId: row.personId,
+      kind: row.kind,
+      status: row.status as TaskStatus,
+      evidenceId: row.evidenceId,
+    },
+    { personId: input.personId, mayComplete },
+  );
+  if (!check.ok) {
+    throw new HttpProblem(422, `task_${check.problem}`, "The entry was not saved.", check.message);
+  }
+  return {
+    taskId: row.id,
+    kind: row.kind,
+    status: row.status as TaskStatus,
+    version: row.version,
     evidenceRequired: row.evidenceRequired,
-  });
-  if (!check.ok) throw problems.invalid(check.message);
-  await tx
-    .update(task)
-    .set({
-      status: "done",
-      completedAt: input.now,
-      completedBy: input.actorTenantUserId,
-      evidenceType: input.evidenceType,
-      evidenceId: input.evidenceId,
-    })
-    .where(and(eq(task.id, row.id), eq(task.version, row.version)));
+    evidenceId: row.evidenceId,
+    outcome: check.outcome,
+    review: check.review,
+    assigneeRefused,
+  };
+}
+
+/** The task kind of the review of an entry that did not complete the task it named. */
+export const ENTRY_REVIEW_TASK_KIND = "care.entry_review";
+/** The urgent review of a medicines entry that could not complete its task (a dose may be doubled). */
+export const ENTRY_CONFLICT_REVIEW_TASK_KIND = "care.entry_conflict_review";
+/**
+ * At most this many items are listed in one review task's details; the rest are counted. Missed
+ * medicines rounds are the exception: they are never dropped (`listMissedRounds`).
+ */
+export const MAX_TASK_DETAIL_ITEMS = 50;
+
+/**
+ * Appends items to a list in a task's details (opaque references only, never clinical text). The
+ * list holds at most `MAX_TASK_DETAIL_ITEMS`; items beyond it are counted in `<list>Omitted`, so
+ * the review still says that more happened.
+ */
+export async function appendTaskDetail(
+  tx: Transaction,
+  taskId: string,
+  list: "entries",
+  items: readonly Record<string, string | boolean | null>[],
+): Promise<void> {
+  const [row] = await tx
+    .select({ details: task.details })
+    .from(task)
+    .where(eq(task.id, taskId))
+    .for("update");
+  if (!row) return;
+  const details = { ...((row.details ?? {}) as Record<string, unknown>) };
+  const current = Array.isArray(details[list]) ? (details[list] as unknown[]) : [];
+  const room = Math.max(0, MAX_TASK_DETAIL_ITEMS - current.length);
+  details[list] = [...current, ...items.slice(0, room)];
+  const omitted = items.length - Math.min(room, items.length);
+  if (omitted > 0) {
+    const key = `${list}Omitted`;
+    details[key] = (typeof details[key] === "number" ? (details[key] as number) : 0) + omitted;
+  }
+  await tx.update(task).set({ details }).where(eq(task.id, taskId));
+}
+
+/**
+ * Carries out a planned link once the entry is written: completes the task with the entry as
+ * evidence; keeps it on a cancelled task as late evidence, flagged (the task stays cancelled); or,
+ * for a task already closed, already answered, or one the user may not complete, leaves the task
+ * alone and gives the nurse in charge one review task listing the entry; for a medicines task that
+ * review is a separate, urgent conflict review (HZ-004, HZ-006). An update that finds the task
+ * changed after all (it is locked, so it should not) still raises the review, never silently.
+ */
+export async function applyTaskLink(
+  tx: Transaction,
+  link: PlannedTaskLink,
+  entry: {
+    evidenceType: EvidenceType;
+    evidenceId: string;
+    personId: string;
+    locationId: string;
+    actorTenantUserId: string;
+    deviceId: string | null;
+    now: Date;
+  },
+): Promise<void> {
+  let review = link.review;
+  let applied = true;
+  if (link.outcome === "completed") {
+    const check = checkTaskTransition(link.status, {
+      to: "done",
+      evidenceId: entry.evidenceId,
+      evidenceRequired: link.evidenceRequired,
+    });
+    const updated = check.ok
+      ? await tx
+          .update(task)
+          .set({
+            status: "done",
+            completedAt: entry.now,
+            completedBy: entry.actorTenantUserId,
+            evidenceType: entry.evidenceType,
+            evidenceId: entry.evidenceId,
+          })
+          .where(and(eq(task.id, link.taskId), eq(task.version, link.version)))
+          .returning({ id: task.id })
+      : [];
+    if (updated.length > 0) return;
+    applied = false;
+    review = isMedicinesTask(link.kind) ? "urgent" : "review";
+  } else if (link.outcome === "task_cancelled") {
+    const updated = await tx
+      .update(task)
+      .set({
+        evidenceType: entry.evidenceType,
+        evidenceId: entry.evidenceId,
+        evidenceAfterClose: true,
+      })
+      .where(and(eq(task.id, link.taskId), isNull(task.evidenceId)))
+      .returning({ id: task.id });
+    if (updated.length > 0) return;
+    applied = false;
+    review = isMedicinesTask(link.kind) ? "urgent" : "review";
+  }
+  if (review === "none") return;
+  const urgent = review === "urgent";
+  const kind = urgent ? ENTRY_CONFLICT_REVIEW_TASK_KIND : ENTRY_REVIEW_TASK_KIND;
+  const [open] = await tx
+    .select({ id: task.id })
+    .from(task)
+    .where(
+      and(
+        eq(task.personId, entry.personId),
+        eq(task.kind, kind),
+        inArray(task.status, ["open", "in_progress"]),
+        isNull(task.deletedAt),
+      ),
+    )
+    .limit(1);
+  const reviewId =
+    open?.id ??
+    (
+      await tx
+        .insert(task)
+        .values({
+          kind,
+          title: urgent
+            ? "Check a medicines entry now: it did not complete the medicines task it named"
+            : "Review an entry that did not complete the task it named",
+          requiredPermission: "care.plan.write",
+          personId: entry.personId,
+          locationId: entry.locationId,
+          sourceType: "task",
+          sourceId: link.taskId,
+          assigneeRoleKey: "clinical_lead",
+          dueAt: entry.now,
+          priority: "urgent",
+        })
+        .returning({ id: task.id })
+    )[0]?.id;
+  if (!reviewId) return;
+  await appendTaskDetail(tx, reviewId, "entries", [
+    {
+      kind: entry.evidenceType,
+      entryId: entry.evidenceId,
+      taskId: link.taskId,
+      taskKind: link.kind,
+      outcome: applied ? link.outcome : "task_changed",
+      recordedBy: entry.actorTenantUserId,
+      deviceId: entry.deviceId,
+      at: entry.now.toISOString(),
+    },
+  ]);
 }

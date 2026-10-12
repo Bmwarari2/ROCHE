@@ -31,6 +31,32 @@ export const entryOutput = {
   deviceTime: isoDateTime.nullable(),
   lateEntry: z.boolean(),
   clockDrift: z.boolean(),
+  /**
+   * Accepted after the person left or died, for an event at or before then (people.md rule 3,
+   * HZ-006); show it as recorded after the exit.
+   */
+  recordedAfterExit: z.boolean(),
+  /** The task the entry named (for example the 02:00 turn), or null. */
+  taskId: uuid.nullable(),
+  /**
+   * What the entry did to that task: `completed` it; kept as late evidence for a task that had
+   * already been cancelled (`task_cancelled`, for example when the person went to hospital before
+   * the upload: the task stays cancelled); or kept, not linked, after the task had closed or been
+   * answered (`task_already_closed`) or for a task the user may not complete (`not_linked`), and
+   * given to the nurse in charge to review. `medicines_conflict`: a medicines task the entry could
+   * not complete, kept with an urgent conflict review; tell the user "Tell the nurse in charge now.
+   * Only the person who gave a medicine records it." Show anything but `completed` as a flag, an
+   * icon and words (HZ-004, HZ-006). Null when the entry named no task.
+   */
+  taskOutcome: z
+    .enum([
+      "completed",
+      "task_cancelled",
+      "task_already_closed",
+      "not_linked",
+      "medicines_conflict",
+    ])
+    .nullable(),
   supersedesId: uuid.nullable(),
   correctionReason: z.string().nullable(),
   /** True when a later entry supersedes this one. */

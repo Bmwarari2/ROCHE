@@ -1,10 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { formatUkDateTime } from "../shared/time";
 import {
+  catchUpTiming,
+  checkTaskLink,
   checkTaskTransition,
+  entryPermissionTime,
+  hasOccurrence,
+  listMissedRounds,
+  type MissedRound,
   occurrences,
+  planTaskRestore,
   RecurrenceError,
   type RecurrenceSeries,
+  restoreLookbackStart,
+  type StoppedTask,
+  type TaskLinkCheck,
+  type TaskLinkOutcome,
+  type TaskLinkReview,
+  type TaskRestorePlan,
   type TaskStatus,
   taskTimeState,
   validateRecurrence,
@@ -237,5 +250,398 @@ describe("recurrence rules", () => {
         at("2026-12-31T00:00:00Z"),
       ),
     ).toThrow(RecurrenceError);
+  });
+});
+
+describe("hazards HZ-004 and HZ-006 what an entry does to the task it names", () => {
+  const task = (
+    kind: string,
+    status: TaskStatus,
+    personId: string | null = "p1",
+    evidenceId: string | null = null,
+  ) => ({ personId, kind, status, evidenceId });
+  const kept = (outcome: TaskLinkOutcome, review: TaskLinkReview): TaskLinkCheck => ({
+    ok: true,
+    outcome,
+    review,
+    completes: false,
+  });
+  it.each<[string, ReturnType<typeof task>, boolean, ReturnType<typeof checkTaskLink>]>([
+    [
+      "completes an open round",
+      task("care.reposition", "open"),
+      true,
+      { ok: true, outcome: "completed", review: "none", completes: true },
+    ],
+    [
+      "completes a round in progress",
+      task("care.reposition", "in_progress"),
+      true,
+      { ok: true, outcome: "completed", review: "none", completes: true },
+    ],
+    [
+      "keeps the entry as late evidence for a cancelled round",
+      task("care.reposition", "cancelled"),
+      true,
+      kept("task_cancelled", "none"),
+    ],
+    [
+      "keeps a second entry for a cancelled round that already has evidence, for review (C4)",
+      task("care.reposition", "cancelled", "p1", "e1"),
+      true,
+      kept("task_already_closed", "review"),
+    ],
+    [
+      "keeps an entry for a round already done, flagged for review",
+      task("care.reposition", "done"),
+      true,
+      kept("task_already_closed", "review"),
+    ],
+    [
+      "keeps an entry for a round already skipped, flagged for review",
+      task("care.reposition", "skipped"),
+      true,
+      kept("task_already_closed", "review"),
+    ],
+    [
+      "keeps an entry for a round the user may not complete, unlinked and flagged",
+      task("care.reposition", "open"),
+      false,
+      kept("not_linked", "review"),
+    ],
+    [
+      "keeps a medicines entry by someone who may not complete the task, with an urgent conflict review",
+      task("medicines.round", "open"),
+      false,
+      kept("medicines_conflict", "urgent"),
+    ],
+    [
+      "keeps a medicines entry for a task already done (a second dose?), with an urgent conflict review",
+      task("medicines.round", "done"),
+      true,
+      kept("medicines_conflict", "urgent"),
+    ],
+    [
+      "keeps a medicines entry for a task already skipped, with an urgent conflict review",
+      task("medicines.round", "skipped"),
+      true,
+      kept("medicines_conflict", "urgent"),
+    ],
+    [
+      "keeps a second medicines entry for a cancelled task that already has evidence, urgently (C4)",
+      task("medicines.round", "cancelled", "p1", "e1"),
+      true,
+      kept("medicines_conflict", "urgent"),
+    ],
+    [
+      "keeps a medicines entry for a task the move cancelled as late evidence",
+      task("medicines.round", "cancelled"),
+      true,
+      kept("task_cancelled", "none"),
+    ],
+    [
+      "refuses a task for another person (HZ-001)",
+      task("care.reposition", "open", "p2"),
+      true,
+      { ok: false, problem: "wrong_person", message: "That task is not for this person." },
+    ],
+  ])("hazard HZ-004 %s", (_label, t, mayComplete, expected) => {
+    expect(checkTaskLink(t, { personId: "p1", mayComplete })).toEqual(expected);
+  });
+
+  it("never completes a task except with the outcome completed", () => {
+    for (const status of ["open", "done", "skipped", "cancelled"] as const) {
+      for (const mayComplete of [true, false]) {
+        const check = checkTaskLink(task("medicines.round", status), {
+          personId: "p1",
+          mayComplete,
+        });
+        if (check.ok) expect(check.completes).toBe(check.outcome === "completed");
+      }
+    }
+  });
+});
+
+describe("hazards HZ-003 and HZ-004 tasks brought back after a return or a correction", () => {
+  const at = (hhmm: string) => new Date(`2026-10-10T${hhmm}:00Z`);
+  const stopped = (
+    id: string,
+    due: string,
+    options: {
+      series?: string | null;
+      windowEnd?: string;
+      evidence?: boolean;
+      kind?: string;
+    } = {},
+  ): StoppedTask => ({
+    id,
+    seriesId: options.series === undefined ? "turns" : options.series,
+    kind: options.kind ?? "care.reposition",
+    dueAt: at(due),
+    windowEnd: options.windowEnd ? at(options.windowEnd) : null,
+    hasEvidence: options.evidence ?? false,
+  });
+
+  it.each<[string, StoppedTask[], string, string, Partial<TaskRestorePlan>]>([
+    [
+      "restores a round answered offline as done, not due again (10:05 entry, 10:10 turn)",
+      [stopped("t1010", "10:10", { windowEnd: "10:40", evidence: true })],
+      "10:08",
+      "10:20",
+      { done: ["t1010"], reopen: [], reopenOverdue: [], missed: [] },
+    ],
+    [
+      "restores an answered round as done even when its window has passed",
+      [stopped("t1010", "10:10", { evidence: true })],
+      "10:08",
+      "11:20",
+      { done: ["t1010"], reopenOverdue: [], missed: [] },
+    ],
+    [
+      "reopens a round still in its window",
+      [stopped("t1200", "12:00", { windowEnd: "12:30" })],
+      "10:00",
+      "12:10",
+      { reopen: ["t1200"], reopenOverdue: [], missed: [] },
+    ],
+    [
+      "reopens a round due just before the return but still in its window",
+      [stopped("t1300", "13:00", { windowEnd: "14:00" })],
+      "13:30",
+      "13:35",
+      { reopen: ["t1300"] },
+    ],
+    [
+      "leaves a round whose window closed before the return as it was",
+      [stopped("t0900", "09:00", { windowEnd: "09:30" })],
+      "10:00",
+      "10:05",
+      { done: [], reopen: [], reopenOverdue: [], missed: [] },
+    ],
+    [
+      "reopens the latest missed round of a series as overdue and codes the earlier ones missed",
+      [stopped("t1000", "10:00"), stopped("t1100", "11:00"), stopped("t1200", "12:00")],
+      "09:30",
+      "12:30",
+      { reopen: [], reopenOverdue: ["t1200"], missed: ["t1000", "t1100"] },
+    ],
+    [
+      "catches up each series once, and each one-off task",
+      [
+        stopped("turn10", "10:00"),
+        stopped("turn11", "11:00"),
+        stopped("fluid10", "10:00", { series: "fluids" }),
+        stopped("weight", "10:30", { series: null }),
+      ],
+      "09:30",
+      "12:00",
+      { reopenOverdue: ["turn11", "fluid10", "weight"], missed: ["turn10"] },
+    ],
+    [
+      "does not catch up a series whose later occurrence was done",
+      [stopped("t1000", "10:00"), stopped("t1100", "11:00", { evidence: true })],
+      "09:30",
+      "12:00",
+      { done: ["t1100"], reopenOverdue: [], missed: ["t1000"] },
+    ],
+    [
+      "does not catch up a series whose later occurrence is open again (turns at 08:00 and 12:00, corrected at 12:10; C1)",
+      [
+        stopped("t0800", "08:00", { windowEnd: "09:00" }),
+        stopped("t1200", "12:00", { windowEnd: "13:00" }),
+      ],
+      "07:30",
+      "12:10",
+      { reopen: ["t1200"], reopenOverdue: [], missed: ["t0800"] },
+    ],
+    [
+      "makes only the dose still in its window due (paracetamol at 08:00 and 12:00, corrected at 12:10; C1)",
+      [
+        stopped("p0800", "08:00", {
+          series: "paracetamol",
+          windowEnd: "09:00",
+          kind: "medicines.round",
+        }),
+        stopped("p1200", "12:00", {
+          series: "paracetamol",
+          windowEnd: "13:00",
+          kind: "medicines.round",
+        }),
+      ],
+      "07:30",
+      "12:10",
+      { reopen: ["p1200"], reopenOverdue: [], missed: ["p0800"] },
+    ],
+    [
+      "never makes a missed medicines dose due again: it is listed for the nurse in charge (C1)",
+      [
+        stopped("m0800", "08:00", {
+          series: "insulin",
+          windowEnd: "08:30",
+          kind: "medicines.round",
+        }),
+        stopped("m1200", "12:00", {
+          series: "insulin",
+          windowEnd: "12:30",
+          kind: "medicines.round",
+        }),
+      ],
+      "07:30",
+      "13:00",
+      { reopen: [], reopenOverdue: [], missed: ["m0800", "m1200"] },
+    ],
+    [
+      "still reopens a medicines dose in its window",
+      [
+        stopped("m1200", "12:00", {
+          series: "insulin",
+          windowEnd: "12:30",
+          kind: "medicines.round",
+        }),
+      ],
+      "11:00",
+      "12:10",
+      { reopen: ["m1200"], reopenOverdue: [], missed: [] },
+    ],
+  ])("hazard HZ-003 %s", (_label, tasks, since, now, expected) => {
+    expect(planTaskRestore(tasks, at(since), at(now))).toMatchObject(expected);
+  });
+
+  it("hazard HZ-008 gives a caught-up round a fresh window as long as its own, so it does not escalate at once", () => {
+    const now = at("12:30");
+    expect(
+      catchUpTiming({ dueAt: at("10:00"), windowStart: at("09:45"), windowEnd: at("10:30") }, now),
+    ).toEqual({ dueAt: now, windowStart: now, windowEnd: at("13:15") });
+    expect(catchUpTiming({ dueAt: at("10:00"), windowStart: null, windowEnd: null }, now)).toEqual({
+      dueAt: now,
+      windowStart: now,
+      windowEnd: now,
+    });
+  });
+});
+
+describe("hazards HZ-003 and HZ-008 the rounds a missed-rounds review lists", () => {
+  const round = (taskId: string, kind: string, hhmm: string, reopened = false): MissedRound => ({
+    taskId,
+    kind,
+    dueAt: `2026-10-11T${hhmm}:00.000Z`,
+    reopened,
+  });
+  const turn = (id: string, hhmm: string) => round(id, "care.reposition", hhmm);
+  const dose = (id: string, hhmm: string) => round(id, "medicines.round", hhmm);
+
+  it.each<[string, MissedRound[], MissedRound[], number, string[], number]>([
+    [
+      "lists medicines rounds first, then the rest, each newest first",
+      [],
+      [turn("t1", "08:00"), dose("m1", "07:00"), turn("t2", "10:00"), dose("m2", "09:00")],
+      50,
+      ["m2", "m1", "t2", "t1"],
+      0,
+    ],
+    [
+      "keeps the newest of the rest and counts the older ones it cannot list",
+      [],
+      [turn("t1", "08:00"), turn("t2", "09:00"), turn("t3", "10:00"), dose("m1", "07:00")],
+      3,
+      ["m1", "t3", "t2"],
+      1,
+    ],
+    [
+      "never drops a missed dose, even beyond the limit, and counts only the rest",
+      [],
+      [dose("m1", "07:00"), dose("m2", "08:00"), dose("m3", "09:00"), turn("t1", "10:00")],
+      2,
+      ["m3", "m2", "m1"],
+      1,
+    ],
+    [
+      "merges with the rounds already listed, keeping the newest",
+      [turn("t1", "08:00"), turn("t2", "09:00")],
+      [turn("t3", "10:00"), dose("m1", "07:00")],
+      3,
+      ["m1", "t3", "t2"],
+      1,
+    ],
+    [
+      "lists a round found twice once, as last found",
+      [turn("t1", "08:00")],
+      [round("t1", "care.reposition", "08:00", true)],
+      50,
+      ["t1"],
+      0,
+    ],
+  ])("%s", (_label, listed, found, limit, expected, omitted) => {
+    const result = listMissedRounds(listed, found, limit);
+    expect(result.items.map((r) => r.taskId)).toEqual(expected);
+    expect(result.omitted).toBe(omitted);
+  });
+
+  it("keeps the last state of a round found twice", () => {
+    const { items } = listMissedRounds(
+      [turn("t1", "08:00")],
+      [round("t1", "care.reposition", "08:00", true)],
+      50,
+    );
+    expect(items[0]?.reopened).toBe(true);
+  });
+
+  it.each([
+    ["in summer time", "2026-10-11T12:00:00Z", "2026-10-03T23:00:00.000Z"],
+    ["just after midnight UK time", "2026-10-11T23:30:00Z", "2026-10-04T23:00:00.000Z"],
+    ["across the change to winter time", "2026-10-28T10:00:00Z", "2026-10-20T23:00:00.000Z"],
+    ["in winter time", "2026-12-15T09:00:00Z", "2026-12-08T00:00:00.000Z"],
+  ])("hazard HZ-003 starts the seven-day look back at 00:00 UK time %s", (_label, now, start) => {
+    expect(restoreLookbackStart(new Date(now), 7).toISOString()).toBe(start);
+  });
+});
+
+describe("hazard HZ-003 whether a stopped series had rounds before the look back", () => {
+  const hourly: RecurrenceSeries = {
+    rule: { freq: "every_hours", hours: 1, anchorTime: "00:00" },
+    startsOn: "2026-01-01",
+  };
+  const weekly: RecurrenceSeries = {
+    rule: { freq: "weekly", weekdays: ["mon"], times: ["09:00"] },
+    startsOn: "2026-01-01",
+  };
+
+  it.each<[string, RecurrenceSeries, string, string, boolean]>([
+    [
+      "an hourly round over months, past the occurrence limit",
+      hourly,
+      "2026-03-01",
+      "2026-09-01",
+      true,
+    ],
+    ["a weekly round over a long window", weekly, "2026-06-01T10:00:00Z", "2026-09-01", true],
+    ["a weekly round with no Monday in the window", weekly, "2026-09-01", "2026-09-07", false],
+    ["an empty window", hourly, "2026-09-01", "2026-09-01", false],
+    [
+      "a series that starts after the window",
+      { ...hourly, startsOn: "2026-10-01" },
+      "2026-03-01",
+      "2026-09-01",
+      false,
+    ],
+  ])("%s", (_label, series, from, to, expected) => {
+    expect(hasOccurrence(series, new Date(from), new Date(to))).toBe(expected);
+  });
+});
+
+describe("hazards HZ-004 and HZ-006 when permission for an entry is judged", () => {
+  const at = (hhmm: string) => new Date(`2026-10-11T${hhmm}:00.000Z`);
+  it.each([
+    ["when the care was recorded, after the task was made", "18:00", "08:00", "20:00", "18:00"],
+    [
+      "no earlier than when the task was made (a backdated entry)",
+      "06:00",
+      "08:00",
+      "20:00",
+      "08:00",
+    ],
+    ["no later than the server's clock (a fast device clock)", "20:03", "08:00", "20:00", "20:00"],
+  ])("%s", (_label, occurred, created, now, expected) => {
+    expect(entryPermissionTime(at(occurred), at(created), at(now))).toEqual(at(expected));
   });
 });

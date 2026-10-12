@@ -204,3 +204,180 @@ the named roles to after the build and is choosing the SMS provider (H-09).
 **Tests**: `packages/domain` 3,627, `packages/db` 190, `apps/api` 228, `apps/web` 282,
 `packages/ui` 330, `apps/mobile` 208, `packages/ui-native` 133, `packages/i18n` 34,
 `packages/contracts` 11, `packages/sync` 10, all passing locally on `main` plus #20.
+
+## 2026-10-11: Phase 1 slice 8 review fixes (people lifecycle schema and API)
+
+**What changed**
+
+- Security review: confirming residents' money or a deposit at exit needs `finance.ledger.approve`
+  with step-up and someone other than the recorder; rooms, the bed board and room clearance check
+  the caller's locations; `people.sharing.manage` is a care-record permission and a share link
+  needs step-up; About Me, the pre-admission assessment and property leave the PowerSync
+  publication (0023); the transfer pack preview takes its reason in a POST body; the PDF and the
+  transfer list need `people.movement.record` and the PDF is served sandboxed; 0024 audits the
+  0022 role changes; the break-glass review refuses a self-review and other locations; replays,
+  document and evidence ownership are checked and audited.
+- Clinical review: a corrected death or discharge brings back the rounds it ended; an exit ends
+  only rounds and point-of-care tasks; offline entries for a cancelled round are kept, linked and
+  flagged; rule 3 has a clock tolerance and a review task; the pack prints the CPR decision in
+  force with conflicts and overdue reviews on page 1, pre-admission medicines as needing checking,
+  IDDSI as safety-critical, with Noto Sans embedded (ADR-0040) and PNG photos; return checks are
+  tasks with an owner and a due time; death notifications belong to their exit record, and a
+  correction raises a task to tell the CQC; LeDeR needs an explicit answer.
+- Web: communication needs show "Not recorded" as a warning (icon and words) and "None
+  identified" only for a positive none, through the message catalogues.
+- API tests cover every review item, and every test the hazard log cites carries its hazard id.
+
+**Next**: slice 5's API (care plan actions, handover, rounds), then the web UI for the record
+(slice 9) and offline Care mode (slice 10), which brings the slice 8 tables back to devices with
+assignment-pinned streams.
+
+**Human actions logged**: H-82 to H-90 (CSO decisions from the clinical review and the ratings);
+H-81 reworded.
+
+**Tests**: `packages/domain` 1,917, `packages/db` 261, `packages/contracts` 16, `apps/api` 353,
+`apps/web` 108 unit, all passing locally.
+
+## 2026-10-11: Phase 1 slice 8 review fixes, round 3 (people lifecycle)
+
+**What changed**
+
+- Rounds after a return or correction: tasks and series carry the exit that stopped them, and
+  migration 0023 codes existing rows from the event that stopped them, never from reason text. A
+  task an entry answered while it was stopped is restored as done (the 10:05, 10:08, 10:15 and
+  10:20 case); only tasks whose window ends at or after the return count; the latest missed
+  occurrence of each series reopens as overdue and the review task lists every missed round. A
+  correction returns the person to the status kept on the exit (active, on leave or in hospital).
+- Entries and tasks: each entry stores the task it named and what it did to it (`task_outcome`);
+  an entry for a round already done, or one its author may not complete, is kept, flagged and
+  reviewed (`care.entry_review`), and refused for `medicines.*` tasks. The late-entry review names
+  the entry by kind, client id, device and user. Contracts carry `taskOutcome`,
+  `evidenceAfterClose`, task `details` and the exit's `statusBefore`; the web has badges for them.
+- Transfer pack: photo decoding is bounded (chunk bounds, 4096 x 4096 pixels, capped inflate,
+  never throws), 16-bit and interlaced PNGs count as not printable, the CPR decision is on page 1,
+  home and hospital names are checked for unprintable characters, compressed fonts are cached.
+- Security: return checks need their task's permission or its assignee; finance exit items are
+  decided from the domain definition and checked against the stored row; deleted documents are
+  not evidence; the allergy confirmer always comes from the session user; 0024 credits 0022 only
+  with what it added for each role key; an incident's draft from a death recorded in error is
+  withdrawn and never counts for a later death.
+- `@harbour/ui` gains a `notRecorded` status chip that can link to the record action, used for
+  allergies and communication needs not recorded.
+- Docs: hazard log (HZ-003 to HZ-008, HZ-011, HZ-013, HZ-015, HZ-023), care.md rule 13, people.md
+  rules 2 and 10, data standards, records of processing, ADR-0040.
+
+**Next**: the coordinator merges main; then export catalogue entries for 0020 to 0024 and the
+badges wired into main's chart and task views. Keeping a server copy of an entry refused after an
+exit comes with the mobile hand-over of held entries.
+
+**Human actions logged**: H-91 to H-94 and H-130; H-89 and H-90 updated.
+
+**Tests**: `packages/domain` 1,944, `packages/db` 266, `packages/contracts` 16, `apps/api` 383,
+`apps/web` 114, `packages/ui` 200, `packages/ui-native` 134, all passing locally.
+
+## 2026-10-11: #21 after main: the slice 12 sharing rules, the export catalogue, entry flags
+
+**What changed**
+
+- Sharing API on the slice 12 rules: migration 0025 adds `sharing_decision_suspension` (periods,
+  one open per decision, forced RLS, person scope, versioning, backfill) and a deputy's order
+  sections; every check passes the periods and the current capacity finding for the sharing
+  decision; a new lift-suspension route; authorities are checked against the contact who holds
+  them (role, deputyship, order sections; appointees benefits only); the benefits section reaches
+  the contracts, OpenAPI and client (HZ-022).
+- Export catalogue: every table and column from 0020 to 0025 is classified, 15 of the tables as
+  care records described column by column, with code meanings, units, the token hash secret and
+  the workflow id internal (HZ-071).
+- Web: every entry view shows the lifecycle flags beside the late-entry flag (C-M3); the unused
+  person header keys are gone; main's header fixture gains the new person fields.
+
+**Next**: round 4 of the #21 review.
+
+**Tests**: `packages/domain` 3,684, `packages/db` 276, `packages/contracts` 16, `apps/api` 387,
+`apps/web` 299, `packages/ui` 337, `packages/ui-native` 134, `packages/i18n` 34, all passing
+locally.
+
+## 2026-10-11: #21 review round 4 (people lifecycle)
+
+**What changed**
+
+- Rounds: a missed round is caught up only when no later occurrence is done or open again, with a
+  fresh window and its escalation reset; a missed medicines dose is never made due again but listed;
+  a return or correction first makes the rounds the series would have had since it stopped (a stay
+  beyond the 48-hour horizon, a late correction); a correction after the exit workflow closed still
+  restores the status and rounds; restored tasks carry a restore code (migration 0026).
+- Entries: a medicines entry that cannot complete its task is kept as `medicines_conflict` with an
+  urgent conflict review instead of being refused; the task row is locked while an entry is
+  planned, a second entry for an answered cancelled task is reviewed, replays return the stored
+  entry first, review details are capped.
+- Security: a task goes only to someone who holds its permission at its location; photos are capped
+  at 2048 pixels a side with chunk and size limits, decided printable once at upload and never
+  decoded inside a transaction; the pack routes are rate limited per user; refusals are audited
+  after their transaction; device ids are kept only when opaque; the chip links only to this site
+  and names its action.
+- Page 1: an ADRT held without a CPR form says so; a missing confirmer is said; the conflict is said
+  once in sentence case. Web: the medicines conflict badge on every entry view. The catch-up and
+  restored badges and the review details view are built and tested but on no screen yet (corrected
+  in round 5: they come with the task views, Phase 1 slice 9; HZ-006).
+
+**Human actions logged**: H-131 to H-136; H-90, H-92 and H-94 updated.
+
+**Follow-ups**: mobile badges and details (#15); the server copy of a refused entry (H-134).
+
+**Tests**: `packages/domain` 3,695, `packages/db` 278, `packages/contracts` 16, `apps/api` 411,
+`apps/web` 304, `packages/ui` 342, `packages/ui-native` 134, `packages/i18n` 34, all passing
+locally.
+
+## 2026-10-11: #21 review round 5 (people lifecycle)
+
+**What changed**
+
+- Exits: the urgent review of a possible second dose (`care.entry_conflict_review`) stays open when
+  a death or discharge is recorded after it, like the other entry review (M1, HZ-004). No other
+  review or safety task kind had the gap.
+- Missed rounds: the review lists missed medicines rounds first and never drops them, then the
+  rest newest first, 50 in all with the rest counted; the look back starts at 00:00 UK time seven
+  days before, and when rounds before it were not made the review says from which date rounds are
+  not all listed (M2, HZ-003, H-137). The review details name a medicines round in words.
+- Page 1 of the transfer pack: with an advance decision to refuse treatment in force, every CPR
+  line adds "An advance decision to refuse treatment is also held (dd/mm/yyyy): read it before
+  acting." (M3, HZ-015, H-133).
+- Tasks: an assignee completes a task (by the task route, an entry or a return check) only while
+  they could still be given it, so an expired or revoked acting-up grant no longer lets them mark
+  it done or skipped; refusals are audited, an entry is kept and reviewed. A task or series about a
+  person created with an assignee is checked the same way. General tasks and investigation actions
+  are exempt (security S1 follow-on and low).
+- Docs: the on-screen display of review details and task badges is a planned control under HZ-006
+  (Phase 1 slice 9); the round 4 changelog line is corrected; H-135 notes its default awaits the
+  CSO.
+
+**Human actions logged**: H-137; H-90, H-94, H-133 and H-135 updated.
+
+**Follow-ups**: the task views that show review details and task badges (Phase 1 slice 9).
+
+**Tests**: `packages/domain` 3,710, `packages/db` 278, `packages/contracts` 16, `apps/api` 422,
+`apps/web` 306, `packages/ui` 342, `packages/ui-native` 134, `packages/i18n` 34, all passing
+locally (the fluid balance test in `apps/api` fails only in the half hour after midnight UK time,
+when its entries fall on two days).
+
+## 2026-10-11: #21 review round 6 (people lifecycle)
+
+**What changed**
+
+- Entries: whether an entry's author may complete the task it names is judged when the care was
+  recorded (`entryPermissionTime`), for the assignee and for anyone else: a carer acting up whose
+  grant ended before the device uploaded still completes the round they did, so it is not left
+  open inviting a second dose; a revoked grant never counts; the time is never earlier than the
+  task was made, so an entry backdated to an earlier grant completes nothing (HZ-004, HZ-006,
+  H-138). Done or skipped by hand is still judged at the server's time.
+- Audit: a refused completion by an entry is audited only by the upload that saved the entry, so a
+  duplicate upload that loses the race records nothing.
+- Tests: a care worker acting up completes a task by the task route and by an entry, and their own
+  roles and grants are read under row-level security.
+
+**Human actions logged**: H-138; H-132 updated.
+
+**Tests**: `packages/domain` 3,713, `packages/db` 278, `packages/contracts` 16, `apps/api` 427,
+`apps/web` 306, `packages/ui` 342, `packages/ui-native` 134, `packages/i18n` 34, all passing
+locally (run with `--concurrency=3`: under full parallel load a web time-zone test that reads every
+minute of a day can pass its 5-second limit).

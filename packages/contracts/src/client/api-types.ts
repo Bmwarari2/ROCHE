@@ -739,6 +739,4370 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/people/{id}/status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Change a person's status (people.md rules 1 and 2)
+     * @description Checked with checkPersonStatusChange: the permission, reason and step-up of the PERSON_LIFECYCLE move, a time neither in the future (beyond the clock-drift tolerance) nor before the current status began, a discharge that says whether it is a transfer, archiving only once the exit workflow has closed, and no re-admission after a death. Admission has its own route. The effects run in the same transaction: rounds paused or resumed, future tasks cancelled, sharing closed, the bed released or the room held, the exit workflow started or cancelled, and one outbox event. A death recorded in error is corrected with a reason and step-up (HZ-001).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["PersonStatusChange"];
+        };
+      };
+      responses: {
+        /** @description Status changed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PersonStatusChangeResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/communication-needs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Record communication needs, or confirm there are none (HZ-023)
+     * @description An empty list means 'not recorded' until someone confirms 'none identified', which records who confirmed it and when; that statement then prints in the hospital transfer pack.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdateCommunicationNeeds"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PersonSummary"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/pre-admission": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The pre-admission assessment, with what is still outstanding */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Assessment */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PreAdmissionView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Write sections of the pre-admission assessment (rule 4)
+     * @description Allowed while the person is at pre-admission. 'Not applicable' is refused where it would hide a safety fact (allergies, resuscitation, IDDSI levels and every section except equipment and the two optional ones), and needs a reason where it is allowed (HZ-007, HZ-015, HZ-016). The medicines section carries the list the hospital transfer pack prints until the eMAR (Phase 2).
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdatePreAdmission"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PreAdmissionView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/admission-decisions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Decisions to admit, newest first, with their conditions */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Decisions */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AdmissionDecisionList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Record whether the home can meet the person's needs (rule 5)
+     * @description checkAdmissionDecision: the assessment complete, reasons of at least a sentence, conditions when conditional, a decider holding people.admission.manage, a time not before the last completed section, and a trial that ends after the planned admission. Append-only: a change is a new decision that supersedes the earlier one with a reason.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateAdmissionDecision"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AdmissionDecisionItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/admission-decisions/{decisionId}/conditions/{conditionId}/met": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Confirm that a condition of the decision to admit has been met */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          decisionId: string;
+          conditionId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ConfirmAdmissionCondition"];
+        };
+      };
+      responses: {
+        /** @description Met */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AdmissionConditionItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/admission": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The decision to admit, the conditions outstanding, the placement and the welcome checklist */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Admission */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AdmissionView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Admit the person into a placement and a dated bed (rules 5 and 6)
+     * @description checkAdmissionReadiness: a positive decision whose conditions are all met, a valid placement (a trial with its end date) and, for residential and nursing placements, a free bed from planBedMove. Then the status change to active through checkPersonStatusChange, the placement, the bed period (the header's room label comes from it, HZ-001), the welcome checklist from the tenant's definition, and people.person.admitted.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordAdmission"];
+        };
+      };
+      responses: {
+        /** @description Admitted */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AdmissionResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/bed-moves": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The person's bed history and the room label it gives the header */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description History */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["BedHistory"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Move the person to another bed (rule 6)
+     * @description planBedMove: a real date that is not in the future, not before the current bed and not the same day as it, a reason, a bed the room has in a room that is available, and nobody else in it on or after that day. A move recorded after the day it happened is flagged as backdated. The database refuses overlaps whatever the caller can see (exclusion constraints).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateBedMove"];
+        };
+      };
+      responses: {
+        /** @description Moved */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["BedHistory"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/locations/{id}/beds": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The bed board on a date: every room and bed, and who occupies it
+     * @description Every occupied bed shows as occupied; the occupant is named only when the person is in your access.
+     */
+    get: {
+      parameters: {
+        query?: {
+          date?: string;
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Bed board */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["BedBoard"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/rooms/{roomId}/clearance": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record that a room held after a death has been cleared (rule 6)
+     * @description Ends the bed period of the person who died on the day the room was cleared (planBedRelease) and makes the room available again.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          roomId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": {
+            /** Format: date */
+            on: string;
+            version: number;
+          };
+        };
+      };
+      responses: {
+        /** @description Cleared */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              /** Format: uuid */
+              roomId: string;
+              status: string;
+              version: number;
+            };
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/welcome-checklist": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The welcome checklist of the current placement, safety-critical items first */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Checklist */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["WelcomeChecklist"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/welcome-checklist/{itemKey}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Tick an item of the welcome checklist, or mark it not applicable with a reason */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          itemKey: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdateWelcomeChecklistItem"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["WelcomeChecklist"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/settings/welcome-checklist": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The organisation's welcome checklist (Harbour's default until it is changed) */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Checklist */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["WelcomeChecklistTemplate"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Change the organisation's welcome checklist
+     * @description checkWelcomeChecklistDefinition: a tenant may add items but never remove or weaken Harbour's safety-critical ones (photo, allergies, medicines, diet and IDDSI levels, evacuation plan). New admissions use it; earlier checklists keep their items.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdateWelcomeChecklistTemplate"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["WelcomeChecklistTemplate"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/property": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The property inventory, with what is still held and what travels to hospital */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Inventory */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PropertyList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Record an item of property in (rule 7)
+     * @description checkPropertyItemIn: described, dated, counted, a category (never cash), acknowledged by the person or their representative or with the reason nobody could sign, and witnessed by a second member of staff for valuables and unsigned items. A device id makes a replayed request return the first copy.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreatePropertyItem"];
+        };
+      };
+      responses: {
+        /** @description Recorded (or the earlier copy of a replay) */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PropertyItemOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/property/{itemId}/return": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Return an item, with who received it and their signature
+     * @description checkPropertyReturn: once only, not before it came in, a named recipient who signs (or the reason they could not), a witness for valuables and unsigned returns, and after a death only to the personal representative.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          itemId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ReturnPropertyItem"];
+        };
+      };
+      responses: {
+        /** @description Returned */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PropertyItemOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/property/{itemId}/dispose": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Record that an item was disposed of, with the reason and a witness */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          itemId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["DisposePropertyItem"];
+        };
+      };
+      responses: {
+        /** @description Disposed of */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PropertyItemOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/property/{itemId}/lose": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Record that an item was lost, with the incident raised for it */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          itemId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["LosePropertyItem"];
+        };
+      };
+      responses: {
+        /** @description Recorded as lost */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PropertyItemOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/keys": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Keys and fobs issued, and which are still out */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Keys */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["KeyList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /** Issue a key or fob */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateKeyIssue"];
+        };
+      };
+      responses: {
+        /** @description Issued (or the earlier copy of a replay) */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["KeyIssueOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/keys/{keyId}/return": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Record that a key came back */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          keyId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CloseKeyIssue"];
+        };
+      };
+      responses: {
+        /** @description Returned */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["KeyIssueOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/keys/{keyId}/lost": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Record that a key was reported lost */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          keyId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CloseKeyIssue"];
+        };
+      };
+      responses: {
+        /** @description Reported lost */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["KeyIssueOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/about-me": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** About Me (PRSB v2.01), with the sections filled and missing */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description About Me */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AboutMeOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Write About Me with the person (rule 9)
+     * @description validateAboutMe: the seven PRSB sections, each optional; media as document references only; and when the person did not write it alone, who supported them. The date last updated is set on saving.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdateAboutMe"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AboutMeOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/about-me/links": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** About Me share links (never the tokens) */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Links */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AboutMeShareLinkList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Make an expiring link to About Me under a sharing decision
+     * @description checkAboutMeShareLink: a decision for a share link that covers About Me and is in force, and an expiry in the future that never outlives the decision. The token is returned once; only its SHA-256 hash is stored.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateAboutMeShareLink"];
+        };
+      };
+      responses: {
+        /** @description Made */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AboutMeShareLinkCreated"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/about-me/links/{linkId}/revoke": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Revoke an About Me share link */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          linkId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RevokeShareLink"];
+        };
+      };
+      responses: {
+        /** @description Revoked */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AboutMeShareLinkOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/reviews": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * When each review falls due, with the review records and changes in need (rule 8)
+     * @description scheduleReviews with the rate-table figures and the location's bank holidays: the first care plan, the regular review and one review on change covering every unreviewed change (HZ-008), paused while the person is in hospital; the local authority review for council-funded placements; family involvement; and a trial's review. Empty for people not receiving care; `available` is false where the nation has no figures yet.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Schedule */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ReviewSchedule"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Record a review: care plan, local authority, family involvement or trial
+     * @description Append-only (a correction supersedes with a reason). A care plan review covers the changes it names, or every unreviewed change up to the day it was held (HZ-008); a trial review records the placement's trial as reviewed; the open review task of the kind is completed with the record as evidence.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateReviewRecord"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ReviewRecordOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/care-plan-changes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Changes in need that bring the care plan review forward */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Changes */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CarePlanChangeList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /** Record a change in need: the care plan review comes forward, once (HZ-008) */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateCarePlanChange"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CarePlanChangeOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/locations/{id}/reviews": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Reviews due and overdue at a location, soonest first */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Reviews */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LocationReviews"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/transfer-pack": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Preview the hospital transfer pack from the record now (HZ-023)
+     * @description Never blocked by missing information: missing safety-critical sections are listed and print as 'not recorded', and recorded information that needs checking is listed too. Refused (422) only for a person not receiving care, without a name and date of birth, or with a section that belongs to someone else (HZ-001). With no reason or items to send; POST the same path to include them.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Pack */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["TransferPack"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Preview the hospital transfer pack with the reason and the items to send
+     * @description Never blocked by missing information: missing safety-critical sections are listed and print as 'not recorded', and recorded information that needs checking is listed too. Refused (422) only for a person not receiving care, without a name and date of birth, or with a section that belongs to someone else (HZ-001). Nothing is stored: the reason is clinical free text, so it travels in the body, never the URL.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["PreviewTransferPack"];
+        };
+      };
+      responses: {
+        /** @description Pack */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["TransferPack"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/hospital-transfers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Hospital transfers, newest first, with the pack each one carried */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Transfers */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HospitalTransferList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Send the person to hospital with the transfer pack (rule 10)
+     * @description Assembles the pack from the record and stores what was sent. A person who is active or on leave moves to in hospital through checkPersonStatusChange in the same transaction (rounds pause, the bed is kept). Items sent with the person are marked as away with them. A device id makes a replayed request return the first copy.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateHospitalTransfer"];
+        };
+      };
+      responses: {
+        /** @description Sent */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HospitalTransferOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/hospital-transfers/{transferId}/pdf": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The transfer pack as sent, to print (PDF)
+     * @description The first page names the person, shows their photo when it is a JPEG, and lists each safety-critical section that is not recorded; every page carries the name, date of birth, NHS number and when the pack was made (HZ-001, HZ-023).
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          transferId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The pack */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/pdf": string;
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/hospital-transfers/{transferId}/handover": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record that the pack went with the person
+     * @description checkTransferPackHandover: a pack missing a safety-critical section can still go, but the hand-over is recorded only with the acknowledgement of the person handing it over and the reason (HZ-023). Publishes people.transfer_pack.handed_over.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          transferId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["HandOverTransferPack"];
+        };
+      };
+      responses: {
+        /** @description Handed over */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HospitalTransferOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/hospital-transfers/{transferId}/return": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record the person's return from hospital
+     * @description Moves the person back to active through checkPersonStatusChange: rounds resume, the return checks are raised (medicines, allergies, resuscitation decisions and IDDSI levels, which hospitals change, skin, and any belongings that went with them), and the return is recorded as a change that brings the care plan review forward (HZ-008).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          transferId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordHospitalReturn"];
+        };
+      };
+      responses: {
+        /** @description Returned */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HospitalTransferOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/hospital-transfers/{transferId}/return-checks/{checkKey}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record a check on return from hospital as done
+     * @description Checking the belongings back in returns the items that went with the person to the home's keeping.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          transferId: string;
+          checkKey: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CompleteReturnCheck"];
+        };
+      };
+      responses: {
+        /** @description Done */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HospitalTransferOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/exit": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The discharge, transfer or death workflow with its checklist and deadlines */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Exit */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ExitView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Plan a discharge or transfer before the person leaves
+     * @description Starts the discharge or transfer workflow in `planned` with its checklist, so the summary of care and the notifications can be done before leaving. Recording the discharge on the person's status moves it to `left`.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["PlanExit"];
+        };
+      };
+      responses: {
+        /** @description Planned */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ExitView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/exit/items/{itemKey}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Record an item of the exit checklist as done, or not required with a reason
+     * @description Property and keys are counted from the inventory and the keys log, and statutory notifications from their drafts in the safety module, so those items cannot be ticked by hand. 'Not required' needs a reason and is allowed only where the checklist allows it.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          itemKey: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdateExitItem"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ExitView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/exit/moves": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Move the exit workflow: awaiting returns, closed, or a planned exit cancelled
+     * @description checkExitWorkflowMove: everything except the returns done before awaiting returns, and everything (property, keys and money counted from their own records) before closing. Closing lets the record be archived. A planned discharge or transfer is cancelled here with a reason; a discharge or death recorded in error is corrected from the person's status.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["MoveExit"];
+        };
+      };
+      responses: {
+        /** @description Moved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ExitView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/sharing-decisions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Sharing decisions, with whether each is in force now */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Decisions */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SharingDecisionList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Record a decision to share sections with one recipient (HZ-022)
+     * @description checkSharingDecision: known sections, an expiry, and a valid basis: the person's consent (unless assessed as lacking capacity for it), consent by an attorney or deputy whose authority covers the sections, a legal authority held by the recipient with evidence, a best-interests decision, or direct care for professionals and clinical sections only. The authority must be held by the contact named (a deputy within their deputyship and the sections their order covers; an appointee benefits only); a reference, evidence or end date left out is taken from the contact. A capacity finding names an assessment of the sharing decision. Publishes people.sharing.changed.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateSharingDecision"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SharingDecisionOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/sharing-decisions/{decisionId}/withdraw": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Withdraw a sharing decision: the sections close at once */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          decisionId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CloseSharingDecision"];
+        };
+      };
+      responses: {
+        /** @description Withdrawn */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SharingDecisionOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/sharing-decisions/{decisionId}/suspend": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Suspend a sharing decision (for example during a safeguarding enquiry) */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          decisionId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CloseSharingDecision"];
+        };
+      };
+      responses: {
+        /** @description Suspended */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SharingDecisionOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/sharing-decisions/{decisionId}/lift-suspension": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Lift a suspension: the sections reopen, but what happened while suspended stays closed
+     * @description Ends the open suspension period with the reason. The decision covers only what happened while it was in force and not suspended (decisionInForceAt; comms.md rule 2).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          decisionId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CloseSharingDecision"];
+        };
+      };
+      responses: {
+        /** @description Suspension lifted */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SharingDecisionOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/sharing-decisions/visibility": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** What one recipient may see now, section by section (closed by default, HZ-022) */
+    get: {
+      parameters: {
+        query?: {
+          contactId?: string;
+          tenantUserId?: string;
+          linkId?: string;
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Visibility */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SharingVisibility"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/break-glass/weekly-report": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The weekly break-glass report for each location you can see
+     * @description `week` is any date in the UK week wanted (Monday 00:00 to Monday 00:00); the last complete week by default. Reports are built by the Monday worker job; a review appears as a later row that supersedes the report.
+     */
+    get: {
+      parameters: {
+        query?: {
+          week?: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Reports */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["BreakGlassWeeklyReportList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/break-glass/weekly-report/{reportId}/review": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Record the review of a weekly report and the actions taken */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          reportId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ReviewBreakGlassReport"];
+        };
+      };
+      responses: {
+        /** @description Reviewed */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["BreakGlassWeeklyReportOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/notifications": {
     parameters: {
       query?: never;
@@ -8239,15 +12603,7 @@ export interface components {
       id: string;
       /** Format: uuid */
       locationId: string;
-      /** @enum {string} */
-      status:
-        | "enquiry"
-        | "active"
-        | "on_leave"
-        | "in_hospital"
-        | "discharged"
-        | "deceased"
-        | "archived";
+      status: components["schemas"]["PersonStatus"];
       givenName: string;
       familyName: string;
       preferredName: string | null;
@@ -8264,9 +12620,31 @@ export interface components {
         reaction: string | null;
       }[];
       communicationNeeds: components["schemas"]["CommunicationNeed"][];
+      /** @enum {string} */
+      communicationNeedsStatus: "not_recorded" | "none_identified" | "recorded";
+      /** Format: uuid */
+      communicationNeedsConfirmedBy: string | null;
+      /** Format: date-time */
+      communicationNeedsConfirmedAt: string | null;
       resuscitation: components["schemas"]["ResuscitationStatus"];
+      /** Format: date-time */
+      statusChangedAt: string;
       version: number;
     };
+    /**
+     * @description The person lifecycle (people.md rule 1)
+     * @enum {string}
+     */
+    PersonStatus:
+      | "enquiry"
+      | "pre_admission"
+      | "active"
+      | "on_leave"
+      | "in_hospital"
+      | "discharged"
+      | "deceased"
+      | "archived"
+      | "not_admitted";
     /** @enum {string} */
     AllergyStatus: "unknown" | "no_known_allergies" | "has_allergies";
     CommunicationNeed: {
@@ -8321,6 +12699,1295 @@ export interface components {
       /** Format: uuid */
       personId: string;
       justification: string;
+      reasonCode?: components["schemas"]["BreakGlassReasonCode"];
+    };
+    /** @enum {string} */
+    BreakGlassReasonCode:
+      | "emergency_care"
+      | "covering_another_area"
+      | "safeguarding"
+      | "incident_or_complaint"
+      | "request_from_professional"
+      | "other";
+    PersonStatusChangeResult: {
+      /** Format: uuid */
+      personId: string;
+      status: components["schemas"]["PersonStatus"];
+      /** Format: date-time */
+      statusChangedAt: string;
+      event: string;
+      effects: string[];
+      correction: boolean;
+      /** Format: uuid */
+      exitRecordId: string | null;
+      version: number;
+    };
+    PersonStatusChange: {
+      to: components["schemas"]["PersonStatus"];
+      /** Format: date-time */
+      effectiveAt: string;
+      reason?: string;
+      /** @enum {string} */
+      exitKind?: "discharge" | "transfer";
+      exit?: components["schemas"]["ExitDetails"];
+      /** Format: uuid */
+      serviceId?: string;
+      placementTypeSought?: components["schemas"]["PlacementType"];
+      version: number;
+    };
+    ExitDetails: {
+      /** @enum {string} */
+      placeOfDeath?: "care_home" | "hospital" | "elsewhere";
+      deathExpected?: boolean;
+      verifiedByName?: string;
+      verifiedByRole?: string;
+      /** Format: date-time */
+      verifiedAt?: string;
+      presentAtDeath?: string;
+      funeralDirector?: string;
+      /** Format: date-time */
+      collectionAt?: string;
+      coronerReferredBy?: string;
+      coronerReference?: string;
+      /** @enum {string} */
+      destinationType?:
+        | "own_home"
+        | "family_home"
+        | "care_home"
+        | "hospital"
+        | "hospice"
+        | "supported_living"
+        | "other";
+      receivingProviderName?: string;
+      receivingProviderCqcLocationId?: string;
+      receivingProviderOdsCode?: string;
+      reason?: string;
+      learningDisabilityOrAutism?: boolean;
+      /** @default false */
+      homeIsDwpAppointee: boolean;
+      /** @default false */
+      holdsResidentsMoney: boolean;
+      /** @default false */
+      holdsDeposit: boolean;
+      /** @default false */
+      hasLoanEquipment: boolean;
+    };
+    /** @enum {string} */
+    PlacementType: "permanent" | "respite" | "trial" | "package";
+    UpdateCommunicationNeeds: {
+      needs: {
+        code: string;
+        display: string;
+        preferredFormat?: string;
+      }[];
+      /** @enum {string} */
+      status: "none_identified" | "recorded";
+      version: number;
+    };
+    PreAdmissionView: {
+      assessment: components["schemas"]["PreAdmissionAssessmentItem"];
+      definitions: {
+        key: components["schemas"]["PreAdmissionSectionKey"];
+        title: string;
+        required: boolean;
+        allowNotApplicable: boolean;
+        hazardIds: string[];
+      }[];
+    };
+    PreAdmissionAssessmentItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      serviceId: string | null;
+      placementTypeSought: components["schemas"]["PlacementType"] & (string | null);
+      /** @enum {string} */
+      status: "in_progress" | "complete" | "decided";
+      sections: {
+        personal_details_and_contacts?: components["schemas"]["PreAdmissionSection"];
+        views_and_wishes?: components["schemas"]["PreAdmissionSection"];
+        health_and_medical_history?: components["schemas"]["PreAdmissionSection"];
+        medicines?: components["schemas"]["PreAdmissionSection"];
+        allergies?: components["schemas"]["PreAdmissionSection"];
+        communication?: components["schemas"]["PreAdmissionSection"];
+        mobility_and_falls?: components["schemas"]["PreAdmissionSection"];
+        eating_drinking_and_swallowing?: components["schemas"]["PreAdmissionSection"];
+        skin_integrity?: components["schemas"]["PreAdmissionSection"];
+        continence_and_personal_care?: components["schemas"]["PreAdmissionSection"];
+        cognition_and_mental_health?: components["schemas"]["PreAdmissionSection"];
+        capacity_and_legal_status?: components["schemas"]["PreAdmissionSection"];
+        resuscitation_and_advance_care?: components["schemas"]["PreAdmissionSection"];
+        infection_status?: components["schemas"]["PreAdmissionSection"];
+        equipment?: components["schemas"]["PreAdmissionSection"];
+        risks?: components["schemas"]["PreAdmissionSection"];
+        dependency?: components["schemas"]["PreAdmissionSection"];
+        funding?: components["schemas"]["PreAdmissionSection"];
+        social_cultural_and_spiritual?: components["schemas"]["PreAdmissionSection"];
+        hospital_passport?: components["schemas"]["PreAdmissionSection"];
+      };
+      informationSources: components["schemas"]["InformationSource"][];
+      personInvolvement: components["schemas"]["PersonInvolvement"];
+      /** Format: uuid */
+      assessorTenantUserId: string | null;
+      completeness: {
+        complete: boolean;
+        outstanding: {
+          key: components["schemas"]["PreAdmissionSectionKey"];
+          problem: string;
+        }[];
+        sourcesMissing: boolean;
+        involvementMissing: boolean;
+        /** Format: date-time */
+        lastCompletedAt: string | null;
+      };
+      version: number;
+    } | null;
+    PreAdmissionSection: {
+      /** @enum {string} */
+      status: "in_progress" | "complete" | "not_applicable";
+      notes: string | null;
+      notApplicableReason: string | null;
+      medicines: components["schemas"]["PreAdmissionMedicine"][] | null;
+      /** Format: uuid */
+      completedBy: string | null;
+      /** Format: date-time */
+      completedAt: string | null;
+    };
+    PreAdmissionMedicine: {
+      name: string;
+      dose: string;
+      route: string;
+      frequency: string;
+      /** @default false */
+      timeCritical: boolean;
+    };
+    /** @enum {string} */
+    InformationSource:
+      | "person"
+      | "family_or_representative"
+      | "hospital"
+      | "gp"
+      | "social_worker"
+      | "previous_provider"
+      | "other";
+    /** @description Regulation 9: how the person took part */
+    PersonInvolvement:
+      | {
+          /** @enum {boolean} */
+          involved: true;
+        }
+      | {
+          /** @enum {boolean} */
+          involved: false;
+          reason: string;
+        }
+      | null;
+    /** @enum {string} */
+    PreAdmissionSectionKey:
+      | "personal_details_and_contacts"
+      | "views_and_wishes"
+      | "health_and_medical_history"
+      | "medicines"
+      | "allergies"
+      | "communication"
+      | "mobility_and_falls"
+      | "eating_drinking_and_swallowing"
+      | "skin_integrity"
+      | "continence_and_personal_care"
+      | "cognition_and_mental_health"
+      | "capacity_and_legal_status"
+      | "resuscitation_and_advance_care"
+      | "infection_status"
+      | "equipment"
+      | "risks"
+      | "dependency"
+      | "funding"
+      | "social_cultural_and_spiritual"
+      | "hospital_passport";
+    UpdatePreAdmission: {
+      /** @default {} */
+      sections: {
+        personal_details_and_contacts?: components["schemas"]["PreAdmissionSectionInput"];
+        views_and_wishes?: components["schemas"]["PreAdmissionSectionInput"];
+        health_and_medical_history?: components["schemas"]["PreAdmissionSectionInput"];
+        medicines?: components["schemas"]["PreAdmissionSectionInput"];
+        allergies?: components["schemas"]["PreAdmissionSectionInput"];
+        communication?: components["schemas"]["PreAdmissionSectionInput"];
+        mobility_and_falls?: components["schemas"]["PreAdmissionSectionInput"];
+        eating_drinking_and_swallowing?: components["schemas"]["PreAdmissionSectionInput"];
+        skin_integrity?: components["schemas"]["PreAdmissionSectionInput"];
+        continence_and_personal_care?: components["schemas"]["PreAdmissionSectionInput"];
+        cognition_and_mental_health?: components["schemas"]["PreAdmissionSectionInput"];
+        capacity_and_legal_status?: components["schemas"]["PreAdmissionSectionInput"];
+        resuscitation_and_advance_care?: components["schemas"]["PreAdmissionSectionInput"];
+        infection_status?: components["schemas"]["PreAdmissionSectionInput"];
+        equipment?: components["schemas"]["PreAdmissionSectionInput"];
+        risks?: components["schemas"]["PreAdmissionSectionInput"];
+        dependency?: components["schemas"]["PreAdmissionSectionInput"];
+        funding?: components["schemas"]["PreAdmissionSectionInput"];
+        social_cultural_and_spiritual?: components["schemas"]["PreAdmissionSectionInput"];
+        hospital_passport?: components["schemas"]["PreAdmissionSectionInput"];
+      };
+      informationSources?: components["schemas"]["InformationSource"][];
+      personInvolvement?: components["schemas"]["PersonInvolvement"];
+      /** Format: uuid */
+      serviceId?: string;
+      placementTypeSought?: components["schemas"]["PlacementType"];
+      version: number;
+    };
+    PreAdmissionSectionInput: {
+      /** @enum {string} */
+      status: "in_progress" | "complete" | "not_applicable";
+      notes?: string;
+      notApplicableReason?: string;
+      medicines?: components["schemas"]["PreAdmissionMedicine"][];
+    };
+    AdmissionDecisionList: {
+      items: components["schemas"]["AdmissionDecisionItem"][];
+    };
+    AdmissionDecisionItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      assessmentId: string;
+      canMeetNeeds: components["schemas"]["CanMeetNeeds"];
+      admit: boolean;
+      reasons: string;
+      /** Format: date */
+      plannedAdmissionOn: string | null;
+      /** Format: date */
+      trialEndsOn: string | null;
+      /** Format: uuid */
+      decidedBy: string;
+      /** Format: date-time */
+      decidedAt: string;
+      toldWho: string | null;
+      /** Format: date-time */
+      toldAt: string | null;
+      /** Format: uuid */
+      supersedesId: string | null;
+      correctionReason: string | null;
+      superseded: boolean;
+      conditions: components["schemas"]["AdmissionConditionItem"][];
+    };
+    /** @enum {string} */
+    CanMeetNeeds: "yes" | "yes_with_conditions" | "no";
+    AdmissionConditionItem: {
+      /** Format: uuid */
+      id: string;
+      position: number;
+      condition: string;
+      /** Format: uuid */
+      metBy: string | null;
+      /** Format: date-time */
+      metAt: string | null;
+      version: number;
+    };
+    CreateAdmissionDecision: {
+      canMeetNeeds: components["schemas"]["CanMeetNeeds"];
+      reasons: string;
+      /** @default [] */
+      conditions: string[];
+      /** Format: date */
+      plannedAdmissionOn?: string;
+      /** Format: date */
+      trialEndsOn?: string;
+      /** Format: date-time */
+      decidedAt?: string;
+      toldWho?: string;
+      /** Format: date-time */
+      toldAt?: string;
+      /** Format: uuid */
+      supersedesId?: string;
+      correctionReason?: string;
+    };
+    ConfirmAdmissionCondition: {
+      version: number;
+    };
+    AdmissionView: {
+      decision: components["schemas"]["AdmissionDecisionItem"] & (Record<string, never> | null);
+      conditionsOutstanding: string[];
+      placement: components["schemas"]["PlacementItem"];
+      welcomeChecklist: components["schemas"]["WelcomeChecklist"];
+    };
+    PlacementItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      serviceId: string;
+      /** Format: uuid */
+      roomId: string | null;
+      type: components["schemas"]["PlacementType"];
+      /** Format: date */
+      startDate: string;
+      /** Format: date */
+      endDate: string | null;
+      endReason: string | null;
+      /** Format: date */
+      trialEndsOn: string | null;
+      /** Format: date */
+      trialReviewedOn: string | null;
+      localAuthorityFunded: boolean;
+      nhsFunded: boolean;
+      /** Format: uuid */
+      admissionDecisionId: string | null;
+      version: number;
+    } | null;
+    WelcomeChecklist: {
+      /** Format: uuid */
+      placementId: string | null;
+      items: components["schemas"]["WelcomeChecklistEntry"][];
+      complete: boolean;
+      outstanding: string[];
+      safetyCriticalOutstanding: string[];
+      invalid: string[];
+    };
+    WelcomeChecklistEntry: {
+      key: string;
+      title: string;
+      required: boolean;
+      safetyCritical: boolean;
+      allowNotApplicable: boolean;
+      /** @enum {string} */
+      status: "pending" | "done" | "not_applicable";
+      reason: string | null;
+      /** Format: uuid */
+      doneBy: string | null;
+      /** Format: date-time */
+      doneAt: string | null;
+      version: number;
+    };
+    AdmissionResult: {
+      /** Format: uuid */
+      personId: string;
+      status: components["schemas"]["PersonStatus"];
+      placement: components["schemas"]["PlacementItem"];
+      bed: components["schemas"]["BedOccupancyItem"];
+      welcomeChecklist: components["schemas"]["WelcomeChecklist"];
+      version: number;
+    };
+    BedOccupancyItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      roomId: string;
+      roomLabel: string;
+      bed: number;
+      /** Format: date */
+      from: string;
+      /** Format: date */
+      to: string | null;
+      reason: string;
+      backdated: boolean;
+      /** Format: uuid */
+      recordedBy: string | null;
+      /** Format: date-time */
+      recordedAt: string;
+    } | null;
+    RecordAdmission: {
+      /** Format: uuid */
+      serviceId: string;
+      placementType: components["schemas"]["PlacementType"];
+      /** Format: date */
+      startDate: string;
+      /** Format: date */
+      trialEndsOn?: string;
+      /** @default false */
+      localAuthorityFunded: boolean;
+      /** @default false */
+      nhsFunded: boolean;
+      dependencyCategory?: string;
+      /** Format: uuid */
+      roomId?: string;
+      /** @default 1 */
+      bed: number;
+      /** Format: date-time */
+      admittedAt: string;
+      version: number;
+    };
+    BedHistory: {
+      /** Format: uuid */
+      personId: string;
+      roomLabel: string | null;
+      items: components["schemas"]["BedOccupancyItem"][];
+    };
+    CreateBedMove: {
+      /** Format: uuid */
+      roomId: string;
+      /** @default 1 */
+      bed: number;
+      /** Format: date */
+      on: string;
+      reason: string;
+      version: number;
+    };
+    BedBoard: {
+      /** Format: uuid */
+      locationId: string;
+      /** Format: date */
+      date: string;
+      rooms: {
+        /** Format: uuid */
+        roomId: string;
+        label: string;
+        unitName: string | null;
+        /** @enum {string} */
+        status: "available" | "out_of_service" | "awaiting_clearance";
+        beds: {
+          bed: number;
+          occupied: boolean;
+          /** Format: uuid */
+          personId: string | null;
+          name: string | null;
+          /** Format: date */
+          since: string | null;
+        }[];
+      }[];
+    };
+    UpdateWelcomeChecklistItem: {
+      /** @enum {string} */
+      status: "pending" | "done" | "not_applicable";
+      reason?: string;
+      version: number;
+    };
+    WelcomeChecklistTemplate: {
+      items: components["schemas"]["WelcomeChecklistDefinitionItem"][];
+      isDefault: boolean;
+      version: number;
+    };
+    WelcomeChecklistDefinitionItem: {
+      key: string;
+      title: string;
+      required: boolean;
+      safetyCritical: boolean;
+      allowNotApplicable: boolean;
+      /** @default [] */
+      hazardIds: string[];
+    };
+    UpdateWelcomeChecklistTemplate: {
+      items: components["schemas"]["WelcomeChecklistDefinitionItem"][];
+      version: number;
+    };
+    PropertyList: {
+      items: components["schemas"]["PropertyItemOut"][];
+      outstanding: string[];
+      toSendWithPerson: string[];
+    };
+    PropertyItemOut: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      description: string;
+      category: components["schemas"]["PropertyCategory"];
+      quantity: number;
+      valuable: boolean;
+      photoDocumentIds: string[];
+      /** Format: date */
+      receivedOn: string;
+      /** Format: uuid */
+      recordedBy: string;
+      acknowledgement: {
+        /** @enum {string} */
+        signer: "person" | "representative" | "unable_to_sign";
+        name: string | null;
+        unableReason: string | null;
+        /** Format: date-time */
+        signedAt: string;
+      };
+      /** Format: uuid */
+      witnessedBy: string | null;
+      /** @enum {string} */
+      status: "held" | "sent_with_person" | "returned" | "disposed" | "lost";
+      /** Format: uuid */
+      hospitalTransferId: string | null;
+      returned: {
+        /** Format: date */
+        on: string;
+        recipientName: string;
+        recipientCapacity: string;
+        signer: string;
+        signerName: string | null;
+        /** Format: uuid */
+        by: string;
+        /** Format: uuid */
+        witnessedBy: string | null;
+      } | null;
+      disposed: {
+        /** Format: date */
+        on: string;
+        reason: string;
+        /** Format: uuid */
+        by: string;
+        /** Format: uuid */
+        witnessedBy: string;
+      } | null;
+      lost: {
+        /** Format: date */
+        on: string;
+        /** Format: uuid */
+        incidentId: string;
+      } | null;
+      version: number;
+    };
+    /** @enum {string} */
+    PropertyCategory:
+      | "clothing"
+      | "jewellery"
+      | "watch"
+      | "electronics"
+      | "mobility_aid"
+      | "sensory_aid"
+      | "dentures"
+      | "documents"
+      | "furniture"
+      | "ornament_or_picture"
+      | "toiletries"
+      | "other";
+    CreatePropertyItem: {
+      /** Format: uuid */
+      id?: string;
+      description: string;
+      category: string;
+      quantity: number;
+      /** @default false */
+      valuable: boolean;
+      /** @default [] */
+      photoDocumentIds: string[];
+      /** Format: date */
+      receivedOn: string;
+      acknowledgement: components["schemas"]["PropertySignature"];
+      /** Format: uuid */
+      witnessedBy?: string;
+    };
+    PropertySignature: {
+      /** @enum {string} */
+      signer: "person" | "representative" | "unable_to_sign";
+      name?: string;
+      unableReason?: string;
+      /** Format: date-time */
+      signedAt: string;
+    };
+    ReturnPropertyItem: {
+      /** Format: date */
+      returnedOn: string;
+      recipientName: string;
+      /** @enum {string} */
+      recipientCapacity:
+        | "person"
+        | "representative"
+        | "personal_representative"
+        | "receiving_provider";
+      signature: components["schemas"]["PropertySignature"];
+      /** Format: uuid */
+      witnessedBy?: string;
+      version: number;
+    };
+    DisposePropertyItem: {
+      /** Format: date */
+      on: string;
+      reason: string;
+      /** Format: uuid */
+      witnessedBy: string;
+      version: number;
+    };
+    LosePropertyItem: {
+      /** Format: date */
+      on: string;
+      /** Format: uuid */
+      incidentId: string;
+      version: number;
+    };
+    KeyList: {
+      items: components["schemas"]["KeyIssueOut"][];
+    };
+    KeyIssueOut: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      label: string;
+      /** Format: date */
+      issuedOn: string;
+      /** @enum {string} */
+      issuedTo: "person" | "representative";
+      /** Format: date */
+      returnedOn: string | null;
+      /** Format: date */
+      reportedLostOn: string | null;
+      outstanding: boolean;
+      version: number;
+    };
+    CreateKeyIssue: {
+      /** Format: uuid */
+      id?: string;
+      label: string;
+      /** Format: date */
+      issuedOn: string;
+      /** @enum {string} */
+      issuedTo: "person" | "representative";
+    };
+    /** @description The day the key came back, or was reported lost */
+    CloseKeyIssue: {
+      /** Format: date */
+      on: string;
+      version: number;
+    };
+    AboutMeOut: {
+      /** Format: uuid */
+      personId: string;
+      sections: components["schemas"]["AboutMeDocument"];
+      authoredByPerson: boolean;
+      summary: {
+        filled: string[];
+        missing: string[];
+        /** Format: date-time */
+        dateLastUpdated: string | null;
+        hasContent: boolean;
+      };
+      /** Format: date-time */
+      updatedAt: string | null;
+      version: number;
+    };
+    AboutMeDocument: {
+      what_is_most_important_to_me?: components["schemas"]["AboutMeSectionContent"];
+      people_who_are_important_to_me?: components["schemas"]["AboutMeSectionContent"];
+      how_i_communicate?: components["schemas"]["AboutMeSectionContent"];
+      my_wellness?: components["schemas"]["AboutMeSectionContent"];
+      please_do_and_please_do_not?: components["schemas"]["AboutMeSectionContent"];
+      how_and_when_to_support_me?: components["schemas"]["AboutMeSectionContent"];
+      also_worth_knowing_about_me?: components["schemas"]["AboutMeSectionContent"];
+      supported_to_write_this_by?: string | null;
+      date_last_updated?: string | null;
+    } & {
+      [key: string]: unknown;
+    };
+    AboutMeSectionContent: {
+      text?: string | null;
+      media?: {
+        /** Format: uuid */
+        documentId: string;
+        mimeType: string;
+        filename?: string;
+      }[];
+    } | null;
+    UpdateAboutMe: {
+      sections: components["schemas"]["AboutMeDocument"];
+      authoredByPerson: boolean;
+      version: number;
+    };
+    AboutMeShareLinkList: {
+      items: components["schemas"]["AboutMeShareLinkOut"][];
+    };
+    AboutMeShareLinkOut: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      sharingDecisionId: string;
+      /** Format: date-time */
+      expiresAt: string;
+      /** Format: date-time */
+      revokedAt: string | null;
+      revokedReason: string | null;
+      /** Format: date-time */
+      lastOpenedAt: string | null;
+      /** Format: uuid */
+      createdBy: string | null;
+      /** Format: date-time */
+      createdAt: string;
+      active: boolean;
+    };
+    AboutMeShareLinkCreated: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      sharingDecisionId: string;
+      /** Format: date-time */
+      expiresAt: string;
+      /** Format: date-time */
+      revokedAt: string | null;
+      revokedReason: string | null;
+      /** Format: date-time */
+      lastOpenedAt: string | null;
+      /** Format: uuid */
+      createdBy: string | null;
+      /** Format: date-time */
+      createdAt: string;
+      active: boolean;
+      token: string;
+    };
+    CreateAboutMeShareLink: {
+      /** Format: uuid */
+      sharingDecisionId: string;
+      /** Format: date-time */
+      expiresAt: string;
+    };
+    RevokeShareLink: {
+      reason: string;
+      version: number;
+    };
+    ReviewSchedule: {
+      /** Format: uuid */
+      personId: string;
+      available: boolean;
+      items: components["schemas"]["ReviewDue"][];
+      /** @enum {string} */
+      familyInvolvement:
+        | "scheduled"
+        | "person_declines_involvement"
+        | "no_family_or_representative"
+        | "not_receiving_care";
+      records: components["schemas"]["ReviewRecordOut"][];
+      changes: components["schemas"]["CarePlanChangeOut"][];
+    };
+    ReviewDue: {
+      kind: components["schemas"]["ReviewKind"];
+      /** Format: date */
+      dueOn: string;
+      /** Format: date */
+      windowOpensOn: string | null;
+      /** Format: date-time */
+      dueAt: string | null;
+      /** @enum {string} */
+      state: "upcoming" | "due" | "overdue" | "paused";
+      changeIds: string[];
+      basis: string[];
+    };
+    /** @enum {string} */
+    ReviewKind:
+      | "first_care_plan"
+      | "care_plan_review"
+      | "care_plan_review_on_change"
+      | "la_review"
+      | "family_involvement"
+      | "trial_review";
+    ReviewRecordOut: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      kind: components["schemas"]["ReviewRecordKind"];
+      /** Format: date */
+      heldOn: string;
+      participants: {
+        role: string;
+        name?: string;
+        /** Format: uuid */
+        contactId?: string;
+      }[];
+      familyInvolvementKind: components["schemas"]["FamilyInvolvementKind"];
+      laReference: string | null;
+      changesCovered: string[];
+      outcome: string | null;
+      /** Format: uuid */
+      documentId: string | null;
+      /** Format: uuid */
+      supersedesId: string | null;
+      correctionReason: string | null;
+      superseded: boolean;
+      /** Format: uuid */
+      recordedBy: string | null;
+      /** Format: date-time */
+      recordedAt: string;
+    };
+    /** @enum {string} */
+    ReviewRecordKind: "care_plan" | "la_review" | "family_involvement" | "trial_review";
+    /** @enum {string|null} */
+    FamilyInvolvementKind:
+      | "attended_review"
+      | "contributed"
+      | "invited_declined"
+      | "person_declines_involvement"
+      | "no_family_or_representative"
+      | null;
+    CarePlanChangeOut: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      kind: components["schemas"]["CarePlanChangeKind"];
+      /** Format: date */
+      occurredOn: string;
+      sourceType: string | null;
+      /** Format: uuid */
+      sourceId: string | null;
+      /** Format: date */
+      reviewedOn: string | null;
+      /** Format: uuid */
+      reviewRecordId: string | null;
+      version: number;
+    };
+    /** @enum {string} */
+    CarePlanChangeKind:
+      | "return_from_hospital"
+      | "fall"
+      | "change_in_needs"
+      | "new_diagnosis"
+      | "safeguarding"
+      | "end_of_life"
+      | "other";
+    CreateReviewRecord: {
+      kind: components["schemas"]["ReviewRecordKind"];
+      /** Format: date */
+      heldOn: string;
+      /** @default [] */
+      participants: {
+        role: string;
+        name?: string;
+        /** Format: uuid */
+        contactId?: string;
+      }[];
+      familyInvolvementKind?: components["schemas"]["FamilyInvolvementKind"];
+      laReference?: string;
+      changesCovered?: string[];
+      outcome?: string;
+      /** Format: uuid */
+      documentId?: string;
+      /** Format: uuid */
+      supersedesId?: string;
+      correctionReason?: string;
+    };
+    CarePlanChangeList: {
+      items: components["schemas"]["CarePlanChangeOut"][];
+    };
+    CreateCarePlanChange: {
+      kind: components["schemas"]["CarePlanChangeKind"];
+      /** Format: date */
+      occurredOn: string;
+      /** @enum {string} */
+      sourceType?: "incident" | "hospital_transfer" | "care_note" | "assessment" | "other";
+      /** Format: uuid */
+      sourceId?: string;
+    };
+    LocationReviews: {
+      /** Format: uuid */
+      locationId: string;
+      items: {
+        kind: components["schemas"]["ReviewKind"];
+        /** Format: date */
+        dueOn: string;
+        /** Format: date */
+        windowOpensOn: string | null;
+        /** Format: date-time */
+        dueAt: string | null;
+        /** @enum {string} */
+        state: "upcoming" | "due" | "overdue" | "paused";
+        changeIds: string[];
+        basis: string[];
+        /** Format: uuid */
+        personId: string;
+      }[];
+    };
+    TransferPack: {
+      /** Format: uuid */
+      personId: string;
+      /** Format: date-time */
+      generatedAt: string;
+      generatedBy: string;
+      identity: {
+        [key: string]: unknown;
+      };
+      sections: components["schemas"]["TransferPackSection"][];
+      content: {
+        [key: string]: unknown;
+      };
+      missingCritical: string[];
+      missingExpected: string[];
+      attention?: {
+        key: string;
+        /** @enum {string} */
+        code:
+          | "resuscitation_conflict"
+          | "resuscitation_review_overdue"
+          | "medicines_need_checking"
+          | "photo_not_printable"
+          | "allergy_confirmation_not_recorded";
+        message: string;
+        acknowledge: boolean;
+        /** Format: date */
+        onDate: string | null;
+      }[];
+      itemsLeftBehind: {
+        [key: string]: unknown;
+      }[];
+      complete: boolean;
+    };
+    TransferPackSection: {
+      key: string;
+      title: string;
+      critical: boolean;
+      hazardIds: string[];
+      /** @enum {string} */
+      status: "included" | "not_recorded";
+      /** Format: date-time */
+      asOf: string | null;
+    };
+    PreviewTransferPack: {
+      reason?: string;
+      /** @default [] */
+      sendItemIds: string[];
+    };
+    HospitalTransferList: {
+      items: components["schemas"]["HospitalTransferOut"][];
+    };
+    HospitalTransferOut: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: date-time */
+      leftAt: string;
+      hospitalName: string;
+      hospitalOdsCode: string | null;
+      reason: string | null;
+      pack: components["schemas"]["TransferPack"];
+      missingCritical: string[];
+      missingExpected: string[];
+      itemsSent: string[];
+      /** Format: date-time */
+      handedOverAt: string | null;
+      /** Format: uuid */
+      handedOverBy: string | null;
+      acknowledgement: {
+        /** Format: uuid */
+        by: string;
+        /** Format: date-time */
+        at: string;
+        reason: string;
+      } | null;
+      /** Format: date-time */
+      returnedAt: string | null;
+      returnChecks: {
+        key: string;
+        title: string;
+        hazardIds: string[];
+        /** Format: uuid */
+        doneBy: string | null;
+        /** Format: date-time */
+        doneAt: string | null;
+        /** Format: uuid */
+        taskId?: string | null;
+        /** Format: date-time */
+        dueAt?: string | null;
+      }[];
+      version: number;
+    };
+    CreateHospitalTransfer: {
+      /** Format: uuid */
+      id?: string;
+      /** Format: date-time */
+      leftAt: string;
+      hospitalName: string;
+      hospitalOdsCode?: string;
+      reason?: string;
+      /** @default [] */
+      sendItemIds: string[];
+      version: number;
+    };
+    HandOverTransferPack: {
+      acknowledgementReason?: string;
+      version: number;
+    };
+    RecordHospitalReturn: {
+      /** Format: date-time */
+      returnedAt: string;
+      version: number;
+    };
+    CompleteReturnCheck: {
+      version: number;
+    };
+    ExitView: {
+      exit: components["schemas"]["ExitOut"];
+    };
+    ExitOut: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** @enum {string} */
+      kind: "discharge" | "transfer" | "death";
+      state: components["schemas"]["ExitState"];
+      /** Format: date-time */
+      leftAt: string | null;
+      /** @enum {string|null} */
+      statusBefore: "active" | "on_leave" | "in_hospital" | null;
+      context: {
+        /** @enum {string} */
+        regulator: "cqc" | "ciw" | "care_inspectorate" | "rqia";
+        localAuthorityFunded: boolean;
+        nhsFunded: boolean;
+        /** @enum {string|null} */
+        placeOfDeath: "care_home" | "hospital" | "elsewhere" | null;
+        deathExpected: boolean | null;
+        learningDisabilityOrAutism: boolean;
+        dolsInPlace: boolean;
+        homeIsDwpAppointee: boolean;
+        holdsResidentsMoney: boolean;
+        holdsDeposit: boolean;
+        hasLoanEquipment: boolean;
+      };
+      details: {
+        [key: string]: unknown;
+      };
+      checklist: components["schemas"]["ExitChecklistEntry"][];
+      status: {
+        readyForReturn: boolean;
+        readyToClose: boolean;
+        outstanding: string[];
+        outstandingReturns: string[];
+        invalid: string[];
+      };
+      deadlines: {
+        /** Format: date-time */
+        moneyAndPropertyBy: string | null;
+        /** Format: date-time */
+        depositBy: string | null;
+      };
+      /** Format: date-time */
+      closedAt: string | null;
+      cancelledReason: string | null;
+      version: number;
+    } | null;
+    /** @enum {string} */
+    ExitState: "planned" | "left" | "recorded" | "awaiting_return" | "closed" | "cancelled";
+    ExitChecklistEntry: {
+      key: string;
+      title: string;
+      /** @enum {string} */
+      owner: "people" | "care" | "medicines" | "safety" | "finance";
+      returnItem: boolean;
+      allowNotRequired: boolean;
+      notification: {
+        recipient: string;
+        statutory: boolean;
+        due: {
+          /** @enum {string} */
+          kind: "without_delay" | "before_leaving" | "rate";
+          rateKey?: string;
+        };
+      } | null;
+      hazardIds: string[];
+      /** @enum {string} */
+      status: "pending" | "done" | "not_required";
+      reason: string | null;
+      /** Format: uuid */
+      doneBy: string | null;
+      /** Format: date-time */
+      doneAt: string | null;
+      evidenceType: string | null;
+      /** Format: uuid */
+      evidenceId: string | null;
+      derived: boolean;
+      version: number;
+    };
+    PlanExit: {
+      /** @enum {string} */
+      kind: "discharge" | "transfer";
+      details?: components["schemas"]["ExitDetails"];
+    };
+    UpdateExitItem: {
+      /** @enum {string} */
+      status: "pending" | "done" | "not_required";
+      reason?: string;
+      /** @enum {string} */
+      evidenceType?: "statutory_notification" | "document" | "ledger_entry" | "note";
+      /** Format: uuid */
+      evidenceId?: string;
+      version: number;
+    };
+    MoveExit: {
+      /** @enum {string} */
+      to: "awaiting_return" | "closed" | "cancelled";
+      reason?: string;
+      version: number;
+    };
+    SharingDecisionList: {
+      items: components["schemas"]["SharingDecisionOut"][];
+    };
+    SharingDecisionOut: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      recipient: components["schemas"]["SharingRecipient"];
+      sections: components["schemas"]["SharingSection"][];
+      carePlanDomains: string[] | null;
+      /** @enum {string} */
+      basis: "consent" | "legal_authority" | "best_interests" | "direct_care";
+      /** @enum {string|null} */
+      consentGivenBy: "person" | "authority_holder" | null;
+      /** @enum {string} */
+      capacity: "presumed" | "assessed_has_capacity" | "assessed_lacks_capacity";
+      /** Format: uuid */
+      capacityAssessmentId: string | null;
+      /** Format: uuid */
+      bestInterestsDecisionId: string | null;
+      authority: components["schemas"]["SharingAuthority"];
+      /** Format: date-time */
+      validFrom: string;
+      /** Format: date-time */
+      validTo: string;
+      /** Format: date-time */
+      withdrawnAt: string | null;
+      withdrawnReason: string | null;
+      /** Format: date-time */
+      suspendedAt: string | null;
+      suspendedReason: string | null;
+      suspensions: components["schemas"]["SharingSuspensionOut"][];
+      inForce: boolean;
+      /** Format: uuid */
+      recordedBy: string | null;
+      version: number;
+    };
+    SharingRecipient:
+      | {
+          /** @enum {string} */
+          kind: "family";
+          /** Format: uuid */
+          contactId: string;
+        }
+      | {
+          /** @enum {string} */
+          kind: "professional";
+          /** Format: uuid */
+          tenantUserId: string;
+        }
+      | {
+          /** @enum {string} */
+          kind: "link";
+        };
+    /** @enum {string} */
+    SharingSection:
+      | "about_me"
+      | "daily_updates"
+      | "photos"
+      | "activities_and_visits"
+      | "care_plan"
+      | "health_summary"
+      | "medicines"
+      | "appointments"
+      | "finance"
+      | "benefits"
+      | "documents";
+    SharingAuthority: {
+      /** @enum {string} */
+      role:
+        | "lpa_health_welfare"
+        | "lpa_property_finance"
+        | "deputy_personal_welfare"
+        | "deputy_property_affairs"
+        | "appointee";
+      /** Format: uuid */
+      contactId: string;
+      reference?: string;
+      /** Format: uuid */
+      evidenceDocumentId?: string;
+      /** Format: date */
+      validUntil?: string;
+      orderSections?: components["schemas"]["SharingSection"][];
+    } | null;
+    SharingSuspensionOut: {
+      /** Format: uuid */
+      id: string;
+      /** Format: date-time */
+      suspendedAt: string;
+      reason: string;
+      /** Format: date-time */
+      liftedAt: string | null;
+      /** Format: uuid */
+      liftedBy: string | null;
+      liftedReason: string | null;
+    };
+    CreateSharingDecision: {
+      recipient: components["schemas"]["SharingRecipient"];
+      sections: components["schemas"]["SharingSection"][];
+      carePlanDomains?: string[];
+      /** @enum {string} */
+      basis: "consent" | "legal_authority" | "best_interests" | "direct_care";
+      /** @enum {string} */
+      consentGivenBy?: "person" | "authority_holder";
+      /**
+       * @default presumed
+       * @enum {string}
+       */
+      capacity: "presumed" | "assessed_has_capacity" | "assessed_lacks_capacity";
+      /** Format: uuid */
+      capacityAssessmentId?: string;
+      /** Format: uuid */
+      bestInterestsDecisionId?: string;
+      authority?: components["schemas"]["SharingAuthority"];
+      /** Format: date-time */
+      validFrom?: string;
+      /** Format: date-time */
+      validTo: string;
+    };
+    /** @description Withdraw, suspend or lift a suspension, with the reason */
+    CloseSharingDecision: {
+      reason: string;
+      version: number;
+    };
+    /** @description What one recipient may see now: closed unless a decision in force covers it */
+    SharingVisibility: {
+      /** Format: uuid */
+      personId: string;
+      recipient: components["schemas"]["SharingRecipient"];
+      /** @enum {string} */
+      capacityForSharing: "presumed" | "assessed_has_capacity" | "assessed_lacks_capacity";
+      sections: {
+        section: components["schemas"]["SharingSection"];
+        visible: boolean;
+        /** Format: uuid */
+        decisionId: string | null;
+        /** Format: date-time */
+        expiresAt: string | null;
+        reason: string | null;
+      }[];
+    };
+    BreakGlassWeeklyReportList: {
+      /** Format: date-time */
+      weekStart: string;
+      /** Format: date-time */
+      weekEnd: string;
+      items: components["schemas"]["BreakGlassWeeklyReportOut"][];
+    };
+    BreakGlassWeeklyReportOut: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: date-time */
+      weekStart: string;
+      /** Format: date-time */
+      weekEnd: string;
+      /** Format: date-time */
+      generatedAt: string;
+      repeatThreshold: number;
+      summary: {
+        [key: string]: unknown;
+      };
+      /** Format: uuid */
+      reviewedBy: string | null;
+      /** Format: date-time */
+      reviewedAt: string | null;
+      actionsTaken: string | null;
+      /** Format: uuid */
+      supersedesId: string | null;
+    };
+    ReviewBreakGlassReport: {
+      actionsTaken: string;
     };
     NotificationList: {
       items: components["schemas"]["NotificationItem"][];
@@ -8401,9 +14068,13 @@ export interface components {
       evidenceType: string | null;
       /** Format: uuid */
       evidenceId: string | null;
+      evidenceAfterClose: boolean;
+      catchUp: boolean;
+      restoredDone: boolean;
       /** Format: date-time */
       completedAt: string | null;
       escalated: boolean;
+      details: components["schemas"]["TaskDetails"];
       version: number;
     };
     /** @enum {string} */
@@ -8415,6 +14086,38 @@ export interface components {
      * @enum {string}
      */
     TaskTimeState: "closed" | "upcoming" | "due" | "overdue" | "escalated";
+    TaskDetails: {
+      entries?: {
+        kind: string;
+        /** Format: uuid */
+        clientId?: string | null;
+        /** Format: uuid */
+        entryId?: string | null;
+        /** Format: date-time */
+        occurredAt?: string | null;
+        /** Format: uuid */
+        taskId?: string | null;
+        taskKind?: string | null;
+        outcome?: string | null;
+        deviceId?: string | null;
+        /** Format: uuid */
+        recordedBy?: string | null;
+        /** Format: date-time */
+        at?: string | null;
+      }[];
+      missedTasks?: {
+        /** Format: uuid */
+        taskId: string;
+        kind: string;
+        /** Format: date-time */
+        dueAt: string;
+        reopened: boolean;
+      }[];
+      entriesOmitted?: number;
+      missedTasksOmitted?: number;
+      /** Format: date */
+      missedTasksNotListedBefore?: string;
+    } | null;
     CreateTask: {
       title: string;
       /** Format: uuid */
@@ -8647,6 +14350,17 @@ export interface components {
       deviceTime: string | null;
       lateEntry: boolean;
       clockDrift: boolean;
+      recordedAfterExit: boolean;
+      /** Format: uuid */
+      taskId: string | null;
+      /** @enum {string|null} */
+      taskOutcome:
+        | "completed"
+        | "task_cancelled"
+        | "task_already_closed"
+        | "not_linked"
+        | "medicines_conflict"
+        | null;
       /** Format: uuid */
       supersedesId: string | null;
       correctionReason: string | null;
@@ -8705,6 +14419,17 @@ export interface components {
       deviceTime: string | null;
       lateEntry: boolean;
       clockDrift: boolean;
+      recordedAfterExit: boolean;
+      /** Format: uuid */
+      taskId: string | null;
+      /** @enum {string|null} */
+      taskOutcome:
+        | "completed"
+        | "task_cancelled"
+        | "task_already_closed"
+        | "not_linked"
+        | "medicines_conflict"
+        | null;
       /** Format: uuid */
       supersedesId: string | null;
       correctionReason: string | null;
@@ -8831,6 +14556,17 @@ export interface components {
       deviceTime: string | null;
       lateEntry: boolean;
       clockDrift: boolean;
+      recordedAfterExit: boolean;
+      /** Format: uuid */
+      taskId: string | null;
+      /** @enum {string|null} */
+      taskOutcome:
+        | "completed"
+        | "task_cancelled"
+        | "task_already_closed"
+        | "not_linked"
+        | "medicines_conflict"
+        | null;
       /** Format: uuid */
       supersedesId: string | null;
       correctionReason: string | null;
@@ -9306,6 +15042,17 @@ export interface components {
       deviceTime: string | null;
       lateEntry: boolean;
       clockDrift: boolean;
+      recordedAfterExit: boolean;
+      /** Format: uuid */
+      taskId: string | null;
+      /** @enum {string|null} */
+      taskOutcome:
+        | "completed"
+        | "task_cancelled"
+        | "task_already_closed"
+        | "not_linked"
+        | "medicines_conflict"
+        | null;
       /** Format: uuid */
       supersedesId: string | null;
       correctionReason: string | null;
@@ -9569,6 +15316,17 @@ export interface components {
       deviceTime: string | null;
       lateEntry: boolean;
       clockDrift: boolean;
+      recordedAfterExit: boolean;
+      /** Format: uuid */
+      taskId: string | null;
+      /** @enum {string|null} */
+      taskOutcome:
+        | "completed"
+        | "task_cancelled"
+        | "task_already_closed"
+        | "not_linked"
+        | "medicines_conflict"
+        | null;
       /** Format: uuid */
       supersedesId: string | null;
       correctionReason: string | null;
@@ -9634,6 +15392,17 @@ export interface components {
       deviceTime: string | null;
       lateEntry: boolean;
       clockDrift: boolean;
+      recordedAfterExit: boolean;
+      /** Format: uuid */
+      taskId: string | null;
+      /** @enum {string|null} */
+      taskOutcome:
+        | "completed"
+        | "task_cancelled"
+        | "task_already_closed"
+        | "not_linked"
+        | "medicines_conflict"
+        | null;
       /** Format: uuid */
       supersedesId: string | null;
       correctionReason: string | null;

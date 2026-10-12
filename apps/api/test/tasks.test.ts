@@ -164,6 +164,71 @@ describe("one-off tasks", () => {
   });
 });
 
+async function refusedCreates(action: string): Promise<number> {
+  return asDemoTenant(async (c) => {
+    const { rows } = await c.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM audit_event
+       WHERE action = $1 AND outcome = 'denied' AND reason = 'assignee_lacks_permission'`,
+      [action],
+    );
+    return rows[0]?.n ?? 0;
+  });
+}
+
+describe("hazards HZ-004 and HZ-005 a task about a person goes only to someone who may complete it", () => {
+  it("refuses, and audits, a one-off task given on creation to someone without its permission (S1)", async () => {
+    const before = await refusedCreates("platform.task.create");
+    const body = {
+      title: "Check skin on heels",
+      personId: resident(1),
+      locationId: DEMO.locationId,
+      dueAt: new Date(Date.now() + HOUR).toISOString(),
+    };
+    // The quality lead reads care records but does not write them.
+    const refused = await as("manager", "/v1/tasks", {
+      method: "POST",
+      body: { ...body, assigneeTenantUserId: LODGE.qualityLeadId },
+    });
+    expect(refused.status).toBe(422);
+    expect(await refusedCreates("platform.task.create")).toBe(before + 1);
+    // The care worker may be given it.
+    const given = await createTask({ ...body, assigneeTenantUserId: DEMO.users.carer.id });
+    expect(given.assigneeTenantUserId).toBe(DEMO.users.carer.id);
+    // A general task still goes to anyone.
+    const general = await createTask({
+      title: "Fire door check",
+      locationId: DEMO.locationId,
+      dueAt: new Date(Date.now() + HOUR).toISOString(),
+      assigneeTenantUserId: LODGE.qualityLeadId,
+    });
+    expect(general.assigneeTenantUserId).toBe(LODGE.qualityLeadId);
+  });
+
+  it("refuses, and audits, a series whose rounds would go to someone without their permission (S1)", async () => {
+    const before = await refusedCreates("platform.task_series.create");
+    const response = await as("manager", "/v1/task-series", {
+      method: "POST",
+      body: {
+        title: "Reposition",
+        personId: resident(2),
+        locationId: DEMO.locationId,
+        assigneeTenantUserId: LODGE.qualityLeadId,
+        recurrence: { freq: "every_hours", hours: 4, anchorTime: "02:00" },
+        startsOn: new Date().toISOString().slice(0, 10),
+      },
+    });
+    expect(response.status).toBe(422);
+    expect(await refusedCreates("platform.task_series.create")).toBe(before + 1);
+    const made = await asDemoTenant((c) =>
+      c.query("SELECT 1 FROM task WHERE person_id = $1 AND assignee_tenant_user_id = $2", [
+        resident(2),
+        LODGE.qualityLeadId,
+      ]),
+    );
+    expect(made.rowCount).toBe(0);
+  });
+});
+
 describe("recurring tasks", () => {
   it("schedules a 4-hourly turn and materialises the next 48 hours at once", async () => {
     const today = new Date().toISOString().slice(0, 10);

@@ -18,6 +18,7 @@ export const PEOPLE_RATE_KEYS = {
   exitReturnDays: "exit.money_and_property_return_days",
   depositReturnDays: "cma.deposit_return_days",
   breakGlassRepeatThreshold: "break_glass.weekly_repeat_threshold",
+  returnChecksDueHours: "people.return_checks_due_hours",
 } as const;
 
 export type PeopleRateName = keyof typeof PEOPLE_RATE_KEYS;

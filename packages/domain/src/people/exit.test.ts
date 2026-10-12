@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readRateTable } from "../../test/rate-table";
 import { resolveRate } from "../platform/rates";
 import { checkWorkflowTransition, slaDueAt } from "../platform/workflow";
+import { NOTIFICATION_KINDS } from "../safety/notifications";
 import { addUkDays } from "../shared/time";
 import {
   checkExitWorkflowMove,
@@ -13,6 +14,7 @@ import {
   type ExitReturns,
   exitChecklist,
   exitChecklistStatus,
+  exitItemOwner,
   exitNotifications,
   exitReturnDeadlines,
   TRANSFER_WORKFLOW,
@@ -58,7 +60,7 @@ describe("exit workflows", () => {
   it.each<
     [
       string,
-      "planned" | "left" | "awaiting_return",
+      "planned" | "left" | "awaiting_return" | "closed",
       string,
       Partial<{ reason: string; stepUpFresh: boolean }>,
       string | null,
@@ -76,11 +78,19 @@ describe("exit workflows", () => {
     ["returns are awaited", "left", "awaiting_return", {}, null],
     ["the workflow closes", "awaiting_return", "closed", {}, null],
     [
-      "a discharge cannot be cancelled after the person left",
+      "a discharge recorded in error is cancelled with a reason (the lifecycle correction)",
       "left",
       "cancelled",
+      { reason: "Recorded against the wrong person" },
+      null,
+    ],
+    ["a correction needs a reason too", "awaiting_return", "cancelled", {}, "reason_required"],
+    [
+      "a closed discharge is never cancelled",
+      "closed",
+      "cancelled",
       { reason: "Mistake" },
-      "no_such_transition",
+      "terminal",
     ],
   ])("discharge: %s", (_label, from, to, extra, problem) => {
     const result = checkWorkflowTransition(
@@ -115,6 +125,21 @@ describe("exit workflows", () => {
         stepUpFresh: true,
       }).ok,
     ).toBe(true);
+  });
+
+  it("hazards HZ-001 and HZ-003 cancel a death recorded in error while returns are awaited, never once closed", () => {
+    const move = { to: "cancelled" as const, actorId: "manager-1", permissions: manager };
+    const request = { ...move, reason: "Wrong person", stepUpFresh: true };
+    expect(
+      checkWorkflowTransition(
+        DEATH_WORKFLOW,
+        { state: "awaiting_return", createdBy: "nurse-1" },
+        request,
+      ).ok,
+    ).toBe(true);
+    expect(
+      checkWorkflowTransition(DEATH_WORKFLOW, { state: "closed", createdBy: "nurse-1" }, request),
+    ).toMatchObject({ ok: false, problem: "terminal" });
   });
 
   it("escalates returns not made within the rate-table service level", () => {
@@ -193,13 +218,29 @@ describe("death checklist", () => {
 
   it("hazard HZ-013 lists the statutory notifications first", () => {
     const notifications = exitNotifications(context({ learningDisabilityOrAutism: true }));
-    expect(notifications.filter((n) => n.statutory).map((n) => n.recipient)).toEqual([
-      "CQC",
-      "Medical examiner office",
-      "LeDeR programme",
-    ]);
+    expect(notifications.filter((n) => n.statutory).map((n) => n.recipient)).toEqual(["CQC"]);
     expect(notifications[0]?.statutory).toBe(true);
     expect(notifications.at(-1)?.statutory).toBe(false);
+  });
+
+  it("hazard HZ-013 drafts the regulator, medical examiner and LeDeR notifications in safety, labelled as the safety module labels them", () => {
+    const notifications = exitNotifications(context({ learningDisabilityOrAutism: true }));
+    const drafted = notifications.filter((n) => n.safetyKind !== null);
+    expect(drafted.map((n) => [n.itemKey, n.safetyKind])).toEqual([
+      ["regulator_death_notification", "cqc_reg16_death"],
+      ["medical_examiner_information", "medical_examiner"],
+      ["leder_notification", "leder"],
+    ]);
+    for (const n of drafted) {
+      expect(n.statutory, n.itemKey).toBe(NOTIFICATION_KINDS[n.safetyKind ?? "leder"].statutory);
+    }
+  });
+
+  it("drafts nothing in the safety module for a regulator outside England, but still names the duty", () => {
+    const item = exitChecklist(context({ regulator: "ciw" })).find(
+      (i) => i.key === "regulator_death_notification",
+    );
+    expect(item?.notification).toMatchObject({ statutory: true, safetyKind: null });
   });
 
   it("names the nation's regulator", () => {
@@ -340,5 +381,31 @@ describe("checklist status", () => {
     const status = exitChecklistStatus(items, {}, nothingHeld);
     expect(checkExitWorkflowMove("left", status)).toEqual({ ok: true });
     expect(checkExitWorkflowMove("cancelled", status)).toEqual({ ok: true });
+  });
+});
+
+describe("exitItemOwner", () => {
+  it("gives each item key one owner whatever the kind of exit, and finance only for money", () => {
+    for (const kind of ["discharge", "transfer", "death"] as const) {
+      for (const item of exitChecklist({
+        kind,
+        regulator: "cqc",
+        funding: { localAuthority: true, nhs: true },
+        placeOfDeath: "care_home",
+        deathExpected: false,
+        learningDisabilityOrAutism: true,
+        dolsInPlace: true,
+        homeIsDwpAppointee: true,
+        holdsResidentsMoney: true,
+        holdsDeposit: true,
+        hasLoanEquipment: true,
+      })) {
+        expect(exitItemOwner(item.key), item.key).toBe(item.owner);
+      }
+    }
+    expect(
+      ["residents_money_returned", "deposit_returned", "dwp_informed"].map(exitItemOwner),
+    ).toEqual(["finance", "finance", "finance"]);
+    expect(exitItemOwner("not_an_item")).toBeNull();
   });
 });

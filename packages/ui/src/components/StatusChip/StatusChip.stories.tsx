@@ -19,6 +19,19 @@ export const Done: Story = { args: { status: "done" } };
 
 export const NotApplicable: Story = { args: { status: "notApplicable" } };
 
+/** Something that must be recorded and is not: a question mark and the words, never blank. */
+export const NotRecorded: Story = { args: { status: "notRecorded" } };
+
+/** Linked to the action that records it, so the warning is one step from being resolved. */
+export const NotRecordedWithAction: Story = {
+  args: {
+    status: "notRecorded",
+    label: "Allergies not recorded",
+    href: "/people/example/allergies",
+    actionLabel: "record them",
+  },
+};
+
 export const CustomLabel: Story = { args: { status: "due", label: "Due at 14:00" } };
 
 export const AllStatuses: Story = {
@@ -28,6 +41,7 @@ export const AllStatuses: Story = {
       <StatusChip status="due" />
       <StatusChip status="done" />
       <StatusChip status="notApplicable" />
+      <StatusChip status="notRecorded" />
       <StatusChip status="info" label="New" />
       <StatusChip status="neutral" label="Draft" />
     </div>

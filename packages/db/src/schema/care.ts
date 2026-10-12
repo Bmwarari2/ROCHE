@@ -56,9 +56,39 @@ const entryColumns = () => ({
   lateEntry: boolean("late_entry").notNull().default(false),
   /** The device clock disagreed with the server by more than the tolerance (HZ-010). */
   clockDrift: boolean("clock_drift").notNull().default(false),
+  /**
+   * Accepted after the person left or died, for an event at or before then (people.md rule 3,
+   * HZ-006): for example observations a phone recorded offline before a death.
+   */
+  recordedAfterExit: boolean("recorded_after_exit").notNull().default(false),
+  /** The task the entry named (for example the 02:00 turn), whatever happened to it. */
+  taskId: uuid("task_id"),
+  /**
+   * What the entry did to that task (`TASK_LINK_OUTCOMES`): completed it, was kept as late evidence
+   * for a cancelled task, or was kept unlinked or after the task closed and flagged for review;
+   * for a medicines task it could not complete, kept with an urgent conflict review (HZ-004,
+   * HZ-006). Null when the entry named no task.
+   */
+  taskOutcome: text("task_outcome"),
   supersedesId: uuid("supersedes_id"),
   correctionReason: text("correction_reason"),
 });
+
+export const TASK_LINK_OUTCOMES = [
+  "completed",
+  "task_cancelled",
+  "task_already_closed",
+  "not_linked",
+  "medicines_conflict",
+] as const;
+const TASK_LINK_OUTCOMES_SQL = sql.raw(TASK_LINK_OUTCOMES.map((o) => `'${o}'`).join(", "));
+
+/** An entry names a task when it records what happened to it, and only then. */
+const entryTaskOutcome = (table: string) =>
+  check(
+    `${table}_task_outcome`,
+    sql`(task_id IS NULL) = (task_outcome IS NULL) AND (task_outcome IS NULL OR task_outcome IN (${TASK_LINK_OUTCOMES_SQL}))`,
+  );
 
 export const personCareProfile = pgTable(
   "person_care_profile",
@@ -104,6 +134,7 @@ export const careNote = pgTable(
   (t) => [
     unique("care_note_tenant_id_id_key").on(t.tenantId, t.id),
     personRef("care_note_person_fk", t),
+    entryTaskOutcome("care_note"),
     locationRef("care_note_location_fk", t),
     index("care_note_person_idx").on(t.tenantId, t.personId, t.occurredAt),
     index("care_note_location_idx").on(t.tenantId, t.locationId, t.occurredAt),
@@ -124,6 +155,7 @@ export const observation = pgTable(
   (t) => [
     unique("observation_tenant_id_id_key").on(t.tenantId, t.id),
     personRef("observation_person_fk", t),
+    entryTaskOutcome("observation"),
     locationRef("observation_location_fk", t),
     index("observation_person_chart_idx").on(t.tenantId, t.personId, t.chart, t.occurredAt),
     index("observation_location_idx").on(t.tenantId, t.locationId, t.occurredAt),
@@ -156,6 +188,7 @@ export const bodyMapMark = pgTable(
   (t) => [
     unique("body_map_mark_tenant_id_id_key").on(t.tenantId, t.id),
     personRef("body_map_mark_person_fk", t),
+    entryTaskOutcome("body_map_mark"),
     locationRef("body_map_mark_location_fk", t),
     foreignKey({
       name: "body_map_mark_photo_fk",
@@ -443,6 +476,7 @@ export const assessment = pgTable(
     unique("assessment_tenant_id_id_key").on(t.tenantId, t.id),
     unique("assessment_tenant_person_id_key").on(t.tenantId, t.personId, t.id),
     personRef("assessment_person_fk", t),
+    entryTaskOutcome("assessment"),
     locationRef("assessment_location_fk", t),
     foreignKey({
       name: "assessment_supersedes_fk",
@@ -476,6 +510,7 @@ export const activityRecord = pgTable(
     unique("activity_record_tenant_id_id_key").on(t.tenantId, t.id),
     unique("activity_record_tenant_person_id_key").on(t.tenantId, t.personId, t.id),
     personRef("activity_record_person_fk", t),
+    entryTaskOutcome("activity_record"),
     locationRef("activity_record_location_fk", t),
     foreignKey({
       name: "activity_record_supersedes_fk",
@@ -518,6 +553,7 @@ export const visitLog = pgTable(
     unique("visit_log_tenant_id_id_key").on(t.tenantId, t.id),
     unique("visit_log_tenant_person_id_key").on(t.tenantId, t.personId, t.id),
     personRef("visit_log_person_fk", t),
+    entryTaskOutcome("visit_log"),
     locationRef("visit_log_location_fk", t),
     foreignKey({
       name: "visit_log_contact_fk",

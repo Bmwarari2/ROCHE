@@ -96,6 +96,21 @@ export const CLINICAL_EXPORT_TABLES: readonly string[] = [
   "public.statutory_notification",
   "public.candour_record",
   "public.investigation",
+  "public.pre_admission_assessment",
+  "public.admission_decision",
+  "public.admission_condition",
+  "public.bed_occupancy",
+  "public.welcome_checklist_item",
+  "public.property_item",
+  "public.key_issue",
+  "public.review_record",
+  "public.care_plan_change",
+  "public.hospital_transfer",
+  "public.exit_record",
+  "public.exit_checklist_item",
+  "public.sharing_decision",
+  "public.sharing_decision_suspension",
+  "public.about_me_share_link",
 ];
 
 interface ConventionalDoc {
@@ -227,6 +242,39 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.about_me_share_link": {
+    context: "people",
+    description:
+      "Expiring links that share About Me under a sharing decision (the token is never stored).",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      sharing_decision_id: {
+        description: "The sharing decision the link rests on (sharing_decision.id).",
+      },
+      token_hash: {
+        class: "secret",
+        description:
+          "SHA-256 of the link token; never leaves Harbour, so an export cannot open a link.",
+      },
+      expires_at: { description: "When the link stops working (instant, UTC)." },
+      revoked_at: {
+        description: "When the link was revoked (instant, UTC); empty while it works.",
+      },
+      revoked_reason: { description: "Why the link was revoked." },
+      last_opened_at: { description: "When the link was last opened (instant, UTC)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
   "public.access_grant": {
     context: "platform",
     description: "Time-boxed delegation and acting-up grants.",
@@ -273,6 +321,26 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       clock_drift: "exported",
       supersedes_id: "exported",
       correction_reason: "exported",
+      recorded_after_exit: {
+        description:
+          "True when an entry about an event at or before a discharge, death or move to hospital (or within the clock tolerance after it) was accepted afterwards (people.md rule 3).",
+      },
+      task_id: { description: "The task the entry named (task.id), if any." },
+      task_outcome: {
+        description:
+          "What the entry did to the task it named (care.md rule 13); empty when it named none.",
+        codes: {
+          completed: "The entry completed the task.",
+          task_cancelled:
+            "The task had been cancelled (for example by a move); the entry is kept as late evidence and the task stays cancelled.",
+          task_already_closed:
+            "The task was already done, skipped or answered; the entry is kept, flagged and listed for the nurse in charge to review.",
+          not_linked:
+            "The author may not complete the task; the entry is kept unlinked, flagged and listed for review.",
+          medicines_conflict:
+            "A medicines task the entry could not complete (not the author's, or already closed or answered): kept, never completing it, with an urgent conflict review for the nurse in charge.",
+        },
+      },
       activity: { description: "The activity." },
       format: { description: "one_to_one or group." },
       group_session_id: { description: "The group session, where it was one." },
@@ -280,6 +348,70 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       engagement: { description: "Engagement, in words." },
       duration_minutes: { description: "How long it lasted.", unit: "minutes" },
       notes: { description: "Notes." },
+    },
+  },
+  "public.admission_condition": {
+    context: "people",
+    description: "Conditions on a decision to admit, and who confirmed each one met.",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      decision_id: { description: "The decision to admit (admission_decision.id)." },
+      position: {
+        description: "Order of the condition within the decision.",
+        unit: "position (from 0)",
+      },
+      condition: { description: "The condition, in words." },
+      met_by: { description: "Who confirmed the condition met (tenant_user.id)." },
+      met_at: { description: "When the condition was confirmed met (instant, UTC)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.admission_decision": {
+    context: "people",
+    description:
+      "Decisions to admit, with reasons (append-only; a correction supersedes the original).",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      assessment_id: {
+        description: "The pre-admission assessment decided on (pre_admission_assessment.id).",
+      },
+      can_meet_needs: {
+        description: "Whether the home can meet the person's needs.",
+        codes: {
+          yes: "The home can meet the needs.",
+          yes_with_conditions:
+            "The home can meet the needs once the conditions are met (admission_condition).",
+          no: "The home cannot meet the needs; the person is not admitted.",
+        },
+      },
+      reasons: { description: "The reasons for the decision, in words." },
+      planned_admission_on: { description: "Planned admission date (UK calendar date)." },
+      trial_ends_on: {
+        description: "End of a trial placement (UK calendar date), if one is planned.",
+      },
+      decided_by: { description: "Who decided (tenant_user.id, holding people.admission.manage)." },
+      decided_at: { description: "When the decision was made (instant, UTC)." },
+      told_who: { description: "Who was told the decision." },
+      told_at: { description: "When they were told (instant, UTC)." },
+      supersedes_id: "exported",
+      correction_reason: "exported",
+      created_at: "exported",
+      created_by: "exported",
     },
   },
   "public.advance_care_record": {
@@ -370,6 +502,26 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       clock_drift: "exported",
       supersedes_id: "exported",
       correction_reason: "exported",
+      recorded_after_exit: {
+        description:
+          "True when an entry about an event at or before a discharge, death or move to hospital (or within the clock tolerance after it) was accepted afterwards (people.md rule 3).",
+      },
+      task_id: { description: "The task the entry named (task.id), if any." },
+      task_outcome: {
+        description:
+          "What the entry did to the task it named (care.md rule 13); empty when it named none.",
+        codes: {
+          completed: "The entry completed the task.",
+          task_cancelled:
+            "The task had been cancelled (for example by a move); the entry is kept as late evidence and the task stays cancelled.",
+          task_already_closed:
+            "The task was already done, skipped or answered; the entry is kept, flagged and listed for the nurse in charge to review.",
+          not_linked:
+            "The author may not complete the task; the entry is kept unlinked, flagged and listed for review.",
+          medicines_conflict:
+            "A medicines task the entry could not complete (not the author's, or already closed or answered): kept, never completing it, with an urgent conflict review for the nurse in charge.",
+        },
+      },
       tool_key: { description: "Validated tool: must, waterlow, braden or ng249_falls." },
       tool_version: { description: "Version of the tool's published method used for this result." },
       answers: { description: "The answers, as entered, JSON." },
@@ -429,6 +581,34 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     reasonNotExported:
       "Global reference data with no organisation rows (published in calendar.md).",
     columns: {},
+  },
+  "public.bed_occupancy": {
+    context: "people",
+    description:
+      "Who occupied which bed and when: the room and move history (half-open date ranges).",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      room_id: { description: "The room (room.id)." },
+      bed: { description: "The bed in the room, numbered from 1.", unit: "bed number" },
+      from_date: { description: "First day in the bed (UK calendar date), inclusive." },
+      to_date: {
+        description:
+          "Day the person left the bed (UK calendar date), exclusive; empty while there.",
+      },
+      reason: { description: "Why the person moved, in words." },
+      backdated: { description: "True when the move was recorded after the day it happened." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
   },
   "public.best_interests_decision": {
     context: "care",
@@ -495,6 +675,26 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       clock_drift: "exported",
       supersedes_id: "exported",
       correction_reason: "exported",
+      recorded_after_exit: {
+        description:
+          "True when an entry about an event at or before a discharge, death or move to hospital (or within the clock tolerance after it) was accepted afterwards (people.md rule 3).",
+      },
+      task_id: { description: "The task the entry named (task.id), if any." },
+      task_outcome: {
+        description:
+          "What the entry did to the task it named (care.md rule 13); empty when it named none.",
+        codes: {
+          completed: "The entry completed the task.",
+          task_cancelled:
+            "The task had been cancelled (for example by a move); the entry is kept as late evidence and the task stays cancelled.",
+          task_already_closed:
+            "The task was already done, skipped or answered; the entry is kept, flagged and listed for the nurse in charge to review.",
+          not_linked:
+            "The author may not complete the task; the entry is kept unlinked, flagged and listed for review.",
+          medicines_conflict:
+            "A medicines task the entry could not complete (not the author's, or already closed or answered): kept, never completing it, with an urgent conflict review for the nurse in charge.",
+        },
+      },
       view: { description: "Body view: front or back." },
       region: { description: "Body region." },
       side: { description: "The person's left or right (never the viewer's)." },
@@ -527,6 +727,18 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       justification: {
         description: "The typed justification for opening or finding a record outside scope.",
       },
+      reason_code: {
+        description:
+          "The reason chosen, for the weekly report; the typed justification is kept as well.",
+        codes: {
+          emergency_care: "Emergency care.",
+          covering_another_area: "Covering another area.",
+          safeguarding: "Safeguarding.",
+          incident_or_complaint: "An incident or complaint.",
+          request_from_professional: "A request from a professional.",
+          other: "Another reason, in the justification.",
+        },
+      },
       opened_at: "exported",
       expires_at: "exported",
       reviewed_at: "exported",
@@ -538,6 +750,38 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       updated_by: "exported",
       version: "exported",
       deleted_at: "exported",
+    },
+  },
+  "public.break_glass_weekly_report": {
+    context: "people",
+    description:
+      "The Monday report of break-glass openings for each location: counts and opaque ids only (append-only; a review supersedes the report).",
+    treatment: "tenant_rows",
+    retention: "audit_event",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      location_id: "exported",
+      week_start: { description: "Monday 00:00 UK time at the start of the week (instant, UTC)." },
+      week_end: { description: "The following Monday 00:00 UK time (instant, UTC), exclusive." },
+      generated_at: { description: "When the report was built (instant, UTC)." },
+      repeat_threshold: {
+        description: "Openings by one user in the week at which the report flags repeated use.",
+        unit: "openings per week",
+      },
+      summary: {
+        description:
+          "Totals, lines by user, person and reason, unreviewed openings and flags, JSON (opaque ids only).",
+      },
+      reviewed_by: { description: "Who reviewed the report (tenant_user.id)." },
+      reviewed_at: { description: "When the report was reviewed (instant, UTC)." },
+      actions_taken: { description: "What the reviewer did about the report." },
+      supersedes_id: {
+        description: "The report this review row completes (break_glass_weekly_report.id).",
+      },
+      created_at: "exported",
+      created_by: "exported",
     },
   },
   "public.candour_record": {
@@ -672,6 +916,26 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       clock_drift: "exported",
       supersedes_id: "exported",
       correction_reason: "exported",
+      recorded_after_exit: {
+        description:
+          "True when an entry about an event at or before a discharge, death or move to hospital (or within the clock tolerance after it) was accepted afterwards (people.md rule 3).",
+      },
+      task_id: { description: "The task the entry named (task.id), if any." },
+      task_outcome: {
+        description:
+          "What the entry did to the task it named (care.md rule 13); empty when it named none.",
+        codes: {
+          completed: "The entry completed the task.",
+          task_cancelled:
+            "The task had been cancelled (for example by a move); the entry is kept as late evidence and the task stays cancelled.",
+          task_already_closed:
+            "The task was already done, skipped or answered; the entry is kept, flagged and listed for the nurse in charge to review.",
+          not_linked:
+            "The author may not complete the task; the entry is kept unlinked, flagged and listed for review.",
+          medicines_conflict:
+            "A medicines task the entry could not complete (not the author's, or already closed or answered): kept, never completing it, with an urgent conflict review for the nurse in charge.",
+        },
+      },
       category: { description: "Note category." },
       body: { description: "The note text." },
       tags: { description: "Tags on the note." },
@@ -743,6 +1007,43 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       evidence_required: { description: "True when a task needs evidence to be completed." },
       risk_assessment_id: { description: "The risk assessment it controls (risk_assessment.id)." },
       task_series_id: { description: "The recurring task it created (task_series.id)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.care_plan_change": {
+    context: "people",
+    description: "Changes that bring a care plan review forward (one review covers them all).",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      kind: {
+        description: "What changed.",
+        codes: {
+          return_from_hospital: "The person came back from hospital.",
+          fall: "A fall.",
+          change_in_needs: "The person's needs changed.",
+          new_diagnosis: "A new diagnosis.",
+          safeguarding: "A safeguarding concern.",
+          end_of_life: "The person is approaching the end of life.",
+          other: "Another change, described in the source record.",
+        },
+      },
+      occurred_on: { description: "When the change happened (UK calendar date)." },
+      source_type: "exported",
+      source_id: "exported",
+      reviewed_on: {
+        description: "When a review covered the change (UK calendar date); empty until then.",
+      },
+      review_record_id: { description: "The review that covered it (review_record.id)." },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -940,6 +1241,14 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       authority_document_id: { description: "Evidence of the legal authority (document.id)." },
       valid_until: { description: "When the authority ends (UK calendar date), if it does." },
+      authority_scope: {
+        description: "For a deputy: what the Court of Protection order is for.",
+        codes: {
+          personal_welfare: "Personal welfare.",
+          property_affairs: "Property and affairs.",
+          both: "Both personal welfare and property and affairs.",
+        },
+      },
       notes: { description: "Free-text notes about the contact." },
       created_at: "exported",
       created_by: "exported",
@@ -1004,6 +1313,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       scan_status: { description: "clean, infected, unavailable or not_scanned." },
       destroyed_at: "exported",
+      image_printable: {
+        description:
+          "For a JPEG or PNG: whether the hospital transfer pack can print it, decided once at upload; empty for other files.",
+      },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -1181,6 +1494,197 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.exit_checklist_item": {
+    context: "people",
+    description:
+      "The checklist of a discharge, transfer or death, item by item, with who did each and the evidence.",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      exit_record_id: { description: "The exit the item belongs to (exit_record.id)." },
+      item_key: {
+        description: "The item, as a stable key from exitChecklist (people.md rule 12).",
+      },
+      title: "exported",
+      owner: {
+        description: "Who is responsible for the item.",
+        codes: {
+          people: "The people lifecycle (the Registered Manager or the home's administrator).",
+          care: "Care staff.",
+          medicines: "Medicines (the nurse in charge).",
+          safety: "Safety and statutory notifications.",
+          finance:
+            "Residents' money and deposits (finance approval, never the person who recorded the exit).",
+        },
+      },
+      return_item: {
+        description:
+          "True for property, keys, money and deposit returns, counted from their own records.",
+      },
+      allow_not_required: {
+        description: "True when the item may be marked not required, with a reason.",
+      },
+      position: { description: "Order of the item on the checklist.", unit: "position (from 0)" },
+      status: {
+        description: "Where the item stands.",
+        codes: {
+          pending: "Not done yet.",
+          done: "Done.",
+          not_required: "Not required, with the reason in reason.",
+        },
+      },
+      reason: { description: "Why the item is not required." },
+      done_by: { description: "Who completed or marked the item (tenant_user.id)." },
+      done_at: { description: "When it was completed or marked (instant, UTC)." },
+      evidence_type: {
+        description:
+          "Kind of evidence record: statutory_notification, document, ledger_entry or note.",
+      },
+      evidence_id: { description: "The evidence record, in the table evidence_type names." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.exit_record": {
+    context: "people",
+    description:
+      "Discharges, transfers and deaths: when, where to, the facts the checklist needs, and the status before.",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      location_id: "exported",
+      kind: {
+        description: "The kind of exit.",
+        codes: {
+          discharge: "The person left the service.",
+          transfer: "The person moved to another provider.",
+          death: "The person died.",
+        },
+      },
+      state: {
+        description: "Where the exit workflow stands.",
+        codes: {
+          planned: "A discharge or transfer is planned; the person has not left.",
+          left: "The person has left.",
+          recorded: "A death has been recorded.",
+          awaiting_return: "Waiting for money, property or a deposit to be returned.",
+          closed: "Everything is done.",
+          cancelled:
+            "Cancelled, with the reason (a planned exit that did not happen, or an exit recorded in error).",
+        },
+      },
+      workflow_instance_id: {
+        class: "internal",
+        description:
+          "Harbour's workflow engine record behind state; state carries the same information.",
+      },
+      left_at: {
+        description: "When the person left or died (instant, UTC). The date is left_at_uk_date.",
+        ukDate: true,
+      },
+      status_before: {
+        description:
+          "The person's status when the exit was recorded; a correction of the exit as recorded in error returns them to it (people.md rule 2).",
+        codes: {
+          active: "Receiving care at the home.",
+          on_leave: "On leave, bed kept.",
+          in_hospital: "In hospital, bed kept.",
+        },
+      },
+      status_before_since: { description: "When that earlier status began (instant, UTC)." },
+      regulator: {
+        description: "The regulator for the location.",
+        codes: {
+          cqc: "Care Quality Commission (England).",
+          ciw: "Care Inspectorate Wales.",
+          care_inspectorate: "Care Inspectorate (Scotland).",
+          rqia: "Regulation and Quality Improvement Authority (Northern Ireland).",
+        },
+      },
+      local_authority_funded: {
+        description: "True when a council funded the placement (it is told of the exit).",
+      },
+      nhs_funded: {
+        description: "True when the NHS funded the placement (the integrated care board is told).",
+      },
+      place_of_death: {
+        description: "Where the person died.",
+        codes: {
+          care_home: "At the care home.",
+          hospital: "In hospital.",
+          elsewhere: "Somewhere else.",
+        },
+      },
+      death_expected: {
+        description: "True when the death was expected; empty for a discharge or transfer.",
+      },
+      learning_disability_or_autism: {
+        description:
+          "Whether the person had a learning disability or was autistic: an explicit answer for every death (LeDeR).",
+      },
+      dols_in_place: {
+        description: "True when a DoLS authorisation was in force (the supervisory body is told).",
+      },
+      home_is_dwp_appointee: {
+        description: "True when the home was the person's DWP appointee (the DWP is told).",
+      },
+      holds_residents_money: { description: "True when the home held money for the person." },
+      holds_deposit: { description: "True when the home held a deposit." },
+      has_loan_equipment: { description: "True when loan equipment has to go back." },
+      destination_type: {
+        description: "Where the person went.",
+        codes: {
+          own_home: "Their own home.",
+          family_home: "A family member's home.",
+          care_home: "Another care home.",
+          hospital: "Hospital.",
+          hospice: "A hospice.",
+          supported_living: "Supported living.",
+          other: "Somewhere else.",
+        },
+      },
+      receiving_provider_name: { description: "The receiving provider's name." },
+      receiving_provider_cqc_location_id: {
+        description: "The receiving location's CQC location ID.",
+      },
+      receiving_provider_ods_code: { description: "The receiving provider's ODS code." },
+      reason: { description: "Why the person left, in words." },
+      verified_by_name: { description: "Who verified the death (name)." },
+      verified_by_role: { description: "Their role (for example registered nurse or GP)." },
+      verified_at: { description: "When the death was verified (instant, UTC)." },
+      present_at_death: { description: "Who was present at the death." },
+      funeral_director: { description: "The funeral director." },
+      collection_at: {
+        description: "When the funeral director collected the person (instant, UTC).",
+      },
+      coroner_referred_by: { description: "Who referred the death to the coroner." },
+      coroner_reference: { description: "The coroner's reference." },
+      money_and_property_due_at: {
+        description: "When money and property are due back (instant, UTC).",
+      },
+      deposit_due_at: { description: "When the deposit is due back (instant, UTC)." },
+      closed_at: { description: "When the exit was closed (instant, UTC)." },
+      cancelled_reason: { description: "Why the exit was cancelled." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
   "public.feature_flag": {
     context: "platform",
     description: "Modules switched on or off for the organisation and its locations.",
@@ -1247,6 +1751,50 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       review_cadence_days: "exported",
       published_at: "exported",
       retired_at: "exported",
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.hospital_transfer": {
+    context: "people",
+    description:
+      "Transfers to hospital: the pack as it went with the person, the hand-over, and the checks on return.",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      location_id: "exported",
+      left_at: { description: "When the person left for hospital (instant, UTC)." },
+      hospital_name: { description: "The hospital, as named." },
+      hospital_ods_code: { description: "The hospital's ODS code, if known." },
+      reason: { description: "Why the person went to hospital, in words." },
+      pack: {
+        description:
+          "The hospital transfer pack exactly as it was assembled, JSON (identity, the safety-critical sections, as-of times).",
+      },
+      missing_critical: {
+        description:
+          "Safety-critical sections missing from the pack (photo, allergies, medicines, communication, resuscitation, about_me, eating_and_drinking).",
+      },
+      missing_expected: { description: "Other expected sections missing from the pack." },
+      items_sent: { description: "Belongings sent with the person (property_item.id list)." },
+      handed_over_at: { description: "When the pack was handed over (instant, UTC)." },
+      handed_over_by: { description: "Who handed it over (tenant_user.id)." },
+      ack_by: { description: "Who acknowledged handing over an incomplete pack (tenant_user.id)." },
+      ack_at: { description: "When they acknowledged it (instant, UTC)." },
+      ack_reason: { description: "Why the incomplete pack went." },
+      returned_at: { description: "When the person came back (instant, UTC)." },
+      return_checks: {
+        description:
+          "The checks on return, JSON keyed by check (discharge letter, medicines, allergies, resuscitation, IDDSI, skin, belongings) with who and when.",
+      },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -1498,6 +2046,32 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.key_issue": {
+    context: "people",
+    description: "Keys and fobs issued to the person or their representative, and their return.",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      label: { description: "The key or fob, as labelled." },
+      issued_on: { description: "When it was issued (UK calendar date)." },
+      issued_to: {
+        description: "Who holds it.",
+        codes: { person: "The person.", representative: "Their representative." },
+      },
+      returned_on: { description: "When it was returned (UK calendar date)." },
+      reported_lost_on: { description: "When it was reported lost (UK calendar date)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
   "public.legal_hold": {
     context: "platform",
     description: "Legal holds on people and records, with reasons, placed and released.",
@@ -1649,6 +2223,26 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       clock_drift: "exported",
       supersedes_id: "exported",
       correction_reason: "exported",
+      recorded_after_exit: {
+        description:
+          "True when an entry about an event at or before a discharge, death or move to hospital (or within the clock tolerance after it) was accepted afterwards (people.md rule 3).",
+      },
+      task_id: { description: "The task the entry named (task.id), if any." },
+      task_outcome: {
+        description:
+          "What the entry did to the task it named (care.md rule 13); empty when it named none.",
+        codes: {
+          completed: "The entry completed the task.",
+          task_cancelled:
+            "The task had been cancelled (for example by a move); the entry is kept as late evidence and the task stays cancelled.",
+          task_already_closed:
+            "The task was already done, skipped or answered; the entry is kept, flagged and listed for the nurse in charge to review.",
+          not_linked:
+            "The author may not complete the task; the entry is kept unlinked, flagged and listed for review.",
+          medicines_conflict:
+            "A medicines task the entry could not complete (not the author's, or already closed or answered): kept, never completing it, with an urgent conflict review for the nurse in charge.",
+        },
+      },
       chart: {
         description:
           "The chart: fluid_intake, fluid_output, food, repositioning, bowel, weight or vitals.",
@@ -1719,6 +2313,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
           not_admitted: "Enquiry or assessment closed without admission",
         },
       },
+      status_changed_at: { description: "When the current status began (instant, UTC)." },
       nhs_number: {
         description: "NHS number, 10 digits without spaces, check digit validated (MODS).",
       },
@@ -1758,6 +2353,21 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description:
           "Accessible Information Standard needs: JSON list of {code, display, system} (SNOMED CT) with the preferred format.",
       },
+      communication_needs_status: {
+        description:
+          "Whether communication needs have been recorded. Read with communication_needs.",
+        codes: {
+          not_recorded:
+            "Nobody has recorded the person's communication needs. Never read as none (HZ-023).",
+          none_identified: "Checked and recorded: no communication needs identified.",
+          recorded: "Needs are recorded in communication_needs.",
+        },
+      },
+      communication_needs_confirmed_by: {
+        description:
+          "Who recorded the communication needs or that there are none (tenant_user.id).",
+      },
+      communication_needs_confirmed_at: { description: "When they did (instant, UTC)." },
       allergy_status: {
         description: "Whether allergies have been recorded. Read with allergy rows; see codes.",
         codes: {
@@ -1766,6 +2376,13 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
           no_known_allergies: "Checked and recorded: no known allergies.",
           has_allergies: "One or more allergies are recorded in allergy.",
         },
+      },
+      allergy_status_confirmed_by: {
+        description:
+          "Who set the allergy status (tenant_user.id), set by the database from the signed-in user; empty when unknown.",
+      },
+      allergy_status_confirmed_at: {
+        description: "When the allergy status was set (instant, UTC).",
       },
       national_data_opt_out: {
         description: "True when the person has registered a national data opt-out.",
@@ -1863,7 +2480,153 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description: "Last day of the placement (UK calendar date); empty while it continues.",
       },
       end_reason: { description: "Why the placement ended." },
+      trial_ends_on: { description: "End of a trial placement (UK calendar date)." },
+      trial_reviewed_on: { description: "When the trial was reviewed (UK calendar date)." },
+      local_authority_funded: { description: "True when a council funds the placement." },
+      nhs_funded: { description: "True when the NHS funds the placement." },
+      admission_decision_id: { description: "The decision to admit (admission_decision.id)." },
       dependency_category: { description: "Dependency category, as recorded." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.pre_admission_assessment": {
+    context: "people",
+    description:
+      "Pre-admission assessments, section by section, with the information sources and how the person took part.",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      service_id: { description: "The service assessed for (service.id)." },
+      placement_type_sought: {
+        description: "The kind of placement sought (permanent, respite, trial and so on).",
+      },
+      status: {
+        description: "Where the assessment stands.",
+        codes: {
+          in_progress: "Being completed.",
+          complete: "Every required section is complete.",
+          decided: "A decision to admit has been made on it.",
+        },
+      },
+      sections: {
+        description:
+          "The twenty sections as JSON keyed by section, each with status, content, reason and who completed it when.",
+      },
+      information_sources: {
+        description:
+          "Where the information came from: person, family_or_representative, hospital, gp, social_worker, previous_provider, other.",
+      },
+      person_involved: {
+        description: "True when the person took part in the assessment (Regulation 9).",
+      },
+      involvement_reason: { description: "Why the person could not take part." },
+      assessor_tenant_user_id: { description: "Who assessed (tenant_user.id)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.property_item": {
+    context: "people",
+    description:
+      "Personal property: each item received, signed for, sent with the person, returned, disposed of or lost.",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      description: { description: "The item, described." },
+      category: {
+        description: "The kind of item (cash is never an item: residents' money is a ledger).",
+        codes: {
+          clothing: "Clothing.",
+          jewellery: "Jewellery (a valuable).",
+          watch: "A watch (a valuable).",
+          electronics: "Electronics (a valuable).",
+          mobility_aid: "A walking or mobility aid.",
+          sensory_aid: "Glasses or hearing aids.",
+          dentures: "Dentures.",
+          documents: "Documents (valuable).",
+          furniture: "Furniture.",
+          ornament_or_picture: "An ornament or picture.",
+          toiletries: "Toiletries.",
+          other: "Something else.",
+        },
+      },
+      quantity: { description: "How many.", unit: "items" },
+      valuable: { description: "True when the item is a valuable (witnessed)." },
+      photo_document_ids: { description: "Photos of the item (document.id list)." },
+      received_on: { description: "When it was received (UK calendar date)." },
+      recorded_by: { description: "Who recorded it (tenant_user.id)." },
+      ack_signer: {
+        description: "Who signed for the item when it was received.",
+        codes: {
+          person: "The person.",
+          representative: "Their representative.",
+          unable_to_sign:
+            "Nobody could sign; the reason is in ack_unable_reason and a witness signed.",
+        },
+      },
+      ack_name: { description: "The typed name of the signer." },
+      ack_unable_reason: { description: "Why nobody could sign." },
+      ack_signed_at: { description: "When it was signed for (instant, UTC)." },
+      witnessed_by: { description: "The second member of staff who witnessed (tenant_user.id)." },
+      status: {
+        description: "Where the item is.",
+        codes: {
+          held: "Held at the home.",
+          sent_with_person: "Sent with the person (for example to hospital).",
+          returned: "Returned.",
+          disposed: "Disposed of, with the reason and a witness.",
+          lost: "Lost, with an incident.",
+        },
+      },
+      hospital_transfer_id: { description: "The transfer it went with (hospital_transfer.id)." },
+      returned_on: { description: "When it was returned (UK calendar date)." },
+      return_recipient_name: { description: "Who it was returned to." },
+      return_recipient_capacity: {
+        description: "In what capacity they received it.",
+        codes: {
+          person: "The person.",
+          representative: "Their representative.",
+          personal_representative:
+            "The personal representative (executor or administrator) after a death.",
+          receiving_provider: "The provider the person moved to.",
+        },
+      },
+      return_signer: {
+        description: "Who signed for the return.",
+        codes: {
+          person: "The person.",
+          representative: "A representative.",
+          unable_to_sign: "Nobody could sign; the reason is in return_unable_reason.",
+        },
+      },
+      return_signer_name: { description: "The typed name of the signer." },
+      return_unable_reason: { description: "Why nobody could sign for the return." },
+      return_signed_at: { description: "When the return was signed for (instant, UTC)." },
+      returned_by: { description: "Who returned it (tenant_user.id)." },
+      return_witnessed_by: { description: "Who witnessed the return (tenant_user.id)." },
+      disposed_on: { description: "When it was disposed of (UK calendar date)." },
+      disposal_reason: { description: "Why it was disposed of." },
+      disposed_by: { description: "Who disposed of it (tenant_user.id)." },
+      disposal_witnessed_by: { description: "Who witnessed the disposal (tenant_user.id)." },
+      lost_on: { description: "When it was found to be lost (UK calendar date)." },
+      loss_incident_id: { description: "The incident raised for the loss (incident.id)." },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -1930,6 +2693,51 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       trigger: { description: "What starts the retention clock (retention.md)." },
       source: { description: "Why the organisation chose this period." },
       notes: "exported",
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.review_record": {
+    context: "people",
+    description:
+      "Reviews held: care plan, local authority, family involvement and trial reviews (append-only).",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      kind: {
+        description: "The kind of review.",
+        codes: {
+          care_plan: "A care plan review.",
+          la_review: "The local authority's review of a council-funded placement.",
+          family_involvement: "Family involvement in care planning.",
+          trial_review: "The review at the end of a trial placement.",
+        },
+      },
+      held_on: { description: "When the review was held (UK calendar date)." },
+      participants: { description: "Who took part, JSON list of names and roles." },
+      family_involvement_kind: {
+        description: "How the family was involved (family involvement reviews).",
+        codes: {
+          attended_review: "A family member or representative attended.",
+          contributed: "They contributed without attending.",
+          invited_declined: "They were invited and declined.",
+          person_declines_involvement:
+            "The person does not want their family involved (stops the clock).",
+          no_family_or_representative: "The person has nobody to involve (stops the clock).",
+        },
+      },
+      la_reference: { description: "The council's reference for its review." },
+      changes_covered: {
+        description: "The changes this review covered (care_plan_change.id list).",
+      },
+      outcome: { description: "The outcome, in words." },
+      document_id: { description: "The review document (document.id)." },
+      supersedes_id: "exported",
+      correction_reason: "exported",
       created_at: "exported",
       created_by: "exported",
     },
@@ -2076,6 +2884,132 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.sharing_decision": {
+    context: "people",
+    description:
+      "Decisions to share sections of the record with a family member, a professional or a share link: closed by default, every one expires.",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      recipient_kind: {
+        description: "Who receives the information.",
+        codes: {
+          family: "A family member or representative (recipient_contact_id).",
+          professional: "A professional with a Harbour account (recipient_tenant_user_id).",
+          link: "Whoever holds an About Me share link.",
+        },
+      },
+      recipient_contact_id: { description: "The family member or representative (contact.id)." },
+      recipient_tenant_user_id: { description: "The professional (tenant_user.id)." },
+      sections: {
+        description:
+          "The sections shared: about_me, daily_updates, photos, activities_and_visits, care_plan, health_summary, medicines, appointments, finance, benefits, documents.",
+      },
+      care_plan_domains: { description: "The care plan domains shared; empty means every domain." },
+      basis: {
+        description: "The lawful basis for sharing (people.md rule 13).",
+        codes: {
+          consent:
+            "The person's consent, or that of an attorney or deputy whose authority covers it.",
+          legal_authority: "A legal authority held by the recipient.",
+          best_interests: "A recorded best-interests decision (the person lacks capacity for it).",
+          direct_care:
+            "Direct care, for professionals and clinical sections only (Caldicott principle 7).",
+        },
+      },
+      consent_given_by: {
+        description: "Who consented.",
+        codes: {
+          person: "The person.",
+          authority_holder: "An attorney or deputy whose authority covers it.",
+        },
+      },
+      capacity: {
+        description: "The person's capacity for the decision when it was made (MCA 2005 s.1(2)).",
+        codes: {
+          presumed: "Presumed to have capacity.",
+          assessed_has_capacity: "Assessed as having capacity.",
+          assessed_lacks_capacity: "Assessed as lacking capacity.",
+        },
+      },
+      capacity_assessment_id: {
+        description: "The assessment of the sharing decision relied on (capacity_assessment.id).",
+      },
+      best_interests_decision_id: {
+        description: "The best-interests decision relied on (best_interests_decision.id).",
+      },
+      authority_role: {
+        description: "The legal authority relied on.",
+        codes: {
+          lpa_health_welfare: "Lasting power of attorney for health and welfare.",
+          lpa_property_finance:
+            "Lasting power of attorney for property and financial affairs (finance and benefits).",
+          deputy_personal_welfare:
+            "Court of Protection deputy for personal welfare (the sections the order covers).",
+          deputy_property_affairs:
+            "Court of Protection deputy for property and affairs (the sections the order covers).",
+          appointee: "DWP appointee (benefits only).",
+        },
+      },
+      authority_contact_id: { description: "The contact who holds the authority (contact.id)." },
+      authority_reference: {
+        description: "Office of the Public Guardian, court or DWP reference.",
+      },
+      authority_evidence_document_id: { description: "Evidence of the authority (document.id)." },
+      authority_valid_until: {
+        description: "When the authority ends (UK calendar date), if it does.",
+      },
+      authority_order_sections: {
+        description: "For a deputy: the sections the Court of Protection order covers.",
+      },
+      valid_from: "exported",
+      valid_to: {
+        description: "When the decision expires (instant, UTC); every decision expires.",
+      },
+      withdrawn_at: { description: "When the decision was withdrawn (instant, UTC)." },
+      withdrawn_reason: { description: "Why it was withdrawn." },
+      suspended_at: {
+        description:
+          "When the suspension in force now began (instant, UTC); every period is in sharing_decision_suspension.",
+      },
+      suspended_reason: { description: "Why it is suspended now." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.sharing_decision_suspension": {
+    context: "people",
+    description:
+      "Every period a sharing decision was suspended (for example during a safeguarding enquiry); what happened then stays closed.",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      sharing_decision_id: { description: "The decision suspended (sharing_decision.id)." },
+      suspended_at: { description: "When the suspension began (instant, UTC)." },
+      reason: { description: "Why it was suspended." },
+      lifted_at: { description: "When it was lifted (instant, UTC); empty while it lasts." },
+      lifted_by: { description: "Who lifted it (tenant_user.id)." },
+      lifted_reason: { description: "Why it was lifted." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
   "public.statutory_notification": {
     context: "safety",
     description:
@@ -2213,10 +3147,43 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       evidence_required: { description: "True when evidence is needed to complete it." },
       status: { description: "open, done, skipped or cancelled." },
       status_reason: { description: "Why it was skipped or cancelled." },
+      cancel_code: {
+        description: "Why the people lifecycle cancelled the task; empty for any other reason.",
+        codes: {
+          paused_while_away:
+            "Paused while the person was in hospital or on leave; brought back on their return.",
+          ended_at_exit:
+            "Ended by a discharge or death (stopped_by_exit_id names it); brought back only if that exit is corrected as recorded in error.",
+          exit_recorded_in_error:
+            "The exit task of a discharge or death later corrected as recorded in error.",
+          planned_exit_cancelled:
+            "The exit task of a planned discharge or transfer that was cancelled.",
+          missed_before_return_recorded:
+            "Its window passed before a late-recorded return or correction; kept cancelled and listed for the nurse in charge.",
+        },
+      },
+      stopped_by_exit_id: { description: "The exit that cancelled the task (exit_record.id)." },
+      restore_code: {
+        description: "How a return or correction brought the task back, if it did.",
+        codes: {
+          caught_up:
+            "Missed while the return or correction was not recorded; made due once more, with a fresh window.",
+          answered_while_stopped:
+            "An entry answered it while it was stopped, so it was restored as done, never due again.",
+        },
+      },
       completed_at: "exported",
       completed_by: "exported",
       evidence_type: { description: "Kind of evidence record (table name)." },
       evidence_id: "exported",
+      evidence_after_close: {
+        description:
+          "True when the evidence arrived after the task was cancelled; the task stays cancelled.",
+      },
+      details: {
+        description:
+          "Review details, JSON: missedTasks (task id, kind, due time, reopened) and entries (entry kind, client id, device id, user id, times); opaque ids only, never clinical text.",
+      },
       escalation_level: { description: "Escalation steps taken.", unit: "count" },
       escalated_at: "exported",
       created_at: "exported",
@@ -2255,6 +3222,22 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       evidence_required: { description: "True when evidence is needed." },
       priority: { description: "routine or urgent." },
       active: { description: "True while the series runs." },
+      inactive_code: {
+        description: "Why the people lifecycle stopped the series; empty for any other reason.",
+        codes: {
+          paused_while_away:
+            "Paused while the person was in hospital or on leave; brought back on their return.",
+          ended_at_exit:
+            "Ended by a discharge or death (stopped_by_exit_id names it); brought back only if that exit is corrected as recorded in error.",
+          exit_recorded_in_error:
+            "The exit task of a discharge or death later corrected as recorded in error.",
+          planned_exit_cancelled:
+            "The exit task of a planned discharge or transfer that was cancelled.",
+          missed_before_return_recorded:
+            "Its window passed before a late-recorded return or correction; kept cancelled and listed for the nurse in charge.",
+        },
+      },
+      stopped_by_exit_id: { description: "The exit that stopped the series (exit_record.id)." },
       materialised_until: { description: "Tasks have been created up to this instant (UTC)." },
       created_at: "exported",
       created_by: "exported",
@@ -2363,6 +3346,26 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       clock_drift: "exported",
       supersedes_id: "exported",
       correction_reason: "exported",
+      recorded_after_exit: {
+        description:
+          "True when an entry about an event at or before a discharge, death or move to hospital (or within the clock tolerance after it) was accepted afterwards (people.md rule 3).",
+      },
+      task_id: { description: "The task the entry named (task.id), if any." },
+      task_outcome: {
+        description:
+          "What the entry did to the task it named (care.md rule 13); empty when it named none.",
+        codes: {
+          completed: "The entry completed the task.",
+          task_cancelled:
+            "The task had been cancelled (for example by a move); the entry is kept as late evidence and the task stays cancelled.",
+          task_already_closed:
+            "The task was already done, skipped or answered; the entry is kept, flagged and listed for the nurse in charge to review.",
+          not_linked:
+            "The author may not complete the task; the entry is kept unlinked, flagged and listed for review.",
+          medicines_conflict:
+            "A medicines task the entry could not complete (not the author's, or already closed or answered): kept, never completing it, with an urgent conflict review for the nurse in charge.",
+        },
+      },
       kind: { description: "facilitated_visit, visit_out or accompaniment." },
       contact_id: { description: "The visitor, where a recorded contact (contact.id)." },
       visitor_name: { description: "The visitor's name, where not a recorded contact." },
@@ -2371,6 +3374,64 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       restrictions_applied: { description: "True when visiting restrictions applied." },
       restriction_reason: { description: "Why (may mention an outbreak or health)." },
       notes: { description: "Notes." },
+    },
+  },
+  "public.welcome_checklist_item": {
+    context: "people",
+    description: "The welcome checklist for each admission, item by item.",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      placement_id: { description: "The placement (placement.id)." },
+      item_key: { description: "The item, as a stable key from the template." },
+      title: "exported",
+      required: { description: "True when the item must be done." },
+      safety_critical: {
+        description: "True for safety-critical items (for example allergies or the photo).",
+      },
+      allow_not_applicable: {
+        description: "True when the item may be marked not applicable, with a reason.",
+      },
+      position: { description: "Order of the item on the checklist.", unit: "position (from 0)" },
+      status: {
+        description: "Where the item stands.",
+        codes: {
+          pending: "Not done yet.",
+          done: "Done.",
+          not_applicable: "Not applicable, with the reason in reason.",
+        },
+      },
+      reason: { description: "Why the item is not applicable." },
+      done_by: { description: "Who did it (tenant_user.id)." },
+      done_at: { description: "When it was done (instant, UTC)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.welcome_checklist_template": {
+    context: "people",
+    description: "The organisation's welcome checklist template.",
+    treatment: "tenant_rows",
+    retention: "tenant_configuration",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      items: { description: "The template's items, JSON list of key, title and flags." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
     },
   },
   "public.workflow_instance": {

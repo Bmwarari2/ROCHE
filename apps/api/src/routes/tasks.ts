@@ -21,11 +21,18 @@ import {
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, eq, gte, inArray, isNull, lt } from "drizzle-orm";
 import type { Context } from "hono";
-import { auditInTx } from "../http/audit";
+import { AuditedRefusal, auditInTx, withAuditedRefusal, writeAudit } from "../http/audit";
 import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { publish } from "../outbox";
-import { escalationMinutes, materialiseSeries, toTaskItem } from "../services/tasks";
+import {
+  assigneeMayComplete,
+  escalationMinutes,
+  GENERAL_TASK_PERMISSION,
+  materialiseSeries,
+  mayBeAssigned,
+  toTaskItem,
+} from "../services/tasks";
 import {
   conflictResponse,
   createRouter,
@@ -37,18 +44,62 @@ import {
 
 /**
  * Tasks (section 9.1). Anyone in the tenant sees the tasks row-level security lets them see; tasks
- * about people need MFA like any care record. A task can be completed by its assignee or by anyone
- * holding the permission the task names; managers create, assign and schedule tasks.
+ * about people need MFA like any care record. A task can be completed by anyone holding the
+ * permission the task names, or by its assignee while they could still be given it; managers
+ * create, assign and schedule tasks.
  */
 
 const PERSON_TASK_PERMISSION = "care.note.write";
-const GENERAL_TASK_PERMISSION = "platform.task.manage";
 const DAY_MS = 86_400_000;
 
-/** The assignee, or anyone holding the permission the task names (no step-up: completing is not submitting). */
-function canComplete(access: TenantAccess, row: typeof task.$inferSelect): boolean {
-  if (row.assigneeTenantUserId === access.tenantUserId) return true;
-  return isPermission(row.requiredPermission) && can(access.effective, row.requiredPermission);
+/** Why someone may not be given a task. */
+const ASSIGNEE_REFUSED =
+  "That person cannot be given this task: they do not hold its permission at this location.";
+
+/**
+ * Whether the caller may move a task (no step-up: completing is not submitting): anyone holding
+ * the permission it names, or its assignee while they could still be given it (S1 follow-on;
+ * `assigneeMayComplete`). Returns why not, for the audit, or null.
+ */
+async function completionRefusal(
+  tx: Transaction,
+  access: TenantAccess,
+  row: typeof task.$inferSelect,
+  now: Date,
+): Promise<string | null> {
+  if (isPermission(row.requiredPermission) && can(access.effective, row.requiredPermission)) {
+    return null;
+  }
+  if (await assigneeMayComplete(tx, access.tenantUserId, row, now)) return null;
+  return row.assigneeTenantUserId === access.tenantUserId
+    ? "assignee_lacks_permission"
+    : "missing_permission";
+}
+
+/**
+ * A task about a person names a permission, so its assignee must hold it at the task's location
+ * when it is created, as when it is assigned (S1); a general task goes to anyone. Refused and
+ * audited (after the transaction) otherwise.
+ */
+async function requireAssignable(
+  tx: Transaction,
+  action: string,
+  row: {
+    readonly assigneeTenantUserId: string | null | undefined;
+    readonly requiredPermission: string;
+    readonly locationId: string | null;
+  },
+  now: Date,
+): Promise<void> {
+  const assignee = row.assigneeTenantUserId;
+  if (!assignee || row.requiredPermission === GENERAL_TASK_PERMISSION) return;
+  if (await mayBeAssigned(tx, assignee, row, now)) return;
+  throw new AuditedRefusal(problems.invalid(ASSIGNEE_REFUSED), {
+    action,
+    outcome: "denied",
+    reason: "assignee_lacks_permission",
+    scope: { assigneeTenantUserId: assignee, locationId: row.locationId },
+  });
 }
 
 async function findTask(tx: Transaction, id: string) {
@@ -162,32 +213,45 @@ export const tasksRouter = createRouter()
       requireMfaFor(access, body.personId ?? null);
       checkWindow(body.dueAt, body.windowStart, body.windowEnd);
       const now = new Date();
-      const item = await withTenant(c, async (tx) => {
-        const [row] = await tx
-          .insert(task)
-          .values({
-            kind: "platform.manual",
-            title: body.title,
-            requiredPermission: body.personId ? PERSON_TASK_PERMISSION : GENERAL_TASK_PERMISSION,
-            personId: body.personId ?? null,
-            locationId: body.locationId ?? null,
-            assigneeTenantUserId: body.assigneeTenantUserId ?? null,
-            dueAt: new Date(body.dueAt),
-            windowStart: body.windowStart ? new Date(body.windowStart) : null,
-            windowEnd: body.windowEnd ? new Date(body.windowEnd) : null,
-            priority: body.priority,
-          })
-          .returning()
-          .catch(rethrowReference);
-        if (!row) throw problems.notFound();
-        await auditInTx(tx, access, {
-          action: "platform.task.create",
-          resourceType: "task",
-          resourceId: row.id,
-          requestId: c.get("requestId"),
-        });
-        return toTaskItem(row, now, await escalationMinutes(tx, access.tenantId));
-      });
+      const requiredPermission = body.personId ? PERSON_TASK_PERMISSION : GENERAL_TASK_PERMISSION;
+      const item = await withAuditedRefusal(c, access, () =>
+        withTenant(c, async (tx) => {
+          await requireAssignable(
+            tx,
+            "platform.task.create",
+            {
+              assigneeTenantUserId: body.assigneeTenantUserId,
+              requiredPermission,
+              locationId: body.locationId ?? null,
+            },
+            now,
+          );
+          const [row] = await tx
+            .insert(task)
+            .values({
+              kind: "platform.manual",
+              title: body.title,
+              requiredPermission,
+              personId: body.personId ?? null,
+              locationId: body.locationId ?? null,
+              assigneeTenantUserId: body.assigneeTenantUserId ?? null,
+              dueAt: new Date(body.dueAt),
+              windowStart: body.windowStart ? new Date(body.windowStart) : null,
+              windowEnd: body.windowEnd ? new Date(body.windowEnd) : null,
+              priority: body.priority,
+            })
+            .returning()
+            .catch(rethrowReference);
+          if (!row) throw problems.notFound();
+          await auditInTx(tx, access, {
+            action: "platform.task.create",
+            resourceType: "task",
+            resourceId: row.id,
+            requestId: c.get("requestId"),
+          });
+          return toTaskItem(row, now, await escalationMinutes(tx, access.tenantId));
+        }),
+      );
       return c.json(item, 201);
     },
   )
@@ -241,6 +305,17 @@ export const tasksRouter = createRouter()
         if (TERMINAL_TASK_STATUSES.includes(asTaskStatus(row.status))) {
           throw problems.invalid("This task is already finished.");
         }
+        // Being the assignee lets someone complete the task, so a task that needs a permission
+        // (a clinical check, a medicines round) goes only to someone who holds it at the task's
+        // location, whoever assigns it (themselves included; S1). A general task, which names
+        // only the task-management permission, is allocated to anyone: that is what it is for.
+        if (
+          body.assigneeTenantUserId &&
+          row.requiredPermission !== GENERAL_TASK_PERMISSION &&
+          !(await mayBeAssigned(tx, body.assigneeTenantUserId, row, now))
+        ) {
+          return null;
+        }
         const [updated] = await tx
           .update(task)
           .set({ assigneeTenantUserId: body.assigneeTenantUserId })
@@ -256,6 +331,18 @@ export const tasksRouter = createRouter()
         });
         return toTaskItem(updated, now, await escalationMinutes(tx, access.tenantId));
       });
+      if (!item) {
+        // Written after the transaction, which wrote nothing, so the refusal is kept.
+        await writeAudit(c.get("services").appPool, access, {
+          action: "platform.task.assign",
+          outcome: "denied",
+          resourceType: "task",
+          resourceId: id,
+          reason: "assignee_lacks_permission",
+          requestId: c.get("requestId"),
+        });
+        throw problems.invalid(ASSIGNEE_REFUSED);
+      }
       return c.json(item, 200);
     },
   )
@@ -287,37 +374,51 @@ export const tasksRouter = createRouter()
         rejectRecurrence(error);
       }
       const now = new Date();
-      const series = await withTenant(c, async (tx) => {
-        const [row] = await tx
-          .insert(taskSeries)
-          .values({
-            kind: "platform.manual",
-            title: body.title,
-            requiredPermission: body.personId ? PERSON_TASK_PERMISSION : GENERAL_TASK_PERMISSION,
-            personId: body.personId ?? null,
-            locationId: body.locationId ?? null,
-            assigneeTenantUserId: body.assigneeTenantUserId ?? null,
-            recurrence: body.recurrence,
-            startsOn: body.startsOn,
-            endsOn: body.endsOn ?? null,
-            windowBeforeMinutes: body.windowBeforeMinutes,
-            windowAfterMinutes: body.windowAfterMinutes,
-            priority: body.priority,
-            evidenceRequired: body.evidenceRequired,
-          })
-          .returning()
-          .catch(rethrowReference);
-        if (!row) throw problems.notFound();
-        await materialiseSeries(tx, row, now);
-        await auditInTx(tx, access, {
-          action: "platform.task_series.create",
-          resourceType: "task_series",
-          resourceId: row.id,
-          requestId: c.get("requestId"),
-        });
-        const [fresh] = await tx.select().from(taskSeries).where(eq(taskSeries.id, row.id));
-        return fresh ?? row;
-      });
+      const requiredPermission = body.personId ? PERSON_TASK_PERMISSION : GENERAL_TASK_PERMISSION;
+      const series = await withAuditedRefusal(c, access, () =>
+        withTenant(c, async (tx) => {
+          // Its occurrences inherit the assignee, so the series is checked like a task (S1).
+          await requireAssignable(
+            tx,
+            "platform.task_series.create",
+            {
+              assigneeTenantUserId: body.assigneeTenantUserId,
+              requiredPermission,
+              locationId: body.locationId ?? null,
+            },
+            now,
+          );
+          const [row] = await tx
+            .insert(taskSeries)
+            .values({
+              kind: "platform.manual",
+              title: body.title,
+              requiredPermission,
+              personId: body.personId ?? null,
+              locationId: body.locationId ?? null,
+              assigneeTenantUserId: body.assigneeTenantUserId ?? null,
+              recurrence: body.recurrence,
+              startsOn: body.startsOn,
+              endsOn: body.endsOn ?? null,
+              windowBeforeMinutes: body.windowBeforeMinutes,
+              windowAfterMinutes: body.windowAfterMinutes,
+              priority: body.priority,
+              evidenceRequired: body.evidenceRequired,
+            })
+            .returning()
+            .catch(rethrowReference);
+          if (!row) throw problems.notFound();
+          await materialiseSeries(tx, row, now);
+          await auditInTx(tx, access, {
+            action: "platform.task_series.create",
+            resourceType: "task_series",
+            resourceId: row.id,
+            requestId: c.get("requestId"),
+          });
+          const [fresh] = await tx.select().from(taskSeries).where(eq(taskSeries.id, row.id));
+          return fresh ?? row;
+        }),
+      );
       return c.json(seriesItem(series), 201);
     },
   )
@@ -412,50 +513,62 @@ function rethrowReference(error: unknown): never {
 async function transition(c: Context<AppEnv>, id: string, body: TaskTransitionRequest) {
   const access = c.get("access");
   const now = new Date();
-  const item = await withTenant(c, async (tx) => {
-    const row = await findTask(tx, id);
-    if (!row) throw problems.notFound();
-    requireMfaFor(access, row.personId);
-    if (!canComplete(access, row)) throw problems.forbidden();
-    if (row.version !== body.version) throw problems.conflict();
-    const check = checkTaskTransition(asTaskStatus(row.status), {
-      to: body.to,
-      reason: body.reason ?? null,
-      evidenceId: body.evidenceId ?? null,
-      evidenceRequired: row.evidenceRequired,
-    });
-    if (!check.ok) throw problems.invalid(check.message);
-    const finished = TERMINAL_TASK_STATUSES.includes(body.to);
-    const [updated] = await tx
-      .update(task)
-      .set({
-        status: body.to,
-        statusReason: body.reason ?? null,
-        completedAt: finished ? now : null,
-        completedBy: finished ? access.tenantUserId : null,
-        evidenceType: body.evidenceType ?? row.evidenceType,
-        evidenceId: body.evidenceId ?? row.evidenceId,
-      })
-      .where(and(eq(task.id, id), eq(task.version, body.version)))
-      .returning();
-    if (!updated) throw problems.conflict();
-    await auditInTx(tx, access, {
-      action: `platform.task.${body.to}`,
-      resourceType: "task",
-      resourceId: id,
-      reason: body.reason,
-      requestId: c.get("requestId"),
-    });
-    if (finished) {
-      await publish(tx, {
-        context: "platform",
-        aggregateType: "task",
-        aggregateId: id,
-        type: `platform.task.${body.to}`,
-        payload: { kind: row.kind, sourceType: row.sourceType, sourceId: row.sourceId },
+  const item = await withAuditedRefusal(c, access, () =>
+    withTenant(c, async (tx) => {
+      const row = await findTask(tx, id);
+      if (!row) throw problems.notFound();
+      requireMfaFor(access, row.personId);
+      const refused = await completionRefusal(tx, access, row, now);
+      if (refused) {
+        // Written after the transaction, which writes nothing, so the refusal is kept.
+        throw new AuditedRefusal(problems.forbidden(), {
+          action: `platform.task.${body.to}`,
+          outcome: "denied",
+          resourceType: "task",
+          resourceId: id,
+          reason: refused,
+        });
+      }
+      if (row.version !== body.version) throw problems.conflict();
+      const check = checkTaskTransition(asTaskStatus(row.status), {
+        to: body.to,
+        reason: body.reason ?? null,
+        evidenceId: body.evidenceId ?? null,
+        evidenceRequired: row.evidenceRequired,
       });
-    }
-    return toTaskItem(updated, now, await escalationMinutes(tx, access.tenantId));
-  });
+      if (!check.ok) throw problems.invalid(check.message);
+      const finished = TERMINAL_TASK_STATUSES.includes(body.to);
+      const [updated] = await tx
+        .update(task)
+        .set({
+          status: body.to,
+          statusReason: body.reason ?? null,
+          completedAt: finished ? now : null,
+          completedBy: finished ? access.tenantUserId : null,
+          evidenceType: body.evidenceType ?? row.evidenceType,
+          evidenceId: body.evidenceId ?? row.evidenceId,
+        })
+        .where(and(eq(task.id, id), eq(task.version, body.version)))
+        .returning();
+      if (!updated) throw problems.conflict();
+      await auditInTx(tx, access, {
+        action: `platform.task.${body.to}`,
+        resourceType: "task",
+        resourceId: id,
+        reason: body.reason,
+        requestId: c.get("requestId"),
+      });
+      if (finished) {
+        await publish(tx, {
+          context: "platform",
+          aggregateType: "task",
+          aggregateId: id,
+          type: `platform.task.${body.to}`,
+          payload: { kind: row.kind, sourceType: row.sourceType, sourceId: row.sourceId },
+        });
+      }
+      return toTaskItem(updated, now, await escalationMinutes(tx, access.tenantId));
+    }),
+  );
   return c.json(item, 200);
 }

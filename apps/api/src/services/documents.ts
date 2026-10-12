@@ -14,6 +14,7 @@ import {
 } from "@harbour/domain";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { problems } from "../http/problem";
+import { isPrintableImage } from "./pdf";
 
 /**
  * Document store service (section 9.1): content checks, malware scan, storage, versioning and the
@@ -33,6 +34,26 @@ export interface StoredUpload {
   readonly subjectType?: string | null;
   readonly subjectId?: string | null;
   readonly previous?: DocumentRow | null;
+  /**
+   * For a JPEG or PNG: whether the transfer pack can print it, decided by the caller with
+   * `imagePrintableOf` before the transaction opens, so no image is decoded while a connection is
+   * held (S2).
+   */
+  readonly imagePrintable?: boolean | null;
+}
+
+/**
+ * Whether an uploaded file is a JPEG or PNG the transfer pack can print (`isPrintableImage`), or
+ * null when it is not a JPEG or PNG at all. Called before the upload's transaction opens.
+ */
+export function imagePrintableOf(bytes: Uint8Array): boolean | null {
+  if (bytes[0] === 0xff && bytes[1] === 0xd8) {
+    return isPrintableImage({ bytes, contentType: "image/jpeg" });
+  }
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+    return isPrintableImage({ bytes, contentType: "image/png" });
+  }
+  return null;
 }
 
 export interface DocumentDeps {
@@ -81,6 +102,9 @@ export async function storeDocument(
       subjectId: upload.subjectId ?? null,
       status: verdict === "clean" ? "available" : "quarantined",
       scanStatus: verdict,
+      imagePrintable: check.contentType.startsWith("image/")
+        ? (upload.imagePrintable ?? null)
+        : null,
     })
     .returning();
   if (!row) throw new Error("document row was not created");

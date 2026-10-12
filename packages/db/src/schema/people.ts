@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
   boolean,
+  check,
   date,
   foreignKey,
   index,
@@ -13,9 +14,31 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
+import { sqlList } from "./_codes";
 import { id, mutableColumns, tenantId } from "./_columns";
 import { allergyStatus, contactRole, personStatus, placementType } from "./enums";
+import { admissionDecision } from "./people-lifecycle";
 import { document, location, service, tenant, tenantUser } from "./platform";
+
+/** `ROOM_STATUSES` in packages/domain (occupancy.ts): a room is held after a death until cleared. */
+export const ROOM_STATUS_SQL = sqlList(["available", "out_of_service", "awaiting_clearance"]);
+
+/** HZ-023: an empty list of communication needs is "not recorded" until someone confirms "none". */
+export const COMMUNICATION_NEEDS_STATUS_SQL = sqlList([
+  "not_recorded",
+  "none_identified",
+  "recorded",
+]);
+
+/** `BREAK_GLASS_REASON_CODES` in packages/domain (break-glass-report.ts). */
+export const BREAK_GLASS_REASON_SQL = sqlList([
+  "emergency_care",
+  "covering_another_area",
+  "safeguarding",
+  "incident_or_complaint",
+  "request_from_professional",
+  "other",
+]);
 
 /**
  * Service-user lifecycle (`people` bounded context, master prompt section 9.2).
@@ -36,6 +59,7 @@ export const room = pgTable(
     floor: text("floor"),
     beds: integer("beds").notNull().default(1),
     ensuite: boolean("ensuite").notNull().default(false),
+    /** `available`, `out_of_service` or `awaiting_clearance` (held after a death, people.md rule 6). */
     status: text("status").notNull().default("available"),
     ...mutableColumns(),
   },
@@ -47,6 +71,8 @@ export const room = pgTable(
       columns: [t.tenantId, t.locationId],
       foreignColumns: [location.tenantId, location.id],
     }),
+    check("room_status", sql`status IN (${ROOM_STATUS_SQL})`),
+    check("room_beds", sql`beds >= 1`),
   ],
 );
 
@@ -86,10 +112,30 @@ export const person = pgTable(
     roomLabel: text("room_label"),
     /** Accessible Information Standard needs: [{ code (SNOMED CT), display, preferredFormat }]. */
     communicationNeeds: jsonb("communication_needs").notNull().default(sql`'[]'::jsonb`),
+    /**
+     * `not_recorded`, `none_identified` (a positive statement, with who confirmed it and when) or
+     * `recorded`. Until it is confirmed, an empty list means "not recorded", never "none" (HZ-023).
+     */
+    communicationNeedsStatus: text("communication_needs_status").notNull().default("not_recorded"),
+    communicationNeedsConfirmedBy: uuid("communication_needs_confirmed_by"),
+    communicationNeedsConfirmedAt: timestamp("communication_needs_confirmed_at", {
+      withTimezone: true,
+    }),
     allergyStatus: allergyStatus("allergy_status").notNull().default("unknown"),
+    /**
+     * Who set the allergy status and when ("no known allergies" is a positive statement, HZ-007).
+     * Set by a trigger whenever the status changes; never the last person to edit the row.
+     */
+    allergyStatusConfirmedBy: uuid("allergy_status_confirmed_by"),
+    allergyStatusConfirmedAt: timestamp("allergy_status_confirmed_at", { withTimezone: true }),
     nationalDataOptOut: boolean("national_data_opt_out").notNull().default(false),
     deceasedAt: timestamp("deceased_at", { withTimezone: true }),
     dischargedAt: timestamp("discharged_at", { withTimezone: true }),
+    /**
+     * When the current status began; for a discharge or death, when the person left or died
+     * (people.md rules 2 and 3). Kept in step by a trigger when only `status` is written.
+     */
+    statusChangedAt: timestamp("status_changed_at", { withTimezone: true }).notNull().defaultNow(),
     ...mutableColumns(),
   },
   (t) => [
@@ -105,6 +151,25 @@ export const person = pgTable(
       columns: [t.tenantId, t.photoDocumentId],
       foreignColumns: [document.tenantId, document.id],
     }),
+    foreignKey({
+      name: "person_communication_confirmed_by_fk",
+      columns: [t.tenantId, t.communicationNeedsConfirmedBy],
+      foreignColumns: [tenantUser.tenantId, tenantUser.id],
+    }),
+    foreignKey({
+      name: "person_allergy_confirmed_by_fk",
+      columns: [t.tenantId, t.allergyStatusConfirmedBy],
+      foreignColumns: [tenantUser.tenantId, tenantUser.id],
+    }),
+    check(
+      "person_communication_needs_status",
+      sql`communication_needs_status IN (${COMMUNICATION_NEEDS_STATUS_SQL})`,
+    ),
+    check(
+      "person_communication_none_identified",
+      sql`communication_needs_status <> 'none_identified' OR (communication_needs = '[]'::jsonb
+        AND communication_needs_confirmed_by IS NOT NULL AND communication_needs_confirmed_at IS NOT NULL)`,
+    ),
     index("person_tenant_location_idx").on(t.tenantId, t.locationId),
     index("person_family_name_idx").on(t.tenantId, t.familyName),
   ],
@@ -138,6 +203,8 @@ export const contact = pgTable(
     authorityReference: text("authority_reference"),
     authorityDocumentId: uuid("authority_document_id"),
     validUntil: date("valid_until"),
+    /** For a deputy: `personal_welfare`, `property_affairs` or `both` (sharing, people.md rule 13). */
+    authorityScope: text("authority_scope"),
     notes: text("notes"),
     ...mutableColumns(),
   },
@@ -146,6 +213,10 @@ export const contact = pgTable(
     // composite key (ADR-0002).
     unique("contact_tenant_person_id_key").on(t.tenantId, t.personId, t.id),
     personFk("contact_person_fk", t),
+    check(
+      "contact_authority_scope",
+      sql`authority_scope IS NULL OR authority_scope IN ('personal_welfare', 'property_affairs', 'both')`,
+    ),
     index("contact_person_idx").on(t.tenantId, t.personId),
   ],
 );
@@ -183,10 +254,29 @@ export const placement = pgTable(
     endDate: date("end_date"),
     endReason: text("end_reason"),
     dependencyCategory: text("dependency_category"),
+    /** A trial placement's agreed end and the day its review was held (people.md rules 5 and 8). */
+    trialEndsOn: date("trial_ends_on"),
+    trialReviewedOn: date("trial_reviewed_on"),
+    /** Funding flags for the review tracker and exit notifications; detail moves to finance (Phase 3). */
+    localAuthorityFunded: boolean("local_authority_funded").notNull().default(false),
+    nhsFunded: boolean("nhs_funded").notNull().default(false),
+    /** The decision to admit this placement rests on. */
+    admissionDecisionId: uuid("admission_decision_id"),
     ...mutableColumns(),
   },
   (t) => [
+    unique("placement_tenant_person_id_key").on(t.tenantId, t.personId, t.id),
     personFk("placement_person_fk", t),
+    foreignKey({
+      name: "placement_admission_decision_fk",
+      columns: [t.tenantId, t.personId, t.admissionDecisionId],
+      foreignColumns: [
+        admissionDecision.tenantId,
+        admissionDecision.personId,
+        admissionDecision.id,
+      ],
+    }),
+    check("placement_trial_end", sql`trial_ends_on IS NULL OR trial_ends_on > start_date`),
     foreignKey({
       name: "placement_service_fk",
       columns: [t.tenantId, t.serviceId],
@@ -259,10 +349,16 @@ export const breakGlassEvent = pgTable(
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
     reviewedBy: uuid("reviewed_by"),
     reviewOutcome: text("review_outcome"),
+    /** `BREAK_GLASS_REASON_CODES`, for the weekly report; the typed justification stays. */
+    reasonCode: text("reason_code"),
     ...mutableColumns(),
   },
   (t) => [
     personFk("break_glass_person_fk", t),
+    check(
+      "break_glass_reason_code",
+      sql`reason_code IS NULL OR reason_code IN (${BREAK_GLASS_REASON_SQL})`,
+    ),
     foreignKey({
       name: "break_glass_user_fk",
       columns: [t.tenantId, t.tenantUserId],

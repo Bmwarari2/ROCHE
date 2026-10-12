@@ -219,6 +219,10 @@ describe("reading the header data with the API's schemas (hazards HZ-001 and HZ-
     allergyStatus: "has_allergies",
     allergies: [{ substance: "Penicillin", severity: "severe", reaction: null }],
     communicationNeeds: [],
+    communicationNeedsStatus: "not_recorded",
+    communicationNeedsConfirmedBy: null,
+    communicationNeedsConfirmedAt: null,
+    statusChangedAt: "2026-09-01T10:00:00.000Z",
     resuscitation: {
       status: "do_not_attempt_cpr",
       conflicting: false,

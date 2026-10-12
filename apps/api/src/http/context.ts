@@ -31,9 +31,10 @@ import type { Config } from "../config";
 import type { Logger } from "../logger";
 import { writeAudit } from "./audit";
 import { problems } from "./problem";
+import type { RateLimiter } from "./rate-limit";
 
 // The device id is the PowerSync client id, a UUID. Anything else is not trusted into the audit
-// trail or a task, and reads as no device (security review round 4).
+// trail or a task, and reads as no device (security review round 4; #21 S-L6).
 const DEVICE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function deviceIdOf(header: string | undefined): string | null {
@@ -50,6 +51,8 @@ export interface Services {
   readonly auth: Auth;
   readonly storage: DocumentStoragePort;
   readonly scanner: MalwareScanPort;
+  /** Per-user limit on the transfer pack routes (S2). */
+  readonly transferPackLimiter: RateLimiter;
 }
 
 export interface SessionInfo {

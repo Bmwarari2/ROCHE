@@ -1584,6 +1584,23 @@
     background-color: var(--status-not-applicable);
   }
 
+  /* Not recorded: the warning fill, with a question mark (tokens.clinicalStatus.notRecorded). */
+  .hb-status-chip--notRecorded {
+    background-color: var(--status-due);
+  }
+
+  /* A chip that links to the action resolving it is a target: 44 px tall (section 5.4). */
+  a.hb-status-chip {
+    min-height: var(--touch-target);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  a.hb-status-chip:focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
   .hb-status-chip--info {
     background-color: var(--status-info);
   }

@@ -53,8 +53,6 @@ import { publish } from "../outbox";
 import {
   careRates,
   completeOpenTasks,
-  completeTaskWithEvidence,
-  type EvidenceType,
   entryTimes,
   personContext,
   raiseCareTriggers,
@@ -67,17 +65,21 @@ import {
   toRecordState,
 } from "../services/care-planning";
 import { flagIfReportedDeleted } from "../services/device-holds";
+import { loadPerson, requireWrite } from "../services/people";
 import {
+  applyLink,
   entryOut,
   iso,
   PersonParam,
-  permissionsOf,
+  planLink,
   range,
   requireCorrection,
   requireOpenRecord,
   SENT_AT_HEADER,
   supersededIds,
+  triggersAfterChange,
   window,
+  withLateEntryReview,
 } from "./care-shared";
 import {
   conflictResponse,
@@ -122,29 +124,6 @@ function audit(
 function replayed<R extends { personId: string }>(row: R | undefined, personId: string): R {
   if (!row || row.personId !== personId) throw problems.invalid("That id is already used.");
   return row;
-}
-
-async function completeAnsweredTask(
-  tx: Transaction,
-  access: TenantAccess,
-  input: {
-    taskId: string | undefined;
-    personId: string;
-    evidenceType: EvidenceType;
-    evidenceId: string;
-    now: Date;
-  },
-) {
-  if (!input.taskId) return;
-  await completeTaskWithEvidence(tx, {
-    taskId: input.taskId,
-    personId: input.personId,
-    actorTenantUserId: access.tenantUserId,
-    actorPermissions: permissionsOf(access),
-    evidenceType: input.evidenceType,
-    evidenceId: input.evidenceId,
-    now: input.now,
-  });
 }
 
 /** A correction raises only the follow-ups the original did not already raise (HZ-008). */
@@ -267,153 +246,196 @@ export const careRecordsRouter = createRouter()
       const body = c.req.valid("json");
       requireCorrection(body);
       const now = new Date();
-      const item = await withTenant(c, async (tx) => {
-        const person = await personContext(tx, personId);
-        requireOpenRecord(person);
-        if (!toolAvailable(body.toolKey, await flagsAt(tx, person.locationId))) {
-          throw problems.featureDisabled(
-            `${TOOL_NAMES[body.toolKey]} is switched off until its licence is confirmed (${toolFlag(body.toolKey)}).`,
-          );
-        }
-        const rates = await careRates(tx, access.tenantId, person.nation);
-        const times = entryTimes(body, c.req.header(SENT_AT_HEADER), now, rates);
-        let original: AssessmentRow | null = null;
-        if (body.supersedesId) {
-          const [found] = await tx
-            .select()
-            .from(assessment)
-            .where(eq(assessment.id, body.supersedesId));
-          original = found?.personId === personId ? found : null;
-          const check = checkAssessmentCorrection(original, body.toolKey, body.correctionReason);
-          if (!check.ok) throw problems.invalid(check.message);
-        }
-        const assessedOn = ukIsoDate(times.occurredAt);
-        const planRates = await carePlanRates(tx, access.tenantId, person.nation, assessedOn);
-        const outcome = runAssessment(
-          { toolKey: body.toolKey, answers: body.answers } as AssessmentInput,
-          { assessedOn, rates, reviewIntervalMonths: planRates.reviewIntervalMonths },
-        );
-        if (!outcome.ok) {
-          throw problems.invalid(
-            [outcome.message, ...outcome.issues.map((i) => i.message)].join(" "),
-          );
-        }
-        const result = outcome.result;
-        const history = await tx
-          .select()
-          .from(assessment)
-          .where(and(eq(assessment.personId, personId), eq(assessment.toolKey, body.toolKey)))
-          .orderBy(desc(assessment.occurredAt))
-          .limit(50);
-        const [previous] = currentResults(history);
-        const [inserted] = await tx
-          .insert(assessment)
-          .values({
-            ...(body.id ? { id: body.id } : {}),
-            personId,
-            locationId: person.locationId,
-            toolKey: result.toolKey,
-            toolVersion: result.toolVersion,
-            answers: body.answers,
-            score: result.score,
-            band: result.band,
-            workings: result.workings,
-            triggers: result.triggers,
-            details: result.details,
-            nextDueOn: result.nextDueOn,
-            occurredAt: times.occurredAt,
-            deviceTime: times.deviceTime,
-            deviceId: access.deviceId,
-            lateEntry: times.lateEntry,
-            clockDrift: times.clockDrift,
-            supersedesId: body.supersedesId ?? null,
-            correctionReason: body.correctionReason ?? null,
-          })
-          .onConflictDoNothing()
-          .returning();
-        const row = replayed(
-          inserted ??
-            (
-              await tx
+      const item = await withLateEntryReview(
+        c,
+        { kind: "assessment", clientId: body.id, occurredAt: body.occurredAt },
+        () =>
+          withTenant(c, async (tx) => {
+            // A replayed upload (the same device id) returns the stored entry before anything is
+            // planned or checked again, so a replay never raises a second review (S-L5).
+            if (body.id) {
+              const [replayed] = await tx
                 .select()
                 .from(assessment)
-                .where(eq(assessment.id, body.id ?? ""))
-            )[0],
-          personId,
-        );
-        if (inserted) {
-          // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
-          await flagIfReportedDeleted(tx, access, {
-            resourceType: "assessment",
-            id: row.id,
-            locationId: person.locationId,
-            requestId: c.get("requestId"),
-          });
-          await completeAnsweredTask(tx, access, {
-            taskId: body.taskId,
-            personId,
-            evidenceType: "assessment",
-            evidenceId: row.id,
-            now,
-          });
-          // The new result answers the scheduled repeat of the same tool.
-          await completeOpenTasks(tx, {
-            personId,
-            kind: `care.rescreen.${result.toolKey}`,
-            evidenceType: "assessment",
-            evidenceId: row.id,
-            actorTenantUserId: access.tenantUserId,
-            now,
-          });
-          await raiseCareTriggers(
-            tx,
-            {
+                .where(eq(assessment.id, body.id));
+              if (replayed) {
+                if (replayed.personId !== personId)
+                  throw problems.invalid("That id is already used.");
+                return assessmentItem(replayed, new Set());
+              }
+            }
+            const person = await personContext(tx, personId);
+            const record = await loadPerson(tx, personId);
+            if (!toolAvailable(body.toolKey, await flagsAt(tx, person.locationId))) {
+              throw problems.featureDisabled(
+                `${TOOL_NAMES[body.toolKey]} is switched off until its licence is confirmed (${toolFlag(body.toolKey)}).`,
+              );
+            }
+            const rates = await careRates(tx, access.tenantId, person.nation);
+            const times = entryTimes(body, c.req.header(SENT_AT_HEADER), now, rates);
+            // people.md rule 3 (HZ-006): an assessment made before the person left, died or went to
+            // hospital is accepted afterwards and flagged; one made later is refused.
+            const { recordedAfterExit } = requireWrite(
+              record,
+              "assessment",
+              times.occurredAt,
+              rates.clockDriftMinutes,
+            );
+            let original: AssessmentRow | null = null;
+            if (body.supersedesId) {
+              const [found] = await tx
+                .select()
+                .from(assessment)
+                .where(eq(assessment.id, body.supersedesId));
+              original = found?.personId === personId ? found : null;
+              const check = checkAssessmentCorrection(
+                original,
+                body.toolKey,
+                body.correctionReason,
+              );
+              if (!check.ok) throw problems.invalid(check.message);
+            }
+            const assessedOn = ukIsoDate(times.occurredAt);
+            const planRates = await carePlanRates(tx, access.tenantId, person.nation, assessedOn);
+            const outcome = runAssessment(
+              { toolKey: body.toolKey, answers: body.answers } as AssessmentInput,
+              { assessedOn, rates, reviewIntervalMonths: planRates.reviewIntervalMonths },
+            );
+            if (!outcome.ok) {
+              throw problems.invalid(
+                [outcome.message, ...outcome.issues.map((i) => i.message)].join(" "),
+              );
+            }
+            const result = outcome.result;
+            const history = await tx
+              .select()
+              .from(assessment)
+              .where(and(eq(assessment.personId, personId), eq(assessment.toolKey, body.toolKey)))
+              .orderBy(desc(assessment.occurredAt))
+              .limit(50);
+            const [previous] = currentResults(history);
+            const link = await planLink(tx, access, body.taskId, personId, times.occurredAt);
+            const [inserted] = await tx
+              .insert(assessment)
+              .values({
+                ...(body.id ? { id: body.id } : {}),
+                personId,
+                locationId: person.locationId,
+                toolKey: result.toolKey,
+                toolVersion: result.toolVersion,
+                answers: body.answers,
+                score: result.score,
+                band: result.band,
+                workings: result.workings,
+                triggers: result.triggers,
+                details: result.details,
+                nextDueOn: result.nextDueOn,
+                occurredAt: times.occurredAt,
+                deviceTime: times.deviceTime,
+                deviceId: access.deviceId,
+                lateEntry: times.lateEntry,
+                clockDrift: times.clockDrift,
+                recordedAfterExit,
+                taskId: link?.taskId ?? null,
+                taskOutcome: link?.outcome ?? null,
+                supersedesId: body.supersedesId ?? null,
+                correctionReason: body.correctionReason ?? null,
+              })
+              .onConflictDoNothing()
+              .returning();
+            const row = replayed(
+              inserted ??
+                (
+                  await tx
+                    .select()
+                    .from(assessment)
+                    .where(eq(assessment.id, body.id ?? ""))
+                )[0],
               personId,
-              locationId: person.locationId,
-              sourceType: "assessment",
-              sourceId: row.id,
-              occurredOn: assessedOn,
-            },
-            newFollowUps(result.triggers, original),
-            now,
-          );
-          if (
-            needsPlanReview(
-              previous ? { toolKey: result.toolKey, band: previous.band } : null,
-              result,
-            )
-          ) {
-            await bringPlanReviewForward(tx, {
-              personId,
-              locationId: person.locationId,
-              reason:
-                result.toolKey === "ng249_falls"
-                  ? "A fall was reported"
-                  : `${TOOL_NAMES[result.toolKey]} result changed`,
-              now,
-            });
-          }
-          await audit(c, tx, access, {
-            action: body.supersedesId ? "care.assessment.correct" : "care.assessment.create",
-            resourceType: "assessment",
-            resourceId: row.id,
-            reason: body.correctionReason,
-            scope: { toolKey: result.toolKey },
-          });
-          await publish(tx, {
-            context: "care",
-            aggregateType: "person",
-            aggregateId: personId,
-            type: "care.assessment.completed",
-            payload: {
-              assessmentId: row.id,
-              toolKey: result.toolKey,
-              supersedesId: body.supersedesId ?? null,
-            },
-          });
-        }
-        return assessmentItem(row, new Set());
-      });
+            );
+            if (inserted) {
+              // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
+              await flagIfReportedDeleted(tx, access, {
+                resourceType: "assessment",
+                id: row.id,
+                locationId: person.locationId,
+                requestId: c.get("requestId"),
+              });
+              if (link) {
+                await applyLink(tx, access, c.get("requestId"), link, {
+                  evidenceType: "assessment",
+                  evidenceId: row.id,
+                  personId,
+                  locationId: row.locationId,
+                  actorTenantUserId: access.tenantUserId,
+                  deviceId: access.deviceId,
+                  now,
+                });
+              }
+              // The new result answers the scheduled repeat of the same tool.
+              await completeOpenTasks(tx, {
+                personId,
+                kind: `care.rescreen.${result.toolKey}`,
+                evidenceType: "assessment",
+                evidenceId: row.id,
+                actorTenantUserId: access.tenantUserId,
+                now,
+              });
+              await raiseCareTriggers(
+                tx,
+                {
+                  personId,
+                  locationId: person.locationId,
+                  sourceType: "assessment",
+                  sourceId: row.id,
+                  occurredOn: assessedOn,
+                },
+                triggersAfterChange(
+                  newFollowUps(result.triggers, original),
+                  recordedAfterExit,
+                  record.status,
+                ),
+                now,
+              );
+              if (
+                !recordedAfterExit &&
+                needsPlanReview(
+                  previous ? { toolKey: result.toolKey, band: previous.band } : null,
+                  result,
+                )
+              ) {
+                await bringPlanReviewForward(tx, {
+                  personId,
+                  locationId: person.locationId,
+                  reason:
+                    result.toolKey === "ng249_falls"
+                      ? "A fall was reported"
+                      : `${TOOL_NAMES[result.toolKey]} result changed`,
+                  now,
+                });
+              }
+              await audit(c, tx, access, {
+                action: body.supersedesId ? "care.assessment.correct" : "care.assessment.create",
+                resourceType: "assessment",
+                resourceId: row.id,
+                reason: body.correctionReason,
+                scope: { toolKey: result.toolKey },
+              });
+              await publish(tx, {
+                context: "care",
+                aggregateType: "person",
+                aggregateId: personId,
+                type: "care.assessment.completed",
+                payload: {
+                  assessmentId: row.id,
+                  toolKey: result.toolKey,
+                  supersedesId: body.supersedesId ?? null,
+                },
+              });
+            }
+            return assessmentItem(row, new Set());
+          }),
+      );
       return c.json(item, 201);
     },
   )
@@ -498,77 +520,110 @@ export const careRecordsRouter = createRouter()
       });
       if (!check.ok) throw problems.invalid(check.message);
       const now = new Date();
-      const item = await withTenant(c, async (tx) => {
-        const person = await personContext(tx, personId);
-        requireOpenRecord(person);
-        const rates = await careRates(tx, access.tenantId, person.nation);
-        const times = entryTimes(body, c.req.header(SENT_AT_HEADER), now, rates);
-        if (body.supersedesId) {
-          const [original] = await tx
-            .select({ personId: activityRecord.personId })
-            .from(activityRecord)
-            .where(eq(activityRecord.id, body.supersedesId));
-          if (original?.personId !== personId) {
-            throw problems.invalid("The entry being corrected was not found.");
-          }
-        }
-        const [inserted] = await tx
-          .insert(activityRecord)
-          .values({
-            ...(body.id ? { id: body.id } : {}),
-            personId,
-            locationId: person.locationId,
-            activity: body.activity,
-            format: body.format,
-            groupSessionId: body.groupSessionId ?? null,
-            attendance: body.attendance,
-            engagement: body.engagement ?? null,
-            durationMinutes: body.durationMinutes ?? null,
-            notes: body.notes ?? null,
-            occurredAt: times.occurredAt,
-            deviceTime: times.deviceTime,
-            deviceId: access.deviceId,
-            lateEntry: times.lateEntry,
-            clockDrift: times.clockDrift,
-            supersedesId: body.supersedesId ?? null,
-            correctionReason: body.correctionReason ?? null,
-          })
-          .onConflictDoNothing()
-          .returning();
-        const row = replayed(
-          inserted ??
-            (
-              await tx
+      const item = await withLateEntryReview(
+        c,
+        { kind: "activity_record", clientId: body.id, occurredAt: body.occurredAt },
+        () =>
+          withTenant(c, async (tx) => {
+            // A replayed upload (the same device id) returns the stored entry before anything is
+            // planned or checked again, so a replay never raises a second review (S-L5).
+            if (body.id) {
+              const [replayed] = await tx
                 .select()
                 .from(activityRecord)
-                .where(eq(activityRecord.id, body.id ?? ""))
-            )[0],
-          personId,
-        );
-        if (inserted) {
-          // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
-          await flagIfReportedDeleted(tx, access, {
-            resourceType: "activity_record",
-            id: row.id,
-            locationId: person.locationId,
-            requestId: c.get("requestId"),
-          });
-          await completeAnsweredTask(tx, access, {
-            taskId: body.taskId,
-            personId,
-            evidenceType: "activity_record",
-            evidenceId: row.id,
-            now,
-          });
-          await audit(c, tx, access, {
-            action: body.supersedesId ? "care.activity.correct" : "care.activity.create",
-            resourceType: "activity_record",
-            resourceId: row.id,
-            reason: body.correctionReason,
-          });
-        }
-        return activityItem(row, new Set());
-      });
+                .where(eq(activityRecord.id, body.id));
+              if (replayed) {
+                if (replayed.personId !== personId)
+                  throw problems.invalid("That id is already used.");
+                return activityItem(replayed, new Set());
+              }
+            }
+            const person = await personContext(tx, personId);
+            const rates = await careRates(tx, access.tenantId, person.nation);
+            const times = entryTimes(body, c.req.header(SENT_AT_HEADER), now, rates);
+            // An activity is a care event (people.md rule 3): accepted after an exit only for a time
+            // at or before it, flagged as recorded after it.
+            const { recordedAfterExit } = requireWrite(
+              await loadPerson(tx, personId),
+              "care_note",
+              times.occurredAt,
+              rates.clockDriftMinutes,
+            );
+            if (body.supersedesId) {
+              const [original] = await tx
+                .select({ personId: activityRecord.personId })
+                .from(activityRecord)
+                .where(eq(activityRecord.id, body.supersedesId));
+              if (original?.personId !== personId) {
+                throw problems.invalid("The entry being corrected was not found.");
+              }
+            }
+            const link = await planLink(tx, access, body.taskId, personId, times.occurredAt);
+            const [inserted] = await tx
+              .insert(activityRecord)
+              .values({
+                ...(body.id ? { id: body.id } : {}),
+                personId,
+                locationId: person.locationId,
+                activity: body.activity,
+                format: body.format,
+                groupSessionId: body.groupSessionId ?? null,
+                attendance: body.attendance,
+                engagement: body.engagement ?? null,
+                durationMinutes: body.durationMinutes ?? null,
+                notes: body.notes ?? null,
+                occurredAt: times.occurredAt,
+                deviceTime: times.deviceTime,
+                deviceId: access.deviceId,
+                lateEntry: times.lateEntry,
+                clockDrift: times.clockDrift,
+                recordedAfterExit,
+                taskId: link?.taskId ?? null,
+                taskOutcome: link?.outcome ?? null,
+                supersedesId: body.supersedesId ?? null,
+                correctionReason: body.correctionReason ?? null,
+              })
+              .onConflictDoNothing()
+              .returning();
+            const row = replayed(
+              inserted ??
+                (
+                  await tx
+                    .select()
+                    .from(activityRecord)
+                    .where(eq(activityRecord.id, body.id ?? ""))
+                )[0],
+              personId,
+            );
+            if (inserted) {
+              // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
+              await flagIfReportedDeleted(tx, access, {
+                resourceType: "activity_record",
+                id: row.id,
+                locationId: person.locationId,
+                requestId: c.get("requestId"),
+              });
+              if (link) {
+                await applyLink(tx, access, c.get("requestId"), link, {
+                  evidenceType: "activity_record",
+                  evidenceId: row.id,
+                  personId,
+                  locationId: row.locationId,
+                  actorTenantUserId: access.tenantUserId,
+                  deviceId: access.deviceId,
+                  now,
+                });
+              }
+              await audit(c, tx, access, {
+                action: body.supersedesId ? "care.activity.correct" : "care.activity.create",
+                resourceType: "activity_record",
+                resourceId: row.id,
+                reason: body.correctionReason,
+              });
+            }
+            return activityItem(row, new Set());
+          }),
+      );
       return c.json(item, 201);
     },
   )
@@ -654,92 +709,121 @@ export const careRecordsRouter = createRouter()
         now,
       );
       if (!check.ok) throw problems.invalid(check.message);
-      const item = await withTenant(c, async (tx) => {
-        const person = await personContext(tx, personId);
-        requireOpenRecord(person);
-        const rates = await careRates(tx, access.tenantId, person.nation);
-        // Late means recorded long after the visit ended (or started, while it goes on).
-        const times = entryTimes(
-          { occurredAt: body.endedAt ?? body.occurredAt, deviceTime: body.deviceTime },
-          c.req.header(SENT_AT_HEADER),
-          now,
-          rates,
-        );
-        if (body.contactId) {
-          const [found] = await tx
-            .select({ id: contact.id })
-            .from(contact)
-            .where(and(eq(contact.id, body.contactId), eq(contact.personId, personId)));
-          if (!found) throw problems.invalid("The contact was not found.");
-        }
-        if (body.supersedesId) {
-          const [original] = await tx
-            .select({ personId: visitLog.personId })
-            .from(visitLog)
-            .where(eq(visitLog.id, body.supersedesId));
-          if (original?.personId !== personId) {
-            throw problems.invalid("The entry being corrected was not found.");
-          }
-        }
-        const [inserted] = await tx
-          .insert(visitLog)
-          .values({
-            ...(body.id ? { id: body.id } : {}),
-            personId,
-            locationId: person.locationId,
-            kind: body.kind,
-            contactId: body.contactId ?? null,
-            visitorName: body.visitorName ?? null,
-            visitorRelationship: body.visitorRelationship ?? null,
-            endedAt: body.endedAt ? new Date(body.endedAt) : null,
-            restrictionsApplied: body.restrictionsApplied,
-            restrictionReason: body.restrictionReason ?? null,
-            notes: body.notes ?? null,
-            occurredAt: new Date(body.occurredAt),
-            deviceTime: times.deviceTime,
-            deviceId: access.deviceId,
-            lateEntry: times.lateEntry,
-            clockDrift: times.clockDrift,
-            supersedesId: body.supersedesId ?? null,
-            correctionReason: body.correctionReason ?? null,
-          })
-          .onConflictDoNothing()
-          .returning();
-        const row = replayed(
-          inserted ??
-            (
-              await tx
-                .select()
+      const item = await withLateEntryReview(
+        c,
+        { kind: "visit_log", clientId: body.id, occurredAt: body.occurredAt },
+        () =>
+          withTenant(c, async (tx) => {
+            // A replayed upload (the same device id) returns the stored entry before anything is
+            // planned or checked again, so a replay never raises a second review (S-L5).
+            if (body.id) {
+              const [replayed] = await tx.select().from(visitLog).where(eq(visitLog.id, body.id));
+              if (replayed) {
+                if (replayed.personId !== personId)
+                  throw problems.invalid("That id is already used.");
+                return visitItem(replayed, new Set());
+              }
+            }
+            const person = await personContext(tx, personId);
+            const rates = await careRates(tx, access.tenantId, person.nation);
+            // A visit is a care event (people.md rule 3), placed in time by when it began.
+            const { recordedAfterExit } = requireWrite(
+              await loadPerson(tx, personId),
+              "care_note",
+              new Date(body.occurredAt),
+              rates.clockDriftMinutes,
+            );
+            // Late means recorded long after the visit ended (or started, while it goes on).
+            const times = entryTimes(
+              { occurredAt: body.endedAt ?? body.occurredAt, deviceTime: body.deviceTime },
+              c.req.header(SENT_AT_HEADER),
+              now,
+              rates,
+            );
+            if (body.contactId) {
+              const [found] = await tx
+                .select({ id: contact.id })
+                .from(contact)
+                .where(and(eq(contact.id, body.contactId), eq(contact.personId, personId)));
+              if (!found) throw problems.invalid("The contact was not found.");
+            }
+            if (body.supersedesId) {
+              const [original] = await tx
+                .select({ personId: visitLog.personId })
                 .from(visitLog)
-                .where(eq(visitLog.id, body.id ?? ""))
-            )[0],
-          personId,
-        );
-        if (inserted) {
-          // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
-          await flagIfReportedDeleted(tx, access, {
-            resourceType: "visit_log",
-            id: row.id,
-            locationId: person.locationId,
-            requestId: c.get("requestId"),
-          });
-          await completeAnsweredTask(tx, access, {
-            taskId: body.taskId,
-            personId,
-            evidenceType: "visit_log",
-            evidenceId: row.id,
-            now,
-          });
-          await audit(c, tx, access, {
-            action: body.supersedesId ? "care.visit.correct" : "care.visit.create",
-            resourceType: "visit_log",
-            resourceId: row.id,
-            reason: body.correctionReason,
-            scope: { kind: row.kind, restrictionsApplied: row.restrictionsApplied },
-          });
-        }
-        return visitItem(row, new Set());
-      });
+                .where(eq(visitLog.id, body.supersedesId));
+              if (original?.personId !== personId) {
+                throw problems.invalid("The entry being corrected was not found.");
+              }
+            }
+            const link = await planLink(tx, access, body.taskId, personId, times.occurredAt);
+            const [inserted] = await tx
+              .insert(visitLog)
+              .values({
+                ...(body.id ? { id: body.id } : {}),
+                personId,
+                locationId: person.locationId,
+                kind: body.kind,
+                contactId: body.contactId ?? null,
+                visitorName: body.visitorName ?? null,
+                visitorRelationship: body.visitorRelationship ?? null,
+                endedAt: body.endedAt ? new Date(body.endedAt) : null,
+                restrictionsApplied: body.restrictionsApplied,
+                restrictionReason: body.restrictionReason ?? null,
+                notes: body.notes ?? null,
+                occurredAt: new Date(body.occurredAt),
+                deviceTime: times.deviceTime,
+                deviceId: access.deviceId,
+                lateEntry: times.lateEntry,
+                clockDrift: times.clockDrift,
+                recordedAfterExit,
+                taskId: link?.taskId ?? null,
+                taskOutcome: link?.outcome ?? null,
+                supersedesId: body.supersedesId ?? null,
+                correctionReason: body.correctionReason ?? null,
+              })
+              .onConflictDoNothing()
+              .returning();
+            const row = replayed(
+              inserted ??
+                (
+                  await tx
+                    .select()
+                    .from(visitLog)
+                    .where(eq(visitLog.id, body.id ?? ""))
+                )[0],
+              personId,
+            );
+            if (inserted) {
+              // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
+              await flagIfReportedDeleted(tx, access, {
+                resourceType: "visit_log",
+                id: row.id,
+                locationId: person.locationId,
+                requestId: c.get("requestId"),
+              });
+              if (link) {
+                await applyLink(tx, access, c.get("requestId"), link, {
+                  evidenceType: "visit_log",
+                  evidenceId: row.id,
+                  personId,
+                  locationId: row.locationId,
+                  actorTenantUserId: access.tenantUserId,
+                  deviceId: access.deviceId,
+                  now,
+                });
+              }
+              await audit(c, tx, access, {
+                action: body.supersedesId ? "care.visit.correct" : "care.visit.create",
+                resourceType: "visit_log",
+                resourceId: row.id,
+                reason: body.correctionReason,
+                scope: { kind: row.kind, restrictionsApplied: row.restrictionsApplied },
+              });
+            }
+            return visitItem(row, new Set());
+          }),
+      );
       return c.json(item, 201);
     },
   )

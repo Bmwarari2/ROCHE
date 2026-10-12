@@ -1,4 +1,5 @@
 import { copyFileSync, cpSync, mkdirSync } from "node:fs";
+import { createRequire } from "node:module";
 import { build } from "esbuild";
 
 // Bundles the API, worker and migrate task (workspace packages included) into single ESM files for
@@ -27,3 +28,13 @@ cpSync("../../packages/db/drizzle", "dist/drizzle", { recursive: true });
 copyFileSync("../../docs/specs/rates.md", "dist/rates.md");
 copyFileSync("../../docs/specs/calendar.md", "dist/calendar.md");
 copyFileSync("../../docs/specs/retention.md", "dist/retention.md");
+
+// The printed packs embed Noto Sans (OFL); services/pdf-font.ts reads it from dist/fonts.
+const require = createRequire(import.meta.url);
+mkdirSync("dist/fonts", { recursive: true });
+for (const font of ["400Regular/NotoSans_400Regular.ttf", "700Bold/NotoSans_700Bold.ttf"]) {
+  const source = require.resolve(`@expo-google-fonts/noto-sans/${font}`);
+  copyFileSync(source, `dist/fonts/${font.split("/")[1]}`);
+}
+const licence = require.resolve("@expo-google-fonts/noto-sans/LICENSE_FONT");
+copyFileSync(licence, "dist/fonts/OFL.txt");

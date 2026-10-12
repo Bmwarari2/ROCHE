@@ -107,7 +107,10 @@ export const PERMISSIONS = {
     careRecord: true,
   },
   "people.assignment.manage": { description: "Assign staff to people" },
-  "people.sharing.manage": { description: "Manage family and professional sharing rules" },
+  "people.sharing.manage": {
+    description: "Manage family and professional sharing rules and About Me share links",
+    careRecord: true,
+  },
   "people.demographics.read": { description: "Read names and room only (no care data)" },
   // care
   "care.plan.read": { description: "Read care plans and risk assessments", careRecord: true },

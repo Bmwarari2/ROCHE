@@ -48,6 +48,27 @@ function isForeignKeyViolation(error: unknown): boolean {
   return (error as { code?: string }).code === "23503" || cause?.code === "23503";
 }
 
+/**
+ * HZ-023: an empty list of communication needs is "not recorded" until someone confirms there are
+ * none, never "no needs". A list written without the status (an older app version) is a record of
+ * needs; a "recorded" status over an empty list falls back to not recorded.
+ */
+export function communicationNeedsStatus(p: typeof person.$inferSelect) {
+  const needs = Array.isArray(p.communicationNeeds) ? p.communicationNeeds : [];
+  let status = p.communicationNeedsStatus as PersonSummary["communicationNeedsStatus"];
+  if (needs.length > 0) status = "recorded";
+  else if (status === "recorded") status = "not_recorded";
+  const confirmed = status === "none_identified";
+  return {
+    communicationNeedsStatus: status,
+    communicationNeedsConfirmedBy: confirmed ? p.communicationNeedsConfirmedBy : null,
+    communicationNeedsConfirmedAt:
+      confirmed && p.communicationNeedsConfirmedAt
+        ? p.communicationNeedsConfirmedAt.toISOString()
+        : null,
+  };
+}
+
 async function summaries(tx: Transaction, personIds?: readonly string[]) {
   const people = await tx
     .select()
@@ -89,11 +110,15 @@ async function summaries(tx: Transaction, personIds?: readonly string[]) {
         .filter((a) => a.personId === p.id)
         .map((a) => ({ substance: a.substance, severity: a.severity, reaction: a.reaction })),
       communicationNeeds: (p.communicationNeeds as CommunicationNeed[]) ?? [],
+      ...communicationNeedsStatus(p),
       resuscitation: resuscitation.get(p.id) ?? NOT_RECORDED,
+      statusChangedAt: p.statusChangedAt.toISOString(),
       version: p.version,
     }),
   );
 }
+
+export { summaries as personSummaries };
 
 export const peopleRouter = createRouter()
   .openapi(
@@ -257,12 +282,18 @@ export const peopleRouter = createRouter()
     }),
     async (c) => {
       const access = await requirePermission(c, "people.person.break_glass");
-      const { personId, justification } = c.req.valid("json");
+      const { personId, justification, reasonCode } = c.req.valid("json");
       const expiresAt = new Date(Date.now() + BREAK_GLASS_MINUTES * 60_000);
       const result = await withTenant(c, async (tx) => {
         const opened = await tx
           .insert(breakGlassEvent)
-          .values({ tenantUserId: access.tenantUserId, personId, justification, expiresAt })
+          .values({
+            tenantUserId: access.tenantUserId,
+            personId,
+            justification,
+            expiresAt,
+            reasonCode: reasonCode ?? null,
+          })
           .returning({ id: breakGlassEvent.id })
           .then((rows) => rows[0])
           .catch((error: unknown) => {

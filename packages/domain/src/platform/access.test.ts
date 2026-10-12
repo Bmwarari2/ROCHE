@@ -3,6 +3,7 @@ import {
   type AccessGrantInput,
   authorise,
   can,
+  permissionsAtLocation,
   type RoleAssignmentInput,
   resolveAccess,
 } from "./access";
@@ -132,6 +133,30 @@ describe("resolveAccess permissions", () => {
       NOW,
     );
     expect(access.roleKeys).toEqual(["care_worker", "team_leader"]);
+  });
+});
+
+describe("permissionsAtLocation", () => {
+  it("hazards HZ-004 and HZ-005 counts only the roles and grants for that location or the whole tenant", () => {
+    const grants: AccessGrantInput[] = [
+      {
+        permissions: ["medicines.cd.administer"],
+        locationId: SOUTH,
+        validFrom: PAST,
+        validTo: FUTURE,
+        revokedAt: null,
+      },
+    ];
+    const assignments = [assignment("clinical_lead", SOUTH), assignment("care_worker", NORTH)];
+    const north = permissionsAtLocation(assignments, grants, NORTH, NOW);
+    expect(north.has("care.note.write")).toBe(true);
+    expect(north.has("care.plan.write")).toBe(false);
+    expect(north.has("medicines.cd.administer")).toBe(false);
+    const south = permissionsAtLocation(assignments, grants, SOUTH, NOW);
+    expect(south.has("care.plan.write")).toBe(true);
+    expect(south.has("medicines.cd.administer")).toBe(true);
+    const everywhere = permissionsAtLocation([assignment("clinical_lead")], [], NORTH, NOW);
+    expect(everywhere.has("care.plan.write")).toBe(true);
   });
 });
 

@@ -1,14 +1,26 @@
 import type { Recurrence, TaskItem } from "@harbour/contracts";
 import {
+  accessGrant,
   auditEvent,
   notification,
+  person,
   role,
   roleAssignment,
   type Transaction,
   task,
   taskSeries,
 } from "@harbour/db";
-import { occurrences, type TaskStatus, taskTimeState } from "@harbour/domain";
+import {
+  type AccessGrantInput,
+  isPermission,
+  occurrences,
+  permissionsAtLocation,
+  personStatusAllows,
+  type RoleAssignmentInput,
+  type ScopeKind,
+  type TaskStatus,
+  taskTimeState,
+} from "@harbour/domain";
 import { and, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import {
   fallbackRecipients,
@@ -56,8 +68,12 @@ export function toTaskItem(row: TaskRow, now: Date, escalateAfterMinutes: number
     evidenceRequired: row.evidenceRequired,
     evidenceType: row.evidenceType,
     evidenceId: row.evidenceId,
+    evidenceAfterClose: row.evidenceAfterClose,
+    catchUp: row.restoreCode === "caught_up",
+    restoredDone: row.restoreCode === "answered_while_stopped",
     completedAt: iso(row.completedAt),
     escalated: row.escalationLevel > 0,
+    details: (row.details ?? null) as TaskItem["details"],
     version: row.version,
   };
 }
@@ -76,6 +92,15 @@ export async function materialiseSeries(
   now: Date,
 ): Promise<number> {
   if (!series.active) return 0;
+  if (series.personId) {
+    // A person in hospital, on leave or no longer receiving care is off rounds (people.md rule
+    // 1): nothing is materialised, and the series picks up again from now when they return.
+    const [who] = await tx
+      .select({ status: person.status })
+      .from(person)
+      .where(eq(person.id, series.personId));
+    if (!who || !personStatusAllows(who.status, "point_of_care_rounds")) return 0;
+  }
   const earliest = new Date(now.getTime() - MAX_BACKFILL_HOURS * 3_600_000);
   const from =
     series.materialisedUntil && series.materialisedUntil.getTime() > earliest.getTime()
@@ -277,4 +302,106 @@ export async function escalateOverdueTasks(
     escalated += 1;
   }
   return escalated;
+}
+
+/**
+ * The permission a general task names (a manual task about no person): it is allocated to anyone,
+ * so its assignee completes it without holding anything more.
+ */
+export const GENERAL_TASK_PERMISSION = "platform.task.manage";
+
+/**
+ * Task kinds given to an owner who deliberately does not hold the permission they name: an
+ * investigation action is done by whoever the investigation names (safety.incident.manage only
+ * lets others close it). The Care mode sync tasks (`PERMISSION_ESCALATED_TASK_KINDS`) are the
+ * other case: with no one at their location who can act, the escalation gives one to the
+ * longest-serving Registered Manager elsewhere, who completes it as its assignee although they
+ * hold its permission nowhere there (H-142). Nobody else can be given one without the permission
+ * (the assign route checks it).
+ */
+export const OWNER_TASK_KINDS: readonly string[] = ["safety.investigation_action"];
+
+/** Whether a task's assignee completes it whatever they hold (a general task or an owner's). */
+export function anyoneMayBeGiven(row: {
+  readonly kind: string;
+  readonly requiredPermission: string;
+}): boolean {
+  return (
+    row.requiredPermission === GENERAL_TASK_PERMISSION ||
+    OWNER_TASK_KINDS.includes(row.kind) ||
+    PERMISSION_ESCALATED_TASK_KINDS.includes(row.kind)
+  );
+}
+
+/**
+ * Whether being a task's assignee still lets this member of staff complete it, now (S1 follow-on;
+ * HZ-004, HZ-005): only while they could still be given it (`mayBeAssigned`), so an acting-up
+ * grant that has expired or been revoked, or a role that has ended, no longer lets them mark an
+ * urgent task done or skipped, or complete it with an entry, and silence its escalation. General
+ * tasks, an owner's investigation actions and the sync tasks the escalation gives to a manager
+ * elsewhere (H-142) are exempt (`anyoneMayBeGiven`).
+ */
+export async function assigneeMayComplete(
+  tx: Transaction,
+  tenantUserId: string,
+  row: {
+    readonly kind: string;
+    readonly assigneeTenantUserId: string | null;
+    readonly requiredPermission: string;
+    readonly locationId: string | null;
+  },
+  now: Date,
+): Promise<boolean> {
+  if (row.assigneeTenantUserId !== tenantUserId) return false;
+  if (anyoneMayBeGiven(row)) return true;
+  return mayBeAssigned(tx, tenantUserId, row, now);
+}
+
+/**
+ * Whether a member of staff may complete a task at its location: they hold its required
+ * permission there (a role assigned there or tenant-wide, or a grant). Being a task's assignee lets
+ * them complete it, so a task is only ever given to someone who could complete it anyway (S1;
+ * HZ-004, HZ-005). Fails closed: rows the caller cannot read count as nothing held.
+ */
+export async function mayBeAssigned(
+  tx: Transaction,
+  tenantUserId: string,
+  row: { readonly requiredPermission: string; readonly locationId: string | null },
+  now: Date,
+): Promise<boolean> {
+  if (!isPermission(row.requiredPermission)) return false;
+  const assignments = await tx
+    .select({
+      roleKey: role.key,
+      scopeKind: role.scopeKind,
+      permissions: role.permissions,
+      locationId: roleAssignment.locationId,
+      validFrom: roleAssignment.validFrom,
+      validTo: roleAssignment.validTo,
+    })
+    .from(roleAssignment)
+    .innerJoin(role, eq(role.id, roleAssignment.roleId))
+    .where(
+      and(
+        eq(roleAssignment.tenantUserId, tenantUserId),
+        isNull(roleAssignment.deletedAt),
+        isNull(role.archivedAt),
+      ),
+    );
+  const grants = await tx
+    .select({
+      permissions: accessGrant.permissions,
+      locationId: accessGrant.locationId,
+      validFrom: accessGrant.validFrom,
+      validTo: accessGrant.validTo,
+      revokedAt: accessGrant.revokedAt,
+    })
+    .from(accessGrant)
+    .where(and(eq(accessGrant.tenantUserId, tenantUserId), isNull(accessGrant.deletedAt)));
+  return permissionsAtLocation(
+    assignments.map((a): RoleAssignmentInput => ({ ...a, scopeKind: a.scopeKind as ScopeKind })),
+    grants as AccessGrantInput[],
+    row.locationId,
+    now,
+  ).has(row.requiredPermission);
 }

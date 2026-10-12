@@ -6,6 +6,7 @@ import {
   BREAK_GLASS_MAX_LENGTH,
   BREAK_GLASS_MIN_LENGTH,
   canBreakGlass,
+  communicationSummary,
   initials,
   justificationProblem,
   type PersonRow,
@@ -32,6 +33,10 @@ const ada: PersonSummary = {
   allergyStatus: "has_allergies",
   allergies: [penicillin],
   communicationNeeds: [{ code: "demo:large-print", display: "Needs information in large print" }],
+  communicationNeedsStatus: "recorded",
+  communicationNeedsConfirmedBy: null,
+  communicationNeedsConfirmedAt: null,
+  statusChangedAt: "2026-09-01T00:00:00.000Z",
   resuscitation: {
     status: "not_recorded",
     conflicting: false,
@@ -71,6 +76,51 @@ describe("allergySummary", () => {
   });
 });
 
+describe("communicationSummary (HZ-023)", () => {
+  const largePrint = { code: "demo:large-print", display: "Needs information in large print" };
+
+  it.each([
+    ["needs listed", [largePrint], "recorded", { kind: "recorded", needs: [largePrint.display] }],
+    [
+      "none identified, recorded positively",
+      [],
+      "none_identified",
+      { kind: "none_identified", label: "None identified" },
+    ],
+    ["never asked", [], "not_recorded", { kind: "not_recorded", label: "Not recorded" }],
+    // An empty list is never read as "none", whatever the status says.
+    [
+      "recorded with an empty list",
+      [],
+      "recorded",
+      { kind: "not_recorded", label: "Not recorded" },
+    ],
+  ] as const)("%s", (_label, needs, status, expected) => {
+    expect(
+      communicationSummary({ communicationNeeds: [...needs], communicationNeedsStatus: status }, t),
+    ).toEqual(expected);
+  });
+
+  it("shows needs that are listed even if the status says none", () => {
+    expect(
+      communicationSummary(
+        { communicationNeeds: [largePrint], communicationNeedsStatus: "none_identified" },
+        t,
+      ).kind,
+    ).toBe("recorded");
+  });
+
+  it("says 'Not recorded' in Welsh shells too (untranslated keys fall back to English)", () => {
+    const cy = createTranslator("cy");
+    expect(
+      communicationSummary(
+        { communicationNeeds: [], communicationNeedsStatus: "not_recorded" },
+        cy,
+      ),
+    ).toEqual({ kind: "not_recorded", label: "Not recorded" });
+  });
+});
+
 describe("names", () => {
   it("prefers the preferred name and keeps the full name", () => {
     expect(personNames(ada)).toEqual({
@@ -105,13 +155,21 @@ describe("toPersonListItem", () => {
       room: "Room 4",
       locationName: "Rowan House",
       dateOfBirth: "01/02/1938",
-      communicationNeeds: ["Needs information in large print"],
+      communication: { kind: "recorded", needs: ["Needs information in large print"] },
       sortName: "Example Ada",
     });
     expect(item.allergy.label).toBe("1 allergy");
   });
   it("leaves the room empty when it is not recorded", () => {
     expect(toPersonListItem(ada, t, new Map()).room).toBeNull();
+  });
+  it("carries 'Not recorded' for someone never asked about communication needs", () => {
+    const item = toPersonListItem(
+      { ...ada, communicationNeeds: [], communicationNeedsStatus: "not_recorded" },
+      t,
+      new Map(),
+    );
+    expect(item.communication).toEqual({ kind: "not_recorded", label: "Not recorded" });
   });
 });
 

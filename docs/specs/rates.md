@@ -167,6 +167,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | access.agency.post_shift_hours | 2 | hours | 2000-01-01 | - | all | master prompt 4 (agency access expires at shift end plus 2 hours) | master-prompt |
 | break_glass.weekly_repeat_threshold | 3 | count | 2000-01-01 | - | all | Harbour default for flagging repeated break-glass use in the weekly report (master prompt 4 requires the report but sets no number); tenant default | to-verify |
 | family_involvement.interval_months | 6 | months | 2000-01-01 | - | all | Harbour default for the family involvement record (master prompt 9.2 names the record but sets no interval); tenant default | to-verify |
+| people.return_checks_due_hours | 24 | hours | 2000-01-01 | - | all | Harbour default for the checks after a return from hospital (people.md rule 10): each check is a task due this many hours after the return, escalated by the task engine when overdue; no published figure; CSO to confirm (H-85); tenant default | to-verify |
 | exit.money_and_property_return_days | 28 | days | 2000-01-01 | - | all | Harbour default matching cma.deposit_return_days (master prompt 9.2); no statutory period for returning personal money and property; tenant default | to-verify |
 | downtime_pack.valid_hours | 36 | hours | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: a nightly downtime pack is in date for 36 hours from its information's time, longer than the nightly interval so one failed night does not leave a home with only an out-of-date pack (master prompt 13.4 "nightly"); tenant default; CSO to confirm (H-101) | to-verify |
 | downtime.duplicate_match_minutes | 10 | minutes | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: entries for the same person and kind within this many minutes of each other are listed as possible duplicates at outage reconciliation (master prompt 13.4 back-entry workflow); tenant default | to-verify |
@@ -298,6 +299,11 @@ literals, and tests assert against the table, not a literal (section 7, section 
   the person wants their family or representative involved (master prompt section 9.2 names the
   record without an interval). The care plan review and the local authority review are separate
   clocks. Tenant default, confirmed by the Registered Manager (H-58).
+- `people.return_checks_due_hours` (24): when each check after a return from hospital falls due
+  (medicines against the discharge letter, allergies, resuscitation decisions, IDDSI levels, skin,
+  belongings). No published figure sets it; a day is the Harbour default so the checks are done on
+  the shift after the return, with the task engine escalating an overdue check. The CSO confirms
+  or changes it (human action H-85).
 - `comms.family_notifications.quiet_start_minute` (1260, 21:00) and `.quiet_end_minute` (480,
   08:00): family update notifications (email, SMS and push) found in this window wait until it ends
   (comms.md section 4 rule 15). They are never urgent, so nothing bypasses the window. Harbour

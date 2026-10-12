@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
   boolean,
+  check,
   date,
   foreignKey,
   index,
@@ -24,6 +25,27 @@ import { location, tenantUser } from "./platform";
  * clocks and managers; a series holds the recurrence and the worker materialises its tasks ahead
  * of time. Titles are generic ("Reposition", "Fluid round"): the person is a reference, never text.
  */
+
+/**
+ * Why the people lifecycle stopped a task or a series, as a code to match on (the wording in
+ * `status_reason` is for people): rounds paused while the person is away, tasks and series ended
+ * at a discharge or death, the exit task of an exit recorded in error or a planned exit
+ * cancelled, and rounds whose window passed before a late-recorded return or correction (kept
+ * cancelled and reviewed). A correction or return reopens exactly what was stopped with its code
+ * (people.md rule 2).
+ */
+export const TASK_STOP_CODES = [
+  "paused_while_away",
+  "ended_at_exit",
+  "exit_recorded_in_error",
+  "planned_exit_cancelled",
+  "missed_before_return_recorded",
+] as const;
+export type TaskStopCode = (typeof TASK_STOP_CODES)[number];
+/** How a return or correction brought a stopped task back (people.md rule 2). */
+export const TASK_RESTORE_CODES = ["caught_up", "answered_while_stopped"] as const;
+export type TaskRestoreCode = (typeof TASK_RESTORE_CODES)[number];
+const TASK_STOP_CODES_SQL = sql.raw(TASK_STOP_CODES.map((c) => `'${c}'`).join(", "));
 
 const personRef = (name: string, t: { tenantId: AnyPgColumn; personId: AnyPgColumn }) =>
   foreignKey({
@@ -75,6 +97,13 @@ export const taskSeries = pgTable(
     evidenceRequired: boolean("evidence_required").notNull().default(false),
     priority: text("priority").notNull().default("routine"),
     active: boolean("active").notNull().default(true),
+    /** Why the series is inactive when the people lifecycle stopped it (`TASK_STOP_CODES`). */
+    inactiveCode: text("inactive_code"),
+    /**
+     * The exit record whose discharge or death stopped the series (`ended_at_exit`), so correcting
+     * that exit restarts exactly what it stopped. An opaque reference: no foreign key across modules.
+     */
+    stoppedByExitId: uuid("stopped_by_exit_id"),
     /** Tasks exist up to this instant; the worker extends it. */
     materialisedUntil: timestamp("materialised_until", { withTimezone: true }),
     ...mutableColumns(),
@@ -85,6 +114,10 @@ export const taskSeries = pgTable(
     locationRef("task_series_location_fk", t),
     assigneeRef("task_series_assignee_fk", t),
     index("task_series_active_idx").on(t.tenantId, t.active),
+    check(
+      "task_series_inactive_code",
+      sql`inactive_code IS NULL OR (NOT active AND inactive_code IN (${TASK_STOP_CODES_SQL}))`,
+    ),
   ],
 );
 
@@ -110,10 +143,31 @@ export const task = pgTable(
     evidenceRequired: boolean("evidence_required").notNull().default(false),
     status: text("status").notNull().default("open"),
     statusReason: text("status_reason"),
+    /** Why the people lifecycle cancelled the task (`TASK_STOP_CODES`), to reopen it exactly. */
+    cancelCode: text("cancel_code"),
+    /**
+     * How a return or correction brought the task back (`TASK_RESTORE_CODES`): caught up once with a
+     * fresh window, or done because an entry answered it while it was stopped (people.md rule 2).
+     */
+    restoreCode: text("restore_code"),
+    /** The exit record that ended the task (`ended_at_exit`); see `task_series.stopped_by_exit_id`. */
+    stoppedByExitId: uuid("stopped_by_exit_id"),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     completedBy: uuid("completed_by"),
     evidenceType: text("evidence_type"),
     evidenceId: uuid("evidence_id"),
+    /**
+     * True when the evidence arrived after the task had been cancelled (an entry recorded offline
+     * before the person went to hospital, for example): linked, flagged, and the task stays
+     * cancelled (HZ-006).
+     */
+    evidenceAfterClose: boolean("evidence_after_close").notNull().default(false),
+    /**
+     * What a review task is about, as opaque references only (never clinical text): the entries,
+     * devices and users of a late entry, or the rounds missed before a return (`TaskDetails` in
+     * packages/contracts).
+     */
+    details: jsonb("details"),
     /** 0 none, 1 escalated to the nurse in charge, 2 further up the location's chain. */
     escalationLevel: integer("escalation_level").notNull().default(0),
     escalatedAt: timestamp("escalated_at", { withTimezone: true }),
@@ -136,6 +190,14 @@ export const task = pgTable(
     index("task_due_idx").on(t.tenantId, t.status, t.dueAt),
     index("task_person_idx").on(t.tenantId, t.personId, t.dueAt),
     index("task_assignee_idx").on(t.tenantId, t.assigneeTenantUserId, t.status),
+    check(
+      "task_cancel_code",
+      sql`cancel_code IS NULL OR (status = 'cancelled' AND cancel_code IN (${TASK_STOP_CODES_SQL}))`,
+    ),
+    check(
+      "task_restore_code",
+      sql`restore_code IS NULL OR restore_code IN ('caught_up', 'answered_while_stopped')`,
+    ),
   ],
 );
 

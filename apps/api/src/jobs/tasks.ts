@@ -19,8 +19,14 @@ import {
 import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import type pg from "pg";
 import type { Logger } from "../logger";
+import { generateBreakGlassReports } from "../services/break-glass-report";
 import { raiseOverdueCareReviews } from "../services/care-planning";
+import {
+  draftDeathNotifications,
+  withdrawDeathNotifications,
+} from "../services/death-notifications";
 import { raiseDolsReminders } from "../services/mca";
+import { raisePeopleReviews } from "../services/people";
 import { detectLocationOutbreaks, escalateOverdueNotifications } from "../services/safety";
 import { escalateOverdueTasks, materialiseSeries } from "../services/tasks";
 
@@ -313,6 +319,76 @@ export async function detectOutbreaks(deps: TaskDeps, now = new Date()): Promise
   );
   if (drafted > 0) deps.logger.info({ drafted }, "outbreak reports drafted");
   return drafted;
+}
+
+/**
+ * The people review scheduler (people.md rule 8): local authority reviews, family involvement and
+ * trial reviews raise one task and one alert each when due; changes in need are referred to the
+ * care plan (HZ-008).
+ */
+export async function raiseReviews(deps: TaskDeps, now = new Date()): Promise<number> {
+  const raised = await eachTenant(deps, (tx, tenantId) =>
+    raisePeopleReviews(tx, tenantId, now, (locationIds) =>
+      // Opaque ids only: which tenant and locations have no review figures for their nation.
+      deps.logger.warn(
+        { tenantId, locationIds },
+        "people reviews not scheduled: no rate-table review figures for the nation",
+      ),
+    ),
+  );
+  if (raised > 0) deps.logger.info({ raised }, "people reviews raised");
+  return raised;
+}
+
+/**
+ * The weekly break-glass report (people.md rule 14, PLAT-006): last week's report for each
+ * location, stored once, and the alert to the Registered Manager and the data protection lead.
+ */
+export async function reportBreakGlass(deps: TaskDeps, now = new Date()): Promise<number> {
+  const stored = await eachTenant(deps, (tx, tenantId) =>
+    generateBreakGlassReports(tx, tenantId, now),
+  );
+  if (stored > 0) deps.logger.info({ stored }, "weekly break-glass reports stored");
+  return stored;
+}
+
+/**
+ * Module handlers for outbox events (idempotent: at-least-once delivery). The safety module drafts
+ * the death notifications from `people.person.died` and flags them when the death is corrected.
+ */
+export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
+  const inTenant = <T>(tenantId: string, fn: (tx: Transaction) => Promise<T>) =>
+    withRequestContext(
+      deps.appDb,
+      { tenantId, userId: null, scope: "tenant", locationIds: [] },
+      fn,
+    );
+  const exitIdOf = (payload: unknown) => {
+    const value = (payload as { exitRecordId?: unknown } | null)?.exitRecordId;
+    return typeof value === "string" ? value : null;
+  };
+  return new Map<string, OutboxHandler>([
+    [
+      "people.person.died",
+      async (event) => {
+        const exitRecordId = exitIdOf(event.payload);
+        if (!exitRecordId) return;
+        await inTenant(event.tenantId, (tx) =>
+          draftDeathNotifications(tx, event.tenantId, exitRecordId, new Date()),
+        );
+      },
+    ],
+    [
+      "people.person.status_corrected",
+      async (event) => {
+        const exitRecordId = exitIdOf(event.payload);
+        if (!exitRecordId || (event.payload as { from?: unknown }).from !== "deceased") return;
+        await inTenant(event.tenantId, (tx) =>
+          withdrawDeathNotifications(tx, exitRecordId, new Date()),
+        );
+      },
+    ],
+  ]);
 }
 
 export interface DeliveryDeps extends TaskDeps {

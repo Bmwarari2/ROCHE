@@ -104,6 +104,236 @@ export function taskTimeState(
 }
 
 // ------------------------------------------------------------------------------------------------
+// Entries that answer a task, and tasks brought back after a return or a correction
+// ------------------------------------------------------------------------------------------------
+
+/**
+ * What happened to the task an entry named (care.md rule 13; HZ-004, HZ-006). `medicines_conflict`:
+ * an entry for a medicines task that it could not complete (the author may not complete it, or it
+ * was already closed), kept and flagged, with an urgent review for the nurse in charge.
+ */
+export const TASK_LINK_OUTCOMES = [
+  "completed",
+  "task_cancelled",
+  "task_already_closed",
+  "not_linked",
+  "medicines_conflict",
+] as const;
+export type TaskLinkOutcome = (typeof TASK_LINK_OUTCOMES)[number];
+
+export type TaskLinkProblem = "wrong_person";
+
+/** Who must look at the entry: nobody, the nurse in charge, or the nurse in charge now. */
+export type TaskLinkReview = "none" | "review" | "urgent";
+
+export type TaskLinkCheck =
+  | {
+      readonly ok: true;
+      readonly outcome: TaskLinkOutcome;
+      /** `review`: the round may be repeated or counted twice; `urgent`: a dose may be doubled. */
+      readonly review: TaskLinkReview;
+      /** Whether the entry completes the task (only `completed`). */
+      readonly completes: boolean;
+    }
+  | { readonly ok: false; readonly problem: TaskLinkProblem; readonly message: string };
+
+const TASK_LINK_MESSAGES: Record<TaskLinkProblem, string> = {
+  wrong_person: "That task is not for this person.",
+};
+
+/** Shown with an entry kept against a medicines task it could not complete. */
+export const MEDICINES_CONFLICT_MESSAGE =
+  "Tell the nurse in charge now. Only the person who gave a medicine records it.";
+
+export const isMedicinesTask = (kind: string) => kind.startsWith("medicines.");
+
+/**
+ * When the author's permission to complete a task with an entry is judged (HZ-004, HZ-006): when
+ * the care was recorded, so a carer acting up under a grant that ended before the device uploaded
+ * still completes the round they did, and the round is not left open, inviting a repeat. Never
+ * before the task existed, since a device can only name a task it already holds, so an entry
+ * backdated to an earlier grant cannot complete a later task; and never after the server's clock.
+ * A revoked grant never counts, whenever the care was recorded (`resolveAccess`). The CSO
+ * confirms the rule (H-138, with H-132).
+ */
+export function entryPermissionTime(occurredAt: Date, taskCreatedAt: Date, now: Date): Date {
+  const recorded = Math.max(occurredAt.getTime(), taskCreatedAt.getTime());
+  return new Date(Math.min(recorded, now.getTime()));
+}
+
+/**
+ * What an entry does to the task it names. The entry is always kept (an entry recorded offline is
+ * never lost, HZ-006), except for a task about another person (HZ-001). It completes an open task
+ * the author may complete. A task cancelled by the lifecycle with no evidence keeps the entry as
+ * late evidence and stays cancelled. Otherwise (a task already done or skipped, a cancelled task
+ * that already has evidence, or a task the author may not complete) the entry is kept unlinked and
+ * flagged for the nurse in charge, since the round may be repeated or counted twice; for a
+ * medicines task that review is urgent (`medicines_conflict`): a dose may have been given twice,
+ * and only the person who gave a medicine records it (HZ-004).
+ */
+export function checkTaskLink(
+  task: {
+    readonly personId: string | null;
+    readonly kind: string;
+    readonly status: TaskStatus;
+    /** Evidence the task already has (an earlier entry). */
+    readonly evidenceId?: string | null;
+  },
+  entry: { readonly personId: string; readonly mayComplete: boolean },
+): TaskLinkCheck {
+  if (task.personId !== entry.personId) {
+    return { ok: false, problem: "wrong_person", message: TASK_LINK_MESSAGES.wrong_person };
+  }
+  const medicines = isMedicinesTask(task.kind);
+  const kept = (outcome: "not_linked" | "task_already_closed"): TaskLinkCheck =>
+    medicines
+      ? { ok: true, outcome: "medicines_conflict", review: "urgent", completes: false }
+      : { ok: true, outcome, review: "review", completes: false };
+  if (!entry.mayComplete) return kept("not_linked");
+  if (task.status === "done" || task.status === "skipped") return kept("task_already_closed");
+  if (task.status === "cancelled") {
+    // A cancelled task answered already: a second entry may repeat the round (or the dose).
+    if (task.evidenceId) return kept("task_already_closed");
+    return { ok: true, outcome: "task_cancelled", review: "none", completes: false };
+  }
+  return { ok: true, outcome: "completed", review: "none", completes: true };
+}
+
+/** A task the people lifecycle stopped (paused while away, or ended at an exit). */
+export interface StoppedTask {
+  readonly id: string;
+  readonly seriesId: string | null;
+  /** The task kind (`medicines.*` is never caught up as overdue). */
+  readonly kind: string;
+  readonly dueAt: Date;
+  readonly windowEnd: Date | null;
+  /** An entry answered it after it was stopped (an offline upload). */
+  readonly hasEvidence: boolean;
+}
+
+export interface TaskRestorePlan {
+  /** Answered by an entry while stopped: restored as done, never due again (HZ-003, HZ-004). */
+  readonly done: readonly string[];
+  /** Still in their window: open again. */
+  readonly reopen: readonly string[];
+  /**
+   * The latest missed occurrence of each series (or a missed one-off task), when no later
+   * occurrence is done or open again: open, as a catch-up with a fresh window. Never a medicines
+   * task.
+   */
+  readonly reopenOverdue: readonly string[];
+  /** Missed occurrences not caught up: stay cancelled, coded as missed, and listed for review. */
+  readonly missed: readonly string[];
+}
+
+/**
+ * What a return or a correction does with the tasks the lifecycle stopped (people.md rules 1 and
+ * 2; HZ-003, HZ-004, HZ-008). Only tasks whose window had not closed by `since` (when the person
+ * came back, or when the exit recorded in error began) count. A task with evidence is done. One
+ * still in its window at `now` reopens. Of the rest, the latest occurrence of each series is
+ * caught up once, unless a later occurrence of the same series is done or open again (so two
+ * doses or turns never fall due minutes apart); the others stay missed. A missed medicines task is
+ * never made due again: giving a late dose is a treatment decision for the nurse in charge
+ * (medical-device boundary), so it is listed as missed.
+ */
+export function planTaskRestore(
+  tasks: readonly StoppedTask[],
+  since: Date,
+  now: Date,
+): TaskRestorePlan {
+  const end = (t: StoppedTask) => (t.windowEnd ?? t.dueAt).getTime();
+  const relevant = tasks.filter((t) => end(t) >= since.getTime());
+  const done = relevant.filter((t) => t.hasEvidence);
+  const rest = relevant.filter((t) => !t.hasEvidence);
+  const reopen = rest.filter((t) => end(t) >= now.getTime());
+  const late = rest.filter((t) => end(t) < now.getTime());
+  const key = (t: StoppedTask) => t.seriesId ?? t.id;
+  const latest = new Map<string, StoppedTask>();
+  for (const t of late) {
+    const current = latest.get(key(t));
+    if (!current || t.dueAt.getTime() > current.dueAt.getTime()) latest.set(key(t), t);
+  }
+  const handled = [...done, ...reopen];
+  const reopenOverdue = [...latest.values()]
+    .filter((t) => !isMedicinesTask(t.kind))
+    .filter((t) => !handled.some((d) => key(d) === key(t) && d.dueAt.getTime() > t.dueAt.getTime()))
+    .map((t) => t.id);
+  return {
+    done: done.map((t) => t.id),
+    reopen: reopen.map((t) => t.id),
+    reopenOverdue,
+    missed: late.filter((t) => !reopenOverdue.includes(t.id)).map((t) => t.id),
+  };
+}
+
+/**
+ * The fresh timing of a round caught up after a return or correction: due now, with a window as
+ * long as its own, so it is not overdue (or escalated) the moment it reopens (HZ-008).
+ */
+export function catchUpTiming(
+  task: {
+    readonly dueAt: Date;
+    readonly windowStart: Date | null;
+    readonly windowEnd: Date | null;
+  },
+  now: Date,
+): { readonly dueAt: Date; readonly windowStart: Date; readonly windowEnd: Date } {
+  const length = Math.max(
+    0,
+    (task.windowEnd ?? task.dueAt).getTime() - (task.windowStart ?? task.dueAt).getTime(),
+  );
+  return { dueAt: now, windowStart: now, windowEnd: new Date(now.getTime() + length) };
+}
+
+/**
+ * Where a late return or a correction starts making the rounds a stopped series would have had
+ * (people.md rules 1 and 2): 00:00 UK time on the calendar day `days` before today, so a whole
+ * day is either listed or not. Rounds that would have fallen due before it are not made, and the
+ * review says from which date rounds are not all listed (HZ-003); the CSO decides the limit (H-137).
+ */
+export function restoreLookbackStart(now: Date, days: number): Date {
+  const w = toUkWallClock(now);
+  const day = new Date(Date.UTC(w.year, w.month - 1, w.day - days));
+  return fromUkWallClock(day.getUTCFullYear(), day.getUTCMonth() + 1, day.getUTCDate(), 0, 0);
+}
+
+/** One round a missed-rounds review lists: opaque references only, never clinical text. */
+export interface MissedRound {
+  readonly taskId: string;
+  readonly kind: string;
+  /** ISO 8601 instant. */
+  readonly dueAt: string;
+  /** Reopened as a catch-up; otherwise missed. */
+  readonly reopened: boolean;
+}
+
+/**
+ * The rounds a missed-rounds review lists, from those it already lists and those just found
+ * (HZ-003, HZ-008). Medicines rounds come first and are never dropped: a missed dose is the
+ * round the nurse in charge must see. The rest follow newest first, so the latest rounds (the
+ * ones that matter now) are kept; those beyond `limit` items in all are counted in `omitted`,
+ * never silently lost. A round listed twice is listed once.
+ */
+export function listMissedRounds<T extends MissedRound>(
+  listed: readonly T[],
+  found: readonly T[],
+  limit: number,
+): { readonly items: readonly T[]; readonly omitted: number } {
+  const byTask = new Map<string, T>();
+  for (const round of [...listed, ...found]) byTask.set(round.taskId, round);
+  const newestFirst = (a: T, b: T) =>
+    Date.parse(b.dueAt) - Date.parse(a.dueAt) || a.taskId.localeCompare(b.taskId);
+  const all = [...byTask.values()];
+  const medicines = all.filter((r) => isMedicinesTask(r.kind)).sort(newestFirst);
+  const others = all.filter((r) => !isMedicinesTask(r.kind)).sort(newestFirst);
+  const room = Math.max(0, limit - medicines.length);
+  return {
+    items: [...medicines, ...others.slice(0, room)],
+    omitted: Math.max(0, others.length - room),
+  };
+}
+
+// ------------------------------------------------------------------------------------------------
 // Recurrence
 // ------------------------------------------------------------------------------------------------
 
@@ -296,4 +526,17 @@ export function occurrences(series: RecurrenceSeries, from: Date, to: Date): Dat
     for (const t of times) push(fromUkWallClock(d.year, d.month, d.day, t.hour, t.minute));
   }
   return out;
+}
+
+/**
+ * Whether a series falls due at least once in [from, to), however long the window: it is looked
+ * at a week at a time from the end, so a long window never exceeds `MAX_OCCURRENCES`.
+ */
+export function hasOccurrence(series: RecurrenceSeries, from: Date, to: Date): boolean {
+  const week = 7 * 24 * 3_600_000;
+  for (let end = to.getTime(); end > from.getTime(); end -= week) {
+    const start = Math.max(from.getTime(), end - week);
+    if (occurrences(series, new Date(start), new Date(end)).length > 0) return true;
+  }
+  return false;
 }

@@ -17,8 +17,8 @@ const words = (html: string) => {
   return text.split(" ").filter(Boolean).join(" ");
 };
 
-const render = (entry: { lateEntry: boolean; clockDrift: boolean; recordedAt: string }) =>
-  renderToStaticMarkup(createElement(EntryBadges, { entry }));
+type Entry = Parameters<typeof EntryBadges>[0]["entry"];
+const render = (entry: Entry) => renderToStaticMarkup(createElement(EntryBadges, { entry }));
 
 describe("EntryBadges", () => {
   it("hazard HZ-017 says an entry was written late, with when it was recorded, in words and an icon", () => {
@@ -41,5 +41,20 @@ describe("EntryBadges", () => {
     expect(
       render({ lateEntry: false, clockDrift: false, recordedAt: "2026-10-11T13:05:00Z" }),
     ).toBe("");
+  });
+
+  it("hazards HZ-004 and HZ-006 show what an exit or a closed round did to the entry, beside the other flags", () => {
+    const text = words(
+      render({
+        lateEntry: true,
+        clockDrift: false,
+        recordedAt: "2026-10-11T13:05:00.000Z",
+        recordedAfterExit: true,
+        taskOutcome: "not_linked",
+      }),
+    );
+    expect(text).toBe(
+      "Late entry Recorded 11/10/2026 14:05 Recorded after the person left Not linked to its round: for review",
+    );
   });
 });

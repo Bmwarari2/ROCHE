@@ -41,12 +41,17 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
 - MFA: required for every permission that touches care records (`mfa_enrolment_required` otherwise).
 - Step-up: controlled drugs, residents' money approval, data export, break-glass, statutory
   notifications and support-access approval need a sign-in within 10 minutes.
-- Break-glass: `POST /v1/people/break-glass` with a justification of at least 20 characters; access
-  lapses after 60 minutes; the Registered Manager for the location and quality leads are notified;
-  the reason is audited. Weekly break-glass report: the aggregation by user, person and reason
-  with repeated-use flags is `breakGlassWeeklyReport` (`packages/domain/src/people/break-glass-report.ts`,
-  [people.md](people.md) rule 14); the Monday job, the stored report and the screen come with the
-  people API step.
+- Break-glass: `POST /v1/people/break-glass` with a justification of at least 20 characters and an
+  optional `reasonCode`; access lapses after 60 minutes; the Registered Manager for the location and
+  quality leads are notified; the reason is audited. Weekly break-glass report: the aggregation by
+  user, person and reason with repeated-use flags is `breakGlassWeeklyReport`
+  (`packages/domain/src/people/break-glass-report.ts`, [people.md](people.md) rule 14). Built in
+  slice 8: a daily worker job stores the report for the UK week before once per location
+  (`break_glass_weekly_report`, counts and opaque ids only; a missed Monday catches up) and alerts
+  the location's Registered Manager and the data protection lead (holders of the quality lead role
+  until the DPO confirms, H-80) with a generic title; `GET /v1/break-glass/weekly-report?week=`
+  (`platform.audit.read`, the locations in the reader's access) and `POST
+  .../weekly-report/{reportId}/review` (the actions taken, once). The screen comes with the web work.
 - Devices: `GET /v1/me/sessions` lists where the person is signed in (this device marked);
   `POST /v1/me/sessions/{id}/revoke` and `POST /v1/me/sessions/revoke-others` sign devices out.
   Identity-level, so no organisation header. Session tokens reach only the mobile app (`Origin:
@@ -102,9 +107,17 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   elapsed time (`packages/domain/src/platform/tasks.ts`). The worker materialises the next 48 hours
   every 15 minutes, idempotently; a worker outage never backfills more than an hour.
 - Rules: skip and cancel need a reason; tasks that ask for evidence cannot be completed without it;
-  finished tasks never change; two devices cannot overwrite each other (version check). The
-  assignee, or anyone holding the permission the task names, completes it; managers with
-  `platform.task.manage` create, assign and schedule.
+  finished tasks never change; two devices cannot overwrite each other (version check). Anyone
+  holding the permission the task names completes it, and so does its assignee while they could
+  still be given it; managers with `platform.task.manage` create, assign and schedule. Because the
+  assignee may complete it, a task that names a permission other than `platform.task.manage` (a
+  clinical check, a medicines round) is given, on creation, on scheduling or by assignment, only
+  to someone who holds that permission at the task's location, the person assigning included; and
+  once that grant or role has ended the assignee may no longer complete it (by the task route, an
+  entry or a return check). For an entry, the permission is judged when the care was recorded, so
+  a grant that ended before the device uploaded still counts and a revoked one never does (H-138). An investigation action is the exception: its owner completes it
+  without the permission; so is a Care mode sync task the escalation gives to a Registered Manager
+  elsewhere when no one at its location can act (H-142). Every refusal is audited (HZ-004, HZ-005).
 - Overdue: once a task's window closes it is overdue; after `task.overdue_escalation_minutes` (rate
   table) the worker notifies the assignee and the clinical leads and team leaders at the location
   (the Registered Manager when there are none), once (HZ-008).

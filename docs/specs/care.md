@@ -196,7 +196,28 @@ applies). Figures come from `rate_table` by key.
     judgment and still in force are listed for review, soonest ending first. Further DHSC guidance
     is expected; a legal review of this content is H-62.
 12. **Deceased or discharged people** are read-only except for post-event records (after-death care,
-    property return, medical examiner pack).
+    property return, medical examiner pack). Care events that happened at or before the discharge,
+    death or move to hospital are still accepted when they upload, flagged as recorded after it
+    ([people.md](people.md#4-rules-that-are-easy-to-get-wrong) rule 3, HZ-006).
+13. **An entry and the task it names** (`checkTaskLink`, HZ-004, HZ-006). An entry stores the task
+    it named and what it did to it (`task_outcome`). The task row is locked while the entry is
+    planned and written, so of two entries sent at once only one completes it, and a replayed
+    upload returns the stored entry before anything is planned again. An open or in-progress task
+    for the same person, whatever its window, is completed by an author who may complete it
+    (a holder of its permission, or its assignee while they could still be given it), judged when
+    the care was recorded: a grant that ended before the upload still counts, a revoked one never
+    does, and never earlier than the task was made (`entryPermissionTime`, H-138) (`completed`). A cancelled task with no evidence,
+    whether the people lifecycle or a manager cancelled it, keeps the entry as late evidence,
+    flagged, and stays cancelled (`task_cancelled`; a return or correction that brings back what
+    the lifecycle stopped later restores it as done). A task already done or skipped, or a
+    cancelled task an earlier entry already answered (`task_already_closed`), or one the author
+    may not complete (`not_linked`), is left alone; the entry is kept, flagged, and listed on one
+    review task for the nurse in charge (`care.entry_review`). For a `medicines.*` task in any of
+    those cases the entry is kept as `medicines_conflict`, never completing the task, with an
+    urgent conflict review (`care.entry_conflict_review`), and the user is told "Tell the nurse in
+    charge now. Only the person who gave a medicine records it.", so a dose is never given twice
+    on the strength of the record (H-132); a task for another person is refused (HZ-001). Every
+    entry view shows the outcome as an icon and words.
 
 ### Domain modules for consent, capacity and DoLS (slice 6)
 
@@ -218,11 +239,13 @@ levels), `GET /v1/people/{id}/charts/fluid?date=`, `POST` and `GET /v1/people/{i
 the 02:00 turn), which completes that task with the entry as evidence. A NEWS2 response band alerts
 the nurse in charge and creates the response and repeat-observation tasks; a score of 0 schedules
 nothing outside the care plan (HZ-008). Body marks that prompt an incident or the safeguarding guide
-create those tasks for the manager. Charts and marks are refused for discharged, deceased and
-archived people; post-event notes are allowed. Slice 4a refuses them whatever the event time; the
-people lifecycle step changes this to [people.md](people.md#4-rules-that-are-easy-to-get-wrong)
-rule 3: an entry for an event at or before the exit (for example observations a phone recorded
-offline before a death) is accepted and flagged as recorded after the exit (HZ-006).
+create those tasks for the manager. Charts and marks follow
+[people.md](people.md#4-rules-that-are-easy-to-get-wrong) rule 3 (built in slice 8; slice 4a
+refused them whatever the event time): for a person who has left, died or gone to hospital or on
+leave, an entry for an event at or before that change (for example observations a phone recorded
+offline before a death) is accepted and returned with `recordedAfterExit: true` (HZ-006); a later
+event is refused, except post-event notes after a discharge or death. Archived and not-admitted
+records take nothing.
 
 Built in slice 4b: `GET` and `POST /v1/people/{id}/care-plans` (a draft, usually copied from the
 active plan; one draft and one active plan per person), `GET /v1/people/{id}/care-plans/{planId}`,
@@ -253,7 +276,8 @@ record ReSPECT, DNACPR, ADRT and advance care plans (a new record supersedes the
 kind; withdrawal needs a reason), and the person summary carries the resuscitation status in force,
 or `not_recorded` (HZ-015). `GET /v1/people/{id}/care-history/{table}/{recordId}` shows earlier
 versions of the mutable records. Every write for a discharged, deceased or archived person is
-refused. Outbox events `care.plan.published` and `care.assessment.completed` are written.
+refused, except activities, visits and assessments about an event at or before the exit, which
+follow rule 3 as the charts do (slice 8). Outbox events `care.plan.published` and `care.assessment.completed` are written.
 
 Built in slice 6 (`apps/api/src/routes/mca.ts`, `apps/api/src/services/mca.ts`; tables in
 migrations 0018 and 0019): `GET` and `POST /v1/people/{id}/consents` and `POST
