@@ -1,5 +1,5 @@
 {
-  "id": "45580344-3f19-471c-b813-c83859ad5898",
+  "id": "848c237b-e58c-4cd6-8082-b9b88fff0c69",
   "prevId": "78ef4aef-1280-4537-8c7e-3d9ced49c43d",
   "version": "7",
   "dialect": "postgresql",
@@ -2931,13 +2931,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "items": {
-          "name": "items",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
         "compiled_at": {
           "name": "compiled_at",
           "type": "timestamp with time zone",
@@ -3070,10 +3063,6 @@
           "name": "handover_shift",
           "value": "shift_end > shift_start"
         },
-        "handover_items_array": {
-          "name": "handover_items_array",
-          "value": "jsonb_typeof(items) = 'array'"
-        },
         "handover_refreshed": {
           "name": "handover_refreshed",
           "value": "refreshed_at >= compiled_at"
@@ -3112,9 +3101,9 @@
           "notNull": true,
           "default": "app.current_user_id()"
         },
-        "items_seen": {
-          "name": "items_seen",
-          "type": "integer",
+        "item_keys": {
+          "name": "item_keys",
+          "type": "text[]",
           "primaryKey": false,
           "notNull": true
         },
@@ -3210,10 +3199,169 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.handover_item": {
+      "name": "handover_item",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "handover_id": {
+          "name": "handover_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "person_id": {
+          "name": "person_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_type": {
+          "name": "source_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "at": {
+          "name": "at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "late_addition": {
+          "name": "late_addition",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "added_at": {
+          "name": "added_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "handover_item_handover_fk": {
+          "name": "handover_item_handover_fk",
+          "tableFrom": "handover_item",
+          "tableTo": "handover",
+          "columnsFrom": [
+            "tenant_id",
+            "handover_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "handover_item_person_fk": {
+          "name": "handover_item_person_fk",
+          "tableFrom": "handover_item",
+          "tableTo": "person",
+          "columnsFrom": [
+            "tenant_id",
+            "person_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "handover_item_key": {
+          "name": "handover_item_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "handover_id",
+            "key"
+          ]
+        },
+        "handover_item_position_key": {
+          "name": "handover_item_position_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "handover_id",
+            "position"
+          ]
+        }
+      },
+      "policies": {},
       "checkConstraints": {
-        "handover_acknowledgement_items_seen": {
-          "name": "handover_acknowledgement_items_seen",
-          "value": "items_seen >= 0"
+        "handover_item_position": {
+          "name": "handover_item_position",
+          "value": "position >= 0"
+        },
+        "handover_item_kind": {
+          "name": "handover_item_kind",
+          "value": "kind IN ('fall', 'news2', 'incident', 'alert', 'body_map_mark', 'flagged_note', 'overdue_task', 'skipped_task', 'unfinished_task', 'must_follow_up', 'refusal')"
+        },
+        "handover_item_source_type": {
+          "name": "handover_item_source_type",
+          "value": "source_type IN ('task', 'observation', 'incident', 'body_map_mark', 'care_note', 'notification')"
         }
       },
       "isRLSEnabled": false
@@ -3322,6 +3470,23 @@
           "columnsTo": [
             "tenant_id",
             "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "handover_note_item_fk": {
+          "name": "handover_note_item_fk",
+          "tableFrom": "handover_note",
+          "tableTo": "handover_item",
+          "columnsFrom": [
+            "tenant_id",
+            "handover_id",
+            "item_key"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "handover_id",
+            "key"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
@@ -14258,6 +14423,21 @@
           "columnsFrom": [
             "tenant_id",
             "location_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "notification_person_fk": {
+          "name": "notification_person_fk",
+          "tableFrom": "notification",
+          "tableTo": "person",
+          "columnsFrom": [
+            "tenant_id",
+            "person_id"
           ],
           "columnsTo": [
             "tenant_id",

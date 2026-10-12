@@ -7,9 +7,10 @@ import { ctx, ids, inContext, seedTwoTenants, TENANT_A, TENANT_B } from "./suppo
 
 /**
  * The shift handover (care.md rule 8, COMMS-006; slice 5) in the database: handovers follow the
- * location and the people on their items (HZ-011), items can only be added to (HZ-018), notes and
+ * location, and each item, and each note on an item, follows its person (HZ-011); only the
+ * system's view writes a handover or its items, and items can only be added to (HZ-018); notes and
  * acknowledgements are append-only and nobody acknowledges for someone else; one live task series
- * per care plan action (care.md rule 14); alerts name their location (HZ-018).
+ * per care plan action (care.md rule 14); alerts name their location and person (HZ-018).
  */
 
 let db: TestDatabase;
@@ -18,59 +19,76 @@ const a = ids.a;
 const HANDOVER_NORTH = "0193a000-0000-7000-8000-00000000d001";
 const HANDOVER_SOUTH = "0193a000-0000-7000-8000-00000000d002";
 const HANDOVER_B = "0193b000-0000-7000-8000-00000000d001";
+const SOURCE = {
+  ada: "0193a000-0000-7000-8000-00000000f001",
+  ben: "0193a000-0000-7000-8000-00000000f002",
+  cara: "0193a000-0000-7000-8000-00000000f003",
+  lift: "0193a000-0000-7000-8000-00000000f004",
+};
 
-const item = (key: string, personId: string | null) => ({
-  key,
-  kind: "fall",
-  personId,
-  sourceType: "incident",
-  sourceId: key,
-  at: "2026-10-11T09:00:00.000Z",
-  lateAddition: false,
-  addedAt: "2026-10-11T18:30:00.000Z",
-});
-const NORTH_ITEMS = [item("fall:ada", a.personAda), item("fall:ben", a.personBen)];
+const insertItem = (
+  c: pg.PoolClient,
+  handoverId: string,
+  key: string,
+  position: number,
+  personId: string | null,
+  sourceId: string,
+) =>
+  c.query(
+    `INSERT INTO handover_item (handover_id, key, position, kind, person_id, source_type, source_id,
+       at, late_addition, added_at)
+     VALUES ($1, $2, $3, 'fall', $4, 'incident', $5, '2026-10-11T09:00:00Z', $3 > 2, now())`,
+    [handoverId, key, position, personId, sourceId],
+  );
 
 const asOwner = <T>(tenantId: string, fn: (c: pg.PoolClient) => Promise<T>) =>
   inContext(db.pool("harbour_owner"), ctx(tenantId, null, "tenant"), fn);
 const app = () => db.pool("harbour_app");
 const asManager = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
   inContext(app(), ctx(TENANT_A, a.manager, "tenant"), fn);
+/** The care worker is assigned to Ada only. */
 const asCarer = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
   inContext(app(), ctx(TENANT_A, a.carer, "assigned"), fn);
+const asNorthManager = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
+  inContext(app(), ctx(TENANT_A, a.northManager, "locations", [a.locationNorth]), fn);
 
 beforeAll(async () => {
   db = await createTestDatabase();
   await seedTwoTenants(db.pool("harbour_owner"));
-  await asOwner(TENANT_A, async (c) => {
-    for (const [id, locationId, items] of [
-      [HANDOVER_NORTH, a.locationNorth, NORTH_ITEMS],
-      [HANDOVER_SOUTH, a.locationSouth, [item("fall:cara", a.personCara)]],
+  // The system's view compiles: tenant scope.
+  await asManager(async (c) => {
+    for (const [id, locationId] of [
+      [HANDOVER_NORTH, a.locationNorth],
+      [HANDOVER_SOUTH, a.locationSouth],
     ] as const) {
       await c.query(
-        `INSERT INTO handover (id, location_id, shift_name, shift_start, shift_end, items, compiled_at, refreshed_at)
-         VALUES ($1, $2, 'day', '2026-10-11T07:00:00Z', '2026-10-11T19:00:00Z', $3, now(), now())`,
-        [id, locationId, JSON.stringify(items)],
+        `INSERT INTO handover (id, location_id, shift_name, shift_start, shift_end, compiled_at, refreshed_at)
+         VALUES ($1, $2, 'day', '2026-10-11T07:00:00Z', '2026-10-11T19:00:00Z', now(), now())`,
+        [id, locationId],
       );
     }
+    await insertItem(c, HANDOVER_NORTH, "fall:ada", 0, a.personAda, SOURCE.ada);
+    await insertItem(c, HANDOVER_NORTH, "fall:ben", 1, a.personBen, SOURCE.ben);
+    await insertItem(c, HANDOVER_NORTH, "incident:lift", 2, null, SOURCE.lift);
+    await insertItem(c, HANDOVER_SOUTH, "fall:cara", 0, a.personCara, SOURCE.cara);
+    // The person comes from the item, whatever the writer sends.
     await c.query(
       `INSERT INTO handover_note (handover_id, item_key, person_id, body) VALUES
-         ($1, NULL, NULL, 'Lift out of order on the first floor.'),
-         ($1, 'fall:ada', $2, 'GP called back.'),
-         ($1, 'fall:ben', $3, 'Hip x-ray booked.')`,
-      [HANDOVER_NORTH, a.personAda, a.personBen],
+         ($1, NULL, $2, 'Lift out of order on the first floor.'),
+         ($1, 'fall:ada', NULL, 'GP called back.'),
+         ($1, 'fall:ben', $2, 'Hip x-ray booked.')`,
+      [HANDOVER_NORTH, a.personAda],
     );
-  });
-  // Only the person acknowledging can record it, so the manager does.
-  await asManager((c) =>
-    c.query("INSERT INTO handover_acknowledgement (handover_id, items_seen) VALUES ($1, 2)", [
+    // Only the person acknowledging can record it, so the manager does.
+    await c.query("INSERT INTO handover_acknowledgement (handover_id, item_keys) VALUES ($1, $2)", [
       HANDOVER_NORTH,
-    ]),
-  );
+      ["fall:ada", "fall:ben", "incident:lift"],
+    ]);
+  });
   await asOwner(TENANT_B, (c) =>
     c.query(
-      `INSERT INTO handover (id, location_id, shift_name, shift_start, shift_end, items, compiled_at, refreshed_at)
-       VALUES ($1, $2, 'day', '2026-10-11T07:00:00Z', '2026-10-11T19:00:00Z', '[]', now(), now())`,
+      `INSERT INTO handover (id, location_id, shift_name, shift_start, shift_end, compiled_at, refreshed_at)
+       VALUES ($1, $2, 'day', '2026-10-11T07:00:00Z', '2026-10-11T19:00:00Z', now(), now())`,
       [HANDOVER_B, ids.b.location],
     ),
   );
@@ -83,41 +101,50 @@ afterAll(async () => {
 async function visible(context: ReturnType<typeof ctx>) {
   return inContext(app(), context, async (c) => {
     const handovers = await c.query<{ id: string }>("SELECT id FROM handover ORDER BY id");
+    const items = await c.query<{ key: string }>("SELECT key FROM handover_item ORDER BY key");
     const notes = await c.query<{ body: string }>("SELECT body FROM handover_note ORDER BY body");
     const acks = await c.query<{ id: string }>("SELECT id FROM handover_acknowledgement");
     return {
       handovers: handovers.rows.map((r) => r.id),
+      items: items.rows.map((r) => r.key),
       notes: notes.rows.map((r) => r.body),
       acknowledgements: acks.rows.length,
     };
   });
 }
 
-describe("hazard HZ-011 handovers follow the location and the people on their items", () => {
-  it("shows tenant-wide roles every handover of their organisation", async () => {
+describe("hazard HZ-011 handovers follow the location, and their items the people on them", () => {
+  it("shows tenant-wide roles every handover of their organisation, whole", async () => {
     expect(await visible(ctx(TENANT_A, a.manager, "tenant"))).toEqual({
       handovers: [HANDOVER_NORTH, HANDOVER_SOUTH],
+      items: ["fall:ada", "fall:ben", "fall:cara", "incident:lift"],
       notes: ["GP called back.", "Hip x-ray booked.", "Lift out of order on the first floor."],
       acknowledgements: 1,
     });
   });
 
-  it("shows a location manager their location's handover only", async () => {
-    const seen = await visible(ctx(TENANT_A, a.northManager, "locations", [a.locationNorth]));
-    expect(seen.handovers).toEqual([HANDOVER_NORTH]);
+  it("shows a location manager their location's handover whole, with its acknowledgements", async () => {
+    expect(await visible(ctx(TENANT_A, a.northManager, "locations", [a.locationNorth]))).toEqual({
+      handovers: [HANDOVER_NORTH],
+      items: ["fall:ada", "fall:ben", "incident:lift"],
+      notes: ["GP called back.", "Hip x-ray booked.", "Lift out of order on the first floor."],
+      acknowledgements: 1,
+    });
   });
 
-  it("shows a care worker the handover where their person lives, and only notes about them", async () => {
+  it("shows a care worker only the items and notes about their own people, and nobody else's acknowledgement", async () => {
     expect(await visible(ctx(TENANT_A, a.carer, "assigned"))).toEqual({
       handovers: [HANDOVER_NORTH],
+      items: ["fall:ada", "incident:lift"],
       notes: ["GP called back.", "Lift out of order on the first floor."],
-      acknowledgements: 1,
+      acknowledgements: 0,
     });
   });
 
   it("shows another organisation nothing, and a role with no person scope nothing", async () => {
     expect(await visible(ctx(TENANT_B, ids.b.manager, "tenant"))).toEqual({
       handovers: [HANDOVER_B],
+      items: [],
       notes: [],
       acknowledgements: 0,
     });
@@ -136,36 +163,103 @@ describe("hazard HZ-011 handovers follow the location and the people on their it
     ).rejects.toThrow(/handover_location_fk/);
   });
 
-  it("refuses a note about a person outside the writer's scope", async () => {
+  it("takes a note's person from its item, whatever the writer sent", async () => {
+    const rows = await asManager((c) =>
+      c.query<{ body: string; person_id: string | null }>(
+        "SELECT body, person_id FROM handover_note ORDER BY body",
+      ),
+    );
+    expect(rows.rows.map((r) => [r.body, r.person_id])).toEqual([
+      ["GP called back.", a.personAda],
+      ["Hip x-ray booked.", a.personBen],
+      ["Lift out of order on the first floor.", null],
+    ]);
+  });
+
+  it("refuses a note on an item about a person outside the writer's scope", async () => {
     await expect(
       asCarer((c) =>
         c.query(
           "INSERT INTO handover_note (handover_id, item_key, person_id, body) VALUES ($1, 'fall:ben', $2, 'Seen.')",
-          [HANDOVER_NORTH, a.personBen],
+          [HANDOVER_NORTH, a.personAda],
         ),
       ),
-    ).rejects.toThrow(/row-level security/);
+    ).rejects.toThrow(/an item of its handover that its writer can see/);
+  });
+
+  it("refuses a note on an item another handover holds", async () => {
+    await expect(
+      asManager((c) =>
+        c.query(
+          "INSERT INTO handover_note (handover_id, item_key, body) VALUES ($1, 'fall:cara', 'Seen.')",
+          [HANDOVER_NORTH],
+        ),
+      ),
+    ).rejects.toThrow(/an item of its handover that its writer can see/);
+  });
+});
+
+describe("hazard HZ-018 only the system's view writes a handover or its items", () => {
+  it("refuses a care worker or a location manager compiling a handover or adding an item", async () => {
+    for (const as of [asCarer, asNorthManager]) {
+      await expect(
+        as((c) =>
+          c.query(
+            `INSERT INTO handover (location_id, shift_name, shift_start, shift_end, compiled_at, refreshed_at)
+             VALUES ($1, 'night', '2026-10-11T19:00:00Z', '2026-10-12T07:00:00Z', now(), now())`,
+            [a.locationNorth],
+          ),
+        ),
+      ).rejects.toThrow(/row-level security/);
+      await expect(
+        as((c) => insertItem(c, HANDOVER_NORTH, "fall:extra", 9, a.personAda, SOURCE.ada)),
+      ).rejects.toThrow(/row-level security/);
+    }
+  });
+
+  it("lets a care worker neither lock, refresh nor soft-delete a handover", async () => {
+    for (const statement of [
+      "UPDATE handover SET locked_at = now() WHERE id = $1",
+      "UPDATE handover SET refreshed_at = now() WHERE id = $1",
+      "UPDATE handover SET deleted_at = now() WHERE id = $1",
+    ]) {
+      const result = await asCarer((c) => c.query(statement, [HANDOVER_NORTH]));
+      expect(result.rowCount).toBe(0);
+    }
+    const row = await asManager((c) =>
+      c.query<{ locked_at: Date | null; deleted_at: Date | null; version: number }>(
+        "SELECT locked_at, deleted_at, version FROM handover WHERE id = $1",
+        [HANDOVER_NORTH],
+      ),
+    );
+    expect(row.rows[0]).toMatchObject({ locked_at: null, deleted_at: null, version: 1 });
+  });
+
+  it("refuses even the system's view soft-deleting a handover", async () => {
+    await expect(
+      asManager((c) =>
+        c.query("UPDATE handover SET deleted_at = now() WHERE id = $1", [HANDOVER_SOUTH]),
+      ),
+    ).rejects.toThrow(/never deleted/);
   });
 });
 
 describe("hazard HZ-018 acknowledgements are each person's own and append-only", () => {
   it("lets a care worker acknowledge for themselves, never for someone else", async () => {
     await asCarer((c) =>
-      c.query("INSERT INTO handover_acknowledgement (handover_id, items_seen) VALUES ($1, 2)", [
+      c.query("INSERT INTO handover_acknowledgement (handover_id, item_keys) VALUES ($1, $2)", [
         HANDOVER_NORTH,
+        ["fall:ada", "incident:lift"],
       ]),
     );
     const mine = await asCarer((c) =>
-      c.query<{ tenant_user_id: string }>(
-        "SELECT tenant_user_id FROM handover_acknowledgement WHERE tenant_user_id = $1",
-        [a.carer],
-      ),
+      c.query<{ tenant_user_id: string }>("SELECT tenant_user_id FROM handover_acknowledgement"),
     );
-    expect(mine.rows).toHaveLength(1);
+    expect(mine.rows.map((r) => r.tenant_user_id)).toEqual([a.carer]);
     await expect(
       asCarer((c) =>
         c.query(
-          "INSERT INTO handover_acknowledgement (handover_id, tenant_user_id, items_seen) VALUES ($1, $2, 2)",
+          "INSERT INTO handover_acknowledgement (handover_id, tenant_user_id, item_keys) VALUES ($1, $2, '{}')",
           [HANDOVER_NORTH, a.manager],
         ),
       ),
@@ -175,7 +269,7 @@ describe("hazard HZ-018 acknowledgements are each person's own and append-only",
   it("refuses an acknowledgement of a handover the person cannot see", async () => {
     await expect(
       asCarer((c) =>
-        c.query("INSERT INTO handover_acknowledgement (handover_id, items_seen) VALUES ($1, 1)", [
+        c.query("INSERT INTO handover_acknowledgement (handover_id, item_keys) VALUES ($1, '{}')", [
           HANDOVER_SOUTH,
         ]),
       ),
@@ -183,74 +277,73 @@ describe("hazard HZ-018 acknowledgements are each person's own and append-only",
   });
 
   it.each([
+    ["update an item", "UPDATE handover_item SET kind = 'incident'"],
+    ["delete an item", "DELETE FROM handover_item"],
     ["update a note", "UPDATE handover_note SET body = 'changed'"],
     ["delete a note", "DELETE FROM handover_note"],
-    ["update an acknowledgement", "UPDATE handover_acknowledgement SET items_seen = 0"],
+    ["update an acknowledgement", "UPDATE handover_acknowledgement SET item_keys = '{}'"],
     ["delete an acknowledgement", "DELETE FROM handover_acknowledgement"],
     ["delete a handover", "DELETE FROM handover"],
   ])("refuses to %s", async (_label, statement) => {
     await expect(asManager((c) => c.query(statement))).rejects.toThrow(/permission denied/);
   });
 
-  it("blocks even the owner role with the append-only trigger", async () => {
-    await expect(
-      asOwner(TENANT_A, (c) => c.query("UPDATE handover_note SET body = 'changed'")),
-    ).rejects.toThrow(/append-only/);
-  });
+  it.each([
+    ["an item", "UPDATE handover_item SET kind = 'incident'"],
+    ["a note", "UPDATE handover_note SET body = 'changed'"],
+  ])(
+    "blocks even the owner role from changing %s with the append-only trigger",
+    async (_l, sql) => {
+      await expect(asOwner(TENANT_A, (c) => c.query(sql))).rejects.toThrow(/append-only/);
+    },
+  );
 });
 
-describe("hazard HZ-018 a handover's items can only be added to", () => {
+describe("hazard HZ-018 a handover can only be added to", () => {
   const update = (statement: string, params: unknown[] = []) =>
     asManager((c) => c.query(statement, [HANDOVER_NORTH, ...params]));
 
   it.each([
-    ["dropping an item", "UPDATE handover SET items = items - 1 WHERE id = $1"],
-    ["emptying the list", "UPDATE handover SET items = '[]' WHERE id = $1"],
-    [
-      "changing an item",
-      `UPDATE handover SET items = jsonb_set(items, '{0,kind}', '"incident"') WHERE id = $1`,
-    ],
-    [
-      "reordering the items",
-      "UPDATE handover SET items = jsonb_build_array(items -> 1, items -> 0) WHERE id = $1",
-    ],
     [
       "moving the shift",
       "UPDATE handover SET shift_end = shift_end + interval '1 hour' WHERE id = $1",
     ],
+    ["changing the first compilation", "UPDATE handover SET compiled_at = now() WHERE id = $1"],
   ])("refuses %s", async (_label, statement) => {
-    await expect(update(statement)).rejects.toThrow(
-      /cannot be removed or changed|keeps its location, shift/,
-    );
+    await expect(update(statement)).rejects.toThrow(/keeps its organisation, location, shift/);
+  });
+
+  it("refuses an item twice, or two items in one place", async () => {
+    await expect(
+      asManager((c) => insertItem(c, HANDOVER_NORTH, "fall:ada", 7, a.personAda, SOURCE.ada)),
+    ).rejects.toThrow(/handover_item_key/);
+    await expect(
+      asManager((c) => insertItem(c, HANDOVER_NORTH, "fall:new", 0, a.personAda, SOURCE.ada)),
+    ).rejects.toThrow(/handover_item_position_key/);
   });
 
   it("appends a late addition, locks, versions each change and never unlocks", async () => {
-    const late = { ...item("news2:cara", a.personAda), lateAddition: true };
-    await update(
-      "UPDATE handover SET items = items || $2::jsonb, refreshed_at = now() WHERE id = $1",
-      [JSON.stringify([late])],
-    );
+    await asManager((c) => insertItem(c, HANDOVER_NORTH, "news2:ada", 3, a.personAda, SOURCE.ada));
+    await update("UPDATE handover SET refreshed_at = now() + interval '1 minute' WHERE id = $1");
     await update("UPDATE handover SET locked_at = now() WHERE id = $1");
     const row = await asManager((c) =>
       c.query<{ n: number; version: number; history: number }>(
-        `SELECT jsonb_array_length(items) AS n, version,
+        `SELECT (SELECT count(*)::int FROM handover_item WHERE handover_id = $1) AS n, version,
            (SELECT count(*)::int FROM record_version WHERE table_name = 'handover' AND record_id = $1) AS history
          FROM handover WHERE id = $1`,
         [HANDOVER_NORTH],
       ),
     );
-    expect(row.rows[0]).toEqual({ n: 3, version: 3, history: 2 });
+    expect(row.rows[0]).toEqual({ n: 4, version: 3, history: 2 });
     await expect(update("UPDATE handover SET locked_at = NULL WHERE id = $1")).rejects.toThrow(
       /stays locked/,
     );
     // Late additions still reach a locked handover.
-    await update("UPDATE handover SET items = items || $2::jsonb WHERE id = $1", [
-      JSON.stringify([{ ...late, key: "alert:x" }]),
-    ]);
+    await asManager((c) => insertItem(c, HANDOVER_NORTH, "alert:ada", 4, a.personAda, SOURCE.ada));
   });
 });
 
-describe("rule 14: one live task series per care plan action", () => {
+describe("hazard HZ-024 rule 14: one live task series per care plan action", () => {
   const ACTION = "0193a000-0000-7000-8000-00000000e001";
   const insertSeries = (c: pg.PoolClient) =>
     c.query<{ id: string }>(
@@ -286,6 +379,18 @@ describe("rule 14: one live task series per care plan action", () => {
 });
 
 describe("hazard HZ-018 alerts name the location and person they concern", () => {
+  it("refuses an alert about another organisation's person", async () => {
+    await expect(
+      asOwner(TENANT_A, (c) =>
+        c.query(
+          `INSERT INTO notification (recipient_tenant_user_id, kind, severity, title, person_id)
+           VALUES ($1, 'care.urgent_result', 'urgent', 'An observation needs a response now', $2)`,
+          [a.manager, ids.b.personDev],
+        ),
+      ),
+    ).rejects.toThrow(/notification_person_fk/);
+  });
+
   it("refuses an alert at another organisation's location", async () => {
     await expect(
       asOwner(TENANT_A, (c) =>

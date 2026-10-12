@@ -30,6 +30,9 @@ import {
   tenantUserStatus,
   terminology,
 } from "./enums";
+// A cycle (people.ts reads tenant, location and user from here); the reference below is read only
+// when the table's constraints are built, after both modules have loaded.
+import { person } from "./people";
 
 /**
  * Platform core (`platform` bounded context, master prompt section 9.1).
@@ -386,6 +389,11 @@ export const notification = pgTable(
       name: "notification_location_fk",
       columns: [t.tenantId, t.locationId],
       foreignColumns: [location.tenantId, location.id],
+    }),
+    foreignKey({
+      name: "notification_person_fk",
+      columns: [t.tenantId, t.personId],
+      foreignColumns: [person.tenantId, person.id],
     }),
     unique("notification_dedupe_key").on(t.tenantId, t.recipientTenantUserId, t.dedupeKey),
     // The urgent alerts a location's handover reads (care.md rule 8).

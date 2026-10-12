@@ -112,6 +112,7 @@ export const CLINICAL_EXPORT_TABLES: readonly string[] = [
   "public.sharing_decision_suspension",
   "public.about_me_share_link",
   "public.handover",
+  "public.handover_item",
   "public.handover_note",
   "public.handover_acknowledgement",
 ];
@@ -1771,7 +1772,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.handover": {
     context: "care",
     description:
-      "Shift handovers compiled by rule from each shift's records (care.md rule 8): the items are references to the records, never their text, and are only ever added to.",
+      "Shift handovers compiled by rule from each shift's records (care.md rule 8): one per location and shift; its items are in handover_item.",
     treatment: "tenant_rows",
     retention: "care_record",
     personal: true,
@@ -1784,10 +1785,6 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       shift_start: { description: "When the shift started (instant, UTC)." },
       shift_end: { description: "When the shift ended (instant, UTC), exclusive." },
-      items: {
-        description:
-          "The compiled items, JSON array of { key, kind, personId, sourceType, sourceId, at, lateAddition, addedAt }: kind is fall, news2, incident, alert, body_map_mark, overdue_task, skipped_task, unfinished_task, must_follow_up or refusal; sourceType and sourceId name the record (task, observation, incident, body_map_mark, care_note or notification); at is when it happened or fell due and addedAt when it joined the handover (instants, UTC); lateAddition is true for an item added after the handover was first compiled. Items are never removed.",
-      },
       compiled_at: { description: "When the handover was first compiled (instant, UTC)." },
       refreshed_at: {
         description: "When its sources were last read again for late additions (instant, UTC).",
@@ -1804,10 +1801,48 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.handover_item": {
+    context: "care",
+    description:
+      "The items of each shift handover (care.md rule 8): references to the records, never their text; only ever added to (append-only).",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      handover_id: { description: "The handover (handover.id)." },
+      key: {
+        description:
+          "The item's identity within the handover: kind, source table, source id and person.",
+      },
+      position: {
+        description: "The order the items were compiled and added in, from 0.",
+        unit: "count",
+      },
+      kind: {
+        description:
+          "fall, news2, incident, alert, body_map_mark, flagged_note (a care note tagged for the handover), overdue_task, skipped_task, unfinished_task, must_follow_up or refusal.",
+      },
+      person_id: { description: "The person the item is about (person.id), if any." },
+      source_type: {
+        description:
+          "The table of the record: task, observation, incident, body_map_mark, care_note or notification.",
+      },
+      source_id: { description: "The record's id in that table." },
+      at: { description: "When it happened, or when the task fell due (instant, UTC)." },
+      late_addition: {
+        description: "True for an item added after the handover was first compiled.",
+      },
+      added_at: { description: "When it joined the handover (instant, UTC)." },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
   "public.handover_acknowledgement": {
     context: "care",
     description:
-      "Each acknowledgement of a handover by a member of staff, with how many items it held then (append-only).",
+      "Each acknowledgement of a handover by a member of staff, with the items they could see then (append-only).",
     treatment: "tenant_rows",
     retention: "care_record",
     personal: true,
@@ -1816,10 +1851,9 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       tenant_id: "exported",
       handover_id: { description: "The handover acknowledged (handover.id)." },
       tenant_user_id: { description: "The member of staff who acknowledged it (tenant_user.id)." },
-      items_seen: {
+      item_keys: {
         description:
-          "How many of the handover's items it held when they acknowledged it; items added later need a further acknowledgement.",
-        unit: "count",
+          "The keys of the items (handover_item.key) they could see when they acknowledged, recorded by the server; items added later need a further acknowledgement.",
       },
       acknowledged_at: {
         description: "When they acknowledged it, by the server's clock (instant, UTC).",
@@ -1842,9 +1876,12 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       handover_id: { description: "The handover (handover.id)." },
       item_key: {
         description:
-          "The item annotated (the key of an item in handover.items); empty for a note on the whole handover.",
+          "The item annotated (handover_item.key); empty for a note on the whole handover.",
       },
-      person_id: { description: "The person the annotated item is about (person.id), if any." },
+      person_id: {
+        description:
+          "The person the annotated item is about (person.id), if any, taken from the item.",
+      },
       body: { description: "The note text." },
       device_id: "exported",
       created_at: "exported",

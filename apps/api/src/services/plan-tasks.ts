@@ -20,7 +20,6 @@ import {
   type PlanTaskSeries,
   planActionTaskSeries,
   planActionTaskTitle,
-  planActionTaskWindow,
   type Recurrence,
   ukIsoDate,
 } from "@harbour/domain";
@@ -51,7 +50,11 @@ const NOTHING: PlanTaskSync = { created: 0, adopted: 0, kept: 0, ended: 0, notGe
 
 export const changedAnything = (s: PlanTaskSync) => s.created + s.adopted + s.ended > 0;
 
-/** A series the plan no longer drives ends; its rounds from now are cancelled with the reason. */
+/**
+ * A series the plan no longer drives ends; its rounds from now that nobody has started are
+ * cancelled with the reason. A round someone is part way through stays theirs to finish, and an
+ * overdue one stays open to be done, marked as from an earlier plan (HZ-024).
+ */
 async function endPlanSeries(
   tx: Transaction,
   series: typeof taskSeries.$inferSelect,
@@ -73,7 +76,7 @@ async function endPlanSeries(
     .where(
       and(
         eq(task.seriesId, series.id),
-        inArray(task.status, ["open", "in_progress"]),
+        eq(task.status, "open"),
         gte(task.dueAt, now),
         isNull(task.deletedAt),
       ),
@@ -205,7 +208,9 @@ export async function syncPlanTaskSeries(
   }
   if (changes.create.length > 0) {
     const nation = who.nation;
-    const defaults = {
+    // The tenant's figures are the most either side; each round's window is cut where its
+    // neighbours are closer (`roundTimes`, HZ-004).
+    const caps = {
       beforeMinutes: await rateNumber(
         tx,
         who.tenantId,
@@ -223,7 +228,6 @@ export async function syncPlanTaskSeries(
       const row = byAction.get(actionId);
       const rule = row?.action.recurrence as Recurrence | null;
       if (!row || !rule) continue;
-      const window = planActionTaskWindow(rule, defaults);
       const [created] = await tx
         .insert(taskSeries)
         .values({
@@ -237,8 +241,8 @@ export async function syncPlanTaskSeries(
           assigneeRoleKey: row.action.roleKey,
           recurrence: rule,
           startsOn: ukIsoDate(now),
-          windowBeforeMinutes: window.beforeMinutes,
-          windowAfterMinutes: window.afterMinutes,
+          windowBeforeMinutes: caps.beforeMinutes,
+          windowAfterMinutes: caps.afterMinutes,
           evidenceRequired: row.action.evidenceRequired,
         })
         // Another run made it first (the sweep and a publication at once): one series per action.

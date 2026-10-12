@@ -11,14 +11,22 @@ import type {
 import { HandoverItemKind } from "@harbour/contracts";
 import { createDatabase, createPool } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
-import { HANDOVER_ITEM_KINDS, MEDICINES_ACTION_MESSAGE } from "@harbour/domain";
+import {
+  EARLIER_PLAN_NOTICE,
+  HANDOVER_CLOSED_MESSAGE,
+  HANDOVER_ITEM_KINDS,
+  MEDICINES_ACTION_MESSAGE,
+  NOT_A_ROUND_NOTICE,
+} from "@harbour/domain";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   compileHandovers,
+  eachTenant,
   escalateTasks,
   generatePlanTaskSeries,
   type TaskDeps,
+  TENANT_SWEEP_FAILED_ACTION,
 } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
 import { PLAN_CHANGED_REASON } from "../src/services/plan-tasks";
@@ -367,7 +375,7 @@ describe("care.md rule 14: care plan actions generate the shift's rounds (CARE-0
     expect(audits).toEqual([{ action: "care.plan.tasks.generate", actor_tenant_user_id: null }]);
   });
 
-  it("refuses ending a care plan's rounds by the task series route: the plan changes them", async () => {
+  it("hazard HZ-024 refuses ending a care plan's rounds by the task series route: the plan changes them", async () => {
     const [series] = await query<{ version: number }>(
       "SELECT version FROM task_series WHERE id = $1",
       [sweptSeries],
@@ -493,12 +501,106 @@ describe("the round view (CARE-013)", () => {
       action: "Offer a drink and record it",
       domain: "nutrition_and_hydration",
       publishedVersion: 1,
+      planStatus: "active",
+      notice: null,
     });
     expect(planRound?.timeState).toBe("escalated");
     // A task about nobody (the fridge) is its own stop at the end.
     expect(view.areas[1]?.stops.map((s) => [s.personId, s.tasks.map((t) => t.id)])).toEqual([
       [null, [fridge.id]],
     ]);
+  });
+
+  it("hazard HZ-016 every stop's header carries the prescribed IDDSI levels, or says they are not recorded", async () => {
+    await asDemoTenant(async (c) => {
+      await c.query(
+        `INSERT INTO person_care_profile (person_id, iddsi_food_level, iddsi_drink_level, iddsi_advised_by)
+         VALUES ($1, '5', '2', 'Speech and language therapist')
+         ON CONFLICT (tenant_id, person_id) DO UPDATE
+           SET iddsi_food_level = '5', iddsi_drink_level = '2'`,
+        [resident(4)],
+      );
+      await c.query(
+        "UPDATE person_care_profile SET iddsi_food_level = NULL, iddsi_drink_level = NULL WHERE person_id = $1",
+        [resident(6)],
+      );
+    });
+    const view = await json<RoundView>(await as("manager", roundPath()));
+    const stops = view.areas.flatMap((a) => a.stops);
+    expect(stops.find((s) => s.personId === resident(4))?.person).toMatchObject({
+      iddsiFoodLevel: "5",
+      iddsiDrinkLevel: "2",
+    });
+    expect(stops.find((s) => s.personId === resident(6))?.person).toMatchObject({
+      iddsiFoodLevel: "not_recorded",
+      iddsiDrinkLevel: "not_recorded",
+    });
+  });
+
+  it("hazard HZ-024 an overdue round of a schedule the plan has since changed stays open and says it is from an earlier plan", async () => {
+    // A round of resident 4's first schedule, ended by a later version, is still open and overdue.
+    const [old] = await query<{ id: string }>(
+      `UPDATE task SET status = 'open', status_reason = NULL, due_at = now() - interval '90 minutes',
+         window_start = now() - interval '120 minutes', window_end = now() - interval '30 minutes'
+       WHERE id = (
+         SELECT t.id FROM task t JOIN task_series s ON s.id = t.series_id
+         WHERE t.person_id = $1 AND s.source_type = 'care_plan_action' AND NOT s.active
+         ORDER BY t.due_at LIMIT 1)
+       RETURNING id`,
+      [resident(4)],
+    );
+    expect(old).toBeDefined();
+    const view = await json<RoundView>(await as("manager", roundPath()));
+    const round = view.areas
+      .flatMap((a) => a.stops)
+      .flatMap((s) => s.tasks)
+      .find((t) => t.id === old?.id);
+    expect(round?.planAction).toMatchObject({
+      planStatus: "superseded",
+      notice: "From an earlier plan: check the current plan",
+    });
+    expect(EARLIER_PLAN_NOTICE).toBe("From an earlier plan: check the current plan");
+  });
+
+  it("hazard HZ-003 lists a person's medicines actions on their stop and in the plan as not a round", async () => {
+    const actionId = newId();
+    await asDemoTenant(async (c) => {
+      const plan = await c.query<{ id: string }>(
+        "SELECT id FROM care_plan WHERE person_id = $1 AND status = 'active'",
+        [resident(6)],
+      );
+      const section = await c.query<{ id: string }>(
+        `INSERT INTO care_plan_section (person_id, plan_id, domain, need, outcome)
+         VALUES ($1, $2, 'medicines', 'Needs a cream applied to both legs.',
+                 'I want my skin to stay comfortable.') RETURNING id`,
+        [resident(6), plan.rows[0]?.id],
+      );
+      await c.query(
+        `INSERT INTO care_plan_action (id, person_id, plan_id, section_id, action, when_text, generates_tasks)
+         VALUES ($1, $2, $3, $4, 'Apply the prescribed cream as the MAR says', 'Morning and evening', false)`,
+        [actionId, resident(6), plan.rows[0]?.id, section.rows[0]?.id],
+      );
+    });
+    const view = await json<RoundView>(await as("manager", roundPath()));
+    const stop = view.areas.flatMap((a) => a.stops).find((s) => s.personId === resident(6));
+    expect(stop?.notRounds).toEqual([
+      {
+        actionId,
+        domain: "medicines",
+        action: "Apply the prescribed cream as the MAR says",
+        whenText: "Morning and evening",
+        notice: "Not a round: see the medicines record",
+      },
+    ]);
+    expect(stop?.tasks.length).toBeGreaterThan(0);
+    const [plan] = await query<{ id: string }>(
+      "SELECT id FROM care_plan WHERE person_id = $1 AND status = 'active'",
+      [resident(6)],
+    );
+    const detail = await json<CarePlanDetail>(await as("manager", `${plansPath(6)}/${plan?.id}`));
+    const actions = detail.sections.flatMap((section) => section.actions);
+    expect(actions.find((a) => a.id === actionId)?.notice).toBe(NOT_A_ROUND_NOTICE);
+    expect(actions.filter((a) => a.id !== actionId).every((a) => a.notice === null)).toBe(true);
   });
 
   it("hazard HZ-011 shows a care worker only the people assigned to them", async () => {
@@ -605,20 +707,33 @@ describe("the shift handover (care.md rule 8, COMMS-006)", () => {
     expect(kinds(theirs, 2)).toContain("refusal");
     expect(kinds(theirs, 3)).toContain("body_map_mark");
     expect(kinds(theirs, 5)).toEqual([]);
-    expect(theirs.hiddenItemCount).toBeGreaterThanOrEqual(2);
     expect(theirs.people.map((p) => p.id).sort()).toEqual(
       [resident(1), resident(2), resident(3)].sort(),
     );
     expect(theirs.open).toBe(true);
-    expect(theirs.you).toMatchObject({ acknowledged: false, itemsSeen: null });
+    expect(theirs.you).toMatchObject({ acknowledged: false, acknowledgedAt: null });
+    // Every count is over what they can see, and nothing says how much they cannot (S-M1).
+    expect(theirs).toMatchObject({
+      limitedToYourPeople: true,
+      itemCount: theirs.items.length,
+      lateAdditionCount: 0,
+      acknowledgedBy: [],
+      pending: [],
+      unacknowledged: null,
+    });
+    expect(Object.keys(theirs)).not.toContain("hiddenItemCount");
+    expect(Object.keys(theirs)).not.toContain("version");
 
     // ...but the handover itself was compiled in the system's view, so nothing was missed.
     current = await json<HandoverDetail>(await as("manager", `${handoversPath()}/${theirs.id}`));
-    expect(current.hiddenItemCount).toBe(0);
+    expect(current.limitedToYourPeople).toBe(false);
     expect(kinds(current, 5)).toContain("news2");
     // The urgent alert the score raised is one item, however many people it reached.
     expect(kinds(current, 5).filter((k) => k === "alert")).toHaveLength(1);
-    expect(current.itemCount).toBe(theirs.itemCount);
+    expect(current.itemCount).toBe(current.items.length);
+    expect(current.itemCount).toBeGreaterThan(theirs.itemCount);
+    // The header of each person on it carries their IDDSI levels (HZ-016).
+    expect(current.people.every((p) => typeof p.iddsiFoodLevel === "string")).toBe(true);
 
     const audits = await query<{ action: string; actor_tenant_user_id: string }>(
       "SELECT action, actor_tenant_user_id FROM audit_event WHERE resource_id = $1 ORDER BY occurred_at",
@@ -630,26 +745,45 @@ describe("the shift handover (care.md rule 8, COMMS-006)", () => {
     });
   });
 
-  it("hazard HZ-018 records each acknowledgement once, for the items it held", async () => {
+  const read = async (user: "carer" | "manager", id: string = current.id) =>
+    json<HandoverDetail>(await as(user, `${handoversPath()}/${id}`));
+  const acknowledge = (
+    user: "carer" | "manager",
+    body: Record<string, unknown>,
+    id: string = current.id,
+  ) => as(user, `${handoversPath()}/${id}/acknowledgements`, { method: "POST", body });
+
+  it("hazard HZ-018 records each acknowledgement once, for the items the reader could see", async () => {
     const ackId = newId();
-    const ack = (user: "carer" | "manager", body: Record<string, unknown>) =>
-      as(user, `${handoversPath()}/${current.id}/acknowledgements`, { method: "POST", body });
-    const first = await ack("carer", { id: ackId, itemsSeen: current.itemCount });
+    const carerView = await read("carer");
+    const first = await acknowledge("carer", { id: ackId, seenToken: carerView.you.seenToken });
     expect(first.status).toBe(201);
     expect((await json<HandoverDetail>(first)).you).toMatchObject({
       acknowledged: true,
-      itemsSeen: current.itemCount,
       unseenKeys: [],
     });
-    expect((await ack("carer", { id: ackId, itemsSeen: current.itemCount })).status).toBe(201);
-    // The same id from someone else is not theirs to replay.
-    expect((await ack("manager", { id: ackId, itemsSeen: 0 })).status).toBe(422);
-    const tooMany = await ack("manager", { itemsSeen: current.itemCount + 1 });
-    expect(tooMany.status).toBe(422);
-    expect((await ack("manager", { itemsSeen: current.itemCount })).status).toBe(201);
-    const after = await json<HandoverDetail>(
-      await as("manager", `${handoversPath()}/${current.id}`),
+    // The server recorded the items the care worker could see, never the ones they could not.
+    const [stored] = await query<{ item_keys: string[] }>(
+      "SELECT item_keys FROM handover_acknowledgement WHERE id = $1",
+      [ackId],
     );
+    expect(stored?.item_keys).toEqual(carerView.items.map((i) => i.key));
+    expect(
+      (await acknowledge("carer", { id: ackId, seenToken: carerView.you.seenToken })).status,
+    ).toBe(201);
+    // The same id from someone else is not theirs to replay.
+    expect((await acknowledge("manager", { id: ackId, seenToken: "x" })).status).toBe(422);
+    // The care worker's token is not the manager's view: they have not been shown the rest.
+    const stale = await acknowledge("manager", { seenToken: carerView.you.seenToken });
+    expect(stale.status).toBe(409);
+    expect((await json<ProblemDetails>(stale)).title).toBe(
+      "The handover has changed since you opened it.",
+    );
+    const managerView = await read("manager");
+    expect((await acknowledge("manager", { seenToken: managerView.you.seenToken })).status).toBe(
+      201,
+    );
+    const after = await read("manager");
     expect(
       after.acknowledgements.filter((a) => a.tenantUserId === DEMO.users.carer.id),
     ).toHaveLength(1);
@@ -657,6 +791,10 @@ describe("the shift handover (care.md rule 8, COMMS-006)", () => {
       [DEMO.users.carer.id, DEMO.users.manager.id].sort(),
     );
     expect(after.pending).toEqual([]);
+    // Limited to their own people, the care worker learns nothing about anyone else's.
+    const carerAfter = await read("carer");
+    expect(carerAfter.acknowledgements.map((a) => a.tenantUserId)).toEqual([DEMO.users.carer.id]);
+    expect(carerAfter.acknowledgedBy).toEqual([DEMO.users.carer.id]);
   });
 
   it("hazard HZ-018 appends a late addition and asks again, for the new item only, those who can see it", async () => {
@@ -669,13 +807,14 @@ describe("the shift handover (care.md rule 8, COMMS-006)", () => {
     expect(refreshed.itemCount).toBe(before + 1);
     expect(refreshed.pending.sort()).toEqual([DEMO.users.carer.id, DEMO.users.manager.id].sort());
 
-    const carerView = await json<HandoverDetail>(
-      await as("carer", `${handoversPath()}/${current.id}`),
-    );
+    const carerView = await read("carer");
     expect(carerView.you).toMatchObject({
       acknowledged: false,
       unseenKeys: added.map((i) => i.key),
     });
+    // The care worker's old view is out of date: acknowledging it is refused.
+    const old = await acknowledge("carer", { seenToken: "stale" });
+    expect(old.status).toBe(409);
     // Told at once: a fall cannot wait (HZ-008), with a title that names nobody.
     const told = await query<{
       severity: string;
@@ -695,11 +834,16 @@ describe("the shift handover (care.md rule 8, COMMS-006)", () => {
         location_id: DEMO.locationId,
       },
     ]);
+    // A fall cannot wait: the nurse in charge hears of it too (HZ-008).
+    const nurseTold = await query<{ severity: string }>(
+      `SELECT severity FROM notification WHERE kind = 'care.handover.updated'
+         AND recipient_tenant_user_id = $1 AND source_id = $2`,
+      [DEMO.users.nurse.id, current.id],
+    );
+    expect(nurseTold).toEqual([{ severity: "urgent" }]);
     for (const user of ["carer", "manager"] as const) {
-      await as(user, `${handoversPath()}/${current.id}/acknowledgements`, {
-        method: "POST",
-        body: { itemsSeen: refreshed.itemCount },
-      });
+      const view = await read(user);
+      expect((await acknowledge(user, { seenToken: view.you.seenToken })).status).toBe(201);
     }
 
     // A late addition about someone outside the care worker's scope asks only those who see it.
@@ -711,10 +855,11 @@ describe("the shift handover (care.md rule 8, COMMS-006)", () => {
     const again = await json<HandoverDetail>(await compile("manager"));
     expect(again.itemCount).toBeGreaterThan(refreshed.itemCount);
     expect(again.pending).toEqual([DEMO.users.manager.id]);
-    const carerAgain = await json<HandoverDetail>(
-      await as("carer", `${handoversPath()}/${current.id}`),
-    );
+    const carerAgain = await read("carer");
     expect(carerAgain.you).toMatchObject({ acknowledged: true, unseenKeys: [] });
+    // Their counts and token did not move for an item they cannot see.
+    expect(carerAgain.itemCount).toBe(carerView.itemCount);
+    expect(carerAgain.you.seenToken).toBe(carerView.you.seenToken);
     expect(
       await query(
         `SELECT id FROM notification WHERE kind = 'care.handover.updated' AND recipient_tenant_user_id = $1`,
@@ -761,7 +906,7 @@ describe("the shift handover (care.md rule 8, COMMS-006)", () => {
     expect(last).toBeDefined();
     expect(last?.lockedAt).not.toBeNull();
     expect(last?.open).toBe(false);
-    // Nobody has acknowledged it and the shift it hands over to has started.
+    // Nobody on the incoming shift has acknowledged it.
     expect(last?.unacknowledged).toBe(true);
     const lastId = last?.id ?? "";
     const closed = await as("carer", `${handoversPath()}/${lastId}/notes`, {
@@ -769,41 +914,45 @@ describe("the shift handover (care.md rule 8, COMMS-006)", () => {
       body: { body: "Too late for this one." },
     });
     expect(closed.status).toBe(422);
-    expect((await json<ProblemDetails>(closed)).detail).toBe(
-      "This handover has closed. Record anything new on the person's record, where the next handover finds it.",
-    );
-    await as("manager", `${handoversPath()}/${lastId}/acknowledgements`, {
-      method: "POST",
-      body: { itemsSeen: last?.itemCount },
-    });
+    expect((await json<ProblemDetails>(closed)).detail).toBe(HANDOVER_CLOSED_MESSAGE);
+    expect(HANDOVER_CLOSED_MESSAGE).toContain("Include in handover");
 
-    // A fall recorded offline during that shift arrives now.
+    // A fall recorded offline during that shift arrives while nobody has acknowledged it: the
+    // nurse in charge hears of it, urgently (HZ-008).
     const during = new Date(Date.parse(shift.start) - 30 * MIN).toISOString();
     expect((await note(1, ["fall"], during)).status).toBe(201);
     await compileHandovers(deps);
-    const refreshed = await json<HandoverDetail>(
-      await as("manager", `${handoversPath()}/${lastId}`),
-    );
+    const refreshed = await read("manager", lastId);
     expect(refreshed.lockedAt).toBe(last?.lockedAt);
     expect(refreshed.items.filter((i) => i.lateAddition).map((i) => [i.kind, i.personId])).toEqual([
       ["fall", resident(1)],
     ]);
-    expect(refreshed.pending).toEqual([DEMO.users.manager.id]);
-    const told = await query<{ severity: string }>(
-      `SELECT severity FROM notification WHERE kind = 'care.handover.updated'
-         AND recipient_tenant_user_id = $1 AND source_id = $2`,
-      [DEMO.users.manager.id, lastId],
-    );
-    expect(told).toEqual([{ severity: "urgent" }]);
+    const lateNotices = (userId: string) =>
+      query<{ severity: string }>(
+        `SELECT severity FROM notification WHERE kind = 'care.handover.updated'
+           AND recipient_tenant_user_id = $1 AND source_id = $2 ORDER BY created_at`,
+        [userId, lastId],
+      );
+    expect(await lateNotices(DEMO.users.nurse.id)).toEqual([{ severity: "urgent" }]);
+    expect(await lateNotices(DEMO.users.manager.id)).toEqual([]);
+
+    // Acknowledged on the incoming shift, by someone who saw every item they can see.
+    expect(
+      (await acknowledge("manager", { seenToken: refreshed.you.seenToken }, lastId)).status,
+    ).toBe(201);
+    expect((await read("manager", lastId)).unacknowledged).toBe(false);
+
     // Nothing new: the next run writes nothing.
+    const version = async () =>
+      (await query<{ version: number }>("SELECT version FROM handover WHERE id = $1", [lastId]))[0]
+        ?.version;
+    const before = await version();
     await compileHandovers(deps);
-    const [row] = await query<{ version: number }>("SELECT version FROM handover WHERE id = $1", [
-      lastId,
-    ]);
-    expect(row?.version).toBe(refreshed.version);
+    expect(await version()).toBe(before);
 
     // An entry whose transaction began before that refresh, and committed after it, is still
-    // found: its recorded time is earlier than the refresh.
+    // found: its recorded time is earlier than the refresh. A refusal the acknowledger can see
+    // goes to them, in the app; the nurse in charge is not interrupted again.
     await asDemoTenant((c) =>
       c.query(
         `INSERT INTO care_note (person_id, location_id, occurred_at, recorded_at, category, body, tags)
@@ -813,16 +962,101 @@ describe("the shift handover (care.md rule 8, COMMS-006)", () => {
       ),
     );
     await compileHandovers(deps);
-    const caught = await json<HandoverDetail>(await as("manager", `${handoversPath()}/${lastId}`));
+    const caught = await read("manager", lastId);
     expect(
       caught.items.filter((i) => i.lateAddition).map((i) => [i.kind, i.personId]),
     ).toContainEqual(["refusal", resident(2)]);
+    expect(caught.pending).toEqual([DEMO.users.manager.id]);
+    // Overtaken by an item they can see, the acknowledgement no longer counts for the shift.
+    expect(caught.unacknowledged).toBe(true);
+    expect(await lateNotices(DEMO.users.manager.id)).toEqual([{ severity: "warning" }]);
+    expect(await lateNotices(DEMO.users.nurse.id)).toEqual([{ severity: "urgent" }]);
+  });
+
+  it("hazard HZ-018 compiles and locks every shift in the offline window, so a missed run loses none", async () => {
+    await compileHandovers(deps);
+    const from = new Date(Date.now() - 2 * 24 * HOUR).toISOString();
+    const list = await json<HandoverList>(await as("manager", `${handoversPath()}?from=${from}`));
+    const locked = list.items
+      .filter((i) => i.lockedAt !== null)
+      .sort((a, b) => Date.parse(a.shift.start) - Date.parse(b.shift.start));
+    expect(locked.length).toBeGreaterThanOrEqual(3);
+    for (const [i, h] of locked.slice(1).entries()) {
+      expect(Date.parse(h.shift.start)).toBe(Date.parse(locked[i]?.shift.end ?? ""));
+    }
+  });
+
+  it("hazard HZ-018 alerts the nurse in charge once when nobody on the incoming shift has acknowledged by the grace period", async () => {
+    const grace = await rate("handover.acknowledgement_grace_minutes");
+    expect(grace).toBeGreaterThan(0);
+    // The shift before last ended at least a shift ago, so its grace period has passed.
+    const [earlier] = await query<{ id: string }>(
+      `SELECT id FROM handover WHERE location_id = $1 AND shift_end <= now() - ($2 || ' minutes')::interval
+         AND shift_end > now() - interval '24 hours' ORDER BY shift_end DESC LIMIT 1`,
+      [DEMO.locationId, String(grace)],
+    );
+    expect(earlier).toBeDefined();
+    const alerts = () =>
+      query<{ recipient_tenant_user_id: string; severity: string; channels: string[] }>(
+        `SELECT recipient_tenant_user_id, severity, channels FROM notification
+         WHERE kind = 'care.handover.unacknowledged' AND source_id = $1`,
+        [earlier?.id],
+      );
+    const raised = await alerts();
+    expect(raised).toContainEqual({
+      recipient_tenant_user_id: DEMO.users.nurse.id,
+      severity: "warning",
+      channels: ["in_app"],
+    });
+    await compileHandovers(deps);
+    expect(await alerts()).toHaveLength(raised.length);
+    const audited = await query(
+      "SELECT id FROM audit_event WHERE action = 'care.handover.alert.unacknowledged' AND resource_id = $1",
+      [earlier?.id],
+    );
+    expect(audited).toHaveLength(1);
+  });
+
+  it("hazard HZ-018 one organisation's failure never stops another's sweep, and is audited", async () => {
+    const total = await eachTenant(deps, "test-sweep", async (_tx, tenantId) => {
+      if (tenantId === DEMO.tenantId) {
+        throw Object.assign(new Error("Simulated failure"), { code: "XX000" });
+      }
+      return 1;
+    });
+    expect(total).toBeGreaterThanOrEqual(1);
+    const audits = await query<{ scope: unknown; actor_tenant_user_id: string | null }>(
+      "SELECT scope, actor_tenant_user_id FROM audit_event WHERE action = $1",
+      [TENANT_SWEEP_FAILED_ACTION],
+    );
+    expect(audits).toEqual([
+      { scope: { job: "test-sweep", code: "XX000" }, actor_tenant_user_id: null },
+    ]);
+  });
+
+  it('hazard HZ-018 a care note tagged "Include in handover" reaches the handover; an untagged one does not', async () => {
+    const at = new Date(Date.now() - MIN).toISOString();
+    const tagged = await json<{ id: string }>(await note(2, ["handover"], at));
+    const untagged = await json<{ id: string }>(await note(2, [], at));
+    const view = await json<HandoverDetail>(await compile("manager"));
+    const sources = view.items.map((i) => [i.kind, i.sourceId]);
+    expect(sources).toContainEqual(["flagged_note", tagged.id]);
+    expect(view.items.some((i) => i.sourceId === untagged.id)).toBe(false);
   });
 
   it("refuses a shift that has not started, a location out of scope and a role without the permission", async () => {
     const tomorrow = new Date(Date.now() + 26 * HOUR).toISOString();
     const future = await compile("manager", { at: tomorrow });
     expect(future.status).toBe(422);
+    // Nothing older than the offline window and a day (S-M3).
+    const windowDays = (await rate("mobile.offline_window_days")) + 1;
+    const tooOld = await compile("manager", {
+      at: new Date(Date.now() - (windowDays + 1) * 24 * HOUR).toISOString(),
+    });
+    expect(tooOld.status).toBe(422);
+    expect((await json<ProblemDetails>(tooOld)).detail).toBe(
+      `Handovers are compiled for the last ${windowDays} days only. Ask for a later time.`,
+    );
     expect((await as("manager", handoversPath(LODGE.locationId))).status).toBe(404);
     expect(
       (await as("manager", handoversPath(LODGE.locationId), { method: "POST", body: {} })).status,

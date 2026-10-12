@@ -25,8 +25,8 @@ export const AllergyStatus = z
   .meta({ id: "AllergyStatus" });
 
 /**
- * Point-of-care header data: photo, names, allergies, communication needs and the resuscitation
- * status (HZ-001, HZ-007, HZ-015).
+ * Point-of-care header data: photo, names, allergies, communication needs, the resuscitation
+ * status and the prescribed IDDSI levels (HZ-001, HZ-007, HZ-015, HZ-016).
  */
 export const PersonSummary = z
   .object({
@@ -54,6 +54,16 @@ export const PersonSummary = z
     communicationNeedsConfirmedAt: isoDateTime.nullable(),
     /** The CPR decision in force, or `not_recorded` (hazard HZ-015). */
     resuscitation: ResuscitationStatus,
+    /**
+     * HZ-016: the prescribed IDDSI food level, or `not_recorded` until someone records it, which
+     * is never a normal diet: check before offering food.
+     */
+    iddsiFoodLevel: z.enum(["3", "4", "5", "6", "7EC", "7", "not_recorded"]),
+    /**
+     * HZ-016: the prescribed IDDSI drink level, or `not_recorded` until someone records it, which
+     * is never thin drinks: check before offering a drink.
+     */
+    iddsiDrinkLevel: z.enum(["0", "1", "2", "3", "4", "not_recorded"]),
     /** When the current status began (for a discharge or death, when the person left or died). */
     statusChangedAt: isoDateTime,
     version: z.number().int(),

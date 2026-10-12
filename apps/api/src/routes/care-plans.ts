@@ -42,6 +42,7 @@ import {
   type PcspDomain as DomainPcsp,
   type Recurrence as DomainRecurrence,
   LIKELIHOOD_LABELS,
+  planActionNotice,
   planPublication,
   RISK_MATRIX_SOURCE,
   RISK_TEMPLATES,
@@ -151,7 +152,8 @@ function planSummary(row: PlanRow): CarePlanSummary {
   };
 }
 
-function actionItem(row: ActionRow): CarePlanActionItem {
+/** An action as the plan shows it; a medicines action says it is not a round (HZ-003). */
+function actionItem(row: ActionRow, domain: DomainPcsp): CarePlanActionItem {
   return {
     id: row.id,
     sectionId: row.sectionId,
@@ -164,6 +166,7 @@ function actionItem(row: ActionRow): CarePlanActionItem {
     riskAssessmentId: row.riskAssessmentId,
     taskSeriesId: row.taskSeriesId,
     basedOnActionId: row.basedOnActionId,
+    notice: planActionNotice(domain),
     version: row.version,
   };
 }
@@ -176,7 +179,9 @@ function sectionItem(row: SectionRow, actions: readonly ActionRow[]): CarePlanSe
     outcome: row.outcome,
     strengths: row.strengths,
     contingency: row.contingency,
-    actions: actions.filter((a) => a.sectionId === row.id).map(actionItem),
+    actions: actions
+      .filter((a) => a.sectionId === row.id)
+      .map((a) => actionItem(a, row.domain as DomainPcsp)),
     version: row.version,
   };
 }
@@ -654,7 +659,7 @@ export const carePlansRouter = createRouter()
           resourceId: row.id,
           scope: { planId, domain },
         });
-        return actionItem(row);
+        return actionItem(row, domain as DomainPcsp);
       });
       return c.json(item, 201);
     },
@@ -711,11 +716,11 @@ export const carePlansRouter = createRouter()
           riskAssessmentId:
             body.riskAssessmentId !== undefined ? body.riskAssessmentId : current.riskAssessmentId,
         };
+        const [section] = await tx
+          .select({ domain: carePlanSection.domain })
+          .from(carePlanSection)
+          .where(eq(carePlanSection.id, current.sectionId));
         if (!body.removed) {
-          const [section] = await tx
-            .select({ domain: carePlanSection.domain })
-            .from(carePlanSection)
-            .where(eq(carePlanSection.id, current.sectionId));
           actionCheck(merged, ukIsoDate(new Date()), section?.domain as DomainPcsp);
           await requireRiskAssessment(tx, personId, merged.riskAssessmentId ?? undefined);
         }
@@ -731,7 +736,7 @@ export const carePlansRouter = createRouter()
           resourceId: row.id,
           scope: { planId },
         });
-        return actionItem(row);
+        return actionItem(row, section?.domain as DomainPcsp);
       });
       return c.json(item, 200);
     },

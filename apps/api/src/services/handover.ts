@@ -5,6 +5,7 @@ import {
   careNote,
   handover,
   handoverAcknowledgement,
+  handoverItem,
   incident,
   location,
   notification,
@@ -14,6 +15,7 @@ import {
   roleAssignment,
   type Transaction,
   task,
+  tenantUser,
 } from "@harbour/db";
 import {
   type AccessGrantInput,
@@ -21,12 +23,17 @@ import {
   alertConditions,
   checkHandoverKeepsItems,
   compileHandover,
+  HANDOVER_NOTICE_KIND_PREFIX,
   HANDOVER_NOTIFICATION_KIND,
   HANDOVER_RATE_KEYS,
+  HANDOVER_UNACKNOWLEDGED_KIND,
+  type HandoverAcknowledgement,
   type HandoverItem,
+  type HandoverItemKind,
   type HandoverSources,
-  lateAdditionRecipients,
-  lateAdditionSeverity,
+  type HandoverSourceType,
+  incomingAcknowledged,
+  lateAdditionNotices,
   type News2Band,
   nextShift,
   observationIsRefusal,
@@ -40,9 +47,11 @@ import {
   shiftAt,
   type TaskStatus,
   twoShiftPattern,
+  UNACKNOWLEDGED_ALERT_WINDOW_HOURS,
+  unacknowledgedAlertDue,
   viewerAcknowledgement,
 } from "@harbour/domain";
-import { and, eq, gt, gte, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { nurseInCharge } from "./care";
 import { rateNumber } from "./rates";
 
@@ -51,11 +60,15 @@ import { rateNumber } from "./rates";
  * rule from the shift's records at the location, always in the system's view of the organisation
  * (every caller passes a transaction with tenant scope), so nothing is missed because of who asked.
  * The domain rules decide the items (`compileHandover`, `refreshHandover`); this file reads the
- * sources, stores the handover and announces late additions.
+ * sources, stores the handover and its items (one append-only row each, so row-level security
+ * shows each reader only the items about people they may see; HZ-011), announces late additions
+ * and alerts the nurse in charge when nobody on the incoming shift has acknowledged.
  */
 
 type Nation = "england" | "wales" | "scotland" | "northern_ireland";
 export type HandoverRow = typeof handover.$inferSelect;
+type ItemRow = typeof handoverItem.$inferSelect;
+type AckRow = typeof handoverAcknowledgement.$inferSelect;
 
 /** How often the worker compiles, locks and refreshes handovers (apps/api/src/jobs/worker.ts). */
 export const HANDOVER_SWEEP_MINUTES = 5;
@@ -104,15 +117,79 @@ export function rowShift(row: HandoverRow): ShiftWindow {
   return { name: row.shiftName, start: row.shiftStart, end: row.shiftEnd };
 }
 
-/** Stored items, with their instants as dates again. */
-export function storedItems(row: HandoverRow): HandoverItem[] {
-  return (
-    row.items as (Omit<HandoverItem, "at" | "addedAt"> & { at: string; addedAt: string })[]
-  ).map((i) => ({ ...i, at: new Date(i.at), addedAt: new Date(i.addedAt) }));
+const toItem = (r: ItemRow): HandoverItem => ({
+  key: r.key,
+  kind: r.kind as HandoverItemKind,
+  personId: r.personId,
+  sourceType: r.sourceType as HandoverSourceType,
+  sourceId: r.sourceId,
+  at: r.at,
+  lateAddition: r.lateAddition,
+  addedAt: r.addedAt,
+});
+
+/**
+ * The items of these handovers that the transaction's view may see, in the order they were
+ * compiled and added: all of them in the system's view, only those about people the reader may
+ * see in theirs (row-level security, HZ-011).
+ */
+export async function itemsOf(
+  tx: Transaction,
+  handoverIds: readonly string[],
+): Promise<Map<string, HandoverItem[]>> {
+  const out = new Map<string, HandoverItem[]>(handoverIds.map((id) => [id, []]));
+  if (handoverIds.length === 0) return out;
+  const rows = await tx
+    .select()
+    .from(handoverItem)
+    .where(inArray(handoverItem.handoverId, [...handoverIds]))
+    .orderBy(asc(handoverItem.handoverId), asc(handoverItem.position));
+  for (const r of rows) out.get(r.handoverId)?.push(toItem(r));
+  return out;
 }
 
-const toStored = (items: readonly HandoverItem[]) =>
-  items.map((i) => ({ ...i, at: i.at.toISOString(), addedAt: i.addedAt.toISOString() }));
+/** The acknowledgements of these handovers the transaction's view may see, oldest first. */
+export async function acknowledgementsOf(
+  tx: Transaction,
+  handoverIds: readonly string[],
+): Promise<AckRow[]> {
+  if (handoverIds.length === 0) return [];
+  return tx
+    .select()
+    .from(handoverAcknowledgement)
+    .where(inArray(handoverAcknowledgement.handoverId, [...handoverIds]))
+    .orderBy(asc(handoverAcknowledgement.acknowledgedAt), asc(handoverAcknowledgement.id));
+}
+
+export const toAcknowledgement = (a: AckRow): HandoverAcknowledgement => ({
+  tenantUserId: a.tenantUserId,
+  at: a.acknowledgedAt,
+  itemKeys: a.itemKeys,
+});
+
+/** Appends items to a handover after the ones it holds (positions are never reused). */
+async function appendItems(
+  tx: Transaction,
+  handoverId: string,
+  items: readonly HandoverItem[],
+  from: number,
+): Promise<void> {
+  if (items.length === 0) return;
+  await tx.insert(handoverItem).values(
+    items.map((i, n) => ({
+      handoverId,
+      key: i.key,
+      position: from + n,
+      kind: i.kind,
+      personId: i.personId,
+      sourceType: i.sourceType,
+      sourceId: i.sourceId,
+      at: i.at,
+      lateAddition: i.lateAddition,
+      addedAt: i.addedAt,
+    })),
+  );
+}
 
 const inShift = (column: Parameters<typeof gte>[0], shift: ShiftWindow) =>
   and(gte(column, shift.start), lt(column, shift.end));
@@ -240,7 +317,7 @@ export async function handoverSources(
         eq(notification.severity, "urgent"),
         lt(notification.createdAt, shift.end),
         sql`${notification.sourceType} IS DISTINCT FROM 'notification'`,
-        sql`${notification.kind} <> ${HANDOVER_NOTIFICATION_KIND}`,
+        sql`${notification.kind} NOT LIKE ${`${HANDOVER_NOTICE_KIND_PREFIX}%`}`,
         sql`${conditionKey} IN (
           SELECT m.kind, coalesce(m.source_type, ''), coalesce(m.source_id, m.id::text)
           FROM notification m
@@ -287,7 +364,11 @@ export async function handoverSources(
 
 /** Records a handover write: as the requester through the API, as the system in the worker. */
 export type HandoverAudit = (
-  action: "care.handover.compile" | "care.handover.refresh" | "care.handover.lock",
+  action:
+    | "care.handover.compile"
+    | "care.handover.refresh"
+    | "care.handover.lock"
+    | "care.handover.alert.unacknowledged",
   handoverId: string,
   scope: Record<string, unknown>,
 ) => Promise<void>;
@@ -355,7 +436,6 @@ export async function compileOrRefresh(
         shiftName: shift.name,
         shiftStart: shift.start,
         shiftEnd: shift.end,
-        items: toStored(items),
         compiledAt: now,
         refreshedAt: now,
         lockedAt: input.lock ? now : null,
@@ -363,6 +443,7 @@ export async function compileOrRefresh(
       .onConflictDoNothing()
       .returning();
     if (created) {
+      await appendItems(tx, created.id, items, 0);
       await input.audit("care.handover.compile", created.id, {
         locationId,
         items: items.length,
@@ -374,7 +455,7 @@ export async function compileOrRefresh(
     existing = await find();
     if (!existing) throw new Error("Handover vanished while compiling");
   }
-  const before = storedItems(existing);
+  const before = (await itemsOf(tx, [existing.id])).get(existing.id) ?? [];
   const { items, added } = refreshHandover(before, shift, sources, now);
   const kept = checkHandoverKeepsItems(
     before,
@@ -390,22 +471,22 @@ export async function compileOrRefresh(
   if (added.length === 0 && !lock && !advance) {
     return { row: existing, created: false, added: [] };
   }
+  await appendItems(tx, existing.id, added, before.length);
   const [updated] = await tx
     .update(handover)
-    .set({
-      items: toStored(items),
-      refreshedAt: now,
-      ...(lock ? { lockedAt: now } : {}),
-    })
+    .set({ refreshedAt: now, ...(lock ? { lockedAt: now } : {}) })
     .where(eq(handover.id, existing.id))
     .returning();
   if (!updated) throw new Error("Handover vanished while refreshing");
+  const heard = await announceLateAdditions(tx, updated, added, now);
   await input.audit(lock ? "care.handover.lock" : "care.handover.refresh", updated.id, {
     locationId,
     added: added.length,
     items: items.length,
+    told: heard.told,
+    // Additions nobody on duty can see: recorded so they are looked into (HZ-008).
+    unheard: heard.unheard,
   });
-  await announceLateAdditions(tx, updated, added, now);
   return { row: updated, created: false, added };
 }
 
@@ -426,6 +507,17 @@ export async function peopleVisibleTo(
   const result = new Map<string, Set<string>>(tenantUserIds.map((id) => [id, new Set<string>()]));
   const people = [...new Set(personIds)];
   if (tenantUserIds.length === 0 || people.length === 0) return result;
+  // A suspended or departed member of staff sees nobody, whatever their roles still say.
+  const current = await tx
+    .select({ id: tenantUser.id })
+    .from(tenantUser)
+    .where(
+      and(
+        inArray(tenantUser.id, [...tenantUserIds]),
+        inArray(tenantUser.status, ["invited", "active"]),
+      ),
+    );
+  const onStaff = new Set(current.map((u) => u.id));
   const assignments = await tx
     .select({
       tenantUserId: roleAssignment.tenantUserId,
@@ -466,6 +558,8 @@ export async function peopleVisibleTo(
   const before = saved.rows[0];
   try {
     for (const userId of tenantUserIds) {
+      if (!onStaff.has(userId)) continue;
+      // Roles and grants in force now only: resolveAccess drops ended and future ones.
       const access = resolveAccess(
         assignments
           .filter((a) => a.tenantUserId === userId)
@@ -494,67 +588,84 @@ export async function peopleVisibleTo(
   return result;
 }
 
-type AckRow = typeof handoverAcknowledgement.$inferSelect;
+export interface AcknowledgementState {
+  /** Everyone who has acknowledged it at least once. */
+  readonly acknowledgedBy: string[];
+  /** Of them, who has items they can see still to acknowledge. */
+  readonly pending: string[];
+  /** The shift has ended and nobody on the incoming shift has acknowledged (`incomingAcknowledged`). */
+  readonly unacknowledged: boolean;
+}
 
 /**
- * Who has acknowledged a handover and, of them, who still has items to acknowledge that they can
- * see (`viewerAcknowledgement` over each member's own scope). Runs in the system's view.
+ * Where each handover stands with its acknowledgements, worked out over each member of staff's own
+ * scope (`viewerAcknowledgement`, `incomingAcknowledged`): nobody is pending for items they cannot
+ * see, and an acknowledgement counts for the incoming shift only if it covers everything its author
+ * can see. Runs in the system's view, so it reads every item and acknowledgement.
  */
 export async function acknowledgementSummary(
   tx: Transaction,
   rows: readonly HandoverRow[],
-  acks: readonly AckRow[],
   now: Date,
-): Promise<Map<string, { readonly acknowledgedBy: string[]; readonly pending: string[] }>> {
+): Promise<Map<string, AcknowledgementState>> {
+  const items = await itemsOf(
+    tx,
+    rows.map((r) => r.id),
+  );
+  const acks = await acknowledgementsOf(
+    tx,
+    rows.map((r) => r.id),
+  );
   const staff = [...new Set(acks.map((a) => a.tenantUserId))];
-  const people = rows.flatMap((r) =>
-    storedItems(r)
-      .map((i) => i.personId)
-      .filter((p): p is string => p !== null),
+  const people = [...items.values()].flatMap((list) =>
+    list.map((i) => i.personId).filter((p): p is string => p !== null),
   );
   const visible = await peopleVisibleTo(tx, staff, people, now);
-  const out = new Map<string, { acknowledgedBy: string[]; pending: string[] }>();
+  const canSee = (userId: string, i: HandoverItem) =>
+    i.personId === null || (visible.get(userId)?.has(i.personId) ?? false);
+  const out = new Map<string, AcknowledgementState>();
   for (const row of rows) {
-    const items = storedItems(row);
-    const own = acks
-      .filter((a) => a.handoverId === row.id)
-      .map((a) => ({ tenantUserId: a.tenantUserId, at: a.acknowledgedAt, itemsSeen: a.itemsSeen }));
+    const list = items.get(row.id) ?? [];
+    const own = acks.filter((a) => a.handoverId === row.id).map(toAcknowledgement);
     const acknowledgedBy = [...new Set(own.map((a) => a.tenantUserId))];
-    const pending = acknowledgedBy.filter((userId) => {
-      const sees = visible.get(userId) ?? new Set<string>();
-      return !viewerAcknowledgement(
-        items,
-        (i) => i.personId === null || sees.has(i.personId),
-        own,
-        userId,
-      ).acknowledged;
+    const pending = acknowledgedBy.filter(
+      (userId) => !viewerAcknowledgement(list, (i) => canSee(userId, i), own, userId).acknowledged,
+    );
+    const ended = now.getTime() >= row.shiftEnd.getTime();
+    out.set(row.id, {
+      acknowledgedBy,
+      pending,
+      unacknowledged: ended && !incomingAcknowledged(rowShift(row), list, own, canSee),
     });
-    out.set(row.id, { acknowledgedBy, pending });
   }
   return out;
 }
 
 /**
  * Tells people about items added after a handover was first compiled (care.md rule 8; HZ-018,
- * HZ-008): the staff who acknowledged it while the receiving shift runs, otherwise the nurse in
- * charge on duty. One generic notice per recipient for each refresh that adds items; urgent with
- * push only for a fall, a raised NEWS2, an incident or an urgent alert.
+ * HZ-008, HZ-011), by `lateAdditionNotices`: the staff who acknowledged it about the additions they
+ * can see while the receiving shift runs; the nurse in charge on duty about anything none of them
+ * can see and always about a fall, a raised NEWS2, an incident or an urgent alert; after the
+ * receiving shift, the nurse in charge about everything. Each notice is generic and urgent with
+ * push only when an item the recipient can see cannot wait. Returns how many were told and how
+ * many additions nobody on duty can see.
  */
 async function announceLateAdditions(
   tx: Transaction,
   row: HandoverRow,
   added: readonly HandoverItem[],
   now: Date,
-): Promise<number> {
-  if (added.length === 0) return 0;
+): Promise<{ readonly told: number; readonly unheard: number }> {
+  if (added.length === 0) return { told: 0, unheard: 0 };
   const acks = await tx
     .selectDistinct({ id: handoverAcknowledgement.tenantUserId })
     .from(handoverAcknowledgement)
     .where(eq(handoverAcknowledgement.handoverId, row.id));
-  // The staff who acknowledged, told only about additions they can see (HZ-011, HZ-008).
+  const acknowledgers = acks.map((a) => a.id);
+  const nurses = await nurseInCharge(tx, row.locationId);
   const visible = await peopleVisibleTo(
     tx,
-    acks.map((a) => a.id),
+    [...new Set([...acknowledgers, ...nurses])],
     added.map((i) => i.personId).filter((p): p is string => p !== null),
     now,
   );
@@ -563,48 +674,113 @@ async function announceLateAdditions(
     .from(location)
     .where(eq(location.id, row.locationId));
   const pattern = await shiftPatternFor(tx, row.tenantId, (loc?.nation ?? "england") as Nation);
-  const receiving = nextShift(rowShift(row), pattern);
-  const told = lateAdditionRecipients(
-    receiving,
+  const { notices, unheard } = lateAdditionNotices({
+    receivingShift: nextShift(rowShift(row), pattern),
     now,
-    acks.map((a) => a.id),
-    await nurseInCharge(tx, row.locationId),
-  );
-  const items = (row.items as unknown[]).length;
-  for (const recipient of told.recipients) {
-    const theirs =
-      told.to === "incoming_staff"
-        ? added.filter(
-            (i) => i.personId === null || (visible.get(recipient)?.has(i.personId) ?? false),
-          )
-        : added;
-    const severity = lateAdditionSeverity(theirs);
-    if (!severity) continue;
+    added,
+    acknowledgers,
+    nurseInCharge: nurses,
+    canSee: (userId, i) => i.personId === null || (visible.get(userId)?.has(i.personId) ?? false),
+  });
+  for (const notice of notices) {
     await tx
       .insert(notification)
       .values({
-        recipientTenantUserId: recipient,
+        recipientTenantUserId: notice.recipient,
         kind: HANDOVER_NOTIFICATION_KIND,
-        severity,
+        severity: notice.severity,
         title: "A handover has new items",
         body: "Open the handover to see what was added.",
         link: `/locations/${row.locationId}/handovers/${row.id}`,
-        channels: severity === "urgent" ? ["in_app", "push"] : ["in_app"],
+        channels: notice.severity === "urgent" ? ["in_app", "push"] : ["in_app"],
         sourceType: "handover",
         sourceId: row.id,
         locationId: row.locationId,
-        dedupeKey: `handover_late:${row.id}:${items}:${recipient}`,
+        dedupeKey: `handover_late:${row.id}:${now.getTime()}:${notice.recipient}`,
       })
       .onConflictDoNothing();
   }
-  return told.recipients.length;
+  return { told: notices.length, unheard: unheard.length };
 }
 
 /**
- * The worker's pass over one organisation (every `HANDOVER_SWEEP_MINUTES`): each location's last
- * shift is compiled if nobody has, refreshed and locked; handovers still open are refreshed, and
- * locked if their shift has ended; locked ones from the offline window are refreshed when an entry
- * that happened in their shift has arrived since their last refresh.
+ * Alerts the nurse in charge on duty, once, when nobody on the incoming shift has acknowledged a
+ * handover by the rate table's grace period after its shift ended (COMMS-006; HZ-018, H-153). The
+ * alert can be acknowledged like any other, and each nurse in charge has one copy per handover.
+ */
+async function alertUnacknowledged(
+  tx: Transaction,
+  tenantId: string,
+  locationId: string,
+  graceMinutes: number,
+  now: Date,
+): Promise<number> {
+  const latest = new Date(now.getTime() - graceMinutes * 60_000);
+  const earliest = new Date(latest.getTime() - UNACKNOWLEDGED_ALERT_WINDOW_HOURS * 3_600_000);
+  const rows = await tx
+    .select()
+    .from(handover)
+    .where(
+      and(
+        eq(handover.locationId, locationId),
+        isNull(handover.deletedAt),
+        lte(handover.shiftEnd, latest),
+        gt(handover.shiftEnd, earliest),
+      ),
+    );
+  if (rows.length === 0) return 0;
+  const states = await acknowledgementSummary(tx, rows, now);
+  let raised = 0;
+  for (const row of rows) {
+    const due = unacknowledgedAlertDue({
+      shift: rowShift(row),
+      now,
+      graceMinutes,
+      acknowledged: !(states.get(row.id)?.unacknowledged ?? true),
+    });
+    if (!due) continue;
+    let inserted = 0;
+    for (const recipient of await nurseInCharge(tx, locationId)) {
+      const made = await tx
+        .insert(notification)
+        .values({
+          recipientTenantUserId: recipient,
+          kind: HANDOVER_UNACKNOWLEDGED_KIND,
+          severity: "warning",
+          title: "A handover has not been acknowledged",
+          body: "Nobody on the incoming shift has acknowledged the handover yet. Make sure it is read.",
+          link: `/locations/${locationId}/handovers/${row.id}`,
+          channels: ["in_app"],
+          sourceType: "handover",
+          sourceId: row.id,
+          locationId,
+          dedupeKey: `handover_unacknowledged:${row.id}`,
+        })
+        .onConflictDoNothing()
+        .returning({ id: notification.id });
+      inserted += made.length;
+    }
+    if (inserted === 0) continue;
+    raised += inserted;
+    await systemAudit(tx, tenantId)("care.handover.alert.unacknowledged", row.id, {
+      locationId,
+      told: inserted,
+    });
+  }
+  return raised;
+}
+
+/** At most this many earlier shifts are looked at for a missed handover (bounds the loop). */
+const MAX_MISSED_SHIFTS = 200;
+
+/**
+ * The worker's pass over one organisation (every `HANDOVER_SWEEP_MINUTES`): at each location,
+ * every shift that ended within the offline window has its handover compiled and locked if nobody
+ * has, so a missed run or a worker outage loses none;
+ * handovers still open are refreshed, and locked if their shift has ended; locked ones from the
+ * offline window are refreshed when an entry that happened in their shift has arrived since their
+ * last refresh; and the nurse in charge is alerted once about any handover nobody on the incoming
+ * shift has acknowledged by the grace period (H-153).
  */
 export async function sweepHandovers(
   tx: Transaction,
@@ -623,7 +799,12 @@ export async function sweepHandovers(
   let changed = 0;
   for (const loc of locations) {
     const pattern = await shiftPatternFor(tx, tenantId, loc.nation as Nation);
-    const last = previousShift(shiftAt(now, pattern), pattern);
+    const grace = await rateNumber(
+      tx,
+      tenantId,
+      HANDOVER_RATE_KEYS.acknowledgementGraceMinutes,
+      loc.nation as Nation,
+    );
     const done = new Set<string>();
     const run = async (shift: ShiftWindow, options: { lock?: boolean; advance?: boolean }) => {
       const outcome = await compileOrRefresh(tx, {
@@ -637,11 +818,28 @@ export async function sweepHandovers(
       done.add(outcome.row.id);
       if (outcome.created || outcome.added.length > 0 || options.lock) changed++;
     };
-    const [lastRow] = await tx
-      .select({ lockedAt: handover.lockedAt })
-      .from(handover)
-      .where(and(eq(handover.locationId, loc.id), eq(handover.shiftStart, last.start)));
-    if (!lastRow || lastRow.lockedAt === null) await run(last, { lock: true });
+    // The shifts that ended in the offline window, oldest first.
+    const ended: ShiftWindow[] = [];
+    for (
+      let s = previousShift(shiftAt(now, pattern), pattern);
+      s.end.getTime() > since.getTime() && ended.length < MAX_MISSED_SHIFTS;
+      s = previousShift(s, pattern)
+    ) {
+      ended.unshift(s);
+    }
+    const first = ended[0];
+    const stored = first
+      ? await tx
+          .select({ shiftStart: handover.shiftStart, lockedAt: handover.lockedAt })
+          .from(handover)
+          .where(and(eq(handover.locationId, loc.id), gte(handover.shiftStart, first.start)))
+      : [];
+    const locked = new Set(
+      stored.filter((r) => r.lockedAt !== null).map((r) => r.shiftStart.getTime()),
+    );
+    for (const shift of ended) {
+      if (!locked.has(shift.start.getTime())) await run(shift, { lock: true });
+    }
     const open = await tx
       .select()
       .from(handover)
@@ -681,6 +879,7 @@ export async function sweepHandovers(
       if (done.has(row.id)) continue;
       await run(rowShift(row), { advance: true });
     }
+    changed += await alertUnacknowledged(tx, tenantId, loc.id, grace, now);
   }
   return changed;
 }

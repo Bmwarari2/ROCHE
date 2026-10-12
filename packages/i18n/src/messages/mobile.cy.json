@@ -89,7 +89,7 @@
   "mobile.note.bodyRequired": "Write the note before saving.",
   "mobile.note.bodyTooLong": "Shorten the note to {max} characters or fewer.",
   "mobile.note.tags": "Also mark this note for handover",
-  "mobile.note.tag": "{tag, select, fall {A fall} refusal {A refusal of care} other {Something else}}",
+  "mobile.note.tag": "{tag, select, fall {A fall} refusal {A refusal of care} handover {Include in handover} other {Something else}}",
   "mobile.chart.choose": "Choose a chart",
   "mobile.chart.name": "{chart, select, fluid_intake {Drink} fluid_output {Fluid output} food {Food} repositioning {Repositioning} bowel {Bowel movement} weight {Weight} vitals {Vital signs} other {Chart}}",
   "mobile.chart.ml": "Amount in millilitres",

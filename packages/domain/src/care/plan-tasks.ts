@@ -1,7 +1,8 @@
-import type { Recurrence } from "../platform/tasks";
+import { occurrences, type Recurrence, type RecurrenceSeries } from "../platform/tasks";
 import {
   actionsDrivingTasks,
   type CarePlanStatus,
+  MIN_ROUND_GAP_MINUTES,
   PCSP_DOMAIN_LABELS,
   type PcspDomain,
   planActionGeneratesTasks,
@@ -13,7 +14,8 @@ import {
  * of the person's active plan drives one task series in the task engine
  * (`packages/domain/src/platform/tasks.ts`): the engine materialises the rounds, the round view
  * lists them, and an overdue round escalates once. These rules decide which series a plan needs,
- * which a new version carries forward, and the window each round has. Pure functions; no I/O.
+ * which a new version carries forward, and the window each round has (from the real instants of
+ * its neighbours). Pure functions; no I/O.
  */
 
 /** The task kind of every round a care plan action generates. */
@@ -44,77 +46,105 @@ export function planActionTaskTitle(domain: PcspDomain): string {
 // The window around each round
 // ------------------------------------------------------------------------------------------------
 
-const MINUTES_IN_DAY = 24 * 60;
-/** 01:00 UK time, when the clocks change. */
-const CLOCK_CHANGE_MINUTE = 60;
-
-function minuteOfDay(time: string): number {
-  const [h, m] = time.split(":").map(Number);
-  return (h ?? 0) * 60 + (m ?? 0);
-}
-
-/** Whether a stretch of wall-clock minutes (from `a`, to `b`) passes 01:00 on some day. */
-function spansClockChange(a: number, b: number): boolean {
-  return (
-    Math.floor((b - CLOCK_CHANGE_MINUTE) / MINUTES_IN_DAY) >
-    Math.floor((a - CLOCK_CHANGE_MINUTE) / MINUTES_IN_DAY)
-  );
-}
-
-/**
- * The shortest time between two rounds of a schedule, in minutes. Clock-time schedules are laid out
- * over one cycle (a day, the weeks of a weekly rule, or the shortest month) and any gap that passes
- * 01:00 counts an hour less, since on the night the clocks go forward it is (HZ-009). Hourly
- * schedules count real hours, so a clock change never moves them.
- */
-export function shortestGapMinutes(rule: Recurrence): number {
-  if (rule.freq === "every_hours") return rule.hours * 60;
-  const interval = rule.interval ?? 1;
-  const times = [...new Set(rule.times.map(minuteOfDay))].sort((a, b) => a - b);
-  let starts: number[];
-  let cycle: number;
-  if (rule.freq === "daily") {
-    starts = times;
-    cycle = interval * MINUTES_IN_DAY;
-  } else if (rule.freq === "weekly") {
-    const order = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-    const days = [...new Set(rule.weekdays.map((d) => order.indexOf(d)))].sort((a, b) => a - b);
-    starts = days.flatMap((d) => times.map((t) => d * MINUTES_IN_DAY + t));
-    cycle = interval * 7 * MINUTES_IN_DAY;
-  } else {
-    starts = times;
-    // The shortest month: the 31st falls on the 28th in February.
-    cycle = interval * 28 * MINUTES_IN_DAY;
-  }
-  const first = starts[0] ?? 0;
-  const points = [...starts, first + cycle];
-  let shortest = Number.POSITIVE_INFINITY;
-  for (let i = 1; i < points.length; i++) {
-    const a = points[i - 1] as number;
-    const b = points[i] as number;
-    const gap = b - a - (spansClockChange(a, b) ? 60 : 0);
-    shortest = Math.min(shortest, gap);
-  }
-  return Math.max(0, shortest);
-}
-
 export interface TaskWindow {
   readonly beforeMinutes: number;
   readonly afterMinutes: number;
 }
 
+/** One round: when it is due and the window in which doing it counts as on time. */
+export interface RoundTime {
+  readonly dueAt: Date;
+  readonly windowStart: Date;
+  readonly windowEnd: Date;
+}
+
+const MINUTE = 60_000;
+
 /**
- * The window each round of an action has: the tenant's defaults, cut where rounds come closer
- * together than the window is long, so no instant is inside two rounds' windows, even on a
- * clock-change night. An entry then answers one round only, and a round is never shown twice as
- * due at once (HZ-004). The time after a round is cut first, then the time before.
+ * How the real time between two consecutive rounds is shared between them: the earlier round's
+ * time after and the later round's time before together stay a minute short of the gap, so no
+ * instant is inside both windows; each side is capped by the tenant's figure.
  */
-export function planActionTaskWindow(rule: Recurrence, defaults: TaskWindow): TaskWindow {
-  const gap = shortestGapMinutes(rule);
-  if (defaults.beforeMinutes + defaults.afterMinutes < gap) return defaults;
-  const afterMinutes = Math.max(0, Math.min(defaults.afterMinutes, Math.floor((gap - 1) / 2)));
-  const beforeMinutes = Math.max(0, Math.min(defaults.beforeMinutes, gap - 1 - afterMinutes));
-  return { beforeMinutes, afterMinutes };
+function shareGap(gapMinutes: number, caps: TaskWindow) {
+  const after = Math.min(caps.afterMinutes, Math.floor((gapMinutes - 1) / 2));
+  const before = Math.min(caps.beforeMinutes, gapMinutes - 1 - after);
+  return { after, before };
+}
+
+/**
+ * The rounds of a care plan action in [from, to), each with its window (care.md rule 14; HZ-004,
+ * HZ-008, HZ-009). Windows come from the real instants of consecutive rounds, never from the clock
+ * face, so a clock change cannot make two windows meet: each round may be done from
+ * `caps.beforeMinutes` before its time until `caps.afterMinutes` after, cut where its neighbours
+ * are closer, never to nothing. Rounds closer than `MIN_ROUND_GAP_MINUTES` are merged into the
+ * first of them. Neighbours just outside [from, to) are read too, so the windows do not depend on
+ * when the rounds were made.
+ */
+export function roundTimes(
+  series: RecurrenceSeries,
+  from: Date,
+  to: Date,
+  caps: TaskWindow,
+): RoundTime[] {
+  // A neighbour further away than twice the larger figure never cuts a window.
+  const pad =
+    (2 * Math.max(caps.beforeMinutes, caps.afterMinutes) + MIN_ROUND_GAP_MINUTES + 1) * MINUTE;
+  const raw = occurrences(series, new Date(from.getTime() - pad), new Date(to.getTime() + pad)).map(
+    (d) => d.getTime(),
+  );
+  raw.sort((a, b) => a - b);
+  const instants: number[] = [];
+  for (const t of raw) {
+    const last = instants.at(-1);
+    if (last !== undefined && t - last < MIN_ROUND_GAP_MINUTES * MINUTE) continue;
+    instants.push(t);
+  }
+  const rounds: RoundTime[] = [];
+  instants.forEach((t, i) => {
+    if (t < from.getTime() || t >= to.getTime()) return;
+    const prev = instants[i - 1];
+    const next = instants[i + 1];
+    const before =
+      prev === undefined ? caps.beforeMinutes : shareGap((t - prev) / MINUTE, caps).before;
+    const after =
+      next === undefined ? caps.afterMinutes : shareGap((next - t) / MINUTE, caps).after;
+    rounds.push({
+      dueAt: new Date(t),
+      windowStart: new Date(t - before * MINUTE),
+      windowEnd: new Date(t + after * MINUTE),
+    });
+  });
+  return rounds;
+}
+
+// ------------------------------------------------------------------------------------------------
+// What a round and a plan action say about themselves
+// ------------------------------------------------------------------------------------------------
+
+/**
+ * Shown on a round whose action is no longer in the active plan: an overdue round of a schedule
+ * the plan has since changed or dropped stays open to be done, so it must not read as current
+ * (HZ-024).
+ */
+export const EARLIER_PLAN_NOTICE = "From an earlier plan: check the current plan";
+
+/**
+ * Shown on a medicines action, in the plan and on the round, until the eMAR makes the dose rounds
+ * (HZ-003, H-151).
+ */
+export const NOT_A_ROUND_NOTICE = "Not a round: see the medicines record";
+
+/** The notice a care plan round carries: none while its action is in the active plan. */
+export function planRoundNotice(input: {
+  readonly planStatus: CarePlanStatus;
+  readonly seriesLive: boolean;
+}): string | null {
+  return input.planStatus === "active" && input.seriesLive ? null : EARLIER_PLAN_NOTICE;
+}
+
+/** The notice a plan action carries: medicines actions are never rounds. */
+export function planActionNotice(domain: PcspDomain): string | null {
+  return planActionGeneratesTasks(domain) ? null : NOT_A_ROUND_NOTICE;
 }
 
 // ------------------------------------------------------------------------------------------------

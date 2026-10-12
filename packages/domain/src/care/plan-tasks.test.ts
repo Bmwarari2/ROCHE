@@ -1,18 +1,26 @@
 import { describe, expect, it } from "vitest";
 import { readRateTable } from "../../test/rate-table";
 import { resolveRate } from "../platform/rates";
-import { occurrences, type Recurrence } from "../platform/tasks";
-import { checkPlanAction, checkPublication, planActionGeneratesTasks } from "./care-plan";
+import type { Recurrence } from "../platform/tasks";
+import {
+  checkPlanAction,
+  checkPublication,
+  MIN_ROUND_GAP_MINUTES,
+  planActionGeneratesTasks,
+} from "./care-plan";
 import {
   CARE_PLAN_TASK_RATE_KEYS,
+  EARLIER_PLAN_NOTICE,
+  NOT_A_ROUND_NOTICE,
   PLAN_ACTION_TASK_KIND,
   type PlanTaskAction,
   type PlanTaskSeries,
+  planActionNotice,
   planActionTaskSeries,
   planActionTaskTitle,
-  planActionTaskWindow,
+  planRoundNotice,
+  roundTimes,
   sameTaskSchedule,
-  shortestGapMinutes,
 } from "./plan-tasks";
 
 /**
@@ -127,76 +135,172 @@ describe("rule 14: what a care plan task is called and who completes it", () => 
   });
 });
 
+const hourlyClock = daily(
+  ...Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, "0")}:00`),
+);
+const halfHourlyClock = daily(
+  ...Array.from({ length: 48 }, (_, i) => {
+    const m = i * 30;
+    return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  }),
+);
+
+/** The rounds of a schedule over one UK day and the night either side. */
+const roundsOn = (rule: Recurrence, day: string) =>
+  roundTimes(
+    { rule, startsOn: "2026-01-01" },
+    new Date(`${day}T00:00:00Z`),
+    new Date(new Date(`${day}T00:00:00Z`).getTime() + 2 * 86_400_000),
+    DEFAULTS,
+  );
+
+const DAYS = [
+  ["an ordinary day", "2026-10-11"],
+  ["the clocks going forward in 2026", "2026-03-28"],
+  ["the clocks going back in 2026", "2026-10-24"],
+  ["the clocks going forward in 2027", "2027-03-27"],
+  ["the clocks going back in 2027", "2027-10-30"],
+] as const;
+
+const SCHEDULES = [
+  ["01:00 and 02:00", daily("01:00", "02:00")],
+  ["01:30 and 02:30", daily("01:30", "02:30")],
+  ["00:30 and 01:30", daily("00:30", "01:30")],
+  ["08:00 and 08:45", daily("08:00", "08:45")],
+  ["every hour on the clock", hourlyClock],
+  ["every half hour on the clock", halfHourlyClock],
+  ["every hour in real hours", turns(1)],
+  ["every four hours", turns(4)],
+] as const;
+
 describe("hazard HZ-004 a round's window never reaches the next round's", () => {
-  it.each([
-    // A gap that spans 01:00 may be an hour shorter, on the night the clocks go forward.
-    ["once a day", daily("09:00"), 1380],
-    ["twice a day", daily("08:00", "20:00"), 660],
-    ["morning and lunchtime", daily("12:30", "08:00"), 270],
-    ["every other day", { freq: "daily", interval: 2, times: ["09:00"] } as Recurrence, 2820],
-    ["four-hourly turns", turns(4), 240],
-    ["hourly checks", turns(1), 60],
-    [
-      "Monday and Thursday mornings",
-      { freq: "weekly", weekdays: ["mon", "thu"], times: ["10:00"] } as Recurrence,
-      3 * 1440 - 60,
-    ],
-    [
-      "Sunday night and Monday morning",
-      { freq: "weekly", weekdays: ["mon", "sun"], times: ["07:00", "22:00"] } as Recurrence,
-      8 * 60,
-    ],
-    [
-      "every other Friday",
-      { freq: "weekly", interval: 2, weekdays: ["fri"], times: ["14:00"] } as Recurrence,
-      14 * 1440 - 60,
-    ],
-    ["monthly", { freq: "monthly", dayOfMonth: 1, times: ["10:00"] } as Recurrence, 28 * 1440 - 60],
-    // An hour less on the spring night: 00:30 to 01:30 crosses 01:00, so it can be no time at all.
-    ["either side of 01:00", daily("00:30", "01:30"), 0],
-  ])("the shortest gap between rounds %s", (_label, rule, minutes) => {
-    expect(shortestGapMinutes(rule)).toBe(minutes);
-  });
-
-  it.each([
-    ["once a day keeps the defaults", daily("09:00"), DEFAULTS],
-    ["four-hourly turns keep the defaults", turns(4), DEFAULTS],
-    ["two-hourly turns keep the defaults", turns(2), DEFAULTS],
-    ["hourly checks are cut to fit", turns(1), { beforeMinutes: 30, afterMinutes: 29 }],
-    [
-      "rounds 45 minutes apart are cut to fit",
-      daily("08:00", "08:45"),
-      { beforeMinutes: 22, afterMinutes: 22 },
-    ],
-    [
-      "rounds either side of 01:00 have no window at all",
-      daily("00:30", "01:30"),
-      { beforeMinutes: 0, afterMinutes: 0 },
-    ],
-  ])("%s", (_label, rule, expected) => {
+  it("reads the window figures from the rate table", () => {
     expect(DEFAULTS).toEqual({ beforeMinutes: 30, afterMinutes: 60 });
-    expect(planActionTaskWindow(rule, DEFAULTS)).toEqual(expected);
   });
 
-  it("leaves no instant inside two rounds' windows across both clock changes", () => {
-    for (const rule of [turns(1), daily("00:30", "01:30", "02:30"), daily("08:00", "08:45")]) {
-      const window = planActionTaskWindow(rule, DEFAULTS);
-      for (const [from, to] of [
-        ["2026-03-28T00:00:00Z", "2026-03-30T00:00:00Z"],
-        ["2026-10-24T00:00:00Z", "2026-10-26T00:00:00Z"],
-      ] as const) {
-        const due = occurrences({ rule, startsOn: "2026-01-01" }, new Date(from), new Date(to));
-        for (let i = 1; i < due.length; i++) {
-          const end = (due[i - 1] as Date).getTime() + window.afterMinutes * 60_000;
-          const start = (due[i] as Date).getTime() - window.beforeMinutes * 60_000;
-          if (window.beforeMinutes + window.afterMinutes === 0) {
-            expect(end).toBeLessThanOrEqual(start);
-          } else {
-            expect(end).toBeLessThan(start);
-          }
+  describe.each(DAYS)("on %s", (_label, day) => {
+    it.each(SCHEDULES)("%s: every round has a window, and no instant is in two", (_name, rule) => {
+      const rounds = roundsOn(rule, day);
+      expect(rounds.length).toBeGreaterThan(0);
+      for (const [i, r] of rounds.entries()) {
+        // Never a window of nothing on either side, and never wider than the tenant's figures.
+        expect(r.windowStart.getTime()).toBeLessThan(r.dueAt.getTime());
+        expect(r.windowEnd.getTime()).toBeGreaterThan(r.dueAt.getTime());
+        expect(r.dueAt.getTime() - r.windowStart.getTime()).toBeLessThanOrEqual(
+          DEFAULTS.beforeMinutes * 60_000,
+        );
+        expect(r.windowEnd.getTime() - r.dueAt.getTime()).toBeLessThanOrEqual(
+          DEFAULTS.afterMinutes * 60_000,
+        );
+        const next = rounds[i + 1];
+        if (next) {
+          expect(next.dueAt.getTime()).toBeGreaterThan(r.dueAt.getTime());
+          expect(r.windowEnd.getTime()).toBeLessThan(next.windowStart.getTime());
         }
       }
+    });
+  });
+
+  it.each([
+    ["2026-03-29", "2026-03-29T01:00:00.000Z"],
+    ["2027-03-28", "2027-03-28T01:00:00.000Z"],
+  ])("merges 01:00 and 02:00 into one round on %s, when they are the same instant", (day, at) => {
+    const onTheDay = roundsOn(daily("01:00", "02:00"), day).filter((r) =>
+      r.dueAt.toISOString().startsWith(day),
+    );
+    expect(onTheDay.map((r) => r.dueAt.toISOString())).toEqual([at]);
+  });
+
+  it("keeps both rounds, and full windows, on an ordinary day", () => {
+    const rounds = roundsOn(daily("01:00", "02:00"), "2026-10-11").filter((r) =>
+      r.dueAt.toISOString().startsWith("2026-10-11"),
+    );
+    // 01:00 and 02:00 BST: an hour apart, shared without touching.
+    expect(rounds.map((r) => r.dueAt.toISOString())).toEqual([
+      "2026-10-11T00:00:00.000Z",
+      "2026-10-11T01:00:00.000Z",
+    ]);
+    const [first, second] = rounds;
+    expect(((first?.windowEnd.getTime() ?? 0) - (first?.dueAt.getTime() ?? 0)) / 60_000).toBe(29);
+    expect(((second?.dueAt.getTime() ?? 0) - (second?.windowStart.getTime() ?? 0)) / 60_000).toBe(
+      30,
+    );
+  });
+
+  it("gives four-hourly turns the tenant's full window", () => {
+    const [round] = roundsOn(turns(4), "2026-10-11");
+    expect(round).toBeDefined();
+    expect(((round?.dueAt.getTime() ?? 0) - (round?.windowStart.getTime() ?? 0)) / 60_000).toBe(30);
+    expect(((round?.windowEnd.getTime() ?? 0) - (round?.dueAt.getTime() ?? 0)) / 60_000).toBe(60);
+  });
+
+  it.each([
+    ["every half hour", halfHourlyClock, "2026-10-11T11:15:00Z"],
+    // 101 minutes apart: each round's window is cut by a neighbour beyond the sum of the figures.
+    ["08:00 and 09:41", daily("08:00", "09:41"), "2026-10-11T07:30:00Z"],
+    ["08:00 and 09:41, cut later", daily("08:00", "09:41"), "2026-10-11T08:30:00Z"],
+    ["over the clocks going back", hourlyClock, "2026-10-25T01:30:00Z"],
+  ] as const)(
+    "gives the same windows however the range is cut (%s), so it does not matter when rounds are made",
+    (_label, rule, cut) => {
+      const day = cut.slice(0, 10);
+      const start = new Date(`${day}T00:00:00Z`);
+      const end = new Date(start.getTime() + 86_400_000);
+      const whole = roundTimes({ rule, startsOn: "2026-01-01" }, start, end, DEFAULTS);
+      const halves = [
+        ...roundTimes({ rule, startsOn: "2026-01-01" }, start, new Date(cut), DEFAULTS),
+        ...roundTimes({ rule, startsOn: "2026-01-01" }, new Date(cut), end, DEFAULTS),
+      ];
+      expect(halves).toEqual(whole);
+    },
+  );
+
+  it.each([
+    ["two times 5 minutes apart", daily("08:00", "08:05"), false],
+    [
+      "the last time of a day and the first of the next 5 minutes apart",
+      daily("23:58", "00:03"),
+      false,
+    ],
+    ["times 10 minutes apart", daily("08:00", "08:10"), true],
+    [
+      "every other day, late and early",
+      { freq: "daily", interval: 2, times: ["23:58", "00:03"] } as Recurrence,
+      true,
+    ],
+    ["hourly turns", turns(1), true],
+  ])("refuses or accepts %s", (_label, rule, ok) => {
+    const check = checkPlanAction(
+      { generatesTasks: true, recurrence: rule, roleKey: "care_worker", domain: "skin" },
+      "2026-10-11",
+    );
+    expect(check.ok).toBe(ok);
+    if (!check.ok) {
+      expect(check.message).toBe(
+        `Times for one action must be at least ${MIN_ROUND_GAP_MINUTES} minutes apart.`,
+      );
     }
+  });
+});
+
+describe("hazards HZ-024 and HZ-003 what a round and an action say about themselves", () => {
+  it.each([
+    ["active", true, null],
+    ["superseded", false, EARLIER_PLAN_NOTICE],
+    ["active", false, EARLIER_PLAN_NOTICE],
+    ["superseded", true, EARLIER_PLAN_NOTICE],
+  ] as const)(
+    "hazard HZ-024 a round from a %s plan whose series is live (%s) says %j",
+    (planStatus, seriesLive, notice) => {
+      expect(planRoundNotice({ planStatus, seriesLive })).toBe(notice);
+    },
+  );
+
+  it("hazard HZ-003 says a medicines action is not a round, and nothing on the rest", () => {
+    expect(planActionNotice("medicines")).toBe("Not a round: see the medicines record");
+    expect(NOT_A_ROUND_NOTICE).toBe("Not a round: see the medicines record");
+    expect(planActionNotice("skin")).toBeNull();
+    expect(EARLIER_PLAN_NOTICE).toBe("From an earlier plan: check the current plan");
   });
 });
 

@@ -5,7 +5,7 @@
 DO $$
 DECLARE t text;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['handover', 'handover_note', 'handover_acknowledgement'] LOOP
+  FOREACH t IN ARRAY ARRAY['handover', 'handover_item', 'handover_note', 'handover_acknowledgement'] LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('ALTER TABLE public.%I FORCE ROW LEVEL SECURITY', t);
     EXECUTE format(
@@ -18,9 +18,10 @@ $$;
 --> statement-breakpoint
 
 -- A location's handovers are visible to tenant-wide roles, to location roles there, and to anyone
--- who can see at least one person at the location (an assigned care worker); the items about
--- people they cannot see are filtered out by the API. Invoker rights, like app.person_in_scope:
--- they run under the caller's row-level security, so they can never widen access.
+-- who can see at least one person at the location (an assigned care worker); each item is visible
+-- only to those who can see its person (handover_item_scope). Invoker rights, like
+-- app.person_in_scope: they run under the caller's row-level security, so they can never widen
+-- access.
 CREATE OR REPLACE FUNCTION app.handover_location_visible(p_location_id uuid) RETURNS boolean
 LANGUAGE sql STABLE AS $$
   SELECT CASE app.current_scope()
@@ -33,16 +34,51 @@ LANGUAGE sql STABLE AS $$
 $$;
 --> statement-breakpoint
 
--- Notes and acknowledgements follow their handover.
+-- Items, notes and acknowledgements follow their handover.
 CREATE OR REPLACE FUNCTION app.handover_visible(p_handover_id uuid) RETURNS boolean
 LANGUAGE sql STABLE AS $$
   SELECT EXISTS (SELECT 1 FROM public.handover h WHERE h.id = p_handover_id)
 $$;
 --> statement-breakpoint
 
-CREATE POLICY handover_scope ON public.handover AS RESTRICTIVE FOR ALL TO harbour_app, harbour_owner
-  USING (app.handover_location_visible(location_id))
-  WITH CHECK (app.handover_location_visible(location_id));
+-- Whether the caller sees a handover whole: a tenant-wide role, or a location role at its location.
+-- Everyone else sees it limited to their own people, and sees only their own acknowledgements.
+CREATE OR REPLACE FUNCTION app.handover_whole(p_handover_id uuid) RETURNS boolean
+LANGUAGE sql STABLE AS $$
+  SELECT CASE app.current_scope()
+    WHEN 'tenant' THEN true
+    WHEN 'locations' THEN EXISTS (
+      SELECT 1 FROM public.handover h
+      WHERE h.id = p_handover_id AND h.location_id = ANY (app.current_location_ids()))
+    ELSE false
+  END
+$$;
+--> statement-breakpoint
+
+-- Reading follows the location; writing a handover or its items is the system's alone (the API
+-- and the worker compile in the organisation's view, scope 'tenant'), so no reader can add, change
+-- or soft-delete one (HZ-018).
+CREATE POLICY handover_scope ON public.handover AS RESTRICTIVE FOR SELECT
+  TO harbour_app, harbour_owner
+  USING (app.handover_location_visible(location_id));
+--> statement-breakpoint
+CREATE POLICY handover_system_insert ON public.handover AS RESTRICTIVE FOR INSERT
+  TO harbour_app, harbour_owner
+  WITH CHECK (app.current_scope() = 'tenant');
+--> statement-breakpoint
+CREATE POLICY handover_system_update ON public.handover AS RESTRICTIVE FOR UPDATE
+  TO harbour_app, harbour_owner
+  USING (app.current_scope() = 'tenant')
+  WITH CHECK (app.current_scope() = 'tenant');
+--> statement-breakpoint
+-- An item about a person is visible only to those who can see that person (HZ-011).
+CREATE POLICY handover_item_scope ON public.handover_item AS RESTRICTIVE FOR SELECT
+  TO harbour_app, harbour_owner
+  USING (app.handover_visible(handover_id) AND (person_id IS NULL OR app.person_visible(person_id)));
+--> statement-breakpoint
+CREATE POLICY handover_item_system_insert ON public.handover_item AS RESTRICTIVE FOR INSERT
+  TO harbour_app, harbour_owner
+  WITH CHECK (app.current_scope() = 'tenant');
 --> statement-breakpoint
 -- A note on an item about a person follows that person's scope as well.
 CREATE POLICY handover_child_scope ON public.handover_note AS RESTRICTIVE FOR ALL
@@ -50,10 +86,12 @@ CREATE POLICY handover_child_scope ON public.handover_note AS RESTRICTIVE FOR AL
   USING (app.handover_visible(handover_id) AND (person_id IS NULL OR app.person_visible(person_id)))
   WITH CHECK (app.handover_visible(handover_id) AND (person_id IS NULL OR app.person_visible(person_id)));
 --> statement-breakpoint
--- Nobody acknowledges a handover for someone else.
+-- Nobody acknowledges a handover for someone else; a reader limited to their own people sees only
+-- their own acknowledgements (each records the keys of the items its author could see).
 CREATE POLICY handover_child_scope ON public.handover_acknowledgement AS RESTRICTIVE FOR ALL
   TO harbour_app, harbour_owner
-  USING (app.handover_visible(handover_id))
+  USING (app.handover_visible(handover_id)
+    AND (tenant_user_id = app.current_user_id() OR app.handover_whole(handover_id)))
   WITH CHECK (app.handover_visible(handover_id) AND tenant_user_id = app.current_user_id());
 --> statement-breakpoint
 
@@ -65,29 +103,25 @@ CREATE TRIGGER capture_version AFTER UPDATE ON public.handover
   FOR EACH ROW EXECUTE FUNCTION app.capture_version();
 --> statement-breakpoint
 
--- Nothing safety-critical can be removed from a handover, only added to (HZ-018): every item it
--- held stays, unchanged and in its place; its location, shift and first compilation never change;
--- and a locked handover stays locked. Defence in depth behind checkHandoverKeepsItems.
+-- Nothing safety-critical can be removed from a handover, only added to (HZ-018): its
+-- organisation, location, shift and first compilation never change, it is never soft-deleted (the
+-- retention schedule disposes of it with the care records it lists, by its own path), and a locked
+-- handover stays locked. Its items are append-only rows of their own.
 CREATE OR REPLACE FUNCTION app.handover_guard() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
-  IF NEW.location_id IS DISTINCT FROM OLD.location_id
+  IF NEW.tenant_id IS DISTINCT FROM OLD.tenant_id
+     OR NEW.location_id IS DISTINCT FROM OLD.location_id
      OR NEW.shift_name IS DISTINCT FROM OLD.shift_name
      OR NEW.shift_start IS DISTINCT FROM OLD.shift_start
      OR NEW.shift_end IS DISTINCT FROM OLD.shift_end
-     OR NEW.compiled_at IS DISTINCT FROM OLD.compiled_at THEN
-    RAISE EXCEPTION 'A handover keeps its location, shift and first compilation'
+     OR NEW.compiled_at IS DISTINCT FROM OLD.compiled_at
+     OR NEW.deleted_at IS DISTINCT FROM OLD.deleted_at THEN
+    RAISE EXCEPTION 'A handover keeps its organisation, location, shift and first compilation, and is never deleted'
       USING ERRCODE = 'integrity_constraint_violation';
   END IF;
   IF OLD.locked_at IS NOT NULL AND NEW.locked_at IS DISTINCT FROM OLD.locked_at THEN
     RAISE EXCEPTION 'A locked handover stays locked' USING ERRCODE = 'integrity_constraint_violation';
-  END IF;
-  IF jsonb_array_length(NEW.items) < jsonb_array_length(OLD.items) OR EXISTS (
-    SELECT 1 FROM generate_series(0, jsonb_array_length(OLD.items) - 1) AS i
-    WHERE NEW.items -> i IS DISTINCT FROM OLD.items -> i
-  ) THEN
-    RAISE EXCEPTION 'Handover items cannot be removed or changed, only added to'
-      USING ERRCODE = 'integrity_constraint_violation';
   END IF;
   RETURN NEW;
 END
@@ -97,11 +131,39 @@ CREATE TRIGGER handover_guard BEFORE UPDATE ON public.handover
   FOR EACH ROW EXECUTE FUNCTION app.handover_guard();
 --> statement-breakpoint
 
--- Notes and acknowledgements are append-only (Reg 17).
+-- A note on an item takes its person from the item, whatever the writer sent, and only an item the
+-- writer can see may be annotated: the lookup runs under the writer's row-level security.
+CREATE OR REPLACE FUNCTION app.handover_note_item() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE
+  v_found boolean;
+  v_person uuid;
+BEGIN
+  IF NEW.item_key IS NULL THEN
+    NEW.person_id := NULL;
+    RETURN NEW;
+  END IF;
+  SELECT true, i.person_id INTO v_found, v_person
+    FROM public.handover_item i
+    WHERE i.tenant_id = NEW.tenant_id AND i.handover_id = NEW.handover_id AND i.key = NEW.item_key;
+  IF v_found IS NULL THEN
+    RAISE EXCEPTION 'A note can only be on an item of its handover that its writer can see'
+      USING ERRCODE = 'foreign_key_violation';
+  END IF;
+  NEW.person_id := v_person;
+  RETURN NEW;
+END
+$$;
+--> statement-breakpoint
+CREATE TRIGGER handover_note_item BEFORE INSERT ON public.handover_note
+  FOR EACH ROW EXECUTE FUNCTION app.handover_note_item();
+--> statement-breakpoint
+
+-- Items, notes and acknowledgements are append-only (Reg 17).
 DO $$
 DECLARE t text;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['handover_note', 'handover_acknowledgement'] LOOP
+  FOREACH t IN ARRAY ARRAY['handover_item', 'handover_note', 'handover_acknowledgement'] LOOP
     EXECUTE format(
       'CREATE TRIGGER append_only BEFORE UPDATE OR DELETE ON public.%I '
       'FOR EACH ROW EXECUTE FUNCTION app.forbid_mutation()', t);
@@ -115,10 +177,11 @@ $$;
 
 GRANT SELECT, INSERT, UPDATE ON public.handover TO harbour_app;
 --> statement-breakpoint
-GRANT SELECT, INSERT ON public.handover_note, public.handover_acknowledgement TO harbour_app;
+GRANT SELECT, INSERT ON public.handover_item, public.handover_note, public.handover_acknowledgement
+  TO harbour_app;
 --> statement-breakpoint
-REVOKE UPDATE, DELETE, TRUNCATE ON public.handover_note, public.handover_acknowledgement
-  FROM harbour_app;
+REVOKE UPDATE, DELETE, TRUNCATE ON public.handover_item, public.handover_note,
+  public.handover_acknowledgement FROM harbour_app;
 --> statement-breakpoint
 
 -- Alerts raised before this migration name their person and location from their source, so the

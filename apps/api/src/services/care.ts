@@ -8,6 +8,7 @@ import {
   roleAssignment,
   type Transaction,
   task,
+  tenantUser,
 } from "@harbour/db";
 import {
   CARE_RATE_KEYS,
@@ -30,7 +31,7 @@ import {
   ukDayBounds,
   ukIsoDate,
 } from "@harbour/domain";
-import { and, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { HttpProblem, problems } from "../http/problem";
 import { anyoneMayBeGiven, mayBeAssigned, OVERDUE_FIRST_RESPONDERS } from "./tasks";
 
@@ -181,29 +182,29 @@ const TASK_PERMISSIONS: Record<CareTaskKind, string> = {
 
 /** The nurse or senior on shift at a location; the Registered Manager when nobody holds those roles. */
 export async function nurseInCharge(tx: Transaction, locationId: string): Promise<string[]> {
+  // Only an assignment in force now counts, held by someone still on the staff: an ended or future
+  // assignment, or a suspended or departed member of staff, is never told (HZ-008).
+  const inForce = and(
+    isNull(roleAssignment.deletedAt),
+    isNull(role.archivedAt),
+    lte(roleAssignment.validFrom, sql`now()`),
+    or(isNull(roleAssignment.validTo), gt(roleAssignment.validTo, sql`now()`)),
+    inArray(tenantUser.status, ["invited", "active"]),
+    or(isNull(roleAssignment.locationId), eq(roleAssignment.locationId, locationId)),
+  );
   const holders = await tx
     .selectDistinct({ id: roleAssignment.tenantUserId })
     .from(roleAssignment)
     .innerJoin(role, eq(role.id, roleAssignment.roleId))
-    .where(
-      and(
-        inArray(role.key, [...OVERDUE_FIRST_RESPONDERS]),
-        isNull(roleAssignment.deletedAt),
-        or(isNull(roleAssignment.locationId), eq(roleAssignment.locationId, locationId)),
-      ),
-    );
+    .innerJoin(tenantUser, eq(tenantUser.id, roleAssignment.tenantUserId))
+    .where(and(inArray(role.key, [...OVERDUE_FIRST_RESPONDERS]), inForce));
   if (holders.length > 0) return holders.map((h) => h.id);
   const managers = await tx
     .selectDistinct({ id: roleAssignment.tenantUserId })
     .from(roleAssignment)
     .innerJoin(role, eq(role.id, roleAssignment.roleId))
-    .where(
-      and(
-        eq(role.key, "registered_manager"),
-        isNull(roleAssignment.deletedAt),
-        or(isNull(roleAssignment.locationId), eq(roleAssignment.locationId, locationId)),
-      ),
-    );
+    .innerJoin(tenantUser, eq(tenantUser.id, roleAssignment.tenantUserId))
+    .where(and(eq(role.key, "registered_manager"), inForce));
   return managers.map((m) => m.id);
 }
 

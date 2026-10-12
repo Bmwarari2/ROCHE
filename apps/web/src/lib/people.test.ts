@@ -36,6 +36,8 @@ const ada: PersonSummary = {
   communicationNeedsStatus: "recorded",
   communicationNeedsConfirmedBy: null,
   communicationNeedsConfirmedAt: null,
+  iddsiFoodLevel: "not_recorded",
+  iddsiDrinkLevel: "not_recorded",
   statusChangedAt: "2026-09-01T00:00:00.000Z",
   resuscitation: {
     status: "not_recorded",

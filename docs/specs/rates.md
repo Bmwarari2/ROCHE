@@ -201,6 +201,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | bowel.no_movement_prompt_days | 3 | days | 2026-10-01 | - | all | tenant default | to-verify |
 | handover.day_shift_start_minute | 480 | minute_of_day | 2026-10-01 | - | all | Harbour default (12-hour day and night shifts, day from 08:00); tenant setting for the shift handover (care.md rule 8) | to-verify |
 | handover.night_shift_start_minute | 1200 | minute_of_day | 2026-10-01 | - | all | Harbour default (12-hour day and night shifts, night from 20:00); tenant setting for the shift handover (care.md rule 8) | to-verify |
+| handover.acknowledgement_grace_minutes | 60 | minutes | 2026-10-01 | - | all | Harbour default: the nurse in charge is alerted once when nobody on the incoming shift has acknowledged a handover this long after its shift ended (care.md rule 8, COMMS-006, HZ-018); no published figure; tenant default; CSO to confirm (H-153) | to-verify |
 | comms.family_notifications.quiet_start_minute | 1260 | minute_of_day | 2000-01-01 | - | all | Harbour tenant default for family update notifications (comms.md section 4 rule 15): from 21:00 UK time they wait; no statutory figure | to-verify |
 | comms.family_notifications.quiet_end_minute | 480 | minute_of_day | 2000-01-01 | - | all | Harbour tenant default for family update notifications (comms.md section 4 rule 15): waiting notifications go at 08:00 UK time; no statutory figure | to-verify |
 | ld.annual_health_check.min_age_years | 14 | years | 2000-01-01 | - | england | master prompt 10.1 (annual health check from 14) | master-prompt |
@@ -293,12 +294,20 @@ literals, and tests assert against the table, not a literal (section 7, section 
   from. A common care home pattern, not a published figure. A location whose staff start at another
   time, or work three shifts (early, late and night), must have its own pattern set before go-live
   (HZ-018); rotas (Phase 2) then define shifts per location.
+- `handover.acknowledgement_grace_minutes` (60): how long after a shift ends the nurse in charge on
+  duty is alerted, once, that nobody on the incoming shift has acknowledged its handover. Only an
+  acknowledgement made at or after the shift's end that covers every item the reader can see counts
+  ([care.md](care.md) rule 8). No published figure sets it; it is a Harbour default for the CSO to
+  confirm or change (human action H-153), and each organisation may set its own.
 - `care_plan.task_window_before_minutes` (30) and `care_plan.task_window_after_minutes` (60): the
   window around each round a care plan action generates ([care.md](care.md) rule 14). A round may be
   done from 30 minutes before its time and is on time until 60 minutes after; it is then overdue and
-  escalates once after `task.overdue_escalation_minutes`. Where rounds come closer together than the
-  window is long (hourly checks), the window is cut so no instant is inside two rounds' windows
-  (HZ-004). No published figure sets them; they are Harbour defaults for the CSO to confirm or
+  escalates once after `task.overdue_escalation_minutes`. Each window is worked out from the real
+  instants of the round and its neighbours, never from the clock face: where rounds come closer
+  together than the window is long (hourly checks, or two times an hour apart that a clock change
+  brings together), each side is cut to under half the real gap, so no instant is inside two rounds'
+  windows and no window is ever nothing; rounds under 10 minutes apart are refused when the plan is
+  written and merged where a clock change makes them one instant (HZ-004). No published figure sets them; they are Harbour defaults for the CSO to confirm or
   change (human action H-150), and each organisation may set its own.
 - `break_glass.weekly_repeat_threshold` (3): the number of break-glass openings by one user in a week,
   or of different users opening one person's record in a week, at which the weekly report flags the

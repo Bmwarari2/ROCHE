@@ -1,4 +1,4 @@
-import { type PlanActionRef, type RoundTask, RoundView } from "@harbour/contracts";
+import { type NotARound, type PlanActionRef, type RoundTask, RoundView } from "@harbour/contracts";
 import {
   bedOccupancy,
   carePlan,
@@ -9,8 +9,13 @@ import {
   taskSeries,
 } from "@harbour/db";
 import {
+  type CarePlanStatus,
+  DOMAINS_WITHOUT_PLAN_TASKS,
   type RoundTask as DomainRoundTask,
+  NOT_A_ROUND_NOTICE,
+  type PcspDomain,
   PLAN_ACTION_SOURCE_TYPE,
+  planRoundNotice,
   type RoundPerson,
   roundView,
   shiftAt,
@@ -29,8 +34,10 @@ import { personSummaries } from "./people";
 /**
  * The round view (care.md rule 8; master prompt 10.1 "round view by corridor or run"; register row
  * CARE-013): the location's open tasks for the shift running now, by floor or unit and room, each
- * stop with the point-of-care header (HZ-001) and each care plan round with the action as the active
- * plan words it. Tasks and people follow the viewer's scope (row-level security).
+ * stop with the point-of-care header (HZ-001, HZ-016) and each care plan round with the action as
+ * its plan words it, marked when that is an earlier plan (HZ-024). Each stop lists the person's
+ * active plan actions that are not rounds (medicines, HZ-003). Tasks and people follow the
+ * viewer's scope (row-level security).
  */
 
 const LocationParam = z.object({ id: z.uuid() });
@@ -129,6 +136,7 @@ export const roundsRouter = createRouter().openapi(
         tx,
         rows.filter((r) => r.seriesId !== null).map((r) => r.seriesId as string),
       );
+      const notRounds = await actionsNotRounds(tx, personIds);
       const minutes = await escalationMinutes(tx, access.tenantId);
       const areas = roundView(
         rows.map(
@@ -159,6 +167,7 @@ export const roundsRouter = createRouter().openapi(
             personId: stop.personId,
             roomLabel: stop.roomLabel,
             person: stop.personId ? (byPerson.get(stop.personId) ?? null) : null,
+            notRounds: stop.personId ? (notRounds.get(stop.personId) ?? []) : [],
             tasks: stop.tasks.map((entry): RoundTask => {
               const row = byId.get(entry.id);
               if (!row) throw new Error("Round task vanished");
@@ -195,8 +204,9 @@ export const roundsRouter = createRouter().openapi(
 );
 
 /**
- * The care plan action each series carries out, as the active plan words it: through the series,
- * whose source moves to the new version's action when a version carries it forward (rule 14).
+ * The care plan action each series carries out, as its plan words it: through the series, whose
+ * source moves to the new version's action when a version carries it forward (rule 14). A round
+ * of a series the active plan no longer drives says it is from an earlier plan (HZ-024).
  */
 async function planActions(
   tx: Parameters<Parameters<typeof withTenant>[1]>[0],
@@ -213,6 +223,9 @@ async function planActions(
       domain: carePlanSection.domain,
       action: carePlanAction.action,
       whenText: carePlanAction.whenText,
+      planStatus: carePlan.status,
+      seriesActive: taskSeries.active,
+      seriesStoppedCode: taskSeries.inactiveCode,
     })
     .from(taskSeries)
     .innerJoin(carePlanAction, sql`${carePlanAction.id} = ${taskSeries.sourceId}`)
@@ -229,7 +242,60 @@ async function planActions(
         domain: r.domain as PlanActionRef["domain"],
         action: r.action,
         whenText: r.whenText,
+        planStatus: r.planStatus as CarePlanStatus,
+        notice: planRoundNotice({
+          planStatus: r.planStatus as CarePlanStatus,
+          // Paused while the person is away, a series still belongs to its action.
+          seriesLive: r.seriesActive || r.seriesStoppedCode !== null,
+        }),
       },
     ]),
   );
+}
+
+/**
+ * Each person's active plan actions in a domain that never generates rounds (medicines, until the
+ * eMAR): listed on their stop as not a round, so the round never reads as all of their care
+ * (HZ-003, H-151).
+ */
+async function actionsNotRounds(
+  tx: Parameters<Parameters<typeof withTenant>[1]>[0],
+  personIds: readonly string[],
+): Promise<Map<string, NotARound[]>> {
+  if (personIds.length === 0) return new Map();
+  const rows = await tx
+    .select({
+      personId: carePlan.personId,
+      actionId: carePlanAction.id,
+      domain: carePlanSection.domain,
+      action: carePlanAction.action,
+      whenText: carePlanAction.whenText,
+    })
+    .from(carePlanAction)
+    .innerJoin(carePlanSection, eq(carePlanSection.id, carePlanAction.sectionId))
+    .innerJoin(carePlan, eq(carePlan.id, carePlanAction.planId))
+    .where(
+      and(
+        inArray(carePlan.personId, [...personIds]),
+        eq(carePlan.status, "active"),
+        isNull(carePlan.deletedAt),
+        isNull(carePlanAction.deletedAt),
+        inArray(carePlanSection.domain, [...DOMAINS_WITHOUT_PLAN_TASKS]),
+      ),
+    )
+    .orderBy(asc(carePlanAction.createdAt), asc(carePlanAction.id));
+  const out = new Map<string, NotARound[]>();
+  for (const r of rows) {
+    out.set(r.personId, [
+      ...(out.get(r.personId) ?? []),
+      {
+        actionId: r.actionId,
+        domain: r.domain as PcspDomain,
+        action: r.action,
+        whenText: r.whenText,
+        notice: NOT_A_ROUND_NOTICE,
+      },
+    ]);
+  }
+  return out;
 }

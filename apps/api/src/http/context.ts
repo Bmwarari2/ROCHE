@@ -53,6 +53,8 @@ export interface Services {
   readonly scanner: MalwareScanPort;
   /** Per-user limit on the transfer pack routes (S2). */
   readonly transferPackLimiter: RateLimiter;
+  /** Per-user limit on compiling a handover through the API. */
+  readonly handoverCompileLimiter: RateLimiter;
 }
 
 export interface SessionInfo {

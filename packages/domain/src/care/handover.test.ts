@@ -5,17 +5,20 @@ import {
   type AlertNotification,
   acknowledgementState,
   alertConditions,
-  checkHandoverAcknowledgement,
   checkHandoverKeepsItems,
   checkHandoverNote,
   compileHandover,
+  HANDOVER_CLOSED_MESSAGE,
+  HANDOVER_NOTE_TAGS,
   HANDOVER_NOTIFICATION_KIND,
   HANDOVER_RATE_KEYS,
+  HANDOVER_UNACKNOWLEDGED_KIND,
   type HandoverItem,
   type HandoverSources,
   type HandoverTaskSource,
   handoverOpen,
-  lateAdditionRecipients,
+  incomingAcknowledged,
+  lateAdditionNotices,
   lateAdditionSeverity,
   MAX_HANDOVER_NOTE_LENGTH,
   MUST_FOLLOW_UP_TASK_KINDS,
@@ -26,6 +29,7 @@ import {
   ShiftPatternError,
   shiftAt,
   twoShiftPattern,
+  unacknowledgedAlertDue,
   viewerAcknowledgement,
 } from "./handover";
 
@@ -58,6 +62,8 @@ describe("the shift pattern comes from the rate table", () => {
         minute(HANDOVER_RATE_KEYS.nightShiftStartMinute),
       );
       expect(shiftAt(t("2026-10-11T10:00:00Z"), pattern).name).toBe("day");
+      const grace = minute(HANDOVER_RATE_KEYS.acknowledgementGraceMinutes);
+      expect(grace).toBeGreaterThan(0);
     }
   });
 });
@@ -105,6 +111,27 @@ describe("shiftAt", () => {
       "2027-03-27T20:00:00.000Z",
       "2027-03-28T07:00:00.000Z",
       "11 hours when the clocks go forward",
+    ],
+    [
+      "2026-03-29T01:30:00Z",
+      "night",
+      "2026-03-28T20:00:00.000Z",
+      "2026-03-29T07:00:00.000Z",
+      "11 hours when the clocks go forward in 2026",
+    ],
+    [
+      "2027-10-31T07:30:00Z",
+      "night",
+      "2027-10-30T19:00:00.000Z",
+      "2027-10-31T08:00:00.000Z",
+      "13 hours when the clocks go back in 2027, in its last hour",
+    ],
+    [
+      "2027-10-31T08:00:00Z",
+      "day",
+      "2027-10-31T08:00:00.000Z",
+      "2027-10-31T20:00:00.000Z",
+      "the day after the 2027 change starts at 08:00 GMT",
     ],
     [
       "2026-12-01T12:00:00Z",
@@ -260,6 +287,7 @@ const sources: HandoverSources = {
     { id: "n-refusal", personId: "p4", tags: ["refusal", "personal_care"], ...during },
     { id: "n-routine", personId: "p4", tags: ["mood"], ...during },
     { id: "n-free-text", personId: "p4", tags: ["fell", "declined"], ...during },
+    { id: "n-flagged", personId: "p4", tags: ["handover", "health"], ...during },
   ],
   alerts: [
     {
@@ -371,6 +399,7 @@ describe("hazard HZ-018 handover includes every safety-critical item from the sh
     ["must_follow_up:t-must:p3", "a MUST follow-up raised this shift"],
     ["refusal:o-refused:p3", "a refused drink"],
     ["refusal:n-refusal:p4", "refused personal care"],
+    ["flagged_note:n-flagged:p4", 'a note tagged "Include in handover"'],
   ])("includes %s (%s)", (key) => {
     expect(keys).toContain(key);
   });
@@ -378,7 +407,7 @@ describe("hazard HZ-018 handover includes every safety-critical item from the sh
   it.each([
     ["o-low", "a low NEWS2 band"],
     ["o-before", "an observation from the last shift recorded during it"],
-    ["n-routine", "a routine note"],
+    ["n-routine", "a routine note, not tagged for the handover"],
     ["n-free-text", "free-text tags outside the fixed vocabulary"],
     ["a-warning", "a warning that is not urgent"],
     ["a-acknowledged-earlier", "an urgent alert acknowledged before this shift began"],
@@ -398,6 +427,29 @@ describe("hazard HZ-018 handover includes every safety-critical item from the sh
     expect(items.every((i) => !i.lateAddition && i.addedAt === compiledAt)).toBe(true);
   });
 
+  it('hazard HZ-018 puts a note on the handover only when it is tagged "Include in handover"', () => {
+    const note = (id: string, tags: string[]) => ({
+      id,
+      personId: "p1",
+      occurredAt: t("2026-10-11T10:00:00Z"),
+      recordedAt: t("2026-10-11T10:01:00Z"),
+      tags,
+    });
+    const compiled = compileHandover(
+      shift,
+      {
+        ...empty,
+        notes: [
+          note("untagged", []),
+          note("tagged", [HANDOVER_NOTE_TAGS.handover]),
+          note("typed", ["include in handover"]),
+        ],
+      },
+      compiledAt,
+    );
+    expect(compiled.map((i) => [i.kind, i.sourceId])).toEqual([["flagged_note", "tagged"]]);
+  });
+
   it("compiles an empty shift to an empty handover", () => {
     expect(compileHandover(shift, empty, compiledAt)).toEqual([]);
   });
@@ -415,7 +467,38 @@ describe("hazard HZ-018 handover includes every safety-critical item from the sh
     );
     expect(items.map((i) => i.sourceId)).toEqual(["m-night"]);
   });
+
+  it.each([
+    [
+      "the 11-hour night when the clocks go forward in 2027",
+      "2027-03-28T02:00:00Z",
+      "2027-03-28T06:50:00Z",
+    ],
+    [
+      "the 13-hour night when the clocks go back in 2027",
+      "2027-10-31T02:00:00Z",
+      "2027-10-31T07:50:00Z",
+    ],
+  ])("compiles %s, including its last hour", (_label, during, lastHour) => {
+    const night = shiftAt(t(during), PATTERN);
+    const entry = { occurredAt: t(lastHour), recordedAt: t(lastHour) };
+    const after = { occurredAt: night.end, recordedAt: night.end };
+    const compiled = compileHandover(
+      night,
+      {
+        ...empty,
+        bodyMapMarks: [
+          { id: "m-last-hour", personId: "p1", ...entry },
+          { id: "m-next-shift", personId: "p1", ...after },
+        ],
+      },
+      night.end,
+    );
+    expect(compiled.map((i) => i.sourceId)).toEqual(["m-last-hour"]);
+  });
 });
+
+const keysOf = (items: readonly HandoverItem[]) => items.map((i) => i.key);
 
 describe("hazard HZ-018 items synced after compilation are appended as late additions", () => {
   const first = compileHandover(
@@ -453,8 +536,8 @@ describe("hazard HZ-018 items synced after compilation are appended as late addi
       items,
       ["nurse", "carer", "carer", "bank"],
       [
-        { tenantUserId: "nurse", at: t("2026-10-11T19:05:00Z"), itemsSeen: first.length },
-        { tenantUserId: "carer", at: t("2026-10-11T20:20:00Z"), itemsSeen: items.length },
+        { tenantUserId: "nurse", at: t("2026-10-11T19:05:00Z"), itemKeys: keysOf(first) },
+        { tenantUserId: "carer", at: t("2026-10-11T20:20:00Z"), itemKeys: keysOf(items) },
       ],
     );
     expect(state.acknowledged).toEqual(["carer"]);
@@ -469,7 +552,7 @@ describe("hazard HZ-018 items synced after compilation are appended as late addi
     const state = acknowledgementState(
       items,
       ["nurse"],
-      [{ tenantUserId: "nurse", at: later, itemsSeen: first.length }],
+      [{ tenantUserId: "nurse", at: later, itemKeys: keysOf(first) }],
     );
     expect(state.pending).toEqual(["nurse"]);
   });
@@ -478,22 +561,10 @@ describe("hazard HZ-018 items synced after compilation are appended as late addi
     const state = acknowledgementState(
       first,
       ["nurse"],
-      [{ tenantUserId: "nurse", at: t("2026-10-11T19:05:00Z"), itemsSeen: first.length }],
+      [{ tenantUserId: "nurse", at: t("2026-10-11T19:05:00Z"), itemKeys: keysOf(first) }],
     );
     expect(state.complete).toBe(true);
     expect(acknowledgementState(first, [], []).complete).toBe(false);
-  });
-
-  it("sends a late addition to the incoming staff while their shift runs, then to the nurse in charge", () => {
-    const receiving = nextShift(shift, PATTERN);
-    expect(lateAdditionRecipients(receiving, later, ["carer", "carer"], ["nic"])).toEqual({
-      to: "incoming_staff",
-      recipients: ["carer"],
-    });
-    expect(lateAdditionRecipients(receiving, receiving.end, ["carer"], ["nic"])).toEqual({
-      to: "nurse_in_charge",
-      recipients: ["nic"],
-    });
   });
 });
 
@@ -517,6 +588,24 @@ describe("hazard HZ-018 the shift a handover compiles at the end of", () => {
       "2026-10-25T09:00:00Z",
       "night",
       "2026-10-24T19:00:00.000Z",
+    ],
+    [
+      "the 11-hour night when the clocks go forward in 2027",
+      "2027-03-28T09:00:00Z",
+      "night",
+      "2027-03-27T20:00:00.000Z",
+    ],
+    [
+      "the 13-hour night when the clocks go back in 2027",
+      "2027-10-31T09:00:00Z",
+      "night",
+      "2027-10-30T19:00:00.000Z",
+    ],
+    [
+      "the day before the 2027 spring change, from the night after it",
+      "2027-03-28T20:30:00Z",
+      "day",
+      "2027-03-28T07:00:00.000Z",
     ],
   ])("%s", (_label, at, name, start) => {
     const before = previousShift(shiftAt(t(at), PATTERN), PATTERN);
@@ -586,6 +675,10 @@ describe("hazard HZ-018 an urgent alert is one item however many people it reach
           sourceId: "n-1",
         }),
         n("handover", { createdAt: "2026-10-11T09:12:00Z", kind: HANDOVER_NOTIFICATION_KIND }),
+        n("unacknowledged", {
+          createdAt: "2026-10-11T09:12:00Z",
+          kind: HANDOVER_UNACKNOWLEDGED_KIND,
+        }),
       ]),
     ).toEqual([]);
   });
@@ -613,13 +706,17 @@ describe("hazard HZ-018 each member of staff acknowledges the items they can see
   it("shows everything visible to someone who has not acknowledged", () => {
     const state = viewerAcknowledgement(items, visible, [], "carer");
     expect(state.acknowledged).toBe(false);
-    expect(state.itemsSeen).toBeNull();
+    expect(state.acknowledgedAt).toBeNull();
     expect(state.unseen).toEqual(items.filter(visible));
   });
 
   it("asks again only for late additions they can see", () => {
     const acks = [
-      { tenantUserId: "carer", at: t("2026-10-11T19:05:00Z"), itemsSeen: first.length },
+      {
+        tenantUserId: "carer",
+        at: t("2026-10-11T19:05:00Z"),
+        itemKeys: keysOf(first.filter(visible)),
+      },
     ];
     const state = viewerAcknowledgement(items, visible, acks, "carer");
     expect(state.unseen).toEqual(added.filter(visible));
@@ -635,28 +732,114 @@ describe("hazard HZ-018 each member of staff acknowledges the items they can see
     expect(onlyOthers).toMatchObject({ acknowledged: true, unseen: [] });
   });
 
-  it("counts the highest acknowledgement, never another person's", () => {
+  it("counts every acknowledgement of their own by its keys, never another person's", () => {
     const state = viewerAcknowledgement(
       items,
       visible,
       [
-        { tenantUserId: "carer", at: t("2026-10-11T19:05:00Z"), itemsSeen: items.length },
-        { tenantUserId: "carer", at: t("2026-10-11T19:06:00Z"), itemsSeen: 1 },
-        { tenantUserId: "nurse", at: t("2026-10-11T19:06:00Z"), itemsSeen: 0 },
+        { tenantUserId: "carer", at: t("2026-10-11T19:05:00Z"), itemKeys: keysOf(first) },
+        { tenantUserId: "carer", at: t("2026-10-11T20:20:00Z"), itemKeys: keysOf(added) },
+        { tenantUserId: "nurse", at: t("2026-10-11T20:30:00Z"), itemKeys: keysOf(items) },
       ],
       "carer",
     );
-    expect(state).toMatchObject({ acknowledged: true, itemsSeen: items.length, unseen: [] });
+    expect(state).toMatchObject({ acknowledged: true, unseen: [] });
+    expect(state.acknowledgedAt).toEqual(t("2026-10-11T20:20:00Z"));
     expect(viewerAcknowledgement(items, visible, [], "nurse").acknowledged).toBe(false);
+  });
+});
+
+describe("hazard HZ-018 the incoming shift has acknowledged only when it has seen everything it can", () => {
+  const first = compileHandover(shift, sources, compiledAt);
+  const seesAll = () => true;
+  const carerSees = (user: string, i: HandoverItem) =>
+    user !== "carer" || i.personId === null || i.personId === "p3";
+  const at = (iso: string, user: string, keys: readonly string[]) => ({
+    tenantUserId: user,
+    at: t(iso),
+    itemKeys: keys,
   });
 
   it.each([
-    [0, 0, true],
-    [3, 5, true],
-    [5, 5, true],
-    [6, 5, false],
-  ])("accepts an acknowledgement of %i items when the handover holds %i: %s", (seen, count, ok) => {
-    expect(checkHandoverAcknowledgement(seen, count).ok).toBe(ok);
+    ["nobody has acknowledged", [], seesAll, false],
+    [
+      "only the outgoing staff read it back, before the shift ended",
+      [at("2026-10-11T18:55:00Z", "nurse", keysOf(first))],
+      seesAll,
+      false,
+    ],
+    [
+      "the incoming nurse acknowledged everything after the shift ended",
+      [at("2026-10-11T19:05:00Z", "nurse", keysOf(first))],
+      seesAll,
+      true,
+    ],
+    [
+      "the acknowledgement at the moment the shift ended counts",
+      [at("2026-10-11T19:00:00Z", "nurse", keysOf(first))],
+      seesAll,
+      true,
+    ],
+    [
+      "an acknowledgement that misses an item they can see does not count",
+      [at("2026-10-11T19:05:00Z", "nurse", keysOf(first).slice(1))],
+      seesAll,
+      false,
+    ],
+    [
+      "a carer who acknowledged everything they can see counts",
+      [at("2026-10-11T19:05:00Z", "carer", keysOf(first.filter((i) => carerSees("carer", i))))],
+      carerSees,
+      true,
+    ],
+  ] as const)("%s: %s", (_label, acks, canSee, expected) => {
+    expect(incomingAcknowledged(shift, first, acks, canSee)).toBe(expected);
+  });
+
+  it("does not count someone who can see none of the items", () => {
+    const acks = [at("2026-10-11T19:05:00Z", "agency", [])];
+    expect(incomingAcknowledged(shift, first, acks, (user) => user !== "agency")).toBe(false);
+    // An empty handover is acknowledged by anyone on the incoming shift.
+    expect(incomingAcknowledged(shift, [], acks, seesAll)).toBe(true);
+  });
+
+  it("is overtaken by a late addition the acknowledger can see", () => {
+    const late = refreshHandover(
+      first,
+      shift,
+      {
+        ...sources,
+        bodyMapMarks: [
+          ...sources.bodyMapMarks,
+          {
+            id: "m-late",
+            personId: "p1",
+            occurredAt: t("2026-10-11T18:00:00Z"),
+            recordedAt: t("2026-10-11T19:30:00Z"),
+          },
+        ],
+      },
+      t("2026-10-11T19:35:00Z"),
+    ).items;
+    const acks = [at("2026-10-11T19:05:00Z", "nurse", keysOf(first))];
+    expect(incomingAcknowledged(shift, late, acks, seesAll)).toBe(false);
+  });
+
+  it.each([
+    ["before the grace period ends", "2026-10-11T19:59:00Z", false, false],
+    ["once the grace period has passed", "2026-10-11T20:00:00Z", false, true],
+    ["a day after it fell due", "2026-10-12T19:59:00Z", false, true],
+    ["no longer, once a day has passed", "2026-10-12T20:00:00Z", false, false],
+    [
+      "never once someone on the incoming shift has acknowledged",
+      "2026-10-11T20:30:00Z",
+      true,
+      false,
+    ],
+  ])("alerts the nurse in charge %s", (_label, now, acknowledged, due) => {
+    expect(unacknowledgedAlertDue({ shift, now: t(now), graceMinutes: 60, acknowledged })).toBe(
+      due,
+    );
   });
 });
 
@@ -678,11 +861,16 @@ describe("hazard HZ-018 notes add to a handover; they never replace an item", ()
     [
       "a note once the handover has closed",
       { open: false, body: "Seen.", itemKey: null },
-      "This handover has closed. Record anything new on the person's record, where the next handover finds it.",
+      'This handover has closed. Add a care note tagged "Include in handover": the next handover will carry it.',
     ],
   ])("%s", (_label, input, message) => {
     const check = checkHandoverNote({ ...input, itemKeys: keys });
     expect(check.ok ? null : check.message).toBe(message);
+  });
+
+  it("names the tag that reaches the next handover when this one has closed", () => {
+    expect(HANDOVER_CLOSED_MESSAGE).toContain("Include in handover");
+    expect(HANDOVER_NOTE_TAGS.handover).toBe("handover");
   });
 
   it("refuses a note longer than the limit", () => {
@@ -717,5 +905,115 @@ describe("hazard HZ-008 a late addition interrupts only for what cannot wait", (
     [["alert"], "urgent"],
   ] as const)("added %j: %s", (kinds, severity) => {
     expect(lateAdditionSeverity(kinds.map(item))).toBe(severity);
+  });
+});
+
+describe("hazards HZ-018 and HZ-008 a late addition always reaches someone who can act on it", () => {
+  const receiving = nextShift(shift, PATTERN);
+  const during = t("2026-10-12T02:00:00Z");
+  const after = receiving.end;
+  const item = (
+    key: string,
+    kind: HandoverItem["kind"],
+    personId: string | null,
+  ): HandoverItem => ({
+    key,
+    kind,
+    personId,
+    sourceType: "observation",
+    sourceId: key,
+    at: compiledAt,
+    lateAddition: true,
+    addedAt: during,
+  });
+  const fall = item("fall-p1", "fall", "p1");
+  const refusalP1 = item("refusal-p1", "refusal", "p1");
+  const refusalP2 = item("refusal-p2", "refusal", "p2");
+  const markP3 = item("mark-p3", "body_map_mark", "p3");
+  // The carer looks after p1 only; the nurse in charge sees everyone at the location.
+  const canSee = (user: string, i: HandoverItem) =>
+    user === "nic" || i.personId === null || (user === "carer" && i.personId === "p1");
+  const summary = (r: ReturnType<typeof lateAdditionNotices>) =>
+    r.notices.map((n) => [n.recipient, n.severity, n.items.map((i) => i.key)]);
+
+  it("tells the acknowledger what they can see, and the nurse in charge what nobody else can", () => {
+    const result = lateAdditionNotices({
+      receivingShift: receiving,
+      now: during,
+      added: [refusalP1, refusalP2, markP3],
+      acknowledgers: ["carer"],
+      nurseInCharge: ["nic"],
+      canSee,
+    });
+    expect(summary(result)).toEqual([
+      ["carer", "warning", ["refusal-p1"]],
+      ["nic", "warning", ["refusal-p2", "mark-p3"]],
+    ]);
+    expect(result.unheard).toEqual([]);
+  });
+
+  it("always tells the nurse in charge about a fall, a raised NEWS2, an incident or an urgent alert", () => {
+    const result = lateAdditionNotices({
+      receivingShift: receiving,
+      now: during,
+      added: [fall, refusalP1],
+      acknowledgers: ["carer"],
+      nurseInCharge: ["nic"],
+      canSee,
+    });
+    expect(summary(result)).toEqual([
+      ["carer", "urgent", ["fall-p1", "refusal-p1"]],
+      ["nic", "urgent", ["fall-p1"]],
+    ]);
+  });
+
+  it("tells the nurse in charge about everything when nobody has acknowledged", () => {
+    const result = lateAdditionNotices({
+      receivingShift: receiving,
+      now: during,
+      added: [refusalP1, markP3],
+      acknowledgers: [],
+      nurseInCharge: ["nic"],
+      canSee,
+    });
+    expect(summary(result)).toEqual([["nic", "warning", ["refusal-p1", "mark-p3"]]]);
+  });
+
+  it("tells only the nurse in charge once the receiving shift has ended", () => {
+    const result = lateAdditionNotices({
+      receivingShift: receiving,
+      now: after,
+      added: [refusalP1],
+      acknowledgers: ["carer"],
+      nurseInCharge: ["nic"],
+      canSee,
+    });
+    expect(summary(result)).toEqual([["nic", "warning", ["refusal-p1"]]]);
+  });
+
+  it("never interrupts anyone for an item they cannot see, and records an item nobody can see", () => {
+    const result = lateAdditionNotices({
+      receivingShift: receiving,
+      now: during,
+      added: [item("fall-p9", "fall", "p9"), refusalP1],
+      acknowledgers: ["carer"],
+      nurseInCharge: [],
+      canSee: (user, i) => user === "carer" && i.personId === "p1",
+    });
+    expect(summary(result)).toEqual([["carer", "warning", ["refusal-p1"]]]);
+    expect(result.unheard.map((i) => i.key)).toEqual(["fall-p9"]);
+  });
+
+  it("sends nothing when nothing was added", () => {
+    expect(
+      lateAdditionNotices({
+        receivingShift: receiving,
+        now: during,
+        added: [],
+        acknowledgers: ["carer"],
+        nurseInCharge: ["nic"],
+        canSee,
+      }),
+    ).toEqual({ notices: [], unheard: [] });
   });
 });

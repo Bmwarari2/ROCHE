@@ -230,6 +230,42 @@ export type PublicationCheck =
 
 const filled = (value: string | null | undefined) => (value?.trim().length ?? 0) > 0;
 
+/**
+ * Two rounds of one action closer together than this are one round: such times are refused when
+ * the action is written (`checkPlanAction`), and where a clock change brings two rounds this close
+ * (01:00 and 02:00 are the same instant on the night the clocks go forward) they are merged, so a
+ * round is never made twice at the same moment (HZ-004).
+ */
+export const MIN_ROUND_GAP_MINUTES = 10;
+
+/**
+ * Clock times of one action at least `MIN_ROUND_GAP_MINUTES` apart, counting from the last time of
+ * a day to the first of the next for a daily schedule. Returns the message when they are not.
+ */
+export function roundGapProblem(rule: Recurrence): string | null {
+  if (rule.freq === "every_hours") return null;
+  const minutes = [...new Set(rule.times)]
+    .map((time) => {
+      const [h, m] = time.split(":").map(Number);
+      return (h ?? 0) * 60 + (m ?? 0);
+    })
+    .sort((a, b) => a - b);
+  const gaps = minutes.slice(1).map((m, i) => m - (minutes[i] as number));
+  const first = minutes[0];
+  const last = minutes.at(-1);
+  if (
+    rule.freq === "daily" &&
+    (rule.interval ?? 1) === 1 &&
+    first !== undefined &&
+    last !== undefined
+  ) {
+    gaps.push(24 * 60 - last + first);
+  }
+  return gaps.some((g) => g < MIN_ROUND_GAP_MINUTES)
+    ? `Times for one action must be at least ${MIN_ROUND_GAP_MINUTES} minutes apart.`
+    : null;
+}
+
 export type ActionCheck =
   | { readonly ok: true }
   | {
@@ -259,6 +295,8 @@ export function checkPlanAction(action: PlanActionDraft, startsOn: string): Acti
     }
     throw error;
   }
+  const gap = roundGapProblem(action.recurrence);
+  if (gap) return { ok: false, field: "recurrence", message: gap };
   if (!filled(action.roleKey)) {
     return { ok: false, field: "role", message: "Say which role carries out the action." };
   }

@@ -42,6 +42,11 @@ const Env = z.object({
   STEP_UP_WINDOW_SECONDS: z.coerce.number().int().positive().default(600),
   /** Transfer pack previews, creations and prints per user a minute, per API instance (S2). */
   TRANSFER_PACK_REQUESTS_PER_MINUTE: z.coerce.number().int().positive().default(30),
+  /**
+   * Handover compilations asked for through the API per user a minute, per API instance: each
+   * reads a shift's records at a location (the worker compiles every handover anyway).
+   */
+  HANDOVER_COMPILE_REQUESTS_PER_MINUTE: z.coerce.number().int().positive().default(12),
   /** Where document bytes live: local disk (development and tests) or S3 (AWS). */
   DOCUMENT_STORAGE: z.enum(["local", "s3"]).default("local"),
   LOCAL_DOCUMENTS_DIR: z.string().default(".data/documents"),

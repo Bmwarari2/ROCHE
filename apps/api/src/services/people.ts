@@ -41,7 +41,6 @@ import {
   LIVE_PERSON_STATUSES,
   listMissedRounds,
   type MissedRound,
-  occurrences,
   PEOPLE_RATE_KEYS,
   PERSON_LIFECYCLE,
   type PeopleRates,
@@ -89,7 +88,7 @@ import {
 import { bringPlanReviewForward } from "./care-planning";
 import { bankHolidays, rateNumber } from "./rates";
 import { withTenantWideScope } from "./safety";
-import { materialiseSeries } from "./tasks";
+import { materialiseSeries, seriesRoundTimes } from "./tasks";
 import { moveWorkflow, startWorkflow, WorkflowMoveRefused } from "./workflow";
 
 /**
@@ -727,8 +726,7 @@ async function fillStoppedGap(
     }
     const from = new Date(Math.max(stoppedFrom.getTime(), lookback.getTime()));
     if (from.getTime() >= now.getTime()) continue;
-    const due = occurrences(rule, from, now);
-    for (const dueAt of due) {
+    for (const { dueAt, windowStart, windowEnd } of seriesRoundTimes(s, from, now)) {
       await tx
         .insert(task)
         .values({
@@ -743,8 +741,8 @@ async function fillStoppedGap(
           assigneeTenantUserId: s.assigneeTenantUserId,
           assigneeRoleKey: s.assigneeRoleKey,
           dueAt,
-          windowStart: new Date(dueAt.getTime() - s.windowBeforeMinutes * 60_000),
-          windowEnd: new Date(dueAt.getTime() + s.windowAfterMinutes * 60_000),
+          windowStart,
+          windowEnd,
           priority: s.priority,
           evidenceRequired: s.evidenceRequired,
           status: "cancelled",
