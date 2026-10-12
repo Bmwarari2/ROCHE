@@ -325,6 +325,12 @@ const upload_issue = new Table(
     /** The operation's data as JSON. */
     payload: column.text,
     rejected_at: column.text,
+    /**
+     * Whether the server has its copy (care.md section 6, Device integrity part 5): empty until
+     * sent, `copied` once the server has it, `refused` when the server will not take it, and
+     * `not_copied` for what is never sent (entries a recorded deletion left).
+     */
+    server_copy: column.text,
   },
   { localOnly: true, indexes: { by_person: ["person_id"] } },
 );

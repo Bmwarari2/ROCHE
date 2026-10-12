@@ -775,3 +775,33 @@ describe("hazard HZ-040 a device a manager revoked (care.md section 6, Device in
     expect(classifyUploadError(new DeviceRevokedError())).toEqual({ retry: false });
   });
 });
+
+describe("hazard HZ-006 a refused entry's copy goes to the server at once (Device integrity part 5)", () => {
+  it("says when it has moved an entry to needs attention, and not otherwise", async () => {
+    const refusedSignals = { count: 0 };
+    const make = (fetch: FetchLike) =>
+      new HarbourConnector({
+        apiUrl: API,
+        fetch,
+        getToken: async () => "tok",
+        getTenantId: () => TENANT,
+        onSessionRevoked: () => undefined,
+        onRefused: () => {
+          refusedSignals.count += 1;
+        },
+        backoff: { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 1 },
+        random: () => 0.5,
+        sleep: async () => undefined,
+        now: () => new Date("2026-10-11T15:00:00.000Z"),
+      });
+    const refused = fakeQueue([note()]);
+    await make(
+      fakeFetch([problem(422, "care_event_after_exit", "Not saved", "The person had left.")]).fetch,
+    ).uploadData(refused.source);
+    expect(refused.issues()).toHaveLength(1);
+    expect(refusedSignals.count).toBe(1);
+    const saved = fakeQueue([note()]);
+    await make(fakeFetch([json({ id: "x" }, 201)]).fetch).uploadData(saved.source);
+    expect(refusedSignals.count).toBe(1);
+  });
+});

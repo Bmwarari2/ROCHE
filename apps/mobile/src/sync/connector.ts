@@ -22,7 +22,8 @@
  * example the person's record closed while the device was offline) the entry moves, with its
  * content, to the local-only `upload_issue` table and the queue moves on, so one refusal never
  * blocks later entries and nothing is lost silently (HZ-006). Screens show those entries as "not
- * saved: needs attention" until someone deals with them.
+ * saved: needs attention" until someone deals with them, and the content goes to the server's copy
+ * of refused entries (`onRefused`, `refused-copies.ts`), so it is never only on one phone.
  */
 import type {
   CommonPowerSyncDatabase,
@@ -235,6 +236,11 @@ export interface HarbourConnectorOptions {
    */
   readonly onDeviceRevoked?: () => void;
   /**
+   * Called after a care entry is moved to "needs attention", so its content goes to the server's
+   * copy at once (care.md section 6, Device integrity part 5; `refused-copies.ts`).
+   */
+  readonly onRefused?: () => void;
+  /**
    * The device's opaque id (the PowerSync client id), sent with the sync token request so the
    * server knows this member has used the device: a hold report naming them as its owner counts
    * only then (security review round 7, M1).
@@ -412,6 +418,7 @@ export class HarbourConnector implements PowerSyncBackendConnector {
         payload: { ...(entry.opData ?? {}) },
         rejectedAt: this.now(),
       });
+      this.options.onRefused?.();
       return;
     }
     const body = JSON.stringify(request.body);
@@ -471,6 +478,7 @@ export class HarbourConnector implements PowerSyncBackendConnector {
         payload: { ...(entry.opData ?? {}) },
         rejectedAt: this.now(),
       });
+      this.options.onRefused?.();
     }
   }
 

@@ -112,6 +112,7 @@ import {
   resolveHeldMaxDays,
 } from "../sync/held-limit";
 import { resolveOfflineWindow } from "../sync/offline-window";
+import { flushRefusedCopies } from "../sync/refused-copies";
 import {
   admitToDatabase,
   canDiscardHeld,
@@ -433,6 +434,8 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
     afterSyncBusyRef.current = true;
     try {
       await flushTombstones(tombstoneStore, options, skippedRef.current.ids).catch(() => undefined);
+      // Refused entries' content goes to the server until it has a copy of each (HZ-006).
+      await flushRefusedCopies(current, options).catch(() => 0);
       // Words kept for a removed entry go once the server has the whole deletion (S-L4).
       await forgetDiscardNotes(current as unknown as HoldDb, tombstoneStore).catch(() => undefined);
       await flushPendingReport(tombstoneStore, options).catch(() => undefined);
@@ -665,6 +668,10 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
           // rules, marked revoked (care.md section 6, Device integrity part 2).
           onDeviceRevoked: () => {
             void sessionEndedRef.current(true);
+          },
+          // A refused entry's content goes to the server's copy at once (Device integrity part 5).
+          onRefused: () => {
+            void afterSyncRef.current();
           },
         });
         connectorRef.current = connector;
