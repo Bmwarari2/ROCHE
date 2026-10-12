@@ -31,6 +31,7 @@ describe("schema bridge", () => {
       handover_item: false,
       handover_note: false,
       handover_acknowledgement: false,
+      handover_staff_acknowledgement: false,
       upload_issue: true,
       held_entry: true,
     });

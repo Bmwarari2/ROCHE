@@ -22,11 +22,14 @@ function outputColumns(raw: string): { table: string; columns: string[] } {
   const upper = query.toUpperCase();
   const select = upper.indexOf("SELECT ") + "SELECT ".length;
   const from = upper.indexOf(" FROM ");
-  const table =
+  // The output table is the first source table, or its alias when it is renamed (`AS "name"`).
+  const source = (
     query
       .slice(from + " FROM ".length)
       .trim()
-      .split(/[\s,]/)[0] ?? "";
+      .split(",")[0] ?? ""
+  ).split(/\s+/);
+  const table = (source[1]?.toUpperCase() === "AS" ? source[2] : source[0])?.replaceAll('"', "");
   const columns = query
     .slice(select, from)
     .split(",")
@@ -36,7 +39,7 @@ function outputColumns(raw: string): { table: string; columns: string[] } {
       const name = last.includes(".") ? last.slice(last.lastIndexOf(".") + 1) : last;
       return name.replaceAll('"', "");
     });
-  return { table, columns };
+  return { table: table ?? "", columns };
 }
 
 describe("client schema covers every stream", () => {

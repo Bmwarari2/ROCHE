@@ -77,11 +77,14 @@ const handover = (id: string, tenant: string, location: string, shiftEnd: string
   version: 3,
 });
 
+/** The item's key as the compiler makes it: `kind:sourceType:sourceId:personId`. */
+const key = (id: string, person: string | null) => `fall:observation:obs-${id}:${person ?? "-"}`;
+
 const item = (id: string, tenant: string, handoverId: string, person: string | null) => ({
   id,
   tenant_id: tenant,
   handover_id: handoverId,
-  key: `fall:observation:${id}`,
+  key: key(id, person),
   position: 0,
   kind: "fall",
   person_id: person,
@@ -104,12 +107,12 @@ const note = (id: string, handoverId: string, itemKey: string | null, person: st
   created_by: "nurse-a",
 });
 
-const ack = (id: string, handoverId: string, user: string, tenant = A) => ({
+const ack = (id: string, handoverId: string, user: string, keys: string[], tenant = A) => ({
   id,
   tenant_id: tenant,
   handover_id: handoverId,
   tenant_user_id: user,
-  item_keys: "[]",
+  item_keys: JSON.stringify(keys),
   acknowledged_at: NOW,
   device_id: "device-fixture",
 });
@@ -163,21 +166,26 @@ const source: SourceRows = {
     item("i-cara-at-north", A, "h-north-day", "cara"),
     item("i-ada-old", A, "h-north-old", "ada"),
     item("i-cara", A, "h-south-day", "cara"),
+    item("i-south-nobody", A, "h-south-day", null),
     item("i-dev", B, "h-river-day", "dev"),
   ],
   handover_note: [
     note("n-whole", "h-north-day", null, null),
-    note("n-ada", "h-north-day", "fall:observation:i-ada", "ada"),
-    note("n-ben", "h-north-day", "fall:observation:i-ben", "ben"),
-    note("n-nobody", "h-north-day", "fall:observation:i-nobody", null),
+    note("n-ada", "h-north-day", key("i-ada", "ada"), "ada"),
+    note("n-ben", "h-north-day", key("i-ben", "ben"), "ben"),
+    note("n-nobody", "h-north-day", key("i-nobody", null), null),
+    // Written at North about Cara before she moved South.
+    note("n-cara-at-north", "h-north-day", key("i-cara-at-north", "cara"), "cara"),
     note("n-south-whole", "h-south-day", null, null),
     note("n-old-whole", "h-north-old", null, null),
   ],
   handover_acknowledgement: [
-    ack("k-carer", "h-north-day", "carer-a"),
-    ack("k-nurse", "h-north-day", "nurse-a"),
-    ack("k-carer-old", "h-north-old", "carer-a"),
-    ack("k-agency-b", "h-river-day", "agency", B),
+    ack("k-carer", "h-north-day", "carer-a", [key("i-ada", "ada")]),
+    // A nurse who acknowledged before Cara moved: their keys name her and her fall.
+    ack("k-nurse", "h-north-day", "nurse-a", [key("i-ada", "ada"), key("i-cara-at-north", "cara")]),
+    ack("k-carer-old", "h-north-old", "carer-a", [key("i-ada-old", "ada")]),
+    ack("k-south-nurse", "h-south-day", "nurse-s", [key("i-cara", "cara")]),
+    ack("k-agency-b", "h-river-day", "agency", [key("i-dev", "dev")], B),
   ],
 };
 
@@ -277,12 +285,31 @@ describe("hazard HZ-011 the round's open tasks follow the round view (care.plan.
 });
 
 describe("hazard HZ-011 hazard HZ-018 the handover follows the handover views (care.handover.manage)", () => {
-  it("gives a whole reader the location's handovers in the window with every item, note and acknowledgement", async () => {
-    const device = await syncFor(hydrated, source, manager());
+  it("gives a whole reader the location's handovers in the window with every item, note and who acknowledged", async () => {
+    const device = await syncFor(hydrated, source, manager({ sub: "nurse-a" }));
     expect(ids(device, "handover")).toEqual(["h-north-day", "h-north-night"]);
     expect(ids(device, "handover_item")).toEqual(["i-ada", "i-ben", "i-eve", "i-nobody"]);
     expect(ids(device, "handover_note")).toEqual(["n-ada", "n-ben", "n-nobody", "n-whole"]);
-    expect(ids(device, "handover_acknowledgement")).toEqual(["k-carer", "k-nurse"]);
+    // Their own acknowledgement with its keys; everyone's as who and when only.
+    expect(ids(device, "handover_acknowledgement")).toEqual(["k-nurse"]);
+    expect(ids(device, "handover_staff_acknowledgement")).toEqual(["k-carer", "k-nurse"]);
+  });
+
+  it("never sends another member's item keys, which name the people and what happened (review round 1, M1)", async () => {
+    const device = await syncFor(hydrated, source, manager());
+    expect(ids(device, "handover_acknowledgement")).toEqual([]);
+    expect(device.tables.handover_staff_acknowledgement?.get("k-nurse")).toEqual({
+      id: "k-nurse",
+      tenant_id: A,
+      handover_id: "h-north-day",
+      tenant_user_id: "nurse-a",
+      acknowledged_at: NOW,
+    });
+    // Cara has moved South, out of this manager's sight: nothing on the device names her.
+    const everyValue = Object.values(device.tables).flatMap((t) =>
+      [...t.values()].flatMap((row) => Object.values(row).map(String)),
+    );
+    expect(everyValue.some((v) => v.includes("cara"))).toBe(false);
   });
 
   it("hazard HZ-018 keeps an item about someone who died in the shift, though their record leaves", async () => {
@@ -308,13 +335,48 @@ describe("hazard HZ-011 hazard HZ-018 the handover follows the handover views (c
     // Never an item about nobody, or a note on one (slice 5 review round 3).
     expect(ids(device, "handover_note")).toEqual(["n-ada", "n-whole"]);
     expect(ids(device, "handover_acknowledgement")).toEqual(["k-carer"]);
+    expect(ids(device, "handover_staff_acknowledgement")).toEqual([]);
   });
 
-  it("gives an assigned reader the items about their person from the window wherever they were recorded", async () => {
+  it("gives a limited reader items and notes only from handovers they may open (review round 1, L1)", async () => {
+    // Cara lives South now: North's handover, and what North's staff wrote about her there, is
+    // not the agency carer's to open, as the API refuses it.
     const device = await syncFor(hydrated, source, claims({ sub: "agency", tenant_id: A }));
     expect(ids(device, "handover")).toEqual(["h-south-day"]);
-    expect(ids(device, "handover_item")).toEqual(["i-cara", "i-cara-at-north"]);
+    expect(ids(device, "handover_item")).toEqual(["i-cara"]);
     expect(ids(device, "handover_note")).toEqual(["n-south-whole"]);
+    expect(ids(device, "handover_staff_acknowledgement")).toEqual([]);
+  });
+
+  it("keeps a whole reader's other homes limited to their own people (mixed scope, review round 1, L3)", async () => {
+    // Whole at North; assigned to Cara at South (a carer who is also a nurse at North).
+    const device = await syncFor(
+      hydrated,
+      source,
+      manager({ sub: "agency", handover_assigned: true }),
+    );
+    expect(ids(device, "handover")).toEqual(["h-north-day", "h-north-night", "h-south-day"]);
+    // North whole, with the item and note about Cara from before she moved, as the API shows them;
+    // South only what is about Cara.
+    expect(ids(device, "handover_item")).toEqual([
+      "i-ada",
+      "i-ben",
+      "i-cara",
+      "i-cara-at-north",
+      "i-eve",
+      "i-nobody",
+    ]);
+    expect(ids(device, "handover_note")).toEqual([
+      "n-ada",
+      "n-ben",
+      "n-cara-at-north",
+      "n-nobody",
+      "n-south-whole",
+      "n-whole",
+    ]);
+    // South's item about nobody and the South nurse's acknowledgement stay off the phone.
+    expect(ids(device, "handover_item")).not.toContain("i-south-nobody");
+    expect(ids(device, "handover_staff_acknowledgement")).toEqual(["k-carer", "k-nurse"]);
   });
 
   it("sends no handover without the handover claims, whatever the care claims say", async () => {
@@ -344,7 +406,7 @@ describe("hazard HZ-011 hazard HZ-018 the handover follows the handover views (c
     expect(columns("handover_note").has("device_id")).toBe(false);
     expect(columns("handover_acknowledgement").has("device_id")).toBe(false);
     // `key` is a keyword on the device.
-    expect(device.tables.handover_item?.get("i-ada")?.item_key).toBe("fall:observation:i-ada");
+    expect(device.tables.handover_item?.get("i-ada")?.item_key).toBe(key("i-ada", "ada"));
   });
 });
 
@@ -369,7 +431,7 @@ describe("hazard HZ-011 the round and the handover across tenants and from the d
     expect(ids(inB, "handover_acknowledgement")).toEqual(["k-agency-b"]);
   });
 
-  it("ignores connection parameters that try to widen the scope or the window", async () => {
+  it("hazard HZ-028 ignores connection parameters that try to widen the scope or the window", async () => {
     const hostile = {
       tenant_id: B,
       sub: "manager-a",
@@ -390,7 +452,10 @@ describe("hazard HZ-011 the round and the handover across tenants and from the d
       "t-south-carer",
     ]);
     expect(ids(device, "handover")).toEqual(["h-north-day", "h-north-night"]);
+    expect(ids(device, "handover_item")).toEqual(["i-ada"]);
+    expect(ids(device, "handover_note")).toEqual(["n-ada", "n-whole"]);
     expect(ids(device, "handover_acknowledgement")).toEqual(["k-carer"]);
+    expect(ids(device, "handover_staff_acknowledgement")).toEqual([]);
   });
 
   it("sends no task or handover when the token has no window or no tenant (fails closed)", async () => {

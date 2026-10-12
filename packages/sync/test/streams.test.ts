@@ -219,7 +219,7 @@ describe("sync streams definition", () => {
     const shiftQueries = streamQueries().filter(
       ({ stream }) => stream.endsWith("_open_tasks") || stream.endsWith("_handovers"),
     );
-    expect(shiftQueries).toHaveLength(15);
+    expect(shiftQueries).toHaveLength(18);
     for (const { stream, query } of shiftQueries) {
       expect(query, stream).toMatch(
         /substring\((task\.due_at|handover\.shift_end), 1, 10\) IN auth\.parameter\('offline_days'\)/,

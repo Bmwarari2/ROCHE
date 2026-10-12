@@ -608,22 +608,28 @@ streams:
           AND substring(task.due_at, 1, 10) IN auth.parameter('offline_days')
 
   # ----------------------------------------------------------------------------------------------
-  # The shift handover: the handovers of the shifts that end on a day of the offline window (the
-  # current and last shift among them), as the API's handover views show them (care.handover.manage,
-  # under row-level security on handover, handover_item, handover_note and
-  # handover_acknowledgement; HZ-011, HZ-018). A reader who sees a location's handovers whole
-  # (`handover_location_ids`) receives every item and note there about the people at their
-  # locations or about nobody, and everyone's acknowledgements. A reader limited to the people
-  # assigned to them (`handover_assigned`) receives the handovers where those people live, the
-  # items and notes about those people, the notes on the whole handover, and their own
-  # acknowledgements only; never an item about nobody or a note on one. Items and notes about an
-  # assigned person come from every handover in the window, as that person's entries do, so none is
-  # missing from a handover the reader may open (one from a handover they may not open is about
-  # that person alone, and the phone shows items only under their handover). No refresh time or
-  # version is sent: the API shows those to whole readers only. Items and notes about a person carry no
-  # status filter, unlike the people streams, because row-level security has none: a death or a
-  # discharge in the shift is what the incoming shift must be told, and the phone acknowledges a
-  # handover only over the items the server would show (its seen token, refused otherwise).
+  # The shift handover: the handovers compiled for shifts that end on a day of the offline window,
+  # as the API's handover views show them (care.handover.manage, under row-level security on
+  # handover, handover_item, handover_note and handover_acknowledgement; HZ-011, HZ-018). A shift
+  # whose handover nobody has compiled yet has no row: staff compile it on request, the worker
+  # refreshes an open one every five minutes and compiles and locks each shift once it has ended,
+  # so `locked_at` empty means not final.
+  #
+  # A reader who sees a location's handovers whole (`handover_location_ids`) receives every item
+  # and note there about the people at their locations or about nobody. A reader limited to the
+  # people assigned to them (`handover_assigned`) receives the handovers they may open (where one
+  # of those people lives, as `app.handover_location_visible`), and in them only the items and
+  # notes about those people and the notes on the whole handover; never an item about nobody or a
+  # note on one. A reader with both sees, in the handovers they see whole, the items and notes
+  # about the people assigned to them who have since moved elsewhere, as the API shows them. Every reader receives their own acknowledgements, with the keys of the items they
+  # acknowledged, in `handover_acknowledgement`; a whole reader also receives who acknowledged
+  # (`handover_staff_acknowledgement`: who and when, never the keys, which name the people and
+  # what happened to them, and which the API never returns). No refresh time or version is sent:
+  # the API shows those to whole readers only, and one row cannot differ by reader. Items and
+  # notes about a person carry no status filter, unlike the people streams, because row-level
+  # security has none: a death or a discharge in the shift is what the incoming shift must be told,
+  # and the phone acknowledges a handover only over the items the server would show (its seen
+  # token, refused otherwise).
   # ----------------------------------------------------------------------------------------------
 
   assigned_handovers:
@@ -649,11 +655,57 @@ streams:
                handover_item.key AS item_key, handover_item.position, handover_item.kind,
                handover_item.person_id, handover_item.source_type, handover_item.source_id,
                handover_item.at, handover_item.late_addition, handover_item.added_at
+        FROM handover_item, handover, person, person_assignment AS opener,
+             person_assignment AS assignment
+        WHERE handover_item.handover_id = handover.id
+          AND handover.location_id = person.location_id
+          AND person.id = opener.person_id
+          AND handover_item.person_id = assignment.person_id
+          AND handover_item.tenant_id = auth.parameter('tenant_id')
+          AND handover.tenant_id = auth.parameter('tenant_id')
+          AND handover.deleted_at IS NULL
+          AND substring(handover.shift_end, 1, 10) IN auth.parameter('offline_days')
+          AND person.tenant_id = auth.parameter('tenant_id')
+          AND opener.tenant_id = auth.parameter('tenant_id')
+          AND opener.tenant_user_id = auth.user_id()
+          AND opener.deleted_at IS NULL
+          AND assignment.tenant_id = auth.parameter('tenant_id')
+          AND assignment.tenant_user_id = auth.user_id()
+          AND auth.parameter('handover_assigned') = true
+          AND assignment.deleted_at IS NULL
+      - >-
+        SELECT handover_note.id, handover_note.tenant_id, handover_note.handover_id,
+               handover_note.item_key, handover_note.person_id, handover_note.body,
+               handover_note.created_at, handover_note.created_by
+        FROM handover_note, handover, person, person_assignment AS opener,
+             person_assignment AS assignment
+        WHERE handover_note.handover_id = handover.id
+          AND handover.location_id = person.location_id
+          AND person.id = opener.person_id
+          AND handover_note.person_id = assignment.person_id
+          AND handover_note.tenant_id = auth.parameter('tenant_id')
+          AND handover.tenant_id = auth.parameter('tenant_id')
+          AND handover.deleted_at IS NULL
+          AND substring(handover.shift_end, 1, 10) IN auth.parameter('offline_days')
+          AND person.tenant_id = auth.parameter('tenant_id')
+          AND opener.tenant_id = auth.parameter('tenant_id')
+          AND opener.tenant_user_id = auth.user_id()
+          AND opener.deleted_at IS NULL
+          AND assignment.tenant_id = auth.parameter('tenant_id')
+          AND assignment.tenant_user_id = auth.user_id()
+          AND auth.parameter('handover_assigned') = true
+          AND assignment.deleted_at IS NULL
+      - >-
+        SELECT handover_item.id, handover_item.tenant_id, handover_item.handover_id,
+               handover_item.key AS item_key, handover_item.position, handover_item.kind,
+               handover_item.person_id, handover_item.source_type, handover_item.source_id,
+               handover_item.at, handover_item.late_addition, handover_item.added_at
         FROM handover_item, handover, person_assignment
         WHERE handover_item.handover_id = handover.id
           AND handover_item.person_id = person_assignment.person_id
           AND handover_item.tenant_id = auth.parameter('tenant_id')
           AND handover.tenant_id = auth.parameter('tenant_id')
+          AND handover.location_id IN auth.parameter('handover_location_ids')
           AND handover.deleted_at IS NULL
           AND substring(handover.shift_end, 1, 10) IN auth.parameter('offline_days')
           AND person_assignment.tenant_id = auth.parameter('tenant_id')
@@ -669,6 +721,7 @@ streams:
           AND handover_note.person_id = person_assignment.person_id
           AND handover_note.tenant_id = auth.parameter('tenant_id')
           AND handover.tenant_id = auth.parameter('tenant_id')
+          AND handover.location_id IN auth.parameter('handover_location_ids')
           AND handover.deleted_at IS NULL
           AND substring(handover.shift_end, 1, 10) IN auth.parameter('offline_days')
           AND person_assignment.tenant_id = auth.parameter('tenant_id')
@@ -697,14 +750,20 @@ streams:
         SELECT handover_acknowledgement.id, handover_acknowledgement.tenant_id,
                handover_acknowledgement.handover_id, handover_acknowledgement.tenant_user_id,
                handover_acknowledgement.item_keys, handover_acknowledgement.acknowledged_at
-        FROM handover_acknowledgement, handover
+        FROM handover_acknowledgement, handover, person, person_assignment
         WHERE handover_acknowledgement.handover_id = handover.id
+          AND handover.location_id = person.location_id
+          AND person.id = person_assignment.person_id
           AND handover_acknowledgement.tenant_id = auth.parameter('tenant_id')
           AND handover_acknowledgement.tenant_user_id = auth.user_id()
           AND handover.tenant_id = auth.parameter('tenant_id')
           AND handover.deleted_at IS NULL
           AND substring(handover.shift_end, 1, 10) IN auth.parameter('offline_days')
+          AND person.tenant_id = auth.parameter('tenant_id')
+          AND person_assignment.tenant_id = auth.parameter('tenant_id')
+          AND person_assignment.tenant_user_id = auth.user_id()
           AND auth.parameter('handover_assigned') = true
+          AND person_assignment.deleted_at IS NULL
 
   location_handovers:
     auto_subscribe: true
@@ -779,6 +838,19 @@ streams:
         FROM handover_acknowledgement, handover
         WHERE handover_acknowledgement.handover_id = handover.id
           AND handover_acknowledgement.tenant_id = auth.parameter('tenant_id')
+          AND handover_acknowledgement.tenant_user_id = auth.user_id()
+          AND handover.tenant_id = auth.parameter('tenant_id')
+          AND handover.location_id IN auth.parameter('handover_location_ids')
+          AND handover.deleted_at IS NULL
+          AND substring(handover.shift_end, 1, 10) IN auth.parameter('offline_days')
+      - >-
+        SELECT "handover_staff_acknowledgement".id, "handover_staff_acknowledgement".tenant_id,
+               "handover_staff_acknowledgement".handover_id,
+               "handover_staff_acknowledgement".tenant_user_id,
+               "handover_staff_acknowledgement".acknowledged_at
+        FROM handover_acknowledgement AS "handover_staff_acknowledgement", handover
+        WHERE "handover_staff_acknowledgement".handover_id = handover.id
+          AND "handover_staff_acknowledgement".tenant_id = auth.parameter('tenant_id')
           AND handover.tenant_id = auth.parameter('tenant_id')
           AND handover.location_id IN auth.parameter('handover_location_ids')
           AND handover.deleted_at IS NULL

@@ -324,7 +324,11 @@ const visit_log = new Table(
 // a handover once its shift ended before the offline window.
 // ------------------------------------------------------------------------------------------------
 
-/** Open tasks due on a day of the offline window. Titles are generic; the person is a reference. */
+/**
+ * Open tasks due on a day of the offline window. The title is free text (3 to 120 characters,
+ * written by a manager or generated, "Reposition"), as the round view shows it; the person is a
+ * reference.
+ */
 const task = new Table(
   {
     tenant_id: column.text,
@@ -413,8 +417,8 @@ const handover_note = new Table(
 );
 
 /**
- * Acknowledgements: the reader's own, and everyone's where they see the handover whole. The item
- * keys are those the acknowledger could see (JSON array), recorded by the server.
+ * The reader's own acknowledgements, with the keys of the items they could see (JSON array),
+ * recorded by the server: what they have acknowledged and what is new to them since.
  */
 const handover_acknowledgement = new Table(
   {
@@ -425,6 +429,20 @@ const handover_acknowledgement = new Table(
     acknowledged_at: column.text,
   },
   { indexes: { by_handover: ["handover_id", "tenant_user_id"] } },
+);
+
+/**
+ * Who acknowledged a handover the reader sees whole, and when: never the item keys, which name the
+ * people and what happened to them, and which the API never returns (#33 review round 1, M1).
+ */
+const handover_staff_acknowledgement = new Table(
+  {
+    tenant_id: column.text,
+    handover_id: column.text,
+    tenant_user_id: column.text,
+    acknowledged_at: column.text,
+  },
+  { indexes: { by_handover: ["handover_id", "acknowledged_at"] } },
 );
 
 /**
@@ -497,6 +515,7 @@ export const AppSchema = new Schema({
   handover_item,
   handover_note,
   handover_acknowledgement,
+  handover_staff_acknowledgement,
   upload_issue,
   held_entry,
 });
@@ -522,6 +541,7 @@ export type HandoverRecord = Database["handover"];
 export type HandoverItemRecord = Database["handover_item"];
 export type HandoverNoteRecord = Database["handover_note"];
 export type HandoverAcknowledgementRecord = Database["handover_acknowledgement"];
+export type HandoverStaffAcknowledgementRecord = Database["handover_staff_acknowledgement"];
 export type UploadIssueRecord = Database["upload_issue"];
 export type HeldEntryRecord = Database["held_entry"];
 
@@ -563,6 +583,7 @@ export const ROUND_AND_HANDOVER_TABLES = [
   "handover_item",
   "handover_note",
   "handover_acknowledgement",
+  "handover_staff_acknowledgement",
 ] as const;
 
 /** The only synced tables a device writes to: append-only entries, inserts only. */
