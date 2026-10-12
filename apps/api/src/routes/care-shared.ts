@@ -10,7 +10,13 @@ import { z } from "@hono/zod-openapi";
 import { sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
-import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
+import {
+  type AppEnv,
+  permissionsReaching,
+  requirePermission,
+  type TenantAccess,
+  withTenant,
+} from "../http/context";
 import { problems } from "../http/problem";
 import { applyTaskLink, type PlannedTaskLink, planTaskLink } from "../services/care";
 import { deletionFlags, type FlaggedEntryTable } from "../services/device-holds";
@@ -277,13 +283,10 @@ export async function entryWriteAccess(
   };
 }
 
-export function permissionsOf(access: TenantAccess): ReadonlySet<string> {
-  return new Set(access.effective.permissions);
-}
-
 /**
  * What an entry will do to the task it names (`planTaskLink`), or null when it names none. The
- * author's permission is judged when the care was recorded (`occurredAt`; HZ-004, HZ-006).
+ * author's permission is judged when the care was recorded (`occurredAt`; HZ-004, HZ-006), and
+ * only where it reaches the person (ADR-0071).
  */
 export async function planLink(
   tx: Transaction,
@@ -301,7 +304,9 @@ export async function planLink(
     taskId,
     personId,
     actorTenantUserId: author,
-    actorPermissions: handedOver ? new Set<string>() : permissionsOf(access),
+    actorPermissions: handedOver
+      ? new Set<string>()
+      : await permissionsReaching(tx, access, personId),
     occurredAt,
   });
 }

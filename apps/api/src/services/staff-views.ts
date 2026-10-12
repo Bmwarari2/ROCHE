@@ -12,12 +12,13 @@ import {
   type RoleAssignmentInput,
   resolveAccess,
   type ScopeKind,
+  scopeFor,
 } from "@harbour/domain";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 
 /**
- * What one member of staff may see and do now: the people, where they see a handover whole, and
- * the permissions their roles and grants in force give them.
+ * What one member of staff may see and do now with one permission: the people, where they see a
+ * handover whole, and the permissions their roles and grants in force give them.
  */
 export interface StaffView {
   readonly people: ReadonlySet<string>;
@@ -34,19 +35,22 @@ const NO_VIEW: StaffView = {
 };
 
 /**
- * What each member of staff may see now, by the database's own person-scope policy
- * (`app.person_in_scope`): each member's scope is resolved from their roles and grants as the API
- * does at sign-in, set on the transaction while their view of these people is read, and the
- * caller's context is put back afterwards. Used to say who still has to acknowledge a handover and
- * who hears about a late addition, so nobody is asked about, or told of, items they cannot see
- * (HZ-011, HZ-008), and to send an urgent result alert only to someone who can open the person's
- * record (#26 review round 3; HZ-014, HZ-016).
+ * What each member of staff may see now with `permission`, by the database's own person-scope
+ * policy (`app.person_in_scope`): each member's scope for that permission is resolved from the
+ * roles and grants that carry it, as the API does for a request that requires it (ADR-0071), set
+ * on the transaction while their view of these people is read, and the caller's context is put
+ * back afterwards. Used with `care.handover.manage`, the permission a handover is read under, to
+ * say who still has to acknowledge a handover and who hears about a late addition, so nobody is
+ * asked about, or told of, items they cannot see (HZ-011, HZ-008); and with `people.person.read`,
+ * the one the person's record is opened with, to send an urgent result alert only to someone who
+ * can open it (#26 review round 3; HZ-014, HZ-016).
  */
 export async function staffViews(
   tx: Transaction,
   tenantUserIds: readonly string[],
   personIds: readonly string[],
   now: Date,
+  permission: Permission,
 ): Promise<Map<string, StaffView>> {
   const result = new Map<string, StaffView>(tenantUserIds.map((id) => [id, NO_VIEW]));
   const people = [...new Set(personIds)];
@@ -111,12 +115,13 @@ export async function staffViews(
         grants.filter((g) => g.tenantUserId === userId) as AccessGrantInput[],
         now,
       );
+      const { scope, locationIds } = scopeFor(access, permission);
       let seen: { id: string }[] = [];
       if (people.length > 0) {
         await tx.execute(
           sql`SELECT set_config('app.user_id', ${userId}, true),
-                     set_config('app.scope', ${access.scope}, true),
-                     set_config('app.location_ids', ${access.locationIds.join(",")}, true)`,
+                     set_config('app.scope', ${scope}, true),
+                     set_config('app.location_ids', ${locationIds.join(",")}, true)`,
         );
         seen = await tx
           .select({ id: person.id })
@@ -125,8 +130,8 @@ export async function staffViews(
       }
       result.set(userId, {
         people: new Set(seen.map((r) => r.id)),
-        scope: access.scope,
-        locationIds: access.locationIds,
+        scope,
+        locationIds,
         permissions: access.permissions,
       });
     }

@@ -28,7 +28,8 @@ export class RateLimiter {
    * limit (nothing is recorded then), otherwise null.
    */
   take(db: Db, access: TenantAccess, now: number = Date.now()): Promise<number | null> {
-    return withRequestContext(db, access.context, (tx) =>
+    // The member's own view: their quota rows only, whatever the route's scope (ADR-0071).
+    return withRequestContext(db, { ...access.context, scope: "none", locationIds: [] }, (tx) =>
       this.quota.attempt(tx, access.tenantUserId, now),
     );
   }

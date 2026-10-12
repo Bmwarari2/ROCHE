@@ -215,6 +215,11 @@ export async function nurseInCharge(tx: Transaction, locationId: string): Promis
 
 /** Who acts on a care result alert when the fallback is used: holders of the care plan. */
 const ALERT_FALLBACK_PERMISSION: Permission = "care.plan.write";
+/**
+ * The permission a person's record is opened with: an urgent result alert goes only to someone
+ * whose roles or grants carrying it reach the person (ADR-0071).
+ */
+const RECORD_READ_PERMISSION: Permission = "people.person.read";
 /** The audit action of an urgent result alert no one could be told about (HZ-014, HZ-016). */
 export const CARE_ALERT_UNROUTED_ACTION = "care.alert.unrouted";
 
@@ -248,7 +253,7 @@ export async function urgentAlertRecipients(
 ): Promise<AlertRecipients> {
   const nurses = await nurseInCharge(tx, target.locationId);
   if (nurses.length > 0) {
-    const views = await staffViews(tx, nurses, [target.personId], now);
+    const views = await staffViews(tx, nurses, [target.personId], now, RECORD_READ_PERMISSION);
     const seeing = nurses.filter((id) => views.get(id)?.people.has(target.personId));
     if (seeing.length > 0) return { route: "nurse_in_charge", recipients: seeing };
   }
@@ -262,8 +267,9 @@ export async function urgentAlertRecipients(
  * The fallback for an urgent result alert (#26 review round 3): members on the staff with a role in
  * force who are Registered Managers or may hold the care plan (by a role, or a grant in force),
  * kept only when they can open the person's record, in tiers: organisation-wide Registered
- * Managers, then the other Registered Managers, then whoever holds `care.plan.write` (a role mixing
- * portal and staff permissions gives none, as at sign-in). Longest-serving first, then by id.
+ * Managers, then the other Registered Managers, then whoever holds `care.plan.write` where it
+ * reaches the person (a role mixing portal and staff permissions gives none, as at sign-in).
+ * Longest-serving first, then by id.
  */
 async function alertFallback(tx: Transaction, personId: string, now: Date): Promise<string[]> {
   const live = and(
@@ -303,14 +309,22 @@ async function alertFallback(tx: Transaction, personId: string, now: Date): Prom
     candidates.map((c) => c.id),
     [personId],
     now,
+    RECORD_READ_PERMISSION,
+  );
+  // Holders of the care plan count only where that permission reaches the person (ADR-0071).
+  const planViews = await staffViews(
+    tx,
+    candidates.map((c) => c.id),
+    [personId],
+    now,
+    ALERT_FALLBACK_PERMISSION,
   );
   const sees = (id: string) => views.get(id)?.people.has(personId) === true;
+  const holds = (id: string) => planViews.get(id)?.people.has(personId) === true;
   const tiers = [
     candidates.filter((c) => c.organisationManager && sees(c.id)),
     candidates.filter((c) => c.manager && sees(c.id)),
-    candidates.filter(
-      (c) => sees(c.id) && views.get(c.id)?.permissions.has(ALERT_FALLBACK_PERMISSION) === true,
-    ),
+    candidates.filter((c) => sees(c.id) && holds(c.id)),
   ];
   return (tiers.find((tier) => tier.length > 0) ?? []).map((c) => c.id);
 }

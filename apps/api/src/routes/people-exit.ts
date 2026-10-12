@@ -61,6 +61,7 @@ import {
   refusal,
   requireAnyPermission,
 } from "./people-shared";
+import { stepUpFresh } from "./workflow-shared";
 
 /**
  * Discharge, transfer and death workflows (people.md rules 11 and 12): the checklist with its
@@ -356,7 +357,7 @@ export const peopleExitRouter = createRouter()
         requireWrite(p, "care_plan");
         const exitId = await planExit(
           tx,
-          actorOf(c),
+          await actorOf(c, tx, p.id),
           p,
           body.kind,
           body.details ?? DEFAULT_DETAILS,
@@ -577,7 +578,7 @@ export const peopleExitRouter = createRouter()
               actorTenantUserId: access.tenantUserId,
               permissions: new Set(access.effective.permissions),
               reason: body.reason ?? null,
-              stepUpFresh: actorOf(c).stepUpFresh,
+              stepUpFresh: stepUpFresh(c),
             },
             now,
           );

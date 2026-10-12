@@ -1,10 +1,14 @@
 import { document, type Transaction } from "@harbour/db";
-import type { Permission } from "@harbour/domain";
 import { z } from "@hono/zod-openapi";
 import { and, eq, isNull } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx, writeAudit } from "../http/audit";
-import { type AppEnv, requirePermission, type TenantAccess } from "../http/context";
+import {
+  type AppEnv,
+  permissionsReaching,
+  requireAnyPermission,
+  type TenantAccess,
+} from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import {
   type Actor,
@@ -27,7 +31,8 @@ export const PersonParam = z.object({ id: z.uuid() });
 
 /**
  * Rooms and locations carry only the tenant policy in the database, so the API checks that the
- * caller works there: tenant-wide scope, or one of the caller's locations (HZ-011). Anything else
+ * caller works there for what they are doing: the scope of the permission the route required
+ * (`access.context`, ADR-0071) is tenant-wide, or includes the location (HZ-011). Anything else
  * reads as not found.
  */
 export function requireLocationInScope(access: TenantAccess, locationId: string): void {
@@ -38,24 +43,26 @@ export function requireLocationInScope(access: TenantAccess, locationId: string)
 }
 export const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
 
-export function actorOf(c: Context<AppEnv>): Actor {
+/**
+ * Who is acting on one person's record, with the permissions whose roles and grants reach that
+ * person only (ADR-0071), never one held only somewhere else.
+ */
+export async function actorOf(
+  c: Context<AppEnv>,
+  tx: Transaction,
+  personId: string,
+): Promise<Actor> {
   const access = c.get("access");
   return {
     tenantId: access.tenantId,
     tenantUserId: access.tenantUserId,
-    permissions: new Set(access.effective.permissions),
+    permissions: await permissionsReaching(tx, access, personId),
     stepUpFresh: stepUpFresh(c),
   };
 }
 
-/** Requires the first of `permissions` the user holds (MFA and refusal audit as usual). */
-export async function requireAnyPermission(
-  c: Context<AppEnv>,
-  permissions: readonly [Permission, ...Permission[]],
-): Promise<TenantAccess> {
-  const held = c.get("access").effective.permissions;
-  return requirePermission(c, permissions.find((p) => held.has(p)) ?? permissions[0]);
-}
+/** Requires any one of several permissions, in the scope of those the user may use (ADR-0071). */
+export { requireAnyPermission };
 
 export function audit(
   c: Context<AppEnv>,
@@ -153,7 +160,7 @@ export async function changeStatus(
   now: Date,
 ): Promise<StatusChangeOutcome> {
   try {
-    return await applyStatusChange(tx, actorOf(c), p, req, now);
+    return await applyStatusChange(tx, await actorOf(c, tx, p.id), p, req, now);
   } catch (error) {
     return refusal(c, error, `people.person.status.${req.to}`, { type: "person", id: p.id });
   }

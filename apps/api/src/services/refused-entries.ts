@@ -41,7 +41,13 @@ import { problems } from "../http/problem";
 import type { PerUserQuota } from "../http/quota";
 import { appendTaskDetail, nurseInCharge } from "./care";
 import { fallbackRecipients, REFUSED_REVIEW_TASK_KIND } from "./device-holds";
-import { inSystemView, memberLocations, offlineWindowDaysOf, personReachedBy } from "./devices";
+import {
+  ENTRY_PERMISSION,
+  inSystemView,
+  memberLocations,
+  offlineWindowDaysOf,
+  personReachedBy,
+} from "./devices";
 import { type HandedOverAdmission, recordHandedOverEntry } from "./held-handover";
 import type { StaffLookup } from "./staff";
 
@@ -244,7 +250,7 @@ export async function copyRefusedEntry(
     const reached = await inSystemView(db, access, async (tx) => {
       const days = await offlineWindowDaysOf(tx, access.tenantId);
       const since = new Date(input.now.getTime() - days * DAY_MS);
-      return personReachedBy(tx, input.author, personId, since, input.now);
+      return personReachedBy(tx, input.author, personId, since, input.now, ENTRY_PERMISSION);
     });
     if (!reached) {
       throw problems.invalid("This copy names someone the entry's author has not cared for here.");

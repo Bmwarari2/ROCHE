@@ -28,6 +28,7 @@ import {
   tenantUser,
   withRequestContext,
 } from "@harbour/db";
+import { type Permission, PORTAL_ONLY_PERMISSIONS, scopeFor } from "@harbour/domain";
 import { isValidWindowDays, OFFLINE_WINDOW_RATE_KEY } from "@harbour/sync/streams";
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { auditInTx, writeAudit } from "../http/audit";
@@ -36,6 +37,19 @@ import { HttpProblem, problems } from "../http/problem";
 import { rateNumber } from "./rates";
 
 type Db = Parameters<typeof withRequestContext>[0];
+
+/**
+ * The permission point-of-care entries are written under (notes, charts, body-map marks,
+ * activities and visits: `entryWriteAccess`), so the one a copy's or a hand-over's author must have
+ * held for the person (`personReachedBy`).
+ */
+export const ENTRY_PERMISSION: Permission = "care.note.write";
+
+/** The portal-only permissions as a SQL array, for leaving out roles that mix them with staff's. */
+const PORTAL_ONLY_ARRAY = sql`ARRAY[${sql.join(
+  PORTAL_ONLY_PERMISSIONS.map((p) => sql`${p}`),
+  sql`, `,
+)}]::text[]`;
 
 /** Runs `fn` in the system's view of the tenant (tenant scope), acting for the request's member. */
 export function inSystemView<T>(
@@ -167,12 +181,14 @@ export async function offlineWindowDaysOf(tx: Transaction, tenantId: string): Pr
 }
 
 /**
- * True when the member could see the person at some time in `[since, until]` (#25 review rounds 2
- * and 3): assigned to them, or holding a tenant-wide role or a location role at the person's
- * location, in force then (an assignment ended or deleted since counts up to its end). For an entry
- * the window runs back from the entry's own time, so an owner whose access ended after the entry was
- * written still counts. Call in the system's view. False for a person who does not exist, so a
- * refusal never says which.
+ * True when the member could act on the person with `permission` at some time in `[since, until]`
+ * (#25 review rounds 2 and 3): assigned to them, or holding the permission there by a tenant-wide
+ * role, a location role at the person's location or a grant for there or the whole organisation,
+ * in force then (an assignment, role or grant ended or deleted since counts up to its end). Only
+ * the roles and grants carrying the permission count, never another role's reach (ADR-0071), and a
+ * role mixing portal and staff permissions gives none. For an entry the window runs back from the
+ * entry's own time, so an owner whose access ended after the entry was written still counts. Call
+ * in the system's view. False for a person who does not exist, so a refusal never says which.
  */
 export async function personReachedBy(
   tx: Transaction,
@@ -180,6 +196,7 @@ export async function personReachedBy(
   personId: string,
   since: Date,
   until: Date,
+  permission: Permission,
 ): Promise<boolean> {
   const result = await tx.execute<{ reached: boolean }>(sql`
     SELECT EXISTS (
@@ -196,9 +213,19 @@ export async function personReachedBy(
           WHERE ra.tenant_user_id = ${tenantUserId}
             AND ra.valid_from <= ${until}
             AND coalesce(least(ra.valid_to, ra.deleted_at), 'infinity'::timestamptz) >= ${since}
+            AND ${permission} = ANY (r.permissions)
+            AND NOT (r.permissions && ${PORTAL_ONLY_ARRAY})
             AND (r.scope_kind = 'tenant'
               OR (r.scope_kind = 'location'
                 AND (ra.location_id IS NULL OR ra.location_id = p.location_id))))
+        OR EXISTS (
+          SELECT 1 FROM public.access_grant g
+          WHERE g.tenant_user_id = ${tenantUserId}
+            AND ${permission} = ANY (g.permissions)
+            AND g.valid_from <= ${until}
+            AND coalesce(least(g.valid_to, g.revoked_at, g.deleted_at), 'infinity'::timestamptz)
+              >= ${since}
+            AND (g.location_id IS NULL OR g.location_id = p.location_id))
       )
     ) AS reached`);
   return result.rows[0]?.reached === true;
@@ -347,17 +374,20 @@ export async function memberLocations(
 }
 
 /**
- * The members whose devices a manager reaches: a tenant-wide role reaches everyone; a location
- * role only staff working, or who last worked, at one of its locations.
+ * The members whose devices a manager reaches with one permission (ADR-0071): where the roles and
+ * grants carrying it reach everyone, everyone; where they reach locations, only staff working, or
+ * who last worked, at one of them.
  */
 export async function reachedMembers(
   tx: Transaction,
   access: TenantAccess,
+  permission: Permission,
   memberIds: readonly string[],
   now: Date,
 ): Promise<Set<string>> {
-  if (access.effective.scope === "tenant") return new Set(memberIds);
-  const mine = new Set(access.effective.scope === "locations" ? access.effective.locationIds : []);
+  const { scope, locationIds } = scopeFor(access.effective, permission);
+  if (scope === "tenant") return new Set(memberIds);
+  const mine = new Set(scope === "locations" ? locationIds : []);
   const where = await memberLocations(tx, memberIds, now);
   return new Set(memberIds.filter((id) => (where.get(id) ?? []).some((l) => mine.has(l))));
 }
@@ -385,6 +415,7 @@ export async function listDevices(
     const reached = await reachedMembers(
       tx,
       access,
+      "platform.device.read",
       members.map((m) => m.id),
       now,
     );
@@ -458,7 +489,7 @@ export async function revokeDevice(
       .from(deviceBinding)
       .where(eq(deviceBinding.deviceId, input.deviceId));
     const members = [...new Set(rows.map((r) => r.tenantUserId))].sort();
-    const reached = await reachedMembers(tx, access, members, input.now);
+    const reached = await reachedMembers(tx, access, "platform.device.revoke", members, input.now);
     if (reached.size === 0) return null;
     if (reached.size < members.length) throw partlyReached();
     const earliest = rows

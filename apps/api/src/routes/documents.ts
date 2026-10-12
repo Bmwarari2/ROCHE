@@ -32,7 +32,13 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, desc, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
-import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
+import {
+  type AppEnv,
+  requirePermission,
+  type TenantAccess,
+  useScopeOf,
+  withTenant,
+} from "../http/context";
 import { problems } from "../http/problem";
 import { publish } from "../outbox";
 import {
@@ -90,8 +96,11 @@ const fileResponse = (description: string) => ({
 
 const DocumentId = z.object({ id: z.uuid() });
 
+/** A document about a person is read with the permission the person's record is opened with. */
+const RECORD_READ: Permission = "people.person.read";
+
 async function requireRead(c: Context<AppEnv>, personId: string | null): Promise<TenantAccess> {
-  return personId ? requirePermission(c, "people.person.read") : c.get("access");
+  return personId ? requirePermission(c, RECORD_READ) : c.get("access");
 }
 
 async function findDocument(tx: Transaction, id: string) {
@@ -102,8 +111,12 @@ async function findDocument(tx: Transaction, id: string) {
   return row;
 }
 
-/** Reads a document's metadata row with the caller's scope, then checks the read permission. */
+/**
+ * Reads a document's metadata row in the scope of the record-read permission, which an
+ * organisation's document needs none of (ADR-0071), then checks the read permission.
+ */
 async function documentForRead(c: Context<AppEnv>, id: string) {
+  useScopeOf(c, RECORD_READ);
   const row = await withTenant(c, (tx) => findDocument(tx, id));
   if (!row) throw problems.notFound();
   await requireRead(c, row.personId);
@@ -296,6 +309,8 @@ export const documentsRouter = createRouter()
     }),
     async (c) => {
       const { id } = c.req.valid("param");
+      // Found as a reader would find it; the new version then needs its category's permission.
+      useScopeOf(c, RECORD_READ);
       const previous = await withTenant(c, (tx) => findDocument(tx, id));
       if (!previous || previous.status === "destroyed") throw problems.notFound();
       const access = await requirePermission(

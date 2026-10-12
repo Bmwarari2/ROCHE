@@ -15,7 +15,7 @@ import {
   roleAssignment,
   tenantUser,
 } from "@harbour/db";
-import { hasClockDrift } from "@harbour/domain";
+import { hasClockDrift, narrowestScope, type Permission, scopeFor } from "@harbour/domain";
 import {
   isValidWindowDays,
   OFFLINE_WINDOW_RATE_KEY,
@@ -60,6 +60,17 @@ const DISCARD_IDS_PER_DAY = 2_000;
 const REPORTS_PER_HOUR = 120;
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
+
+/**
+ * The read permissions the location sync streams serve: the person and their allergies, the care
+ * plan, risk assessments and tool results, and the recent notes, charts, marks, activities and
+ * visits (packages/sync/src/streams/sync-config.yaml, `people_location_ids`).
+ */
+const SYNCED_READS: readonly Permission[] = [
+  "people.person.read",
+  "care.plan.read",
+  "care.note.read",
+];
 
 /** Deletions that remove a device's whole hold (or its unsent work at sign-out). */
 const WHOLE_HOLD_KINDS: ReadonlySet<string> = new Set(["held_deleted", "signed_out_with_unsent"]);
@@ -130,11 +141,15 @@ export function createSyncRouter(signer: SyncTokenSigner) {
           const workIds = assignments.some((a) => a.locationId === null)
             ? allIds
             : allIds.filter((id) => assignments.some((a) => a.locationId === id));
+          // The location streams carry each person with their care record, so they sync only
+          // where every read permission those streams serve reaches (ADR-0071), never where
+          // another role reaches further.
+          const people = narrowestScope(SYNCED_READS.map((p) => scopeFor(access.effective, p)));
           const peopleLocationIds =
-            access.effective.scope === "tenant"
+            people.scope === "tenant"
               ? allIds
-              : access.effective.scope === "locations"
-                ? [...access.effective.locationIds]
+              : people.scope === "locations"
+                ? [...people.locationIds]
                 : [];
           // The offline window comes from the rate table here, never from the device (care.md
           // section 6): the streams read it from this claim and ignore connection parameters.
@@ -155,7 +170,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             // The device the token is for, when it says; the binding itself is `device_binding`.
             ...(access.deviceId ? { resourceType: "device", resourceId: access.deviceId } : {}),
             scope: {
-              scope: access.effective.scope,
+              scope: people.scope,
               peopleLocations: peopleLocationIds.length,
               offlineWindowDays: windowDays,
             },

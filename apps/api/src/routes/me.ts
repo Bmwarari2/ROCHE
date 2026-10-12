@@ -1,6 +1,6 @@
 import { Me, Membership } from "@harbour/contracts";
 import { featureFlag, location, roleAssignment, tenant } from "@harbour/db";
-import { evaluateFlag, FLAGS, type FlagKey } from "@harbour/domain";
+import { evaluateFlag, FLAGS, type FlagKey, scopeFor } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, eq, isNull } from "drizzle-orm";
 import { membershipsFor, withTenant } from "../http/context";
@@ -58,9 +58,8 @@ export const meRouter = createRouter().openapi(
             isNull(roleAssignment.deletedAt),
           ),
         );
-      const tenantWide =
-        access.effective.scope === "tenant" ||
-        assignmentLocations.some((a) => a.locationId === null);
+      // A role assigned with no location works across the organisation.
+      const tenantWide = assignmentLocations.some((a) => a.locationId === null);
       const allowed = new Set(assignmentLocations.map((a) => a.locationId));
       const locations = allLocations.filter((l) => tenantWide || allowed.has(l.id));
       const flagRows = await tx
@@ -100,7 +99,8 @@ export const meRouter = createRouter().openapi(
         })),
         permissions: [...access.effective.permissions].sort(),
         roleKeys: [...access.effective.roleKeys],
-        scope: access.effective.scope,
+        // Whose records the user may open (ADR-0071): each permission has its own scope.
+        scope: scopeFor(access.effective, "people.person.read").scope,
         flags,
       };
     });

@@ -74,6 +74,13 @@ export const OFFLINE_WINDOW_RATE_KEY = "mobile.offline_window_days";
  */
 export const LATE_ENTRY_MARGIN_MINUTES = 2 * HANDOVER_SWEEP_MINUTES;
 
+/**
+ * The handover permission: a handover is read under its scope (ADR-0071), so what each member of
+ * staff can see of one is worked out in it (`staffViews`); and its holders take the alert when a
+ * location has no nurse in charge.
+ */
+const HANDOVER_PERMISSION = "care.handover.manage";
+
 /** The location's shift pattern: the rate table's two shifts until rotas define them (Phase 2). */
 export async function shiftPatternFor(
   tx: Transaction,
@@ -537,7 +544,7 @@ export async function acknowledgementSummary(
   const people = [...items.values()].flatMap((list) =>
     list.map((i) => i.personId).filter((p): p is string => p !== null),
   );
-  const views = await staffViews(tx, staff, people, now);
+  const views = await staffViews(tx, staff, people, now, HANDOVER_PERMISSION);
   const out = new Map<string, AcknowledgementState>();
   for (const row of rows) {
     const list = items.get(row.id) ?? [];
@@ -591,6 +598,7 @@ async function announceLateAdditions(
     [...new Set([...acks.map((a) => a.tenantUserId), ...nurses])],
     added.map((i) => i.personId).filter((p): p is string => p !== null),
     now,
+    HANDOVER_PERMISSION,
   );
   const [loc] = await tx
     .select({ nation: location.nation })
@@ -625,9 +633,6 @@ async function announceLateAdditions(
   }
   return { told: notices.length, unheard: unheard.length };
 }
-
-/** The permission whose holders take the alert when a location has no nurse in charge. */
-const HANDOVER_PERMISSION = "care.handover.manage";
 
 /**
  * Alerts the nurse in charge on duty, once, when the incoming shift has not acknowledged a handover

@@ -41,9 +41,10 @@ function values(access: TenantAccess | null, input: AuditInput) {
     outcome: input.outcome ?? "success",
     resourceType: input.resourceType ?? null,
     resourceId: input.resourceId ?? null,
+    // By default, the scope the request ran under: its permission's (ADR-0071).
     scope:
       input.scope ??
-      (access ? { scope: access.effective.scope, locations: access.effective.locationIds } : null),
+      (access ? { scope: access.context.scope, locations: access.context.locationIds } : null),
     ip: access?.ip ?? input.ip ?? null,
     deviceId: access?.deviceId ?? null,
     requestId: input.requestId ?? null,
