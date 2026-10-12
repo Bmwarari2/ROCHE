@@ -9,6 +9,7 @@ import {
   longerWindow,
   RECORD_TABS,
   readingWindow,
+  recordCareAccess,
   resuscitationSummary,
   tabHref,
   visibleTabs,
@@ -276,5 +277,81 @@ describe("iddsiLabel (hazard HZ-016)", () => {
     ["food", null, "No level prescribed"],
   ] as const)("hazard HZ-016 %s level %s shows number, name and colour", (kind, level, label) => {
     expect(iddsiLabel(kind, level, t)).toBe(label);
+  });
+});
+
+describe("hazard HZ-011 hazard HZ-073 recording is offered only where the API says it reaches (ADR-0071 review round 2, C2-M2)", () => {
+  const writer = ["care.note.read", "care.note.write"];
+  const t = createTranslator("en-GB");
+
+  it.each([
+    [
+      "the API says care.note.write reaches the person",
+      writer,
+      { recordCare: true, readOnlyReason: null },
+      true,
+      null,
+    ],
+    [
+      "the record was opened by break-glass",
+      writer,
+      { recordCare: false, readOnlyReason: "break_glass" },
+      false,
+      "care.readOnly.breakGlass",
+    ],
+    [
+      "the roles reach the person for reading only",
+      writer,
+      { recordCare: false, readOnlyReason: "scope" },
+      false,
+      "care.readOnly.scope",
+    ],
+    [
+      "the viewer never holds care.note.write",
+      ["care.note.read"],
+      { recordCare: false, readOnlyReason: "scope" },
+      false,
+      null,
+    ],
+    ["an API that does not say", writer, undefined, true, null],
+  ] as const)("%s", (_name, permissions, access, canRecord, notice) => {
+    expect(recordCareAccess({ access }, permissions)).toEqual({
+      canRecord,
+      readOnlyNotice: notice,
+    });
+  });
+
+  it("says in words that a break-glass record is for reading only, in English and Welsh", () => {
+    expect(t("care.readOnly.breakGlass")).toContain("for reading only");
+    expect(createTranslator("cy")("care.readOnly.breakGlass")).not.toBe("");
+    expect(t("people.breakGlass.body")).toContain("The record opens for reading only");
+  });
+
+  it("reads the access the API sends with a person", () => {
+    const person = readPersonSummary({
+      id: "0194d000-0000-7000-8600-000000000150",
+      locationId: "0194d000-0000-7000-8000-000000000150",
+      status: "active",
+      givenName: "Una",
+      familyName: "Example",
+      preferredName: null,
+      dateOfBirth: null,
+      nhsNumber: "9990001502",
+      roomLabel: null,
+      photoUrl: null,
+      allergyStatus: "unknown",
+      allergies: [],
+      communicationNeeds: [],
+      communicationNeedsStatus: "not_recorded",
+      communicationNeedsConfirmedBy: null,
+      communicationNeedsConfirmedAt: null,
+      iddsiFoodLevel: "not_recorded",
+      iddsiDrinkLevel: "not_recorded",
+      statusChangedAt: "2026-09-01T10:00:00.000Z",
+      resuscitation: { status: "not_recorded" },
+      version: 1,
+      access: { recordCare: false, readOnlyReason: "break_glass" },
+    });
+    expect(person?.access).toEqual({ recordCare: false, readOnlyReason: "break_glass" });
   });
 });

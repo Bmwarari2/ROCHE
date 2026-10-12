@@ -477,7 +477,18 @@ describe("hazard HZ-011 data scope per permission, review round 1 (ADR-0071)", (
         },
       });
       expect(opened.status).toBe(201);
-      expect((await asStaff(staff.bea, `/v1/people/${LODGE_PERSON}`)).status).toBe(200);
+      const read = await asStaff(staff.bea, `/v1/people/${LODGE_PERSON}`);
+      expect(read.status).toBe(200);
+      // The record says it is open for reading only, so the screens offer no forms (round 2, C2-M2).
+      expect(((await read.json()) as { access?: unknown }).access).toEqual({
+        recordCare: false,
+        readOnlyReason: "break_glass",
+      });
+      const own = await asStaff(staff.bea, `/v1/people/${HOUSE_PERSON}`);
+      expect(((await own.json()) as { access?: unknown }).access).toEqual({
+        recordCare: true,
+        readOnlyReason: null,
+      });
       expect((await asStaff(staff.bea, `/v1/people/${LODGE_PERSON}/notes`)).status).toBe(200);
       const write = await asStaff(staff.bea, `/v1/people/${LODGE_PERSON}/notes`, {
         method: "POST",

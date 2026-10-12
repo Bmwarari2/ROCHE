@@ -4,10 +4,11 @@ import type { Metadata } from "next";
 import { NoAccess } from "@/components/care/NoAccess";
 import { NoteForm } from "@/components/care/NoteForm";
 import { NoteList } from "@/components/care/NoteList";
+import { ReadOnlyNotice } from "@/components/care/ReadOnlyNotice";
 import { RecordFrame } from "@/components/care/RecordFrame";
 import { WindowNote } from "@/components/care/WindowNote";
 import { getShellContext, tenantApi } from "@/lib/api";
-import { can, readingWindow, tabHref, windowStart } from "@/lib/care-record";
+import { can, readingWindow, recordCareAccess, tabHref, windowStart } from "@/lib/care-record";
 import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
 import { getPerson, readOrFail } from "@/lib/person-record";
@@ -46,7 +47,8 @@ async function NotesTab({
   );
   if (!list) return <NoAccess />;
   const names = personNames(person);
-  const canWrite = can(me.permissions, "care.note.write");
+  // The form only where the viewer's care.note.write reaches the person (review round 2, C2-M2).
+  const { canRecord: canWrite, readOnlyNotice } = recordCareAccess(person, me.permissions);
 
   return (
     <>
@@ -55,6 +57,8 @@ async function NotesTab({
         <Card as="section" title={t("care.notes.form.title")} headingLevel={3}>
           <NoteForm personId={id} />
         </Card>
+      ) : readOnlyNotice ? (
+        <ReadOnlyNotice text={t(readOnlyNotice)} />
       ) : null}
       <section aria-labelledby="notes-list" className="flex flex-col gap-4">
         <h3 id="notes-list" className="m-0 text-body font-semibold">

@@ -14138,6 +14138,11 @@ export interface components {
       /** Format: date-time */
       statusChangedAt: string;
       version: number;
+      access?: {
+        recordCare: boolean;
+        /** @enum {string|null} */
+        readOnlyReason: "break_glass" | "scope" | null;
+      };
     };
     /**
      * @description The person lifecycle (people.md rule 1)

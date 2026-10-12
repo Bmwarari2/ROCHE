@@ -115,7 +115,7 @@
   "people.about.subtitle": "Care plan, medicines and risk assessments",
   "people.about.empty": "Care plans, medicines and risk assessments will appear here once they are recorded in Harbour.",
   "people.breakGlass.title": "Open a record outside your access",
-  "people.breakGlass.body": "Tell us why you need this record. Your Registered Manager and data protection lead will be told.",
+  "people.breakGlass.body": "Tell us why you need this record. Your Registered Manager and data protection lead will be told. The record opens for reading only: you cannot record in it.",
   "people.breakGlass.justification": "Reason",
   "people.breakGlass.hint": "At least {min} characters. It is recorded in the audit log with your name.",
   "people.breakGlass.submit": "Open record",
@@ -951,5 +951,7 @@
   "care.taskDetails.kind.visit": "Visit",
   "care.taskDetails.kind.incident": "Incident",
   "care.taskDetails.round.medicines": "Medicines round",
-  "care.taskDetails.notListedBefore": "Rounds before {date} are not all listed: check the record."
+  "care.taskDetails.notListedBefore": "Rounds before {date} are not all listed: check the record.",
+  "care.readOnly.breakGlass": "You opened this record for reading only. To record something, tell the nurse in charge at this home, or record it on paper and enter it when you have access.",
+  "care.readOnly.scope": "You can read this record but cannot record on it. If something needs recording, tell the nurse in charge."
 }

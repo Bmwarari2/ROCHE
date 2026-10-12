@@ -484,6 +484,29 @@
           },
           "version": {
             "type": "integer"
+          },
+          "access": {
+            "type": "object",
+            "properties": {
+              "recordCare": {
+                "type": "boolean"
+              },
+              "readOnlyReason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "break_glass",
+                  "scope",
+                  null
+                ]
+              }
+            },
+            "required": [
+              "recordCare",
+              "readOnlyReason"
+            ]
           }
         },
         "required": [

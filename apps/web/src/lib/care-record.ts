@@ -47,6 +47,40 @@ export function can(permissions: readonly string[], permission: string): boolean
   return permissions.includes(permission);
 }
 
+/** What the API says the viewer may record about one person (`PersonSummary.access`). */
+export interface PersonAccess {
+  readonly recordCare: boolean;
+  readonly readOnlyReason: "break_glass" | "scope" | null;
+}
+
+/**
+ * Whether the viewer may record care (notes, charts and body map marks) about this person, and
+ * the line that says why not when the record is open to them for reading only (ADR-0071 review
+ * round 2, C2-M2): they must hold care.note.write, and it must reach the person, as the API says
+ * on the person's record. A record opened by break-glass is for reading only. Someone who never
+ * holds care.note.write sees no form and no line, as before; an API that does not say leaves the
+ * form as before (the API refuses anything it would not take).
+ */
+export function recordCareAccess(
+  person: { readonly access?: PersonAccess | undefined },
+  permissions: readonly string[],
+): {
+  readonly canRecord: boolean;
+  readonly readOnlyNotice: "care.readOnly.breakGlass" | "care.readOnly.scope" | null;
+} {
+  if (!can(permissions, "care.note.write")) return { canRecord: false, readOnlyNotice: null };
+  if (person.access === undefined || person.access.recordCare) {
+    return { canRecord: true, readOnlyNotice: null };
+  }
+  return {
+    canRecord: false,
+    readOnlyNotice:
+      person.access.readOnlyReason === "break_glass"
+        ? "care.readOnly.breakGlass"
+        : "care.readOnly.scope",
+  };
+}
+
 /** The address of a tab: the overview is the person's own page. */
 export function tabHref(personId: string, tab: RecordTab): string {
   return tab === "overview" ? `/people/${personId}` : `/people/${personId}/${tab}`;

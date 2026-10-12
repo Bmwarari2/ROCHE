@@ -23,6 +23,7 @@ import { auditInTx, writeAudit } from "../http/audit";
 import {
   type AppEnv,
   inScopeOf,
+  permissionsReaching,
   requirePermission,
   type TenantAccess,
   withTenant,
@@ -219,7 +220,25 @@ export const peopleRouter = createRouter()
           resourceId: id,
           requestId: c.get("requestId"),
         });
-        return summary;
+        // What the caller may record here, so the screens offer only what the API would take
+        // (ADR-0071 review round 2, C2-M2): a break-glass record opens reading only.
+        const recordCare = (await permissionsReaching(tx, access, id)).has("care.note.write");
+        const withoutBreakGlass = {
+          ...scopeFor(access.effective, "people.person.read"),
+          includesBreakGlass: false,
+        };
+        const [own] = recordCare
+          ? [true]
+          : await inScopeOf(tx, withoutBreakGlass, () =>
+              tx.select({ id: person.id }).from(person).where(eq(person.id, id)),
+            );
+        return {
+          ...summary,
+          access: {
+            recordCare,
+            readOnlyReason: recordCare ? null : own ? ("scope" as const) : ("break_glass" as const),
+          },
+        };
       });
       if (!found) throw problems.notFound();
       return c.json(found, 200);

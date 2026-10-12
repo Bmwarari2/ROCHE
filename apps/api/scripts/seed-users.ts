@@ -11,6 +11,10 @@ import { createLogger } from "../src/logger";
  * Optionally HARBOUR_DEMO_OWNER_EMAIL makes the owner account use that address (e.g. Brian's, so
  * he can register a passkey on dev).
  */
+/** A second demo home and its one resident, outside Harbour House staff's reach. */
+const MEWS_LOCATION = "0194d000-0000-7000-8000-000000000150";
+const MEWS_PERSON = "0194d000-0000-7000-8600-000000000150";
+
 const config = loadConfig();
 if (config.NODE_ENV === "production") throw new Error("seed-users is for development only");
 const password = process.env.HARBOUR_DEMO_PASSWORD ?? "correct horse battery staple";
@@ -42,6 +46,32 @@ try {
     }
     await linkDemoUser(owner, key, authUserId);
     console.log(`Linked demo ${key}`);
+  }
+  // A second home with one invented resident nobody at Harbour House can see, so the web
+  // journeys can open a record by break-glass and see it is for reading only (ADR-0071 review
+  // round 2, C2-M2). Rerunnable.
+  {
+    const client = await owner.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+        [DEMO.tenantId],
+      );
+      await client.query(
+        "INSERT INTO location (id, name) VALUES ($1, 'Harbour Mews') ON CONFLICT (id) DO NOTHING",
+        [MEWS_LOCATION],
+      );
+      await client.query(
+        `INSERT INTO person (id, location_id, status, given_name, family_name, nhs_number)
+         VALUES ($1, $2, 'active', 'Una', 'Example', '9990001502') ON CONFLICT (id) DO NOTHING`,
+        [MEWS_PERSON, MEWS_LOCATION],
+      );
+      await client.query("COMMIT");
+      console.log("Harbour Mews and its resident are in place for the break-glass journey");
+    } finally {
+      client.release();
+    }
   }
   if (process.env.HARBOUR_DEMO_MFA === "off") {
     const client = await owner.connect();

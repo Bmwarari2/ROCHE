@@ -67,6 +67,18 @@ export const PersonSummary = z
     /** When the current status began (for a discharge or death, when the person left or died). */
     statusChangedAt: isoDateTime,
     version: z.number().int(),
+    /**
+     * What the caller may record about this person, on `GET /v1/people/{id}` only (ADR-0071 review
+     * round 2, C2-M2): `recordCare` when their care.note.write reaches the person (notes, charts
+     * and body map marks); otherwise why they can only read: `break_glass` when the record is open
+     * to them only by break-glass, `scope` when their roles reach the person for reading only.
+     */
+    access: z
+      .object({
+        recordCare: z.boolean(),
+        readOnlyReason: z.enum(["break_glass", "scope"]).nullable(),
+      })
+      .optional(),
   })
   .meta({ id: "PersonSummary" });
 export type PersonSummary = z.infer<typeof PersonSummary>;
