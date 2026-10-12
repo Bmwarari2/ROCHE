@@ -44,6 +44,7 @@ function accessFor(roleKey: string, locationId: string | null = null): Effective
         scopeKind: role.scopeKind,
         permissions: role.permissions,
         locationId,
+        organisationWide: locationId === null,
         validFrom: PAST,
         validTo: null,
       },
@@ -252,7 +253,7 @@ describe("hazard HZ-011 search plan follows permission and scope", () => {
       "their locations for a Registered Manager",
       "registered_manager",
       NORTH,
-      { kind: "locations", locationIds: [NORTH], teamIds: null },
+      { kind: "locations", locationIds: [NORTH], teamIds: null, includesAssigned: false },
     ],
     ["everyone for the owner", "owner", null, { kind: "tenant" }],
   ])("person scope is %s", (_label, role, location, scope) => {
@@ -265,6 +266,7 @@ describe("hazard HZ-011 search plan follows permission and scope", () => {
       kind: "locations",
       locationIds: [NORTH],
       teamIds: ["team-1"],
+      includesAssigned: false,
     });
   });
 
@@ -657,9 +659,9 @@ describe("hazard HZ-011 search results and counts stay in scope", () => {
     ["a person at the manager's location", {}, true],
     ["a person at another location", { personLocationId: SOUTH }, false],
     [
-      "a person elsewhere the manager is assigned to",
+      "a person elsewhere the manager is assigned to (a location role never counts assignments, S-M1)",
       { personLocationId: SOUTH, assignedToActor: true },
-      true,
+      false,
     ],
     ["a discharged person (not asked for)", { personStatus: "discharged" }, false],
     ["a person with no location", { personLocationId: null }, false],
@@ -829,6 +831,7 @@ describe("hazard HZ-011 each kind of record is searched in the scope of its own 
       scopeKind: found.scopeKind,
       permissions: found.permissions,
       locationId,
+      organisationWide: false,
       validFrom: PAST,
       validTo: null,
     };
@@ -838,6 +841,7 @@ describe("hazard HZ-011 each kind of record is searched in the scope of its own 
     scopeKind: "tenant" as const,
     permissions: ["finance.reporting.read"],
     locationId: null,
+    organisationWide: false,
     validFrom: PAST,
     validTo: null,
   };
@@ -850,7 +854,12 @@ describe("hazard HZ-011 each kind of record is searched in the scope of its own 
     const plan = planFor(
       withAccess(resolveAccess([role("team_leader", NORTH), financeViewer], [], NOW)),
     );
-    expect(plan.personScope).toEqual({ kind: "locations", locationIds: [NORTH], teamIds: null });
+    expect(plan.personScope).toEqual({
+      kind: "locations",
+      locationIds: [NORTH],
+      teamIds: null,
+      includesAssigned: false,
+    });
     const page = filterSearchResults(
       plan,
       [
@@ -871,6 +880,7 @@ describe("hazard HZ-011 each kind of record is searched in the scope of its own 
         {
           permissions: ["care.note.read"],
           locationId: SOUTH,
+          organisationWide: false,
           validFrom: PAST,
           validTo: new Date("2027-01-01T00:00:00Z"),
           revokedAt: null,
@@ -880,13 +890,24 @@ describe("hazard HZ-011 each kind of record is searched in the scope of its own 
     );
     const plan = planFor(withAccess(access));
     const scopes = Object.fromEntries(plan.entities.map((e) => [e.type, e.personScope]));
-    expect(scopes.person).toEqual({ kind: "locations", locationIds: [NORTH], teamIds: null });
-    expect(scopes.note).toEqual({ kind: "locations", locationIds: [SOUTH], teamIds: null });
+    expect(scopes.person).toEqual({
+      kind: "locations",
+      locationIds: [NORTH],
+      teamIds: null,
+      includesAssigned: false,
+    });
+    expect(scopes.note).toEqual({
+      kind: "locations",
+      locationIds: [SOUTH],
+      teamIds: null,
+      includesAssigned: false,
+    });
     // The search runs over both; each result is held to its own kind's scope.
     expect(plan.personScope).toEqual({
       kind: "locations",
       locationIds: [NORTH, SOUTH].sort(),
       teamIds: null,
+      includesAssigned: false,
     });
     const shown = filterSearchResults(
       plan,
@@ -909,6 +930,7 @@ describe("hazard HZ-011 each kind of record is searched in the scope of its own 
         {
           permissions: ["care.note.read"],
           locationId: SOUTH,
+          organisationWide: false,
           validFrom: PAST,
           validTo: new Date("2027-01-01T00:00:00Z"),
           revokedAt: null,
@@ -938,6 +960,18 @@ describe("hazard HZ-011 each kind of record is searched in the scope of its own 
       withAccess(resolveAccess([role("team_leader", NORTH), financeViewer], [], NOW)),
     );
     expect(plan.staffScope).toEqual({ kind: "locations", locationIds: [NORTH] });
+  });
+
+  it("counts the people assigned to the user only for a permission an assigned-scope role carries (S-M1)", () => {
+    const elsewhere = hit({ personLocationId: SOUTH, assignedToActor: true });
+    const careWorkerAndLead = planFor(
+      withAccess(resolveAccess([role("care_worker", null), role("team_leader", NORTH)], [], NOW)),
+    );
+    expect(filterSearchResults(careWorkerAndLead, [elsewhere], NOW).total).toBe(1);
+    const leadAndFinance = planFor(
+      withAccess(resolveAccess([role("team_leader", NORTH), financeViewer], [], NOW)),
+    );
+    expect(filterSearchResults(leadAndFinance, [elsewhere], NOW).total).toBe(0);
   });
 });
 

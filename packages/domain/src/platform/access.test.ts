@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   type AccessGrantInput,
   authorise,
+  BREAK_GLASS_PERMISSIONS,
   can,
   NO_SCOPE,
   narrowestScope,
@@ -44,6 +45,8 @@ function assignment(
     scopeKind: role.scopeKind,
     permissions: role.permissions,
     locationId,
+    // No location here means a deliberate organisation-wide assignment.
+    organisationWide: locationId === null,
     validFrom,
     validTo,
   };
@@ -56,6 +59,7 @@ const grantOf = (
 ): AccessGrantInput => ({
   permissions,
   locationId,
+  organisationWide: locationId === null,
   validFrom: PAST,
   validTo: FUTURE,
   revokedAt: null,
@@ -68,48 +72,72 @@ const financeViewer: RoleAssignmentInput = {
   scopeKind: "tenant",
   permissions: ["finance.reporting.read"],
   locationId: null,
+  organisationWide: false,
   validFrom: PAST,
   validTo: null,
 };
 
-const tenantWide: PermissionScope = { scope: "tenant", locationIds: [] };
-const assigned: PermissionScope = { scope: "assigned", locationIds: [] };
-const at = (...ids: string[]): PermissionScope => ({
-  scope: "locations",
-  locationIds: [...ids].sort(),
+const tenantWide: PermissionScope = {
+  scope: "tenant",
+  locationIds: [],
+  includesAssigned: true,
+  includesBreakGlass: true,
+};
+const assigned = (breakGlass = false): PermissionScope => ({
+  scope: "assigned",
+  locationIds: [],
+  includesAssigned: true,
+  includesBreakGlass: breakGlass,
 });
+/** People at these locations; `+a` adds assigned people, `+bg` people opened by break-glass. */
+const at = (...args: string[]): PermissionScope => {
+  const ids = args.filter((a) => !a.startsWith("+"));
+  return {
+    scope: "locations",
+    locationIds: [...ids].sort(),
+    includesAssigned: args.includes("+a"),
+    includesBreakGlass: args.includes("+bg"),
+  };
+};
 
 describe("hazard HZ-011 scopeFor: data scope is per permission (ADR-0071)", () => {
   it.each<[string, RoleAssignmentInput[], AccessGrantInput[], Permission, PermissionScope]>([
     ["no roles reach no one", [], [], "care.note.read", NO_SCOPE],
     ["the owner, organisation-wide", [assignment("owner")], [], "care.note.read", tenantWide],
     [
-      "a Registered Manager at one location",
+      "a Registered Manager at one location (a read, so break-glass people count)",
       [assignment("registered_manager", NORTH)],
       [],
       "care.note.read",
-      at(NORTH),
+      at(NORTH, "+bg"),
     ],
     [
       "managers at two locations add up",
       [assignment("registered_manager", NORTH), assignment("deputy_manager", SOUTH)],
       [],
       "care.note.read",
-      at(NORTH, SOUTH),
+      at(NORTH, SOUTH, "+bg"),
     ],
     [
-      "a location role with no location reaches every location",
+      "a location role marked organisation-wide reaches every location",
       [assignment("registered_manager")],
       [],
       "care.note.read",
       tenantWide,
     ],
     [
+      "a location role with no location, not marked organisation-wide, reaches no one (L2)",
+      [{ ...assignment("registered_manager"), organisationWide: false }],
+      [],
+      "care.note.read",
+      NO_SCOPE,
+    ],
+    [
       "a care worker reaches the people assigned to them",
       [assignment("care_worker")],
       [],
       "care.note.write",
-      assigned,
+      assigned(),
     ],
     [
       "two roles: care notes stay at the care role's home (the issue's example)",
@@ -123,7 +151,7 @@ describe("hazard HZ-011 scopeFor: data scope is per permission (ADR-0071)", () =
       [assignment("team_leader", NORTH), financeViewer],
       [],
       "people.person.read",
-      at(NORTH),
+      at(NORTH, "+bg"),
     ],
     [
       "two roles: the finance permission reaches the whole organisation",
@@ -137,7 +165,7 @@ describe("hazard HZ-011 scopeFor: data scope is per permission (ADR-0071)", () =
       [assignment("care_worker"), assignment("group_executive")],
       [],
       "care.note.write",
-      assigned,
+      assigned(),
     ],
     [
       "a care worker who is also a group executive reads notes across the organisation",
@@ -145,6 +173,34 @@ describe("hazard HZ-011 scopeFor: data scope is per permission (ADR-0071)", () =
       [],
       "care.note.read",
       tenantWide,
+    ],
+    [
+      "S-M1: a care worker who is a clinical lead at North writes ReSPECT at North only, never for their assigned people",
+      [assignment("care_worker"), assignment("clinical_lead", NORTH)],
+      [],
+      "care.respect.record",
+      at(NORTH),
+    ],
+    [
+      "S-M1: the same person's care notes reach North and the people assigned to them",
+      [assignment("care_worker"), assignment("clinical_lead", NORTH)],
+      [],
+      "care.note.write",
+      at(NORTH, "+a"),
+    ],
+    [
+      "S-M1: break-glass never opens a write",
+      [assignment("registered_manager", NORTH)],
+      [],
+      "people.person.update",
+      at(NORTH),
+    ],
+    [
+      "S-M1: break-glass never opens a discharge or death",
+      [assignment("registered_manager", NORTH)],
+      [],
+      "people.admission.manage",
+      at(NORTH),
     ],
     [
       "a role scoped to no one gives its permission and no one to use it on",
@@ -161,6 +217,7 @@ describe("hazard HZ-011 scopeFor: data scope is per permission (ADR-0071)", () =
           scopeKind: "tenant",
           permissions: ["care.note.read", "comms.feed.read"],
           locationId: null,
+          organisationWide: false,
           validFrom: PAST,
           validTo: null,
         },
@@ -181,7 +238,7 @@ describe("hazard HZ-011 scopeFor: data scope is per permission (ADR-0071)", () =
       [assignment("owner", null, PAST), assignment("registered_manager", NORTH)],
       [],
       "care.note.read",
-      at(NORTH),
+      at(NORTH, "+bg"),
     ],
     [
       "a role not yet started is ignored",
@@ -209,21 +266,28 @@ describe("hazard HZ-011 scopeFor: data scope is per permission (ADR-0071)", () =
       [assignment("registered_manager", NORTH)],
       [grantOf(["care.note.read"], SOUTH)],
       "care.note.read",
-      at(NORTH, SOUTH),
+      at(NORTH, SOUTH, "+bg"),
     ],
     [
       "a grant at a location adds that location to a care worker's assigned people",
       [assignment("care_worker")],
       [grantOf(["care.note.write"], SOUTH)],
       "care.note.write",
-      at(SOUTH),
+      at(SOUTH, "+a"),
     ],
     [
-      "a grant with no location reaches the whole organisation",
+      "a grant marked organisation-wide reaches the whole organisation",
       [assignment("care_worker")],
       [grantOf(["safety.notification.submit"], null)],
       "safety.notification.submit",
       tenantWide,
+    ],
+    [
+      "a grant with no location, not marked organisation-wide, gives nothing (L1)",
+      [],
+      [grantOf(["care.note.read"], null, { organisationWide: false })],
+      "care.note.read",
+      NO_SCOPE,
     ],
     [
       "a revoked grant gives nothing",
@@ -255,6 +319,14 @@ describe("hazard HZ-011 scopeFor: data scope is per permission (ADR-0071)", () =
     ],
   ])("%s", (_name, assignments, grants, permission, expected) => {
     expect(scopeFor(resolveAccess(assignments, grants, NOW), permission)).toEqual(expected);
+  });
+
+  it("opens only reading the person and their care record by break-glass (S-M1, H-168)", () => {
+    expect([...BREAK_GLASS_PERMISSIONS].sort()).toEqual([
+      "care.note.read",
+      "care.plan.read",
+      "people.person.read",
+    ]);
   });
 
   it("gives a portal session its permissions with no person scope, and no grants (ADR-0061)", () => {
@@ -289,11 +361,44 @@ describe("hazard HZ-011 narrowestScope: a request that needs several permissions
       at(NORTH, SOUTH),
     ],
     ["two location scopes keep the shared locations", [at(NORTH, SOUTH), at(SOUTH)], at(SOUTH)],
-    ["two location scopes sharing none keep assigned people", [at(NORTH), at(SOUTH)], assigned],
-    ["locations and assigned people is assigned people", [at(NORTH), assigned], assigned],
-    ["organisation-wide and assigned people is assigned people", [tenantWide, assigned], assigned],
+    ["two location scopes sharing none reach no one", [at(NORTH), at(SOUTH)], NO_SCOPE],
+    [
+      "two location scopes sharing none keep assigned people when both count them",
+      [at(NORTH, "+a"), at(SOUTH, "+a")],
+      assigned(),
+    ],
+    [
+      "assigned people count only when every scope counts them",
+      [at(NORTH, "+a"), at(NORTH)],
+      at(NORTH),
+    ],
+    [
+      "break-glass people count only when every scope counts them",
+      [at(NORTH, "+bg"), at(NORTH)],
+      at(NORTH),
+    ],
+    [
+      "break-glass people kept when both count them",
+      [at(NORTH, "+bg"), at(NORTH, "+bg")],
+      at(NORTH, "+bg"),
+    ],
+    [
+      "locations counting assigned people and assigned people",
+      [at(NORTH, "+a"), assigned()],
+      assigned(),
+    ],
+    [
+      "locations not counting assigned people and assigned people reach no one (fails closed)",
+      [at(NORTH), assigned()],
+      NO_SCOPE,
+    ],
+    [
+      "organisation-wide and assigned people is assigned people",
+      [tenantWide, assigned()],
+      assigned(),
+    ],
     ["no one wins over organisation-wide", [tenantWide, NO_SCOPE], NO_SCOPE],
-    ["no one wins over assigned people", [assigned, NO_SCOPE], NO_SCOPE],
+    ["no one wins over assigned people", [assigned(), NO_SCOPE], NO_SCOPE],
     ["the order does not matter", [at(SOUTH), tenantWide, at(NORTH, SOUTH)], at(SOUTH)],
   ])("%s", (_name, scopes, expected) => {
     expect(narrowestScope(scopes)).toEqual(expected);
@@ -301,11 +406,29 @@ describe("hazard HZ-011 narrowestScope: a request that needs several permissions
   });
 
   it("never reaches further than any one of the scopes it narrows", () => {
-    const all = [tenantWide, at(NORTH), at(SOUTH), at(NORTH, SOUTH), assigned, NO_SCOPE];
-    const rank = { none: 0, assigned: 1, locations: 2, tenant: 3 } as const;
-    const within = (a: PermissionScope, b: PermissionScope) =>
-      rank[a.scope] < rank[b.scope] ||
-      (a.scope === b.scope && a.locationIds.every((id) => b.locationIds.includes(id)));
+    const all = [
+      tenantWide,
+      at(NORTH),
+      at(NORTH, "+a"),
+      at(NORTH, "+bg"),
+      at(SOUTH),
+      at(SOUTH, "+a", "+bg"),
+      at(NORTH, SOUTH),
+      assigned(),
+      assigned(true),
+      NO_SCOPE,
+    ];
+    /** Whether everyone `a` reaches is reached by `b`, flags included. */
+    const within = (a: PermissionScope, b: PermissionScope) => {
+      if (b.scope === "tenant") return true;
+      if (a.scope === "none") return true;
+      if (a.scope === "tenant" || b.scope === "none") return false;
+      return (
+        a.locationIds.every((id) => b.locationIds.includes(id)) &&
+        (!a.includesAssigned || b.includesAssigned) &&
+        (!a.includesBreakGlass || b.includesBreakGlass)
+      );
+    };
     for (const a of all) {
       for (const b of all) {
         const n = narrowestScope([a, b]);
@@ -318,9 +441,14 @@ describe("hazard HZ-011 narrowestScope: a request that needs several permissions
 describe("widestScope: any one of several permissions, or every source of one", () => {
   it.each<[string, PermissionScope[], PermissionScope]>([
     ["nothing reaches no one", [], NO_SCOPE],
-    ["no one adds nothing", [NO_SCOPE, assigned], assigned],
+    ["no one adds nothing", [NO_SCOPE, assigned()], assigned()],
     ["location scopes add up", [at(NORTH), at(SOUTH)], at(NORTH, SOUTH)],
-    ["assigned people are inside a location scope", [assigned, at(NORTH)], at(NORTH)],
+    ["assigned people are added to a location scope", [assigned(), at(NORTH)], at(NORTH, "+a")],
+    [
+      "break-glass people count when any counts them",
+      [at(NORTH, "+bg"), at(SOUTH)],
+      at(NORTH, SOUTH, "+bg"),
+    ],
     ["organisation-wide wins", [at(NORTH), tenantWide, NO_SCOPE], tenantWide],
   ])("%s", (_name, scopes, expected) => {
     expect(widestScope(scopes)).toEqual(expected);
@@ -342,6 +470,7 @@ describe("resolveAccess permissions", () => {
       {
         permissions: ["safety.notification.submit"],
         locationId: NORTH,
+        organisationWide: false,
         validFrom: PAST,
         validTo: FUTURE,
         revokedAt: null,
@@ -349,6 +478,7 @@ describe("resolveAccess permissions", () => {
       {
         permissions: ["finance.ledger.approve"],
         locationId: null,
+        organisationWide: true,
         validFrom: PAST,
         validTo: FUTURE,
         revokedAt: PAST,
@@ -356,6 +486,7 @@ describe("resolveAccess permissions", () => {
       {
         permissions: ["platform.export.create"],
         locationId: null,
+        organisationWide: true,
         validFrom: PAST,
         validTo: PAST,
         revokedAt: null,
@@ -383,6 +514,7 @@ describe("permissionsAtLocation", () => {
       {
         permissions: ["medicines.cd.administer"],
         locationId: SOUTH,
+        organisationWide: false,
         validFrom: PAST,
         validTo: FUTURE,
         revokedAt: null,
@@ -553,7 +685,14 @@ describe("placesHoldingPermission (#26 review round 2, S1)", () => {
     permissions: string[],
     locationId: string | null,
     revokedAt: Date | null = null,
-  ): AccessGrantInput => ({ permissions, locationId, validFrom: PAST, validTo: FUTURE, revokedAt });
+  ): AccessGrantInput => ({
+    permissions,
+    locationId,
+    organisationWide: locationId === null,
+    validFrom: PAST,
+    validTo: FUTURE,
+    revokedAt,
+  });
 
   it.each<[string, RoleAssignmentInput[], AccessGrantInput[], unknown]>([
     [

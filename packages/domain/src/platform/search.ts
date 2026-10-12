@@ -213,6 +213,11 @@ export type SearchPersonScope =
       readonly locationIds: readonly string[];
       /** Team narrowing arrives with rotas (Phase 2); null means no team restriction. */
       readonly teamIds: readonly string[] | null;
+      /**
+       * The people assigned to the user count too, only when a role scoped to assigned people
+       * carries the permission (review round 1, S-M1).
+       */
+      readonly includesAssigned: boolean;
     }
   | { readonly kind: "assigned" };
 
@@ -420,14 +425,14 @@ function accessValidUntil(
 }
 
 function toPersonScope(
-  { scope, locationIds }: PermissionScope,
+  { scope, locationIds, includesAssigned }: PermissionScope,
   teamIds: readonly string[] | null,
 ): SearchPersonScope | null {
   switch (scope) {
     case "tenant":
       return { kind: "tenant" };
     case "locations":
-      return { kind: "locations", locationIds, teamIds };
+      return { kind: "locations", locationIds, teamIds, includesAssigned };
     case "assigned":
       return { kind: "assigned" };
     case "none":
@@ -792,13 +797,14 @@ export interface SearchResultPage {
 }
 
 function personInScope(scope: SearchPersonScope, hit: SearchHit): boolean {
-  if (hit.assignedToActor) return true;
   switch (scope.kind) {
     case "tenant":
       return true;
     case "assigned":
-      return false;
+      return hit.assignedToActor;
     case "locations":
+      // Assigned people count only for a permission a role scoped to them carries (S-M1).
+      if (hit.assignedToActor && scope.includesAssigned) return true;
       if (hit.personLocationId === null || !scope.locationIds.includes(hit.personLocationId)) {
         return false;
       }

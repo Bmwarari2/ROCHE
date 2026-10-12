@@ -70,6 +70,7 @@ function accessFor(roleKey: string): EffectiveAccess {
         scopeKind: role.scopeKind,
         permissions: role.permissions,
         locationId: null,
+        organisationWide: true,
         validFrom: PAST,
         validTo: null,
       },
