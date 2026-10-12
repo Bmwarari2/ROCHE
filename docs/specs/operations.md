@@ -261,7 +261,8 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
 `packages/db/test/downtime.test.ts`. No API yet.
 
 - `downtime_pack`: append-only (INSERT and SELECT for the application, `append_only` triggers).
-  `person_ids` lists everyone with a page. Visible only in tenant scope or location scope at its
+  `person_ids` lists everyone the content names (its pages and anyone left out), worked out by a
+  trigger whatever the caller sends; a pack without its pages, or a page naming no one, is refused. Visible only in tenant scope or location scope at its
   location, when the reader can see every person on it (`app.downtime_pack_visible`; a person who
   has since moved away hides the pack from the old location), and, for a member, only where they
   hold `operations.downtime.read`; a member builds one only in their own name, and the nightly
@@ -272,17 +273,35 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
   `expected_version`). Visible in tenant scope, location scope at its location, and to anyone who
   can see a person there (`app.outage_visible`); declared, closed, reconciled and cancelled only by
   holders of `operations.downtime.manage` at the location. An exclusion constraint keeps windows at
-  a location from overlapping (cancelled ones aside). `app.outage_guard` keeps the location, start
-  and declaration, moves the state only along `OUTAGE_WORKFLOW` in the name of the member moving
-  it, sets the end and closure once when it closes, makes reconciled and cancelled outages final,
-  and refuses a soft delete. Retention `downtime_record`.
+  a location from overlapping (cancelled ones aside). `app.outage_declare` declares it open, with
+  nothing closed, reconciled or cancelled, at the database's time, and works out `declared_late`
+  from `care_note.late_entry_hours` (late when no figure is found). `app.outage_guard` keeps the
+  location and declaration, moves the state only along `OUTAGE_WORKFLOW` in the name of the member
+  moving it, sets the closure once when it closes, lets the start and end be corrected before
+  reconciliation only with a `correction_reason` of their own (an open outage stays open; the late
+  flag follows a corrected start), makes reconciled and cancelled outages final, and refuses a soft
+  delete. Retention `downtime_record`.
 - Location settings `downtime.mar_location` and `downtime.peep_location` are the columns
   `location.downtime_mar_location` and `location.downtime_peep_location`, seeded with
-  `DEFAULT_PAPER_MAR_LOCATION` and `DEFAULT_PEEP_LOCATION` and never blank.
+  `DEFAULT_PAPER_MAR_LOCATION` and `DEFAULT_PEEP_LOCATION` and never blank. Only a holder of
+  `platform.location.manage` at the location (or a job with no member) changes or confirms them; a
+  confirmation (`downtime_places_confirmed_at`, `_by`) is in the confirmer's own name, and a place
+  changed without one is unconfirmed again (H-201).
 - Not yet: the back-entry columns on the care events, the cancel refusal once a back-entry cites
   an outage, and the database check that the reconciler entered none of its paper records (part
   2, with the back-entry columns); the API, nightly job and PDF (part 3); outages and packs in the
-  sync streams (with the mobile step). Part 3 builds a fresh pack when the reader's latest visible
-  pack is not the location's latest (someone on it moved away), so a holder at a reachable
-  location is never left without one, and the full export reads packs as the system or as a
-  holder of `operations.downtime.read`.
+  sync streams (with the mobile step).
+- Part 3 requirements (#32 review round 1):
+  - A pack is hidden from the location's holders once someone it names moves away (H-200). The
+    API builds a fresh pack on demand whenever anyone moves into, out of or away from the
+    location, and on a read when the latest pack the reader can open is not the location's
+    latest, so a holder at a reachable location is never left without one (`hazard HZ-021
+    rebuilds the pack when someone on the latest one has moved`). The kiosk fetches the latest
+    pack in the system's view for its location only (device-bound, no member), because the
+    cache is opened only in a PIN session of a holder of `operations.downtime.read` (rule 8).
+  - A rendered PDF is never readable through `document`, whose rows with no person are visible
+    to every member: keep pack PDFs out of `document`, or add a restrictive policy so a
+    `document` row a `downtime_pack` names is readable only with a visible pack naming it.
+  - While the MAR and PEEP places are unconfirmed, the pack and the location page say so and a
+    task asks a holder of `platform.location.manage` to confirm them (H-201).
+  - The full export reads packs as the system or as a holder of `operations.downtime.read`.

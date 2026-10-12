@@ -107,6 +107,12 @@ export const location = pgTable(
     downtimePeepLocation: text("downtime_peep_location")
       .notNull()
       .default("the person's PEEP in the fire file"),
+    /**
+     * When and by whom a holder of `platform.location.manage` confirmed the two places; null while
+     * the seeded wording stands, and again whenever a place changes without being confirmed.
+     */
+    downtimePlacesConfirmedAt: timestamp("downtime_places_confirmed_at", { withTimezone: true }),
+    downtimePlacesConfirmedBy: uuid("downtime_places_confirmed_by"),
     ...mutableColumns(),
   },
   (t) => [
@@ -115,8 +121,14 @@ export const location = pgTable(
     check(
       "location_downtime_places",
       sql`char_length(btrim(downtime_mar_location)) BETWEEN 1 AND 200
-        AND char_length(btrim(downtime_peep_location)) BETWEEN 1 AND 200`,
+        AND char_length(btrim(downtime_peep_location)) BETWEEN 1 AND 200
+        AND (downtime_places_confirmed_at IS NULL) = (downtime_places_confirmed_by IS NULL)`,
     ),
+    foreignKey({
+      name: "location_downtime_places_confirmed_by_fk",
+      columns: [t.tenantId, t.downtimePlacesConfirmedBy],
+      foreignColumns: [tenantUser.tenantId, tenantUser.id],
+    }),
   ],
 );
 

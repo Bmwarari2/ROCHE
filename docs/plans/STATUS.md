@@ -134,6 +134,25 @@ only when they link spec, code, tests and user documentation; no user guides exi
      expand-only back-entry columns on `care_note`, `observation`, `body_map_mark`,
      `activity_record` and `visit_log` (with `outage_id`), the cancel refusal once a back-entry
      cites an outage and the reconciler check; then part 3, the API, nightly job and PDF.
+   - Follow-ups from #32 review round 1 (security and clinical):
+     - bound outage and pack times: no far-future `back_entry_due_at`, `closed_at` or
+       `generated_at`, and a start or end in the future (beyond the clock tolerance) refused in
+       the database as the domain refuses it;
+     - `downtime_pack.warnings` holds counts and opaque ids only: a CHECK or a write-side mapping
+       test (the domain's `DowntimeWarning` carries a message, which must not be stored there);
+     - outage free text (description, reconciliation statement, cancellation and correction
+       reasons) reaches assigned care workers: guidance on the forms not to write names;
+     - `outage.workflow_instance_id` is not checked to be an `operations.outage` workflow for an
+       outage at this location;
+     - a kiosk-built pack is inserted under its builder's permission when uploaded, so it is
+       refused if their role or grant has ended by then;
+     - a location-scoped Registered Manager cannot review a pre-move pack later (H-200);
+     - an open outage with no end blocks the next declaration at the location until it is closed
+       or corrected;
+     - part 3 emits the `operations.*` audit and outbox events of section 5;
+     - store an outage's start as typed with the occurrence chosen in a repeated hour (needs the
+       domain's declaration to carry the written form, as `resolvePaperTime` does);
+     - who may change the other `location` columns is still enforced only by the API.
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; admin session revoke and idle timeouts
    per role; record history PDF export; device push registration; OpenFeature provider; user

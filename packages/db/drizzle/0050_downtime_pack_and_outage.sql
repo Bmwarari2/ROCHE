@@ -7,7 +7,7 @@ CREATE TABLE "downtime_pack" (
 	"as_at" timestamp with time zone NOT NULL,
 	"valid_until" timestamp with time zone NOT NULL,
 	"generated_by" uuid,
-	"person_ids" uuid[] NOT NULL,
+	"person_ids" uuid[] DEFAULT '{}'::uuid[] NOT NULL,
 	"content" jsonb NOT NULL,
 	"warnings" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"document_id" uuid,
@@ -43,6 +43,7 @@ CREATE TABLE "outage" (
 	"cancelled_at" timestamp with time zone,
 	"cancelled_by" uuid,
 	"cancellation_reason" text,
+	"correction_reason" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"created_by" uuid DEFAULT app.current_user_id(),
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -58,12 +59,17 @@ CREATE TABLE "outage" (
 	CONSTRAINT "outage_reconciled" CHECK ((state = 'reconciled') = (reconciled_at IS NOT NULL AND reconciled_by IS NOT NULL
         AND reconciliation_statement IS NOT NULL AND forms_entered IS NOT NULL)),
 	CONSTRAINT "outage_forms_entered" CHECK (forms_entered IS NULL OR forms_entered >= 0),
+	CONSTRAINT "outage_words" CHECK ((reconciliation_statement IS NULL OR btrim(reconciliation_statement) <> '')
+        AND (cancellation_reason IS NULL OR btrim(cancellation_reason) <> '')
+        AND (correction_reason IS NULL OR btrim(correction_reason) <> '')),
 	CONSTRAINT "outage_cancelled" CHECK ((state = 'cancelled') = (cancelled_at IS NOT NULL AND cancelled_by IS NOT NULL
         AND cancellation_reason IS NOT NULL))
 );
 --> statement-breakpoint
 ALTER TABLE "location" ADD COLUMN "downtime_mar_location" text DEFAULT 'the paper MAR chart' NOT NULL;--> statement-breakpoint
 ALTER TABLE "location" ADD COLUMN "downtime_peep_location" text DEFAULT 'the person''s PEEP in the fire file' NOT NULL;--> statement-breakpoint
+ALTER TABLE "location" ADD COLUMN "downtime_places_confirmed_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "location" ADD COLUMN "downtime_places_confirmed_by" uuid;--> statement-breakpoint
 ALTER TABLE "downtime_pack" ADD CONSTRAINT "downtime_pack_location_fk" FOREIGN KEY ("tenant_id","location_id") REFERENCES "public"."location"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "downtime_pack" ADD CONSTRAINT "downtime_pack_generated_by_fk" FOREIGN KEY ("tenant_id","generated_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "downtime_pack" ADD CONSTRAINT "downtime_pack_document_fk" FOREIGN KEY ("tenant_id","document_id") REFERENCES "public"."document"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -75,5 +81,7 @@ ALTER TABLE "outage" ADD CONSTRAINT "outage_reconciled_by_fk" FOREIGN KEY ("tena
 ALTER TABLE "outage" ADD CONSTRAINT "outage_cancelled_by_fk" FOREIGN KEY ("tenant_id","cancelled_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "downtime_pack_location_idx" ON "downtime_pack" USING btree ("tenant_id","location_id","generated_at");--> statement-breakpoint
 CREATE INDEX "outage_location_idx" ON "outage" USING btree ("tenant_id","location_id","started_at");--> statement-breakpoint
+ALTER TABLE "location" ADD CONSTRAINT "location_downtime_places_confirmed_by_fk" FOREIGN KEY ("tenant_id","downtime_places_confirmed_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "location" ADD CONSTRAINT "location_downtime_places" CHECK (char_length(btrim(downtime_mar_location)) BETWEEN 1 AND 200
-        AND char_length(btrim(downtime_peep_location)) BETWEEN 1 AND 200);
+        AND char_length(btrim(downtime_peep_location)) BETWEEN 1 AND 200
+        AND (downtime_places_confirmed_at IS NULL) = (downtime_places_confirmed_by IS NULL));
