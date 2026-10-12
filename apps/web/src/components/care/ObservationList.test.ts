@@ -34,6 +34,7 @@ const turn = (overrides: Partial<ObservationItem>): ObservationItem => ({
   correctionReason: null,
   superseded: false,
   recordedBy: "0193a000-0000-7000-8000-00000000a004",
+  handedOverBy: null,
   chart: "repositioning",
   values: { position: "left_side", skinChecked: true },
   flags: {},
