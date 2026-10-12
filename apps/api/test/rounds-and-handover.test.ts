@@ -483,18 +483,23 @@ async function createTask(body: Record<string, unknown>): Promise<TaskItem> {
 
 describe("the round view (CARE-013)", () => {
   it("hazard HZ-001 lists the shift's open tasks by floor and room, each stop with the point-of-care header", async () => {
+    // The shift running now (the default window): each task falls due a few minutes ahead, but
+    // before the shift ends, so it is on this shift's round whatever the time of day.
+    const { shift } = await json<RoundView>(await as("manager", roundPath()));
+    const aheadInShift = (minutes: number) =>
+      new Date(Math.min(Date.now() + minutes * MIN, Date.parse(shift.end) - 1000)).toISOString();
     const turn = await createTask({
       title: "Check the pressure mattress",
       personId: resident(4),
       locationId: DEMO.locationId,
-      dueAt: new Date(Date.now() + 10 * MIN).toISOString(),
+      dueAt: aheadInShift(10),
     });
     const fridge = await createTask({
       title: "Check the fridge temperature",
       locationId: DEMO.locationId,
-      dueAt: new Date(Date.now() + 5 * MIN).toISOString(),
+      dueAt: aheadInShift(5),
     });
-    const response = await as("manager", roundAhead());
+    const response = await as("manager", roundPath());
     expect(response.status).toBe(200);
     const view = await json<RoundView>(response);
     expect(["day", "night"]).toContain(view.shift.name);
@@ -651,6 +656,31 @@ describe("the round view (CARE-013)", () => {
     expect(audits.length).toBeGreaterThan(0);
     expect(audits[0]?.scope.locationId).toBe(DEMO.locationId);
     expect(JSON.stringify(audits)).not.toContain("fridge");
+  });
+
+  it("hazard HZ-001 shows the shift running now by default, and a task due after it ends only in a window that reaches it", async () => {
+    const { shift } = await json<RoundView>(await as("manager", roundPath()));
+    // Due half an hour into the next shift, its window not yet open: the next shift's round.
+    const next = await createTask({
+      title: "Check the night lights",
+      personId: resident(4),
+      locationId: DEMO.locationId,
+      dueAt: new Date(Date.parse(shift.end) + 30 * MIN).toISOString(),
+    });
+    const ids = (view: RoundView) =>
+      view.areas.flatMap((a) => a.stops.flatMap((s) => s.tasks.map((t) => t.id)));
+    const now = await json<RoundView>(await as("manager", roundPath()));
+    expect(now.from).toBe(now.shift.start);
+    expect(now.to).toBe(now.shift.end);
+    expect(now.shift).toEqual(shift);
+    expect(ids(now)).not.toContain(next.id);
+    const reaching = await json<RoundView>(
+      await as(
+        "manager",
+        `${roundPath()}?from=${shift.end}&to=${new Date(Date.parse(shift.end) + HOUR).toISOString()}`,
+      ),
+    );
+    expect(ids(reaching)).toContain(next.id);
   });
 });
 

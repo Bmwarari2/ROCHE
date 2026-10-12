@@ -41,7 +41,7 @@ import {
 } from "@harbour/domain";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { raiseCareReviews, type TaskDeps } from "../src/jobs/tasks";
+import { raiseCareReviews, type TaskDeps, TENANT_SWEEP_FAILED_ACTION } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
 import { createHarness, type Harness } from "./support/harness";
 
@@ -219,6 +219,13 @@ describe("rule 1: when the first plan and the reviews are due", () => {
     const raised = await raiseCareReviews(deps, new Date());
     expect(raised).toBeGreaterThan(0);
     expect(await raiseCareReviews(deps, new Date())).toBe(0);
+    // The sweep catches one organisation's failure and carries on (`eachTenant`): none failed.
+    const failed = await asDemoTenant((c) =>
+      c.query("SELECT 1 FROM audit_event WHERE action = $1 AND scope->>'job' = 'care-reviews'", [
+        TENANT_SWEEP_FAILED_ACTION,
+      ]),
+    );
+    expect(failed.rowCount).toBe(0);
     const tasks = await tasksFor(resident(5));
     expect(tasks.filter((t) => t.kind === "care.care_plan_review")).toHaveLength(1);
     const alerts = await asDemoTenant(async (c) => {

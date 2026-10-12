@@ -9,6 +9,7 @@ import {
   reportUnroutedDaily,
   retryUnroutedTasks,
   type TaskDeps,
+  TENANT_SWEEP_FAILED_ACTION,
   UNROUTED_ACTIONS,
   UNROUTED_DAILY_EVENT,
 } from "../src/jobs/tasks";
@@ -54,6 +55,22 @@ async function asDemoTenant<T>(fn: (c: pg.PoolClient) => Promise<T>): Promise<T>
   } finally {
     client.release();
   }
+}
+
+/**
+ * How many times a sweep failed for the demo organisation. A sweep catches one organisation's
+ * failure and carries on (`eachTenant`), so a test that expects a count also checks this is 0.
+ */
+async function sweepFailures(job: string): Promise<number> {
+  return asDemoTenant(
+    async (c) =>
+      (
+        await c.query("SELECT 1 FROM audit_event WHERE action = $1 AND scope->>'job' = $2", [
+          TENANT_SWEEP_FAILED_ACTION,
+          job,
+        ])
+      ).rowCount ?? 0,
+  );
 }
 
 const json = async <T>(response: Response) => (await response.json()) as T;
@@ -265,8 +282,9 @@ describe("recurring tasks", () => {
     expect(turns.length).toBeLessThanOrEqual(12);
     expect(turns.every((t) => t.evidenceRequired)).toBe(true);
 
-    // Running the worker again creates nothing new (idempotent).
+    // Running the worker again creates nothing new (idempotent), and not because it failed.
     expect(await materialiseTaskSeries(deps, new Date())).toBe(0);
+    expect(await sweepFailures("task-series-materialise")).toBe(0);
 
     const ended = await as("manager", `/v1/task-series/${series.id}/end`, {
       method: "POST",

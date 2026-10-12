@@ -274,7 +274,7 @@ async function activeTenants(deps: TaskDeps): Promise<string[]> {
 /** Creates the next 48 hours of every active recurring task (idempotent; see services/tasks.ts). */
 export async function materialiseTaskSeries(deps: TaskDeps, now = new Date()): Promise<number> {
   // One organisation's failure never stops the others' rounds being created (`eachTenant`).
-  const created = await eachTenant(deps, "task-series", async (tx) => {
+  const created = await eachTenant(deps, "task-series-materialise", async (tx) => {
     const horizon = new Date(now.getTime() + 36 * 3_600_000);
     const due = await tx
       .select()
