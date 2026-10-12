@@ -5,7 +5,9 @@ import {
   ESCALATION_POLICY_BANDS,
   ESCALATION_POLICY_TOOLS,
   type EscalationPolicyLink,
+  escalationPolicyCovers,
   escalationPolicyFor,
+  validatedToolsWithLinks,
 } from "./escalation-policy";
 import type { MustBand } from "./must";
 import type { News2Band } from "./news2";
@@ -212,5 +214,79 @@ describe("hazard HZ-014 a policy link is checked before it is saved", () => {
         reference: "R".repeat(101),
       }),
     ).toMatchObject({ ok: false, field: "reference" });
+  });
+});
+
+describe("hazard HZ-014 the onboarding item reads the links: every result of a tool finds a policy", () => {
+  it.each<[string, readonly EscalationPolicyLink[], string, readonly string[], boolean]>([
+    ["a link for the whole tool", [link("a")], "news2", [], true],
+    ["a link for the whole tool covers every location", [link("a")], "news2", [HOME, LODGE], true],
+    [
+      "a link for every band of the tool",
+      ESCALATION_POLICY_BANDS.must.map((band) => link(`must-${band}`, { toolKey: "must", band })),
+      "must",
+      [],
+      true,
+    ],
+    [
+      "one band without a policy",
+      [link("must-high", { toolKey: "must", band: "high" })],
+      "must",
+      [],
+      false,
+    ],
+    [
+      "one home's policy only leaves the other home without one",
+      [link("home", { locationId: HOME })],
+      "news2",
+      [HOME, LODGE],
+      false,
+    ],
+    [
+      "the falls pathway needs a link for the tool",
+      [link("f", { toolKey: "ng249_falls" })],
+      "ng249_falls",
+      [],
+      true,
+    ],
+    ["no links", [], "braden", [], false],
+  ])("%s", (_name, links, toolKey, locations, covered) => {
+    expect(
+      escalationPolicyCovers(links, toolKey as (typeof ESCALATION_POLICY_TOOLS)[number], locations),
+    ).toBe(covered);
+  });
+
+  it("feeds the validated tools the checklist reads, with the whole-tool policy's document", () => {
+    const links = [link("a", { documentId: "0194d000-0000-7000-8000-00000000d001" })];
+    expect(
+      validatedToolsWithLinks(
+        [
+          { key: "news2", enabled: true },
+          { key: "must", enabled: true },
+          { key: "abbey_pain", enabled: true },
+        ],
+        links,
+        [HOME],
+      ),
+    ).toEqual([
+      {
+        key: "news2",
+        enabled: true,
+        escalationPolicyDocumentId: "0194d000-0000-7000-8000-00000000d001",
+        escalationPolicyLinked: true,
+      },
+      {
+        key: "must",
+        enabled: true,
+        escalationPolicyDocumentId: null,
+        escalationPolicyLinked: false,
+      },
+      {
+        key: "abbey_pain",
+        enabled: true,
+        escalationPolicyDocumentId: null,
+        escalationPolicyLinked: false,
+      },
+    ]);
   });
 });

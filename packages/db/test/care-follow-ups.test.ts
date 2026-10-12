@@ -37,6 +37,13 @@ const NOTE_ADA = "0199d000-0000-7000-8000-0000000000a1";
 const NOTE_BEN = "0199d000-0000-7000-8000-0000000000a2";
 const DISCARD = "0199d000-0000-4000-8000-0000000000b1";
 const DEVICE = "0199d000-0000-4000-8000-0000000000d1";
+const ROLE_OWNER = "0193a000-0000-7000-8000-000000000511";
+const ROLE_HOME_MANAGER = "0193a000-0000-7000-8000-000000000512";
+const ROLE_ADMINISTRATOR = "0193a000-0000-7000-8000-000000000513";
+const ROLE_GROUP_EXECUTIVE = "0193a000-0000-7000-8000-000000000514";
+/** The North manager's extra roles, each without quality.policy.manage (#26 review round 2, S1). */
+const EXTRA_ADMIN = "0193a000-0000-7000-8000-000000000611";
+const EXTRA_GROUP = "0193a000-0000-7000-8000-000000000612";
 
 beforeAll(async () => {
   db = await createTestDatabase();
@@ -46,6 +53,22 @@ beforeAll(async () => {
     await c.query(
       "INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES ($1, $2, $3)",
       [a.carer, a.roleCarer, a.locationNorth],
+    );
+    // Who may change the organisation's settings is read from the roles that carry each
+    // permission (migration 0046): the manager owns the organisation; the North manager manages
+    // North House only.
+    await c.query(
+      `INSERT INTO role (id, key, name, scope_kind, permissions, is_builtin) VALUES
+         ($1, 'owner', 'Owner', 'tenant', '{quality.policy.manage,platform.tenant.manage}', true),
+         ($2, 'registered_manager', 'Registered Manager', 'location', '{quality.policy.manage}', true),
+         ($3, 'administrator', 'Administrator', 'location', '{people.enquiry.manage}', true),
+         ($4, 'group_executive', 'Group executive', 'tenant', '{insights.group.read}', true)`,
+      [ROLE_OWNER, ROLE_HOME_MANAGER, ROLE_ADMINISTRATOR, ROLE_GROUP_EXECUTIVE],
+    );
+    await c.query(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES
+         ($1, $2, NULL), ($3, $4, $5)`,
+      [a.manager, ROLE_OWNER, a.northManager, ROLE_HOME_MANAGER, a.locationNorth],
     );
     await c.query(
       `INSERT INTO care_note (id, person_id, location_id, occurred_at, category, body, created_by)
@@ -216,6 +239,69 @@ describe("hazard HZ-014 escalation policy links", () => {
     await expect(
       asTenantWide((c) => c.query("DELETE FROM escalation_policy_link")),
     ).rejects.toThrow(/permission denied/);
+  });
+
+  it("decides by the roles that carry the permission, never by the session's merged scope (#26 review round 2, S1)", async () => {
+    // The North manager is also an administrator at South House and a group executive: neither
+    // carries quality.policy.manage or platform.tenant.manage, so their merged scope is wider than
+    // the permission they hold.
+    await asOwner(TENANT_A, (c) =>
+      c.query(
+        `INSERT INTO role_assignment (id, tenant_user_id, role_id, location_id) VALUES
+           ($1, $3, $4, $5), ($2, $3, $6, NULL)`,
+        [
+          EXTRA_ADMIN,
+          EXTRA_GROUP,
+          a.northManager,
+          ROLE_ADMINISTRATOR,
+          a.locationSouth,
+          ROLE_GROUP_EXECUTIVE,
+        ],
+      ),
+    );
+    const asMergedScope = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
+      inContext(app(), ctx(TENANT_A, a.northManager, "tenant"), fn);
+    try {
+      await expect(
+        asMergedScope((c) =>
+          c.query(
+            "INSERT INTO escalation_policy_link (tool_key, location_id, title) VALUES ('waterlow', $1, 'South House skin policy')",
+            [a.locationSouth],
+          ),
+        ),
+      ).rejects.toThrow(/row-level security/);
+      await expect(
+        asMergedScope((c) =>
+          c.query(
+            "INSERT INTO escalation_policy_link (tool_key, title) VALUES ('waterlow', 'Organisation skin policy')",
+          ),
+        ),
+      ).rejects.toThrow(/row-level security/);
+      await expect(
+        asMergedScope((c) =>
+          c.query(
+            "INSERT INTO discard_reason (code, label) VALUES ('merged_scope', 'Merged scope')",
+          ),
+        ),
+      ).rejects.toThrow(/row-level security/);
+      const changed = await asMergedScope((c) =>
+        c.query("UPDATE escalation_policy_link SET title = 'Changed' WHERE location_id IS NULL"),
+      );
+      expect(changed.rowCount).toBe(0);
+      // North House, where the role carries the permission, is still theirs to change.
+      await asMergedScope((c) =>
+        c.query(
+          "INSERT INTO escalation_policy_link (tool_key, location_id, title) VALUES ('waterlow', $1, 'North House skin policy')",
+          [a.locationNorth],
+        ),
+      );
+    } finally {
+      await asOwner(TENANT_A, (c) =>
+        c.query("UPDATE role_assignment SET deleted_at = now() WHERE id = ANY($1)", [
+          [EXTRA_ADMIN, EXTRA_GROUP],
+        ]),
+      );
+    }
   });
 });
 

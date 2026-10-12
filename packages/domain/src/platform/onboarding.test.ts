@@ -511,6 +511,22 @@ describe("go-live clinical items worked out from state", () => {
       ["news2"],
     ],
     [
+      "hazard HZ-014 MUST switched on with a policy document but bands the links do not cover",
+      (s) => ({
+        ...s,
+        validatedTools: [
+          {
+            key: "must",
+            enabled: true,
+            escalationPolicyDocumentId: "0193a000-0000-7000-8000-00000000d001",
+            escalationPolicyLinked: false,
+          },
+        ],
+      }),
+      "escalation_policies_linked",
+      ["must"],
+    ],
+    [
       "hazard HZ-027 post-fall observation figures not reviewed by the clinical lead",
       (s) => ({
         ...s,
@@ -561,6 +577,19 @@ describe("go-live clinical items worked out from state", () => {
     expect(itemOf(state, "shared_devices_enrolled")?.done).toBe(true);
     expect(itemOf(state, "escalation_policies_linked")?.done).toBe(true);
     expect(itemOf({ ...s, devices: [] }, "shared_devices_enrolled")?.reason).toContain("No shared");
+    // A tool whose links cover every result is linked, with or without a document uploaded.
+    const linked = {
+      ...s,
+      validatedTools: [
+        {
+          key: "news2",
+          enabled: true,
+          escalationPolicyDocumentId: null,
+          escalationPolicyLinked: true,
+        },
+      ],
+    };
+    expect(itemOf(linked, "escalation_policies_linked")?.done).toBe(true);
   });
 
   it("keeps clinical settings out of the non-blocking settings review", () => {

@@ -259,7 +259,7 @@ BEGIN
       JOIN entries e ON e.record_table = f.resource_type AND e.id = f.entry_id
       WHERE e.created_by IS NOT NULL
       ORDER BY f.entry_id, f.seq
-      ON CONFLICT (tenant_id, entry_id) DO NOTHING;
+      ON CONFLICT DO NOTHING;
   END LOOP;
   PERFORM set_config('app.tenant_id', '', true);
   PERFORM set_config('app.scope', '', true);

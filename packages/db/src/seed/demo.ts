@@ -240,6 +240,38 @@ async function seedDemoFlags(client: pg.PoolClient): Promise<void> {
   }
 }
 
+/** The demo organisation's escalation policy for NEWS2 (care.md rule 5): a title and reference only. */
+export const DEMO_ESCALATION_POLICY = {
+  toolKey: "news2",
+  title: "Deterioration and escalation policy",
+  reference: "CP-07",
+} as const;
+
+/**
+ * Links the demo organisation's escalation policy to NEWS2 results, so the demo shows a configured
+ * policy on vital signs and "not configured" on the other tools (HZ-012, HZ-014). Kept out of
+ * `seedDemoTenant`, which the API tests share, so their organisations start with no policy. Safe to
+ * run repeatedly: one live link per tool, band and place.
+ */
+export async function seedDemoEscalationPolicies(ownerPool: pg.Pool): Promise<void> {
+  const client = await ownerPool.connect();
+  try {
+    await inTenant(client, DEMO.tenantId, async () => {
+      await client.query(
+        `INSERT INTO escalation_policy_link (tool_key, band, location_id, title, reference)
+         VALUES ($1, NULL, NULL, $2, $3) ON CONFLICT DO NOTHING`,
+        [
+          DEMO_ESCALATION_POLICY.toolKey,
+          DEMO_ESCALATION_POLICY.title,
+          DEMO_ESCALATION_POLICY.reference,
+        ],
+      );
+    });
+  } finally {
+    client.release();
+  }
+}
+
 /** Creates the demo tenant if it does not exist. Safe to run repeatedly. */
 export async function seedDemoTenant(ownerPool: pg.Pool): Promise<{ created: boolean }> {
   const client = await ownerPool.connect();

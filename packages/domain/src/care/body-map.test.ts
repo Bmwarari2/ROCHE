@@ -11,6 +11,7 @@ import {
   sideFromDrawing,
   validateMark,
   zoneAtPoint,
+  zoneForPersonSide,
 } from "./body-map";
 
 /** Body map marks (hazard HZ-019) and the pressure ulcer and bruise prompts. */
@@ -35,6 +36,8 @@ describe("hazard HZ-019 body map sides are the person's own left and right", () 
     ["back", "centre", "midline"],
   ] as const)("on the %s view a mark on the %s is on the person's %s", (view, viewerSide, side) => {
     expect(personSideFromDrawing(view, viewerSide)).toBe(side);
+    // A phone that sent only the side is read back to the same zone (#26 review round 2, C4).
+    expect(zoneForPersonSide(view, side)).toBe(viewerSide);
   });
 
   it("gives every region a unique code on the front or back view", () => {

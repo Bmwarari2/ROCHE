@@ -117,6 +117,22 @@ export function personSideFromDrawing(
   return viewerLeft ? "left" : "right";
 }
 
+/**
+ * The zone of the drawing that reads as a side of the person on a view: the inverse of
+ * `personSideFromDrawing`. A mark from a phone that sent only the side it worked out from its
+ * drawing (an app from before the server read the drawing) is read as this zone, and flagged
+ * (HZ-019, #26 review round 2 C4).
+ */
+export function zoneForPersonSide(
+  view: BodyView,
+  side: BodySide,
+): "viewer_left" | "viewer_right" | "centre" {
+  if (side === "midline") return "centre";
+  const left = side === "left";
+  if (view === "front") return left ? "viewer_right" : "viewer_left";
+  return left ? "viewer_left" : "viewer_right";
+}
+
 /** Where on the drawing, as the person recording sees it: its left, its centre band, its right. */
 export type ViewerZone = "viewer_left" | "centre" | "viewer_right";
 
@@ -232,7 +248,7 @@ export const PRESSURE_ULCER_CATEGORIES: Readonly<Record<PressureUlcerCategory, s
 };
 
 /** Category 2 or worse: unstageable and deep tissue injury count as worse than category 2. */
-const CATEGORY_2_OR_WORSE: readonly PressureUlcerCategory[] = [
+export const CATEGORY_2_OR_WORSE: readonly PressureUlcerCategory[] = [
   "category_2",
   "category_3",
   "category_4",

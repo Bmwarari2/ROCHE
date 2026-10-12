@@ -249,11 +249,17 @@ export interface OnboardingState {
     readonly key: string;
     readonly steps: readonly EscalationStep[];
   }[];
-  /** Validated tools switched on, with the tenant escalation policy document each links. */
+  /**
+   * Validated tools switched on, with the tenant escalation policy document each links. From the
+   * care API follow-ups the organisation's escalation policy links say whether every result of the
+   * tool finds a policy (`escalationPolicyLinked`, from `validatedToolsWithLinks`); when that is
+   * given it decides, otherwise the document does.
+   */
   readonly validatedTools: readonly {
     readonly key: string;
     readonly enabled: boolean;
     readonly escalationPolicyDocumentId: string | null;
+    readonly escalationPolicyLinked?: boolean;
   }[];
   readonly people: readonly PersonReadinessInput[];
   /** The DCB0160 assessment the tenant's CSO or clinical lead recorded, and the safety case it covers. */
@@ -437,7 +443,9 @@ function escalationChainsItem(state: OnboardingState): Outcome {
 
 function escalationPoliciesItem(state: OnboardingState): Outcome {
   const missing = state.validatedTools
-    .filter((t) => t.enabled && t.escalationPolicyDocumentId === null)
+    .filter(
+      (t) => t.enabled && !(t.escalationPolicyLinked ?? t.escalationPolicyDocumentId !== null),
+    )
     .map((t) => t.key);
   return missing.length === 0
     ? {

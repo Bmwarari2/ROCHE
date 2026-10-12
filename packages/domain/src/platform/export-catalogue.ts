@@ -735,6 +735,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description:
           "The person's side where the mark was drawn, as the server worked it out from the drawing and the view; side agrees with it (HZ-019). Empty for marks recorded before the server checked it.",
       },
+      drawn_from_device_side: {
+        description:
+          "True when the place on the drawing was taken from the side a phone said it drew, because an app from before the server read the drawing sent no point or zone; the side was not checked against a place on the drawing (HZ-019).",
+      },
       mark_type: {
         description: "Kind of mark: bruise, wound, pressure damage, skin tear and so on.",
       },

@@ -306,7 +306,7 @@ export const entryDeviceDeletionFlag = pgTable(
   },
   (t) => [
     unique("entry_device_deletion_flag_tenant_id_id_key").on(t.tenantId, t.id),
-    unique("entry_device_deletion_flag_entry_key").on(t.tenantId, t.entryId),
+    unique("entry_device_deletion_flag_entry_key").on(t.tenantId, t.recordTable, t.entryId),
     foreignKey({
       name: "entry_device_deletion_flag_person_fk",
       columns: [t.tenantId, t.personId],

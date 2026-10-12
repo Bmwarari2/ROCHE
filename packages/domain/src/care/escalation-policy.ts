@@ -131,6 +131,58 @@ export function escalationPolicyFor(
   return { status: "not_configured", toolKey: result.toolKey, band: result.band };
 }
 
+/**
+ * Whether every result of a tool would find one of the organisation's policies: every band of the
+ * tool (the falls pathway has none, so it needs a link for the tool), at every location given, or
+ * for the whole organisation when none is given. This is what the onboarding item
+ * `escalation_policies_linked` asks (platform-completions.md rule 26; HZ-014).
+ */
+export function escalationPolicyCovers(
+  links: readonly EscalationPolicyLink[],
+  toolKey: EscalationPolicyTool,
+  locationIds: readonly string[],
+): boolean {
+  const bands = ESCALATION_POLICY_BANDS[toolKey];
+  const places = locationIds.length > 0 ? locationIds : [null];
+  return places.every((locationId) =>
+    (bands.length > 0 ? bands : [null]).every(
+      (band) => escalationPolicyFor(links, { toolKey, band, locationId }).status === "configured",
+    ),
+  );
+}
+
+/**
+ * The validated tools as the onboarding checklist reads them (`OnboardingState.validatedTools`),
+ * fed from the organisation's links: linked when every result of the tool, at every location,
+ * finds a policy. The document is the organisation's link for the whole tool, when it has one. A
+ * tool Harbour links no policy for is never linked.
+ */
+export function validatedToolsWithLinks(
+  tools: readonly { readonly key: string; readonly enabled: boolean }[],
+  links: readonly EscalationPolicyLink[],
+  locationIds: readonly string[],
+): {
+  readonly key: string;
+  readonly enabled: boolean;
+  readonly escalationPolicyDocumentId: string | null;
+  readonly escalationPolicyLinked: boolean;
+}[] {
+  return tools.map((tool) => {
+    if (!isEscalationPolicyTool(tool.key)) {
+      return { ...tool, escalationPolicyDocumentId: null, escalationPolicyLinked: false };
+    }
+    const toolKey = tool.key;
+    const wholeTool = links.find(
+      (l) => l.toolKey === toolKey && l.band === null && l.locationId === null,
+    );
+    return {
+      ...tool,
+      escalationPolicyDocumentId: wholeTool?.documentId ?? null,
+      escalationPolicyLinked: escalationPolicyCovers(links, toolKey, locationIds),
+    };
+  });
+}
+
 export interface EscalationPolicyLinkInput {
   readonly toolKey: string;
   readonly band: string | null;

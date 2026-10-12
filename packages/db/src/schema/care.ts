@@ -200,6 +200,12 @@ export const bodyMapMark = pgTable(
     drawnZone: text("drawn_zone"),
     /** The person's side as the server worked it out from the drawing and the view (HZ-019). */
     drawnSide: text("drawn_side"),
+    /**
+     * True when the place was taken from the side a phone said it drew, because an app from
+     * before the server read the drawing sent no point or zone (migration 0045; #26 review round
+     * 2, C4): the zone is the one that side names on the view, not one the server read.
+     */
+    drawnFromDeviceSide: boolean("drawn_from_device_side").notNull().default(false),
     markType: text("mark_type").notNull(),
     pressureCategory: text("pressure_category"),
     /** Pressure ulcers: caused by a medical device (counted separately in reporting). */
@@ -242,6 +248,11 @@ export const bodyMapMark = pgTable(
         AND (drawn_side IS NULL OR drawn_side IN ('left', 'right', 'midline'))
         AND ((drawn_side IS NULL) = (drawn_zone IS NULL))
         AND (drawn_x IS NULL OR drawn_zone IS NOT NULL)`,
+    ),
+    // A place taken from the device's side has a zone and no point.
+    check(
+      "body_map_mark_drawn_from_device_side",
+      sql`NOT drawn_from_device_side OR (drawn_zone IS NOT NULL AND drawn_x IS NULL)`,
     ),
   ],
 );
