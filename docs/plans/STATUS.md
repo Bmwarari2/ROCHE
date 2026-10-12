@@ -27,11 +27,20 @@ only when they link spec, code, tests and user documentation; no user guides exi
    it requires none; the task list, task moves and document lookups run in `people.person.read`'s
    scope from an explicit allow-list). The sync token, device reach, handover and alert views, the
    break-glass report, task completion, incident management, status changes, return checks and
-   the task an entry completes all follow the permission they act for. No migration. After merge:
-   tell tenants (release note) that some staff will see fewer people and Registered Managers
-   should check role bundles; when a grant route is built, it must check that the granter holds
-   `platform.grant.manage` wherever the grant reaches.
-2. The screens the care API follow-ups (#26) wait on (slice 9 and slice 10 part 2): the
+   the task an entry completes all follow the permission they act for. Review round 1 (security
+   and clinical): assigned and break-glass people count only for the permissions that reach them
+   (break-glass reads only, H-168), grants and location roles with no location reach the whole
+   organisation only when marked (migrations 0048 and 0049), each family of sync streams follows
+   its own read permission, documents follow their category's read permission, the audit trail is
+   whole only across the organisation, person tasks go only to people who can see the person, and
+   hazard HZ-073 (H-169). Before deploying to a live tenant: sync every device, run the
+   pre-deployment access report ([runbook](../runbooks/data-scope-per-permission-access-report.md))
+   and have the Registered Manager review role bundles (release note).
+2. Follow-up from data scope per permission (S-M3): give audit events a `location_id` (from the
+   person, record or location they are about), so a reader holding `platform.audit.read` at some
+   homes sees those homes' events; until then they see only their own events and events about
+   people they reach, without reasons.
+3. The screens the care API follow-ups (#26) wait on (slice 9 and slice 10 part 2): the
    escalation policy link on the phone, staff names on the web and phone (H-73); the settings for
    escalation policies and coded reasons; the phone offering the organisation's coded reasons (H-164);
    devices and revocation, and refused copies on the review task (which H-134 waits on), in the
@@ -39,32 +48,32 @@ only when they link spec, code, tests and user documentation; no user guides exi
    for tasks and handovers and offline acknowledgement). Still open from the #15 reviews: the
    stale-device check now that `device_binding` exists (H-141), and client ids on create routes
    outside care (care.md section 10, for the `people` and `platform` owners).
-3. Slice 5 follow-ups: move a person's care plan rounds with them when they move location
+4. Slice 5 follow-ups: move a person's care plan rounds with them when they move location
    (people transfers); a worded summary per handover item so screens need not read each source;
    rota-defined shifts and incoming staff (Phase 2, H-153).
-4. Schema and API for slices 11 to 13 on the rules now on `main` (downtime pack, outages and
+5. Schema and API for slices 11 to 13 on the rules now on `main` (downtime pack, outages and
    back-entry, evidence packs, statement of purpose, templates and letters; the family feed,
    channels, notifications, visit booking and the family portal policy of ADR-0061; search, the
    full export, DPIA, onboarding and sample data), then slice 14; the rest of the web record
    (slice 9) and Care mode part 2 (slice 10) alongside ([phase-1.md](phase-1.md)).
-5. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
+6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; admin session revoke and idle timeouts
    per role; record history PDF export; device push registration; OpenFeature provider; user
    guides per role (moves PLAT and MOB rows to `done`).
-6. Open engineering decisions: certificate pinning (ADR-0028), shared-device sign-in (ADR-0025,
+7. Open engineering decisions: certificate pinning (ADR-0028), shared-device sign-in (ADR-0025,
    needs CSO and DPO), the risk rating matrix (ADR-0032, proposed).
-7. `@harbour/ui` defaults without a label prop stay English in a Welsh shell: the sidebar's expand
+8. `@harbour/ui` defaults without a label prop stay English in a Welsh shell: the sidebar's expand
    and collapse labels, the data table's density control ("Row density", "Comfortable", "Compact")
    and the app bar's "None selected"; add label props before Welsh tenants (Phase 7).
-8. Nation coverage: `care_plan.initial_working_days` and the classifier are England-only; the bank
+9. Nation coverage: `care_plan.initial_working_days` and the classifier are England-only; the bank
    holiday calendar runs to the end of 2028.
-9. Role matrix question from slice 4b: care workers hold `care.assessment.write` and team leaders
+10. Role matrix question from slice 4b: care workers hold `care.assessment.write` and team leaders
    lack `care.plan.write`, while the spec says nurses and seniors assess and publish.
-10. Dependencies: the two high advisories are recorded exceptions (build tooling, no fixed
+11. Dependencies: the two high advisories are recorded exceptions (build tooling, no fixed
     version; [vulnerability-exceptions.md](../compliance/vulnerability-exceptions.md)). Still to
     do: esbuild in `apps/api` to 0.28.1, and a tracked note for the moderate ones
     (decode-uri-component in the app waits for the next Expo SDK; the rest are build tools).
-11. Urgent alert fallback cost (#26 review round 4): when no nurse in charge can open the record,
+12. Urgent alert fallback cost (#26 review round 4): when no nurse in charge can open the record,
     `alertFallback` reads every Registered Manager's and care plan holder's view of the person in
     two `staffViews` calls (one for `people.person.read`, one for `care.plan.write`, ADR-0071),
     each running two statements per candidate (the person scope is row-level security, evaluated

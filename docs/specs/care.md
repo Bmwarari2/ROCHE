@@ -745,7 +745,12 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
 
 - **Streams** (`packages/sync/src/streams/sync-config.yaml`). The twelve care tables sync in the two
   scopes the people streams use: people assigned to the user (`person_assignment`, not ended) and,
-  for managers and nurses, everyone receiving care at the token's `people_location_ids`: every
+  for managers and nurses, everyone receiving care at the token's location claims. Each family
+  follows its own read permission (ADR-0071 review round 1): the person and allergies
+  `people.person.read` (`people_location_ids`, `people_assigned`), the care reference and plan
+  details `care.plan.read` (`care_location_ids`, `care_assigned`) and recent entries
+  `care.note.read` (`entries_location_ids`, `entries_assigned`); assigned people sync for a family
+  only when a role scoped to them carries its permission, and break-glass never syncs: every
   location-scope stream (people, allergies and the care record) carries only people who are active,
   on leave or in hospital, so an enquiry, or a person discharged, deceased or archived, leaves
   managers' devices with their care record (security reviews S8 and round 3 L1). The tenant, the people and the offline window
@@ -1054,7 +1059,8 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
      audited (`sync.device.refused_revoked`) at most once an hour per device; a hand-over of
      entries recorded before the revocation (part 6), a device report and a deletion record are
      still taken from it, so the server keeps hearing what it holds and what it deleted. The token keeps its claims (`sub`, `tenant_id`, `location_ids`,
-     `people_location_ids` and `offline_days`, already minted from the rate table); revocation is
+     the per-family location and assigned claims and `offline_days`, already minted from the rate
+     table); revocation is
      a check at issue, not a claim, so a revoked device never gets another token and the one it
      has lasts at most 15 minutes. The device reacts as to a remote wipe: with nothing unsent it
      deletes its database and key and says the device was withdrawn; with entries unsent it holds

@@ -34,12 +34,22 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   time-boxed grants, and gives each permission its own scope (`scopeFor`,
   [ADR-0071](../decisions/0071-data-scope-is-per-permission.md)): the union of the roles that carry
   it (`tenant` > `locations` > `assigned` > `none`) and the grants that carry it (at the grant's
-  location, or the whole organisation without one), never the scope of another role. A request
+  location, or the whole organisation when marked `organisation_wide`), never the scope of another
+  role. A location role assigned with no location reaches the whole organisation only when marked
+  `organisation_wide` (a trigger refuses it otherwise), and a grant has a location or the mark (a
+  check). The people a user is assigned to count for a permission only when a role scoped to
+  assigned people carries it (`includesAssigned`), and the people they opened by break-glass only
+  for the read permissions break-glass opens (`includesBreakGlass`, `BREAK_GLASS_PERMISSIONS`:
+  `people.person.read`, `care.plan.read`, `care.note.read`; H-168); row-level security reads both
+  from `app.scope_assigned` and `app.scope_break_glass` (ADR-0071 review round 1). A request
   starts with scope `none`; `requirePermission` narrows its row-level security context to the
   permission's scope (the narrowest of several, `narrowestScope`), `requireAnyPermission` to the
   union of the alternatives the session may use, and only the routes in
   `SCOPE_WITHOUT_PERMISSION` (the task list and task moves, document lookups) run in a
-  permission's scope without requiring it. `GET /v1/me` reports `scope` as that of
+  permission's scope without requiring it; a static test checks every other route asks for a scope
+  before opening a transaction. A document about a person is read with its category's permission
+  (`care_attachment` `care.note.read`, the others `people.person.read`); an organisation's document
+  by any member. `GET /v1/me` reports `scope` as that of
   `people.person.read`. Staff and portal sessions never mix
   (ADR-0061): a staff session (the default) skips portal roles and drops portal-only permissions
   (`PORTAL_ONLY_PERMISSIONS`) from grants; a portal session (`resolveAccess(..., "portal")`, for
@@ -53,7 +63,10 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   minutes.
 - Break-glass: `POST /v1/people/break-glass` with a justification of at least 20 characters and an
   optional `reasonCode`; access lapses after 60 minutes; the Registered Manager for the location and
-  quality leads are notified; the reason is audited. Weekly break-glass report: the aggregation by
+  quality leads are notified; the reason is audited. It opens the record for reading only
+  (`people.person.read`, `care.plan.read`, `care.note.read`), never a write, a discharge or death,
+  money, ReSPECT or an admission, and never syncs; a record the read scope does not open rolls the
+  break-glass record back. Weekly break-glass report: the aggregation by
   user, person and reason with repeated-use flags is `breakGlassWeeklyReport`
   (`packages/domain/src/people/break-glass-report.ts`, [people.md](people.md) rule 14). Built in
   slice 8: a daily worker job stores the report for the UK week before once per location
@@ -103,7 +116,10 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   and quarantine decisions; operator requests and tenant decisions.
 - `record_version`: every update of a mutable aggregate stores the previous row; `GET
   /v1/people/{id}/history`.
-- `GET /v1/audit` (platform.audit.read) lists events with chain verification.
+- `GET /v1/audit` (platform.audit.read) lists events with chain verification: whole, with reasons,
+  only for holders across the organisation; held at some locations, the member's own events and
+  events about people that permission reaches, never a reason (ADR-0071 review round 1; a
+  `location_id` on audit events is a STATUS follow-up).
 - Later: signed PDF export of a record's history for inspectors and coroners (Phase 1); pgAudit is
   configured at the database level in RDS (infra).
 
@@ -268,7 +284,10 @@ last year the calendar covers, no holiday is skipped, so a deadline can only fal
 ## Offline sync
 
 - Streams: `packages/sync/src/streams/sync-config.yaml`; claims: `sub`, `tenant_id`,
-  `location_ids`, `people_location_ids`, `offline_days`; 15-minute ES256 tokens from `POST
+  `location_ids`, `people_location_ids`, `care_location_ids` and `entries_location_ids` with
+  `people_assigned`, `care_assigned` and `entries_assigned` (each family of streams where its own
+  read permission reaches: `people.person.read`, `care.plan.read`, `care.note.read`; ADR-0071
+  review round 1), `offline_days`; 15-minute ES256 tokens from `POST
   /v1/sync/token`, JWKS at `GET /v1/sync/jwks`. The token route binds the device to the member
   (`device_binding`) and refuses a revoked device (403 `device_revoked`). Uploads (`POST
   /v1/sync/upload`) reject every table until modules add writable tables; care entries go to their

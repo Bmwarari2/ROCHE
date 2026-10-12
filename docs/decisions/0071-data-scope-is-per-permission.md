@@ -53,13 +53,13 @@ security policy, and makes every caller name the permission it acts for.
   carry it (scope `tenant`, or `location` with no location: the whole organisation; `location` or
   `tenant` assigned at a location: that location; `assigned` or `self`: assigned people; `none`:
   no one) and the active, unrevoked grants that carry it (a grant at a location adds that
-  location; one with no location adds the whole organisation). Portal sessions keep no person
-  scope (ADR-0061).
+  location; one with no location adds the whole organisation only when marked so, review round 1).
+  Portal sessions keep no person scope (ADR-0061).
 - `narrowestScope` intersects the scopes of a request that needs several permissions: nothing, or
   `none` among them, is `none`; `tenant` narrows to the other; two location scopes keep the
-  locations they share, and assigned people only when they share none (row-level security shows
-  assigned people under both); `assigned` with anything else is `assigned`. A table-driven test
-  proves the result never reaches further than any input.
+  locations they share, with assigned people only when both include them; `assigned` with a scope
+  that includes assigned people is `assigned`, with one that does not, no one (review round 1). A
+  table-driven test proves the result never reaches further than any input.
 
 ### API (`apps/api/src/http/context.ts`)
 
@@ -80,9 +80,8 @@ security policy, and makes every caller name the permission it acts for.
   (`permissionsReaching`); changing an incident or answering its manager questions needs
   `safety.incident.manage` where the incident is.
 - Readers of the old merged scope name their permission: device lists and revocation
-  (`platform.device.read`, `platform.device.revoke`), the sync token's `people_location_ids` (the
-  narrowest of `people.person.read`, `care.plan.read` and `care.note.read`, the reads the location
-  streams serve), handover whole views and staff views (`care.handover.manage`), urgent alert
+  (`platform.device.read`, `platform.device.revoke`), the sync token (each family of streams
+  where its own read permission reaches, review round 1), handover whole views and staff views (`care.handover.manage`), urgent alert
   recipients (`people.person.read`, and `care.plan.write` where it reaches the person), the weekly
   break-glass report (`platform.audit.read`), `/v1/me`'s `scope` (`people.person.read`), audit
   defaults (the request's own scope) and per-user limits (the member's own view). A refused entry's
@@ -91,8 +90,8 @@ security policy, and makes every caller name the permission it acts for.
 
 ### Database
 
-No policy changes: every policy reads `app.scope` and `app.location_ids`, which now hold the
-permission's scope. `app.holds_permission_at` was already per permission (#26 review round 2).
+Every policy reads `app.scope` and `app.location_ids`, which now hold the permission's scope
+(review round 1 adds the assigned and break-glass flags and the place checks, below). `app.holds_permission_at` was already per permission (#26 review round 2).
 The handover and device policies (migrations 0028 to 0046) judge the reader by the request's
 scope, now narrowed, and the staff whose devices or bindings are shown by their own role
 assignments, which is the subject, not the reader. The worker and system views keep tenant scope.
@@ -110,9 +109,9 @@ assignments, which is the subject, not the reader. The worker and system views k
   check role bundles (release note).
 - Bad, because a route needing several permissions sees only where all of them reach, which can
   refuse a legitimate action when one of them is held more narrowly; the fix is the role bundle.
-- Neutral, because a grant with no location now reaches the whole organisation for its
-  permissions. No route creates grants yet; when one does, it must check that the granter holds
-  `platform.grant.manage` wherever the grant reaches.
+- Neutral, because a grant reaches the whole organisation only when marked organisation-wide
+  (review round 1). No route creates grants yet; row-level security already refuses one the
+  member does not hold `platform.grant.manage` for wherever it reaches.
 
 ### Confirmation
 
@@ -127,6 +126,109 @@ assignments, which is the subject, not the reader. The worker and system views k
   security under each permission's scope refusing the other home's reads and writes.
 - `apps/api/test/care-follow-ups.test.ts`: an urgent alert never reaches a nurse in charge through
   a role that cannot open records.
+
+### Review round 1 (security and clinical safety reviews of #27)
+
+The reviews found that two parts of the old merged scope survived: row-level security counted the
+people a user is assigned to, and those they opened by break-glass, for every permission, and a
+grant or location role with no location still reached the whole organisation by default. These
+changes close them, with the reviewers' other findings.
+
+**Assigned and break-glass people (S-M1).** `PermissionScope` carries `includesAssigned` (true only
+when a role scoped to assigned people, or to the person themselves, carries the permission) and
+`includesBreakGlass` (true only for the read permissions a break-glass record opens,
+`BREAK_GLASS_PERMISSIONS`: `people.person.read`, `care.plan.read` and `care.note.read`, every
+`people.person.read`, `care.*.read` and `medicines.*.read` that exists). `narrowestScope` ANDs both
+flags and `widestScope` ORs them; two location scopes that share no location give no one unless
+both include assigned people (the database cannot express "assigned and at this location", so it
+fails closed). The request context sets them per transaction (`app.scope_assigned`,
+`app.scope_break_glass`, migration 0049) in `withRequestContext`, `inScopeOf` and `staffViews`, and
+`app.person_in_scope` counts assigned and break-glass people only when they are set (scope
+`assigned` always counts assigned people). `app.person_in_scope` is the only function that reads
+`person_assignment` or `break_glass_event` for the reader; every child table follows it through
+`app.person_visible`. Search, `permissionsReaching`, `personReachedBy` (an assignment counts only
+while a role scoped to assigned people carried the permission) and the sync token follow the same
+rule. Break-glass never opens a write, a discharge or death, residents' money, ReSPECT or an
+admission: the allow-list is a decision for the CSO and the data protection lead (H-168). Opening a
+record the read scope does not reach rolls the break-glass record back, so none is kept without its
+audit event and alert (L6).
+
+**Places (L1, L2).** `access_grant` and `role_assignment` gain `organisation_wide` (migration 0048,
+which marks existing rows with no location so they keep their meaning). A grant has a location or
+is marked (a check); a location role assigned with no location is refused unless marked (a
+trigger). Everywhere roles and grants are read (`resolveAccess`, `placesHoldingPermission`,
+`permissionsAtLocation`, `app.holds_permission_at`, `holdsPermissionAt`, `permissionHolders`,
+`submitHolders`, `personReachedBy`, the alert fallback's organisation tier), an unmarked role or
+grant with no location reaches no one, and a role scoped to the organisation assigned at a
+location reaches that location only. Every API reader of roles and grants goes through one loader
+(`services/access-rows.ts`). The application may give or change a grant only where its member
+holds `platform.grant.manage` (a grant for the whole organisation only when they hold it there),
+and assign someone to a person only when the person is in their view and they hold
+`people.assignment.manage` where the person lives (L8; restrictive policies for `harbour_app`; jobs
+with no member keep the organisation's view). Organisation-wide Registered Managers are kept on
+purpose (the alert fallback's first tier relies on them), marked rather than implied.
+
+**Sync (C-M1, S-M1, L3).** Each family of streams follows the one read permission it serves:
+people and allergies `people.person.read`, the care reference and active plan details
+`care.plan.read`, recent entries `care.note.read`. The token carries `<family>_location_ids` and
+`<family>_assigned` for each; the `assigned_*` streams sync a family only when its flag is true,
+and a missing claim syncs nothing. A care coordinator (no `care.note.read`) now syncs the person
+and the care reference at their home, not recent entries; before, nothing synced at all. Break-glass
+never syncs. A deletion record decides whether it needs a manager before its transaction opens
+(L3), so the transaction runs, and is audited, in the narrowed scope; a first stage that arrives in
+between is refused as a conflict.
+
+**Documents (S-M2, L4, L5).** A document about a person is read with `people.person.read` and its
+category's read permission (`person_photo` and `person_document` `people.person.read`,
+`care_attachment` `care.note.read`), and found again where both reach; the list offers only the
+categories whose permission the session may use, each read in its own scope. An organisation's
+document (policies, procedures, the statement of purpose) stays readable by every member: it is
+about no one, and staff must be able to open the escalation and other policies they follow
+(HZ-014). This departs from search, which offers organisation documents to
+`platform.document.manage` holders only; search finds, reading follows the policy's audience. A
+new version is found again where the upload permission reaches before anything is stored; bytes
+are stored only after the row is inserted, and destroyed if the transaction fails. A HEAD request
+on an allow-listed route is judged as its GET route.
+
+**Audit trail (S-M3).** `GET /v1/audit` is whole, with reasons, only for holders of
+`platform.audit.read` across the organisation. Held at some locations only, it fails closed: the
+member's own events, and events whose resource is a person that permission's scope reaches (the
+person table read under that scope); never a reason. Audit events do not yet say where they
+happened, so every other event is withheld from a location-scoped reader until they do (STATUS
+follow-up: a `location_id` on audit events).
+
+**Tasks and routing (C-M3, C-M4, L10).** A task about a person is given, or automatically routed,
+only to someone who can see the person with both `people.person.read` and the task's permission
+(`mayBeGiven`, `membersSeeingPerson`): assigning through the API, the overdue escalation's holders
+and its fallback (a Registered Manager at another home who cannot open the record is skipped), and
+a refused entry's urgent review (told only to staff in charge who hold its permission). A holder
+told about a task must also reach its place with `people.person.read`, so it is in their task list.
+Device-hold and flagged-entry tasks are about no person, so their assignee sees them. Hazard
+HZ-073 records the hazard of safety work hidden from the person who must act; a test checks that
+every role key the services route to holds `people.person.read` and the work's permission in its
+built-in bundle.
+
+**Domain checks (L7, L9).** `permissionsReaching` and the workflow, exit and admission guards count
+only permissions that reach the person and that the session may use (MFA met). A permission that
+needs a fresh sign-in stays in: every such check is also given the session's freshness and refuses
+it as `step_up_required`, so the person is asked to sign in again rather than told they lack it.
+
+**Allow-list (L12).** A static test reads the route sources and checks that every handler opening
+a tenant transaction first calls `requirePermission`, `requireAnyPermission` or `useScopeOf`. The
+routes that do not are listed with why: `/v1/me`, form templates and rates (no personal data,
+scope `none`), the member's own notifications, the device report (any member reports what their
+device holds; the system's view writes it), sync uploads (every operation refused) and two
+operator routes (behind the operator middleware). The scan follows calls by name within the API's
+own sources and orders by position, not control flow; the test states these limits.
+
+Confirmation for round 1: `access.test.ts` (flags, places, the property test), `search.test.ts`;
+`packages/db/test/scope.test.ts` (`hazard HZ-011 assigned and break-glass people count only when
+the scope says so`: the flags, the place checks, the grant and assignment write policies);
+`apps/api/test/scope-per-permission.test.ts` (review round 1: the two-role assigned case refused
+ReSPECT and a status change at the Lodge; break-glass reading only; documents; the audit trail;
+assigning and the fallback); `sync-families.test.ts` (every built-in Care mode role, per family);
+`packages/sync/test/care-streams.test.ts` (families and assigned flags); `route-gates.test.ts`;
+`routing-roles.test.ts` (HZ-073).
 
 ## Pros and cons of the options
 

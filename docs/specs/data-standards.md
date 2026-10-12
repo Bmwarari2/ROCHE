@@ -579,7 +579,9 @@ These tables support running the service and are exported in the full tenant exp
 map to no national data standard: `audit_event` (hash-chained), `record_version`, `outbox_event`,
 `notification`, `notification_delivery`, `escalation_chain`, `feature_flag`, `form_template`,
 `form_submission`, `integration_connection`, `integration_inbound`, `support_access_request`,
-`break_glass_event`, `person_assignment`, `role`, `role_assignment`, `access_grant`, and from
+`break_glass_event`, `person_assignment`, `role`, `role_assignment` and `access_grant` (each with
+`organisation_wide`, whether a role assigned with no location, or a grant, reaches the whole
+organisation; ADR-0071 review round 1), and from
 Phase 1 `break_glass_weekly_report`, `about_me_share_link`, `welcome_checklist_template`,
 `tenant_export`, `dpia`, `sub_processor_response`, `tenant_setting_decision`, `retention_decision`,
 `family_notification`, `visit_booking_setting` and `family_portal_user`, and from the device

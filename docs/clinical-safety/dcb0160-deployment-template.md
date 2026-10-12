@@ -64,7 +64,7 @@ Thapsus has assessed these hazards. Their residual risk assumes the deployer con
 | HZ-008 Alert fatigue | Managers review the monthly alert report and tune thresholds within the allowed bounds | | |
 | HZ-009 Time-zone and daylight-saving errors | Location time zone correct; staff briefed before each clock change | | |
 | HZ-010 Device clock drift | Automatic network time enforced on devices (MDM on shared devices); staff do not change device time | | |
-| HZ-011 Cross-tenant or out-of-scope exposure | Least-privilege role design; periodic access review; leavers removed the same day; MDM on shared devices ([kiosk.md](../compliance/kiosk.md)) | | |
+| HZ-011 Cross-tenant or out-of-scope exposure | Least-privilege role design; periodic access review; leavers removed the same day; MDM on shared devices ([kiosk.md](../compliance/kiosk.md)); review role bundles before go-live: data scope is per permission (ADR-0071), so each person who must act on safety work needs the permission to open the record at the same home, and cover at another home is a role assignment at that home until grants can be managed (run the pre-deployment access report, [runbook](../runbooks/data-scope-per-permission-access-report.md); HZ-073) | | |
 | HZ-012 Validated tool calculated incorrectly | Escalation policy for NEWS2, MUST and Waterlow results linked in configuration; clinicians record SpO2 Scale 2 decisions | | |
 | HZ-013 Statutory notification missed or late | Notifications policy; acting-up grants for Registered Manager absences; weekly review of open notification decisions | | |
 
