@@ -119,14 +119,18 @@ function comparable(value: unknown): unknown {
  * review round 2, C5): a form keeps its id until a save is confirmed, so a reply lost on the way
  * back and a change made before sending again would otherwise return the old record as if the
  * new one were saved. Every field given is compared with the stored record (missing and empty
- * read as nothing; dates by instant); any difference is refused with 409, and nothing is saved.
+ * read as nothing; dates by instant); any difference is refused with 409
+ * `already_saved_differently` (its own code since round 3, so a screen never says someone else
+ * changed the record), and nothing is saved.
  */
 export function requireSameDetails(
   stored: Readonly<Record<string, unknown>>,
   sent: Readonly<Record<string, unknown>>,
 ): void {
   for (const [key, value] of Object.entries(sent)) {
-    if (comparable(value) !== comparable(stored[key])) throw problems.conflict(REPLAY_CHANGED);
+    if (comparable(value) !== comparable(stored[key])) {
+      throw problems.alreadySavedDifferently(REPLAY_CHANGED);
+    }
   }
 }
 

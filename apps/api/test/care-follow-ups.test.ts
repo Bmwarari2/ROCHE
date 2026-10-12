@@ -22,6 +22,7 @@ import { DEMO } from "@harbour/db/seed";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { CARE_ALERT_UNROUTED_ACTION, raiseCareTriggers } from "../src/services/care";
+import { urgentRefusedCopy } from "../src/services/refused-entries";
 import { createHarness, type Harness, LODGE } from "./support/harness";
 
 /**
@@ -466,11 +467,22 @@ describe("hazard HZ-040 coded discard reasons, the replay index and the server's
     const current = (
       await json<DiscardReasonList>(await as("owner", "/v1/discard-reasons"))
     ).items.find((r) => r.code === "agency_shift_ended") as DiscardReasonItem;
-    const retired = await as("owner", "/v1/discard-reasons/agency_shift_ended", {
+    // Changed by its id, never by the organisation's code (#26 review round 3, low).
+    const retired = await as("owner", `/v1/discard-reasons/${current.id}`, {
       method: "PUT",
       body: { retired: true, version: current.version },
     });
     expect((await json<DiscardReasonItem>(retired)).retiredAt).not.toBeNull();
+    const changes = await asDemoTenant((c) =>
+      c
+        .query<{ action: string; resource_id: string; scope: unknown; reason: string | null }>(
+          "SELECT action, resource_id, scope, reason FROM audit_event WHERE resource_type = 'discard_reason' AND resource_id = $1",
+          [current.id],
+        )
+        .then((r) => r.rows),
+    );
+    expect(changes.map((e) => e.action)).toContain("care.discard_reason.retire");
+    expect(JSON.stringify(changes)).not.toContain("agency_shift_ended");
     // A device that recorded the deletion before the code was retired can still send it.
     expect(
       (await send(discard({ reasonCode: "other", organisationReasonCode: "agency_shift_ended" })))
@@ -683,6 +695,13 @@ describe("hazard HZ-029 a save sent twice with the same client id is recorded on
     });
     expect(replayedDraft.status).toBe(201);
     expect((await json<CarePlanDetail>(replayedDraft)).id).toBe(draft.id);
+    // Sent again asking to copy the active plan, it is refused, not shown as done (#26 round 3).
+    const copyAsked = await as("manager", plans, {
+      method: "POST",
+      body: { id: draftId, copyFromActive: true },
+    });
+    expect(copyAsked.status).toBe(409);
+    expect((await json<ProblemDetails>(copyAsked)).code).toBe("already_saved_differently");
     await as("manager", `${plans}/${draft.id}/sections/nutrition_and_hydration`, {
       method: "PUT",
       body: { need: "Needs encouragement to drink.", version: 0 },
@@ -788,23 +807,41 @@ describe("hazard HZ-014 hazard HZ-016 an urgent result alert always reaches some
     temperature: 39.5,
   };
 
-  it("goes to the fallback, the Registered Manager, where the home has no nurse in charge", async () => {
-    // Harbour Lodge has no clinical lead, team leader or Registered Manager of its own.
+  it("goes to the fallback, only someone who can open the person's record, naming the home (#26 review round 3)", async () => {
+    // Harbour Lodge has no clinical lead, team leader or Registered Manager of its own. The
+    // Registered Manager at Harbour House cannot open Gwen's record, so is not told; the owner,
+    // who holds care.plan.write across the organisation, is.
     const response = await as("owner", `/v1/people/${LODGE.personId}/observations`, {
       method: "POST",
       body: { occurredAt: ago(5), values: veryHigh },
     });
     expect(response.status).toBe(201);
     const saved = await json<ObservationItem>(response);
-    const recipients = await asDemoTenant((c) =>
+    // The entry says what happened, so the screen never says the nurse in charge was told.
+    expect(saved.flags.alertRoute).toBe("fallback");
+    const told = await asDemoTenant((c) =>
       c
-        .query<{ recipient: string }>(
-          "SELECT recipient_tenant_user_id AS recipient FROM notification WHERE kind = 'care.urgent_result' AND source_id = $1",
+        .query<{ recipient: string; title: string; body: string }>(
+          "SELECT recipient_tenant_user_id AS recipient, title, body FROM notification WHERE kind = 'care.urgent_result' AND source_id = $1",
           [saved.id],
         )
-        .then((r) => r.rows.map((row) => row.recipient)),
+        .then((r) => r.rows),
     );
-    expect(recipients).toEqual([DEMO.users.manager.id]);
+    expect(told.map((n) => n.recipient)).toEqual([DEMO.users.owner.id]);
+    // The home is named; nothing about the person beyond the link to their record.
+    expect(told[0]?.title).toBe("An observation at Harbour Lodge needs a response now");
+    expect(JSON.stringify(told)).not.toContain("Gwen");
+    // Whoever is told can open the record the alert links to; the manager passed over cannot.
+    expect((await as("owner", `/v1/people/${LODGE.personId}`)).status).toBe(200);
+    expect((await as("manager", `/v1/people/${LODGE.personId}`)).status).not.toBe(200);
+  });
+
+  it("goes to the nurse in charge at the person's home, and the entry says so", async () => {
+    const response = await observe(1, veryHigh);
+    expect(response.status).toBe(201);
+    const saved = await json<ObservationItem>(response);
+    expect(saved.flags.alertRoute).toBe("nurse_in_charge");
+    expect(await urgentAlerts(saved.id)).toBeGreaterThan(0);
   });
 
   it("is audited as unrouted, and not counted, when the organisation has no one who could act", async () => {
@@ -849,7 +886,14 @@ describe("hazard HZ-014 hazard HZ-016 an urgent result alert always reaches some
           raiseCareTriggers(
             tx,
             { personId, locationId, sourceType: "observation", sourceId },
-            [{ kind: "urgent_alert", recipient: "nurse_in_charge", reason: "Test alert" }],
+            [
+              {
+                kind: "urgent_alert",
+                recipient: "nurse_in_charge",
+                reason: "NEWS2 7: high clinical risk",
+                code: "news2_threshold",
+              },
+            ],
             new Date(),
           ),
       );
@@ -859,15 +903,22 @@ describe("hazard HZ-014 hazard HZ-016 an urgent result alert always reaches some
     }
     const audited = await inEmptyTenant((c) =>
       c
-        .query<{ action: string; outcome: string; scope: unknown }>(
-          "SELECT action, outcome, scope FROM audit_event WHERE resource_id = $1",
+        .query<{ action: string; outcome: string; reason: string; scope: unknown }>(
+          "SELECT action, outcome, reason, scope FROM audit_event WHERE resource_id = $1",
           [sourceId],
         )
         .then((r) => r.rows),
     );
+    // A coded reason, never the result in words (#26 review round 3, low).
     expect(audited).toEqual([
-      { action: CARE_ALERT_UNROUTED_ACTION, outcome: "error", scope: { personId, locationId } },
+      {
+        action: CARE_ALERT_UNROUTED_ACTION,
+        outcome: "error",
+        reason: "news2_threshold",
+        scope: { personId, locationId, reasonCode: "news2_threshold" },
+      },
     ]);
+    expect(JSON.stringify(audited)).not.toContain("NEWS2 7");
   });
 
   it("hazard HZ-016 asks no IDDSI level of a drink refused, and raises nothing", async () => {
@@ -927,6 +978,22 @@ describe("hazard HZ-040 entries a device recorded deleting are counted beside th
     expect(list.items.find((o) => o.id === entryId)?.deviceDeletion).toBe(
       "uploaded_after_deletion",
     );
+  });
+});
+
+describe("fluid balance: a drink offered and refused is never counted as drunk (#26 review round 3)", () => {
+  it("leaves the intake and shortfall as they were and reports the amount offered", async () => {
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/London" });
+    type Day = { intakeMl: number; refusedEntries: number; refusedOfferedMl: number };
+    const day = async () =>
+      json<Day>(await as("manager", `/v1/people/${resident(2)}/charts/fluid?date=${today}`));
+    const before = await day();
+    const refused = await observe(2, { chart: "fluid_intake", ml: 250, refused: true });
+    expect(refused.status).toBe(201);
+    const after = await day();
+    expect(after.intakeMl).toBe(before.intakeMl);
+    expect(after.refusedEntries).toBe(before.refusedEntries + 1);
+    expect(after.refusedOfferedMl).toBe(before.refusedOfferedMl + 250);
   });
 });
 
@@ -998,6 +1065,73 @@ describe("hazard HZ-019 marks from phones not yet updated, and refused marks tha
     );
     expect(priority).toBe("urgent");
   });
+
+  it.each([
+    ["an observation", "observation", {}, true],
+    ["a pressure ulcer with no category", "body_map_mark", { markType: "pressure_ulcer" }, true],
+    [
+      "a pressure ulcer with a category that cannot be read",
+      "body_map_mark",
+      { markType: "pressure_ulcer", pressureCategory: "category_9" },
+      true,
+    ],
+    [
+      "a category 2 pressure ulcer",
+      "body_map_mark",
+      { markType: "pressure_ulcer", pressureCategory: "category_2" },
+      true,
+    ],
+    [
+      "a category 1 pressure ulcer",
+      "body_map_mark",
+      { markType: "pressure_ulcer", pressureCategory: "category_1" },
+      false,
+    ],
+    ["a bruise", "body_map_mark", { markType: "bruise" }, true],
+    ["a rash", "body_map_mark", { markType: "rash" }, false],
+    ["a care note", "care_note", {}, false],
+  ] as const)(
+    "reviews a refused copy of %s urgently: %s (#26 review round 3)",
+    (_name, table, payload, urgent) => {
+      expect(urgentRefusedCopy({ table, payload } as Parameters<typeof urgentRefusedCopy>[0])).toBe(
+        urgent,
+      );
+    },
+  );
+
+  it("makes the review of a refused pressure ulcer with no category urgent at once (#26 review round 3)", async () => {
+    const entryId = newId();
+    const copy = await as("carer", "/v1/sync/refused-entries", {
+      method: "POST",
+      body: {
+        entryId,
+        table: "body_map_mark",
+        personId: resident(2),
+        payload: {
+          id: entryId,
+          occurredAt: ago(30),
+          view: "back",
+          region: "sacrum",
+          drawnZone: "centre",
+          side: "midline",
+          markType: "pressure_ulcer",
+        },
+        httpStatus: 422,
+        code: "invalid",
+        message: "Choose the pressure ulcer category.",
+        refusedAt: ago(1),
+      },
+      headers: fromDevice,
+    });
+    expect(copy.status).toBe(200);
+    const { taskId } = await json<{ taskId: string }>(copy);
+    const priority = await asDemoTenant((c) =>
+      c
+        .query<{ priority: string }>("SELECT priority FROM task WHERE id = $1", [taskId])
+        .then((r) => r.rows[0]?.priority),
+    );
+    expect(priority).toBe("urgent");
+  });
 });
 
 describe("hazard HZ-029 a save sent again with other details is refused, never shown as saved (#26 review round 2, C5)", () => {
@@ -1020,9 +1154,11 @@ describe("hazard HZ-029 a save sent again with other details is refused, never s
       body: { ...respect, cprDecision: "do_not_attempt_cpr" },
     });
     expect(changed.status).toBe(409);
-    expect((await json<ProblemDetails>(changed)).detail).toBe(
-      "This was already saved with different details: reload before changing it.",
-    );
+    // Its own code, so a screen never says someone else changed the record (#26 round 3).
+    expect(await json<ProblemDetails>(changed)).toMatchObject({
+      code: "already_saved_differently",
+      detail: "This was already saved with different details: reload before changing it.",
+    });
     const stored = await json<{ items: AdvanceCareItem[] }>(await as("manager", path));
     expect(stored.items.find((i) => i.id === id)?.cprDecision).toBe("attempt_cpr");
     // The same details again return the record.
@@ -1087,7 +1223,7 @@ describe("hazard HZ-029 a save sent again with other details is refused, never s
   });
 });
 
-describe("escalation links and coded reasons follow the roles that carry the permission (#26 review round 2, S1)", () => {
+describe("hazard HZ-012 hazard HZ-040 escalation links and coded reasons follow the roles that carry the permission (#26 review round 2, S1)", () => {
   /** Extra roles for the Registered Manager at Harbour House, removed again after each test. */
   const withExtraRoles = async (
     roles: readonly ("administrator" | "group_executive" | "owner")[],

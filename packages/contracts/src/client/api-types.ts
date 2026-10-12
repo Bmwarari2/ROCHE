@@ -9664,7 +9664,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/discard-reasons/{code}": {
+  "/v1/discard-reasons/{reasonId}": {
     parameters: {
       query?: never;
       header?: never;
@@ -9678,7 +9678,7 @@ export interface paths {
         query?: never;
         header?: never;
         path: {
-          code: components["schemas"]["DiscardReasonCode"];
+          reasonId: string;
         };
         cookie?: never;
       };
@@ -16106,6 +16106,8 @@ export interface components {
       flaggedEntries: number;
       flaggedIntakeMl: number;
       flaggedOutputMl: number;
+      refusedEntries: number;
+      refusedOfferedMl: number;
     };
     BodyMapMarkItem: {
       /** Format: uuid */
@@ -17178,6 +17180,8 @@ export interface components {
       items: components["schemas"]["DiscardReasonItem"][];
     };
     DiscardReasonItem: {
+      /** Format: uuid */
+      id: string;
       code: components["schemas"]["DiscardReasonCode"];
       label: string;
       labelCy: string | null;

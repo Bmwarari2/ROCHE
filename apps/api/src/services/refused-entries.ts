@@ -34,7 +34,6 @@ import {
   task,
   withRequestContext,
 } from "@harbour/db";
-import { CATEGORY_2_OR_WORSE } from "@harbour/domain";
 import { and, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import { auditInTx } from "../http/audit";
 import type { TenantAccess } from "../http/context";
@@ -76,18 +75,18 @@ const INJURY_MARK_TYPES: ReadonlySet<string> = new Set([
 /**
  * Whether a refused entry's review must be urgent: an observation (it may belong in the day's
  * totals), or a body-map mark that may be harm and must not wait on the device unseen (#26 review
- * round 2, C4): a pressure ulcer of category 2 or worse, a bruise, a skin tear, a laceration, a
- * burn or a wound.
+ * round 2, C4): a pressure ulcer of category 2 or worse, or with no category readable (it may be
+ * worse; #26 review round 3), a bruise, a skin tear, a laceration, a burn or a wound. Only a
+ * pressure ulcer recorded as category 1 waits as routine.
  */
 export function urgentRefusedCopy(body: Pick<SyncRefusedEntry, "table" | "payload">): boolean {
   if (body.table === "observation") return true;
   if (body.table !== "body_map_mark") return false;
   const mark = body.payload as { markType?: unknown; pressureCategory?: unknown };
   if (mark.markType === "pressure_ulcer") {
-    return (
-      typeof mark.pressureCategory === "string" &&
-      (CATEGORY_2_OR_WORSE as readonly string[]).includes(mark.pressureCategory)
-    );
+    // Category 2 or worse is urgent (`CATEGORY_2_OR_WORSE`); so is a category missing or
+    // unreadable, which may be worse. Only category 1 waits as routine.
+    return mark.pressureCategory !== "category_1";
   }
   return typeof mark.markType === "string" && INJURY_MARK_TYPES.has(mark.markType);
 }

@@ -185,6 +185,8 @@ export const DiscardReasonCode = z
 
 export const DiscardReasonItem = z
   .object({
+    /** Changed by this id (`PUT /v1/discard-reasons/{reasonId}`), never by the code. */
+    id: z.uuid(),
     code: DiscardReasonCode,
     /** The wording staff read, in English. */
     label: z.string(),

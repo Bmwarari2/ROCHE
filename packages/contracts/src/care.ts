@@ -155,6 +155,13 @@ export const FluidDay = z
     flaggedEntries: z.number().int(),
     flaggedIntakeMl: z.number().int(),
     flaggedOutputMl: z.number().int(),
+    /**
+     * Drinks offered and refused that day, and the amount offered. A refused drink was not taken:
+     * it is never in `intakeMl` or the shortfall; show the amount as offered (#26 review round 3;
+     * whether to show it beside the total is for the CSO, H-167).
+     */
+    refusedEntries: z.number().int(),
+    refusedOfferedMl: z.number().int(),
   })
   .meta({ id: "FluidDay", description: "Fluid balance for one UK calendar day (00:00 to 24:00)" });
 export type FluidDay = z.infer<typeof FluidDay>;

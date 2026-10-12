@@ -60,6 +60,19 @@ export const problems = {
       "Someone else changed this record. Review their change first.",
       detail,
     ),
+  /**
+   * A create sent again with a client id already saved, but with other details (#26 review rounds
+   * 2 and 3; HZ-029, HZ-015): nothing was changed. Its own code, so a screen says that what was
+   * saved stands and the change must be made again after reloading, never that someone else
+   * changed the record.
+   */
+  alreadySavedDifferently: (detail?: string) =>
+    new HttpProblem(
+      409,
+      "already_saved_differently",
+      "This was already saved with different details.",
+      detail,
+    ),
   invalid: (detail?: string) =>
     new HttpProblem(422, "invalid", "Some details need checking.", detail),
   /**

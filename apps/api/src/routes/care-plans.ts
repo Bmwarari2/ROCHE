@@ -441,6 +441,10 @@ export const carePlansRouter = createRouter()
           if (replayed) {
             const row = sameRecordOrRefuse(replayed, personId);
             if (body.summary !== undefined) requireSameDetails(row, { summary: body.summary });
+            // Whether it asked to copy the active plan, when kept (#26 review round 3).
+            if (row.copyFromActive !== null) {
+              requireSameDetails(row, { copyFromActive: body.copyFromActive });
+            }
             return planDetail(tx, row);
           }
         }
@@ -468,6 +472,7 @@ export const carePlansRouter = createRouter()
             locationId: person.locationId,
             status: "draft",
             basedOnPlanId: active?.id ?? null,
+            copyFromActive: body.copyFromActive,
             summary: body.summary ?? active?.summary ?? null,
           })
           .returning()

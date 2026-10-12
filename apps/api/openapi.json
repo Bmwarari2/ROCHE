@@ -7562,6 +7562,12 @@
           },
           "flaggedOutputMl": {
             "type": "integer"
+          },
+          "refusedEntries": {
+            "type": "integer"
+          },
+          "refusedOfferedMl": {
+            "type": "integer"
           }
         },
         "required": [
@@ -7573,7 +7579,9 @@
           "entries",
           "flaggedEntries",
           "flaggedIntakeMl",
-          "flaggedOutputMl"
+          "flaggedOutputMl",
+          "refusedEntries",
+          "refusedOfferedMl"
         ],
         "description": "Fluid balance for one UK calendar day (00:00 to 24:00)"
       },
@@ -11389,6 +11397,10 @@
       "DiscardReasonItem": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
           "code": {
             "$ref": "#/components/schemas/DiscardReasonCode"
           },
@@ -11419,6 +11431,7 @@
           }
         },
         "required": [
+          "id",
           "code",
           "label",
           "labelCy",
@@ -29725,7 +29738,7 @@
         }
       }
     },
-    "/v1/discard-reasons/{code}": {
+    "/v1/discard-reasons/{reasonId}": {
       "put": {
         "tags": [
           "care"
@@ -29742,10 +29755,11 @@
         "parameters": [
           {
             "schema": {
-              "$ref": "#/components/schemas/DiscardReasonCode"
+              "type": "string",
+              "format": "uuid"
             },
             "required": true,
-            "name": "code",
+            "name": "reasonId",
             "in": "path"
           }
         ],

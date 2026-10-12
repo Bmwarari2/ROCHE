@@ -53,6 +53,7 @@ import {
   entryTimes,
   personContext,
   raiseCareTriggers,
+  urgentAlertRecipients,
 } from "../services/care";
 import { latestMustBand } from "../services/care-planning";
 import { deletionFlags, flagIfReportedDeleted } from "../services/device-holds";
@@ -462,6 +463,13 @@ export const careRouter = createRouter()
               times.occurredAt,
               author,
             );
+            // Who an urgent alert reaches is worked out before the entry is written and kept on
+            // it (`alertRoute`), so the record says what actually happened: the nurse in charge,
+            // the fallback, or no one (#26 review round 3).
+            const raising = triggersAfterChange(triggers, recordedAfterExit, record.status);
+            const alert = raising.some((t) => t.kind === "urgent_alert")
+              ? await urgentAlertRecipients(tx, { personId, locationId: person.locationId }, now)
+              : undefined;
             const [inserted] = await tx
               .insert(observation)
               .values({
@@ -474,7 +482,7 @@ export const careRouter = createRouter()
                 locationId: person.locationId,
                 chart: body.values.chart,
                 values: body.values,
-                flags,
+                flags: alert ? { ...flags, alertRoute: alert.route } : flags,
                 occurredAt: times.occurredAt,
                 deviceTime: times.deviceTime,
                 deviceId: access.deviceId,
@@ -518,8 +526,9 @@ export const careRouter = createRouter()
                   sourceType: "observation",
                   sourceId: row.id,
                 },
-                triggersAfterChange(triggers, recordedAfterExit, record.status),
+                raising,
                 now,
+                alert,
               );
               if (link) {
                 await applyLink(tx, access, c.get("requestId"), link, {
@@ -701,6 +710,9 @@ export const careRouter = createRouter()
               occurredAt: r.occurredAt,
               kind: r.chart === "fluid_intake" ? ("intake" as const) : ("output" as const),
               volumeMl: Number((r.values as { ml?: number }).ml ?? 0),
+              // A drink offered and refused adds nothing to the intake (#26 review round 3).
+              refused:
+                r.chart === "fluid_intake" && (r.values as { refused?: boolean }).refused === true,
             }))
             .filter((e) => e.volumeMl > 0),
         });
@@ -716,7 +728,11 @@ export const careRouter = createRouter()
         // Entries a device recorded deleting stay in the totals, counted beside them, so a
         // possible duplicate is checked rather than hidden or silently left out (#26 review
         // round 2, C3; HZ-040, H-165).
-        const counted = current.filter((r) => Number((r.values as { ml?: number }).ml ?? 0) > 0);
+        const counted = current.filter(
+          (r) =>
+            Number((r.values as { ml?: number }).ml ?? 0) > 0 &&
+            !(r.chart === "fluid_intake" && (r.values as { refused?: boolean }).refused === true),
+        );
         const flags = await deletionFlags(
           tx,
           "observation",
@@ -737,6 +753,8 @@ export const careRouter = createRouter()
           flaggedEntries: flagged.length,
           flaggedIntakeMl: ml(flagged, "fluid_intake"),
           flaggedOutputMl: ml(flagged, "fluid_output"),
+          refusedEntries: s.refusedEntries,
+          refusedOfferedMl: s.refusedOfferedMl,
         };
       });
       return c.json(day, 200);
@@ -1195,6 +1213,7 @@ function chartRules(
               reason:
                 IDDSI_ALERT_REASONS[check.problem ?? ""] ??
                 "IDDSI level differs from the prescribed level",
+              code: check.problem ? `iddsi_${check.problem}` : "iddsi_unsafe_level",
             },
           ]
         : [],

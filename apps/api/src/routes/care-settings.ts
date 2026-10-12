@@ -2,7 +2,6 @@ import {
   ClientIdHeaders,
   CreateDiscardReason,
   CreateEscalationPolicyLink,
-  DiscardReasonCode,
   DiscardReasonItem,
   DiscardReasonList,
   EscalationPolicyLinkItem,
@@ -52,7 +51,8 @@ type LinkRow = typeof escalationPolicyLink.$inferSelect;
 type ReasonRow = typeof discardReason.$inferSelect;
 
 const LinkParams = z.object({ linkId: z.uuid() });
-const ReasonParams = z.object({ code: DiscardReasonCode });
+// By id, so the organisation's own code never sits in a URL or a log (#26 review round 3).
+const ReasonParams = z.object({ reasonId: z.uuid() });
 
 /** Who changes the escalation policy links: holders of the policy permission. */
 const POLICY_PERMISSION = "quality.policy.manage" as const;
@@ -75,6 +75,7 @@ function linkItem(row: LinkRow): EscalationPolicyLinkItem {
 
 function reasonItem(row: ReasonRow): DiscardReasonItem {
   return {
+    id: row.id,
     code: row.code,
     label: row.label,
     labelCy: row.labelCy,
@@ -495,7 +496,6 @@ export const careSettingsRouter = createRouter()
           action: "care.discard_reason.create",
           resourceType: "discard_reason",
           resourceId: row.id,
-          scope: { code: row.code },
           requestId: c.get("requestId"),
         });
         return reasonItem(row);
@@ -506,7 +506,7 @@ export const careSettingsRouter = createRouter()
   .openapi(
     createRoute({
       method: "put",
-      path: "/v1/discard-reasons/{code}",
+      path: "/v1/discard-reasons/{reasonId}",
       tags: ["care"],
       summary: "Change a coded reason's wording or order, or retire it or offer it again",
       security,
@@ -523,12 +523,15 @@ export const careSettingsRouter = createRouter()
     }),
     async (c) => {
       const access = await requirePermission(c, SETTINGS_PERMISSION);
-      const { code } = c.req.valid("param");
+      const { reasonId } = c.req.valid("param");
       const body = c.req.valid("json");
       const now = new Date();
       const item = await withTenant(c, async (tx) => {
         await requireOrganisationSettings(tx, access);
-        const [current] = await tx.select().from(discardReason).where(eq(discardReason.code, code));
+        const [current] = await tx
+          .select()
+          .from(discardReason)
+          .where(eq(discardReason.id, reasonId));
         if (!current) throw problems.notFound();
         if (current.version !== body.version) throw problems.conflict();
         if (body.label !== undefined) {
@@ -551,7 +554,7 @@ export const careSettingsRouter = createRouter()
             ...(body.sortOrder !== undefined ? { sortOrder: body.sortOrder } : {}),
             ...retire,
           })
-          .where(and(eq(discardReason.code, code), eq(discardReason.version, body.version)))
+          .where(and(eq(discardReason.id, reasonId), eq(discardReason.version, body.version)))
           .returning();
         if (!row) throw problems.conflict();
         await auditInTx(tx, access, {
@@ -561,7 +564,6 @@ export const careSettingsRouter = createRouter()
               : "care.discard_reason.update",
           resourceType: "discard_reason",
           resourceId: row.id,
-          scope: { code: row.code },
           requestId: c.get("requestId"),
         });
         return reasonItem(row);
