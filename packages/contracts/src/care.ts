@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { entryInput, entryOutput } from "./entries";
+import { EscalationPolicyRef } from "./escalation-policy";
 
 /**
  * Point-of-care record contracts (master prompt 10.1, docs/specs/care.md): daily notes, chart
@@ -53,6 +54,11 @@ export const ObservationValues = z
       chart: z.literal("fluid_intake"),
       ml: z.number().int().min(0).max(5000),
       drink: z.string().trim().max(60).optional(),
+      /**
+       * The drink's IDDSI level as given. Required whenever the person has a drink level
+       * prescribed (HZ-016): refused without it from the web; from a device the entry is kept,
+       * flagged `level_not_recorded` and the nurse in charge alerted.
+       */
       iddsiLevel: iddsiDrink.optional(),
       overrideReason: z.string().trim().max(300).optional(),
       refused: z.boolean().default(false),
@@ -112,8 +118,17 @@ export const ObservationItem = z
     ...entryOutput,
     chart: z.string(),
     values: z.record(z.string(), z.unknown()),
-    /** Computed: NEWS2 result and components, IDDSI comparison, prompts raised. */
+    /**
+     * Computed: NEWS2 result and components, IDDSI comparison (`iddsi`, `iddsiAlert`, and
+     * `iddsiProblem` when an entry from a device was kept despite a missing level or reason:
+     * `level_not_recorded`, `reason_missing` or `prescribed_unreadable`), prompts raised.
+     */
     flags: z.record(z.string(), z.unknown()),
+    /**
+     * Vital signs scored with NEWS2: the organisation's escalation policy for the score's band, or
+     * that none is configured. Null for every other chart.
+     */
+    escalationPolicy: EscalationPolicyRef.nullable(),
   })
   .meta({ id: "ObservationItem" });
 export type ObservationItem = z.infer<typeof ObservationItem>;
@@ -132,6 +147,21 @@ export const FluidDay = z
     /** Target minus intake so far; null when no target is set. */
     shortfallMl: z.number().int().nullable(),
     entries: z.number().int(),
+    /**
+     * Of the entries counted, those a device recorded deleting (`deviceDeletion` on the entry), and
+     * the intake and output they add. They stay in the totals, flagged: show them beside the total
+     * so staff check for duplicates (HZ-040; whether they should count is for the CSO, H-165).
+     */
+    flaggedEntries: z.number().int(),
+    flaggedIntakeMl: z.number().int(),
+    flaggedOutputMl: z.number().int(),
+    /**
+     * Drinks offered and refused that day, and the amount offered. A refused drink was not taken:
+     * it is never in `intakeMl` or the shortfall; show the amount as offered (#26 review round 3;
+     * whether to show it beside the total is for the CSO, H-167).
+     */
+    refusedEntries: z.number().int(),
+    refusedOfferedMl: z.number().int(),
   })
   .meta({ id: "FluidDay", description: "Fluid balance for one UK calendar day (00:00 to 24:00)" });
 export type FluidDay = z.infer<typeof FluidDay>;
@@ -161,13 +191,45 @@ export const PressureUlcerCategory = z
   ])
   .meta({ id: "PressureUlcerCategory" });
 
+/** Where on the body map drawing, as the person recording saw it. */
+export const BodyMapViewerZone = z.enum(["viewer_left", "centre", "viewer_right"]).meta({
+  id: "BodyMapViewerZone",
+  description:
+    "The left of the drawing, its centre band, or its right, as the person recording saw it",
+});
+
+/**
+ * A point on the body map drawing in its own units (`BODY_MAP_DRAWING` in packages/domain): 120
+ * wide and 240 high, x from the viewer's left edge and y from the top, on the view named. A screen
+ * drawn at another size scales its point to these units.
+ */
+export const BodyMapPoint = z
+  .object({ x: z.number().min(0).max(120), y: z.number().min(0).max(240) })
+  .meta({ id: "BodyMapPoint" });
+export type BodyMapPoint = z.infer<typeof BodyMapPoint>;
+
 export const CreateBodyMapMark = z
   .object({
     ...entryInput,
     view: z.enum(["front", "back"]),
     region: z.string().regex(/^[a-z_]{2,40}$/),
-    /** The side as drawn (from the tap position); must agree with `side` (HZ-019). */
-    drawnSide: z.enum(["left", "right", "midline"]),
+    /**
+     * Where the mark was placed on the drawing. The server works out the person's side from it and
+     * the view, and refuses a mark whose `side` disagrees (HZ-019). Send it, or `drawnZone`.
+     */
+    drawnAt: BodyMapPoint.optional(),
+    /**
+     * The zone of the drawing chosen with the buttons beside it (screen readers), when no point
+     * was tapped; with `drawnAt` it must agree with the point.
+     */
+    drawnZone: BodyMapViewerZone.optional(),
+    /**
+     * The side the device worked out from the drawing. With `drawnAt` or `drawnZone` the server
+     * works the side out itself and refuses a mark whose `drawnSide` disagrees. Sent alone (a phone
+     * from before the server read the drawing), it is read as the zone it names on the view and
+     * the mark is flagged `drawnFromDeviceSide`.
+     */
+    drawnSide: z.enum(["left", "right", "midline"]).optional(),
     side: z.enum(["left", "right", "midline"]),
     markType: BodyMarkType,
     pressureCategory: PressureUlcerCategory.optional(),
@@ -193,6 +255,17 @@ export const BodyMapMarkItem = z
     view: z.enum(["front", "back"]),
     region: z.string(),
     side: z.enum(["left", "right", "midline"]),
+    /**
+     * The person's side where the mark was drawn, as the server worked it out from the drawing;
+     * null for marks recorded before the server did (HZ-019).
+     */
+    drawnSide: z.enum(["left", "right", "midline"]).nullable(),
+    /**
+     * True when the place on the drawing was taken from the side a phone said it drew (an app from
+     * before the server read the drawing sent no point or zone; HZ-019): show that the side was
+     * not checked against a place on the drawing.
+     */
+    drawnFromDeviceSide: z.boolean(),
     markType: BodyMarkType,
     pressureCategory: PressureUlcerCategory.nullable(),
     lengthMm: z.number().nullable(),

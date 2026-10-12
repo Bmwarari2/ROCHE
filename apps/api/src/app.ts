@@ -16,6 +16,7 @@ import { breakGlassReportRouter } from "./routes/break-glass-report";
 import { careRouter } from "./routes/care";
 import { carePlansRouter } from "./routes/care-plans";
 import { careRecordsRouter } from "./routes/care-records";
+import { careSettingsRouter } from "./routes/care-settings";
 import { devicesRouter } from "./routes/devices";
 import { documentsRouter } from "./routes/documents";
 import { handoversRouter } from "./routes/handovers";
@@ -187,6 +188,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", careRouter);
   app.route("/", carePlansRouter);
   app.route("/", careRecordsRouter);
+  app.route("/", careSettingsRouter);
   app.route("/", roundsRouter);
   app.route("/", handoversRouter);
   app.route("/", mcaRouter);

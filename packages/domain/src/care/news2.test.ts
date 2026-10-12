@@ -405,6 +405,7 @@ describe("hazard HZ-014 NEWS2 bands that call for a response raise a task and an
         kind: "urgent_alert",
         recipient: "nurse_in_charge",
         reason: "NEWS2 7: high clinical risk",
+        code: "news2_threshold",
       },
       { kind: "task", task: "news2_response", reason: "NEWS2 7: high clinical risk" },
       {

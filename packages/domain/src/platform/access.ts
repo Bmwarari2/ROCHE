@@ -169,6 +169,58 @@ export function permissionsAtLocation(
   ).permissions;
 }
 
+/** Where a member may use one permission: across the organisation, or at these locations. */
+export interface PermissionPlaces {
+  readonly organisationWide: boolean;
+  readonly locationIds: readonly string[];
+}
+
+/**
+ * Where a member holds one permission now, from the roles and grants that carry it only (#26
+ * review round 2, S1). `resolveAccess` merges the scope of every role, so a Registered Manager at
+ * one home who is also an administrator at another, or a group executive, gets a scope wider than
+ * the permission they hold: a change that must stay where the permission is held reads this
+ * instead. A role carrying the permission counts across the organisation when assigned with no
+ * location (scope `tenant` or `location`), and at its location otherwise; roles scoped to assigned
+ * people or to none give no place. A grant counts across the organisation with no location. Staff
+ * sessions only: a role mixing portal and staff permissions is ignored, as `resolveAccess` does.
+ */
+export function placesHoldingPermission(
+  assignments: readonly RoleAssignmentInput[],
+  grants: readonly AccessGrantInput[],
+  permission: Permission,
+  at: Date,
+): PermissionPlaces {
+  let organisationWide = false;
+  const locationIds = new Set<string>();
+  const place = (locationId: string | null) => {
+    if (locationId === null) organisationWide = true;
+    else locationIds.add(locationId);
+  };
+  for (const assignment of assignments) {
+    if (!isActive(assignment.validFrom, assignment.validTo, at)) continue;
+    if (rolePermissionMix(assignment.permissions) !== "staff") continue;
+    if (!assignment.permissions.includes(permission)) continue;
+    if (assignment.scopeKind !== "tenant" && assignment.scopeKind !== "location") continue;
+    place(assignment.locationId);
+  }
+  for (const grant of grants) {
+    if (grant.revokedAt !== null || !isActive(grant.validFrom, grant.validTo, at)) continue;
+    if (!grant.permissions.includes(permission)) continue;
+    place(grant.locationId);
+  }
+  return {
+    organisationWide,
+    locationIds: organisationWide ? [] : [...locationIds].sort(),
+  };
+}
+
+/** Whether the places cover a location, or the whole organisation when `locationId` is null. */
+export function placesCover(places: PermissionPlaces, locationId: string | null): boolean {
+  if (places.organisationWide) return true;
+  return locationId !== null && places.locationIds.includes(locationId);
+}
+
 export function can(access: EffectiveAccess, permission: Permission): boolean {
   return access.permissions.has(permission);
 }

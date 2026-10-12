@@ -1,0 +1,1 @@
+ALTER TABLE "care_plan" ADD COLUMN "copy_from_active" boolean;

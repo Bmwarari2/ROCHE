@@ -2,22 +2,30 @@
  * Body map marks offline (care.md section 4 rule 7; register CARE-012; hazard HZ-019). The carer
  * marks the place on the drawing and also chooses the side in words; the mark cannot be saved until
  * the two agree. Sides are always the person's own: on the front view the drawing faces the carer,
- * so the person's left is on the carer's right. The rules are `personSideFromDrawing` and
- * `validateMark` from `@harbour/domain`, which the API repeats on upload with the drawn side the
- * device sends.
+ * so the person's left is on the carer's right. The rules are `sideFromDrawing` and
+ * `validateMark` from `@harbour/domain`. The device sends the place drawn (the point tapped, or the
+ * zone chosen with the buttons) and the API works the side out again from it and the view, so the
+ * check never rests on the side the device says it drew.
  */
 import {
+  BODY_MAP_DRAWING,
   BODY_MAP_REGIONS,
   type BodyMarkType,
   type BodyRegion,
   type BodySide,
   type BodyView,
+  VIEWER_ZONES as DOMAIN_VIEWER_ZONES,
+  type ViewerZone as DomainViewerZone,
+  type DrawnPoint,
   findBodyRegion,
   markTriggers,
   PRESSURE_ULCER_CATEGORIES,
   type PressureUlcerCategory,
   personSideFromDrawing,
+  sideFromDrawing,
   validateMark,
+  zoneAtPoint,
+  zoneForPersonSide,
 } from "@harbour/domain";
 import {
   type Correction,
@@ -29,9 +37,10 @@ import {
 } from "./entries";
 import { resolveOccurredAt, type WhenChoice } from "./time";
 
-export type ViewerZone = "viewer_left" | "centre" | "viewer_right";
+export type ViewerZone = DomainViewerZone;
+export type { DrawnPoint };
 
-export const VIEWER_ZONES: readonly ViewerZone[] = ["viewer_left", "centre", "viewer_right"];
+export const VIEWER_ZONES: readonly ViewerZone[] = DOMAIN_VIEWER_ZONES;
 export const BODY_VIEWS: readonly BodyView[] = ["front", "back"];
 export const MARK_TYPES: readonly BodyMarkType[] = [
   "bruise",
@@ -57,26 +66,40 @@ export function drawnSide(view: BodyView, zone: ViewerZone): BodySide {
 }
 
 /**
- * The drawing's own coordinates (the SVG viewBox, 120 by 240). The body's midline is x = 60; the
- * head, neck and trunk end where the legs begin.
+ * The zone of the drawing that reads as a side on a view, as the API reads it (`zoneForPersonSide`):
+ * the inverse of `drawnSide`. Used for an entry queued before the device stored the zone, which
+ * kept only the side it worked out.
  */
-export const DRAWING = { width: 120, height: 240, midline: 60, legsTop: 124 } as const;
+export function zoneForSide(view: BodyView, side: BodySide): ViewerZone | null {
+  return zoneForPersonSide(view, side);
+}
+
+/**
+ * The drawing's own coordinates (the SVG viewBox, 120 by 240), shared with the web and the API
+ * (`BODY_MAP_DRAWING`). The body's midline is x = 60; the head, neck and trunk end where the legs
+ * begin.
+ */
+export const DRAWING = {
+  width: BODY_MAP_DRAWING.width,
+  height: BODY_MAP_DRAWING.height,
+  midline: BODY_MAP_DRAWING.midline,
+  legsTop: BODY_MAP_DRAWING.legsTop,
+} as const;
 
 /**
  * Half the width of the centre band, in drawing units. It exists only over the central areas
  * (head, neck and trunk), so a mark on a leg or an arm is always on a side (clinical review C5).
  */
-export const CENTRE_HALF_WIDTH = 4;
+export const CENTRE_HALF_WIDTH = BODY_MAP_DRAWING.centreHalfWidth;
 
 /**
  * Which zone of the drawing a point falls in: split at the body's midline, with a narrow centre
  * band over the central areas only. On the front view the person's left leg is on the carer's
- * right, so it falls in `viewer_right`, which reads as the person's left.
+ * right, so it falls in `viewer_right`, which reads as the person's left. The API reads the point
+ * the same way (`zoneAtPoint` in `@harbour/domain`).
  */
-export function zoneAt(point: { readonly x: number; readonly y: number }): ViewerZone {
-  const central = point.y < DRAWING.legsTop;
-  if (central && Math.abs(point.x - DRAWING.midline) <= CENTRE_HALF_WIDTH) return "centre";
-  return point.x < DRAWING.midline ? "viewer_left" : "viewer_right";
+export function zoneAt(point: DrawnPoint): ViewerZone {
+  return zoneAtPoint(point);
 }
 
 /**
@@ -103,6 +126,11 @@ export function regionsFor(view: BodyView): readonly BodyRegion[] {
 export interface MarkDraft {
   readonly view: BodyView;
   readonly zone: ViewerZone | null;
+  /**
+   * Where on the drawing the carer tapped, in drawing units; null or absent when the zone was
+   * chosen with the buttons beside the drawing. Sent so the API works out the side itself.
+   */
+  readonly point?: DrawnPoint | null;
   readonly region: string | null;
   readonly side: BodySide | null;
   readonly markType: BodyMarkType | null;
@@ -139,7 +167,11 @@ export function checkMark(
   sideWords: SideWords,
 ): MarkCheck {
   const errors: Partial<Record<MarkField, FieldError>> = {};
-  if (!draft.zone) errors.zone = { key: "mobile.bodyMap.drawingRequired" };
+  const point = draft.point ?? null;
+  // The same reading of the drawing the API makes on upload: a point that is off the drawing, or
+  // that disagrees with the zone, is asked for again rather than sent.
+  const place = draft.zone ? sideFromDrawing(draft.view, { point, zone: draft.zone }) : null;
+  if (!place?.ok) errors.zone = { key: "mobile.bodyMap.drawingRequired" };
   if (!draft.region || !findBodyRegion(draft.view, draft.region)) {
     errors.region = { key: "mobile.bodyMap.regionRequired" };
   }
@@ -166,8 +198,8 @@ export function checkMark(
     errors.bruiseExplained = { key: "mobile.bodyMap.answerRequired" };
   }
 
-  if (draft.zone && draft.region && draft.side && draft.markType && !errors.region) {
-    const drawn = drawnSide(draft.view, draft.zone);
+  if (place?.ok && draft.region && draft.side && draft.markType && !errors.region) {
+    const drawn = place.side;
     const isUlcer = draft.markType === "pressure_ulcer";
     const isBruise = draft.markType === "bruise";
     const check = validateMark({
@@ -197,7 +229,7 @@ export function checkMark(
   if (
     Object.keys(errors).length > 0 ||
     !when.ok ||
-    !draft.zone ||
+    !place?.ok ||
     !draft.region ||
     !draft.side ||
     !draft.markType
@@ -220,7 +252,10 @@ export function checkMark(
       view: draft.view,
       region: draft.region,
       side: draft.side,
-      drawn_side: drawnSide(draft.view, draft.zone),
+      drawn_side: place.side,
+      drawn_zone: place.zone,
+      drawn_x: point ? point.x : null,
+      drawn_y: point ? point.y : null,
       mark_type: draft.markType,
       pressure_category: isUlcer ? draft.pressureCategory : null,
       device_related: isUlcer ? boolean(draft.deviceRelated) : null,

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { StaffName } from "./staff";
 
 /**
  * Fields every append-only point-of-care entry shares (notes, observations, body-map marks,
@@ -7,6 +8,18 @@ import { z } from "zod";
 
 const uuid = z.uuid();
 const isoDateTime = z.iso.datetime({ offset: true });
+
+/**
+ * The server's flag on an entry its device recorded deleting (care.md section 6, Device integrity
+ * part 3; HZ-040): `uploaded_after_deletion`, it arrived after its owner's device recorded deleting
+ * it; `deleted_after_upload`, it had already reached Harbour when the device recorded deleting it
+ * (a reply lost on the way back). Either may be a duplicate or an entry its author meant to
+ * withdraw: show it as a flag, an icon and words, and see the Registered Manager's review task.
+ */
+export const DeviceDeletionFlag = z
+  .enum(["uploaded_after_deletion", "deleted_after_upload"])
+  .meta({ id: "DeviceDeletionFlag" });
+export type DeviceDeletionFlag = z.infer<typeof DeviceDeletionFlag>;
 
 /** Written by the client. */
 export const entryInput = {
@@ -62,10 +75,16 @@ export const entryOutput = {
   /** True when a later entry supersedes this one. */
   superseded: z.boolean(),
   recordedBy: uuid.nullable(),
+  /** The author's name and job title (`recordedBy`), for "Recorded by"; null when not known. */
+  recordedByStaff: StaffName.nullable(),
   /**
    * Sent by: the manager who handed the entry over from a device for its author (`recordedBy`),
    * when one did (care.md section 6, Device integrity part 6). Show "Sent by" with their name
    * beside the author. Null when the author sent it.
    */
   handedOverBy: uuid.nullable(),
+  /** The sender's name and job title (`handedOverBy`), for "Sent by"; null when none. */
+  handedOverByStaff: StaffName.nullable(),
+  /** Set when the entry's device recorded deleting it (`DeviceDeletionFlag`); null otherwise. */
+  deviceDeletion: DeviceDeletionFlag.nullable(),
 };

@@ -16,7 +16,9 @@
  *   checks above, in the author's own view (a hand-over's copies count against their owner).
  * - Each copy joins the person's one open review task (`care.refused_entry_review`: the nurse in
  *   charge, `care.plan.write`, due at once; urgent when any copy is an observation, because it may
- *   belong in the day's totals, and the nurse in charge is told when it becomes urgent), whose
+ *   belong in the day's totals, or a body-map mark that may be harm (a pressure ulcer of category
+ *   2 or worse, a bruise, a skin tear, laceration, burn or wound; #26 review round 2, C4), and the
+ *   nurse in charge is told when it becomes urgent), whose
  *   details list the copies by kind, entry id, copy id, refusal code, time, device and author,
  *   never content. A copy about nobody joins its author's one open task at that location. The
  *   open-task index keeps one task per source; overdue, the task escalates like the sync tasks,
@@ -41,6 +43,7 @@ import { appendTaskDetail, nurseInCharge } from "./care";
 import { fallbackRecipients, REFUSED_REVIEW_TASK_KIND } from "./device-holds";
 import { inSystemView, memberLocations, offlineWindowDaysOf, personReachedBy } from "./devices";
 import { type HandedOverAdmission, recordHandedOverEntry } from "./held-handover";
+import type { StaffLookup } from "./staff";
 
 type Db = Parameters<typeof inSystemView>[0];
 
@@ -56,13 +59,41 @@ const REVIEW_PERMISSION = "care.plan.write";
 
 /** Copies about nobody known wait on their author's task at a location. */
 const AUTHOR_SOURCE = "tenant_user";
-/** The notice the nurse in charge gets when a review becomes urgent (an observation joined it). */
+/** The notice the nurse in charge gets when a review becomes urgent (an urgent copy joined it). */
 export const REFUSED_URGENT_NOTICE_KIND = "care.refused_entry_urgent";
 const DAY_MS = 86_400_000;
 
+/** Marks that may be harm to the person, read on the copy's own request (HZ-019, HZ-006). */
+const INJURY_MARK_TYPES: ReadonlySet<string> = new Set([
+  "bruise",
+  "skin_tear",
+  "laceration",
+  "burn",
+  "wound",
+]);
+
+/**
+ * Whether a refused entry's review must be urgent: an observation (it may belong in the day's
+ * totals), or a body-map mark that may be harm and must not wait on the device unseen (#26 review
+ * round 2, C4): a pressure ulcer of category 2 or worse, or with no category readable (it may be
+ * worse; #26 review round 3), a bruise, a skin tear, a laceration, a burn or a wound. Only a
+ * pressure ulcer recorded as category 1 waits as routine.
+ */
+export function urgentRefusedCopy(body: Pick<SyncRefusedEntry, "table" | "payload">): boolean {
+  if (body.table === "observation") return true;
+  if (body.table !== "body_map_mark") return false;
+  const mark = body.payload as { markType?: unknown; pressureCategory?: unknown };
+  if (mark.markType === "pressure_ulcer") {
+    // Category 2 or worse is urgent (`CATEGORY_2_OR_WORSE`); so is a category missing or
+    // unreadable, which may be worse. Only category 1 waits as routine.
+    return mark.pressureCategory !== "category_1";
+  }
+  return typeof mark.markType === "string" && INJURY_MARK_TYPES.has(mark.markType);
+}
+
 /**
  * The review task a copy joins (the person's, or the author's at a location), raised when none is
- * open and brought to urgent when an observation joins it. Returns its id, and whether it has just
+ * open and brought to urgent when an urgent copy joins it. Returns its id, and whether it has just
  * become urgent.
  */
 async function reviewTask(
@@ -71,7 +102,8 @@ async function reviewTask(
     readonly personId: string | null;
     readonly locationId: string | null;
     readonly author: string;
-    readonly observation: boolean;
+    /** Urgent: an observation, or a body-map mark that may be harm (`urgentRefusedCopy`). */
+    readonly urgent: boolean;
     readonly now: Date;
   },
 ): Promise<{ id: string; becameUrgent: boolean } | null> {
@@ -107,7 +139,7 @@ async function reviewTask(
         ...source,
         assigneeRoleKey: "clinical_lead",
         dueAt: input.now,
-        priority: input.observation ? "urgent" : "routine",
+        priority: input.urgent ? "urgent" : "routine",
       })
       // One open review per source (the open-task index, part 4): a racing copy joins it.
       .onConflictDoNothing()
@@ -116,7 +148,7 @@ async function reviewTask(
     [open] = await find();
   }
   if (!open) return null;
-  if (input.observation && open.priority !== "urgent") {
+  if (input.urgent && open.priority !== "urgent") {
     await tx.update(task).set({ priority: "urgent" }).where(eq(task.id, open.id));
     return { id: open.id, becameUrgent: true };
   }
@@ -125,7 +157,8 @@ async function reviewTask(
 
 /**
  * Tells the nurse in charge at the review's location that it has become urgent (#25 review round
- * 2, M3): an observation a device could not save may belong in the day's totals; with none, the
+ * 2, M3): an observation a device could not save may belong in the day's totals, and a mark that
+ * may be harm must not wait (#26 review round 2, C4); with none at the location, the
  * escalation's fallback (round 3, low). The notice names no one; the link opens the tasks.
  */
 async function noticeUrgentReview(
@@ -147,7 +180,7 @@ async function noticeUrgentReview(
         recipientTenantUserId: recipient,
         kind: REFUSED_URGENT_NOTICE_KIND,
         severity: "urgent",
-        title: "A chart entry a device could not save needs review",
+        title: "An entry a device could not save needs review",
         body: "Open the review task to see the entry and why it was not saved.",
         link: "/tasks",
         channels: ["in_app", "push"],
@@ -239,7 +272,7 @@ export async function copyRefusedEntry(
       personId: who?.id ?? null,
       locationId,
       author: input.author,
-      observation: body.table === "observation",
+      urgent: urgentRefusedCopy(body),
       now: input.now,
     });
     const taskId = review?.id ?? null;
@@ -311,7 +344,10 @@ export async function copyRefusedEntry(
 }
 
 /** A copy as the API returns it. */
-export function refusedEntryOut(row: typeof refusedEntry.$inferSelect): RefusedEntryItem {
+export function refusedEntryOut(
+  row: typeof refusedEntry.$inferSelect,
+  staff: StaffLookup,
+): RefusedEntryItem {
   return {
     id: row.id,
     entryId: row.entryId,
@@ -325,7 +361,9 @@ export function refusedEntryOut(row: typeof refusedEntry.$inferSelect): RefusedE
     refusedAt: row.refusedAt.toISOString(),
     receivedAt: row.createdAt.toISOString(),
     authorTenantUserId: row.authorTenantUserId,
+    authorStaff: staff(row.authorTenantUserId),
     sentByTenantUserId: row.createdBy,
+    sentByStaff: staff(row.createdBy),
     deviceId: row.deviceId,
     reviewTaskId: row.reviewTaskId,
   };

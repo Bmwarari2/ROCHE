@@ -3,13 +3,15 @@ import {
   BestInterestsList,
   CapacityAssessmentItem,
   CapacityAssessmentList,
+  ClientIdHeaders,
   ConsentItem,
   ConsentList,
   type ConsentRepresentative,
   CreateBestInterests,
   CreateCapacityAssessment,
   CreateConsent,
-  DolsInput,
+  CreateDols,
+  type DolsInput,
   DolsItem,
   DolsList,
   LegalChangeReviewAction,
@@ -76,8 +78,17 @@ import {
   isDolsNation,
   toDolsView,
 } from "../services/safety";
+import { type StaffLookup, staffNames } from "../services/staff";
 import { startWorkflow } from "../services/workflow";
-import { iso, PersonParam, requireOpenRecord } from "./care-shared";
+import {
+  iso,
+  lockClientId,
+  PersonParam,
+  requireOpenRecord,
+  requireSameDetails,
+  sameRecordOrRefuse,
+  withClientId,
+} from "./care-shared";
 import {
   conflictResponse,
   createRouter,
@@ -120,9 +131,14 @@ function dbCode(error: unknown): string | undefined {
 }
 
 /** A foreign key that points nowhere (a contact or document of someone else) reads as not found. */
+/**
+ * A missing referenced record is refused in words; so is a client id another record already has
+ * (the only unique keys on these tables are their ids; HZ-029).
+ */
 function notFoundOnForeignKey(what: string) {
   return (error: unknown): never => {
     if (dbCode(error) === "23503") throw problems.invalid(`The ${what} was not found.`);
+    if (dbCode(error) === "23505") throw problems.invalid("That id is already used.");
     throw error;
   };
 }
@@ -155,7 +171,7 @@ function representativeOut(row: ConsentRow): ConsentRepresentative | null {
   };
 }
 
-function consentItem(row: ConsentRow): ConsentItem {
+function consentItem(row: ConsentRow, staff: StaffLookup): ConsentItem {
   return {
     id: row.id,
     personId: row.personId,
@@ -180,6 +196,7 @@ function consentItem(row: ConsentRow): ConsentItem {
           },
     bestInterestsDecisionId: row.bestInterestsDecisionId,
     recordedBy: row.createdBy,
+    recordedByStaff: staff(row.createdBy),
     version: row.version,
   };
 }
@@ -225,7 +242,11 @@ async function personCapacity(tx: Transaction, personId: string) {
 // Capacity and best interests
 // ------------------------------------------------------------------------------------------------
 
-function capacityItem(row: CapacityRow, superseded: ReadonlySet<string>): CapacityAssessmentItem {
+function capacityItem(
+  row: CapacityRow,
+  superseded: ReadonlySet<string>,
+  staff: StaffLookup,
+): CapacityAssessmentItem {
   return {
     id: row.id,
     personId: row.personId,
@@ -245,6 +266,7 @@ function capacityItem(row: CapacityRow, superseded: ReadonlySet<string>): Capaci
     reviewOn: row.reviewOn,
     recordedAt: row.recordedAt.toISOString(),
     recordedBy: row.createdBy,
+    recordedByStaff: staff(row.createdBy),
     supersedesId: row.supersedesId,
     correctionReason: row.correctionReason,
     superseded: superseded.has(row.id),
@@ -254,6 +276,7 @@ function capacityItem(row: CapacityRow, superseded: ReadonlySet<string>): Capaci
 function bestInterestsItem(
   row: BestInterestsRow,
   superseded: ReadonlySet<string>,
+  staff: StaffLookup,
 ): BestInterestsItem {
   return {
     id: row.id,
@@ -270,6 +293,7 @@ function bestInterestsItem(
     reviewOn: row.reviewOn,
     recordedAt: row.recordedAt.toISOString(),
     recordedBy: row.createdBy,
+    recordedByStaff: staff(row.createdBy),
     supersedesId: row.supersedesId,
     correctionReason: row.correctionReason,
     superseded: superseded.has(row.id),
@@ -512,6 +536,7 @@ function reviewItem(
   auth: DolsRow,
   row: ReviewRow | undefined,
   endsAt: Date | null,
+  staff: StaffLookup,
 ): LegalChangeReviewItem {
   return {
     id: row?.id ?? null,
@@ -524,6 +549,7 @@ function reviewItem(
     state: (row?.state ?? "awaiting_review") as LegalChangeReviewState,
     review: reviewInputFrom(row),
     decidedBy: row?.decidedBy ?? null,
+    decidedByStaff: staff(row?.decidedBy),
     referralRequired: row?.referralRequired ?? false,
     prompts: row?.prompts ?? [],
     closedReason: row?.closedReason ?? null,
@@ -582,7 +608,11 @@ export const mcaRouter = createRouter()
           resourceId: personId,
           scope: { count: rows.length },
         });
-        return { items: rows.map(consentItem), decisions };
+        const staff = await staffNames(
+          tx,
+          rows.map((r) => r.createdBy),
+        );
+        return { items: rows.map((r) => consentItem(r, staff)), decisions };
       });
       return c.json(result, 200);
     },
@@ -598,20 +628,60 @@ export const mcaRouter = createRouter()
       security,
       request: {
         params: PersonParam,
+        headers: ClientIdHeaders,
         body: { content: { "application/json": { schema: CreateConsent } } },
       },
       responses: {
         201: jsonBody(ConsentItem, "Consent recorded"),
         ...errorResponses,
         ...notFoundResponse,
+        ...conflictResponse,
       },
     }),
     async (c) => {
       const access = await requirePermission(c, "care.capacity.write");
       const { id: personId } = c.req.valid("param");
-      const body = c.req.valid("json");
+      const body = withClientId(c, c.req.valid("json"));
       const now = new Date();
       const item = await withTenant(c, async (tx) => {
+        // A save tried again with its client id returns the record it made (HZ-029).
+        if (body.id) {
+          await lockClientId(tx, "consent_record", body.id);
+          const [replayed] = await tx
+            .select()
+            .from(consentRecord)
+            .where(eq(consentRecord.id, body.id));
+          if (replayed) {
+            // The same details or nothing (#26 review round 2, C5). The capacity found is the
+            // server's, so it is not compared.
+            const row = sameRecordOrRefuse(replayed, personId);
+            const sent = body.representative;
+            requireSameDetails(row, {
+              decision: body.decision,
+              outcome: body.outcome,
+              givenByKind: body.givenBy,
+              representativeKind: sent?.kind ?? null,
+              representativeContactId: sent?.contactId ?? null,
+              representativeName: sent?.name ?? null,
+              lpaRegistered: sent?.registered ?? null,
+              opgReference: sent?.opgReference ?? null,
+              excludedDecisions: sent?.excludedDecisions ?? [],
+              deputyScope: sent?.deputyScope ?? null,
+              deputyDecisions: sent?.deputyDecisions ?? [],
+              deputyRestraintAuthorised: sent?.restraintExpresslyAuthorised ?? null,
+              deputyOrderEndsAt: sent?.orderEndsAt ?? null,
+              courtReference: sent?.courtReference ?? null,
+              givenAt: body.givenAt,
+              expiresAt: body.expiresAt ?? null,
+              evidence: body.evidence,
+              evidenceDocumentId: body.evidenceDocumentId ?? null,
+              restraintNecessary: body.restraintConditions?.necessaryToPreventHarm ?? null,
+              restraintProportionate: body.restraintConditions?.proportionate ?? null,
+              bestInterestsDecisionId: body.bestInterestsDecisionId ?? null,
+            });
+            return consentItem(row, await staffNames(tx, [row.createdBy]));
+          }
+        }
         const person = await personContext(tx, personId);
         requireOpenRecord(person);
         const givenAt = new Date(body.givenAt);
@@ -661,6 +731,7 @@ export const mcaRouter = createRouter()
         const [row] = await tx
           .insert(consentRecord)
           .values({
+            ...(body.id ? { id: body.id } : {}),
             personId,
             decision: body.decision,
             outcome: body.outcome,
@@ -695,7 +766,7 @@ export const mcaRouter = createRouter()
           resourceId: row.id,
           scope: { decision: row.decision, outcome: row.outcome },
         });
-        return consentItem(row);
+        return consentItem(row, await staffNames(tx, [row.createdBy]));
       });
       return c.json(item, 201);
     },
@@ -747,7 +818,7 @@ export const mcaRouter = createRouter()
           resourceType: "consent_record",
           resourceId: row.id,
         });
-        return consentItem(row);
+        return consentItem(row, await staffNames(tx, [row.createdBy]));
       });
       return c.json(item, 200);
     },
@@ -783,7 +854,11 @@ export const mcaRouter = createRouter()
           scope: { count: rows.length },
         });
         const superseded = supersededSet(rows);
-        return rows.map((r) => capacityItem(r, superseded));
+        const staff = await staffNames(
+          tx,
+          rows.map((r) => r.createdBy),
+        );
+        return rows.map((r) => capacityItem(r, superseded, staff));
       });
       return c.json({ items }, 200);
     },
@@ -799,6 +874,7 @@ export const mcaRouter = createRouter()
       security,
       request: {
         params: PersonParam,
+        headers: ClientIdHeaders,
         body: { content: { "application/json": { schema: CreateCapacityAssessment } } },
       },
       responses: {
@@ -810,19 +886,21 @@ export const mcaRouter = createRouter()
     async (c) => {
       const access = await requirePermission(c, "care.capacity.write");
       const { id: personId } = c.req.valid("param");
-      const body = c.req.valid("json");
+      const body = withClientId(c, c.req.valid("json"));
       const now = new Date();
       const item = await withTenant(c, async (tx) => {
         const person = await personContext(tx, personId);
         requireOpenRecord(person);
         if (body.id) {
+          // Two sends of the same save are taken in turn (#26 review round 2, low).
+          await lockClientId(tx, "capacity_assessment", body.id);
           const [replayed] = await tx
             .select()
             .from(capacityAssessment)
             .where(eq(capacityAssessment.id, body.id));
           if (replayed) {
             if (replayed.personId !== personId) throw problems.invalid("That id is already used.");
-            return capacityItem(replayed, new Set());
+            return capacityItem(replayed, new Set(), await staffNames(tx, [replayed.createdBy]));
           }
         }
         if (body.supersedesId && !body.correctionReason) {
@@ -893,7 +971,7 @@ export const mcaRouter = createRouter()
           resourceId: row.id,
           reason: body.correctionReason,
         });
-        return capacityItem(row, new Set());
+        return capacityItem(row, new Set(), await staffNames(tx, [row.createdBy]));
       });
       return c.json(item, 201);
     },
@@ -929,7 +1007,11 @@ export const mcaRouter = createRouter()
           scope: { count: rows.length },
         });
         const superseded = supersededSet(rows);
-        return rows.map((r) => bestInterestsItem(r, superseded));
+        const staff = await staffNames(
+          tx,
+          rows.map((r) => r.createdBy),
+        );
+        return rows.map((r) => bestInterestsItem(r, superseded, staff));
       });
       return c.json({ items }, 200);
     },
@@ -945,6 +1027,7 @@ export const mcaRouter = createRouter()
       security,
       request: {
         params: PersonParam,
+        headers: ClientIdHeaders,
         body: { content: { "application/json": { schema: CreateBestInterests } } },
       },
       responses: {
@@ -956,19 +1039,25 @@ export const mcaRouter = createRouter()
     async (c) => {
       const access = await requirePermission(c, "care.capacity.write");
       const { id: personId } = c.req.valid("param");
-      const body = c.req.valid("json");
+      const body = withClientId(c, c.req.valid("json"));
       const now = new Date();
       const item = await withTenant(c, async (tx) => {
         const person = await personContext(tx, personId);
         requireOpenRecord(person);
         if (body.id) {
+          // Two sends of the same save are taken in turn (#26 review round 2, low).
+          await lockClientId(tx, "best_interests_decision", body.id);
           const [replayed] = await tx
             .select()
             .from(bestInterestsDecision)
             .where(eq(bestInterestsDecision.id, body.id));
           if (replayed) {
             if (replayed.personId !== personId) throw problems.invalid("That id is already used.");
-            return bestInterestsItem(replayed, new Set());
+            return bestInterestsItem(
+              replayed,
+              new Set(),
+              await staffNames(tx, [replayed.createdBy]),
+            );
           }
         }
         if (body.supersedesId && !body.correctionReason) {
@@ -1027,7 +1116,7 @@ export const mcaRouter = createRouter()
           resourceId: row.id,
           reason: body.correctionReason,
         });
-        return bestInterestsItem(row, new Set());
+        return bestInterestsItem(row, new Set(), await staffNames(tx, [row.createdBy]));
       });
       return c.json(item, 201);
     },
@@ -1078,20 +1167,38 @@ export const mcaRouter = createRouter()
       security,
       request: {
         params: PersonParam,
-        body: { content: { "application/json": { schema: DolsInput } } },
+        headers: ClientIdHeaders,
+        body: { content: { "application/json": { schema: CreateDols } } },
       },
       responses: {
         201: jsonBody(DolsItem, "Recorded"),
         ...errorResponses,
         ...notFoundResponse,
+        ...conflictResponse,
       },
     }),
     async (c) => {
       const access = await requirePermission(c, "care.dols.manage");
       const { id: personId } = c.req.valid("param");
-      const body = c.req.valid("json");
+      const { id: clientId, ...body } = withClientId(c, c.req.valid("json"));
       const now = new Date();
       const item = await withTenant(c, async (tx) => {
+        // A save tried again with its client id returns the entry it made (HZ-029).
+        if (clientId) {
+          await lockClientId(tx, "dols_authorisation", clientId);
+          const [replayed] = await tx
+            .select()
+            .from(dolsAuthorisation)
+            .where(eq(dolsAuthorisation.id, clientId));
+          if (replayed) {
+            // The same details or nothing (#26 review round 2, C5).
+            const row = sameRecordOrRefuse(replayed, personId);
+            requireSameDetails(row, dolsValues(body));
+            const [out] = await dolsItems(tx, access.tenantId, [row], now);
+            if (!out) throw problems.notFound();
+            return out;
+          }
+        }
         const person = await personContext(tx, personId);
         requireOpenRecord(person);
         if (!isDolsNation(person.nation)) {
@@ -1103,6 +1210,7 @@ export const mcaRouter = createRouter()
         const [row] = await tx
           .insert(dolsAuthorisation)
           .values({
+            ...(clientId ? { id: clientId } : {}),
             personId,
             locationId: person.locationId,
             nation: person.nation,
@@ -1215,6 +1323,10 @@ export const mcaRouter = createRouter()
         const enabled = auths.filter((a) =>
           legalChangeReviewEnabled(flags, a.locationId, a.nation),
         );
+        const staff = await staffNames(
+          tx,
+          reviews.map((r) => r.decidedBy),
+        );
         const awaiting: LegalChangeReviewItem[] = [];
         for (const nation of ["england", "wales"] as const) {
           const inNation = enabled.filter((a) => a.nation === nation);
@@ -1233,7 +1345,7 @@ export const mcaRouter = createRouter()
             const auth = inNation.find((a) => a.id === entry.authorisation.id);
             if (!auth) continue;
             const review = reviews.find((r) => r.dolsAuthorisationId === auth.id);
-            awaiting.push(reviewItem(auth, review, entry.endsAt));
+            awaiting.push(reviewItem(auth, review, entry.endsAt, staff));
           }
         }
         awaiting.sort(
@@ -1245,7 +1357,7 @@ export const mcaRouter = createRouter()
           .filter((r) => r.state !== "awaiting_review")
           .flatMap((r) => {
             const auth = auths.find((a) => a.id === r.dolsAuthorisationId);
-            return auth ? [reviewItem(auth, r, dolsEndsAt(toDolsView(auth)))] : [];
+            return auth ? [reviewItem(auth, r, dolsEndsAt(toDolsView(auth)), staff)] : [];
           });
         await audit(c, tx, access, {
           action: "care.dols.legal_change_review.list",
@@ -1397,7 +1509,12 @@ export const mcaRouter = createRouter()
           resourceId: row.id,
           scope: { authorisationId: auth.id },
         });
-        return reviewItem(auth, row, dolsEndsAt(toDolsView(auth)));
+        return reviewItem(
+          auth,
+          row,
+          dolsEndsAt(toDolsView(auth)),
+          await staffNames(tx, [row?.decidedBy]),
+        );
       });
       return c.json(item, 200);
     },

@@ -6,6 +6,7 @@ import Svg, { Circle, Line, Rect } from "react-native-svg";
 import {
   CENTRE_HALF_WIDTH,
   DRAWING,
+  type DrawnPoint,
   drawnSide,
   toDrawing,
   VIEWER_ZONES,
@@ -17,7 +18,8 @@ import { t } from "../i18n/t";
 interface BodyMapDrawingProps {
   readonly view: BodyView;
   readonly zone: ViewerZone | null;
-  readonly onZone: (zone: ViewerZone) => void;
+  /** The zone chosen, and the point tapped in drawing units (null when a button was used). */
+  readonly onZone: (zone: ViewerZone, point: DrawnPoint | null) => void;
 }
 
 const sideWords = (side: BodySide) => t("mobile.bodyMap.sideWords", { side });
@@ -59,7 +61,7 @@ export function BodyMapDrawing({ view, zone, onZone }: BodyMapDrawingProps) {
           );
           if (!point) return;
           setTapped(point);
-          onZone(zoneAt(point));
+          onZone(zoneAt(point), point);
         }}
       >
         <Svg width="100%" height="100%" viewBox={`0 0 ${DRAWING.width} ${DRAWING.height}`}>
@@ -166,7 +168,7 @@ export function BodyMapDrawing({ view, zone, onZone }: BodyMapDrawingProps) {
               accessibilityLabel={t("mobile.bodyMap.zone", { side: sideWords(side) })}
               onPress={() => {
                 setTapped(null);
-                onZone(z);
+                onZone(z, null);
               }}
               style={{
                 flex: 1,

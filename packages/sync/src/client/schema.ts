@@ -267,6 +267,15 @@ const body_map_mark = new Table(
      * HZ-019 check. Never sent by the server, so it is empty on synced rows.
      */
     drawn_side: column.text,
+    /**
+     * Device only: where the mark was placed on the drawing, sent so the API works the side out
+     * itself (HZ-019): the zone of the drawing (`viewer_left`, `centre` or `viewer_right`), and
+     * the point tapped in the drawing's own units (120 by 240), empty when the zone was chosen
+     * with the buttons. Never sent by the server.
+     */
+    drawn_zone: column.text,
+    drawn_x: column.real,
+    drawn_y: column.real,
     mark_type: column.text,
     pressure_category: column.text,
     device_related: column.integer,

@@ -116,6 +116,7 @@ export const CLINICAL_EXPORT_TABLES: readonly string[] = [
   "public.handover_note",
   "public.handover_acknowledgement",
   "public.refused_entry",
+  "public.entry_device_deletion_flag",
 ];
 
 interface ConventionalDoc {
@@ -711,6 +712,33 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       view: { description: "Body view: front or back." },
       region: { description: "Body region." },
       side: { description: "The person's left or right (never the viewer's)." },
+      drawn_x: {
+        description:
+          "Where the mark was placed on the body map drawing, across: 0 at the viewer's left edge to 120 at the right (care.md rule 7); empty when it was placed with the zone buttons or recorded before the server checked it.",
+        unit: "drawing units (0 to 120)",
+      },
+      drawn_y: {
+        description:
+          "Where the mark was placed on the body map drawing, down: 0 at the top to 240 at the bottom; the centre band reaches down to 124.",
+        unit: "drawing units (0 to 240)",
+      },
+      drawn_zone: {
+        description:
+          "The zone of the drawing the mark was placed in, as the person recording saw it; empty for marks recorded before the server checked the side.",
+        codes: {
+          viewer_left: "The left of the drawing as seen (the person's right on the front view).",
+          centre: "The narrow centre band over the head and trunk.",
+          viewer_right: "The right of the drawing as seen (the person's left on the front view).",
+        },
+      },
+      drawn_side: {
+        description:
+          "The person's side where the mark was drawn, as the server worked it out from the drawing and the view; side agrees with it (HZ-019). Empty for marks recorded before the server checked it.",
+      },
+      drawn_from_device_side: {
+        description:
+          "True when the place on the drawing was taken from the side a phone said it drew, because an app from before the server read the drawing sent no point or zone; the side was not checked against a place on the drawing (HZ-019).",
+      },
       mark_type: {
         description: "Kind of mark: bruise, wound, pressure damage, skin tear and so on.",
       },
@@ -975,6 +1003,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       published_version: { description: "Version number when published.", unit: "version number" },
       based_on_plan_id: { description: "The plan this draft started from (care_plan.id)." },
+      copy_from_active: {
+        description:
+          "Whether starting the draft asked for the active plan to be copied (null before this was kept).",
+      },
       summary: { description: "Summary of the plan." },
       review_due_on: { description: "Review date (UK calendar date)." },
       review_reason: { description: "Why a review was asked for." },
@@ -1388,6 +1420,91 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       created_by: "exported",
     },
   },
+  "public.device_discard_record": {
+    context: "care",
+    description:
+      "Each stage of a device's deletion of unsent entries: its kind, coded reason, whose entries, who deleted them, who sent the stage, the device, how many and when (append-only, one row per deletion and stage; care.md section 6).",
+    treatment: "tenant_rows",
+    retention: "audit_event",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      discard_id: {
+        description:
+          "The deletion record (the device's id for it, and the audit trail's device_discard resource id).",
+      },
+      stage: {
+        description: "The stage of the deletion.",
+        codes: {
+          requested: "Recorded before anything was deleted.",
+          deleted: "The device checked the entries could no longer be read.",
+          failed:
+            "The deletion did not finish; the entries stayed on the device, never to be sent.",
+        },
+      },
+      kind: {
+        description: "What was deleted.",
+        codes: {
+          held_deleted: "Entries held on the device after a session ended.",
+          signed_out_with_unsent: "Unsent entries, at a sign-out.",
+          refused_removed: "One entry the server had refused, removed from the device.",
+        },
+      },
+      reason_code: {
+        description:
+          "The coded reason (discard_reason.code of this organisation); the person's own words never leave the device.",
+      },
+      owner_tenant_user_id: {
+        description:
+          "Whose entries they were (tenant_user.id); empty when the device did not know.",
+      },
+      deleted_by_tenant_user_id: {
+        description:
+          "Who deleted them, as the device recorded it (tenant_user.id); empty when unknown.",
+      },
+      sender_tenant_user_id: {
+        description: "Who sent this stage to the server (tenant_user.id).",
+      },
+      device_id: { description: "Opaque id of the device the entries were held on." },
+      entry_count: {
+        description: "How many entries; empty when the device could not count them.",
+        unit: "entries",
+      },
+      discarded_at: { description: "When the device recorded the stage (instant, UTC)." },
+      recorded_at: { description: "When the server recorded the stage (instant, UTC)." },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.discard_reason": {
+    context: "care",
+    description:
+      "The organisation's coded reasons for deleting unsent entries on a device, starting with the five every organisation has (care.md section 6).",
+    treatment: "tenant_rows",
+    retention: "tenant_configuration",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      code: { description: "The code a deletion record carries." },
+      label: { description: "The wording staff read, in English." },
+      label_cy: { description: "The wording in Welsh, when given." },
+      sort_order: { description: "Where the reason sits in the list.", unit: "position" },
+      seeded: { description: "True for the five reasons every organisation starts with." },
+      retired_at: {
+        description:
+          "When it stopped being offered (instant, UTC); a device that used it before may still send it.",
+      },
+      retired_by: { description: "Who retired it (tenant_user.id)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
   "public.document": {
     context: "platform",
     description:
@@ -1573,6 +1690,85 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       prompts: { description: "Prompts the review rules raised, as shown." },
       closed_reason: { description: "Why the review was closed." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.entry_device_deletion_flag": {
+    context: "care",
+    description:
+      "The server's flag on a care entry its author's device recorded deleting: uploaded after the deletion, or deleted after it reached Harbour, with the deletion record and the review task (append-only, one per entry; care.md section 6).",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      record_table: {
+        description: "The table the flagged entry is in.",
+        codes: {
+          care_note: "A daily note (care_note).",
+          observation: "A chart entry (observation).",
+          body_map_mark: "A body-map mark (body_map_mark).",
+          activity_record: "An activity record (activity_record).",
+          visit_log: "A visit (visit_log).",
+          assessment: "A validated tool result (assessment).",
+        },
+      },
+      entry_id: { description: "The flagged entry's id in that table." },
+      person_id: { description: "The person receiving care the entry is about (person.id)." },
+      location_id: { description: "The entry's location (location.id)." },
+      flag: {
+        description: "Why the entry is flagged.",
+        codes: {
+          uploaded_after_deletion:
+            "It reached Harbour after its author's device recorded deleting it: it may be a duplicate, or an entry its author meant to withdraw.",
+          deleted_after_upload:
+            "It had already reached Harbour when its author's device recorded deleting it (a reply lost on the way back).",
+        },
+      },
+      discard_id: { description: "The deletion record that counted (device_discard_record)." },
+      owner_tenant_user_id: { description: "The entry's author (tenant_user.id)." },
+      review_task_id: { description: "The Registered Manager's review task (task.id)." },
+      flagged_at: { description: "When the server flagged it (instant, UTC)." },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.escalation_policy_link": {
+    context: "care",
+    description:
+      "The organisation's escalation policy for each validated tool, for one band or every band, at one location or across the organisation; results show it beside the published band (care.md section 5).",
+    treatment: "tenant_rows",
+    retention: "tenant_configuration",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      tool_key: {
+        description: "The validated tool.",
+        codes: {
+          news2: "NEWS2 (Royal College of Physicians, 2017), on vital signs.",
+          must: "'MUST' (BAPEN).",
+          waterlow: "Waterlow score (2005 revision).",
+          braden: "Braden Scale.",
+          ng249_falls: "The NICE NG249 falls questions (no score, no band).",
+        },
+      },
+      band: {
+        description:
+          "The tool's band the policy is for, as results store it (for example high, or at_risk); empty for every band.",
+      },
+      location_id: {
+        description: "The location the policy is for (location.id); empty for the organisation.",
+      },
+      title: { description: "The policy's name as the organisation calls it." },
+      reference: { description: "The organisation's own reference for the policy." },
+      document_id: { description: "The policy document (document.id), when uploaded." },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",

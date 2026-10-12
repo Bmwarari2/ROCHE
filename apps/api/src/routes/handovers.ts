@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   AcknowledgeHandover,
+  ClientIdHeaders,
   CompileHandover,
   CreateHandoverNote,
   type HandoverAcknowledgementItem,
@@ -43,8 +44,16 @@ import {
   toAcknowledgement,
 } from "../services/handover";
 import { rateNumber } from "../services/rates";
-import { iso } from "./care-shared";
-import { createRouter, errorResponses, jsonBody, notFoundResponse, security } from "./openapi";
+import { type StaffLookup, staffNames } from "../services/staff";
+import { iso, lockClientId, refuseUsedId, withClientId } from "./care-shared";
+import {
+  conflictResponse,
+  createRouter,
+  errorResponses,
+  jsonBody,
+  notFoundResponse,
+  security,
+} from "./openapi";
 import { personSummaries } from "./people";
 
 /**
@@ -133,6 +142,8 @@ function summary(view: ReaderView, access: TenantAccess, now: Date): HandoverSum
     // Only the reader, until `withStates` fills these in for a whole reader.
     acknowledgedBy: me.acknowledgedAt ? [access.tenantUserId] : [],
     pending: me.acknowledgedAt && !me.acknowledged ? [access.tenantUserId] : [],
+    // Named by `withStaff` once the states are known.
+    staff: [],
     unacknowledged: null,
   };
 }
@@ -149,7 +160,7 @@ async function withStates<T extends HandoverSummary>(
   now: Date,
 ): Promise<T[]> {
   const whole = items.filter((i) => !i.limitedToYourPeople);
-  if (whole.length === 0) return items;
+  if (whole.length === 0) return withStaff(c, items);
   const states = await withRequestContext(c.get("services").db, systemFor(access), async (tx) => {
     const rows = await tx
       .select()
@@ -162,26 +173,48 @@ async function withStates<T extends HandoverSummary>(
       );
     return acknowledgementSummary(tx, rows, now);
   });
-  return items.map((item) => {
-    const state = item.limitedToYourPeople ? undefined : states.get(item.id);
-    return state ? { ...item, ...state } : item;
-  });
+  return withStaff(
+    c,
+    items.map((item) => {
+      const state = item.limitedToYourPeople ? undefined : states.get(item.id);
+      return state ? { ...item, ...state } : item;
+    }),
+  );
 }
 
-const noteItem = (n: NoteRow): HandoverNoteItem => ({
+const noteItem = (n: NoteRow, staff: StaffLookup): HandoverNoteItem => ({
   id: n.id,
   itemKey: n.itemKey,
   personId: n.personId,
   body: n.body,
   createdAt: n.createdAt.toISOString(),
   createdBy: n.createdBy,
+  createdByStaff: staff(n.createdBy),
 });
 
-const ackItem = (a: AckRow): HandoverAcknowledgementItem => ({
+const ackItem = (a: AckRow, staff: StaffLookup): HandoverAcknowledgementItem => ({
   id: a.id,
   tenantUserId: a.tenantUserId,
+  staff: staff(a.tenantUserId),
   acknowledgedAt: a.acknowledgedAt.toISOString(),
 });
+
+/**
+ * Names the members each summary lists, acknowledged or pending (care.md section 5, staff names),
+ * read in the reader's own view: a member of the organisation, never anyone else.
+ */
+async function withStaff<T extends HandoverSummary>(c: Context<AppEnv>, items: T[]): Promise<T[]> {
+  const ids = items.flatMap((i) => [...i.acknowledgedBy, ...i.pending]);
+  if (ids.length === 0) return items;
+  const staff = await withTenant(c, (tx) => staffNames(tx, ids));
+  return items.map((i) => ({
+    ...i,
+    staff: [...new Set([...i.acknowledgedBy, ...i.pending])].flatMap((id) => {
+      const name = staff(id);
+      return name ? [name] : [];
+    }),
+  }));
+}
 
 async function loadHandover(tx: Transaction, locationId: string, handoverId: string) {
   const [row] = await tx
@@ -238,6 +271,10 @@ async function detail(
   const people = [
     ...new Set(view.items.map((i) => i.personId).filter((p): p is string => p !== null)),
   ];
+  const staff = await staffNames(tx, [
+    ...notes.map((n) => n.createdBy),
+    ...view.acks.map((a) => a.tenantUserId),
+  ]);
   return {
     ...summary(view, access, now),
     items: view.items.map((i) => ({
@@ -251,8 +288,8 @@ async function detail(
       addedAt: i.addedAt.toISOString(),
       seen: you.seenKeys.has(i.key),
     })),
-    notes: notes.map(noteItem),
-    acknowledgements: view.acks.map(ackItem),
+    notes: notes.map((n) => noteItem(n, staff)),
+    acknowledgements: view.acks.map((a) => ackItem(a, staff)),
     people: people.length === 0 ? [] : await personSummaries(tx, people),
     you: {
       acknowledged: you.acknowledged,
@@ -456,22 +493,27 @@ export const handoversRouter = createRouter()
       security,
       request: {
         params: HandoverParams,
+        headers: ClientIdHeaders,
         body: { content: { "application/json": { schema: CreateHandoverNote } } },
       },
       responses: {
         201: jsonBody(HandoverDetail, "Note saved (or the earlier copy of a replayed save)"),
         ...errorResponses,
         ...notFoundResponse,
+        ...conflictResponse,
       },
     }),
     async (c) => {
       const access = await requirePermission(c, PERMISSION);
       const { id: locationId, handoverId } = c.req.valid("param");
-      const body = c.req.valid("json");
+      const body = withClientId(c, c.req.valid("json"));
       const now = new Date();
       const result = await withTenant(c, async (tx) => {
         const row = await loadHandover(tx, locationId, handoverId);
         if (body.id) {
+          // Two sends of the same note are taken in turn, and an id another record has is refused
+          // in words, never as a server error (#26 review round 2, low).
+          await lockClientId(tx, "handover_note", body.id);
           const [replayed] = await tx
             .select()
             .from(handoverNote)
@@ -500,7 +542,9 @@ export const handoversRouter = createRouter()
             body: body.body.trim(),
             deviceId: access.deviceId,
           })
-          .returning();
+          .returning()
+          // An id another record has (one the writer cannot see) is refused in words.
+          .catch(refuseUsedId);
         if (!note) throw problems.conflict();
         await auditInTx(tx, access, {
           action: "care.handover.note.create",
@@ -525,6 +569,7 @@ export const handoversRouter = createRouter()
       security,
       request: {
         params: HandoverParams,
+        headers: ClientIdHeaders,
         body: { content: { "application/json": { schema: AcknowledgeHandover } } },
       },
       responses: {
@@ -536,11 +581,13 @@ export const handoversRouter = createRouter()
     async (c) => {
       const access = await requirePermission(c, PERMISSION);
       const { id: locationId, handoverId } = c.req.valid("param");
-      const body = c.req.valid("json");
+      const body = withClientId(c, c.req.valid("json"));
       const now = new Date();
       const result = await withTenant(c, async (tx) => {
         const row = await loadHandover(tx, locationId, handoverId);
         if (body.id) {
+          // Two sends of the same acknowledgement are taken in turn (#26 review round 2, low).
+          await lockClientId(tx, "handover_acknowledgement", body.id);
           const [replayed] = await tx
             .select()
             .from(handoverAcknowledgement)
@@ -571,7 +618,9 @@ export const handoversRouter = createRouter()
             acknowledgedAt: now,
             deviceId: access.deviceId,
           })
-          .returning();
+          .returning()
+          // An id another record has (one the reader cannot see) is refused in words.
+          .catch(refuseUsedId);
         if (!ack) throw problems.conflict();
         await auditInTx(tx, access, {
           action: "care.handover.acknowledge",

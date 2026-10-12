@@ -46,12 +46,25 @@ export type WeightInterval =
   | { readonly unit: "weeks"; readonly value: number }
   | { readonly unit: "months"; readonly value: number };
 
+/**
+ * Why an urgent alert was raised, as a code: what an audit of an alert no one could be told about
+ * records, never the result itself (#26 review round 3).
+ */
+export type UrgentAlertCode =
+  | "news2_threshold"
+  | "iddsi_level_not_recorded"
+  | "iddsi_reason_missing"
+  | "iddsi_prescribed_unreadable"
+  | "iddsi_unsafe_level";
+
 /** A follow-up a result raises; the task engine turns these into tasks, alerts and schedules. */
 export type CareTrigger =
   | {
       readonly kind: "urgent_alert";
       readonly recipient: "nurse_in_charge";
       readonly reason: string;
+      /** Absent on alerts stored before codes were kept. */
+      readonly code?: UrgentAlertCode;
     }
   | {
       readonly kind: "task";

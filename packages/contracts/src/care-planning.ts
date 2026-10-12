@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { entryInput, entryOutput } from "./entries";
+import { EscalationPolicyRef } from "./escalation-policy";
+import { StaffName } from "./staff";
 import { Recurrence } from "./tasks";
 
 /**
@@ -16,6 +18,11 @@ const isoDate = z.iso.date();
 const version = z.number().int().min(1);
 const text = (max: number) => z.string().trim().max(max);
 const roleKey = z.string().regex(/^[a-z_]{2,40}$/);
+/**
+ * A client UUIDv7 made by the form and kept across retries of the same save, so a save tried again
+ * after its outcome was lost records once (HZ-029); `Idempotency-Key` may carry it instead.
+ */
+const clientId = uuid.optional();
 
 // ------------------------------------------------------------------------------------------------
 // Care plans
@@ -60,6 +67,8 @@ export const CarePlanSignOff = z
     unableReason: z.string().nullable(),
     signedOffAt: isoDateTime,
     recordedBy: uuid.nullable(),
+    /** Who recorded the sign-off, by name and job title; null when not known. */
+    recordedByStaff: StaffName.nullable(),
   })
   .meta({ id: "CarePlanSignOff" });
 export type CarePlanSignOff = z.infer<typeof CarePlanSignOff>;
@@ -77,6 +86,8 @@ export const CarePlanSummary = z
     reviewReason: z.string().nullable(),
     publishedAt: isoDateTime.nullable(),
     publishedBy: uuid.nullable(),
+    /** Who published it, by name and job title; null for a draft or when not known. */
+    publishedByStaff: StaffName.nullable(),
     supersededAt: isoDateTime.nullable(),
     signOff: CarePlanSignOff.nullable(),
     version: z.number().int(),
@@ -149,6 +160,8 @@ export type CarePlanDetail = z.infer<typeof CarePlanDetail>;
 
 export const CreateCarePlan = z
   .object({
+    /** A replay with the same id returns the draft it started (HZ-029). */
+    id: clientId,
     /** Start the draft from the active plan's sections and actions (the usual way to revise). */
     copyFromActive: z.boolean().default(true),
     summary: text(2000).optional(),
@@ -170,6 +183,8 @@ export type UpdateCarePlanSection = z.infer<typeof UpdateCarePlanSection>;
 
 export const CreateCarePlanAction = z
   .object({
+    /** A replay with the same id returns the action it added (HZ-029). */
+    id: clientId,
     action: z.string().trim().min(3).max(1000),
     roleKey: roleKey.optional(),
     recurrence: Recurrence.optional(),
@@ -314,7 +329,12 @@ const riskAssessmentFields = {
 };
 
 export const CreateRiskAssessment = z
-  .object({ templateKey: RiskTemplateKey, ...riskAssessmentFields })
+  .object({
+    /** A replay with the same id returns the assessment it recorded (HZ-029). */
+    id: clientId,
+    templateKey: RiskTemplateKey,
+    ...riskAssessmentFields,
+  })
   .meta({ id: "CreateRiskAssessment" });
 export type CreateRiskAssessment = z.infer<typeof CreateRiskAssessment>;
 
@@ -569,6 +589,13 @@ export const AssessmentItem = z
     triggers: z.array(z.record(z.string(), z.unknown())),
     details: z.record(z.string(), z.unknown()),
     nextDueOn: isoDate.nullable(),
+    /**
+     * The organisation's escalation policy for this tool and band, or that none is configured
+     * (medical-device boundary section 5 rule 4): show it with the result; Harbour adds nothing.
+     * Every stored tool links one, so it is never null today; nullable because the schema is
+     * shared with chart entries, which have none.
+     */
+    escalationPolicy: EscalationPolicyRef.nullable(),
   })
   .meta({ id: "AssessmentItem" });
 export type AssessmentItem = z.infer<typeof AssessmentItem>;
@@ -695,6 +722,8 @@ export type ResuscitationStatus = z.infer<typeof ResuscitationStatus>;
 
 export const CreateAdvanceCareRecord = z
   .object({
+    /** A replay with the same id returns the record it made, superseding nothing again (HZ-029). */
+    id: clientId,
     kind: AdvanceCareKind,
     /** ReSPECT section 4; a DNACPR record is always do not attempt CPR. */
     cprDecision: CprDecision.optional(),

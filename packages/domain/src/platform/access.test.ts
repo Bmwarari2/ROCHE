@@ -4,6 +4,8 @@ import {
   authorise,
   can,
   permissionsAtLocation,
+  placesCover,
+  placesHoldingPermission,
   type RoleAssignmentInput,
   resolveAccess,
 } from "./access";
@@ -304,5 +306,87 @@ describe("authorise", () => {
     ],
   ] as const)("%s", (_name, permission, lastStrongAuthAt, expected) => {
     expect(authorise(manager, permission, lastStrongAuthAt, NOW, 600)).toEqual(expected);
+  });
+});
+
+describe("placesHoldingPermission (#26 review round 2, S1)", () => {
+  const grant = (
+    permissions: string[],
+    locationId: string | null,
+    revokedAt: Date | null = null,
+  ): AccessGrantInput => ({ permissions, locationId, validFrom: PAST, validTo: FUTURE, revokedAt });
+
+  it.each<[string, RoleAssignmentInput[], AccessGrantInput[], unknown]>([
+    [
+      "a Registered Manager at one home",
+      [assignment("registered_manager", NORTH)],
+      [],
+      { organisationWide: false, locationIds: [NORTH] },
+    ],
+    [
+      "a Registered Manager at North who is an administrator at South: North only",
+      [assignment("registered_manager", NORTH), assignment("administrator", SOUTH)],
+      [],
+      { organisationWide: false, locationIds: [NORTH] },
+    ],
+    [
+      "a Registered Manager at North who is also a group executive: still North only",
+      [assignment("registered_manager", NORTH), assignment("group_executive")],
+      [],
+      { organisationWide: false, locationIds: [NORTH] },
+    ],
+    [
+      "a quality lead across the organisation",
+      [assignment("quality_lead")],
+      [],
+      { organisationWide: true, locationIds: [] },
+    ],
+    [
+      "an ended assignment gives nothing",
+      [assignment("registered_manager", NORTH, new Date("2025-06-01T00:00:00Z"))],
+      [],
+      { organisationWide: false, locationIds: [] },
+    ],
+    [
+      "a role scoped to assigned people gives no place",
+      [{ ...assignment("care_worker", NORTH), permissions: ["quality.policy.manage"] }],
+      [],
+      { organisationWide: false, locationIds: [] },
+    ],
+    [
+      "a grant at South adds South; a revoked one adds nothing",
+      [assignment("registered_manager", NORTH)],
+      [
+        grant(["quality.policy.manage"], SOUTH),
+        grant(["quality.policy.manage"], null, new Date("2026-10-01T00:00:00Z")),
+      ],
+      { organisationWide: false, locationIds: [NORTH, SOUTH] },
+    ],
+    [
+      "a grant with no location is organisation-wide",
+      [],
+      [grant(["quality.policy.manage"], null)],
+      { organisationWide: true, locationIds: [] },
+    ],
+  ])("%s", (_name, assignments, grants, expected) => {
+    expect(placesHoldingPermission(assignments, grants, "quality.policy.manage", NOW)).toEqual(
+      expected,
+    );
+  });
+
+  it("keeps the organisation's settings to roles that hold them organisation-wide", () => {
+    // The owner role assigned at one home is not the organisation's owner.
+    const atOneHome = placesHoldingPermission(
+      [assignment("owner", NORTH), assignment("group_executive")],
+      [],
+      "platform.tenant.manage",
+      NOW,
+    );
+    expect(placesCover(atOneHome, null)).toBe(false);
+    expect(placesCover(atOneHome, NORTH)).toBe(true);
+    expect(placesCover(atOneHome, SOUTH)).toBe(false);
+    const owner = placesHoldingPermission([assignment("owner")], [], "platform.tenant.manage", NOW);
+    expect(placesCover(owner, null)).toBe(true);
+    expect(placesCover(owner, SOUTH)).toBe(true);
   });
 });

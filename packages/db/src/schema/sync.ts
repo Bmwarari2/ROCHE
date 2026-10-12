@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   foreignKey,
   index,
@@ -12,7 +13,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { sqlList } from "./_codes";
-import { createdColumns, id, tenantId } from "./_columns";
+import { createdColumns, id, mutableColumns, tenantId } from "./_columns";
 import { person } from "./people";
 import { location, tenantUser } from "./platform";
 import { task } from "./work";
@@ -144,6 +145,197 @@ export const deviceDiscardEntry = pgTable(
     check("device_discard_entry_stage", sql`stage IN (${sqlList(DEVICE_DISCARD_STAGES)})`),
   ],
 );
+
+/** The kinds of deletion a device records (`SYNC_DISCARD_KINDS` in contracts). */
+export const DEVICE_DISCARD_KINDS = [
+  "held_deleted",
+  "signed_out_with_unsent",
+  "refused_removed",
+] as const;
+
+/** A coded reason: lower-case letters, digits and underscores, starting with a letter. */
+const DISCARD_REASON_CODE_SQL = "'^[a-z][a-z0-9_]{1,39}$'";
+
+/**
+ * The organisation's coded reasons for deleting unsent entries on a device (care.md section 6,
+ * Device integrity part 8; HZ-040): seeded with the phone's five codes when the organisation is
+ * set up (a trigger on `tenant`; the migration seeds existing ones), added to and retired by
+ * holders of `platform.tenant.manage`. A retired code is no longer offered and is still accepted
+ * from a device that recorded it before. Only the code ever leaves a device; the labels are the
+ * organisation's wording. Configuration: mutable, versioned, never deleted.
+ */
+export const discardReason = pgTable(
+  "discard_reason",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    code: text("code").notNull(),
+    label: text("label").notNull(),
+    labelCy: text("label_cy"),
+    sortOrder: integer("sort_order").notNull().default(50),
+    /** One of the codes every organisation starts with (`DEFAULT_DISCARD_REASONS`). */
+    seeded: boolean("seeded").notNull().default(false),
+    retiredAt: timestamp("retired_at", { withTimezone: true }),
+    retiredBy: uuid("retired_by"),
+    ...mutableColumns(),
+  },
+  (t) => [
+    unique("discard_reason_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("discard_reason_code_key").on(t.tenantId, t.code),
+    foreignKey({
+      name: "discard_reason_retired_by_fk",
+      columns: [t.tenantId, t.retiredBy],
+      foreignColumns: [tenantUser.tenantId, tenantUser.id],
+    }),
+    check("discard_reason_code", sql`code ~ ${sql.raw(DISCARD_REASON_CODE_SQL)}`),
+    check(
+      "discard_reason_label",
+      sql`char_length(btrim(label)) BETWEEN 3 AND 120 AND (label_cy IS NULL OR char_length(btrim(label_cy)) BETWEEN 3 AND 120)`,
+    ),
+    check("discard_reason_retired", sql`(retired_at IS NULL) = (retired_by IS NULL)`),
+  ],
+);
+export type DiscardReasonRow = typeof discardReason.$inferSelect;
+
+/**
+ * One row per stage of a device's deletion record (care.md section 6, Device integrity part 3):
+ * its kind, coded reason, whose entries, who deleted them, who sent the stage, the device they
+ * were held on, the count and when. The unique key on (deletion, stage) is the replay guard: a
+ * stage sent again finds its row instead of writing a second (the discard replay index), and a
+ * later stage is checked against the first stage's row, not the audit trail. Written with the
+ * stage's audit event, which stays the record of truth; append-only.
+ */
+export const deviceDiscardRecord = pgTable(
+  "device_discard_record",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    /** The device's tombstone id: the deletion record (the `device_discard` audit resource). */
+    discardId: uuid("discard_id").notNull(),
+    /** `DEVICE_DISCARD_STAGES`. */
+    stage: text("stage").notNull(),
+    /** `DEVICE_DISCARD_KINDS`. */
+    kind: text("kind").notNull(),
+    reasonCode: text("reason_code").notNull(),
+    ownerTenantUserId: uuid("owner_tenant_user_id"),
+    /** Who deleted them, as the device recorded it; null when it did not know. */
+    deletedByTenantUserId: uuid("deleted_by_tenant_user_id"),
+    /** Who sent this stage. */
+    senderTenantUserId: uuid("sender_tenant_user_id").notNull(),
+    /** The device the entries were held on (the stage's `deviceId`, else the sender's device). */
+    deviceId: uuid("device_id"),
+    /** How many entries; null when the device could not count them. */
+    entryCount: integer("entry_count"),
+    discardedAt: timestamp("discarded_at", { withTimezone: true }).notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+    ...createdColumns(),
+  },
+  (t) => [
+    unique("device_discard_record_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("device_discard_record_stage_key").on(t.tenantId, t.discardId, t.stage),
+    foreignKey({
+      name: "device_discard_record_reason_fk",
+      columns: [t.tenantId, t.reasonCode],
+      foreignColumns: [discardReason.tenantId, discardReason.code],
+    }),
+    foreignKey({
+      name: "device_discard_record_owner_fk",
+      columns: [t.tenantId, t.ownerTenantUserId],
+      foreignColumns: [tenantUser.tenantId, tenantUser.id],
+    }),
+    foreignKey({
+      name: "device_discard_record_deleter_fk",
+      columns: [t.tenantId, t.deletedByTenantUserId],
+      foreignColumns: [tenantUser.tenantId, tenantUser.id],
+    }),
+    foreignKey({
+      name: "device_discard_record_sender_fk",
+      columns: [t.tenantId, t.senderTenantUserId],
+      foreignColumns: [tenantUser.tenantId, tenantUser.id],
+    }),
+    index("device_discard_record_device_idx").on(t.tenantId, t.deviceId, t.recordedAt),
+    check("device_discard_record_stage", sql`stage IN (${sqlList(DEVICE_DISCARD_STAGES)})`),
+    check("device_discard_record_kind", sql`kind IN (${sqlList(DEVICE_DISCARD_KINDS)})`),
+    check(
+      "device_discard_record_count",
+      sql`entry_count IS NULL OR entry_count BETWEEN 0 AND 100000`,
+    ),
+  ],
+);
+export type DeviceDiscardRecordRow = typeof deviceDiscardRecord.$inferSelect;
+
+/** The server's flags on an entry its device recorded deleting (`DeviceDeletionFlag`). */
+export const DEVICE_DELETION_FLAGS = ["uploaded_after_deletion", "deleted_after_upload"] as const;
+
+/** The entry tables a deletion flag can name: the five a device writes, and assessments. */
+export const DEVICE_DELETION_FLAG_TABLES = [
+  "care_note",
+  "observation",
+  "body_map_mark",
+  "activity_record",
+  "visit_log",
+  "assessment",
+] as const;
+
+/**
+ * The server-side flag on an entry its owner's device recorded deleting (care.md section 6,
+ * Device integrity part 3; HZ-040): the entry, the flag (uploaded after the deletion, or deleted
+ * after it reached Harbour), the deletion record, whose entry and the Registered Manager's review
+ * task. One row per entry: an entry flagged once is never flagged again (the unique key), and the
+ * entry routes return the flag with the entry. Read like the entry (the person's scope); written
+ * only in the system's view; append-only.
+ */
+export const entryDeviceDeletionFlag = pgTable(
+  "entry_device_deletion_flag",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    /** `DEVICE_DELETION_FLAG_TABLES`. */
+    recordTable: text("record_table").notNull(),
+    entryId: uuid("entry_id").notNull(),
+    personId: uuid("person_id").notNull(),
+    locationId: uuid("location_id"),
+    /** `DEVICE_DELETION_FLAGS`. */
+    flag: text("flag").notNull(),
+    discardId: uuid("discard_id").notNull(),
+    /** Whose entry it is (the entry's author), whose deletion counted. */
+    ownerTenantUserId: uuid("owner_tenant_user_id").notNull(),
+    reviewTaskId: uuid("review_task_id"),
+    flaggedAt: timestamp("flagged_at", { withTimezone: true }).notNull().defaultNow(),
+    ...createdColumns(),
+  },
+  (t) => [
+    unique("entry_device_deletion_flag_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("entry_device_deletion_flag_entry_key").on(t.tenantId, t.recordTable, t.entryId),
+    foreignKey({
+      name: "entry_device_deletion_flag_person_fk",
+      columns: [t.tenantId, t.personId],
+      foreignColumns: [person.tenantId, person.id],
+    }),
+    foreignKey({
+      name: "entry_device_deletion_flag_location_fk",
+      columns: [t.tenantId, t.locationId],
+      foreignColumns: [location.tenantId, location.id],
+    }),
+    foreignKey({
+      name: "entry_device_deletion_flag_owner_fk",
+      columns: [t.tenantId, t.ownerTenantUserId],
+      foreignColumns: [tenantUser.tenantId, tenantUser.id],
+    }),
+    foreignKey({
+      name: "entry_device_deletion_flag_task_fk",
+      columns: [t.tenantId, t.reviewTaskId],
+      foreignColumns: [task.tenantId, task.id],
+    }),
+    index("entry_device_deletion_flag_person_idx").on(t.tenantId, t.personId, t.flaggedAt),
+    check(
+      "entry_device_deletion_flag_table",
+      sql`record_table IN (${sqlList(DEVICE_DELETION_FLAG_TABLES)})`,
+    ),
+    check("entry_device_deletion_flag_flag", sql`flag IN (${sqlList(DEVICE_DELETION_FLAGS)})`),
+  ],
+);
+export type EntryDeviceDeletionFlagRow = typeof entryDeviceDeletionFlag.$inferSelect;
 
 /** The tables a device writes care entries to (`DEVICE_WRITABLE_TABLES` in packages/sync). */
 export const REFUSED_ENTRY_TABLES = [

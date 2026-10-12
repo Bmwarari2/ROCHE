@@ -21,6 +21,7 @@ import {
   refusedEntriesFor,
   refusedEntryOut,
 } from "../services/refused-entries";
+import { staffNames } from "../services/staff";
 import { PersonParam } from "./care-shared";
 import { createRouter, errorResponses, jsonBody, notFoundResponse, security } from "./openapi";
 
@@ -129,7 +130,11 @@ export function createRefusedEntriesRouter() {
             scope: { count: rows.length },
             requestId: c.get("requestId"),
           });
-          return { items: rows.map(refusedEntryOut), nextBefore: next };
+          const staff = await staffNames(
+            tx,
+            rows.flatMap((r) => [r.authorTenantUserId, r.createdBy]),
+          );
+          return { items: rows.map((r) => refusedEntryOut(r, staff)), nextBefore: next };
         });
         return c.json(page, 200);
       },
@@ -160,7 +165,10 @@ export function createRefusedEntriesRouter() {
             resourceId: row.id,
             requestId: c.get("requestId"),
           });
-          return refusedEntryOut(row);
+          return refusedEntryOut(
+            row,
+            await staffNames(tx, [row.authorTenantUserId, row.createdBy]),
+          );
         });
         return c.json(item, 200);
       },

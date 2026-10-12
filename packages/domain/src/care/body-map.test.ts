@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
+  BODY_MAP_DRAWING,
   BODY_MAP_REGIONS,
   type BodyMarkInput,
   findBodyRegion,
   markTriggers,
+  onDrawing,
   PRESSURE_ULCER_CATEGORIES,
   personSideFromDrawing,
+  sideFromDrawing,
   validateMark,
+  zoneAtPoint,
+  zoneForPersonSide,
 } from "./body-map";
 
 /** Body map marks (hazard HZ-019) and the pressure ulcer and bruise prompts. */
@@ -31,6 +36,8 @@ describe("hazard HZ-019 body map sides are the person's own left and right", () 
     ["back", "centre", "midline"],
   ] as const)("on the %s view a mark on the %s is on the person's %s", (view, viewerSide, side) => {
     expect(personSideFromDrawing(view, viewerSide)).toBe(side);
+    // A phone that sent only the side is read back to the same zone (#26 review round 2, C4).
+    expect(zoneForPersonSide(view, side)).toBe(viewerSide);
   });
 
   it("gives every region a unique code on the front or back view", () => {
@@ -44,6 +51,82 @@ describe("hazard HZ-019 body map sides are the person's own left and right", () 
   it("allows the midline only for central regions", () => {
     expect(findBodyRegion("back", "sacrum")?.sides).toEqual(["left", "right", "midline"]);
     expect(findBodyRegion("back", "heel")?.sides).toEqual(["left", "right"]);
+  });
+});
+
+describe("hazard HZ-019 the server works out the side from the place drawn and the view", () => {
+  it.each([
+    // Legs: always on a side, even right beside the midline (clinical review C5).
+    ["front", { x: 50, y: 150 }, "right"],
+    ["front", { x: 62, y: 150 }, "left"],
+    ["back", { x: 50, y: 150 }, "left"],
+    ["back", { x: 62, y: 150 }, "right"],
+    ["front", { x: 60, y: 124 }, "left"],
+    ["back", { x: 60, y: 124 }, "right"],
+    // Arms.
+    ["front", { x: 27, y: 80 }, "right"],
+    ["back", { x: 27, y: 80 }, "left"],
+    // The centre band over the head and trunk only, 4 units either side of the midline.
+    ["front", { x: 60, y: 22 }, "midline"],
+    ["back", { x: 56, y: 123.9 }, "midline"],
+    ["front", { x: 64, y: 80 }, "midline"],
+    ["front", { x: 64.01, y: 80 }, "left"],
+    ["front", { x: 55.99, y: 80 }, "right"],
+    ["back", { x: 64.01, y: 80 }, "right"],
+    // The edges of the drawing.
+    ["front", { x: 0, y: 0 }, "right"],
+    ["front", { x: 120, y: 240 }, "left"],
+  ] as const)("on the %s view, a mark at %j is on the person's %s", (view, point, side) => {
+    expect(sideFromDrawing(view, { point })).toEqual({
+      ok: true,
+      zone: zoneAtPoint(point),
+      side,
+    });
+  });
+
+  it.each([
+    ["front", "viewer_left", "right"],
+    ["front", "viewer_right", "left"],
+    ["front", "centre", "midline"],
+    ["back", "viewer_left", "left"],
+    ["back", "viewer_right", "right"],
+    ["back", "centre", "midline"],
+  ] as const)("on the %s view, the %s button is the person's %s", (view, zone, side) => {
+    expect(sideFromDrawing(view, { zone })).toEqual({ ok: true, zone, side });
+  });
+
+  it("takes the point and the zone together only when they agree", () => {
+    expect(sideFromDrawing("front", { point: { x: 30, y: 150 }, zone: "viewer_left" })).toEqual({
+      ok: true,
+      zone: "viewer_left",
+      side: "right",
+    });
+    expect(sideFromDrawing("front", { point: { x: 30, y: 150 }, zone: "viewer_right" })).toEqual({
+      ok: false,
+      message: "The place marked on the drawing and the side of the drawing chosen disagree.",
+    });
+  });
+
+  it.each([
+    ["no place at all", {}],
+    ["a point off the drawing", { point: { x: 121, y: 10 } }],
+    ["a point above the drawing", { point: { x: 60, y: -1 } }],
+    ["a point that is not a number", { point: { x: Number.NaN, y: 10 } }],
+    ["a zone that does not exist", { zone: "middle" }],
+  ] as const)("refuses %s", (_name, place) => {
+    expect(sideFromDrawing("front", place as Parameters<typeof sideFromDrawing>[1]).ok).toBe(false);
+  });
+
+  it("reads the drawing in its own units, with a narrow band over the trunk only", () => {
+    expect(BODY_MAP_DRAWING).toEqual({
+      width: 120,
+      height: 240,
+      midline: 60,
+      legsTop: 124,
+      centreHalfWidth: 4,
+    });
+    expect(onDrawing({ x: 120, y: 240 })).toBe(true);
+    expect(onDrawing({ x: 120.5, y: 240 })).toBe(false);
   });
 });
 

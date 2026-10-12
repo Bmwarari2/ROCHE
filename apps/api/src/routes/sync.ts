@@ -6,7 +6,15 @@ import {
   SyncUpload,
   SyncUploadResult,
 } from "@harbour/contracts";
-import { auditEvent, deviceDiscardEntry, location, roleAssignment, tenantUser } from "@harbour/db";
+import {
+  auditEvent,
+  deviceDiscardEntry,
+  deviceDiscardRecord,
+  discardReason,
+  location,
+  roleAssignment,
+  tenantUser,
+} from "@harbour/db";
 import { hasClockDrift } from "@harbour/domain";
 import {
   isValidWindowDays,
@@ -28,6 +36,7 @@ import {
 } from "../services/device-holds";
 import { bindDevice, inSystemView, refuseRevokedDevice } from "../services/devices";
 import { rateNumber } from "../services/rates";
+import { withTenantWideScope } from "../services/safety";
 import type { SyncTokenSigner } from "../sync/token";
 
 /**
@@ -246,6 +255,8 @@ export function createSyncRouter(signer: SyncTokenSigner) {
           await requirePermission(c, DISCARD_OTHERS_PERMISSION);
         }
         const action = DISCARD_ACTIONS[body.stage];
+        // The code the record carries: one the organisation added, or one of the five.
+        const reasonCode = body.organisationReasonCode ?? body.reasonCode;
         const { replay } = await withTenant(c, async (tx) => {
           // The owner and the deleter must be staff of this organisation (row-level security keeps
           // the lookup inside the tenant).
@@ -261,44 +272,48 @@ export function createSyncRouter(signer: SyncTokenSigner) {
               throw problems.invalid("The member of staff is not in this organisation.");
             }
           }
-          // One record per stage of a deletion, even when two requests race (no index needed).
+          // One of the organisation's coded reasons (care.md section 6, Device integrity part 8): a
+          // code it never had is refused; a retired one is still taken, because the device may
+          // have recorded the deletion before it was retired, and a deletion is never stranded.
+          const [reason] = await tx
+            .select({ id: discardReason.id, code: discardReason.code })
+            .from(discardReason)
+            .where(eq(discardReason.code, reasonCode));
+          if (!reason) {
+            throw problems.invalid(
+              "That reason is not one of your organisation's coded reasons for deleting entries.",
+            );
+          }
+          // The stages of one deletion are taken in turn. What stops a second record of a stage,
+          // however two requests race, is the unique index on (deletion, stage) of
+          // device_discard_record (the discard replay index); the stages are read in the system's
+          // view, so the guard sees every stage whoever sent it.
           await tx.execute(
-            sql`SELECT pg_advisory_xact_lock(hashtext(${`device_discard:${action}:${body.id}`}))`,
+            sql`SELECT pg_advisory_xact_lock(hashtext(${`device_discard:${body.id}`}))`,
           );
-          const recorded = await tx
-            .select({
-              id: auditEvent.id,
-              action: auditEvent.action,
-              actor: auditEvent.actorTenantUserId,
-              scope: auditEvent.scope,
-            })
-            .from(auditEvent)
-            .where(
-              and(
-                eq(auditEvent.resourceType, "device_discard"),
-                eq(auditEvent.resourceId, body.id),
-              ),
-            )
-            .orderBy(asc(auditEvent.seq));
+          const recorded = await withTenantWideScope(tx, () =>
+            tx
+              .select()
+              .from(deviceDiscardRecord)
+              .where(eq(deviceDiscardRecord.discardId, body.id))
+              .orderBy(asc(deviceDiscardRecord.recordedAt), asc(deviceDiscardRecord.id)),
+          );
+          const owner = body.ownerTenantUserId?.toLowerCase() ?? null;
           // A later stage belongs to the deletion it continues (security review round 5, S-L1):
           // the same kind and owner, from the same sender, the owner, or a manager.
           const [earliest] = recorded;
           if (earliest) {
-            const was = (earliest.scope ?? {}) as { kind?: unknown; ownerTenantUserId?: unknown };
-            if (
-              was.kind !== body.kind ||
-              (was.ownerTenantUserId ?? null) !== body.ownerTenantUserId
-            ) {
+            if (earliest.kind !== body.kind || earliest.ownerTenantUserId !== owner) {
               throw problems.invalid("This deletion was recorded for other entries.");
             }
             if (
-              earliest.actor !== access.tenantUserId &&
-              body.ownerTenantUserId !== access.tenantUserId
+              earliest.senderTenantUserId !== access.tenantUserId &&
+              owner !== access.tenantUserId
             ) {
               await requirePermission(c, DISCARD_OTHERS_PERMISSION);
             }
           }
-          if (recorded.some((r) => r.action === action)) return { replay: true };
+          if (recorded.some((r) => r.stage === body.stage)) return { replay: true };
           // A new deletion counts against the sender's day: one record, and its entry ids (S-M2;
           // security review round 6, M2 remainder).
           if (!earliest) {
@@ -306,18 +321,55 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             await discardIdsQuota.take(tx, access.tenantUserId, body.entryIds.length);
             await discardRecordsQuota.take(tx, access.tenantUserId);
           }
+          const written = await withTenantWideScope(tx, () =>
+            tx
+              .insert(deviceDiscardRecord)
+              .values({
+                discardId: body.id,
+                stage: body.stage,
+                kind: body.kind,
+                reasonCode,
+                ownerTenantUserId: owner,
+                deletedByTenantUserId: recordedDeleter,
+                senderTenantUserId: access.tenantUserId,
+                deviceId: (body.deviceId ?? access.deviceId)?.toLowerCase() ?? null,
+                entryCount: body.count,
+                discardedAt: new Date(body.discardedAt),
+              })
+              .onConflictDoNothing()
+              .returning({ id: deviceDiscardRecord.id }),
+          );
+          if (written.length === 0) return { replay: true };
           // A failure supersedes the request it follows (clinical review round 4, H1).
-          const requested = recorded.find((r) => r.action === DISCARD_ACTIONS.requested);
+          const [requested] =
+            body.stage === "failed" && recorded.some((r) => r.stage === "requested")
+              ? await tx
+                  .select({ id: auditEvent.id })
+                  .from(auditEvent)
+                  .where(
+                    and(
+                      eq(auditEvent.resourceType, "device_discard"),
+                      eq(auditEvent.resourceId, body.id),
+                      eq(auditEvent.action, DISCARD_ACTIONS.requested),
+                    ),
+                  )
+                  .orderBy(asc(auditEvent.seq))
+                  .limit(1)
+              : [];
           await auditInTx(tx, access, {
             action,
             resourceType: "device_discard",
             resourceId: body.id,
             // The coded reason only: the person's words never enter the hash-chained trail (M3).
-            reason: body.reasonCode,
+            // One of the five is audited by its code; a code the organisation wrote is audited as
+            // "other" with the reason's id, so no name it might contain enters the trail (#26
+            // review round 2, low). The deletion record keeps the code.
+            reason: body.organisationReasonCode ? "other" : reasonCode,
             scope: {
               kind: body.kind,
               stage: body.stage,
-              reasonCode: body.reasonCode,
+              reasonCode: body.organisationReasonCode ? "other" : reasonCode,
+              ...(body.organisationReasonCode ? { organisationReasonId: reason.id } : {}),
               ownerTenantUserId: body.ownerTenantUserId,
               // As the device recorded it; the event's actor is whoever sent this request.
               deletedByTenantUserId: recordedDeleter,

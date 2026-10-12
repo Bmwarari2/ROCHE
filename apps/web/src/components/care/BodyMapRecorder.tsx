@@ -16,6 +16,7 @@ import {
   BODY_REGIONS,
   type BodySide,
   type BodyView,
+  drawnPoint,
   parseRegionValue,
   regionSides,
   regionValue,
@@ -102,6 +103,7 @@ export function BodyMapRecorder({
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const drawn = place ? parseRegionValue(view, place) : null;
+    const point = place ? drawnPoint(view, place) : null;
     if (!drawn) return setResult(refused(t("care.bodyMap.regionRequired"), "invalid", ["region"]));
     if (!side) return setResult(refused(t("care.bodyMap.sideRequired"), "invalid", ["side"]));
     if (!markType) {
@@ -123,6 +125,8 @@ export function BodyMapRecorder({
         sentAt: new Date().toISOString(),
         view,
         region: drawn.region,
+        // The place on the drawing: the API works out the side from it (HZ-019).
+        ...(point ? { drawnAt: point } : {}),
         drawnSide: drawn.side,
         side,
         markType,

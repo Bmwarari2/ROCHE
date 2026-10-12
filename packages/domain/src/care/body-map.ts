@@ -117,6 +117,118 @@ export function personSideFromDrawing(
   return viewerLeft ? "left" : "right";
 }
 
+/**
+ * The zone of the drawing that reads as a side of the person on a view: the inverse of
+ * `personSideFromDrawing`. A mark from a phone that sent only the side it worked out from its
+ * drawing (an app from before the server read the drawing) is read as this zone, and flagged
+ * (HZ-019, #26 review round 2 C4).
+ */
+export function zoneForPersonSide(
+  view: BodyView,
+  side: BodySide,
+): "viewer_left" | "viewer_right" | "centre" {
+  if (side === "midline") return "centre";
+  const left = side === "left";
+  if (view === "front") return left ? "viewer_right" : "viewer_left";
+  return left ? "viewer_left" : "viewer_right";
+}
+
+/** Where on the drawing, as the person recording sees it: its left, its centre band, its right. */
+export type ViewerZone = "viewer_left" | "centre" | "viewer_right";
+
+export const VIEWER_ZONES: readonly ViewerZone[] = ["viewer_left", "centre", "viewer_right"];
+
+/**
+ * The body map drawing every Harbour screen places marks on, in its own units: 120 wide and 240
+ * high, x from the viewer's left edge and y from the top, the same on the front and back views
+ * (HZ-019; clinical review C5 of #15). The body's midline is x = 60. A narrow centre band,
+ * `centreHalfWidth` either side of it, exists only over the head, neck and trunk (above
+ * `legsTop`, where the legs begin), so a mark on a leg or an arm is always on a side. Screens
+ * drawn at another size scale their points to these units before sending them.
+ */
+export const BODY_MAP_DRAWING = {
+  width: 120,
+  height: 240,
+  midline: 60,
+  legsTop: 124,
+  centreHalfWidth: 4,
+} as const;
+
+/** A point on the body map drawing, in `BODY_MAP_DRAWING` units. */
+export interface DrawnPoint {
+  readonly x: number;
+  readonly y: number;
+}
+
+/** True when the point is on the drawing (its edges included). */
+export function onDrawing(point: DrawnPoint): boolean {
+  return (
+    Number.isFinite(point.x) &&
+    Number.isFinite(point.y) &&
+    point.x >= 0 &&
+    point.x <= BODY_MAP_DRAWING.width &&
+    point.y >= 0 &&
+    point.y <= BODY_MAP_DRAWING.height
+  );
+}
+
+/**
+ * Which zone of the drawing a point falls in: split at the body's midline, with the narrow centre
+ * band over the central areas only. A point on the midline below the trunk reads as the viewer's
+ * right, as the phone has always read it.
+ */
+export function zoneAtPoint(point: DrawnPoint): ViewerZone {
+  const central = point.y < BODY_MAP_DRAWING.legsTop;
+  if (central && Math.abs(point.x - BODY_MAP_DRAWING.midline) <= BODY_MAP_DRAWING.centreHalfWidth) {
+    return "centre";
+  }
+  return point.x < BODY_MAP_DRAWING.midline ? "viewer_left" : "viewer_right";
+}
+
+/** How a mark was placed: a point on the drawing, or a zone chosen with the buttons beside it. */
+export interface DrawnPlace {
+  readonly point?: DrawnPoint | null;
+  readonly zone?: ViewerZone | null;
+}
+
+export type DrawnSideCheck =
+  | { readonly ok: true; readonly zone: ViewerZone; readonly side: BodySide }
+  | { readonly ok: false; readonly message: string };
+
+/**
+ * The person's side where a mark was drawn, worked out from the place on the drawing and the view
+ * (HZ-019): the server never takes the side a device says it drew, it works it out again. A point
+ * wins over a zone; when both are given they must agree. With neither there is no drawing to
+ * check the side in words against.
+ */
+export function sideFromDrawing(view: BodyView, place: DrawnPlace): DrawnSideCheck {
+  const point = place.point ?? null;
+  const zone = place.zone ?? null;
+  if (point) {
+    if (!onDrawing(point)) {
+      return { ok: false, message: "The place marked is not on the body map drawing." };
+    }
+    const found = zoneAtPoint(point);
+    if (zone && zone !== found) {
+      return {
+        ok: false,
+        message: "The place marked on the drawing and the side of the drawing chosen disagree.",
+      };
+    }
+    return { ok: true, zone: found, side: personSideFromDrawing(view, found) };
+  }
+  if (zone) {
+    if (!VIEWER_ZONES.includes(zone)) {
+      return { ok: false, message: "Choose a side of the drawing." };
+    }
+    return { ok: true, zone, side: personSideFromDrawing(view, zone) };
+  }
+  return {
+    ok: false,
+    message: "Mark the place on the body map drawing, so the side can be checked.",
+  };
+}
+
 export type PressureUlcerCategory =
   | "category_1"
   | "category_2"
@@ -136,7 +248,7 @@ export const PRESSURE_ULCER_CATEGORIES: Readonly<Record<PressureUlcerCategory, s
 };
 
 /** Category 2 or worse: unstageable and deep tissue injury count as worse than category 2. */
-const CATEGORY_2_OR_WORSE: readonly PressureUlcerCategory[] = [
+export const CATEGORY_2_OR_WORSE: readonly PressureUlcerCategory[] = [
   "category_2",
   "category_3",
   "category_4",

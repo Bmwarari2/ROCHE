@@ -1,4 +1,6 @@
 import {
+  accessGrant,
+  auditEvent,
   location,
   notification,
   person,
@@ -24,6 +26,7 @@ import {
   isMedicinesTask,
   isPermission,
   nextWeightDueOn,
+  type Permission,
   resolveCareRates,
   type TaskLinkOutcome,
   type TaskLinkReview,
@@ -33,6 +36,8 @@ import {
 } from "@harbour/domain";
 import { and, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { HttpProblem, problems } from "../http/problem";
+import { withTenantWideScope } from "./safety";
+import { staffViews } from "./staff-views";
 import { anyoneMayBeGiven, mayBeAssigned, OVERDUE_FIRST_RESPONDERS } from "./tasks";
 
 /**
@@ -208,6 +213,129 @@ export async function nurseInCharge(tx: Transaction, locationId: string): Promis
   return managers.map((m) => m.id);
 }
 
+/** Who acts on a care result alert when the fallback is used: holders of the care plan. */
+const ALERT_FALLBACK_PERMISSION: Permission = "care.plan.write";
+/** The audit action of an urgent result alert no one could be told about (HZ-014, HZ-016). */
+export const CARE_ALERT_UNROUTED_ACTION = "care.alert.unrouted";
+
+/**
+ * How an urgent result alert reached someone, kept on the entry as `flags.alertRoute` so the record
+ * says what actually happened (#26 review round 3): the nurse in charge at the location, the
+ * fallback (no nurse in charge could open the record), or no one.
+ */
+export type AlertRoute = "nurse_in_charge" | "fallback" | "no_one";
+
+export interface AlertRecipients {
+  readonly route: AlertRoute;
+  readonly recipients: readonly string[];
+}
+
+/**
+ * Who an urgent result alert goes to (#26 review rounds 2 and 3; HZ-014, HZ-016), only ever
+ * someone who can open the person's record (`staffViews`, the database's own person scope), on the
+ * staff and with a role in force: the nurse in charge at the location (the nurse or senior on
+ * shift, else its Registered Manager); with no one there, the Registered Managers across the
+ * organisation, then other Registered Managers whose scope covers the person, then the holders of
+ * `care.plan.write` who can see the person, longest-serving first in each. A manager at another
+ * home who cannot open the record is never chosen. No one, when nobody who can see the person
+ * could act. The sync tasks keep their own fallback (`fallbackRecipients`), where assigning the
+ * task is what lets its taker see it.
+ */
+export async function urgentAlertRecipients(
+  tx: Transaction,
+  target: { readonly personId: string; readonly locationId: string },
+  now: Date,
+): Promise<AlertRecipients> {
+  const nurses = await nurseInCharge(tx, target.locationId);
+  if (nurses.length > 0) {
+    const views = await staffViews(tx, nurses, [target.personId], now);
+    const seeing = nurses.filter((id) => views.get(id)?.people.has(target.personId));
+    if (seeing.length > 0) return { route: "nurse_in_charge", recipients: seeing };
+  }
+  const recipients = await alertFallback(tx, target.personId, now);
+  return recipients.length > 0
+    ? { route: "fallback", recipients }
+    : { route: "no_one", recipients };
+}
+
+/**
+ * The fallback for an urgent result alert (#26 review round 3): members on the staff with a role in
+ * force who are Registered Managers or may hold the care plan (by a role, or a grant in force),
+ * kept only when they can open the person's record, in tiers: organisation-wide Registered
+ * Managers, then the other Registered Managers, then whoever holds `care.plan.write` (a role mixing
+ * portal and staff permissions gives none, as at sign-in). Longest-serving first, then by id.
+ */
+async function alertFallback(tx: Transaction, personId: string, now: Date): Promise<string[]> {
+  const live = and(
+    isNull(roleAssignment.deletedAt),
+    isNull(role.archivedAt),
+    lte(roleAssignment.validFrom, now),
+    or(isNull(roleAssignment.validTo), gt(roleAssignment.validTo, now)),
+    inArray(tenantUser.status, ["invited", "active"]),
+  );
+  const since = sql`min(${roleAssignment.validFrom})`;
+  const candidates = await tx
+    .select({
+      id: roleAssignment.tenantUserId,
+      manager: sql<boolean>`bool_or(${role.key} = 'registered_manager')`,
+      organisationManager: sql<boolean>`bool_or(${role.key} = 'registered_manager' AND ${roleAssignment.locationId} IS NULL)`,
+    })
+    .from(roleAssignment)
+    .innerJoin(role, eq(role.id, roleAssignment.roleId))
+    .innerJoin(tenantUser, eq(tenantUser.id, roleAssignment.tenantUserId))
+    .where(live)
+    .groupBy(roleAssignment.tenantUserId)
+    .having(
+      sql`bool_or(${role.key} = 'registered_manager' OR ${ALERT_FALLBACK_PERMISSION} = ANY(${role.permissions}))
+        OR EXISTS (
+          SELECT 1 FROM ${accessGrant}
+          WHERE ${accessGrant.tenantUserId} = ${roleAssignment.tenantUserId}
+            AND ${accessGrant.deletedAt} IS NULL
+            AND ${accessGrant.revokedAt} IS NULL
+            AND ${accessGrant.validFrom} <= ${now.toISOString()}::timestamptz
+            AND ${accessGrant.validTo} > ${now.toISOString()}::timestamptz
+            AND ${ALERT_FALLBACK_PERMISSION} = ANY(${accessGrant.permissions}))`,
+    )
+    .orderBy(since, roleAssignment.tenantUserId);
+  if (candidates.length === 0) return [];
+  const views = await staffViews(
+    tx,
+    candidates.map((c) => c.id),
+    [personId],
+    now,
+  );
+  const sees = (id: string) => views.get(id)?.people.has(personId) === true;
+  const tiers = [
+    candidates.filter((c) => c.organisationManager && sees(c.id)),
+    candidates.filter((c) => c.manager && sees(c.id)),
+    candidates.filter(
+      (c) => sees(c.id) && views.get(c.id)?.permissions.has(ALERT_FALLBACK_PERMISSION) === true,
+    ),
+  ];
+  return (tiers.find((tier) => tier.length > 0) ?? []).map((c) => c.id);
+}
+
+/**
+ * Audits an urgent result alert that no one could be told about, as the system (no actor), with
+ * the result's opaque ids and a coded reason (the alert's code), never the result or the person's
+ * details.
+ */
+async function recordUnroutedAlert(
+  tx: Transaction,
+  source: TriggerSource,
+  code: string,
+): Promise<void> {
+  await tx.insert(auditEvent).values({
+    tenantId: sql`app.current_tenant_id()`,
+    action: CARE_ALERT_UNROUTED_ACTION,
+    outcome: "error",
+    resourceType: source.sourceType,
+    resourceId: source.sourceId,
+    reason: code,
+    scope: { personId: source.personId, locationId: source.locationId, reasonCode: code },
+  });
+}
+
 export interface TriggerSource {
   readonly personId: string;
   readonly locationId: string;
@@ -303,37 +431,59 @@ export async function completeOpenTasks(
 
 /**
  * Turns the follow-ups a result raised into urgent alerts and tasks (hazard HZ-014). Alerts carry
- * generic titles; the link opens the person's record, where the result is shown.
+ * generic titles naming only the home (#26 review round 3), so someone told about a home not their
+ * own knows where to go; the link opens the person's record, where the result is shown. `alert` is
+ * the routing already worked out for the entry (kept on it as `flags.alertRoute`), so the alert
+ * goes where the entry says it went.
  */
 export async function raiseCareTriggers(
   tx: Transaction,
   source: TriggerSource,
   triggers: readonly CareTrigger[],
   now: Date,
+  alert?: AlertRecipients,
 ): Promise<number> {
   let raised = 0;
   for (const trigger of triggers) {
     if (trigger.kind === "urgent_alert") {
-      for (const recipient of await nurseInCharge(tx, source.locationId)) {
-        await tx
-          .insert(notification)
-          .values({
-            recipientTenantUserId: recipient,
-            kind: "care.urgent_result",
-            severity: "urgent",
-            title: "An observation needs a response now",
-            body: "Open the person's record to see the result and the response to take.",
-            link: `/people/${source.personId}`,
-            channels: ["in_app", "push"],
-            sourceType: source.sourceType,
-            sourceId: source.sourceId,
-            personId: source.personId,
-            locationId: source.locationId,
-            dedupeKey: `care_alert:${source.sourceId}`,
-          })
-          .onConflictDoNothing();
+      const { recipients } = alert ?? (await urgentAlertRecipients(tx, source, now));
+      const [home] = await tx
+        .select({ name: location.name })
+        .from(location)
+        .where(eq(location.id, source.locationId));
+      let written = 0;
+      for (const recipient of recipients) {
+        // In the organisation's view, so the alert written for someone else can be counted.
+        const made = await withTenantWideScope(tx, () =>
+          tx
+            .insert(notification)
+            .values({
+              recipientTenantUserId: recipient,
+              kind: "care.urgent_result",
+              severity: "urgent",
+              title: home
+                ? `An observation at ${home.name} needs a response now`
+                : "An observation needs a response now",
+              body: "Open the person's record to see the result and the response to take.",
+              link: `/people/${source.personId}`,
+              channels: ["in_app", "push"],
+              sourceType: source.sourceType,
+              sourceId: source.sourceId,
+              personId: source.personId,
+              locationId: source.locationId,
+              dedupeKey: `care_alert:${source.sourceId}`,
+            })
+            .onConflictDoNothing()
+            .returning({ id: notification.id }),
+        );
+        written += made.length;
       }
-      raised++;
+      // Counted only when someone was told (#26 review round 2, C2); with no one to tell, the
+      // alert is audited as unrouted so it is never lost silently.
+      if (written > 0) raised++;
+      if (recipients.length === 0) {
+        await recordUnroutedAlert(tx, source, trigger.code ?? "urgent_result");
+      }
     } else if (trigger.kind === "task") {
       await tx.insert(task).values({
         kind: `care.${trigger.task}`,

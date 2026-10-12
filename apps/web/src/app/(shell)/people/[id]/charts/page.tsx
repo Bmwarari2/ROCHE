@@ -1,4 +1,5 @@
 import { Button, Card, DateInput, Meter, StatusChip, TabNav } from "@harbour/ui";
+import { Copy } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ChartEntryForm } from "@/components/care/ChartEntryForm";
@@ -160,6 +161,20 @@ async function ChartsTab({
                 </span>
                 <span>{fluidView.outputText}</span>
                 <span>{fluidView.entriesText}</span>
+                {fluidView.flaggedText ? (
+                  <span className="flex items-start gap-2 font-semibold" data-fluid-flagged="">
+                    <Copy
+                      size={18}
+                      strokeWidth={1.5}
+                      aria-hidden="true"
+                      className="mt-0.5 shrink-0"
+                    />
+                    {fluidView.flaggedText}
+                  </span>
+                ) : null}
+                {fluidView.refusedText ? (
+                  <span data-fluid-refused="">{fluidView.refusedText}</span>
+                ) : null}
               </span>
             }
           />

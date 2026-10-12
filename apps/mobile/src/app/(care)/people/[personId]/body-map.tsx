@@ -14,6 +14,7 @@ import { useMemo, useState } from "react";
 import {
   BODY_VIEWS,
   checkMark,
+  type DrawnPoint,
   MARK_DESCRIPTION_MAX,
   MARK_TYPES,
   type MarkField,
@@ -53,6 +54,7 @@ export default function BodyMapScreen() {
 
   const [view, setView] = useState<BodyView>("front");
   const [zone, setZone] = useState<ViewerZone | null>(null);
+  const [point, setPoint] = useState<DrawnPoint | null>(null);
   const [region, setRegion] = useState<string | null>(null);
   const [side, setSide] = useState<BodySide | null>(null);
   const [markType, setMarkType] = useState<BodyMarkType | null>(null);
@@ -83,6 +85,7 @@ export default function BodyMapScreen() {
     // A new view means a new drawing and a different list of areas.
     setView(next);
     setZone(null);
+    setPoint(null);
     setRegion(null);
   };
 
@@ -91,6 +94,7 @@ export default function BodyMapScreen() {
       {
         view,
         zone,
+        point,
         region,
         side,
         markType,
@@ -144,7 +148,14 @@ export default function BodyMapScreen() {
       <Text emphasis accessibilityRole="header">
         {t("mobile.bodyMap.drawing")}
       </Text>
-      <BodyMapDrawing view={view} zone={zone} onZone={setZone} />
+      <BodyMapDrawing
+        view={view}
+        zone={zone}
+        onZone={(nextZone, nextPoint) => {
+          setZone(nextZone);
+          setPoint(nextPoint);
+        }}
+      />
       <FieldMessage error={errors.zone} />
       <ChoiceGroup
         label={t("mobile.bodyMap.region")}

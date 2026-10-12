@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
-import { seedDemoTenant, seedReferenceData } from "../src/seed/demo";
+import { seedDemoEscalationPolicies, seedDemoTenant, seedReferenceData } from "../src/seed/demo";
 import {
   findOverlaps,
   parseBankHolidays,
@@ -27,6 +27,7 @@ try {
   if (process.env.HARBOUR_SEED_DEMO !== "0") {
     const demo = await seedDemoTenant(pool);
     console.log(demo.created ? "Demo tenant created" : "Demo tenant already present");
+    await seedDemoEscalationPolicies(pool);
   }
 } finally {
   await pool.end();

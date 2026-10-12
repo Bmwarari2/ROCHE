@@ -263,6 +263,16 @@ describe("hazard HZ-040 device discards and reports", () => {
     expect(SyncDiscard.safeParse({ ...discard, idsMissing: "cancelled" }).success).toBe(false);
   });
 
+  it("takes an organisation's own coded reason, which the API checks against its list", () => {
+    expect(
+      SyncDiscard.safeParse({
+        ...discard,
+        reasonCode: "other",
+        organisationReasonCode: "agency_shift_ended",
+      }).success,
+    ).toBe(true);
+  });
+
   it.each(["requested", "deleted", "failed"])("takes the %s stage (round 4, H1)", (stage) => {
     expect(SyncDiscard.safeParse({ ...discard, stage }).success).toBe(true);
   });
@@ -277,6 +287,19 @@ describe("hazard HZ-040 device discards and reports", () => {
   it.each([
     ["an unknown kind", { kind: "anything" }],
     ["an unknown reason code", { reasonCode: "because" }],
+    // Words never pass as a code: the API checks the code against the organisation's list.
+    [
+      "an organisation's reason in words",
+      { reasonCode: "other", organisationReasonCode: "Ada's note" },
+    ],
+    [
+      "an organisation's reason with capitals",
+      { reasonCode: "other", organisationReasonCode: "Shift" },
+    ],
+    [
+      "an organisation's reason without the code other",
+      { reasonCode: "staff_left", organisationReasonCode: "agency_shift_ended" },
+    ],
     ["entry ids that are not ids", { entryIds: ["Ada's note"] }],
     ["a deleter that is not an id", { deletedByTenantUserId: "Mo Manager" }],
     ["an unknown stage", { stage: "maybe" }],

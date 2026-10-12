@@ -26,11 +26,18 @@ import { isIsoDate } from "@/lib/uk-time";
 
 const checkIds = (...ids: string[]) => ids.every((id) => isUuid(id));
 
-export async function startCarePlanDraft(personId: string): Promise<ActionResult<CarePlanDetail>> {
+/**
+ * `clientId` is the draft's id, kept across retries of the same press so a draft started twice is
+ * started once (HZ-029).
+ */
+export async function startCarePlanDraft(
+  personId: string,
+  clientId?: string,
+): Promise<ActionResult<CarePlanDetail>> {
   return sendForPerson(personId, (api) =>
     api.POST("/v1/people/{id}/care-plans", {
       params: { path: { id: personId } },
-      body: { copyFromActive: true },
+      body: { copyFromActive: true, ...(isUuid(clientId) ? { id: clientId } : {}) },
     }),
   );
 }
@@ -67,6 +74,8 @@ export async function saveCarePlanSection(
 }
 
 export interface ActionInput {
+  /** The action's client id, kept across retries of the same save (HZ-029). */
+  readonly id?: string;
   readonly action: string;
   readonly roleKey: string;
   readonly whenText: string;
@@ -88,6 +97,7 @@ export async function addCarePlanAction(
     api.POST("/v1/people/{id}/care-plans/{planId}/sections/{domain}/actions", {
       params: { path: { id: personId, planId, domain } },
       body: {
+        ...(isUuid(input.id) ? { id: input.id } : {}),
         action,
         ...(roleKey ? { roleKey } : {}),
         ...(whenText ? { whenText } : {}),

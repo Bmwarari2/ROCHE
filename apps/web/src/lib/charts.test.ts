@@ -1,8 +1,11 @@
 import { createTranslator } from "@harbour/i18n";
 import { describe, expect, it } from "vitest";
 import {
+  alertRouteMessage,
   fluidDayView,
   iddsiOutcome,
+  iddsiProblem,
+  iddsiProblemMessage,
   isChart,
   news2Chip,
   news2FromFlags,
@@ -96,6 +99,11 @@ describe("fluid balance day", () => {
     targetMl: 1500,
     shortfallMl: 600,
     entries: 5,
+    flaggedEntries: 0,
+    flaggedIntakeMl: 0,
+    flaggedOutputMl: 0,
+    refusedEntries: 0,
+    refusedOfferedMl: 0,
   };
 
   it("shows the intake against the target and the shortfall the API worked out", () => {
@@ -106,6 +114,29 @@ describe("fluid balance day", () => {
     expect(view.meterMax).toBe(1500);
     expect(view.outputText).toBe("Output: 400 ml");
     expect(view.entriesText).toBe("5 fluid entries");
+    expect(view.flaggedText).toBeNull();
+  });
+
+  it("hazard HZ-040 says beside the totals how much a device recorded deleting, never taking it out", () => {
+    const view = fluidDayView(
+      { ...day, flaggedEntries: 2, flaggedIntakeMl: 300, flaggedOutputMl: 0 },
+      t,
+    );
+    expect(view.flaggedText).toBe(
+      "Includes 2 entries that a device recorded as deleted (300 ml in, 0 ml out): check for duplicates.",
+    );
+    expect(view.valueText).toBe("900 ml of a 1,500 ml target");
+  });
+
+  it("hazard HZ-014 says beside the totals what was offered and refused, never as drunk (#26 review round 3)", () => {
+    expect(fluidDayView(day, t).refusedText).toBeNull();
+    const view = fluidDayView({ ...day, refusedEntries: 2, refusedOfferedMl: 450 }, t);
+    expect(view.refusedText).toBe(
+      "2 drinks offered and refused (450 ml), not counted in the intake.",
+    );
+    // The intake and the shortfall are the API's, which never count a refused drink.
+    expect(view.valueText).toBe("900 ml of a 1,500 ml target");
+    expect(view.statusText).toBe("600 ml below the target so far");
   });
 
   it("says when the target is reached and when there is no target", () => {
@@ -144,6 +175,13 @@ describe("chart entries in words", () => {
         t,
       ),
     ).toEqual(["Lunch: half eaten", "Level 5 Minced and moist (orange)", "Refused"]);
+    // A refused drink's amount is what was offered (#26 review round 3).
+    expect(
+      observationSummary(
+        { chart: "fluid_intake", values: { ml: 200, drink: "Tea", refused: true }, flags: {} },
+        t,
+      ),
+    ).toEqual(["200 ml offered", "Tea", "Refused"]);
   });
 
   it.each([
@@ -164,7 +202,73 @@ describe("chart entries in words", () => {
     expect(iddsiOutcome({ iddsi: { outcome: "unsafe_mismatch" } })).toBe("unsafe_mismatch");
     expect(iddsiOutcome({ iddsi: { outcome: "other" } })).toBeNull();
     expect(iddsiOutcome({})).toBeNull();
+    expect(iddsiOutcome({ iddsi: { outcome: "level_not_recorded" } })).toBe("level_not_recorded");
+    expect(iddsiProblem({ iddsiProblem: "reason_missing" })).toBe("reason_missing");
+    expect(iddsiProblem({ iddsiProblem: "other" })).toBeNull();
+    expect(iddsiProblem({})).toBeNull();
     expect(isChart("vitals")).toBe(true);
     expect(isChart("blood_glucose")).toBe(false);
   });
+
+  it.each<[string, "fluid_intake" | "food", Record<string, unknown>, string | null]>([
+    ["no problem", "fluid_intake", {}, null],
+    [
+      "a drink with no level",
+      "fluid_intake",
+      { iddsiProblem: "level_not_recorded", iddsiAlert: true },
+      "care.charts.iddsiKeptNoLevel",
+    ],
+    [
+      "a thinner drink with no reason, which alerted",
+      "fluid_intake",
+      { iddsiProblem: "reason_missing", iddsiAlert: true },
+      "care.charts.iddsiKeptUnsafeDrink",
+    ],
+    [
+      "more solid food with no reason, which alerted",
+      "food",
+      { iddsiProblem: "reason_missing", iddsiAlert: true },
+      "care.charts.iddsiKeptUnsafeFood",
+    ],
+    [
+      "a safer level with no reason",
+      "food",
+      { iddsiProblem: "reason_missing", iddsiAlert: false },
+      "care.charts.iddsiKeptNoReason",
+    ],
+    [
+      "a prescription that could not be read",
+      "fluid_intake",
+      { iddsiProblem: "prescribed_unreadable", iddsiAlert: true },
+      "care.charts.iddsiKeptUnreadable",
+    ],
+  ])("hazard HZ-016 says every IDDSI problem of a kept entry: %s", (_name, chart, flags, key) => {
+    expect(iddsiProblemMessage({ chart, flags })).toBe(key);
+  });
+
+  it.each<[string, Record<string, unknown>, string | null]>([
+    ["the nurse in charge", { alertRoute: "nurse_in_charge" }, "The nurse in charge was told."],
+    [
+      "the fallback",
+      { iddsiAlert: true, alertRoute: "fallback" },
+      "The alert went to a manager or another member of staff who can see this person, not to a nurse in charge here.",
+    ],
+    [
+      "no one",
+      { iddsiAlert: true, alertRoute: "no_one" },
+      "No one who can open this record could be told. Tell the nurse in charge or a manager now.",
+    ],
+    [
+      "an alert saved before the route was kept",
+      { iddsiAlert: true },
+      "Check that the nurse in charge knows.",
+    ],
+    ["no alert", { iddsiAlert: false }, null],
+  ])(
+    "hazard HZ-014 hazard HZ-016 says who an alert actually reached: %s (#26 review round 3)",
+    (_name, flags, words) => {
+      const key = alertRouteMessage(flags);
+      expect(key === null ? null : t(key)).toBe(words);
+    },
+  );
 });

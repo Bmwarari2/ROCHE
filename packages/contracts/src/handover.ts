@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CarePlanStatus, PcspDomain } from "./care-planning";
 import { PersonSummary } from "./person-summary";
+import { StaffName } from "./staff";
 import { TaskItem } from "./tasks";
 
 /**
@@ -159,6 +160,8 @@ export const HandoverNoteItem = z
     body: z.string(),
     createdAt: isoDateTime,
     createdBy: uuid.nullable(),
+    /** The note's author by name and job title. */
+    createdByStaff: StaffName.nullable(),
   })
   .meta({ id: "HandoverNoteItem" });
 export type HandoverNoteItem = z.infer<typeof HandoverNoteItem>;
@@ -167,6 +170,8 @@ export const HandoverAcknowledgementItem = z
   .object({
     id: uuid,
     tenantUserId: uuid,
+    /** Who acknowledged, by name and job title. */
+    staff: StaffName.nullable(),
     acknowledgedAt: isoDateTime,
   })
   .meta({ id: "HandoverAcknowledgementItem" });
@@ -199,6 +204,8 @@ export const HandoverSummary = z
     acknowledgedBy: z.array(uuid),
     /** Of those, who has items they can see still to acknowledge (only you, when limited). */
     pending: z.array(uuid),
+    /** The members in `acknowledgedBy` and `pending`, by name and job title. */
+    staff: z.array(StaffName),
     /**
      * True once the shift has ended and nobody on the incoming shift has acknowledged everything
      * they can see (an acknowledgement before the shift ended does not count); null when limited.

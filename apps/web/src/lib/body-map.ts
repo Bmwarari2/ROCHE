@@ -25,13 +25,13 @@ const FRONT: readonly RegionPlacement[] = [
   { region: "head", shape: "central", y: 26, dx: 12 },
   { region: "face", shape: "central", y: 50, dx: 9 },
   { region: "ear", shape: "paired", y: 42, dx: 25 },
-  { region: "neck", shape: "central", y: 80, dx: 8 },
+  { region: "neck", shape: "central", y: 80, dx: 10 },
   { region: "shoulder", shape: "paired", y: 100, dx: 46 },
   { region: "chest", shape: "central", y: 122, dx: 20 },
   { region: "breast", shape: "paired", y: 146, dx: 22 },
   { region: "abdomen", shape: "central", y: 190, dx: 18 },
-  { region: "groin", shape: "central", y: 238, dx: 16 },
-  { region: "genitals", shape: "central", y: 256, dx: 7 },
+  { region: "groin", shape: "central", y: 232, dx: 16 },
+  { region: "genitals", shape: "central", y: 246, dx: 10 },
   { region: "upper_arm", shape: "paired", y: 140, dx: 60 },
   { region: "inner_elbow", shape: "paired", y: 174, dx: 64 },
   { region: "forearm", shape: "paired", y: 204, dx: 68 },
@@ -49,13 +49,13 @@ const FRONT: readonly RegionPlacement[] = [
 const BACK: readonly RegionPlacement[] = [
   { region: "back_of_head", shape: "central", y: 30, dx: 12 },
   { region: "ear", shape: "paired", y: 42, dx: 25 },
-  { region: "back_of_neck", shape: "central", y: 80, dx: 8 },
+  { region: "back_of_neck", shape: "central", y: 80, dx: 10 },
   { region: "shoulder_blade", shape: "paired", y: 120, dx: 28 },
   { region: "upper_back", shape: "central", y: 148, dx: 14 },
   { region: "spine", shape: "central", y: 176, dx: 10 },
   { region: "lower_back", shape: "central", y: 204, dx: 18 },
   { region: "sacrum", shape: "central", y: 228, dx: 10 },
-  { region: "coccyx", shape: "central", y: 246, dx: 7 },
+  { region: "coccyx", shape: "central", y: 246, dx: 10 },
   { region: "buttock", shape: "paired", y: 266, dx: 24 },
   { region: "back_of_upper_arm", shape: "paired", y: 140, dx: 60 },
   { region: "elbow", shape: "paired", y: 174, dx: 64 },
@@ -133,6 +133,19 @@ export function parseRegionValue(
   const side = value.slice(colon + 1) as BodySide;
   if (!SIDES.includes(side) || !regionSides(view, region).includes(side)) return null;
   return { region, side };
+}
+
+/**
+ * Where a spot is on the body map drawing every screen shares (`BODY_MAP_DRAWING` in the domain:
+ * 120 by 240), for the API, which works out the person's side from it and the view (HZ-019). This
+ * drawing is twice that size. Null when the value is not a spot on the view.
+ */
+export function drawnPoint(
+  view: BodyView,
+  value: string,
+): { readonly x: number; readonly y: number } | null {
+  const spot = hotspots(view).find((s) => s.value === value);
+  return spot ? { x: spot.x / 2, y: spot.y / 2 } : null;
 }
 
 /** The spot nearest to a tap on the drawing, within reach of a fingertip, or null. */

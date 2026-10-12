@@ -122,7 +122,12 @@ const RULES: readonly Rule[] = [
     found: (detail) =>
       detail.includes("This is not the prescribed ") && !detail.includes("may not be safe."),
   },
-  { key: "iddsiLevel", fields: ["iddsiLevel"], found: has("Choose an IDDSI ") },
+  // An unknown level, or none when one is needed (a drink with a drink level prescribed).
+  {
+    key: "iddsiLevel",
+    fields: ["iddsiLevel"],
+    found: (detail) => detail.includes("Choose an IDDSI ") || detail.includes("Choose the IDDSI "),
+  },
   { key: "prescribedInvalid", fields: [], found: has(" level is not an IDDSI level.") },
   // Visits and activities (Regulation 9A).
   {

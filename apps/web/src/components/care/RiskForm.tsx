@@ -10,7 +10,7 @@ import { type ActionResult, errorFor, fieldErrors, partsFor, partsRefusal } from
 import { answerField, type RiskTemplate, readRiskFields, splitControls } from "@/lib/risk";
 import { dateBoxesOf, readDateField } from "@/lib/uk-time";
 import { FormFeedback } from "./FormFeedback";
-import { useFieldIds } from "./form-state";
+import { useEntryId, useFieldIds } from "./form-state";
 
 const FIELDS = [
   "hazard",
@@ -89,6 +89,8 @@ export function RiskForm({
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const [pending, startTransition] = useTransition();
   const ids = useFieldIds(FIELDS);
+  // A new assessment's client id, kept across retries of the same save (HZ-029).
+  const entry = useEntryId();
   const controls = existing ? splitControls(existing.controls, template) : null;
   const answer = (key: string) => existing?.answers[key];
 
@@ -132,7 +134,11 @@ export function RiskForm({
             ...fields,
             version: existing.version,
           })
-        : await recordRiskAssessment(personId, { templateKey: template.key, ...fields });
+        : await recordRiskAssessment(personId, {
+            id: entry.id,
+            templateKey: template.key,
+            ...fields,
+          });
       setResult(outcome);
       if (outcome.ok) router.push(`/people/${personId}/risk-assessments?saved=${outcome.data.id}`);
     });

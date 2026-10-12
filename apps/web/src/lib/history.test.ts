@@ -34,6 +34,7 @@ describe("record history", () => {
             validFrom: "2026-10-02T09:00:00Z",
             validTo: "2026-10-03T09:00:00Z",
             changedBy: "u1",
+            changedByStaff: null,
             data: { id: "x", tenant_id: "t", need: "Two carers", outcome: "Walk daily" },
           },
           {
@@ -41,6 +42,7 @@ describe("record history", () => {
             validFrom: "2026-10-01T09:00:00Z",
             validTo: "2026-10-02T09:00:00Z",
             changedBy: null,
+            changedByStaff: null,
             data: { id: "x", tenant_id: "t", need: "One carer", outcome: "Walk daily" },
           },
         ],

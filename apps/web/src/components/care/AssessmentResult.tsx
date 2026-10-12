@@ -7,12 +7,14 @@ import { readWorkings } from "@/lib/charts";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { EntryBadges } from "./EntryBadges";
+import { EscalationPolicyLine } from "./EscalationPolicyLine";
 import { Workings } from "./Workings";
 
 /**
  * One validated tool result exactly as the API calculated and stored it (hazards HZ-012 and
- * HZ-014): the score and band in words, the workings, what the result raised and when the tool is
- * next due. The falls questions give no score, in NICE's words.
+ * HZ-014): the score and band in words, the workings, what the result raised, the organisation's
+ * escalation policy for it (or that none is configured), and when the tool is next due. The falls
+ * questions give no score, in NICE's words.
  */
 export function AssessmentResult({
   item,
@@ -93,6 +95,7 @@ export function AssessmentResult({
           </p>
         ) : null}
       </div>
+      <EscalationPolicyLine policy={item.escalationPolicy} />
       <p className="m-0 flex flex-wrap gap-x-4 text-body-dense text-text-secondary">
         {item.nextDueOn ? (
           <span>{t("care.assessments.nextDue", { date: formatDate(item.nextDueOn) ?? "" })}</span>

@@ -16,6 +16,7 @@ import type {
   CreateVisit,
 } from "@harbour/contracts";
 import { DEVICE_WRITABLE_TABLES, type OfflineWindowTable } from "@harbour/sync/client";
+import { zoneForSide } from "../care/body-map";
 import { t } from "../i18n/t";
 import type { CrudEntryLike } from "./connector";
 
@@ -131,12 +132,36 @@ function observationBody(id: string, data: Data): CreateObservation {
   return compact({ ...common(id, data), values: values as CreateObservation["values"] });
 }
 
+/**
+ * Where the mark was placed on the drawing (HZ-019): the point tapped and the zone. The API works
+ * the side out again from these and the view. An entry queued before the device kept the zone has
+ * only the side it worked out, which names its zone on that view, so it is sent as that zone.
+ */
+function drawnPlace(data: Data): Pick<CreateBodyMapMark, "drawnAt" | "drawnZone"> {
+  const x = number(data.drawn_x);
+  const y = number(data.drawn_y);
+  const zone = text(data.drawn_zone);
+  const view = text(data.view);
+  const side = text(data.drawn_side);
+  const fromSide =
+    (view === "front" || view === "back") &&
+    (side === "left" || side === "right" || side === "midline")
+      ? (zoneForSide(view, side) ?? undefined)
+      : undefined;
+  return {
+    drawnAt: x !== undefined && y !== undefined ? { x, y } : undefined,
+    drawnZone: (zone ?? fromSide) as CreateBodyMapMark["drawnZone"],
+  };
+}
+
 function markBody(id: string, data: Data): CreateBodyMapMark {
   return compact({
     ...common(id, data),
     view: text(data.view) as CreateBodyMapMark["view"],
     region: text(data.region) as string,
-    // HZ-019: the API checks the side drawn against the side chosen in words, as the device did.
+    // HZ-019: the API works the side out from the place drawn and checks it against the side
+    // chosen in words, as the device did; the side the device worked out is sent for its check too.
+    ...drawnPlace(data),
     drawnSide: text(data.drawn_side) as CreateBodyMapMark["drawnSide"],
     side: text(data.side) as CreateBodyMapMark["side"],
     markType: text(data.mark_type) as CreateBodyMapMark["markType"],

@@ -625,3 +625,180 @@ holder's confirmation is a CSO and DPO decision and that no screen shows "Sent b
 **Tests**: `packages/domain` 3,914, `packages/db` 341, `packages/contracts` 30, `apps/api` 562,
 `packages/sync` 59, `apps/mobile` 863, `apps/web` 306, `packages/i18n` 48, all passing locally
 through `scripts/ci-local.sh`.
+
+## 2026-10-12: Care API follow-ups (the rest of the #15 reviews)
+
+**What changed**
+
+- IDDSI on the server (HZ-016, C3): `checkIddsiEntry` needs a drink's level whenever a drink level
+  is prescribed. The web is refused, naming the prescribed level; an entry from a device is kept,
+  flagged (`flags.iddsiProblem`: `level_not_recorded`, `reason_missing`, `prescribed_unreadable`)
+  and, when it may not be safe, alerts the nurse in charge. The web shows the flag in words with
+  an icon on the saved entry.
+- Escalation policy link (HZ-012, HZ-014; medical-device boundary rule 4):
+  `escalation_policy_link` (per tool, optional band and location; migrations 0043 and 0044) and
+  `GET`, `POST`, `PUT /v1/escalation-policies` with `.../{linkId}/remove` (`quality.policy.manage`,
+  a location role only for its locations). Every NEWS2, MUST, Waterlow, Braden and falls result
+  returns `escalationPolicy`, or `not_configured`.
+- Body-map side on the server (HZ-019): the shared drawing (`BODY_MAP_DRAWING`) and
+  `sideFromDrawing`; marks carry `drawnAt` or `drawnZone`, the server works out and stores the side
+  (`drawn_x`, `drawn_y`, `drawn_zone`, `drawn_side`) and refuses any disagreement. The web sends
+  each spot (some spots moved so each reads as its own side); the phone sends the point tapped or
+  the zone chosen, and an entry queued before as the zone its drawn side names.
+- Discard reasons, replay index and flag (HZ-040): `discard_reason` per organisation, seeded by a
+  trigger on `tenant` and by the migration, with `GET`, `POST`, `PUT /v1/discard-reasons`
+  (`platform.tenant.manage`, tenant-wide); `SyncDiscard.organisationReasonCode`;
+  `device_discard_record`, unique on deletion and stage, as the replay guard;
+  `entry_device_deletion_flag` and `deviceDeletion` on every entry item. Both tables filled from
+  the audit trail by migration 0044.
+- Staff names: `StaffName` (display name and job title) beside every staff id in care responses
+  (entries, sign-offs, publications, history, tasks, rounds, handovers, MCA records, refused
+  entries), read under the caller's row-level security.
+- Client ids (HZ-029): `id` on `CreateAdvanceCareRecord`, `CreateRiskAssessment`,
+  `CreateCarePlan`, `CreateCarePlanAction`, `CreateConsent` and `CreateDols`, and the
+  `Idempotency-Key` header on every care create route; the web now sends kept ids for advance
+  care records, risk assessments, care plan drafts and actions.
+- OpenAPI and the client regenerated (additive only; `oasdiff breaking` clean); export catalogue
+  entries for the four tables; Welsh catalogue keys added and listed as untranslated.
+- Docs: care.md (sections 2 to 7, 9 and 10; Device integrity part 8), hazard log (HZ-012, HZ-014,
+  HZ-016, HZ-019, HZ-029, HZ-040), medical-device boundary, records of processing, data standards,
+  retention mapping, feature register (CARE-001, CARE-002, CARE-003, CARE-007, CARE-010,
+  CARE-012, CARE-015, CARE-021, CARE-022, MOB-006).
+
+**Next**: review of this branch; the screens for the escalation policy link, staff names and the
+deletion flag (H-73), settings screens for links and coded reasons, the phone offering the
+organisation's reasons (H-164); the stale-device check (H-141); client ids on create routes outside
+care.
+
+**Human actions logged**: H-160 (IDDSI entries kept from a device), H-161 (the new processing and
+staff names), H-162 (the body map drawing), H-163 (the escalation policy lookup), H-164 (coded
+reasons per organisation); H-73, H-74 and H-146 updated.
+
+**Tests**: `packages/domain` 3,996, `packages/db` 365, `packages/contracts` 34, `apps/api` 586,
+`packages/sync` 59, `apps/mobile` 869, `apps/web` 311, `packages/i18n` 48, all passing locally
+through `scripts/ci-local.sh`.
+
+## 2026-10-12: #26 review round 2 (care API follow-ups)
+
+**What changed**
+
+- IDDSI in words (clinical C1; HZ-016): the web shows every kept problem in words beside its icon,
+  `prescribed_unreadable` included, and says "it may not be safe: the nurse in charge was told"
+  only when the entry raised the alert (a thinner drink or more solid food than prescribed); a
+  refused drink needs no level and raises nothing, on the server, the web and the phone.
+- Urgent alert routing (clinical C2; HZ-016, HZ-012): with no nurse in charge on shift, the IDDSI
+  and other urgent care alerts go to the fallback (the Registered Manager, else holders of
+  `care.plan.write`); only notifications written are counted; with no one to tell,
+  `care.alert.unrouted` is audited (opaque ids only).
+- Flagged entries in totals (clinical C3; HZ-040): the fluid day returns `flaggedEntries`,
+  `flaggedIntakeMl` and `flaggedOutputMl`; every list carries `deviceDeletion`; the web shows an
+  icon and words on the entry and beside the day's total. Nothing is left out (H-165).
+- Older phones' marks (clinical C4; HZ-019): a mark with only a drawn side is stored at the zone
+  that side names and flagged (`body_map_mark.drawn_from_device_side`, migration 0045); the spec
+  line saying such marks are refused is corrected. A refused copy of a category 2 or worse pressure
+  ulcer, a bruise or an injury makes the review task and notice urgent (H-162).
+- Replays (clinical C5; HZ-029): a resent create with the same id and other material details is
+  refused with 409 "This was already saved with different details: reload before changing it."
+  (advance care records, risk assessments, care plan drafts and actions, consents, DoLS,
+  escalation links); a replayed link that has since been removed is refused, never returned.
+- Escalation policy on the web (clinical C6; HZ-014, HZ-012): assessment results and the
+  observation list show the linked policy as a link to the document, or "No escalation policy is
+  configured for this result" with an icon; `validatedToolsWithLinks` feeds the onboarding item
+  `escalation_policies_linked` from the links (bands and locations covered), for the onboarding
+  route to call; the demo seed links a NEWS2 policy; Playwright and axe cover both states.
+- Who may change links and reasons (security S1; HZ-012, HZ-040): decided from the role
+  assignments and grants that carry `quality.policy.manage` or `platform.tenant.manage`
+  (`placesHoldingPermission`, `app.holds_permission_at`, migration 0046), in the API and in RLS,
+  never from the merged scope; `resolveAccess` unchanged.
+- Lows: `GET /v1/discard-reasons` needs `care.note.write`; handover notes and acknowledgements,
+  capacity and best-interests records lock their client id and answer a used id with 422, never
+  500; `entry_device_deletion_flag` is unique on tenant, table and entry, and flags are looked up
+  by table and id; the audit names an organisation's reason by id, not its text; the policy
+  document must be the current version of an organisation policy; a care plan action's replay is
+  labelled with its stored section's domain. Migration 0044's backfill skips flags already there.
+- OpenAPI and the client regenerated (additive; `oasdiff breaking` clean).
+- Docs: care.md (rules 5 to 7, permissions, sections 5, 6 part 8, 9 and 10), hazard log (HZ-012,
+  HZ-014, HZ-016, HZ-019, HZ-029, HZ-040), medical-device boundary, data standards, records of
+  processing, feature register (CARE-003).
+
+**Human actions logged**: H-165 (flagged entries in totals), H-166 (the IDDSI level compared with
+the prescription at upload, not at the time given); H-73, H-160, H-162 and H-163 updated (H-163
+notes that a location's all-bands link wins over an organisation's band-specific one).
+
+**Tests**: `packages/domain` 4,014, `packages/db` 366, `packages/contracts` 34, `apps/api` 598,
+`packages/sync` 59, `apps/mobile` 870, `apps/web` 327, `packages/i18n` 48, all passing locally
+through `scripts/ci-local.sh`.
+
+## 2026-10-12: #26 review round 3 (care API follow-ups)
+
+**What changed**
+
+- Alert recipients (item 1; HZ-014, HZ-016): an urgent result alert goes only to someone who can
+  open the person's record (`staffViews`, moved to `services/staff-views.ts`, now with each
+  member's permissions), on the staff and with a role in force: the nurse in charge, else the
+  Registered Managers across the organisation, other Registered Managers who can see the person,
+  then holders of `care.plan.write` who can. Its title names the home. The route is worked out
+  before the entry is written and kept as `flags.alertRoute`; with no one, nothing is counted
+  and `care.alert.unrouted` is audited with a coded reason (`CareTrigger.code`, for example
+  `news2_threshold`). The sync tasks' fallback is unchanged.
+- Replays (item 2; HZ-029, HZ-015): a resent create with other details is refused with 409
+  `already_saved_differently`, and the web says what was saved stands, to reload, check it and
+  enter the change again. A care plan draft is compared on `copyFromActive` too
+  (`care_plan.copy_from_active`, migration 0047).
+- NEWS2 after saving (item 3; HZ-012, HZ-014): the result shown and focused after saving vital
+  signs names the escalation policy from the save's response.
+- Onboarding wording (item 4): the hazard log, care.md and H-163 say the onboarding rule is
+  built and the route that calls it is not.
+- Refused drinks (item 5; HZ-014): a drink offered and refused adds nothing to the intake or the
+  shortfall; the fluid day returns `refusedEntries` and `refusedOfferedMl`; the web shows them
+  beside the total, and a refused drink reads "200 ml offered" on the web and the phone (H-167).
+- Lows: the web says who an alert reached from `alertRoute` (or "Check that the nurse in charge
+  knows." for an older alert); a refused pressure ulcer with no category, or an unreadable one,
+  is reviewed urgently; the S1 tests are named for HZ-012 and HZ-040, with table-driven Postgres
+  cases for ended, future and deleted assignments, archived and mixed roles, and expired,
+  revoked and deleted grants; `app.holds_permission_at` skips roles mixing portal and staff
+  permissions (0046 amended, not on `main`); coded reasons are changed by id
+  (`PUT /v1/discard-reasons/{reasonId}`, `DiscardReasonItem.id`) and audited by id only.
+- OpenAPI and the client regenerated (additive against `main`); Welsh catalogue keys added as
+  untranslated.
+- Docs: hazard log (HZ-012, HZ-014, HZ-016, HZ-019, HZ-029, HZ-040), care.md (rules 5 and 6,
+  permissions, schema, sections 5, 6 part 5 and 8, and 9), medical-device boundary, data
+  standards, STATUS.md.
+
+**Human actions logged**: H-167 (whether refused drinks are shown beside the total); H-73 (the
+not-configured line on every band, NEWS2 0 included), H-160 (who the alert reached, in words)
+and H-163 (the onboarding route not yet built) updated.
+
+**Tests**: `packages/domain` 4,018, `packages/db` 381, `packages/contracts` 34, `apps/api` 609,
+`packages/sync` 59, `apps/mobile` 871, `apps/web` 338, `packages/i18n` 48, all passing locally
+through `scripts/ci-local.sh`.
+
+## 2026-10-12: #26 review round 4 (care API follow-ups)
+
+**What changed**
+
+- Test names (M1; HZ-014): the refused-drink tests are named for HZ-014 (the domain cases in a
+  describe of their own, the API describe and the web test), and the hazard log cites them by
+  their exact names.
+- Alert routing tests (M2; HZ-014, HZ-016): one table-driven API test,
+  `hazard HZ-014 hazard HZ-016 an urgent alert's fallback order, and the staff it skips (#26
+  review round 4)`, runs `urgentAlertRecipients` and `raiseCareTriggers` in an organisation of
+  its own per case: a nurse in charge who can see first; an organisation-wide Registered Manager
+  before one at the home; a Registered Manager who can see before care plan holders, never one
+  who cannot; a nurse in charge who cannot see; suspended and departed staff; ended and future
+  assignments; nobody qualifying (route `no_one`, nothing counted, the coded reason audited).
+  Every case passed against the round 3 code; reordering the tiers makes case (a) fail.
+- Minor: the fallback is said by role, not rota ("The alert went to a manager or another member
+  of staff who can see this person, not to a nurse in charge here."); the hazard log cites
+  `hazard HZ-029 a save sent twice with the same client id is recorded once` exactly; the phone's
+  unsafe-level copy says "When this is sent, the nurse in charge or a manager will be told. Tell
+  them now if you can." (en-GB and cy; already listed as untranslated); the API fluid tests run
+  on a fixed day, so they pass at any hour; platform.md says lock-screen push text stays generic,
+  with no location or person name; the fallback's per-candidate reads are noted in STATUS.md
+  (item 11) for measuring against the 100 ms budget.
+
+**Human actions logged**: H-160 reworded (the fallback wording).
+
+**Tests**: `packages/domain` 4,018, `packages/db` 381, `packages/contracts` 34, `apps/api` 616,
+`packages/sync` 59, `apps/mobile` 871, `apps/web` 338, `packages/i18n` 48, all passing locally
+through `scripts/ci-local.sh`.

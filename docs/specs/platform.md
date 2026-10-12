@@ -107,6 +107,10 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
 - Worker jobs (pg-boss, every minute): escalations, deliveries (email through the tenant's adapter;
   SMS and push skipped until phone numbers and device registration exist), outbox relay.
 - Outbound titles are generic and checked by `outboundTitleProblem` before any send.
+- Lock-screen push text stays generic: no person's name and no location name. An in-app title
+  may name the home (the urgent result alert does, "An observation at Harbour Lodge needs a
+  response now"; #26 review round 3), so push delivery, when built, sends a generic title of its
+  own ("An observation needs a response now"), never the in-app title (#26 review round 4).
 - API: `GET /v1/notifications`, `POST /v1/notifications/{id}/read`, `.../acknowledge`.
 - Later: preferences UI and device push registration (Phase 1), SMS gateway choice (human action).
 

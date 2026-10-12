@@ -31,6 +31,7 @@ import {
   permissionHolders,
 } from "./device-holds";
 import { rateNumber } from "./rates";
+import { type StaffLookup, staffNames } from "./staff";
 
 /** How far ahead recurring tasks exist as rows, so devices can sync tomorrow's round tonight. */
 export const MATERIALISE_AHEAD_HOURS = 48;
@@ -43,7 +44,23 @@ type SeriesRow = typeof taskSeries.$inferSelect;
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
 
-export function toTaskItem(row: TaskRow, now: Date, escalateAfterMinutes: number): TaskItem {
+/** The names of the staff the tasks name (assignee, completed by), for `toTaskItem`. */
+export function taskStaff(
+  tx: Transaction,
+  rows: readonly Pick<TaskRow, "assigneeTenantUserId" | "completedBy">[],
+): Promise<StaffLookup> {
+  return staffNames(
+    tx,
+    rows.flatMap((r) => [r.assigneeTenantUserId, r.completedBy]),
+  );
+}
+
+export function toTaskItem(
+  row: TaskRow,
+  now: Date,
+  escalateAfterMinutes: number,
+  staff: StaffLookup,
+): TaskItem {
   return {
     id: row.id,
     seriesId: row.seriesId,
@@ -52,6 +69,7 @@ export function toTaskItem(row: TaskRow, now: Date, escalateAfterMinutes: number
     personId: row.personId,
     locationId: row.locationId,
     assigneeTenantUserId: row.assigneeTenantUserId,
+    assigneeStaff: staff(row.assigneeTenantUserId),
     dueAt: row.dueAt.toISOString(),
     windowStart: iso(row.windowStart),
     windowEnd: iso(row.windowEnd),
@@ -75,6 +93,8 @@ export function toTaskItem(row: TaskRow, now: Date, escalateAfterMinutes: number
     catchUp: row.restoreCode === "caught_up",
     restoredDone: row.restoreCode === "answered_while_stopped",
     completedAt: iso(row.completedAt),
+    completedBy: row.completedBy,
+    completedByStaff: staff(row.completedBy),
     escalated: row.escalationLevel > 0,
     details: (row.details ?? null) as TaskItem["details"],
     version: row.version,

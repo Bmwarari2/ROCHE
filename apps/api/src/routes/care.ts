@@ -7,7 +7,6 @@ import {
   CreateCareNote,
   CreateObservation,
   FluidDay,
-  HandoverHeaders,
   ObservationItem,
   ObservationList,
   PersonCareProfile,
@@ -27,14 +26,18 @@ import {
   calculateNews2,
   checkBowelEntry,
   checkIddsiEntry,
+  type EscalationPolicyLink,
   fluidDaySummary,
+  type IddsiProblemHandling,
   markTriggers,
   type PressureUlcerCategory,
+  sideFromDrawing,
   UK_TIME_ZONE,
   ukDayBounds,
   ukIsoDate,
   validateMark,
   weightInterval,
+  zoneForPersonSide,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, desc, eq, gte, inArray, lt } from "drizzle-orm";
@@ -50,9 +53,11 @@ import {
   entryTimes,
   personContext,
   raiseCareTriggers,
+  urgentAlertRecipients,
 } from "../services/care";
 import { latestMustBand } from "../services/care-planning";
-import { flagIfReportedDeleted } from "../services/device-holds";
+import { deletionFlags, flagIfReportedDeleted } from "../services/device-holds";
+import { escalationLinks, escalationRef, news2Band } from "../services/escalation-policies";
 import {
   auditHandedOver,
   planHandedOverEntry,
@@ -61,6 +66,9 @@ import {
 import { loadPerson, type PersonRecord, requireWrite } from "../services/people";
 import {
   applyLink,
+  type EntryExtras,
+  EntryHeaders,
+  entryExtras,
   entryOut,
   entryWriteAccess,
   eventKind,
@@ -72,6 +80,7 @@ import {
   supersededIds,
   triggersAfterChange,
   window,
+  withClientId,
   withLateEntryReview,
 } from "./care-shared";
 import {
@@ -157,7 +166,7 @@ export const careRouter = createRouter()
       request: {
         params: PersonParam,
         // A hand-over of held entries (care.md section 6, Device integrity part 6).
-        headers: HandoverHeaders,
+        headers: EntryHeaders,
         body: { content: { "application/json": { schema: CreateCareNote } } },
       },
       responses: {
@@ -169,7 +178,7 @@ export const careRouter = createRouter()
     async (c) => {
       const { access, author, handover, handedOverBy } = await entryWriteAccess(c, "care_note");
       const { id: personId } = c.req.valid("param");
-      const body = c.req.valid("json");
+      const body = withClientId(c, c.req.valid("json"));
       requireCorrection(body);
       // A handed-over entry is checked against the device's hold before it is written (#25
       // review rounds 2 and 3): the owner's time on the device, the hold's count and their care.
@@ -195,7 +204,11 @@ export const careRouter = createRouter()
               if (replayed) {
                 if (replayed.personId !== personId)
                   throw problems.invalid("That id is already used.");
-                return noteItem(replayed, new Set());
+                return noteItem(
+                  replayed,
+                  new Set(),
+                  await entryExtras(tx, "care_note", [replayed]),
+                );
               }
             }
             // Admitted in the entry's own transaction, so a refusal uses none of the count.
@@ -260,6 +273,7 @@ export const careRouter = createRouter()
                 uploader: author,
                 resourceType: "care_note",
                 id: row.id,
+                personId,
                 locationId: person.locationId,
                 requestId: c.get("requestId"),
               });
@@ -294,7 +308,7 @@ export const careRouter = createRouter()
                 payload: { noteId: row.id, lateEntry: row.lateEntry },
               });
             }
-            return noteItem(row, new Set());
+            return noteItem(row, new Set(), await entryExtras(tx, "care_note", [row]));
           }),
       );
       return c.json(item, 201);
@@ -354,7 +368,8 @@ export const careRouter = createRouter()
           requestId: c.get("requestId"),
         });
         const superseded = supersededIds(rows);
-        return rows.map((r) => noteItem(r, superseded));
+        const extras = await entryExtras(tx, "care_note", rows);
+        return rows.map((r) => noteItem(r, superseded, extras));
       });
       return c.json({ items }, 200);
     },
@@ -371,7 +386,7 @@ export const careRouter = createRouter()
       request: {
         params: PersonParam,
         // A hand-over of held entries (care.md section 6, Device integrity part 6).
-        headers: HandoverHeaders,
+        headers: EntryHeaders,
         body: { content: { "application/json": { schema: CreateObservation } } },
       },
       responses: {
@@ -383,7 +398,7 @@ export const careRouter = createRouter()
     async (c) => {
       const { access, author, handover, handedOverBy } = await entryWriteAccess(c, "observation");
       const { id: personId } = c.req.valid("param");
-      const body = c.req.valid("json");
+      const body = withClientId(c, c.req.valid("json"));
       requireCorrection(body);
       // A handed-over entry is checked against the device's hold before it is written (#25
       // review rounds 2 and 3): the owner's time on the device, the hold's count and their care.
@@ -412,7 +427,12 @@ export const careRouter = createRouter()
               if (replayed) {
                 if (replayed.personId !== personId)
                   throw problems.invalid("That id is already used.");
-                return observationItem(replayed, new Set());
+                return observationItem(
+                  replayed,
+                  new Set(),
+                  await entryExtras(tx, "observation", [replayed]),
+                  await escalationLinks(tx),
+                );
               }
             }
             // Admitted in the entry's own transaction, so a refusal uses none of the count.
@@ -427,7 +447,14 @@ export const careRouter = createRouter()
             );
             await checkSuperseded(tx, observation, body.supersedesId, personId);
             const profile = await careProfile(tx, personId);
-            const { flags, triggers } = chartRules(body.values, profile, times.occurredAt);
+            const { flags, triggers } = chartRules(
+              body.values,
+              profile,
+              times.occurredAt,
+              // An entry from a device is what was given: kept and flagged, never refused for its
+              // IDDSI level (HZ-016, clinical review C3); the web form is there to put it right.
+              access.deviceId ? "keep" : "refuse",
+            );
             const link = await planLink(
               tx,
               access,
@@ -436,6 +463,13 @@ export const careRouter = createRouter()
               times.occurredAt,
               author,
             );
+            // Who an urgent alert reaches is worked out before the entry is written and kept on
+            // it (`alertRoute`), so the record says what actually happened: the nurse in charge,
+            // the fallback, or no one (#26 review round 3).
+            const raising = triggersAfterChange(triggers, recordedAfterExit, record.status);
+            const alert = raising.some((t) => t.kind === "urgent_alert")
+              ? await urgentAlertRecipients(tx, { personId, locationId: person.locationId }, now)
+              : undefined;
             const [inserted] = await tx
               .insert(observation)
               .values({
@@ -448,7 +482,7 @@ export const careRouter = createRouter()
                 locationId: person.locationId,
                 chart: body.values.chart,
                 values: body.values,
-                flags,
+                flags: alert ? { ...flags, alertRoute: alert.route } : flags,
                 occurredAt: times.occurredAt,
                 deviceTime: times.deviceTime,
                 deviceId: access.deviceId,
@@ -478,6 +512,7 @@ export const careRouter = createRouter()
                 uploader: author,
                 resourceType: "observation",
                 id: row.id,
+                personId,
                 locationId: person.locationId,
                 requestId: c.get("requestId"),
               });
@@ -491,8 +526,9 @@ export const careRouter = createRouter()
                   sourceType: "observation",
                   sourceId: row.id,
                 },
-                triggersAfterChange(triggers, recordedAfterExit, record.status),
+                raising,
                 now,
+                alert,
               );
               if (link) {
                 await applyLink(tx, access, c.get("requestId"), link, {
@@ -554,7 +590,12 @@ export const careRouter = createRouter()
                 payload: { observationId: row.id, chart: row.chart },
               });
             }
-            return observationItem(row, new Set());
+            return observationItem(
+              row,
+              new Set(),
+              await entryExtras(tx, "observation", [row]),
+              await escalationLinks(tx),
+            );
           }),
       );
       return c.json(item, 201);
@@ -617,7 +658,9 @@ export const careRouter = createRouter()
           requestId: c.get("requestId"),
         });
         const superseded = supersededIds(rows);
-        return rows.map((r) => observationItem(r, superseded));
+        const extras = await entryExtras(tx, "observation", rows);
+        const links = await escalationLinks(tx);
+        return rows.map((r) => observationItem(r, superseded, extras, links));
       });
       return c.json({ items }, 200);
     },
@@ -667,6 +710,9 @@ export const careRouter = createRouter()
               occurredAt: r.occurredAt,
               kind: r.chart === "fluid_intake" ? ("intake" as const) : ("output" as const),
               volumeMl: Number((r.values as { ml?: number }).ml ?? 0),
+              // A drink offered and refused adds nothing to the intake (#26 review round 3).
+              refused:
+                r.chart === "fluid_intake" && (r.values as { refused?: boolean }).refused === true,
             }))
             .filter((e) => e.volumeMl > 0),
         });
@@ -679,6 +725,24 @@ export const careRouter = createRouter()
           requestId: c.get("requestId"),
         });
         const s = outcome.summary;
+        // Entries a device recorded deleting stay in the totals, counted beside them, so a
+        // possible duplicate is checked rather than hidden or silently left out (#26 review
+        // round 2, C3; HZ-040, H-165).
+        const counted = current.filter(
+          (r) =>
+            Number((r.values as { ml?: number }).ml ?? 0) > 0 &&
+            !(r.chart === "fluid_intake" && (r.values as { refused?: boolean }).refused === true),
+        );
+        const flags = await deletionFlags(
+          tx,
+          "observation",
+          counted.map((r) => r.id),
+        );
+        const flagged = counted.filter((r) => flags.has(r.id));
+        const ml = (rows: typeof flagged, chart: string) =>
+          rows
+            .filter((r) => r.chart === chart)
+            .reduce((sum, r) => sum + Number((r.values as { ml?: number }).ml ?? 0), 0);
         return {
           date,
           intakeMl: s.intakeMl,
@@ -686,6 +750,11 @@ export const careRouter = createRouter()
           targetMl: s.target.status === "target_set" ? s.target.targetMl : null,
           shortfallMl: s.target.status === "target_set" ? s.target.shortfallMl : null,
           entries: s.entriesCounted,
+          flaggedEntries: flagged.length,
+          flaggedIntakeMl: ml(flagged, "fluid_intake"),
+          flaggedOutputMl: ml(flagged, "fluid_output"),
+          refusedEntries: s.refusedEntries,
+          refusedOfferedMl: s.refusedOfferedMl,
         };
       });
       return c.json(day, 200);
@@ -702,7 +771,7 @@ export const careRouter = createRouter()
       request: {
         params: PersonParam,
         // A hand-over of held entries (care.md section 6, Device integrity part 6).
-        headers: HandoverHeaders,
+        headers: EntryHeaders,
         body: { content: { "application/json": { schema: CreateBodyMapMark } } },
       },
       responses: {
@@ -714,7 +783,7 @@ export const careRouter = createRouter()
     async (c) => {
       const { access, author, handover, handedOverBy } = await entryWriteAccess(c, "body_map_mark");
       const { id: personId } = c.req.valid("param");
-      const body = c.req.valid("json");
+      const body = withClientId(c, c.req.valid("json"));
       requireCorrection(body);
       // A handed-over entry is checked against the device's hold before it is written (#25
       // review rounds 2 and 3): the owner's time on the device, the hold's count and their care.
@@ -727,10 +796,29 @@ export const careRouter = createRouter()
             deviceTime: body.deviceTime,
           })
         : null;
+      // HZ-019: the side where the mark was drawn is worked out here, from the place on the drawing
+      // and the view; the side in words must agree with it, and so must any side the device worked
+      // out itself. A phone from before the server read the drawing sends only the side it worked
+      // out: that side names one zone on the view, which is read instead and the mark flagged
+      // (`drawnFromDeviceSide`), so those phones' marks are kept rather than refused (#26 review
+      // round 2, C4), as the current phone does for entries queued before it was updated.
+      const fromDeviceSide = !body.drawnAt && !body.drawnZone && body.drawnSide !== undefined;
+      const drawn = sideFromDrawing(body.view, {
+        point: body.drawnAt ?? null,
+        zone:
+          body.drawnZone ??
+          (fromDeviceSide && body.drawnSide ? zoneForPersonSide(body.view, body.drawnSide) : null),
+      });
+      if (!drawn.ok) throw problems.invalid(drawn.message);
+      if (body.drawnSide && body.drawnSide !== drawn.side) {
+        throw problems.invalid(
+          "The side the device worked out from the drawing is not the side the drawing shows. Mark the place on the drawing again.",
+        );
+      }
       const check = validateMark({
         view: body.view,
         region: body.region,
-        drawnSide: body.drawnSide,
+        drawnSide: drawn.side,
         statedSide: body.side,
         markType: body.markType as BodyMarkType,
         pressureUlcerCategory: (body.pressureCategory ?? null) as PressureUlcerCategory | null,
@@ -759,7 +847,11 @@ export const careRouter = createRouter()
               if (replayed) {
                 if (replayed.personId !== personId)
                   throw problems.invalid("That id is already used.");
-                return markItem(replayed, new Set());
+                return markItem(
+                  replayed,
+                  new Set(),
+                  await entryExtras(tx, "body_map_mark", [replayed]),
+                );
               }
             }
             // Admitted in the entry's own transaction, so a refusal uses none of the count.
@@ -795,6 +887,11 @@ export const careRouter = createRouter()
                 view: body.view,
                 region: body.region,
                 side: body.side,
+                drawnX: body.drawnAt?.x ?? null,
+                drawnY: body.drawnAt?.y ?? null,
+                drawnZone: drawn.zone,
+                drawnSide: drawn.side,
+                drawnFromDeviceSide: fromDeviceSide,
                 markType: body.markType,
                 pressureCategory: body.pressureCategory ?? null,
                 deviceRelated: body.deviceRelated ?? null,
@@ -865,6 +962,7 @@ export const careRouter = createRouter()
                 uploader: author,
                 resourceType: "body_map_mark",
                 id: row.id,
+                personId,
                 locationId: person.locationId,
                 requestId: c.get("requestId"),
               });
@@ -892,7 +990,7 @@ export const careRouter = createRouter()
                 requestId: c.get("requestId"),
               });
             }
-            return markItem(row, new Set());
+            return markItem(row, new Set(), await entryExtras(tx, "body_map_mark", [row]));
           }),
       );
       return c.json(item, 201);
@@ -938,7 +1036,8 @@ export const careRouter = createRouter()
           scope: { count: current.length },
           requestId: c.get("requestId"),
         });
-        return current.map((r) => markItem(r, superseded));
+        const extras = await entryExtras(tx, "body_map_mark", current);
+        return current.map((r) => markItem(r, superseded, extras));
       });
       return c.json({ items }, 200);
     },
@@ -1061,30 +1160,60 @@ export const careRouter = createRouter()
 
 type ProfileRow = typeof personCareProfile.$inferSelect | null;
 
-/** The checks and flags each chart applies before an entry is saved. */
+/** Why the nurse in charge is told about a food or drink entry (HZ-016). */
+const IDDSI_ALERT_REASONS: Readonly<Record<string, string>> = {
+  level_not_recorded: "A drink was recorded without its IDDSI level while a level is prescribed",
+  prescribed_unreadable: "The prescribed IDDSI level could not be read",
+};
+
+/**
+ * The checks and flags each chart applies before an entry is saved. Food and drink follow
+ * `checkIddsiEntry` (HZ-016): a drink needs its level whenever a drink level is prescribed, and a
+ * level other than the prescribed one needs a reason. From the web (`refuse`) a missing level or
+ * reason is refused; from a device (`keep`) the entry is what was given, so it is kept with the
+ * problem flagged (`iddsiProblem`) and an unsafe one alerts the nurse in charge (clinical review
+ * C3).
+ */
 function chartRules(
   values: CreateObservation["values"],
   profile: ProfileRow,
   occurredAt: Date,
+  onProblem: IddsiProblemHandling,
 ): { flags: Record<string, unknown>; triggers: CareTrigger[] } {
   if (values.chart === "fluid_intake" || values.chart === "food") {
-    if (!values.iddsiLevel) return { flags: {}, triggers: [] };
     const kind = values.chart === "food" ? "food" : "drink";
+    const prescribed =
+      (kind === "food" ? profile?.iddsiFoodLevel : profile?.iddsiDrinkLevel) ?? null;
+    // A drink with no level carries no IDDSI flags when none is prescribed, as before, or when it
+    // was refused: nothing was given, so there is no texture to check and nothing to alert (#26
+    // review round 2, low).
+    const refusedDrink = values.chart === "fluid_intake" && values.refused === true;
+    if (!values.iddsiLevel && kind === "drink" && (prescribed === null || refusedDrink)) {
+      return { flags: {}, triggers: [] };
+    }
     const check = checkIddsiEntry({
       kind,
-      prescribed: (kind === "food" ? profile?.iddsiFoodLevel : profile?.iddsiDrinkLevel) ?? null,
-      recorded: values.iddsiLevel,
+      prescribed,
+      recorded: values.iddsiLevel ?? null,
       reason: values.overrideReason ?? null,
+      onProblem,
     });
     if (!check.ok) throw problems.invalid(check.message);
     return {
-      flags: { iddsi: check.comparison, iddsiAlert: check.alertNurseInCharge },
+      flags: {
+        iddsi: check.comparison,
+        iddsiAlert: check.alertNurseInCharge,
+        ...(check.problem ? { iddsiProblem: check.problem } : {}),
+      },
       triggers: check.alertNurseInCharge
         ? [
             {
               kind: "urgent_alert",
               recipient: "nurse_in_charge",
-              reason: "IDDSI level differs from the prescribed level",
+              reason:
+                IDDSI_ALERT_REASONS[check.problem ?? ""] ??
+                "IDDSI level differs from the prescribed level",
+              code: check.problem ? `iddsi_${check.problem}` : "iddsi_unsafe_level",
             },
           ]
         : [],
@@ -1137,9 +1266,13 @@ function chartRules(
   return { flags: {}, triggers: [] };
 }
 
-function noteItem(row: typeof careNote.$inferSelect, superseded: ReadonlySet<string>) {
+function noteItem(
+  row: typeof careNote.$inferSelect,
+  superseded: ReadonlySet<string>,
+  extras: EntryExtras,
+) {
   return {
-    ...entryOut(row, superseded),
+    ...entryOut(row, superseded, extras),
     category: row.category as CareNoteItem["category"],
     body: row.body,
     tags: row.tags,
@@ -1147,22 +1280,45 @@ function noteItem(row: typeof careNote.$inferSelect, superseded: ReadonlySet<str
   };
 }
 
-function observationItem(row: typeof observation.$inferSelect, superseded: ReadonlySet<string>) {
+/**
+ * A chart entry; vital signs scored with NEWS2 carry the organisation's escalation policy for the
+ * score's band, or that none is configured (medical-device boundary section 5 rule 4).
+ */
+function observationItem(
+  row: typeof observation.$inferSelect,
+  superseded: ReadonlySet<string>,
+  extras: EntryExtras,
+  links: readonly EscalationPolicyLink[],
+): ObservationItem {
   return {
-    ...entryOut(row, superseded),
+    ...entryOut(row, superseded, extras),
     chart: row.chart,
     values: row.values as Record<string, unknown>,
     flags: row.flags as Record<string, unknown>,
+    escalationPolicy:
+      row.chart === "vitals"
+        ? escalationRef(links, {
+            toolKey: "news2",
+            band: news2Band(row.flags),
+            locationId: row.locationId,
+          })
+        : null,
   };
 }
 
-function markItem(row: typeof bodyMapMark.$inferSelect, superseded: ReadonlySet<string>) {
+function markItem(
+  row: typeof bodyMapMark.$inferSelect,
+  superseded: ReadonlySet<string>,
+  extras: EntryExtras,
+) {
   const num = (v: string | null) => (v === null ? null : Number(v));
   return {
-    ...entryOut(row, superseded),
+    ...entryOut(row, superseded, extras),
     view: row.view as "front" | "back",
     region: row.region,
     side: row.side as "left" | "right" | "midline",
+    drawnSide: row.drawnSide as BodyMapMarkItem["drawnSide"],
+    drawnFromDeviceSide: row.drawnFromDeviceSide,
     markType: row.markType as BodyMapMarkItem["markType"],
     pressureCategory: row.pressureCategory as BodyMapMarkItem["pressureCategory"],
     lengthMm: num(row.lengthMm),

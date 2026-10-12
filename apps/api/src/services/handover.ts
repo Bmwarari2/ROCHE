@@ -1,5 +1,4 @@
 import {
-  accessGrant,
   auditEvent,
   bodyMapMark,
   careNote,
@@ -10,15 +9,10 @@ import {
   location,
   notification,
   observation,
-  person,
-  role,
-  roleAssignment,
   type Transaction,
   task,
-  tenantUser,
 } from "@harbour/db";
 import {
-  type AccessGrantInput,
   type AlertNotification,
   alertConditions,
   checkHandoverKeepsItems,
@@ -38,10 +32,7 @@ import {
   nextShift,
   observationIsRefusal,
   previousShift,
-  type RoleAssignmentInput,
   refreshHandover,
-  resolveAccess,
-  type ScopeKind,
   type ShiftPattern,
   type ShiftWindow,
   shiftAt,
@@ -55,6 +46,7 @@ import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, or, sql } f
 import { nurseInCharge } from "./care";
 import { fallbackRecipients } from "./device-holds";
 import { rateNumber } from "./rates";
+import { type StaffView, staffViews } from "./staff-views";
 
 /**
  * The shift handover (care.md rule 8 as built in slice 5; COMMS-006; hazard HZ-018). Compiled by
@@ -491,15 +483,6 @@ export async function compileOrRefresh(
   return { row: updated, created: false, added };
 }
 
-/** What one member of staff may see now: the people, and where they see a handover whole. */
-export interface StaffView {
-  readonly people: ReadonlySet<string>;
-  readonly scope: string;
-  readonly locationIds: readonly string[];
-}
-
-const NO_VIEW: StaffView = { people: new Set(), scope: "none", locationIds: [] };
-
 /**
  * Whether a member of staff can see an item of a handover at a location, as row-level security
  * decides for them (`handover_item_scope`): an item about a person when they can see that person,
@@ -516,111 +499,6 @@ export function staffCanSee(
   return (
     view.scope === "tenant" || (view.scope === "locations" && view.locationIds.includes(locationId))
   );
-}
-
-/**
- * What each member of staff may see now, by the database's own person-scope policy
- * (`app.person_in_scope`): each member's scope is resolved from their roles and grants as the API
- * does at sign-in, set on the transaction while their view of these people is read, and the
- * caller's context is put back afterwards. Used, in the system's view of the organisation, to say
- * who still has to acknowledge a handover and who hears about a late addition, so nobody is asked
- * about, or told of, items they cannot see (HZ-011, HZ-008).
- */
-export async function staffViews(
-  tx: Transaction,
-  tenantUserIds: readonly string[],
-  personIds: readonly string[],
-  now: Date,
-): Promise<Map<string, StaffView>> {
-  const result = new Map<string, StaffView>(tenantUserIds.map((id) => [id, NO_VIEW]));
-  const people = [...new Set(personIds)];
-  if (tenantUserIds.length === 0) return result;
-  // A suspended or departed member of staff sees nobody, whatever their roles still say.
-  const current = await tx
-    .select({ id: tenantUser.id })
-    .from(tenantUser)
-    .where(
-      and(
-        inArray(tenantUser.id, [...tenantUserIds]),
-        inArray(tenantUser.status, ["invited", "active"]),
-      ),
-    );
-  const onStaff = new Set(current.map((u) => u.id));
-  const assignments = await tx
-    .select({
-      tenantUserId: roleAssignment.tenantUserId,
-      roleKey: role.key,
-      scopeKind: role.scopeKind,
-      permissions: role.permissions,
-      locationId: roleAssignment.locationId,
-      validFrom: roleAssignment.validFrom,
-      validTo: roleAssignment.validTo,
-    })
-    .from(roleAssignment)
-    .innerJoin(role, eq(role.id, roleAssignment.roleId))
-    .where(
-      and(
-        inArray(roleAssignment.tenantUserId, [...tenantUserIds]),
-        isNull(roleAssignment.deletedAt),
-        isNull(role.archivedAt),
-      ),
-    );
-  const grants = await tx
-    .select({
-      tenantUserId: accessGrant.tenantUserId,
-      permissions: accessGrant.permissions,
-      locationId: accessGrant.locationId,
-      validFrom: accessGrant.validFrom,
-      validTo: accessGrant.validTo,
-      revokedAt: accessGrant.revokedAt,
-    })
-    .from(accessGrant)
-    .where(
-      and(inArray(accessGrant.tenantUserId, [...tenantUserIds]), isNull(accessGrant.deletedAt)),
-    );
-  const saved = await tx.execute<{ user_id: string; scope: string; location_ids: string }>(
-    sql`SELECT current_setting('app.user_id', true) AS user_id,
-               current_setting('app.scope', true) AS scope,
-               current_setting('app.location_ids', true) AS location_ids`,
-  );
-  const before = saved.rows[0];
-  try {
-    for (const userId of tenantUserIds) {
-      if (!onStaff.has(userId)) continue;
-      // Roles and grants in force now only: resolveAccess drops ended and future ones.
-      const access = resolveAccess(
-        assignments
-          .filter((a) => a.tenantUserId === userId)
-          .map((a): RoleAssignmentInput => ({ ...a, scopeKind: a.scopeKind as ScopeKind })),
-        grants.filter((g) => g.tenantUserId === userId) as AccessGrantInput[],
-        now,
-      );
-      let seen: { id: string }[] = [];
-      if (people.length > 0) {
-        await tx.execute(
-          sql`SELECT set_config('app.user_id', ${userId}, true),
-                     set_config('app.scope', ${access.scope}, true),
-                     set_config('app.location_ids', ${access.locationIds.join(",")}, true)`,
-        );
-        seen = await tx
-          .select({ id: person.id })
-          .from(person)
-          .where(and(inArray(person.id, people), isNull(person.deletedAt)));
-      }
-      result.set(userId, {
-        people: new Set(seen.map((r) => r.id)),
-        scope: access.scope,
-        locationIds: access.locationIds,
-      });
-    }
-  } finally {
-    await tx.execute(
-      sql`SELECT set_config('app.user_id', ${before?.user_id ?? ""}, true),
-                 set_config('app.scope', ${before?.scope ?? "none"}, true),
-                 set_config('app.location_ids', ${before?.location_ids ?? ""}, true)`,
-    );
-  }
-  return result;
 }
 
 export interface AcknowledgementState {

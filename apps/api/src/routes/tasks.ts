@@ -32,6 +32,7 @@ import {
   GENERAL_TASK_PERMISSION,
   materialiseSeries,
   mayBeAssigned,
+  taskStaff,
   toTaskItem,
 } from "../services/tasks";
 import {
@@ -189,7 +190,8 @@ export const tasksRouter = createRouter()
           },
           requestId: c.get("requestId"),
         });
-        return rows.map((r) => toTaskItem(r, now, minutes));
+        const staff = await taskStaff(tx, rows);
+        return rows.map((r) => toTaskItem(r, now, minutes, staff));
       });
       return c.json({ items }, 200);
     },
@@ -250,7 +252,12 @@ export const tasksRouter = createRouter()
             resourceId: row.id,
             requestId: c.get("requestId"),
           });
-          return toTaskItem(row, now, await escalationMinutes(tx, access.tenantId));
+          return toTaskItem(
+            row,
+            now,
+            await escalationMinutes(tx, access.tenantId),
+            await taskStaff(tx, [row]),
+          );
         }),
       );
       return c.json(item, 201);
@@ -330,7 +337,12 @@ export const tasksRouter = createRouter()
           resourceId: id,
           requestId: c.get("requestId"),
         });
-        return toTaskItem(updated, now, await escalationMinutes(tx, access.tenantId));
+        return toTaskItem(
+          updated,
+          now,
+          await escalationMinutes(tx, access.tenantId),
+          await taskStaff(tx, [updated]),
+        );
       });
       if (!item) {
         // Written after the transaction, which wrote nothing, so the refusal is kept.
@@ -575,7 +587,12 @@ async function transition(c: Context<AppEnv>, id: string, body: TaskTransitionRe
           payload: { kind: row.kind, sourceType: row.sourceType, sourceId: row.sourceId },
         });
       }
-      return toTaskItem(updated, now, await escalationMinutes(tx, access.tenantId));
+      return toTaskItem(
+        updated,
+        now,
+        await escalationMinutes(tx, access.tenantId),
+        await taskStaff(tx, [updated]),
+      );
     }),
   );
   return c.json(item, 200);

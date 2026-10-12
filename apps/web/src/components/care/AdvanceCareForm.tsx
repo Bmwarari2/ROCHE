@@ -8,7 +8,7 @@ import { characterCount, t } from "@/lib/i18n";
 import { type ActionResult, errorFor, partsFor, partsRefusal } from "@/lib/outcome";
 import { dateBoxesOf, readDateField } from "@/lib/uk-time";
 import { FormFeedback } from "./FormFeedback";
-import { useFieldIds } from "./form-state";
+import { useEntryId, useFieldIds } from "./form-state";
 
 type Kind = CreateAdvanceCareRecord["kind"];
 type CprDecision = NonNullable<CreateAdvanceCareRecord["cprDecision"]>;
@@ -48,6 +48,8 @@ export function AdvanceCareForm({
   const [round, setRound] = useState(0);
   const [pending, startTransition] = useTransition();
   const ids = useFieldIds(FIELDS);
+  // One client id per record, kept across retries, so a save sent twice records once (HZ-029).
+  const entry = useEntryId();
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -72,6 +74,7 @@ export function AdvanceCareForm({
       return;
     }
     const input: CreateAdvanceCareRecord = {
+      id: entry.id,
       kind,
       completedOn: completed.date ?? "",
       clinicianName: text("clinicianName"),
@@ -87,7 +90,10 @@ export function AdvanceCareForm({
     startTransition(async () => {
       const outcome = await recordAdvanceCare(personId, input);
       setResult(outcome);
-      if (outcome.ok) setRound((n) => n + 1);
+      if (outcome.ok) {
+        setRound((n) => n + 1);
+        entry.next();
+      }
     });
   };
 

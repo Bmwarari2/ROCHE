@@ -1,9 +1,10 @@
-import { BODY_MAP_REGIONS, personSideFromDrawing } from "@harbour/domain";
+import { BODY_MAP_REGIONS, personSideFromDrawing, sideFromDrawing } from "@harbour/domain";
 import { describe, expect, it } from "vitest";
 import {
   BODY_REGIONS,
   type BodyView,
   DRAWING,
+  drawnPoint,
   hotspots,
   nearestHotspot,
   parseRegionValue,
@@ -90,5 +91,19 @@ describe("body map regions", () => {
     expect(parseRegionValue("front", "sacrum:midline")).toBeNull();
     expect(parseRegionValue("back", "")).toBeNull();
     expect(parseRegionValue("back", "heel")).toBeNull();
+  });
+
+  it("hazard HZ-019 sends the API a place on the shared drawing that reads as each spot's own side, on both views", () => {
+    for (const view of ["front", "back"] as const) {
+      for (const spot of hotspots(view)) {
+        const point = drawnPoint(view, spot.value);
+        expect(point, `${view} ${spot.value}`).not.toBeNull();
+        expect(sideFromDrawing(view, { point }), `${view} ${spot.value}`).toMatchObject({
+          ok: true,
+          side: spot.side,
+        });
+      }
+    }
+    expect(drawnPoint("front", "sacrum:midline")).toBeNull();
   });
 });

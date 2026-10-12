@@ -128,16 +128,101 @@ export function news2Chip(band: string): ChipStatus {
 /** The IDDSI comparison the API stored with a food or drink entry. */
 export function iddsiOutcome(
   flags: Record<string, unknown>,
-): "match" | "mismatch" | "unsafe_mismatch" | "no_prescribed_level" | null {
+):
+  | "match"
+  | "mismatch"
+  | "unsafe_mismatch"
+  | "no_prescribed_level"
+  | "level_not_recorded"
+  | "prescribed_unreadable"
+  | null {
   const iddsi = flags.iddsi;
   if (!isRecord(iddsi) || typeof iddsi.outcome !== "string") return null;
   const outcome = iddsi.outcome;
   return outcome === "match" ||
     outcome === "mismatch" ||
     outcome === "unsafe_mismatch" ||
-    outcome === "no_prescribed_level"
+    outcome === "no_prescribed_level" ||
+    outcome === "level_not_recorded" ||
+    outcome === "prescribed_unreadable"
     ? outcome
     : null;
+}
+
+/**
+ * What the API flagged on a food or drink entry it kept from a device although the rules would
+ * have refused it on the web form (HZ-016, clinical review C3): no level recorded, or a different
+ * level with no reason. Null when there is nothing to say.
+ */
+export function iddsiProblem(
+  flags: Record<string, unknown>,
+): "level_not_recorded" | "reason_missing" | "prescribed_unreadable" | null {
+  const problem = flags.iddsiProblem;
+  return problem === "level_not_recorded" ||
+    problem === "reason_missing" ||
+    problem === "prescribed_unreadable"
+    ? problem
+    : null;
+}
+
+export type IddsiProblemMessage =
+  | "care.charts.iddsiKeptNoLevel"
+  | "care.charts.iddsiKeptUnsafeDrink"
+  | "care.charts.iddsiKeptUnsafeFood"
+  | "care.charts.iddsiKeptNoReason"
+  | "care.charts.iddsiKeptUnreadable";
+
+/**
+ * What to say about a food or drink entry kept from a device with an IDDSI problem (HZ-016; #26
+ * review round 2, C1), every problem in words: no level, a level that may not be safe (a thinner
+ * drink or more solid food than prescribed, which raised an alert) given with no reason, a safer
+ * level with no reason, or a prescribed level that could not be read. Null when there is no
+ * problem. Who the alert reached is said separately (`alertRouteMessage`).
+ */
+export function iddsiProblemMessage(
+  item: Pick<ObservationItem, "chart" | "flags">,
+): IddsiProblemMessage | null {
+  const problem = iddsiProblem(item.flags);
+  switch (problem) {
+    case null:
+      return null;
+    case "level_not_recorded":
+      return "care.charts.iddsiKeptNoLevel";
+    case "prescribed_unreadable":
+      return "care.charts.iddsiKeptUnreadable";
+    case "reason_missing":
+      if (item.flags.iddsiAlert === true) {
+        return item.chart === "food"
+          ? "care.charts.iddsiKeptUnsafeFood"
+          : "care.charts.iddsiKeptUnsafeDrink";
+      }
+      return "care.charts.iddsiKeptNoReason";
+  }
+}
+
+export type AlertRouteMessage =
+  | "care.charts.alert.nurseInCharge"
+  | "care.charts.alert.fallback"
+  | "care.charts.alert.noOne"
+  | "care.charts.alert.unknown";
+
+/**
+ * Who an entry's urgent alert actually reached, from `flags.alertRoute` as the API kept it (#26
+ * review round 3; HZ-014, HZ-016): the nurse in charge, the fallback when no nurse in charge could
+ * open the record, or no one, never "the nurse in charge was told" when they were not. An IDDSI
+ * alert saved before the route was kept says to check instead. Null when the entry raised no alert.
+ */
+export function alertRouteMessage(flags: Record<string, unknown>): AlertRouteMessage | null {
+  switch (flags.alertRoute) {
+    case "nurse_in_charge":
+      return "care.charts.alert.nurseInCharge";
+    case "fallback":
+      return "care.charts.alert.fallback";
+    case "no_one":
+      return "care.charts.alert.noOne";
+    default:
+      return flags.iddsiAlert === true ? "care.charts.alert.unknown" : null;
+  }
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -152,12 +237,35 @@ export interface FluidDayView {
   readonly statusText: string;
   readonly outputText: string;
   readonly entriesText: string;
+  /**
+   * Entries in the totals that a device recorded deleting, with what they add, so staff check for
+   * duplicates (HZ-040; #26 review round 2, C3); null when there are none. They are never taken
+   * out of the totals here: whether they count is for the CSO (H-165).
+   */
+  readonly flaggedText: string | null;
+  /**
+   * Drinks offered and refused, with the amount offered (#26 review round 3): never in the intake,
+   * so a refusal never hides a shortfall; null when there are none.
+   */
+  readonly refusedText: string | null;
 }
 
 /** The day as the API summed it: intake against the target, the shortfall so far, the output. */
 export function fluidDayView(day: FluidDay, t: Translator): FluidDayView {
   const outputText = t("care.charts.fluid.output", { ml: day.outputMl });
   const entriesText = t("care.charts.fluid.entries", { count: day.entries });
+  const flaggedText =
+    day.flaggedEntries > 0
+      ? t("care.charts.fluid.flagged", {
+          count: day.flaggedEntries,
+          intakeMl: day.flaggedIntakeMl,
+          outputMl: day.flaggedOutputMl,
+        })
+      : null;
+  const refusedText =
+    day.refusedEntries > 0
+      ? t("care.charts.fluid.refused", { count: day.refusedEntries, ml: day.refusedOfferedMl })
+      : null;
   if (day.targetMl === null) {
     return {
       meterMax: Math.max(day.intakeMl, 1),
@@ -166,6 +274,8 @@ export function fluidDayView(day: FluidDay, t: Translator): FluidDayView {
       statusText: t("care.charts.fluid.noTarget"),
       outputText,
       entriesText,
+      flaggedText,
+      refusedText,
     };
   }
   const short = day.shortfallMl !== null && day.shortfallMl > 0;
@@ -181,6 +291,8 @@ export function fluidDayView(day: FluidDay, t: Translator): FluidDayView {
       : t("care.charts.fluid.targetReached"),
     outputText,
     entriesText,
+    flaggedText,
+    refusedText,
   };
 }
 
@@ -202,7 +314,10 @@ export function observationSummary(
   const v = item.values;
   switch (item.chart) {
     case "fluid_intake": {
-      const parts = [t("care.charts.ml", { ml: num(v.ml) ?? 0 })];
+      // A refused drink's amount is what was offered, never what was drunk (#26 review round 3).
+      const parts = [
+        t(v.refused === true ? "care.charts.mlOffered" : "care.charts.ml", { ml: num(v.ml) ?? 0 }),
+      ];
       const drink = str(v.drink);
       if (drink) parts.push(drink);
       const level = str(v.iddsiLevel);

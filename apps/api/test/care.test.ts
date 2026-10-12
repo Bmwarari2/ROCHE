@@ -579,7 +579,10 @@ describe("hazard HZ-012 and HZ-014 NEWS2 vital signs", () => {
       return rows;
     });
     expect(alerts.map((a) => a.recipient_tenant_user_id)).toContain(DEMO.users.nurse.id);
-    expect(alerts.every((a) => a.title === "An observation needs a response now")).toBe(true);
+    // The home is named, nothing about the person (#26 review round 3).
+    expect(
+      alerts.every((a) => a.title === "An observation at Harbour House needs a response now"),
+    ).toBe(true);
   });
 
   it("uses SpO2 scale 2 only after a clinician's decision is recorded", async () => {
@@ -666,6 +669,8 @@ describe("hazard HZ-019 body map", () => {
     occurredAt: ago(5),
     view: "back",
     region: "heel",
+    // The person's left heel on the back view: the left of the drawing as seen.
+    drawnAt: { x: 45, y: 230 },
     drawnSide: "left",
     side: "left",
     markType: "pressure_ulcer",

@@ -88,6 +88,7 @@ describe("hazard HZ-016 a food entry at a different IDDSI level needs an overrid
       ok: true,
       comparison: { outcome: "unsafe_mismatch", needsReason: true, raisesAlert: true },
       alertNurseInCharge: true,
+      problem: null,
     });
   });
 
@@ -127,5 +128,132 @@ describe("hazard HZ-016 a food entry at a different IDDSI level needs an overrid
       ok: false,
       comparison: null,
     });
+  });
+});
+
+describe("hazard HZ-016 a drink needs its IDDSI level when a drink level is prescribed", () => {
+  it.each([
+    ["a drink with no level and none prescribed", "drink", null, true, "no_prescribed_level"],
+    ["a drink with no level when one is prescribed", "drink", "2", false, "level_not_recorded"],
+    ["food with no level and none prescribed", "food", null, false, "level_not_recorded"],
+    ["food with no level when one is prescribed", "food", "4", false, "level_not_recorded"],
+  ] as const)("%s on the web form", (_name, kind, prescribed, ok, outcome) => {
+    const check = checkIddsiEntry({ kind, prescribed, recorded: null });
+    expect(check.ok).toBe(ok);
+    expect(check.comparison?.outcome).toBe(outcome);
+  });
+
+  it("says which level is prescribed when a drink has none", () => {
+    expect(checkIddsiEntry({ kind: "drink", prescribed: "2", recorded: null })).toMatchObject({
+      ok: false,
+      message: "Level 2 Mildly thick (pink) is prescribed. Choose the IDDSI drink level given.",
+    });
+    expect(checkIddsiEntry({ kind: "food", prescribed: null, recorded: null })).toMatchObject({
+      ok: false,
+      message: "Choose the IDDSI food level given.",
+    });
+  });
+});
+
+describe("hazard HZ-016 an entry recorded on a device is kept and flagged, never refused for its level (C3)", () => {
+  // [case, kind, prescribed, recorded, reason, problem, alert, outcome]
+  it.each([
+    [
+      "a drink with no level",
+      "drink",
+      "2",
+      null,
+      null,
+      "level_not_recorded",
+      true,
+      "level_not_recorded",
+    ],
+    [
+      "a drink thinner than prescribed, no reason",
+      "drink",
+      "2",
+      "0",
+      null,
+      "reason_missing",
+      true,
+      "unsafe_mismatch",
+    ],
+    [
+      "food more solid than prescribed, no reason",
+      "food",
+      "4",
+      "7",
+      null,
+      "reason_missing",
+      true,
+      "unsafe_mismatch",
+    ],
+    [
+      "food softer than prescribed, no reason",
+      "food",
+      "6",
+      "4",
+      null,
+      "reason_missing",
+      false,
+      "mismatch",
+    ],
+    [
+      "a drink thicker than prescribed, a blank reason",
+      "drink",
+      "1",
+      "3",
+      " ",
+      "reason_missing",
+      false,
+      "mismatch",
+    ],
+    [
+      "food against a prescribed level that is not an IDDSI level",
+      "food",
+      "9",
+      "4",
+      null,
+      "prescribed_unreadable",
+      true,
+      "prescribed_unreadable",
+    ],
+    [
+      "food with no level and none prescribed",
+      "food",
+      null,
+      null,
+      null,
+      "level_not_recorded",
+      false,
+      "level_not_recorded",
+    ],
+  ] as const)("%s", (_name, kind, prescribed, recorded, reason, problem, alert, outcome) => {
+    const check = checkIddsiEntry({ kind, prescribed, recorded, reason, onProblem: "keep" });
+    expect(check).toMatchObject({
+      ok: true,
+      problem,
+      alertNurseInCharge: alert,
+      comparison: { outcome },
+    });
+  });
+
+  it.each([
+    ["at the prescribed level", "drink", "2", "2", null, false],
+    ["with no level and none prescribed", "drink", null, null, null, false],
+    ["unsafe, with a reason", "drink", "2", "0", "Thickener ran out; nurse told", true],
+  ] as const)(
+    "keeps an entry %s with no problem",
+    (_name, kind, prescribed, recorded, reason, alert) => {
+      expect(
+        checkIddsiEntry({ kind, prescribed, recorded, reason, onProblem: "keep" }),
+      ).toMatchObject({ ok: true, problem: null, alertNurseInCharge: alert });
+    },
+  );
+
+  it("still refuses a level that is not an IDDSI level, from a device too", () => {
+    expect(
+      checkIddsiEntry({ kind: "drink", prescribed: "2", recorded: "9", onProblem: "keep" }),
+    ).toMatchObject({ ok: false, comparison: null });
   });
 });

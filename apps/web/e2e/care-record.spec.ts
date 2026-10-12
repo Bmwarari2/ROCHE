@@ -395,6 +395,11 @@ test("hazard HZ-014 vital signs show the NEWS2 result and the RCP response the A
   await expect(result.getByText("Response: Key threshold for urgent response")).toBeVisible();
   await expect(result.getByText("Monitoring: Minimum 1 hourly")).toBeVisible();
   await expect(result.getByRole("table", { name: "How the result was worked out" })).toBeVisible();
+  // The result shown and focused after saving names the organisation's policy too, as the saved
+  // entry does (HZ-012; #26 review round 3).
+  await expect(result).toContainText(
+    "Your organisation's escalation policy: Deterioration and escalation policy (CP-07)",
+  );
   const entry = entries.first();
   await expect(entry).toContainText(
     "Respiration rate 22, SpO2 95% on air, systolic 105 mmHg, pulse 95, alert, temperature 38.2 °C",
@@ -402,6 +407,12 @@ test("hazard HZ-014 vital signs show the NEWS2 result and the RCP response the A
   // The saved entry shows the total and the response, with the workings one tap away.
   await expect(entry).toContainText("NEWS2 score 6");
   await expect(entry).toContainText("Response: Key threshold for urgent response");
+  // The demo organisation links its own policy to NEWS2 results (HZ-014; #26 review round 2, C6).
+  await expect(entry).toContainText(
+    "Your organisation's escalation policy: Deterioration and escalation policy (CP-07)",
+  );
+  // The entry says who its urgent alert actually reached (#26 review round 3).
+  await expect(entry).toContainText("The nurse in charge was told.");
   await entry.getByText("How the score was worked out").click();
   await expect(entry.getByRole("table", { name: "How the result was worked out" })).toBeVisible();
   await expectAccessible(page, "NEWS2 result");
@@ -590,6 +601,13 @@ test("hazard HZ-012 a nurse runs MUST and sees the API's score, band, workings, 
       name: "Source: BAPEN, Malnutrition Universal Screening Tool (MUST), 2003, reviewed August 2011",
     }),
   ).toHaveAttribute("href", "https://www.bapen.org.uk/must-and-self-screening/must-calculator");
+  // No escalation policy is linked for MUST in the demo: the result says so, never nothing
+  // (HZ-012; #26 review round 2, C6).
+  await expect(
+    result.getByText(
+      "No escalation policy is configured for this result. Follow your organisation's procedures and tell the nurse in charge.",
+    ),
+  ).toBeVisible();
   await expectAccessible(page, "MUST result");
 });
 
