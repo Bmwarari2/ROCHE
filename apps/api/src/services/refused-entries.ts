@@ -41,6 +41,7 @@ import { appendTaskDetail, nurseInCharge } from "./care";
 import { fallbackRecipients, REFUSED_REVIEW_TASK_KIND } from "./device-holds";
 import { inSystemView, memberLocations, offlineWindowDaysOf, personReachedBy } from "./devices";
 import { type HandedOverAdmission, recordHandedOverEntry } from "./held-handover";
+import type { StaffLookup } from "./staff";
 
 type Db = Parameters<typeof inSystemView>[0];
 
@@ -311,7 +312,10 @@ export async function copyRefusedEntry(
 }
 
 /** A copy as the API returns it. */
-export function refusedEntryOut(row: typeof refusedEntry.$inferSelect): RefusedEntryItem {
+export function refusedEntryOut(
+  row: typeof refusedEntry.$inferSelect,
+  staff: StaffLookup,
+): RefusedEntryItem {
   return {
     id: row.id,
     entryId: row.entryId,
@@ -325,7 +329,9 @@ export function refusedEntryOut(row: typeof refusedEntry.$inferSelect): RefusedE
     refusedAt: row.refusedAt.toISOString(),
     receivedAt: row.createdAt.toISOString(),
     authorTenantUserId: row.authorTenantUserId,
+    authorStaff: staff(row.authorTenantUserId),
     sentByTenantUserId: row.createdBy,
+    sentByStaff: staff(row.createdBy),
     deviceId: row.deviceId,
     reviewTaskId: row.reviewTaskId,
   };

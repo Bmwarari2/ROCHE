@@ -666,6 +666,8 @@ describe("hazard HZ-019 body map", () => {
     occurredAt: ago(5),
     view: "back",
     region: "heel",
+    // The person's left heel on the back view: the left of the drawing as seen.
+    drawnAt: { x: 45, y: 230 },
     drawnSide: "left",
     side: "left",
     markType: "pressure_ulcer",

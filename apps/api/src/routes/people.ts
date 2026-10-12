@@ -25,6 +25,7 @@ import { problems } from "../http/problem";
 import { publish } from "../outbox";
 import { resuscitationFor } from "../services/care-planning";
 import { contentHeaders, readDocumentContent } from "../services/documents";
+import { staffNames } from "../services/staff";
 import { createRouter, errorResponses, jsonBody, notFoundResponse, security } from "./openapi";
 
 const NOT_RECORDED: PersonSummary["resuscitation"] = {
@@ -227,23 +228,21 @@ export const peopleRouter = createRouter()
           resourceId: id,
           requestId: c.get("requestId"),
         });
-        return versions;
+        const staff = await staffNames(
+          tx,
+          versions.map((v) => v.changedBy),
+        );
+        return versions.map((v) => ({
+          version: v.recordVersion,
+          validFrom: v.validFrom.toISOString(),
+          validTo: v.validTo.toISOString(),
+          changedBy: v.changedBy,
+          changedByStaff: staff(v.changedBy),
+          data: v.data as Record<string, unknown>,
+        }));
       });
       if (!history) throw problems.notFound();
-      return c.json(
-        {
-          table: "person",
-          recordId: id,
-          versions: history.map((v) => ({
-            version: v.recordVersion,
-            validFrom: v.validFrom.toISOString(),
-            validTo: v.validTo.toISOString(),
-            changedBy: v.changedBy,
-            data: v.data as Record<string, unknown>,
-          })),
-        },
-        200,
-      );
+      return c.json({ table: "person", recordId: id, versions: history }, 200);
     },
   )
   .openapi(

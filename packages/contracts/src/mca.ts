@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { StaffName } from "./staff";
 
 /**
  * Consent, mental capacity, best interests and the DoLS register (master prompt 10.4,
@@ -80,6 +81,11 @@ export const RestraintConditions = z
 
 export const CreateConsent = z
   .object({
+    /**
+     * A client UUIDv7 kept across retries of the same save: a replay returns the record it made
+     * (HZ-029). `Idempotency-Key` may carry it instead.
+     */
+    id: uuid.optional(),
     decision: ConsentDecisionKind,
     outcome: z.enum(["given", "refused"]),
     givenBy: z.enum(["person", "representative"]),
@@ -127,6 +133,8 @@ export const ConsentItem = z
     restraintConditions: RestraintConditions.nullable(),
     bestInterestsDecisionId: uuid.nullable(),
     recordedBy: uuid.nullable(),
+    /** Who recorded it, by name and job title. */
+    recordedByStaff: StaffName.nullable(),
     version,
   })
   .meta({ id: "ConsentItem" });
@@ -233,6 +241,8 @@ export const CapacityAssessmentItem = z
     reviewOn: isoDate.nullable(),
     recordedAt: isoDateTime,
     recordedBy: uuid.nullable(),
+    /** Who recorded it, by name and job title. */
+    recordedByStaff: StaffName.nullable(),
     supersedesId: uuid.nullable(),
     correctionReason: z.string().nullable(),
     superseded: z.boolean(),
@@ -337,6 +347,8 @@ export const BestInterestsItem = z
     reviewOn: isoDate,
     recordedAt: isoDateTime,
     recordedBy: uuid.nullable(),
+    /** Who recorded it, by name and job title. */
+    recordedByStaff: StaffName.nullable(),
     supersedesId: uuid.nullable(),
     correctionReason: z.string().nullable(),
     superseded: z.boolean(),
@@ -401,6 +413,13 @@ export const DolsInput = z
   })
   .meta({ id: "DolsInput" });
 export type DolsInput = z.infer<typeof DolsInput>;
+
+/**
+ * A new DoLS register entry, with a client UUIDv7 kept across retries of the same save: a replay
+ * returns the entry it made (HZ-029). `Idempotency-Key` may carry it instead.
+ */
+export const CreateDols = DolsInput.extend({ id: uuid.optional() }).meta({ id: "CreateDols" });
+export type CreateDols = z.infer<typeof CreateDols>;
 
 export const UpdateDols = DolsInput.extend({ version }).meta({ id: "UpdateDols" });
 export type UpdateDols = z.infer<typeof UpdateDols>;
@@ -528,6 +547,8 @@ export const LegalChangeReviewItem = z
     state: LegalChangeReviewState,
     review: LegalChangeReviewInput.nullable(),
     decidedBy: uuid.nullable(),
+    /** Who decided it, by name and job title. */
+    decidedByStaff: StaffName.nullable(),
     referralRequired: z.boolean(),
     prompts: z.array(z.string()),
     closedReason: z.string().nullable(),

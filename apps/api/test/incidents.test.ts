@@ -551,6 +551,8 @@ describe("hazard HZ-019 body-map marks on an incident", () => {
     occurredAt: ago(5 * MIN),
     view: "front",
     region: "forearm",
+    // The person's left forearm on the front view: the right of the drawing as seen.
+    drawnAt: { x: 95, y: 100 },
     drawnSide: "left",
     side: "left",
     markType: "bruise",
@@ -581,6 +583,7 @@ describe("hazard HZ-019 body-map marks on an incident", () => {
           occurredAt: ago(5 * MIN),
           view: "back",
           region: "sacrum",
+          drawnZone: "centre",
           drawnSide: "midline",
           side: "midline",
           markType: "pressure_ulcer",

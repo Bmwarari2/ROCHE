@@ -1,14 +1,23 @@
+import {
+  ClientIdHeaders,
+  type DeviceDeletionFlag,
+  HandoverHeaders,
+  IDEMPOTENCY_KEY_HEADER,
+} from "@harbour/contracts";
 import type { Transaction } from "@harbour/db";
 import type { CareTrigger, PersonRecordKind } from "@harbour/domain";
 import { z } from "@hono/zod-openapi";
+import { sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
 import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { applyTaskLink, type PlannedTaskLink, planTaskLink } from "../services/care";
+import { deletionFlags } from "../services/device-holds";
 import { refuseRevokedDevice } from "../services/devices";
 import { type HeldHandover, handedOverByOf, heldHandoverOf } from "../services/held-handover";
 import { CareEventAfterExit, loadPerson, raiseLateEntryReview } from "../services/people";
+import { NO_STAFF, type StaffLookup, staffNames } from "../services/staff";
 
 /**
  * Helpers shared by the point-of-care routes (care.ts, care-plans.ts and care-records.ts): the
@@ -18,6 +27,62 @@ import { CareEventAfterExit, loadPerson, raiseLateEntryReview } from "../service
 export const PersonParam = z.object({ id: z.uuid() });
 export const SENT_AT_HEADER = "x-harbour-sent-at";
 const DAY_MS = 86_400_000;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The client id of a create (care.md section 5, client ids; HZ-029): the body's `id`, or the
+ * `Idempotency-Key` header when the body has none. When both are sent they must be the same id,
+ * so a retry can never record under two ids.
+ */
+export function clientIdOf(c: Context<AppEnv>, bodyId: string | undefined): string | undefined {
+  const header = c.req.header(IDEMPOTENCY_KEY_HEADER)?.trim();
+  if (!header) return bodyId?.toLowerCase();
+  if (!UUID.test(header)) {
+    throw problems.invalid("Send the record's client id (a UUID) as the Idempotency-Key.");
+  }
+  const key = header.toLowerCase();
+  if (bodyId && bodyId.toLowerCase() !== key) {
+    throw problems.invalid("The Idempotency-Key and the record's id differ. Send one id.");
+  }
+  return key;
+}
+
+/** The headers a care entry upload may carry: a hand-over's, and the client id. */
+export const EntryHeaders = HandoverHeaders.extend(ClientIdHeaders.shape);
+
+/** The body with its client id from `clientIdOf`. */
+export function withClientId<B extends { id?: string | undefined }>(
+  c: Context<AppEnv>,
+  body: B,
+): B {
+  const id = clientIdOf(c, body.id);
+  return id === undefined ? body : { ...body, id };
+}
+
+/**
+ * Takes a transaction lock on a client id before a create looks for an earlier copy, so two sends
+ * of the same save are taken in turn: the second finds the first's record and returns it (HZ-029).
+ */
+export async function lockClientId(tx: Transaction, kind: string, id: string): Promise<void> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`client_id:${kind}:${id}`}))`);
+}
+
+/**
+ * An insert whose client id another record already has (one the caller cannot see, or of another
+ * kind) is refused in words, never as a server error: an id is never reused.
+ */
+export function refuseUsedId(error: unknown): never {
+  const code =
+    (error as { code?: string }).code ?? (error as { cause?: { code?: string } }).cause?.code;
+  if (code === "23505") throw problems.invalid("That id is already used.");
+  throw error;
+}
+
+/** The id of a replayed create must belong to the same person: an id is never reused. */
+export function sameRecordOrRefuse<R extends { personId: string }>(row: R, personId: string): R {
+  if (row.personId !== personId) throw problems.invalid("That id is already used.");
+  return row;
+}
 
 export const range = z.object({
   from: z.iso.datetime({ offset: true }).optional(),
@@ -34,6 +99,37 @@ export function window(q: { from?: string; to?: string }, now: Date) {
 }
 
 export const iso = (d: Date | null) => (d ? d.toISOString() : null);
+
+/**
+ * What an entry's output needs besides its row: its staff's names (care.md section 5, staff
+ * names) and the server's flag when its device recorded deleting it (section 6, Device integrity
+ * part 3).
+ */
+export interface EntryExtras {
+  readonly staff: StaffLookup;
+  readonly deletion: ReadonlyMap<string, DeviceDeletionFlag>;
+}
+
+export const NO_EXTRAS: EntryExtras = { staff: NO_STAFF, deletion: new Map() };
+
+/** Reads the extras for the entries a response returns, in the reader's transaction. */
+export async function entryExtras(
+  tx: Transaction,
+  rows: readonly { id: string; createdBy: string | null; handedOverBy?: string | null }[],
+): Promise<EntryExtras> {
+  if (rows.length === 0) return NO_EXTRAS;
+  const staff = await staffNames(
+    tx,
+    rows.flatMap((r) => [r.createdBy, r.handedOverBy ?? null]),
+  );
+  return {
+    staff,
+    deletion: await deletionFlags(
+      tx,
+      rows.map((r) => r.id),
+    ),
+  };
+}
 
 export function entryOut(
   row: {
@@ -55,6 +151,7 @@ export function entryOut(
     handedOverBy?: string | null;
   },
   superseded: ReadonlySet<string>,
+  extras: EntryExtras,
 ) {
   return {
     id: row.id,
@@ -72,7 +169,10 @@ export function entryOut(
     correctionReason: row.correctionReason,
     superseded: superseded.has(row.id),
     recordedBy: row.createdBy,
+    recordedByStaff: extras.staff(row.createdBy),
     handedOverBy: row.handedOverBy ?? null,
+    handedOverByStaff: extras.staff(row.handedOverBy),
+    deviceDeletion: extras.deletion.get(row.id) ?? null,
   };
 }
 

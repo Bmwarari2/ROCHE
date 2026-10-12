@@ -6793,6 +6793,8 @@ export interface paths {
           "x-harbour-handover-owner"?: string;
           /** @description A hand-over of held entries: its id, made on the device, one owner per id. */
           "x-harbour-handover"?: string;
+          /** @description The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does */
+          "idempotency-key"?: string;
         };
         path: {
           id: string;
@@ -6948,6 +6950,8 @@ export interface paths {
           "x-harbour-handover-owner"?: string;
           /** @description A hand-over of held entries: its id, made on the device, one owner per id. */
           "x-harbour-handover"?: string;
+          /** @description The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does */
+          "idempotency-key"?: string;
         };
         path: {
           id: string;
@@ -7167,6 +7171,8 @@ export interface paths {
           "x-harbour-handover-owner"?: string;
           /** @description A hand-over of held entries: its id, made on the device, one owner per id. */
           "x-harbour-handover"?: string;
+          /** @description The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does */
+          "idempotency-key"?: string;
         };
         path: {
           id: string;
@@ -7454,7 +7460,10 @@ export interface paths {
     post: {
       parameters: {
         query?: never;
-        header?: never;
+        header?: {
+          /** @description The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does */
+          "idempotency-key"?: string;
+        };
         path: {
           id: string;
         };
@@ -7709,7 +7718,10 @@ export interface paths {
     post: {
       parameters: {
         query?: never;
-        header?: never;
+        header?: {
+          /** @description The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does */
+          "idempotency-key"?: string;
+        };
         path: {
           id: string;
           planId: string;
@@ -8184,7 +8196,10 @@ export interface paths {
     post: {
       parameters: {
         query?: never;
-        header?: never;
+        header?: {
+          /** @description The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does */
+          "idempotency-key"?: string;
+        };
         path: {
           id: string;
         };
@@ -8586,7 +8601,10 @@ export interface paths {
     post: {
       parameters: {
         query?: never;
-        header?: never;
+        header?: {
+          /** @description The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does */
+          "idempotency-key"?: string;
+        };
         path: {
           id: string;
         };
@@ -8730,6 +8748,8 @@ export interface paths {
           "x-harbour-handover-owner"?: string;
           /** @description A hand-over of held entries: its id, made on the device, one owner per id. */
           "x-harbour-handover"?: string;
+          /** @description The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does */
+          "idempotency-key"?: string;
         };
         path: {
           id: string;
@@ -8877,6 +8897,8 @@ export interface paths {
           "x-harbour-handover-owner"?: string;
           /** @description A hand-over of held entries: its id, made on the device, one owner per id. */
           "x-harbour-handover"?: string;
+          /** @description The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does */
+          "idempotency-key"?: string;
         };
         path: {
           id: string;
@@ -9018,7 +9040,10 @@ export interface paths {
     post: {
       parameters: {
         query?: never;
-        header?: never;
+        header?: {
+          /** @description The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does */
+          "idempotency-key"?: string;
+        };
         path: {
           id: string;
         };
@@ -9118,6 +9143,531 @@ export interface paths {
           };
           content: {
             "application/json": components["schemas"]["AdvanceCareItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/escalation-policies": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The escalation policy each validated tool's result links
+     * @description The organisation's live links, for one band or every band of a tool, for one location or the whole organisation, with the bands each tool's results carry. Results show the most specific link for their tool, band and location, or that none is configured; Harbour adds no recommendation (medical-device boundary section 5 rule 4).
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Links */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["EscalationPolicyLinkList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Link the organisation's escalation policy to a validated tool
+     * @description For one band or every band, at one location or across the organisation (organisation-wide access for the latter). One live link per tool, band and place: 409 when one exists, so change that one. A replay with the same client id returns the link it made.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: {
+          /** @description The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does */
+          "idempotency-key"?: string;
+        };
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateEscalationPolicyLink"];
+        };
+      };
+      responses: {
+        /** @description Linked */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["EscalationPolicyLinkItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/escalation-policies/{linkId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Change a linked policy's name, reference or document */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          linkId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdateEscalationPolicyLink"];
+        };
+      };
+      responses: {
+        /** @description Changed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["EscalationPolicyLinkItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/escalation-policies/{linkId}/remove": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Remove a link: results for that tool and band then say no policy is configured
+     * @description Unless a broader link covers them (every band, or the organisation's). The link is kept in its history.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          linkId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RemoveEscalationPolicyLink"];
+        };
+      };
+      responses: {
+        /** @description Removed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["EscalationPolicyLinkItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/discard-reasons": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The organisation's coded reasons for deleting unsent entries on a device
+     * @description Live reasons first in their order, then retired ones. Only the code ever leaves a device; a retired code is no longer offered and is still accepted from a device that recorded it before.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Reasons */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DiscardReasonList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Add a coded reason for deleting unsent entries
+     * @description Organisation-wide access only. A code is never reused or deleted.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateDiscardReason"];
+        };
+      };
+      responses: {
+        /** @description Added */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DiscardReasonItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/discard-reasons/{code}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Change a coded reason's wording or order, or retire it or offer it again */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          code: components["schemas"]["DiscardReasonCode"];
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdateDiscardReason"];
+        };
+      };
+      responses: {
+        /** @description Changed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DiscardReasonItem"];
           };
         };
         /** @description Not signed in */
@@ -9490,7 +10040,10 @@ export interface paths {
     post: {
       parameters: {
         query?: never;
-        header?: never;
+        header?: {
+          /** @description The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does */
+          "idempotency-key"?: string;
+        };
         path: {
           id: string;
           handoverId: string;
@@ -9572,7 +10125,10 @@ export interface paths {
     post: {
       parameters: {
         query?: never;
-        header?: never;
+        header?: {
+          /** @description The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does */
+          "idempotency-key"?: string;
+        };
         path: {
           id: string;
           handoverId: string;
@@ -9715,7 +10271,10 @@ export interface paths {
     post: {
       parameters: {
         query?: never;
-        header?: never;
+        header?: {
+          /** @description The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does */
+          "idempotency-key"?: string;
+        };
         path: {
           id: string;
         };
@@ -9942,7 +10501,10 @@ export interface paths {
     post: {
       parameters: {
         query?: never;
-        header?: never;
+        header?: {
+          /** @description The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does */
+          "idempotency-key"?: string;
+        };
         path: {
           id: string;
         };
@@ -10081,7 +10643,10 @@ export interface paths {
     post: {
       parameters: {
         query?: never;
-        header?: never;
+        header?: {
+          /** @description The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does */
+          "idempotency-key"?: string;
+        };
         path: {
           id: string;
         };
@@ -10220,7 +10785,10 @@ export interface paths {
     post: {
       parameters: {
         query?: never;
-        header?: never;
+        header?: {
+          /** @description The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does */
+          "idempotency-key"?: string;
+        };
         path: {
           id: string;
         };
@@ -10228,7 +10796,7 @@ export interface paths {
       };
       requestBody?: {
         content: {
-          "application/json": components["schemas"]["DolsInput"];
+          "application/json": components["schemas"]["CreateDols"];
         };
       };
       responses: {
@@ -13568,10 +14136,18 @@ export interface components {
       validTo: string;
       /** Format: uuid */
       changedBy: string | null;
+      changedByStaff: components["schemas"]["StaffName"];
       data: {
         [key: string]: unknown;
       };
     };
+    /** @description A member of staff named for attribution on a record the caller may read: display name and job title */
+    StaffName: {
+      /** Format: uuid */
+      id: string;
+      displayName: string;
+      jobTitle: string | null;
+    } | null;
     BreakGlassResult: {
       /** Format: uuid */
       id: string;
@@ -14937,6 +15513,7 @@ export interface components {
       locationId: string | null;
       /** Format: uuid */
       assigneeTenantUserId: string | null;
+      assigneeStaff: components["schemas"]["StaffName"];
       /** Format: date-time */
       dueAt: string;
       /** Format: date-time */
@@ -14956,6 +15533,9 @@ export interface components {
       restoredDone: boolean;
       /** Format: date-time */
       completedAt: string | null;
+      /** Format: uuid */
+      completedBy: string | null;
+      completedByStaff: components["schemas"]["StaffName"];
       escalated: boolean;
       details: components["schemas"]["TaskDetails"];
       version: number;
@@ -15256,13 +15836,18 @@ export interface components {
       superseded: boolean;
       /** Format: uuid */
       recordedBy: string | null;
+      recordedByStaff: components["schemas"]["StaffName"];
       /** Format: uuid */
       handedOverBy: string | null;
+      handedOverByStaff: components["schemas"]["StaffName"];
+      deviceDeletion: components["schemas"]["DeviceDeletionFlag"];
       category: components["schemas"]["CareNoteCategory"];
       body: string;
       tags: string[];
       attachmentDocumentIds: string[];
     };
+    /** @enum {string|null} */
+    DeviceDeletionFlag: "uploaded_after_deletion" | "deleted_after_upload" | null;
     /** @enum {string} */
     CareNoteCategory:
       | "personal_care"
@@ -15327,8 +15912,11 @@ export interface components {
       superseded: boolean;
       /** Format: uuid */
       recordedBy: string | null;
+      recordedByStaff: components["schemas"]["StaffName"];
       /** Format: uuid */
       handedOverBy: string | null;
+      handedOverByStaff: components["schemas"]["StaffName"];
+      deviceDeletion: components["schemas"]["DeviceDeletionFlag"];
       chart: string;
       values: {
         [key: string]: unknown;
@@ -15336,7 +15924,35 @@ export interface components {
       flags: {
         [key: string]: unknown;
       };
+      escalationPolicy: components["schemas"]["EscalationPolicyRef"];
     };
+    /** @description The organisation's own escalation policy for a validated tool's result, or that none is configured; never a Harbour recommendation */
+    EscalationPolicyRef:
+      | {
+          /** @enum {string} */
+          status: "configured";
+          toolKey: components["schemas"]["EscalationPolicyToolKey"];
+          band: string | null;
+          /** Format: uuid */
+          linkId: string;
+          title: string;
+          reference: string | null;
+          /** Format: uuid */
+          documentId: string | null;
+          /** @enum {string} */
+          matchedOn: "band" | "tool";
+          /** @enum {string} */
+          scope: "location" | "organisation";
+        }
+      | {
+          /** @enum {string} */
+          status: "not_configured";
+          toolKey: components["schemas"]["EscalationPolicyToolKey"];
+          band: string | null;
+        }
+      | null;
+    /** @enum {string} */
+    EscalationPolicyToolKey: "news2" | "must" | "waterlow" | "braden" | "ng249_falls";
     CreateObservation: {
       /** Format: uuid */
       id?: string;
@@ -15466,13 +16082,18 @@ export interface components {
       superseded: boolean;
       /** Format: uuid */
       recordedBy: string | null;
+      recordedByStaff: components["schemas"]["StaffName"];
       /** Format: uuid */
       handedOverBy: string | null;
+      handedOverByStaff: components["schemas"]["StaffName"];
+      deviceDeletion: components["schemas"]["DeviceDeletionFlag"];
       /** @enum {string} */
       view: "front" | "back";
       region: string;
       /** @enum {string} */
       side: "left" | "right" | "midline";
+      /** @enum {string|null} */
+      drawnSide: "left" | "right" | "midline" | null;
       markType: components["schemas"]["BodyMarkType"];
       pressureCategory: components["schemas"]["PressureUlcerCategory"];
       lengthMm: number | null;
@@ -15521,8 +16142,10 @@ export interface components {
       /** @enum {string} */
       view: "front" | "back";
       region: string;
+      drawnAt?: components["schemas"]["BodyMapPoint"];
+      drawnZone?: components["schemas"]["BodyMapViewerZone"];
       /** @enum {string} */
-      drawnSide: "left" | "right" | "midline";
+      drawnSide?: "left" | "right" | "midline";
       /** @enum {string} */
       side: "left" | "right" | "midline";
       markType: components["schemas"]["BodyMarkType"];
@@ -15543,6 +16166,15 @@ export interface components {
       /** Format: uuid */
       incidentId?: string;
     };
+    BodyMapPoint: {
+      x: number;
+      y: number;
+    };
+    /**
+     * @description The left of the drawing, its centre band, or its right, as the person recording saw it
+     * @enum {string}
+     */
+    BodyMapViewerZone: "viewer_left" | "centre" | "viewer_right";
     BodyMapMarkList: {
       items: components["schemas"]["BodyMapMarkItem"][];
     };
@@ -15603,6 +16235,7 @@ export interface components {
       publishedAt: string | null;
       /** Format: uuid */
       publishedBy: string | null;
+      publishedByStaff: components["schemas"]["StaffName"];
       /** Format: date-time */
       supersededAt: string | null;
       signOff: components["schemas"]["CarePlanSignOff"];
@@ -15622,6 +16255,7 @@ export interface components {
       signedOffAt: string;
       /** Format: uuid */
       recordedBy: string | null;
+      recordedByStaff: components["schemas"]["StaffName"];
     } | null;
     /** @enum {string|null} */
     SignOffAuthority:
@@ -15659,6 +16293,7 @@ export interface components {
       publishedAt: string | null;
       /** Format: uuid */
       publishedBy: string | null;
+      publishedByStaff: components["schemas"]["StaffName"];
       /** Format: date-time */
       supersededAt: string | null;
       signOff: components["schemas"]["CarePlanSignOff"];
@@ -15719,6 +16354,8 @@ export interface components {
       version: number;
     };
     CreateCarePlan: {
+      /** Format: uuid */
+      id?: string;
       /** @default true */
       copyFromActive: boolean;
       summary?: string;
@@ -15731,6 +16368,8 @@ export interface components {
       version: number;
     };
     CreateCarePlanAction: {
+      /** Format: uuid */
+      id?: string;
       action: string;
       roleKey?: string;
       recurrence?: components["schemas"]["Recurrence"];
@@ -15869,6 +16508,8 @@ export interface components {
     /** @enum {string|null} */
     RiskBand: "low" | "moderate" | "high" | "extreme" | null;
     CreateRiskAssessment: {
+      /** Format: uuid */
+      id?: string;
       templateKey: components["schemas"]["RiskTemplateKey"];
       hazard: string;
       whoAtRisk: string;
@@ -15957,8 +16598,11 @@ export interface components {
       superseded: boolean;
       /** Format: uuid */
       recordedBy: string | null;
+      recordedByStaff: components["schemas"]["StaffName"];
       /** Format: uuid */
       handedOverBy: string | null;
+      handedOverByStaff: components["schemas"]["StaffName"];
+      deviceDeletion: components["schemas"]["DeviceDeletionFlag"];
       toolKey: components["schemas"]["AssessmentToolKey"];
       toolVersion: string;
       answers: {
@@ -15975,6 +16619,7 @@ export interface components {
       };
       /** Format: date */
       nextDueOn: string | null;
+      escalationPolicy: components["schemas"]["EscalationPolicyRef"];
     };
     /** @enum {string} */
     AssessmentToolKey: "must" | "waterlow" | "braden" | "ng249_falls";
@@ -16233,8 +16878,11 @@ export interface components {
       superseded: boolean;
       /** Format: uuid */
       recordedBy: string | null;
+      recordedByStaff: components["schemas"]["StaffName"];
       /** Format: uuid */
       handedOverBy: string | null;
+      handedOverByStaff: components["schemas"]["StaffName"];
+      deviceDeletion: components["schemas"]["DeviceDeletionFlag"];
       activity: string;
       /** @enum {string} */
       format: "group" | "one_to_one";
@@ -16311,8 +16959,11 @@ export interface components {
       superseded: boolean;
       /** Format: uuid */
       recordedBy: string | null;
+      recordedByStaff: components["schemas"]["StaffName"];
       /** Format: uuid */
       handedOverBy: string | null;
+      handedOverByStaff: components["schemas"]["StaffName"];
+      deviceDeletion: components["schemas"]["DeviceDeletionFlag"];
       kind: components["schemas"]["VisitKind"];
       /** Format: uuid */
       contactId: string | null;
@@ -16391,6 +17042,8 @@ export interface components {
     /** @enum {string|null} */
     CprDecision: "attempt_cpr" | "do_not_attempt_cpr" | null;
     CreateAdvanceCareRecord: {
+      /** Format: uuid */
+      id?: string;
       kind: components["schemas"]["AdvanceCareKind"];
       cprDecision?: components["schemas"]["CprDecision"];
       clinicianName?: string;
@@ -16413,6 +17066,83 @@ export interface components {
       documentId?: string | null;
       details?: string | null;
       withdrawnReason?: string;
+      version: number;
+    };
+    EscalationPolicyLinkList: {
+      items: components["schemas"]["EscalationPolicyLinkItem"][];
+      bands: {
+        [key: string]: string[];
+      };
+    };
+    EscalationPolicyLinkItem: {
+      /** Format: uuid */
+      id: string;
+      toolKey: components["schemas"]["EscalationPolicyToolKey"];
+      band: string | null;
+      /** Format: uuid */
+      locationId: string | null;
+      title: string;
+      reference: string | null;
+      /** Format: uuid */
+      documentId: string | null;
+      /** Format: date-time */
+      updatedAt: string;
+      version: number;
+    };
+    /** @description Links the organisation's escalation policy to a validated tool, for one band or every band, for one location or the whole organisation */
+    CreateEscalationPolicyLink: {
+      /** Format: uuid */
+      id?: string;
+      toolKey: components["schemas"]["EscalationPolicyToolKey"];
+      /** @default null */
+      band: string | null;
+      /**
+       * Format: uuid
+       * @default null
+       */
+      locationId: string | null;
+      title: string;
+      reference?: string | null;
+      /** Format: uuid */
+      documentId?: string | null;
+    };
+    UpdateEscalationPolicyLink: {
+      title: string;
+      reference?: string | null;
+      /** Format: uuid */
+      documentId?: string | null;
+      version: number;
+    };
+    RemoveEscalationPolicyLink: {
+      version: number;
+    };
+    DiscardReasonList: {
+      items: components["schemas"]["DiscardReasonItem"][];
+    };
+    DiscardReasonItem: {
+      code: components["schemas"]["DiscardReasonCode"];
+      label: string;
+      labelCy: string | null;
+      sortOrder: number;
+      seeded: boolean;
+      /** Format: date-time */
+      retiredAt: string | null;
+      version: number;
+    };
+    DiscardReasonCode: string;
+    /** @description Adds a coded reason for deleting unsent entries on a device */
+    CreateDiscardReason: {
+      code: components["schemas"]["DiscardReasonCode"];
+      label: string;
+      labelCy?: string | null;
+      /** @default 50 */
+      sortOrder: number;
+    };
+    UpdateDiscardReason: {
+      label?: string;
+      labelCy?: string | null;
+      sortOrder?: number;
+      retired?: boolean;
       version: number;
     };
     RoundView: {
@@ -16466,6 +17196,7 @@ export interface components {
       locationId: string | null;
       /** Format: uuid */
       assigneeTenantUserId: string | null;
+      assigneeStaff: components["schemas"]["StaffName"];
       /** Format: date-time */
       dueAt: string;
       /** Format: date-time */
@@ -16485,6 +17216,9 @@ export interface components {
       restoredDone: boolean;
       /** Format: date-time */
       completedAt: string | null;
+      /** Format: uuid */
+      completedBy: string | null;
+      completedByStaff: components["schemas"]["StaffName"];
       escalated: boolean;
       details: components["schemas"]["TaskDetails"];
       version: number;
@@ -16535,6 +17269,7 @@ export interface components {
       lateAdditionCount: number;
       acknowledgedBy: string[];
       pending: string[];
+      staff: components["schemas"]["StaffName"][];
       unacknowledged: boolean | null;
     };
     HandoverDetail: {
@@ -16555,6 +17290,7 @@ export interface components {
       lateAdditionCount: number;
       acknowledgedBy: string[];
       pending: string[];
+      staff: components["schemas"]["StaffName"][];
       unacknowledged: boolean | null;
       items: components["schemas"]["HandoverItem"][];
       notes: components["schemas"]["HandoverNoteItem"][];
@@ -16621,12 +17357,14 @@ export interface components {
       createdAt: string;
       /** Format: uuid */
       createdBy: string | null;
+      createdByStaff: components["schemas"]["StaffName"];
     };
     HandoverAcknowledgementItem: {
       /** Format: uuid */
       id: string;
       /** Format: uuid */
       tenantUserId: string;
+      staff: components["schemas"]["StaffName"];
       /** Format: date-time */
       acknowledgedAt: string;
     };
@@ -16678,6 +17416,7 @@ export interface components {
       bestInterestsDecisionId: string | null;
       /** Format: uuid */
       recordedBy: string | null;
+      recordedByStaff: components["schemas"]["StaffName"];
       version: number;
     };
     /** @enum {string} */
@@ -16737,6 +17476,8 @@ export interface components {
     };
     /** @description The person's capacity for the decision is found from their capacity assessments, never taken from the request. */
     CreateConsent: {
+      /** Format: uuid */
+      id?: string;
       decision: components["schemas"]["ConsentDecisionKind"];
       /** @enum {string} */
       outcome: "given" | "refused";
@@ -16798,6 +17539,7 @@ export interface components {
       recordedAt: string;
       /** Format: uuid */
       recordedBy: string | null;
+      recordedByStaff: components["schemas"]["StaffName"];
       /** Format: uuid */
       supersedesId: string | null;
       correctionReason: string | null;
@@ -16877,6 +17619,7 @@ export interface components {
       recordedAt: string;
       /** Format: uuid */
       recordedBy: string | null;
+      recordedByStaff: components["schemas"]["StaffName"];
       /** Format: uuid */
       supersedesId: string | null;
       correctionReason: string | null;
@@ -17030,7 +17773,7 @@ export interface components {
     };
     /** @enum {string|null} */
     LegalChangeReviewState: "awaiting_review" | "reviewed" | "referred" | "closed" | null;
-    DolsInput: {
+    CreateDols: {
       type: components["schemas"]["DolsType"];
       /** Format: date-time */
       requestedAt: string;
@@ -17058,6 +17801,8 @@ export interface components {
       supervisoryBody?: string | null;
       supervisoryBodyReference?: string | null;
       objectionEvidence?: string | null;
+      /** Format: uuid */
+      id?: string;
     };
     UpdateDols: {
       type: components["schemas"]["DolsType"];
@@ -17123,6 +17868,7 @@ export interface components {
       review: components["schemas"]["LegalChangeReviewInput"];
       /** Format: uuid */
       decidedBy: string | null;
+      decidedByStaff: components["schemas"]["StaffName"];
       referralRequired: boolean;
       prompts: string[];
       closedReason: string | null;
@@ -17842,6 +18588,7 @@ export interface components {
         | "staff_left"
         | "nurse_in_charge_informed"
         | "other";
+      organisationReasonCode?: components["schemas"]["DiscardReasonCode"];
       /** Format: uuid */
       ownerTenantUserId: string | null;
       /** Format: uuid */
@@ -18014,8 +18761,10 @@ export interface components {
             /** @enum {string} */
             view: "front" | "back";
             region: string;
+            drawnAt?: components["schemas"]["BodyMapPoint"];
+            drawnZone?: components["schemas"]["BodyMapViewerZone"];
             /** @enum {string} */
-            drawnSide: "left" | "right" | "midline";
+            drawnSide?: "left" | "right" | "midline";
             /** @enum {string} */
             side: "left" | "right" | "midline";
             markType: components["schemas"]["BodyMarkType"];
@@ -18138,8 +18887,10 @@ export interface components {
       receivedAt: string;
       /** Format: uuid */
       authorTenantUserId: string;
+      authorStaff: components["schemas"]["StaffName"];
       /** Format: uuid */
       sentByTenantUserId: string | null;
+      sentByStaff: components["schemas"]["StaffName"];
       /** Format: uuid */
       deviceId: string | null;
       /** Format: uuid */

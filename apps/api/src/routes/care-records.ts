@@ -6,11 +6,11 @@ import {
   AssessmentItem,
   AssessmentList,
   AssessmentToolKey,
+  ClientIdHeaders,
   CreateActivityRecord,
   CreateAdvanceCareRecord,
   CreateAssessment,
   CreateVisit,
-  HandoverHeaders,
   UpdateAdvanceCareRecord,
   VisitItem,
   VisitList,
@@ -37,6 +37,7 @@ import {
   checkWithdrawal,
   currentResults,
   type AssessmentToolKey as DomainToolKey,
+  type EscalationPolicyLink,
   needsPlanReview,
   resuscitationStatus,
   runAssessment,
@@ -66,6 +67,7 @@ import {
   toRecordState,
 } from "../services/care-planning";
 import { flagIfReportedDeleted } from "../services/device-holds";
+import { escalationLinks, escalationRef } from "../services/escalation-policies";
 import {
   auditHandedOver,
   planHandedOverEntry,
@@ -74,18 +76,25 @@ import {
 import { loadPerson, requireWrite } from "../services/people";
 import {
   applyLink,
+  type EntryExtras,
+  EntryHeaders,
+  entryExtras,
   entryOut,
   entryWriteAccess,
   iso,
+  lockClientId,
   PersonParam,
   planLink,
   range,
+  refuseUsedId,
   requireCorrection,
   requireOpenRecord,
   SENT_AT_HEADER,
+  sameRecordOrRefuse,
   supersededIds,
   triggersAfterChange,
   window,
+  withClientId,
   withLateEntryReview,
 } from "./care-shared";
 import {
@@ -153,9 +162,23 @@ function newFollowUps(
   );
 }
 
-function assessmentItem(row: AssessmentRow, superseded: ReadonlySet<string>): AssessmentItem {
+/**
+ * A stored validated-tool result, with the organisation's escalation policy for its tool and band
+ * or that none is configured (medical-device boundary section 5 rule 4; HZ-012, HZ-014).
+ */
+function assessmentItem(
+  row: AssessmentRow,
+  superseded: ReadonlySet<string>,
+  extras: EntryExtras,
+  links: readonly EscalationPolicyLink[],
+): AssessmentItem {
   return {
-    ...entryOut(row, superseded),
+    ...entryOut(row, superseded, extras),
+    escalationPolicy: escalationRef(links, {
+      toolKey: row.toolKey as AssessmentItem["toolKey"],
+      band: row.band,
+      locationId: row.locationId,
+    }),
     toolKey: row.toolKey as AssessmentItem["toolKey"],
     toolVersion: row.toolVersion,
     answers: row.answers as Record<string, unknown>,
@@ -168,9 +191,13 @@ function assessmentItem(row: AssessmentRow, superseded: ReadonlySet<string>): As
   };
 }
 
-function activityItem(row: ActivityRow, superseded: ReadonlySet<string>): ActivityRecordItem {
+function activityItem(
+  row: ActivityRow,
+  superseded: ReadonlySet<string>,
+  extras: EntryExtras,
+): ActivityRecordItem {
   return {
-    ...entryOut(row, superseded),
+    ...entryOut(row, superseded, extras),
     activity: row.activity,
     format: row.format as ActivityRecordItem["format"],
     groupSessionId: row.groupSessionId,
@@ -181,9 +208,9 @@ function activityItem(row: ActivityRow, superseded: ReadonlySet<string>): Activi
   };
 }
 
-function visitItem(row: VisitRow, superseded: ReadonlySet<string>): VisitItem {
+function visitItem(row: VisitRow, superseded: ReadonlySet<string>, extras: EntryExtras): VisitItem {
   return {
-    ...entryOut(row, superseded),
+    ...entryOut(row, superseded, extras),
     kind: row.kind as VisitItem["kind"],
     contactId: row.contactId,
     visitorName: row.visitorName,
@@ -239,6 +266,7 @@ export const careRecordsRouter = createRouter()
       security,
       request: {
         params: PersonParam,
+        headers: ClientIdHeaders,
         body: { content: { "application/json": { schema: CreateAssessment } } },
       },
       responses: {
@@ -250,7 +278,7 @@ export const careRecordsRouter = createRouter()
     async (c) => {
       const access = await requirePermission(c, "care.assessment.write");
       const { id: personId } = c.req.valid("param");
-      const body = c.req.valid("json");
+      const body = withClientId(c, c.req.valid("json"));
       requireCorrection(body);
       const now = new Date();
       const item = await withLateEntryReview(
@@ -268,7 +296,12 @@ export const careRecordsRouter = createRouter()
               if (replayed) {
                 if (replayed.personId !== personId)
                   throw problems.invalid("That id is already used.");
-                return assessmentItem(replayed, new Set());
+                return assessmentItem(
+                  replayed,
+                  new Set(),
+                  await entryExtras(tx, [replayed]),
+                  await escalationLinks(tx),
+                );
               }
             }
             const person = await personContext(tx, personId);
@@ -365,6 +398,7 @@ export const careRecordsRouter = createRouter()
               await flagIfReportedDeleted(tx, access, {
                 resourceType: "assessment",
                 id: row.id,
+                personId,
                 locationId: person.locationId,
                 requestId: c.get("requestId"),
               });
@@ -440,7 +474,12 @@ export const careRecordsRouter = createRouter()
                 },
               });
             }
-            return assessmentItem(row, new Set());
+            return assessmentItem(
+              row,
+              new Set(),
+              await entryExtras(tx, [row]),
+              await escalationLinks(tx),
+            );
           }),
       );
       return c.json(item, 201);
@@ -492,7 +531,9 @@ export const careRecordsRouter = createRouter()
           resourceId: personId,
           scope: { count: shown.length, toolKey: q.toolKey ?? null, latest: q.latest === "true" },
         });
-        return shown.map((r) => assessmentItem(r, superseded));
+        const extras = await entryExtras(tx, shown);
+        const links = await escalationLinks(tx);
+        return shown.map((r) => assessmentItem(r, superseded, extras, links));
       });
       return c.json({ items }, 200);
     },
@@ -507,7 +548,7 @@ export const careRecordsRouter = createRouter()
       request: {
         params: PersonParam,
         // A hand-over of held entries (care.md section 6, Device integrity part 6).
-        headers: HandoverHeaders,
+        headers: EntryHeaders,
         body: { content: { "application/json": { schema: CreateActivityRecord } } },
       },
       responses: {
@@ -522,7 +563,7 @@ export const careRecordsRouter = createRouter()
         "activity_record",
       );
       const { id: personId } = c.req.valid("param");
-      const body = c.req.valid("json");
+      const body = withClientId(c, c.req.valid("json"));
       requireCorrection(body);
       // A handed-over entry is checked against the device's hold before it is written (#25
       // review rounds 2 and 3): the owner's time on the device, the hold's count and their care.
@@ -563,7 +604,7 @@ export const careRecordsRouter = createRouter()
               if (replayed) {
                 if (replayed.personId !== personId)
                   throw problems.invalid("That id is already used.");
-                return activityItem(replayed, new Set());
+                return activityItem(replayed, new Set(), await entryExtras(tx, [replayed]));
               }
             }
             // Admitted in the entry's own transaction, so a refusal uses none of the count.
@@ -642,6 +683,7 @@ export const careRecordsRouter = createRouter()
                 uploader: author,
                 resourceType: "activity_record",
                 id: row.id,
+                personId,
                 locationId: person.locationId,
                 requestId: c.get("requestId"),
               });
@@ -668,7 +710,7 @@ export const careRecordsRouter = createRouter()
                 requestId: c.get("requestId"),
               });
             }
-            return activityItem(row, new Set());
+            return activityItem(row, new Set(), await entryExtras(tx, [row]));
           }),
       );
       return c.json(item, 201);
@@ -713,7 +755,8 @@ export const careRecordsRouter = createRouter()
           scope: { count: rows.length },
         });
         const superseded = supersededIds(rows);
-        return rows.map((r) => activityItem(r, superseded));
+        const extras = await entryExtras(tx, rows);
+        return rows.map((r) => activityItem(r, superseded, extras));
       });
       return c.json({ items }, 200);
     },
@@ -730,7 +773,7 @@ export const careRecordsRouter = createRouter()
       request: {
         params: PersonParam,
         // A hand-over of held entries (care.md section 6, Device integrity part 6).
-        headers: HandoverHeaders,
+        headers: EntryHeaders,
         body: { content: { "application/json": { schema: CreateVisit } } },
       },
       responses: {
@@ -742,7 +785,7 @@ export const careRecordsRouter = createRouter()
     async (c) => {
       const { access, author, handover, handedOverBy } = await entryWriteAccess(c, "visit_log");
       const { id: personId } = c.req.valid("param");
-      const body = c.req.valid("json");
+      const body = withClientId(c, c.req.valid("json"));
       requireCorrection(body);
       // A handed-over entry is checked against the device's hold before it is written (#25
       // review rounds 2 and 3): the owner's time on the device, the hold's count and their care.
@@ -781,7 +824,7 @@ export const careRecordsRouter = createRouter()
               if (replayed) {
                 if (replayed.personId !== personId)
                   throw problems.invalid("That id is already used.");
-                return visitItem(replayed, new Set());
+                return visitItem(replayed, new Set(), await entryExtras(tx, [replayed]));
               }
             }
             // Admitted in the entry's own transaction, so a refusal uses none of the count.
@@ -873,6 +916,7 @@ export const careRecordsRouter = createRouter()
                 uploader: author,
                 resourceType: "visit_log",
                 id: row.id,
+                personId,
                 locationId: person.locationId,
                 requestId: c.get("requestId"),
               });
@@ -900,7 +944,7 @@ export const careRecordsRouter = createRouter()
                 requestId: c.get("requestId"),
               });
             }
-            return visitItem(row, new Set());
+            return visitItem(row, new Set(), await entryExtras(tx, [row]));
           }),
       );
       return c.json(item, 201);
@@ -941,7 +985,8 @@ export const careRecordsRouter = createRouter()
           scope: { count: rows.length },
         });
         const superseded = supersededIds(rows);
-        return rows.map((r) => visitItem(r, superseded));
+        const extras = await entryExtras(tx, rows);
+        return rows.map((r) => visitItem(r, superseded, extras));
       });
       return c.json({ items }, 200);
     },
@@ -1002,6 +1047,7 @@ export const careRecordsRouter = createRouter()
       security,
       request: {
         params: PersonParam,
+        headers: ClientIdHeaders,
         body: { content: { "application/json": { schema: CreateAdvanceCareRecord } } },
       },
       responses: {
@@ -1013,7 +1059,7 @@ export const careRecordsRouter = createRouter()
     async (c) => {
       const access = await requirePermission(c, "care.respect.record");
       const { id: personId } = c.req.valid("param");
-      const body = c.req.valid("json");
+      const body = withClientId(c, c.req.valid("json"));
       const now = new Date();
       const today = ukIsoDate(now);
       const check = checkAdvanceCareRecord({
@@ -1027,11 +1073,21 @@ export const careRecordsRouter = createRouter()
       });
       if (!check.ok) throw problems.invalid(check.issues.map((i) => i.message).join(" "));
       const item = await withTenant(c, async (tx) => {
+        // A save tried again with its client id returns the record it made, superseding nothing
+        // again (HZ-029). The lock takes two sends of the same save in turn.
+        if (body.id) {
+          await lockClientId(tx, "advance_care_record", body.id);
+          const [replayed] = await tx
+            .select()
+            .from(advanceCareRecord)
+            .where(eq(advanceCareRecord.id, body.id));
+          if (replayed) return advanceCareItem(sameRecordOrRefuse(replayed, personId), today);
+        }
         const person = await personContext(tx, personId);
         requireOpenRecord(person);
         await requireDocument(tx, personId, body.documentId ?? null);
         const { rows } = await tx.execute<{ id: string }>(sql`SELECT app.uuid_v7() AS id`);
-        const id = rows[0]?.id;
+        const id = body.id ?? rows[0]?.id;
         if (!id) throw new Error("No id generated");
         // The superseded-by link is checked at commit, so the old record can point at the new one.
         const superseded = await tx
@@ -1061,7 +1117,8 @@ export const careRecordsRouter = createRouter()
             documentId: body.documentId ?? null,
             details: body.details ?? null,
           })
-          .returning();
+          .returning()
+          .catch(refuseUsedId);
         if (!row) throw problems.conflict();
         for (const old of superseded) {
           await completeOpenTasks(tx, {

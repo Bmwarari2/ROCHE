@@ -27,7 +27,7 @@ import { auditInTx } from "../http/audit";
 import { requirePermission, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { locationInScope, shiftPatternFor } from "../services/handover";
-import { escalationMinutes, toTaskItem } from "../services/tasks";
+import { escalationMinutes, taskStaff, toTaskItem } from "../services/tasks";
 import { createRouter, errorResponses, jsonBody, notFoundResponse, security } from "./openapi";
 import { personSummaries } from "./people";
 
@@ -156,6 +156,7 @@ export const roundsRouter = createRouter().openapi(
         minutes,
       );
       const byId = new Map(rows.map((r) => [r.id, r]));
+      const staff = await taskStaff(tx, rows);
       const byPerson = new Map(people.map((p) => [p.id, p]));
       const result = areas.map((area) => ({
         area: area.area,
@@ -172,7 +173,7 @@ export const roundsRouter = createRouter().openapi(
               const row = byId.get(entry.id);
               if (!row) throw new Error("Round task vanished");
               return {
-                ...toTaskItem(row, now, minutes),
+                ...toTaskItem(row, now, minutes, staff),
                 planAction: row.seriesId ? (actions.get(row.seriesId) ?? null) : null,
               };
             }),

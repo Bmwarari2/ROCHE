@@ -672,6 +672,9 @@
             ],
             "format": "uuid"
           },
+          "changedByStaff": {
+            "$ref": "#/components/schemas/StaffName"
+          },
           "data": {
             "type": "object",
             "additionalProperties": {}
@@ -682,8 +685,36 @@
           "validFrom",
           "validTo",
           "changedBy",
+          "changedByStaff",
           "data"
         ]
+      },
+      "StaffName": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "jobTitle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "jobTitle"
+        ],
+        "description": "A member of staff named for attribution on a record the caller may read: display name and job title"
       },
       "BreakGlassResult": {
         "type": "object",
@@ -5570,6 +5601,9 @@
             ],
             "format": "uuid"
           },
+          "assigneeStaff": {
+            "$ref": "#/components/schemas/StaffName"
+          },
           "dueAt": {
             "type": "string",
             "format": "date-time"
@@ -5635,6 +5669,16 @@
             ],
             "format": "date-time"
           },
+          "completedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "completedByStaff": {
+            "$ref": "#/components/schemas/StaffName"
+          },
           "escalated": {
             "type": "boolean"
           },
@@ -5653,6 +5697,7 @@
           "personId",
           "locationId",
           "assigneeTenantUserId",
+          "assigneeStaff",
           "dueAt",
           "windowStart",
           "windowEnd",
@@ -5667,6 +5712,8 @@
           "catchUp",
           "restoredDone",
           "completedAt",
+          "completedBy",
+          "completedByStaff",
           "escalated",
           "details",
           "version"
@@ -6734,12 +6781,21 @@
             ],
             "format": "uuid"
           },
+          "recordedByStaff": {
+            "$ref": "#/components/schemas/StaffName"
+          },
           "handedOverBy": {
             "type": [
               "string",
               "null"
             ],
             "format": "uuid"
+          },
+          "handedOverByStaff": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "deviceDeletion": {
+            "$ref": "#/components/schemas/DeviceDeletionFlag"
           },
           "category": {
             "$ref": "#/components/schemas/CareNoteCategory"
@@ -6777,11 +6833,25 @@
           "correctionReason",
           "superseded",
           "recordedBy",
+          "recordedByStaff",
           "handedOverBy",
+          "handedOverByStaff",
+          "deviceDeletion",
           "category",
           "body",
           "tags",
           "attachmentDocumentIds"
+        ]
+      },
+      "DeviceDeletionFlag": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "uploaded_after_deletion",
+          "deleted_after_upload",
+          null
         ]
       },
       "CareNoteCategory": {
@@ -6955,12 +7025,21 @@
             ],
             "format": "uuid"
           },
+          "recordedByStaff": {
+            "$ref": "#/components/schemas/StaffName"
+          },
           "handedOverBy": {
             "type": [
               "string",
               "null"
             ],
             "format": "uuid"
+          },
+          "handedOverByStaff": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "deviceDeletion": {
+            "$ref": "#/components/schemas/DeviceDeletionFlag"
           },
           "chart": {
             "type": "string"
@@ -6972,6 +7051,9 @@
           "flags": {
             "type": "object",
             "additionalProperties": {}
+          },
+          "escalationPolicy": {
+            "$ref": "#/components/schemas/EscalationPolicyRef"
           }
         },
         "required": [
@@ -6990,10 +7072,124 @@
           "correctionReason",
           "superseded",
           "recordedBy",
+          "recordedByStaff",
           "handedOverBy",
+          "handedOverByStaff",
+          "deviceDeletion",
           "chart",
           "values",
-          "flags"
+          "flags",
+          "escalationPolicy"
+        ]
+      },
+      "EscalationPolicyRef": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "configured"
+                ]
+              },
+              "toolKey": {
+                "$ref": "#/components/schemas/EscalationPolicyToolKey"
+              },
+              "band": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^[a-z_]{2,40}$"
+              },
+              "linkId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "title": {
+                "type": "string"
+              },
+              "reference": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "documentId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "matchedOn": {
+                "type": "string",
+                "enum": [
+                  "band",
+                  "tool"
+                ]
+              },
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "location",
+                  "organisation"
+                ]
+              }
+            },
+            "required": [
+              "status",
+              "toolKey",
+              "band",
+              "linkId",
+              "title",
+              "reference",
+              "documentId",
+              "matchedOn",
+              "scope"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "not_configured"
+                ]
+              },
+              "toolKey": {
+                "$ref": "#/components/schemas/EscalationPolicyToolKey"
+              },
+              "band": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^[a-z_]{2,40}$"
+              }
+            },
+            "required": [
+              "status",
+              "toolKey",
+              "band"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The organisation's own escalation policy for a validated tool's result, or that none is configured; never a Harbour recommendation"
+      },
+      "EscalationPolicyToolKey": {
+        "type": "string",
+        "enum": [
+          "news2",
+          "must",
+          "waterlow",
+          "braden",
+          "ng249_falls"
         ]
       },
       "CreateObservation": {
@@ -7452,12 +7648,21 @@
             ],
             "format": "uuid"
           },
+          "recordedByStaff": {
+            "$ref": "#/components/schemas/StaffName"
+          },
           "handedOverBy": {
             "type": [
               "string",
               "null"
             ],
             "format": "uuid"
+          },
+          "handedOverByStaff": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "deviceDeletion": {
+            "$ref": "#/components/schemas/DeviceDeletionFlag"
           },
           "view": {
             "type": "string",
@@ -7475,6 +7680,18 @@
               "left",
               "right",
               "midline"
+            ]
+          },
+          "drawnSide": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "left",
+              "right",
+              "midline",
+              null
             ]
           },
           "markType": {
@@ -7545,10 +7762,14 @@
           "correctionReason",
           "superseded",
           "recordedBy",
+          "recordedByStaff",
           "handedOverBy",
+          "handedOverByStaff",
+          "deviceDeletion",
           "view",
           "region",
           "side",
+          "drawnSide",
           "markType",
           "pressureCategory",
           "lengthMm",
@@ -7628,6 +7849,12 @@
             "type": "string",
             "pattern": "^[a-z_]{2,40}$"
           },
+          "drawnAt": {
+            "$ref": "#/components/schemas/BodyMapPoint"
+          },
+          "drawnZone": {
+            "$ref": "#/components/schemas/BodyMapViewerZone"
+          },
           "drawnSide": {
             "type": "string",
             "enum": [
@@ -7696,10 +7923,37 @@
           "occurredAt",
           "view",
           "region",
-          "drawnSide",
           "side",
           "markType"
         ]
+      },
+      "BodyMapPoint": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 120
+          },
+          "y": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 240
+          }
+        },
+        "required": [
+          "x",
+          "y"
+        ]
+      },
+      "BodyMapViewerZone": {
+        "type": "string",
+        "enum": [
+          "viewer_left",
+          "centre",
+          "viewer_right"
+        ],
+        "description": "The left of the drawing, its centre band, or its right, as the person recording saw it"
       },
       "BodyMapMarkList": {
         "type": "object",
@@ -7968,6 +8222,9 @@
             ],
             "format": "uuid"
           },
+          "publishedByStaff": {
+            "$ref": "#/components/schemas/StaffName"
+          },
           "supersededAt": {
             "type": [
               "string",
@@ -7994,6 +8251,7 @@
           "reviewReason",
           "publishedAt",
           "publishedBy",
+          "publishedByStaff",
           "supersededAt",
           "signOff",
           "version"
@@ -8053,6 +8311,9 @@
               "null"
             ],
             "format": "uuid"
+          },
+          "recordedByStaff": {
+            "$ref": "#/components/schemas/StaffName"
           }
         },
         "required": [
@@ -8062,7 +8323,8 @@
           "contactId",
           "unableReason",
           "signedOffAt",
-          "recordedBy"
+          "recordedBy",
+          "recordedByStaff"
         ]
       },
       "SignOffAuthority": {
@@ -8175,6 +8437,9 @@
             ],
             "format": "uuid"
           },
+          "publishedByStaff": {
+            "$ref": "#/components/schemas/StaffName"
+          },
           "supersededAt": {
             "type": [
               "string",
@@ -8207,6 +8472,7 @@
           "reviewReason",
           "publishedAt",
           "publishedBy",
+          "publishedByStaff",
           "supersededAt",
           "signOff",
           "version",
@@ -8376,6 +8642,10 @@
       "CreateCarePlan": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
           "copyFromActive": {
             "type": "boolean",
             "default": true
@@ -8429,6 +8699,10 @@
       "CreateCarePlanAction": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
           "action": {
             "type": "string",
             "minLength": 3,
@@ -8953,6 +9227,10 @@
       "CreateRiskAssessment": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
           "templateKey": {
             "$ref": "#/components/schemas/RiskTemplateKey"
           },
@@ -9283,12 +9561,21 @@
             ],
             "format": "uuid"
           },
+          "recordedByStaff": {
+            "$ref": "#/components/schemas/StaffName"
+          },
           "handedOverBy": {
             "type": [
               "string",
               "null"
             ],
             "format": "uuid"
+          },
+          "handedOverByStaff": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "deviceDeletion": {
+            "$ref": "#/components/schemas/DeviceDeletionFlag"
           },
           "toolKey": {
             "$ref": "#/components/schemas/AssessmentToolKey"
@@ -9335,6 +9622,9 @@
               "null"
             ],
             "format": "date"
+          },
+          "escalationPolicy": {
+            "$ref": "#/components/schemas/EscalationPolicyRef"
           }
         },
         "required": [
@@ -9353,7 +9643,10 @@
           "correctionReason",
           "superseded",
           "recordedBy",
+          "recordedByStaff",
           "handedOverBy",
+          "handedOverByStaff",
+          "deviceDeletion",
           "toolKey",
           "toolVersion",
           "answers",
@@ -9362,7 +9655,8 @@
           "workings",
           "triggers",
           "details",
-          "nextDueOn"
+          "nextDueOn",
+          "escalationPolicy"
         ]
       },
       "AssessmentToolKey": {
@@ -10202,12 +10496,21 @@
             ],
             "format": "uuid"
           },
+          "recordedByStaff": {
+            "$ref": "#/components/schemas/StaffName"
+          },
           "handedOverBy": {
             "type": [
               "string",
               "null"
             ],
             "format": "uuid"
+          },
+          "handedOverByStaff": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "deviceDeletion": {
+            "$ref": "#/components/schemas/DeviceDeletionFlag"
           },
           "activity": {
             "type": "string"
@@ -10261,7 +10564,10 @@
           "correctionReason",
           "superseded",
           "recordedBy",
+          "recordedByStaff",
           "handedOverBy",
+          "handedOverByStaff",
+          "deviceDeletion",
           "activity",
           "format",
           "groupSessionId",
@@ -10457,12 +10763,21 @@
             ],
             "format": "uuid"
           },
+          "recordedByStaff": {
+            "$ref": "#/components/schemas/StaffName"
+          },
           "handedOverBy": {
             "type": [
               "string",
               "null"
             ],
             "format": "uuid"
+          },
+          "handedOverByStaff": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "deviceDeletion": {
+            "$ref": "#/components/schemas/DeviceDeletionFlag"
           },
           "kind": {
             "$ref": "#/components/schemas/VisitKind"
@@ -10525,7 +10840,10 @@
           "correctionReason",
           "superseded",
           "recordedBy",
+          "recordedByStaff",
           "handedOverBy",
+          "handedOverByStaff",
+          "deviceDeletion",
           "kind",
           "contactId",
           "visitorName",
@@ -10772,6 +11090,10 @@
       "CreateAdvanceCareRecord": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
           "kind": {
             "$ref": "#/components/schemas/AdvanceCareKind"
           },
@@ -10853,6 +11175,311 @@
           "version"
         ],
         "description": "A changed CPR decision is a new record, which supersedes this one"
+      },
+      "EscalationPolicyLinkList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EscalationPolicyLinkItem"
+            }
+          },
+          "bands": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "required": [
+          "items",
+          "bands"
+        ]
+      },
+      "EscalationPolicyLinkItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "toolKey": {
+            "$ref": "#/components/schemas/EscalationPolicyToolKey"
+          },
+          "band": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[a-z_]{2,40}$"
+          },
+          "locationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "reference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "documentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "toolKey",
+          "band",
+          "locationId",
+          "title",
+          "reference",
+          "documentId",
+          "updatedAt",
+          "version"
+        ]
+      },
+      "CreateEscalationPolicyLink": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "toolKey": {
+            "$ref": "#/components/schemas/EscalationPolicyToolKey"
+          },
+          "band": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[a-z_]{2,40}$",
+            "default": null
+          },
+          "locationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "default": null
+          },
+          "title": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 200
+          },
+          "reference": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 100
+          },
+          "documentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "toolKey",
+          "title"
+        ],
+        "description": "Links the organisation's escalation policy to a validated tool, for one band or every band, for one location or the whole organisation"
+      },
+      "UpdateEscalationPolicyLink": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 200
+          },
+          "reference": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 100
+          },
+          "documentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "title",
+          "version"
+        ]
+      },
+      "RemoveEscalationPolicyLink": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "DiscardReasonList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiscardReasonItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "DiscardReasonItem": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/DiscardReasonCode"
+          },
+          "label": {
+            "type": "string"
+          },
+          "labelCy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sortOrder": {
+            "type": "integer"
+          },
+          "seeded": {
+            "type": "boolean"
+          },
+          "retiredAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "label",
+          "labelCy",
+          "sortOrder",
+          "seeded",
+          "retiredAt",
+          "version"
+        ]
+      },
+      "DiscardReasonCode": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{1,39}$"
+      },
+      "CreateDiscardReason": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/DiscardReasonCode"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 120
+          },
+          "labelCy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 3,
+            "maxLength": 120
+          },
+          "sortOrder": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "default": 50
+          }
+        },
+        "required": [
+          "code",
+          "label"
+        ],
+        "description": "Adds a coded reason for deleting unsent entries on a device"
+      },
+      "UpdateDiscardReason": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 120
+          },
+          "labelCy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 3,
+            "maxLength": 120
+          },
+          "sortOrder": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "retired": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "version"
+        ]
       },
       "RoundView": {
         "type": "object",
@@ -11036,6 +11663,9 @@
             ],
             "format": "uuid"
           },
+          "assigneeStaff": {
+            "$ref": "#/components/schemas/StaffName"
+          },
           "dueAt": {
             "type": "string",
             "format": "date-time"
@@ -11101,6 +11731,16 @@
             ],
             "format": "date-time"
           },
+          "completedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "completedByStaff": {
+            "$ref": "#/components/schemas/StaffName"
+          },
           "escalated": {
             "type": "boolean"
           },
@@ -11122,6 +11762,7 @@
           "personId",
           "locationId",
           "assigneeTenantUserId",
+          "assigneeStaff",
           "dueAt",
           "windowStart",
           "windowEnd",
@@ -11136,6 +11777,8 @@
           "catchUp",
           "restoredDone",
           "completedAt",
+          "completedBy",
+          "completedByStaff",
           "escalated",
           "details",
           "version",
@@ -11299,6 +11942,12 @@
               "format": "uuid"
             }
           },
+          "staff": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffName"
+            }
+          },
           "unacknowledged": {
             "type": [
               "boolean",
@@ -11319,6 +11968,7 @@
           "lateAdditionCount",
           "acknowledgedBy",
           "pending",
+          "staff",
           "unacknowledged"
         ]
       },
@@ -11375,6 +12025,12 @@
             "items": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          "staff": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffName"
             }
           },
           "unacknowledged": {
@@ -11451,6 +12107,7 @@
           "lateAdditionCount",
           "acknowledgedBy",
           "pending",
+          "staff",
           "unacknowledged",
           "items",
           "notes",
@@ -11571,6 +12228,9 @@
               "null"
             ],
             "format": "uuid"
+          },
+          "createdByStaff": {
+            "$ref": "#/components/schemas/StaffName"
           }
         },
         "required": [
@@ -11579,7 +12239,8 @@
           "personId",
           "body",
           "createdAt",
-          "createdBy"
+          "createdBy",
+          "createdByStaff"
         ]
       },
       "HandoverAcknowledgementItem": {
@@ -11593,6 +12254,9 @@
             "type": "string",
             "format": "uuid"
           },
+          "staff": {
+            "$ref": "#/components/schemas/StaffName"
+          },
           "acknowledgedAt": {
             "type": "string",
             "format": "date-time"
@@ -11601,6 +12265,7 @@
         "required": [
           "id",
           "tenantUserId",
+          "staff",
           "acknowledgedAt"
         ]
       },
@@ -11765,6 +12430,9 @@
             ],
             "format": "uuid"
           },
+          "recordedByStaff": {
+            "$ref": "#/components/schemas/StaffName"
+          },
           "version": {
             "type": "integer",
             "minimum": 1
@@ -11788,6 +12456,7 @@
           "restraintConditions",
           "bestInterestsDecisionId",
           "recordedBy",
+          "recordedByStaff",
           "version"
         ]
       },
@@ -11962,6 +12631,10 @@
       "CreateConsent": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
           "decision": {
             "$ref": "#/components/schemas/ConsentDecisionKind"
           },
@@ -12183,6 +12856,9 @@
             ],
             "format": "uuid"
           },
+          "recordedByStaff": {
+            "$ref": "#/components/schemas/StaffName"
+          },
           "supersedesId": {
             "type": [
               "string",
@@ -12219,6 +12895,7 @@
           "reviewOn",
           "recordedAt",
           "recordedBy",
+          "recordedByStaff",
           "supersedesId",
           "correctionReason",
           "superseded"
@@ -12463,6 +13140,9 @@
             ],
             "format": "uuid"
           },
+          "recordedByStaff": {
+            "$ref": "#/components/schemas/StaffName"
+          },
           "supersedesId": {
             "type": [
               "string",
@@ -12495,6 +13175,7 @@
           "reviewOn",
           "recordedAt",
           "recordedBy",
+          "recordedByStaff",
           "supersedesId",
           "correctionReason",
           "superseded"
@@ -13026,7 +13707,7 @@
           null
         ]
       },
-      "DolsInput": {
+      "CreateDols": {
         "type": "object",
         "properties": {
           "type": {
@@ -13141,6 +13822,10 @@
               "null"
             ],
             "maxLength": 2000
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
           }
         },
         "required": [
@@ -13390,6 +14075,9 @@
             ],
             "format": "uuid"
           },
+          "decidedByStaff": {
+            "$ref": "#/components/schemas/StaffName"
+          },
           "referralRequired": {
             "type": "boolean"
           },
@@ -13421,6 +14109,7 @@
           "state",
           "review",
           "decidedBy",
+          "decidedByStaff",
           "referralRequired",
           "prompts",
           "closedReason",
@@ -15997,6 +16686,9 @@
               "other"
             ]
           },
+          "organisationReasonCode": {
+            "$ref": "#/components/schemas/DiscardReasonCode"
+          },
           "ownerTenantUserId": {
             "type": [
               "string",
@@ -16625,6 +17317,12 @@
                     "type": "string",
                     "pattern": "^[a-z_]{2,40}$"
                   },
+                  "drawnAt": {
+                    "$ref": "#/components/schemas/BodyMapPoint"
+                  },
+                  "drawnZone": {
+                    "$ref": "#/components/schemas/BodyMapViewerZone"
+                  },
                   "drawnSide": {
                     "type": "string",
                     "enum": [
@@ -16693,7 +17391,6 @@
                   "occurredAt",
                   "view",
                   "region",
-                  "drawnSide",
                   "side",
                   "markType"
                 ],
@@ -17048,12 +17745,18 @@
             "type": "string",
             "format": "uuid"
           },
+          "authorStaff": {
+            "$ref": "#/components/schemas/StaffName"
+          },
           "sentByTenantUserId": {
             "type": [
               "string",
               "null"
             ],
             "format": "uuid"
+          },
+          "sentByStaff": {
+            "$ref": "#/components/schemas/StaffName"
           },
           "deviceId": {
             "type": [
@@ -17083,7 +17786,9 @@
           "refusedAt",
           "receivedAt",
           "authorTenantUserId",
+          "authorStaff",
           "sentByTenantUserId",
+          "sentByStaff",
           "deviceId",
           "reviewTaskId"
         ],
@@ -25258,6 +25963,17 @@
             "description": "A hand-over of held entries: its id, made on the device, one owner per id.",
             "name": "x-harbour-handover",
             "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does"
+            },
+            "required": false,
+            "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does",
+            "name": "idempotency-key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -25481,6 +26197,17 @@
             "required": false,
             "description": "A hand-over of held entries: its id, made on the device, one owner per id.",
             "name": "x-harbour-handover",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does"
+            },
+            "required": false,
+            "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does",
+            "name": "idempotency-key",
             "in": "header"
           }
         ],
@@ -25791,6 +26518,17 @@
             "required": false,
             "description": "A hand-over of held entries: its id, made on the device, one owner per id.",
             "name": "x-harbour-handover",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does"
+            },
+            "required": false,
+            "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does",
+            "name": "idempotency-key",
             "in": "header"
           }
         ],
@@ -26224,6 +26962,17 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does"
+            },
+            "required": false,
+            "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does",
+            "name": "idempotency-key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -26545,6 +27294,17 @@
             "description": "The 16 need domains of the care and support plan",
             "name": "domain",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does"
+            },
+            "required": false,
+            "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does",
+            "name": "idempotency-key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -27114,6 +27874,17 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does"
+            },
+            "required": false,
+            "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does",
+            "name": "idempotency-key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -27523,6 +28294,17 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does"
+            },
+            "required": false,
+            "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does",
+            "name": "idempotency-key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -27731,6 +28513,17 @@
             "description": "A hand-over of held entries: its id, made on the device, one owner per id.",
             "name": "x-harbour-handover",
             "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does"
+            },
+            "required": false,
+            "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does",
+            "name": "idempotency-key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -27936,6 +28729,17 @@
             "required": false,
             "description": "A hand-over of held entries: its id, made on the device, one owner per id.",
             "name": "x-harbour-handover",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does"
+            },
+            "required": false,
+            "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does",
+            "name": "idempotency-key",
             "in": "header"
           }
         ],
@@ -28211,6 +29015,17 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does"
+            },
+            "required": false,
+            "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does",
+            "name": "idempotency-key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -28327,6 +29142,583 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AdvanceCareItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/escalation-policies": {
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "The escalation policy each validated tool's result links",
+        "description": "The organisation's live links, for one band or every band of a tool, for one location or the whole organisation, with the bands each tool's results carry. Results show the most specific link for their tool, band and location, or that none is configured; Harbour adds no recommendation (medical-device boundary section 5 rule 4).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Links",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EscalationPolicyLinkList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Link the organisation's escalation policy to a validated tool",
+        "description": "For one band or every band, at one location or across the organisation (organisation-wide access for the latter). One live link per tool, band and place: 409 when one exists, so change that one. A replay with the same client id returns the link it made.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does"
+            },
+            "required": false,
+            "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does",
+            "name": "idempotency-key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEscalationPolicyLink"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Linked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EscalationPolicyLinkItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/escalation-policies/{linkId}": {
+      "put": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Change a linked policy's name, reference or document",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "linkId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateEscalationPolicyLink"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EscalationPolicyLinkItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/escalation-policies/{linkId}/remove": {
+      "post": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Remove a link: results for that tool and band then say no policy is configured",
+        "description": "Unless a broader link covers them (every band, or the organisation's). The link is kept in its history.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "linkId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveEscalationPolicyLink"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EscalationPolicyLinkItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/discard-reasons": {
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "The organisation's coded reasons for deleting unsent entries on a device",
+        "description": "Live reasons first in their order, then retired ones. Only the code ever leaves a device; a retired code is no longer offered and is still accepted from a device that recorded it before.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reasons",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscardReasonList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Add a coded reason for deleting unsent entries",
+        "description": "Organisation-wide access only. A code is never reused or deleted.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDiscardReason"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscardReasonItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/discard-reasons/{code}": {
+      "put": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Change a coded reason's wording or order, or retire it or offer it again",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/DiscardReasonCode"
+            },
+            "required": true,
+            "name": "code",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDiscardReason"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscardReasonItem"
                 }
               }
             }
@@ -28788,6 +30180,17 @@
             "required": true,
             "name": "handoverId",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does"
+            },
+            "required": false,
+            "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does",
+            "name": "idempotency-key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -28886,6 +30289,17 @@
             "required": true,
             "name": "handoverId",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does"
+            },
+            "required": false,
+            "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does",
+            "name": "idempotency-key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -29053,6 +30467,17 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does"
+            },
+            "required": false,
+            "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does",
+            "name": "idempotency-key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -29326,6 +30751,17 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does"
+            },
+            "required": false,
+            "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does",
+            "name": "idempotency-key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -29492,6 +30928,17 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does"
+            },
+            "required": false,
+            "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does",
+            "name": "idempotency-key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -29658,13 +31105,24 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does"
+            },
+            "required": false,
+            "description": "The record's client id (a UUIDv7 kept across retries), when the body does not carry it as `id`; the same id when it does",
+            "name": "idempotency-key",
+            "in": "header"
           }
         ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DolsInput"
+                "$ref": "#/components/schemas/CreateDols"
               }
             }
           }

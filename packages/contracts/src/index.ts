@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { BreakGlassReasonCode } from "./people";
 import { PersonSummary } from "./person-summary";
+import { StaffName } from "./staff";
 
 /**
  * Harbour API contracts (master prompt section 6): one set of Zod schemas shared by the API, the
@@ -164,7 +165,9 @@ export const SYNC_DISCARD_KINDS = [
 
 /**
  * Why: a coded reason. The person's own words never reach the server's audit trail, which is
- * hash-chained and kept for years (security review round 4, M3); they stay on the device.
+ * hash-chained and kept for years (security review round 4, M3); they stay on the device. Each
+ * organisation keeps its own coded reasons (`GET /v1/discard-reasons`), starting with these; the
+ * phone offers these until it reads the organisation's list.
  */
 export const SYNC_DISCARD_REASON_CODES = [
   "recorded_elsewhere",
@@ -173,6 +176,59 @@ export const SYNC_DISCARD_REASON_CODES = [
   "nurse_in_charge_informed",
   "other",
 ] as const;
+
+/** A coded reason: lower-case letters, digits and underscores, starting with a letter. */
+export const DiscardReasonCode = z
+  .string()
+  .regex(/^[a-z][a-z0-9_]{1,39}$/)
+  .meta({ id: "DiscardReasonCode" });
+
+export const DiscardReasonItem = z
+  .object({
+    code: DiscardReasonCode,
+    /** The wording staff read, in English. */
+    label: z.string(),
+    /** The Welsh wording, when the organisation has given one. */
+    labelCy: z.string().nullable(),
+    sortOrder: z.number().int(),
+    /** One of the codes every organisation starts with. */
+    seeded: z.boolean(),
+    /** When it stopped being offered; a device that used it before may still send it. */
+    retiredAt: isoDateTime.nullable(),
+    version: z.number().int(),
+  })
+  .meta({ id: "DiscardReasonItem" });
+export type DiscardReasonItem = z.infer<typeof DiscardReasonItem>;
+
+export const DiscardReasonList = z
+  .object({ items: z.array(DiscardReasonItem) })
+  .meta({ id: "DiscardReasonList" });
+export type DiscardReasonList = z.infer<typeof DiscardReasonList>;
+
+export const CreateDiscardReason = z
+  .object({
+    code: DiscardReasonCode,
+    label: z.string().trim().min(3).max(120),
+    labelCy: z.string().trim().min(3).max(120).nullable().optional(),
+    sortOrder: z.number().int().min(0).max(1000).default(50),
+  })
+  .meta({
+    id: "CreateDiscardReason",
+    description: "Adds a coded reason for deleting unsent entries on a device",
+  });
+export type CreateDiscardReason = z.infer<typeof CreateDiscardReason>;
+
+export const UpdateDiscardReason = z
+  .object({
+    label: z.string().trim().min(3).max(120).optional(),
+    labelCy: z.string().trim().min(3).max(120).nullable().optional(),
+    sortOrder: z.number().int().min(0).max(1000).optional(),
+    /** True stops it being offered; false offers it again. */
+    retired: z.boolean().optional(),
+    version: z.number().int().min(1),
+  })
+  .meta({ id: "UpdateDiscardReason" });
+export type UpdateDiscardReason = z.infer<typeof UpdateDiscardReason>;
 
 /**
  * Where a deletion stands (clinical review round 4, H1): `requested` is recorded before anything is
@@ -203,7 +259,17 @@ export const SyncDiscard = z
     id: uuid,
     kind: z.enum(SYNC_DISCARD_KINDS),
     stage: z.enum(SYNC_DISCARD_STAGES),
+    /**
+     * The coded reason: one of the five every organisation starts with. A reason the organisation
+     * added goes in `organisationReasonCode`, with `other` here.
+     */
     reasonCode: z.enum(SYNC_DISCARD_REASON_CODES),
+    /**
+     * One of the organisation's own coded reasons (`GET /v1/discard-reasons`), when the reason is
+     * one it added; `reasonCode` is then `other`. The API checks it against the organisation's
+     * list: a code it never had is refused, a retired one still taken.
+     */
+    organisationReasonCode: DiscardReasonCode.optional(),
     /** Who wrote the entries (tenant_user id), when the device knows. */
     ownerTenantUserId: uuid.nullable(),
     /**
@@ -232,6 +298,10 @@ export const SyncDiscard = z
   .refine((d) => d.count === null || d.entryIds.length <= d.count, {
     message: "There are more entry ids than entries.",
     path: ["entryIds"],
+  })
+  .refine((d) => d.organisationReasonCode === undefined || d.reasonCode === "other", {
+    message: "Send an organisation's own reason with the reason code other.",
+    path: ["reasonCode"],
   })
   .meta({
     id: "SyncDiscard",
@@ -319,6 +389,8 @@ export const RecordVersion = z
     validFrom: isoDateTime,
     validTo: isoDateTime,
     changedBy: uuid.nullable(),
+    /** Who made the change, by name and job title; null when not known. */
+    changedByStaff: StaffName.nullable(),
     data: z.record(z.string(), z.unknown()),
   })
   .meta({ id: "RecordVersion" });
@@ -379,11 +451,15 @@ export const DEVICE_HEADER = "x-harbour-device";
 
 export * from "./care";
 export * from "./care-planning";
+export * from "./client-id";
 export * from "./devices";
+export { DeviceDeletionFlag } from "./entries";
+export * from "./escalation-policy";
 export * from "./handover";
 export * from "./mca";
 export * from "./people";
 export * from "./person-summary";
 export * from "./records";
 export * from "./safety";
+export * from "./staff";
 export * from "./tasks";

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CreateBodyMapMark, CreateCareNote, CreateObservation } from "./care";
 import { CreateActivityRecord, CreateVisit } from "./care-planning";
+import { StaffName } from "./staff";
 
 /**
  * Care mode devices (care.md section 6, Device integrity): which member has used which device, a
@@ -207,8 +208,12 @@ export const RefusedEntryItem = z
     refusedAt: isoDateTime,
     receivedAt: isoDateTime,
     authorTenantUserId: uuid,
+    /** The author by name and job title. */
+    authorStaff: StaffName.nullable(),
     /** Who sent the copy: the author, or a manager handing over their entries. */
     sentByTenantUserId: uuid.nullable(),
+    /** The sender by name and job title. */
+    sentByStaff: StaffName.nullable(),
     deviceId: uuid.nullable(),
     reviewTaskId: uuid.nullable(),
   })

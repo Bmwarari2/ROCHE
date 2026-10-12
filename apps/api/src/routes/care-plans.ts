@@ -4,6 +4,7 @@ import {
   CarePlanList,
   CarePlanSectionItem,
   CarePlanSummary,
+  ClientIdHeaders,
   CloseRiskAssessment,
   CreateCarePlan,
   CreateCarePlanAction,
@@ -67,7 +68,16 @@ import {
   REVIEW_TASKS,
 } from "../services/care-planning";
 import { syncPlanTaskSeries } from "../services/plan-tasks";
-import { iso, PersonParam, requireOpenRecord } from "./care-shared";
+import { type StaffLookup, staffNames } from "../services/staff";
+import {
+  iso,
+  lockClientId,
+  PersonParam,
+  refuseUsedId,
+  requireOpenRecord,
+  sameRecordOrRefuse,
+  withClientId,
+} from "./care-shared";
 import {
   conflictResponse,
   createRouter,
@@ -122,7 +132,7 @@ function isUniqueViolation(error: unknown): boolean {
   return (error as { code?: string }).code === "23505" || cause?.code === "23505";
 }
 
-function planSummary(row: PlanRow): CarePlanSummary {
+function planSummary(row: PlanRow, staff: StaffLookup): CarePlanSummary {
   return {
     id: row.id,
     personId: row.personId,
@@ -135,6 +145,7 @@ function planSummary(row: PlanRow): CarePlanSummary {
     reviewReason: row.reviewReason,
     publishedAt: iso(row.publishedAt),
     publishedBy: row.publishedBy,
+    publishedByStaff: staff(row.publishedBy),
     supersededAt: iso(row.supersededAt),
     signOff:
       row.signOffKind && row.signedOffAt
@@ -146,6 +157,7 @@ function planSummary(row: PlanRow): CarePlanSummary {
             unableReason: row.signOffUnableReason,
             signedOffAt: row.signedOffAt.toISOString(),
             recordedBy: row.signedOffRecordedBy,
+            recordedByStaff: staff(row.signedOffRecordedBy),
           }
         : null,
     version: row.version,
@@ -217,7 +229,8 @@ async function planParts(tx: Transaction, planId: string) {
 
 async function planDetail(tx: Transaction, plan: PlanRow): Promise<CarePlanDetail> {
   const { sections, actions } = await planParts(tx, plan.id);
-  return { ...planSummary(plan), sections: sections.map((s) => sectionItem(s, actions)) };
+  const staff = await staffNames(tx, [plan.publishedBy, plan.signedOffRecordedBy]);
+  return { ...planSummary(plan, staff), sections: sections.map((s) => sectionItem(s, actions)) };
 }
 
 async function requireRiskAssessment(tx: Transaction, personId: string, id: string | undefined) {
@@ -387,7 +400,11 @@ export const carePlansRouter = createRouter()
           resourceId: personId,
           scope: { count: rows.length },
         });
-        return { items: rows.map(planSummary), due };
+        const staff = await staffNames(
+          tx,
+          rows.flatMap((r) => [r.publishedBy, r.signedOffRecordedBy]),
+        );
+        return { items: rows.map((r) => planSummary(r, staff)), due };
       });
       return c.json(result, 200);
     },
@@ -401,6 +418,7 @@ export const carePlansRouter = createRouter()
       security,
       request: {
         params: PersonParam,
+        headers: ClientIdHeaders,
         body: { content: { "application/json": { schema: CreateCarePlan } } },
       },
       responses: {
@@ -413,8 +431,14 @@ export const carePlansRouter = createRouter()
     async (c) => {
       const access = await requirePermission(c, "care.plan.write");
       const { id: personId } = c.req.valid("param");
-      const body = c.req.valid("json");
+      const body = withClientId(c, c.req.valid("json"));
       const detail = await withTenant(c, async (tx) => {
+        // A save tried again with its client id returns the draft it started (HZ-029).
+        if (body.id) {
+          await lockClientId(tx, "care_plan", body.id);
+          const [replayed] = await tx.select().from(carePlan).where(eq(carePlan.id, body.id));
+          if (replayed) return planDetail(tx, sameRecordOrRefuse(replayed, personId));
+        }
         const person = await personContext(tx, personId);
         requireOpenRecord(person);
         const current = await tx
@@ -434,6 +458,7 @@ export const carePlansRouter = createRouter()
         const [draft] = await tx
           .insert(carePlan)
           .values({
+            ...(body.id ? { id: body.id } : {}),
             personId,
             locationId: person.locationId,
             status: "draft",
@@ -599,6 +624,7 @@ export const carePlansRouter = createRouter()
       security,
       request: {
         params: SectionParams,
+        headers: ClientIdHeaders,
         body: { content: { "application/json": { schema: CreateCarePlanAction } } },
       },
       responses: {
@@ -610,8 +636,22 @@ export const carePlansRouter = createRouter()
     async (c) => {
       const access = await requirePermission(c, "care.plan.write");
       const { id: personId, planId, domain } = c.req.valid("param");
-      const body = c.req.valid("json");
+      const body = withClientId(c, c.req.valid("json"));
       const item = await withTenant(c, async (tx) => {
+        // A save tried again with its client id returns the action it added (HZ-029).
+        if (body.id) {
+          await lockClientId(tx, "care_plan_action", body.id);
+          const [replayed] = await tx
+            .select()
+            .from(carePlanAction)
+            .where(eq(carePlanAction.id, body.id));
+          if (replayed) {
+            if (sameRecordOrRefuse(replayed, personId).planId !== planId) {
+              throw problems.invalid("That id is already used.");
+            }
+            return actionItem(replayed, domain as DomainPcsp);
+          }
+        }
         const person = await personContext(tx, personId);
         requireOpenRecord(person);
         const plan = await loadPlan(tx, personId, planId);
@@ -640,6 +680,7 @@ export const carePlansRouter = createRouter()
         const [row] = await tx
           .insert(carePlanAction)
           .values({
+            ...(body.id ? { id: body.id } : {}),
             personId,
             planId,
             sectionId: section.id,
@@ -651,7 +692,8 @@ export const carePlansRouter = createRouter()
             evidenceRequired: body.evidenceRequired,
             riskAssessmentId: body.riskAssessmentId ?? null,
           })
-          .returning();
+          .returning()
+          .catch(refuseUsedId);
         if (!row) throw problems.conflict();
         await audit(c, tx, access, {
           action: "care.plan.action.create",
@@ -948,7 +990,7 @@ export const carePlansRouter = createRouter()
           resourceId: row.id,
           scope: { agreedBy: body.agreedBy },
         });
-        return planSummary(row);
+        return planSummary(row, await staffNames(tx, [row.publishedBy, row.signedOffRecordedBy]));
       });
       return c.json(summary, 200);
     },
@@ -1070,6 +1112,7 @@ export const carePlansRouter = createRouter()
       security,
       request: {
         params: PersonParam,
+        headers: ClientIdHeaders,
         body: { content: { "application/json": { schema: CreateRiskAssessment } } },
       },
       responses: {
@@ -1081,15 +1124,25 @@ export const carePlansRouter = createRouter()
     async (c) => {
       const access = await requirePermission(c, "care.plan.write");
       const { id: personId } = c.req.valid("param");
-      const body = c.req.valid("json");
+      const body = withClientId(c, c.req.valid("json"));
       const item = await withTenant(c, async (tx) => {
+        // A save tried again with its client id returns the assessment it recorded (HZ-029).
+        if (body.id) {
+          await lockClientId(tx, "risk_assessment", body.id);
+          const [replayed] = await tx
+            .select()
+            .from(riskAssessment)
+            .where(eq(riskAssessment.id, body.id));
+          if (replayed) return riskItem(sameRecordOrRefuse(replayed, personId));
+        }
         const person = await personContext(tx, personId);
         requireOpenRecord(person);
         const values = await checkedRisk(c, tx, person, body.templateKey, body);
         const [row] = await tx
           .insert(riskAssessment)
-          .values({ personId, ...values })
-          .returning();
+          .values({ ...(body.id ? { id: body.id } : {}), personId, ...values })
+          .returning()
+          .catch(refuseUsedId);
         if (!row) throw problems.conflict();
         await audit(c, tx, access, {
           action: "care.risk.create",
@@ -1270,21 +1323,19 @@ export const carePlansRouter = createRouter()
           resourceType: table,
           resourceId: recordId,
         });
-        return rows;
+        const staff = await staffNames(
+          tx,
+          rows.map((v) => v.changedBy),
+        );
+        return rows.map((v) => ({
+          version: v.recordVersion,
+          validFrom: v.validFrom.toISOString(),
+          validTo: v.validTo.toISOString(),
+          changedBy: v.changedBy,
+          changedByStaff: staff(v.changedBy),
+          data: v.data as Record<string, unknown>,
+        }));
       });
-      return c.json(
-        {
-          table,
-          recordId,
-          versions: versions.map((v) => ({
-            version: v.recordVersion,
-            validFrom: v.validFrom.toISOString(),
-            validTo: v.validTo.toISOString(),
-            changedBy: v.changedBy,
-            data: v.data as Record<string, unknown>,
-          })),
-        },
-        200,
-      );
+      return c.json({ table, recordId, versions }, 200);
     },
   );

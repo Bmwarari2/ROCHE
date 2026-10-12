@@ -42,13 +42,15 @@
  *   The task is due at once when any entry is an observation (a chart), otherwise within a day
  *   (clinical review round 7, M3). A partial unique index keeps one open task per source.
  */
-import type { SyncDeviceReport } from "@harbour/contracts";
+import type { DeviceDeletionFlag, SyncDeviceReport } from "@harbour/contracts";
 import {
   activityRecord,
+  assessment,
   auditEvent,
   bodyMapMark,
   careNote,
   deviceDiscardEntry,
+  entryDeviceDeletionFlag,
   location,
   notification,
   observation,
@@ -1685,8 +1687,9 @@ export async function flagIfReportedDeleted(
   tx: Transaction,
   access: TenantAccess,
   entry: {
-    readonly resourceType: string;
+    readonly resourceType: FlaggedEntryTable;
     readonly id: string;
+    readonly personId: string;
     readonly locationId: string | null;
     readonly requestId: string | undefined;
     /**
@@ -1699,16 +1702,25 @@ export async function flagIfReportedDeleted(
   const uploader = entry.uploader ?? access.tenantUserId;
   const discardId = await reportedDeletedBy(tx, entry.id, uploader);
   if (!discardId) return false;
-  const outcomes = await withTenantWideScope(tx, () =>
-    raiseFlaggedTasks(tx, access, {
+  const now = new Date();
+  const outcomes = await withTenantWideScope(tx, async () => {
+    const raised = await raiseFlaggedTasks(tx, access, {
       kind: REPORTED_DELETED_TASK_KIND,
       discardId,
       ownerTenantUserId: uploader,
       entries: [entry],
-      now: new Date(),
+      now,
       requestId: entry.requestId,
-    }),
-  );
+    });
+    // The flag on the entry itself, which the entry routes return (Device integrity part 3).
+    await recordDeletionFlags(tx, [entry], "uploaded_after_deletion", {
+      discardId,
+      owner: uploader,
+      outcomes: raised,
+      now,
+    });
+    return raised;
+  });
   const flagged = outcomes.get(entry.id);
   await auditInTx(tx, access, {
     action: ENTRY_FLAG_ACTIONS.afterDeletion,
@@ -1725,14 +1737,76 @@ export async function flagIfReportedDeleted(
   return true;
 }
 
-/** The tables a device writes care entries to, with their resource names. */
+/**
+ * The entry tables an upload can flag, with their resource names: the five a device writes, and
+ * assessments (which the API flags the same way).
+ */
 const CARE_ENTRY_TABLES = [
   { resourceType: "care_note", table: careNote },
   { resourceType: "observation", table: observation },
   { resourceType: "body_map_mark", table: bodyMapMark },
   { resourceType: "activity_record", table: activityRecord },
   { resourceType: "visit_log", table: visitLog },
+  { resourceType: "assessment", table: assessment },
 ] as const;
+
+export type FlaggedEntryTable = (typeof CARE_ENTRY_TABLES)[number]["resourceType"];
+
+/**
+ * Records the server's flag on each entry (care.md section 6, Device integrity part 3): one row
+ * per entry, never a second (`entry_device_deletion_flag_entry_key`), with the deletion record and
+ * the review task it joined. Call with tenant-wide scope (the system's view).
+ */
+async function recordDeletionFlags(
+  tx: Transaction,
+  entries: readonly (FlaggedEntry & { readonly personId: string })[],
+  flag: DeviceDeletionFlag,
+  input: {
+    readonly discardId: string;
+    readonly owner: string;
+    readonly outcomes: ReadonlyMap<string, FlagOutcome>;
+    readonly now: Date;
+  },
+): Promise<void> {
+  if (entries.length === 0) return;
+  await tx
+    .insert(entryDeviceDeletionFlag)
+    .values(
+      entries.map((e) => ({
+        recordTable: e.resourceType,
+        entryId: e.id,
+        personId: e.personId,
+        locationId: e.locationId,
+        flag,
+        discardId: input.discardId,
+        ownerTenantUserId: input.owner,
+        reviewTaskId: input.outcomes.get(e.id)?.taskId ?? null,
+        flaggedAt: input.now,
+      })),
+    )
+    .onConflictDoNothing();
+}
+
+/**
+ * The server's flags on the entries a response returns (Device integrity part 3), read in the
+ * reader's transaction: the flag follows the entry's person, as the entry does.
+ */
+export async function deletionFlags(
+  tx: Transaction,
+  entryIds: readonly string[],
+): Promise<ReadonlyMap<string, DeviceDeletionFlag>> {
+  const flags = new Map<string, DeviceDeletionFlag>();
+  for (let i = 0; i < entryIds.length; i += 1000) {
+    const chunk = entryIds.slice(i, i + 1000);
+    if (chunk.length === 0) continue;
+    const rows = await tx
+      .select({ entryId: entryDeviceDeletionFlag.entryId, flag: entryDeviceDeletionFlag.flag })
+      .from(entryDeviceDeletionFlag)
+      .where(inArray(entryDeviceDeletionFlag.entryId, chunk));
+    for (const row of rows) flags.set(row.entryId, row.flag as DeviceDeletionFlag);
+  }
+  return flags;
+}
 
 /**
  * Entries a deletion recorded as "deleted" lists that had already reached the server, written by
@@ -1758,41 +1832,53 @@ export async function flagEntriesAlreadyUploaded(
   return withRequestContext(db, systemFor(access), async (tx) => {
     // One owner's deletions are flagged in turn, so two records listing an entry flag it once.
     await lock(tx, access.tenantId, `entry_flag_owner:${owner}`);
-    const found: FlaggedEntry[] = [];
+    const found: (FlaggedEntry & { personId: string })[] = [];
     for (const { resourceType, table } of CARE_ENTRY_TABLES) {
       const rows = await tx
-        .select({ id: table.id, locationId: table.locationId })
+        .select({ id: table.id, locationId: table.locationId, personId: table.personId })
         .from(table)
         .where(and(inArray(table.id, [...discard.entryIds]), eq(table.createdBy, owner)));
-      for (const row of rows) found.push({ id: row.id, resourceType, locationId: row.locationId });
+      for (const row of rows) {
+        found.push({
+          id: row.id,
+          resourceType,
+          locationId: row.locationId,
+          personId: row.personId,
+        });
+      }
     }
     if (found.length === 0) return 0;
-    const seen = await tx
-      .selectDistinct({ id: auditEvent.resourceId })
-      .from(auditEvent)
-      .where(
-        and(
-          inArray(auditEvent.resourceType, [...new Set(found.map((e) => e.resourceType))]),
-          inArray(
-            auditEvent.resourceId,
-            found.map((e) => e.id),
-          ),
-          inArray(auditEvent.action, [
-            ENTRY_FLAG_ACTIONS.beforeDeletion,
-            ENTRY_FLAG_ACTIONS.afterDeletion,
-          ]),
-        ),
-      );
-    const seenIds = new Set(seen.map((s) => s.id));
+    // An entry flagged before, under an earlier record or on its upload, is not flagged again:
+    // one read of the server's flags by their unique key (Device integrity part 3).
+    const seenIds = new Set(
+      (
+        await tx
+          .select({ id: entryDeviceDeletionFlag.entryId })
+          .from(entryDeviceDeletionFlag)
+          .where(
+            inArray(
+              entryDeviceDeletionFlag.entryId,
+              found.map((e) => e.id),
+            ),
+          )
+      ).map((s) => s.id),
+    );
     const fresh = found.filter((e) => !seenIds.has(e.id));
     if (fresh.length === 0) return 0;
+    const now = new Date();
     const outcomes = await raiseFlaggedTasks(tx, access, {
       kind: UPLOADED_BEFORE_DELETION_TASK_KIND,
       discardId: discard.id,
       ownerTenantUserId: owner,
       entries: fresh,
-      now: new Date(),
+      now,
       requestId,
+    });
+    await recordDeletionFlags(tx, fresh, "deleted_after_upload", {
+      discardId: discard.id,
+      owner,
+      outcomes,
+      now,
     });
     for (const entry of fresh) {
       const flagged = outcomes.get(entry.id);

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { StaffName } from "./staff";
 
 /** Task engine contracts (section 9.1). Titles are generic; the person is a reference. */
 
@@ -89,6 +90,8 @@ export const TaskItem = z
     personId: uuid.nullable(),
     locationId: uuid.nullable(),
     assigneeTenantUserId: uuid.nullable(),
+    /** The assignee by name and job title; null when the task is for a role, not a person. */
+    assigneeStaff: StaffName.nullable(),
     dueAt: isoDateTime,
     windowStart: isoDateTime.nullable(),
     windowEnd: isoDateTime.nullable(),
@@ -115,6 +118,10 @@ export const TaskItem = z
      */
     restoredDone: z.boolean(),
     completedAt: isoDateTime.nullable(),
+    /** Who completed it (tenant_user id); null while open or when the system closed it. */
+    completedBy: uuid.nullable(),
+    /** Who completed it, by name and job title. */
+    completedByStaff: StaffName.nullable(),
     escalated: z.boolean(),
     details: TaskDetails.nullable(),
     version: z.number().int(),
