@@ -1084,8 +1084,10 @@ describe("the shift handover (care.md rule 8, COMMS-006)", () => {
       );
       const [handovers] = await asOther([
         [
+          // The sweep's window: from the grace period (60 minutes) after the shift ends, for a day.
           `SELECT h.id FROM handover h WHERE h.location_id = $1
-             AND h.shift_end <= now() - interval '60 minutes' AND h.shift_end > now() - interval '24 hours'`,
+             AND h.shift_end <= now() - interval '60 minutes'
+             AND h.shift_end > now() - interval '60 minutes' - interval '24 hours'`,
           [hillside],
         ],
       ]);
