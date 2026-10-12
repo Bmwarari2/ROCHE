@@ -184,11 +184,12 @@ export async function offlineWindowDaysOf(tx: Transaction, tenantId: string): Pr
  * True when the member could act on the person with `permission` at some time in `[since, until]`
  * (#25 review rounds 2 and 3): assigned to them, or holding the permission there by a tenant-wide
  * role, a location role at the person's location or a grant for there or the whole organisation,
- * in force then (an assignment, role or grant ended or deleted since counts up to its end). Only
- * the roles and grants carrying the permission count, never another role's reach (ADR-0071), and a
- * role mixing portal and staff permissions gives none. For an entry the window runs back from the
- * entry's own time, so an owner whose access ended after the entry was written still counts. Call
- * in the system's view. False for a person who does not exist, so a refusal never says which.
+ * in force then (an assignment, role or grant ended or deleted since counts up to its end; a
+ * revoked grant never counts, as for completing a task). Only the roles and grants carrying the
+ * permission count, never another role's reach (ADR-0071), and a role mixing portal and staff
+ * permissions gives none. For an entry the window runs back from the entry's own time, so an owner
+ * whose access ended after the entry was written still counts. Call in the system's view. False
+ * for a person who does not exist, so a refusal never says which.
  */
 export async function personReachedBy(
   tx: Transaction,
@@ -222,9 +223,9 @@ export async function personReachedBy(
           SELECT 1 FROM public.access_grant g
           WHERE g.tenant_user_id = ${tenantUserId}
             AND ${permission} = ANY (g.permissions)
+            AND g.revoked_at IS NULL
             AND g.valid_from <= ${until}
-            AND coalesce(least(g.valid_to, g.revoked_at, g.deleted_at), 'infinity'::timestamptz)
-              >= ${since}
+            AND coalesce(least(g.valid_to, g.deleted_at), 'infinity'::timestamptz) >= ${since}
             AND (g.location_id IS NULL OR g.location_id = p.location_id))
       )
     ) AS reached`);

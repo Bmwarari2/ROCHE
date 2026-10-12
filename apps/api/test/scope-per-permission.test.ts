@@ -6,6 +6,7 @@ import { jwtVerify } from "jose";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MOBILE_APP_ORIGIN } from "../src/auth/token-exposure";
 import { inScopeOf, SCOPE_WITHOUT_PERMISSION } from "../src/http/context";
+import { ENTRY_PERMISSION, personReachedBy } from "../src/services/devices";
 import { createHarness, type Harness, LODGE, PASSWORD } from "./support/harness";
 
 /**
@@ -280,6 +281,32 @@ describe("hazard HZ-011 data scope is per permission (ADR-0071)", () => {
       "POST /v1/documents/:id/signatures": "people.person.read",
       "POST /v1/documents/:id/versions": "people.person.read",
     });
+  });
+
+  it("takes a refused copy or a hand-over only about someone the author could reach with care.note.write", async () => {
+    const reached = (author: string, personId: string) =>
+      withRequestContext(
+        h.handle.services.db,
+        { tenantId: DEMO.tenantId, userId: author, scope: "tenant", locationIds: [] },
+        (tx) =>
+          personReachedBy(
+            tx,
+            author,
+            personId,
+            new Date(Date.now() - DAY),
+            new Date(),
+            ENTRY_PERMISSION,
+          ),
+      );
+    // The finance role reaches every home but carries no care.note.write.
+    expect(await reached(TIA, HOUSE_PERSON)).toBe(true);
+    expect(await reached(TIA, LODGE_PERSON)).toBe(false);
+    // The grant reaches its own home; the administrator role carries no care.note.write.
+    expect(await reached(GIL, LODGE_PERSON)).toBe(true);
+    expect(await reached(GIL, HOUSE_PERSON)).toBe(false);
+    // A revoked grant never counts.
+    await asOwner("UPDATE access_grant SET revoked_at = now() WHERE tenant_user_id = $1", [GIL]);
+    expect(await reached(GIL, LODGE_PERSON)).toBe(false);
   });
 
   it("puts back the transaction's own scope after a check in another permission's scope", async () => {
