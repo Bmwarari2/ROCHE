@@ -22,7 +22,7 @@ only when they link spec, code, tests and user documentation; no user guides exi
 
 1. Review and merge the care API follow-ups from the #15 reviews (`feat/care-api-follow-ups`;
    [care.md](../specs/care.md) section 5, rules 5 to 7 and section 6, Device integrity part 8;
-   migrations 0043 and 0044; hazards HZ-011, HZ-012, HZ-014, HZ-016, HZ-019, HZ-029, HZ-040;
+   migrations 0043 to 0047; hazards HZ-011, HZ-012, HZ-014, HZ-016, HZ-019, HZ-029, HZ-040;
    human actions H-160 to H-164): the IDDSI drink level required on the server (refused from the
    web, kept and flagged with an alert from a device); the escalation policy link on every
    validated result (`escalation_policy_link`, configured per tenant and location); the body-map
@@ -35,8 +35,13 @@ only when they link spec, code, tests and user documentation; no user guides exi
    H-166): every IDDSI problem shown in words, the alert falling back when no nurse in charge and
    audited when no one can be told, flagged entries counted beside the fluid total and marked on
    the entry, older phones' marks kept and flagged, a resent save with other details refused,
-   the escalation policy shown on the web (and fed to onboarding), and links and coded reasons
-   following the roles that carry their permission.
+   the escalation policy shown on the web (the onboarding rule built, its route not yet), and
+   links and coded reasons following the roles that carry their permission. Review round 3
+   answered (migration 0047; H-167): the urgent alert only to someone who can open the record,
+   naming the home, with who it reached kept on the entry and said on the web; a resent save
+   with other details refused with its own code and message; the NEWS2 result after saving
+   names the policy; a refused drink counted as offered, never drunk; coded reasons changed and
+   audited by id; mixed roles giving no right to change links or reasons.
 2. The screens these wait on (slice 9 and slice 10 part 2): the escalation policy link on the
    phone, staff names on the web and phone (H-73); the settings for escalation
    policies and coded reasons; the phone offering the organisation's coded reasons (H-164);
@@ -73,7 +78,7 @@ only when they link spec, code, tests and user documentation; no user guides exi
 
 ## Human actions outstanding
 
-All of [human-actions.md](human-actions.md) is open (H-01 to H-166). The project owner has
+All of [human-actions.md](human-actions.md) is open (H-01 to H-167). The project owner has
 scheduled the accounts (H-01, H-02, H-04, H-10, H-11) and the named roles (H-20 Clinical Safety
 Officer, H-30 data protection lead, H-31 ICO registration) for after the build, and is choosing
 the UK SMS provider (H-09, which also settles H-105). Until then the build continues against the
@@ -83,14 +88,14 @@ mocks and contract tests (section 20 rule 2).
 
 | Package | Tests |
 | --- | --- |
-| `packages/domain` | 4,014 |
-| `packages/db` | 366 (real Postgres: RLS coverage, isolation, scope, audit chain, seed, tasks, documents, care record, care planning, MCA and incidents, people lifecycle, bank holidays, pools, export catalogue, handovers, device integrity, the care API follow-ups) |
+| `packages/domain` | 4,018 |
+| `packages/db` | 381 (real Postgres: RLS coverage, isolation, scope, audit chain, seed, tasks, documents, care record, care planning, MCA and incidents, people lifecycle, bank holidays, pools, export catalogue, handovers, device integrity, the care API follow-ups) |
 | `packages/sync` | 59 (PowerSync rules engine) |
 | `packages/contracts` | 34 |
 | `packages/i18n` | 48 |
 | `packages/ui` | 342 (231 axe runs) |
 | `packages/ui-native` | 141 |
-| `apps/api` | 598 |
-| `apps/mobile` | 870 |
-| `apps/web` | 327 unit; Playwright journeys with axe (WCAG 2.2 AA) in CI |
+| `apps/api` | 609 |
+| `apps/mobile` | 871 |
+| `apps/web` | 338 unit; Playwright journeys with axe (WCAG 2.2 AA) in CI |
 | `infra` | `terraform test` 3, TFLint, Trivy and Checkov clean |

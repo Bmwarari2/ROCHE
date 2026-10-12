@@ -728,3 +728,47 @@ notes that a location's all-bands link wins over an organisation's band-specific
 **Tests**: `packages/domain` 4,014, `packages/db` 366, `packages/contracts` 34, `apps/api` 598,
 `packages/sync` 59, `apps/mobile` 870, `apps/web` 327, `packages/i18n` 48, all passing locally
 through `scripts/ci-local.sh`.
+
+## 2026-10-12: #26 review round 3 (care API follow-ups)
+
+**What changed**
+
+- Alert recipients (item 1; HZ-014, HZ-016): an urgent result alert goes only to someone who can
+  open the person's record (`staffViews`, moved to `services/staff-views.ts`, now with each
+  member's permissions), on the staff and with a role in force: the nurse in charge, else the
+  Registered Managers across the organisation, other Registered Managers who can see the person,
+  then holders of `care.plan.write` who can. Its title names the home. The route is worked out
+  before the entry is written and kept as `flags.alertRoute`; with no one, nothing is counted
+  and `care.alert.unrouted` is audited with a coded reason (`CareTrigger.code`, for example
+  `news2_threshold`). The sync tasks' fallback is unchanged.
+- Replays (item 2; HZ-029, HZ-015): a resent create with other details is refused with 409
+  `already_saved_differently`, and the web says what was saved stands, to reload, check it and
+  enter the change again. A care plan draft is compared on `copyFromActive` too
+  (`care_plan.copy_from_active`, migration 0047).
+- NEWS2 after saving (item 3; HZ-012, HZ-014): the result shown and focused after saving vital
+  signs names the escalation policy from the save's response.
+- Onboarding wording (item 4): the hazard log, care.md and H-163 say the onboarding rule is
+  built and the route that calls it is not.
+- Refused drinks (item 5; HZ-014): a drink offered and refused adds nothing to the intake or the
+  shortfall; the fluid day returns `refusedEntries` and `refusedOfferedMl`; the web shows them
+  beside the total, and a refused drink reads "200 ml offered" on the web and the phone (H-167).
+- Lows: the web says who an alert reached from `alertRoute` (or "Check that the nurse in charge
+  knows." for an older alert); a refused pressure ulcer with no category, or an unreadable one,
+  is reviewed urgently; the S1 tests are named for HZ-012 and HZ-040, with table-driven Postgres
+  cases for ended, future and deleted assignments, archived and mixed roles, and expired,
+  revoked and deleted grants; `app.holds_permission_at` skips roles mixing portal and staff
+  permissions (0046 amended, not on `main`); coded reasons are changed by id
+  (`PUT /v1/discard-reasons/{reasonId}`, `DiscardReasonItem.id`) and audited by id only.
+- OpenAPI and the client regenerated (additive against `main`); Welsh catalogue keys added as
+  untranslated.
+- Docs: hazard log (HZ-012, HZ-014, HZ-016, HZ-019, HZ-029, HZ-040), care.md (rules 5 and 6,
+  permissions, schema, sections 5, 6 part 5 and 8, and 9), medical-device boundary, data
+  standards, STATUS.md.
+
+**Human actions logged**: H-167 (whether refused drinks are shown beside the total); H-73 (the
+not-configured line on every band, NEWS2 0 included), H-160 (who the alert reached, in words)
+and H-163 (the onboarding route not yet built) updated.
+
+**Tests**: `packages/domain` 4,018, `packages/db` 381, `packages/contracts` 34, `apps/api` 609,
+`packages/sync` 59, `apps/mobile` 871, `apps/web` 338, `packages/i18n` 48, all passing locally
+through `scripts/ci-local.sh`.

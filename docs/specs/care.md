@@ -25,7 +25,7 @@ Append-only tables have no UPDATE or DELETE grant for the app; a correction is a
 
 | Table | Kind | Key columns | Retention class |
 | --- | --- | --- | --- |
-| `care_plan` | mutable, versioned | person, status (`draft`, `active`, `superseded`), `review_due_on`, `signed_off_by_person` (person, representative or `unable` with reason), `signed_off_at`, `published_version` | `care_record` |
+| `care_plan` | mutable, versioned | person, status (`draft`, `active`, `superseded`), `review_due_on`, `signed_off_by_person` (person, representative or `unable` with reason), `signed_off_at`, `published_version`, `copy_from_active` (whether starting the draft asked to copy the active plan, so a start sent again is compared with it; migration 0047, null before) | `care_record` |
 | `care_plan_section` | mutable | plan, domain (one of the 16 PCSP domains), need, outcome in the person's words, strengths, contingency | `care_record` |
 | `care_plan_action` | mutable | section, action, who (role), when (recurrence rule in the person's location time zone), task generation flag, linked risk assessment, the task series it drives, the action of the earlier version it was copied from (`based_on_action_id`, slice 5) | `care_record` |
 | `risk_assessment` | mutable, versioned | person, template key, hazard, who is at risk, likelihood, severity, controls, residual risk, positive-risk statement, review date | `care_record` |
@@ -100,7 +100,7 @@ Care API follow-up routes (section 5; no new permission):
 | `GET /v1/escalation-policies` | `care.plan.read` | Every link in the organisation (configuration, read beside every result) |
 | `POST /v1/escalation-policies`, `PUT /v1/escalation-policies/{linkId}`, `POST .../{linkId}/remove` | `quality.policy.manage` | Where a role or grant carrying `quality.policy.manage` is held: a link for the whole organisation needs it across the organisation (a role assigned with no location, or a grant with none), a location's link needs it there. Read from those roles and grants, never the session's merged scope, which another role widens (#26 review round 2, S1); checked in the API (`permissionPlaces`) and again by restrictive policies (`app.holds_permission_at`, migration 0046) |
 | `GET /v1/discard-reasons` | `care.note.write` (the permission recording a deletion needs; a device offers them before it deletes anything) | The organisation |
-| `POST /v1/discard-reasons`, `PUT /v1/discard-reasons/{code}` | `platform.tenant.manage` | Only from a role or grant carrying it across the organisation (an owner role assigned at one home does not count), in the API and the restrictive policies (migration 0046) |
+| `POST /v1/discard-reasons`, `PUT /v1/discard-reasons/{reasonId}` | `platform.tenant.manage` | Only from a role or grant carrying it across the organisation (an owner role assigned at one home does not count; a role mixing portal and staff permissions gives none), in the API and the restrictive policies (migration 0046) |
 
 A location is in scope for tenant-wide roles, for location roles there, and for anyone who can see
 a person living there (an assigned care worker).
@@ -163,9 +163,12 @@ applies). Figures come from `rate_table` by key.
      wins over the organisation's policy for one band (for the CSO, H-163). They are resolved when
      the result is read, so a changed policy shows on old results too. The policy document must be
      a current organisation document (available, its latest version). Harbour stores and shows the
-     link only; it adds no recommendation of its own. The onboarding item
+     link only; it adds no recommendation of its own. The rule for the onboarding item
      `escalation_policies_linked` reads the links (`validatedToolsWithLinks`: linked when every
-     band of the tool, at every location, finds a policy), for the onboarding route to call.
+     band of the tool, at every location, finds a policy); the onboarding route that calls it is
+     not built yet (slice 13), so until then the go-live check does not read the links (#26 review
+     round 3). The NEWS2 result shown and focused straight after saving vital signs names the
+     policy too, from the save's response, as the saved entry does (#26 review round 3).
 6. **Charts.** Fluid balance keeps a daily target per person and a running total from 00:00 in the
    location's time zone, with the shortfall visible by mid-afternoon; food intake records the IDDSI
    level (0 to 7) and shows the person's prescribed level beside it, refusing a mismatched level
@@ -190,11 +193,27 @@ applies). Figures come from `rate_table` by key.
    refused (not given) needs no level and raises nothing, since there was no texture to check.
    The level given is compared with the prescription in the care profile when the entry reaches
    the server, not when it was given (for the CSO, H-166).
-   An urgent result alert (a NEWS2 band, an IDDSI entry) goes to the nurse in charge at the location; with
-   no one there it goes to the fallback the sync tasks use (the Registered Managers anywhere in
-   the organisation, longest-serving first, else the holders of `care.plan.write`), and with no
-   one at all it is audited as `care.alert.unrouted` (#26 review round 2, C2). Only alerts written
-   count as raised.
+   An urgent result alert (a NEWS2 band, an IDDSI entry) goes only to someone who can open the
+   person's record (the database's own person scope, read for each member as at sign-in), on the
+   staff and with a role in force: the nurse in charge at the location; with no one there who
+   can, the Registered Managers across the organisation, then other Registered Managers whose
+   scope covers the person, then the holders of `care.plan.write` who can see the person,
+   longest-serving first in each (#26 review rounds 2 and 3). Its title names the home ("An
+   observation at Harbour Lodge needs a response now"), nothing about the person. The route is
+   worked out before the entry is written and kept on it (`flags.alertRoute`: `nurse_in_charge`,
+   `fallback` or `no_one`), so the web says who was told from what happened ("The nurse in charge
+   was told.", the fallback, or "No one who can open this record could be told. Tell the nurse in
+   charge or a manager now."; an alert kept before the route was recorded says "Check that the
+   nurse in charge knows."). With no one who can see the person, nothing is counted as raised and
+   `care.alert.unrouted` is audited with a coded reason (`news2_threshold`,
+   `iddsi_level_not_recorded`, `iddsi_reason_missing`, `iddsi_prescribed_unreadable`,
+   `iddsi_unsafe_level`), never the result in words. The sync tasks keep their own fallback,
+   where assigning the task is what lets its taker see it.
+   A drink offered and refused adds nothing to the intake or the shortfall: the fluid day reports
+   the drinks refused and the amount offered (`refusedEntries`, `refusedOfferedMl`), which the web
+   shows beside the total, and a refused drink reads "200 ml offered" on the web and the phone
+   (#26 review round 3; whether to show the offered amount beside the total is for the CSO,
+   H-167).
    An entry its device recorded deleting stays in the fluid totals and NEWS2 lists, flagged: the
    fluid day returns how many such entries it counted and their intake and output
    (`flaggedEntries`, `flaggedIntakeMl`, `flaggedOutputMl`), which the web shows beside the total
@@ -221,8 +240,8 @@ applies). Figures come from `rate_table` by key.
    `drawn_from_device_side` (returned as `drawnFromDeviceSide`), so those phones' marks are kept,
    not refused, and the record says the place was the phone's (#26 review round 2, C4). The place
    and the side are stored with the mark and the side is returned as `drawnSide`. A refused mark's
-   review is urgent at once when it may be harm: a pressure ulcer of category 2 or worse, a
-   bruise, a skin tear, a laceration, a burn or a wound (Device integrity, part 5). The web sends
+   review is urgent at once when it may be harm: a pressure ulcer of category 2 or worse, or
+   with no category or one that cannot be read (#26 review round 3), a bruise, a skin tear, a laceration, a burn or a wound (Device integrity, part 5). The web sends
    each area's spot as a point (its drawing is twice the
    size; the left and right spots of the neck, back of the neck, genitals and coccyx moved just
    outside the centre band, and the groin and genitals just above where the legs begin, so every
@@ -653,11 +672,25 @@ Built in the care API follow-ups (the remaining findings of the #15 reviews; mig
   (`device_discard_record` keeps the code); a drink refused needs no IDDSI level; the policy
   document must be a current organisation document; the OpenAPI document names the DoLS create
   body `CreateDols` (it was `DolsInput`; the same fields plus `id`).
+- **Review round 3 of #26** (migration 0047; 0046 amended before merging): an urgent result
+  alert goes only to someone who can open the person's record, names the home, and the entry
+  keeps who it reached (`flags.alertRoute`; rule 6); the unrouted audit carries a coded reason;
+  a save sent again with other details is refused with its own code, `already_saved_differently`
+  (409; the web says what was saved stands, to reload, check it and enter the change again),
+  never `version_conflict`; a care plan draft sent again is compared on `copyFromActive` too,
+  kept on the draft (`care_plan.copy_from_active`, null for drafts started before); the NEWS2
+  result shown after saving names the escalation policy; a drink offered and refused adds
+  nothing to the intake (`FluidDay.refusedEntries`, `refusedOfferedMl`); a refused copy of a
+  pressure ulcer with no category, or one that cannot be read, is reviewed urgently; coded
+  reasons are changed by id (`PUT /v1/discard-reasons/{reasonId}`, `DiscardReasonItem.id`) and
+  audited by id only; `app.holds_permission_at` gives nothing from a role mixing portal and
+  staff permissions, as at sign-in.
 - **Coded discard reasons, the replay index and the flag on entries** (section 6, Device integrity
   part 8; HZ-040): `GET /v1/discard-reasons` (live reasons first, then retired), `POST` (a new code;
-  409 when the organisation has it) and `PUT /v1/discard-reasons/{code}` (relabel in English or
-  Welsh, reorder, retire or bring back, with the version read; audited as
-  `care.discard_reason.create`, `.update` and `.retire`, by code). `SyncDiscard` keeps
+  409 when the organisation has it) and `PUT /v1/discard-reasons/{reasonId}` (relabel in English
+  or Welsh, reorder, retire or bring back, with the version read; audited as
+  `care.discard_reason.create`, `.update` and `.retire`, by the reason's id only, never its code;
+  #26 review round 3). `SyncDiscard` keeps
   `reasonCode` as the five codes and adds `organisationReasonCode` (with `reasonCode` `other`).
   Every entry item returns `deviceDeletion` (`uploaded_after_deletion`, `deleted_after_upload` or
   null).
@@ -1070,7 +1103,8 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
      and retention class `care_record`. Each copy joins the person's one open review task
      (`care.refused_entry_review`, for the nurse in charge, `care.plan.write`, due at once, urgent
      when any copy is an observation or a body-map mark that may be harm (a pressure ulcer of
-     category 2 or worse, a bruise, skin tear, laceration, burn or wound; #26 review round 2, C4),
+     category 2 or worse, or with no category or one that cannot be read, a bruise, skin tear,
+     laceration, burn or wound; #26 review rounds 2 and 3),
      when the nurse in charge is told), whose details list each
      copy by kind, entry id, copy id, refusal code, time, device and author, never content;
      overdue, it escalates like the sync tasks, with the fallback when no one at its location can
@@ -1333,7 +1367,16 @@ through recorded sharing decisions ([people.md](people.md)).
   links or reasons), `apps/api/test/care-follow-ups.test.ts` (C2 to C5 and S1 through the routes),
   `apps/web` (`EntryBadges.test.ts`, `ObservationList.test.ts`, `charts.test.ts`,
   `chart-entry.test.ts`) and the Playwright journeys for NEWS2 (a configured policy) and MUST (none
-  configured), with axe.
+  configured), with axe. Review round 3 of #26: `packages/domain/src/care/fluid-balance.test.ts`
+  (table-driven: a refused drink adds nothing); `packages/db/test/care-follow-ups.test.ts`
+  (table-driven: who holds a permission, from roles and grants in force only: ended, future and
+  deleted assignments, archived and mixed roles, expired, revoked and deleted grants);
+  `apps/api/test/care-follow-ups.test.ts` (the alert only to someone who can open the record,
+  naming the home, with its route kept and the unrouted reason coded; `already_saved_differently`;
+  `copyFromActive` compared; refused drinks in the fluid day; the urgency of refused marks
+  table-driven; reasons changed and audited by id); `apps/web` (`outcome.test.ts`,
+  `charts.test.ts`, `ObservationList.test.ts` with the NEWS2 result after saving) and the NEWS2
+  Playwright journey (the policy on the result after saving, and who the alert reached).
 
 ## 10. Open questions
 
