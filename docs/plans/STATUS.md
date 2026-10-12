@@ -118,6 +118,9 @@ only when they link spec, code, tests and user documentation; no user guides exi
      exactly across a shift change; list the task series and care review sweeps in the on-call
      runbook's `worker.job.failed` row (a failed organisation now waits for the next run, 15
      minutes or an hour, rather than a pg-boss retry).
+   - (#31 review, low) GitHub's own "Code scanning results / CodeQL" check now reports on pull
+     requests and can fail on new error-level quality alerts our gate passes; keep it optional in
+     branch protection, or set its failure threshold in Settings, Advanced Security.
 3. The screens the care API follow-ups (#26) wait on (slice 9 and slice 10 part 2): the
    escalation policy link on the phone, staff names on the web and phone (H-73); the settings for
    escalation policies and coded reasons; the phone offering the organisation's coded reasons (H-164);

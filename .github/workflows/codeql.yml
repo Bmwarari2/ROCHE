@@ -12,7 +12,8 @@ on:
 
 concurrency:
   group: codeql-${{ github.ref }}
-  cancel-in-progress: true
+  # A newer push replaces a pull request's run; runs on main queue, so every merge gets a baseline.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
