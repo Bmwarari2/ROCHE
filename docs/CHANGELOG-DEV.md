@@ -1110,3 +1110,26 @@ First of three pull requests for tasks and handovers in Care mode
 
 **Tests**: `packages/sync` 79, `apps/mobile` 891, and in `apps/api` the sync family, scope per
 permission and API suites (128), passing locally; typecheck clean for sync, API and mobile.
+
+## 2026-10-12: The round and the handover on the phone, review round 1 of #33
+
+- Security M1: other members' acknowledgements no longer carry their item keys (which name the
+  people and what happened to them). Each reader gets their own acknowledgements with keys; a
+  whole reader gets who acknowledged and when in a new device table,
+  `handover_staff_acknowledgement` (a renamed output of `handover_acknowledgement`). Fixtures use
+  real keys (`kind:sourceType:sourceId:personId`), and a test proves a moved resident's keys in
+  a nurse's acknowledgement never reach the manager's phone.
+- Security L1 and L3: a limited reader's items, notes and own acknowledgements come only from
+  handovers they may open (joining `person_assignment` twice: one to open the handover, one for
+  the item's person), so nothing the API refuses reaches the phone; a reader whole at one home
+  and assigned elsewhere gets, in the homes they see whole, the items about their people who
+  have moved, as the API shows them. Mixed-scope and hostile-parameter tests cover items and
+  notes.
+- Clinical M1 to M3 and lows: `locked_at` and the shift bounds say not final; the hazard rows
+  claim only what is built and are marked not yet live until the publication migration; HZ-024
+  gains a planned phone control; task titles are free text (3 to 120 characters) in the schema
+  and data standards. The screens gate, CSO questions H-300 to H-304 and three follow-ups are
+  in STATUS item 13 and care.md section 6.
+
+**Tests**: `packages/sync` 81, `apps/mobile` 891, passing locally; typecheck clean for sync and
+mobile.
