@@ -8270,6 +8270,13 @@
             ],
             "format": "uuid"
           },
+          "basedOnActionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
           "version": {
             "type": "integer"
           }
@@ -8285,6 +8292,7 @@
           "evidenceRequired",
           "riskAssessmentId",
           "taskSeriesId",
+          "basedOnActionId",
           "version"
         ]
       },
@@ -10744,6 +10752,748 @@
           "version"
         ],
         "description": "A changed CPR decision is a new record, which supersedes this one"
+      },
+      "RoundView": {
+        "type": "object",
+        "properties": {
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "shift": {
+            "$ref": "#/components/schemas/ShiftWindow"
+          },
+          "from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "readAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "taskCount": {
+            "type": "integer"
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "areas": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoundArea"
+            }
+          }
+        },
+        "required": [
+          "locationId",
+          "shift",
+          "from",
+          "to",
+          "readAt",
+          "taskCount",
+          "complete",
+          "areas"
+        ]
+      },
+      "ShiftWindow": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The shift's name in the location's pattern"
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Exclusive"
+          }
+        },
+        "required": [
+          "name",
+          "start",
+          "end"
+        ]
+      },
+      "RoundArea": {
+        "type": "object",
+        "properties": {
+          "area": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Floor or unit; null for people with no room"
+          },
+          "stops": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoundStop"
+            }
+          }
+        },
+        "required": [
+          "area",
+          "stops"
+        ]
+      },
+      "RoundStop": {
+        "type": "object",
+        "properties": {
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "roomLabel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "person": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PersonSummary"
+              },
+              {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            ]
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoundTask"
+            }
+          }
+        },
+        "required": [
+          "personId",
+          "roomLabel",
+          "person",
+          "tasks"
+        ]
+      },
+      "RoundTask": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "seriesId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "assigneeTenantUserId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "dueAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "windowStart": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "windowEnd": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/TaskPriority"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TaskStatus"
+          },
+          "statusReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timeState": {
+            "$ref": "#/components/schemas/TaskTimeState"
+          },
+          "evidenceRequired": {
+            "type": "boolean"
+          },
+          "evidenceType": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "evidenceId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "evidenceAfterClose": {
+            "type": "boolean"
+          },
+          "catchUp": {
+            "type": "boolean"
+          },
+          "restoredDone": {
+            "type": "boolean"
+          },
+          "completedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "escalated": {
+            "type": "boolean"
+          },
+          "details": {
+            "$ref": "#/components/schemas/TaskDetails"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "planAction": {
+            "$ref": "#/components/schemas/PlanActionRef"
+          }
+        },
+        "required": [
+          "id",
+          "seriesId",
+          "kind",
+          "title",
+          "personId",
+          "locationId",
+          "assigneeTenantUserId",
+          "dueAt",
+          "windowStart",
+          "windowEnd",
+          "priority",
+          "status",
+          "statusReason",
+          "timeState",
+          "evidenceRequired",
+          "evidenceType",
+          "evidenceId",
+          "evidenceAfterClose",
+          "catchUp",
+          "restoredDone",
+          "completedAt",
+          "escalated",
+          "details",
+          "version",
+          "planAction"
+        ]
+      },
+      "PlanActionRef": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "actionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "planId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "publishedVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "domain": {
+            "$ref": "#/components/schemas/PcspDomain"
+          },
+          "action": {
+            "type": "string",
+            "description": "What staff do, as the active plan words it"
+          },
+          "whenText": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "actionId",
+          "planId",
+          "publishedVersion",
+          "domain",
+          "action",
+          "whenText"
+        ],
+        "description": "The care plan action a round carries out"
+      },
+      "HandoverList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HandoverSummary"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "HandoverSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "shift": {
+            "$ref": "#/components/schemas/ShiftWindow"
+          },
+          "compiledAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "refreshedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lockedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "open": {
+            "type": "boolean"
+          },
+          "itemCount": {
+            "type": "integer"
+          },
+          "lateAdditionCount": {
+            "type": "integer"
+          },
+          "acknowledgedBy": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "pending": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "unacknowledged": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "locationId",
+          "shift",
+          "compiledAt",
+          "refreshedAt",
+          "lockedAt",
+          "open",
+          "itemCount",
+          "lateAdditionCount",
+          "acknowledgedBy",
+          "pending",
+          "unacknowledged",
+          "version"
+        ]
+      },
+      "HandoverDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "shift": {
+            "$ref": "#/components/schemas/ShiftWindow"
+          },
+          "compiledAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "refreshedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lockedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "open": {
+            "type": "boolean"
+          },
+          "itemCount": {
+            "type": "integer"
+          },
+          "lateAdditionCount": {
+            "type": "integer"
+          },
+          "acknowledgedBy": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "pending": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "unacknowledged": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HandoverItem"
+            }
+          },
+          "hiddenItemCount": {
+            "type": "integer"
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HandoverNoteItem"
+            }
+          },
+          "acknowledgements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HandoverAcknowledgementItem"
+            }
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonSummary"
+            }
+          },
+          "you": {
+            "type": "object",
+            "properties": {
+              "acknowledged": {
+                "type": "boolean"
+              },
+              "itemsSeen": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "unseenKeys": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "acknowledged",
+              "itemsSeen",
+              "unseenKeys"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "locationId",
+          "shift",
+          "compiledAt",
+          "refreshedAt",
+          "lockedAt",
+          "open",
+          "itemCount",
+          "lateAdditionCount",
+          "acknowledgedBy",
+          "pending",
+          "unacknowledged",
+          "version",
+          "items",
+          "hiddenItemCount",
+          "notes",
+          "acknowledgements",
+          "people",
+          "you"
+        ]
+      },
+      "HandoverItem": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/HandoverItemKind"
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "sourceType": {
+            "$ref": "#/components/schemas/HandoverSourceType"
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When it happened, or when the task fell due"
+          },
+          "lateAddition": {
+            "type": "boolean"
+          },
+          "addedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "seen": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "kind",
+          "personId",
+          "sourceType",
+          "sourceId",
+          "at",
+          "lateAddition",
+          "addedAt",
+          "seen"
+        ]
+      },
+      "HandoverItemKind": {
+        "type": "string",
+        "enum": [
+          "fall",
+          "news2",
+          "incident",
+          "alert",
+          "body_map_mark",
+          "overdue_task",
+          "skipped_task",
+          "unfinished_task",
+          "must_follow_up",
+          "refusal"
+        ],
+        "description": "In order of how urgently the next shift needs it"
+      },
+      "HandoverSourceType": {
+        "type": "string",
+        "enum": [
+          "task",
+          "observation",
+          "incident",
+          "body_map_mark",
+          "care_note",
+          "notification"
+        ]
+      },
+      "HandoverNoteItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "itemKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "body": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "id",
+          "itemKey",
+          "personId",
+          "body",
+          "createdAt",
+          "createdBy"
+        ]
+      },
+      "HandoverAcknowledgementItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "itemsSeen": {
+            "type": "integer"
+          },
+          "acknowledgedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "tenantUserId",
+          "itemsSeen",
+          "acknowledgedAt"
+        ]
+      },
+      "CompileHandover": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateHandoverNote": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "itemKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "body"
+        ]
+      },
+      "AcknowledgeHandover": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "itemsSeen": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "itemsSeen"
+        ]
       },
       "ConsentList": {
         "type": "object",
@@ -26401,6 +27151,573 @@
           },
           "409": {
             "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/locations/{id}/round": {
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "The round: open tasks for the shift running now, by floor, room and time",
+        "description": "Unfinished tasks from earlier rounds stay on it until they are done or skipped with a reason. Give `from` and `to` (at most 24 hours) for another window.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": false,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": false,
+            "name": "to",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The round as you may see it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoundView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/locations/{id}/handovers": {
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "A location's shift handovers, latest first (default: the last 7 days)",
+        "description": "Each says who has acknowledged it, who still has items to acknowledge that they can see, and whether nobody has acknowledged it once the next shift has started.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": false,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": false,
+            "name": "to",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Handovers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandoverList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Compile the handover of a shift, or add what has appeared since it was compiled",
+        "description": "Compiles in the system's view of the organisation, so nothing is missed because of who asked. Items are only ever added; a shift that has ended is locked. Never for a shift that has not started.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompileHandover"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The handover as you may see it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandoverDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/locations/{id}/handovers/{handoverId}": {
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "One handover: its items, notes and acknowledgements, and where you stand",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "handoverId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The handover as you may see it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandoverDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/locations/{id}/handovers/{handoverId}/notes": {
+      "post": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Add a note to an open handover, or to one of its items",
+        "description": "Notes add to items; they never replace or remove one. A handover takes notes until its shift ends or it is locked. A replayed id returns the stored note.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "handoverId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateHandoverNote"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Note saved (or the earlier copy of a replayed save)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandoverDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/locations/{id}/handovers/{handoverId}/acknowledgements": {
+      "post": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Acknowledge a handover as you have read it",
+        "description": "Records how many items the handover held when you read it (its itemCount as you saw it), by the server's clock. Items added later about people you can see ask you again, for the new items only. A replayed id returns the handover as it stands.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "handoverId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcknowledgeHandover"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Acknowledged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandoverDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
             "content": {
               "application/problem+json": {
                 "schema": {

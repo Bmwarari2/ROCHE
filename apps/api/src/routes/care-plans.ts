@@ -65,6 +65,7 @@ import {
   carePlanRates,
   REVIEW_TASKS,
 } from "../services/care-planning";
+import { syncPlanTaskSeries } from "../services/plan-tasks";
 import { iso, PersonParam, requireOpenRecord } from "./care-shared";
 import {
   conflictResponse,
@@ -162,6 +163,7 @@ function actionItem(row: ActionRow): CarePlanActionItem {
     evidenceRequired: row.evidenceRequired,
     riskAssessmentId: row.riskAssessmentId,
     taskSeriesId: row.taskSeriesId,
+    basedOnActionId: row.basedOnActionId,
     version: row.version,
   };
 }
@@ -225,12 +227,14 @@ async function requireRiskAssessment(tx: Transaction, personId: string, id: stri
 function actionCheck(
   action: { generatesTasks: boolean; recurrence: Recurrence | null; roleKey: string | null },
   today: string,
+  domain: DomainPcsp,
 ) {
   const check = checkPlanAction(
     {
       generatesTasks: action.generatesTasks,
       recurrence: action.recurrence as DomainRecurrence | null,
       roleKey: action.roleKey,
+      domain,
     },
     today,
   );
@@ -464,6 +468,8 @@ export const carePlansRouter = createRouter()
                 generatesTasks: action.generatesTasks,
                 evidenceRequired: action.evidenceRequired,
                 riskAssessmentId: action.riskAssessmentId,
+                // An unchanged copy takes over this action's rounds when published (rule 14).
+                basedOnActionId: action.id,
               });
             }
           }
@@ -623,6 +629,7 @@ export const carePlansRouter = createRouter()
             roleKey: body.roleKey ?? null,
           },
           ukIsoDate(new Date()),
+          domain,
         );
         await requireRiskAssessment(tx, personId, body.riskAssessmentId);
         const [row] = await tx
@@ -705,7 +712,11 @@ export const carePlansRouter = createRouter()
             body.riskAssessmentId !== undefined ? body.riskAssessmentId : current.riskAssessmentId,
         };
         if (!body.removed) {
-          actionCheck(merged, ukIsoDate(new Date()));
+          const [section] = await tx
+            .select({ domain: carePlanSection.domain })
+            .from(carePlanSection)
+            .where(eq(carePlanSection.id, current.sectionId));
+          actionCheck(merged, ukIsoDate(new Date()), section?.domain as DomainPcsp);
           await requireRiskAssessment(tx, personId, merged.riskAssessmentId ?? undefined);
         }
         const [row] = await tx
@@ -837,6 +848,15 @@ export const carePlansRouter = createRouter()
             publishedVersion: publication.publishedVersion,
             supersededPlanId: publication.supersedesPlanId,
           },
+        });
+        // The new version's rounds (care.md rule 14): unchanged actions carry their series on,
+        // changed and dropped ones end, new ones start (HZ-024, HZ-004).
+        const rounds = await syncPlanTaskSeries(tx, personId, now);
+        await audit(c, tx, access, {
+          action: "care.plan.tasks.generate",
+          resourceType: "care_plan",
+          resourceId: published.id,
+          scope: { ...rounds },
         });
         await publish(tx, {
           context: "care",

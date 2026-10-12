@@ -13,6 +13,7 @@ import {
   can,
   checkTaskTransition,
   isPermission,
+  PLAN_ACTION_SOURCE_TYPE,
   RecurrenceError,
   type TaskStatus,
   TERMINAL_TASK_STATUSES,
@@ -448,6 +449,13 @@ export const tasksRouter = createRouter()
         const [row] = await tx.select().from(taskSeries).where(eq(taskSeries.id, id));
         if (!row) throw problems.notFound();
         requireMfaFor(access, row.personId);
+        // The care plan says what is done and when; its rounds change only with it (care.md
+        // rule 14, HZ-024).
+        if (row.sourceType === PLAN_ACTION_SOURCE_TYPE) {
+          throw problems.invalid(
+            "These rounds come from the care plan. Change the plan to stop or change them.",
+          );
+        }
         if (row.version !== body.version) throw problems.conflict();
         const [ended] = await tx
           .update(taskSeries)

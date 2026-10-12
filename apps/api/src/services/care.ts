@@ -326,6 +326,8 @@ export async function raiseCareTriggers(
             channels: ["in_app", "push"],
             sourceType: source.sourceType,
             sourceId: source.sourceId,
+            personId: source.personId,
+            locationId: source.locationId,
             dedupeKey: `care_alert:${source.sourceId}`,
           })
           .onConflictDoNothing();

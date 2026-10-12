@@ -17,6 +17,7 @@ import { careRouter } from "./routes/care";
 import { carePlansRouter } from "./routes/care-plans";
 import { careRecordsRouter } from "./routes/care-records";
 import { documentsRouter } from "./routes/documents";
+import { handoversRouter } from "./routes/handovers";
 import { incidentsRouter } from "./routes/incidents";
 import { integrationsRouter, supportAccessRouter } from "./routes/integrations";
 import { mcaRouter } from "./routes/mca";
@@ -37,6 +38,7 @@ import {
   notificationsRouter,
   ratesRouter,
 } from "./routes/platform";
+import { roundsRouter } from "./routes/rounds";
 import { sessionsRouter } from "./routes/sessions";
 import { statutoryNotificationsRouter } from "./routes/statutory-notifications";
 import { createSyncRouter } from "./routes/sync";
@@ -174,6 +176,8 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", careRouter);
   app.route("/", carePlansRouter);
   app.route("/", careRecordsRouter);
+  app.route("/", roundsRouter);
+  app.route("/", handoversRouter);
   app.route("/", mcaRouter);
   app.route("/", incidentsRouter);
   app.route("/", statutoryNotificationsRouter);

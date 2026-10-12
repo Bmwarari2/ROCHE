@@ -1115,6 +1115,8 @@ export async function escalateOverdueNotifications(
           channels: ["in_app", "push"],
           sourceType: "statutory_notification",
           sourceId: n.id,
+          personId: n.personId,
+          locationId: n.locationId,
           dedupeKey: `statutory_overdue:${n.id}`,
           escalationChainId: chain.id,
           escalateAt: nextEscalationAt(steps, {

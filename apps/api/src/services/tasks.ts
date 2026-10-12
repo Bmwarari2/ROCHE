@@ -287,6 +287,8 @@ export async function escalateOverdueTasks(
           channels: t.priority === "urgent" ? ["in_app", "push"] : ["in_app"],
           sourceType: "task",
           sourceId: t.id,
+          personId: t.personId,
+          locationId: t.locationId,
           dedupeKey: `task_overdue:${t.id}${occurrence}:${recipient}`,
         })
         .onConflictDoNothing();

@@ -9149,6 +9149,470 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/locations/{id}/round": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The round: open tasks for the shift running now, by floor, room and time
+     * @description Unfinished tasks from earlier rounds stay on it until they are done or skipped with a reason. Give `from` and `to` (at most 24 hours) for another window.
+     */
+    get: {
+      parameters: {
+        query?: {
+          from?: string;
+          to?: string;
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The round as you may see it */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RoundView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/locations/{id}/handovers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A location's shift handovers, latest first (default: the last 7 days)
+     * @description Each says who has acknowledged it, who still has items to acknowledge that they can see, and whether nobody has acknowledged it once the next shift has started.
+     */
+    get: {
+      parameters: {
+        query?: {
+          from?: string;
+          to?: string;
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Handovers */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HandoverList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Compile the handover of a shift, or add what has appeared since it was compiled
+     * @description Compiles in the system's view of the organisation, so nothing is missed because of who asked. Items are only ever added; a shift that has ended is locked. Never for a shift that has not started.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CompileHandover"];
+        };
+      };
+      responses: {
+        /** @description The handover as you may see it */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HandoverDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/locations/{id}/handovers/{handoverId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** One handover: its items, notes and acknowledgements, and where you stand */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          handoverId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The handover as you may see it */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HandoverDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/locations/{id}/handovers/{handoverId}/notes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Add a note to an open handover, or to one of its items
+     * @description Notes add to items; they never replace or remove one. A handover takes notes until its shift ends or it is locked. A replayed id returns the stored note.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          handoverId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateHandoverNote"];
+        };
+      };
+      responses: {
+        /** @description Note saved (or the earlier copy of a replayed save) */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HandoverDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/locations/{id}/handovers/{handoverId}/acknowledgements": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Acknowledge a handover as you have read it
+     * @description Records how many items the handover held when you read it (its itemCount as you saw it), by the server's clock. Items added later about people you can see ask you again, for the new items only. A replayed id returns the handover as it stands.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          handoverId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["AcknowledgeHandover"];
+        };
+      };
+      responses: {
+        /** @description Acknowledged */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HandoverDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/people/{id}/consents": {
     parameters: {
       query?: never;
@@ -14818,6 +15282,8 @@ export interface components {
       riskAssessmentId: string | null;
       /** Format: uuid */
       taskSeriesId: string | null;
+      /** Format: uuid */
+      basedOnActionId: string | null;
       version: number;
     };
     CreateCarePlan: {
@@ -15510,6 +15976,222 @@ export interface components {
       details?: string | null;
       withdrawnReason?: string;
       version: number;
+    };
+    RoundView: {
+      /** Format: uuid */
+      locationId: string;
+      shift: components["schemas"]["ShiftWindow"];
+      /** Format: date-time */
+      from: string;
+      /** Format: date-time */
+      to: string;
+      /** Format: date-time */
+      readAt: string;
+      taskCount: number;
+      complete: boolean;
+      areas: components["schemas"]["RoundArea"][];
+    };
+    ShiftWindow: {
+      /** @description The shift's name in the location's pattern */
+      name: string;
+      /** Format: date-time */
+      start: string;
+      /**
+       * Format: date-time
+       * @description Exclusive
+       */
+      end: string;
+    };
+    RoundArea: {
+      /** @description Floor or unit; null for people with no room */
+      area: string | null;
+      stops: components["schemas"]["RoundStop"][];
+    };
+    RoundStop: {
+      /** Format: uuid */
+      personId: string | null;
+      roomLabel: string | null;
+      person: components["schemas"]["PersonSummary"] & (Record<string, never> | null);
+      tasks: components["schemas"]["RoundTask"][];
+    };
+    RoundTask: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      seriesId: string | null;
+      kind: string;
+      title: string;
+      /** Format: uuid */
+      personId: string | null;
+      /** Format: uuid */
+      locationId: string | null;
+      /** Format: uuid */
+      assigneeTenantUserId: string | null;
+      /** Format: date-time */
+      dueAt: string;
+      /** Format: date-time */
+      windowStart: string | null;
+      /** Format: date-time */
+      windowEnd: string | null;
+      priority: components["schemas"]["TaskPriority"];
+      status: components["schemas"]["TaskStatus"];
+      statusReason: string | null;
+      timeState: components["schemas"]["TaskTimeState"];
+      evidenceRequired: boolean;
+      evidenceType: string | null;
+      /** Format: uuid */
+      evidenceId: string | null;
+      evidenceAfterClose: boolean;
+      catchUp: boolean;
+      restoredDone: boolean;
+      /** Format: date-time */
+      completedAt: string | null;
+      escalated: boolean;
+      details: components["schemas"]["TaskDetails"];
+      version: number;
+      planAction: components["schemas"]["PlanActionRef"];
+    };
+    /** @description The care plan action a round carries out */
+    PlanActionRef: {
+      /** Format: uuid */
+      actionId: string;
+      /** Format: uuid */
+      planId: string;
+      publishedVersion: number | null;
+      domain: components["schemas"]["PcspDomain"];
+      /** @description What staff do, as the active plan words it */
+      action: string;
+      whenText: string | null;
+    } | null;
+    HandoverList: {
+      items: components["schemas"]["HandoverSummary"][];
+    };
+    HandoverSummary: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      locationId: string;
+      shift: components["schemas"]["ShiftWindow"];
+      /** Format: date-time */
+      compiledAt: string;
+      /** Format: date-time */
+      refreshedAt: string;
+      /** Format: date-time */
+      lockedAt: string | null;
+      open: boolean;
+      itemCount: number;
+      lateAdditionCount: number;
+      acknowledgedBy: string[];
+      pending: string[];
+      unacknowledged: boolean;
+      version: number;
+    };
+    HandoverDetail: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      locationId: string;
+      shift: components["schemas"]["ShiftWindow"];
+      /** Format: date-time */
+      compiledAt: string;
+      /** Format: date-time */
+      refreshedAt: string;
+      /** Format: date-time */
+      lockedAt: string | null;
+      open: boolean;
+      itemCount: number;
+      lateAdditionCount: number;
+      acknowledgedBy: string[];
+      pending: string[];
+      unacknowledged: boolean;
+      version: number;
+      items: components["schemas"]["HandoverItem"][];
+      hiddenItemCount: number;
+      notes: components["schemas"]["HandoverNoteItem"][];
+      acknowledgements: components["schemas"]["HandoverAcknowledgementItem"][];
+      people: components["schemas"]["PersonSummary"][];
+      you: {
+        acknowledged: boolean;
+        itemsSeen: number | null;
+        unseenKeys: string[];
+      };
+    };
+    HandoverItem: {
+      key: string;
+      kind: components["schemas"]["HandoverItemKind"];
+      /** Format: uuid */
+      personId: string | null;
+      sourceType: components["schemas"]["HandoverSourceType"];
+      /** Format: uuid */
+      sourceId: string;
+      /**
+       * Format: date-time
+       * @description When it happened, or when the task fell due
+       */
+      at: string;
+      lateAddition: boolean;
+      /** Format: date-time */
+      addedAt: string;
+      seen: boolean;
+    };
+    /**
+     * @description In order of how urgently the next shift needs it
+     * @enum {string}
+     */
+    HandoverItemKind:
+      | "fall"
+      | "news2"
+      | "incident"
+      | "alert"
+      | "body_map_mark"
+      | "overdue_task"
+      | "skipped_task"
+      | "unfinished_task"
+      | "must_follow_up"
+      | "refusal";
+    /** @enum {string} */
+    HandoverSourceType:
+      | "task"
+      | "observation"
+      | "incident"
+      | "body_map_mark"
+      | "care_note"
+      | "notification";
+    HandoverNoteItem: {
+      /** Format: uuid */
+      id: string;
+      itemKey: string | null;
+      /** Format: uuid */
+      personId: string | null;
+      body: string;
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: uuid */
+      createdBy: string | null;
+    };
+    HandoverAcknowledgementItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      tenantUserId: string;
+      itemsSeen: number;
+      /** Format: date-time */
+      acknowledgedAt: string;
+    };
+    CompileHandover: {
+      /** Format: date-time */
+      at?: string;
+    };
+    CreateHandoverNote: {
+      /** Format: uuid */
+      id?: string;
+      itemKey?: string;
+      body: string;
+    };
+    AcknowledgeHandover: {
+      /** Format: uuid */
+      id?: string;
+      itemsSeen: number;
     };
     ConsentList: {
       items: components["schemas"]["ConsentItem"][];

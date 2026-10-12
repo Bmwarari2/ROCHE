@@ -25,8 +25,10 @@ import {
   draftDeathNotifications,
   withdrawDeathNotifications,
 } from "../services/death-notifications";
+import { sweepHandovers } from "../services/handover";
 import { raiseDolsReminders } from "../services/mca";
 import { raisePeopleReviews } from "../services/people";
+import { generatePlanTasks } from "../services/plan-tasks";
 import { detectLocationOutbreaks, escalateOverdueNotifications } from "../services/safety";
 import { escalateOverdueTasks, materialiseSeries } from "../services/tasks";
 
@@ -160,6 +162,8 @@ export async function runEscalations(deps: TaskDeps, now = new Date()): Promise<
                 channels: [...step.channels],
                 sourceType: "notification",
                 sourceId: n.id,
+                personId: n.personId,
+                locationId: n.locationId,
                 dedupeKey: `escalation:${n.id}:${index}`,
               })
               .onConflictDoNothing();
@@ -338,6 +342,26 @@ export async function raiseReviews(deps: TaskDeps, now = new Date()): Promise<nu
   );
   if (raised > 0) deps.logger.info({ raised }, "people reviews raised");
   return raised;
+}
+
+/**
+ * Care plan rounds (care.md rule 14): every active plan's task-generating actions drive one task
+ * series each; catches plans published before slice 5 and anything a failed publication left.
+ */
+export async function generatePlanTaskSeries(deps: TaskDeps, now = new Date()): Promise<number> {
+  const changed = await eachTenant(deps, (tx, tenantId) => generatePlanTasks(tx, tenantId, now));
+  if (changed > 0) deps.logger.info({ changed }, "care plan rounds generated");
+  return changed;
+}
+
+/**
+ * Shift handovers (care.md rule 8, HZ-018): each location's last shift compiled and locked,
+ * open handovers refreshed, and late additions from the offline window appended and announced.
+ */
+export async function compileHandovers(deps: TaskDeps, now = new Date()): Promise<number> {
+  const changed = await eachTenant(deps, (tx, tenantId) => sweepHandovers(tx, tenantId, now));
+  if (changed > 0) deps.logger.info({ changed }, "handovers compiled or refreshed");
+  return changed;
 }
 
 /**
