@@ -123,7 +123,7 @@
   "mobile.iddsi.prescribedChoice": "{level} (prescribed)",
   "mobile.iddsi.reason": "Reason for giving a different level",
   "mobile.iddsi.reasonHint": "Needed whenever the level given is not the prescribed level.",
-  "mobile.iddsi.unsafe": "This is not the prescribed level ({level}) and may not be safe. Give an override reason. The nurse in charge is alerted when it uploads.",
+  "mobile.iddsi.unsafe": "This is not the prescribed level ({level}) and may not be safe. Give an override reason. When this is sent, the nurse in charge or a manager will be told. Tell them now if you can.",
   "mobile.iddsi.mismatch": "This is not the prescribed level ({level}). Give a reason.",
   "mobile.iddsi.levelRequired": "Choose the IDDSI level given.",
   "mobile.iddsi.prescribedInvalid": "The prescribed level is not an IDDSI level. Ask the nurse in charge to correct it.",

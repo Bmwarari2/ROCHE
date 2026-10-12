@@ -128,7 +128,7 @@ describe("fluid balance day", () => {
     expect(view.valueText).toBe("900 ml of a 1,500 ml target");
   });
 
-  it("says beside the totals what was offered and refused, never as drunk (#26 review round 3)", () => {
+  it("hazard HZ-014 says beside the totals what was offered and refused, never as drunk (#26 review round 3)", () => {
     expect(fluidDayView(day, t).refusedText).toBeNull();
     const view = fluidDayView({ ...day, refusedEntries: 2, refusedOfferedMl: 450 }, t);
     expect(view.refusedText).toBe(
@@ -251,7 +251,7 @@ describe("chart entries in words", () => {
     [
       "the fallback",
       { iddsiAlert: true, alertRoute: "fallback" },
-      "No nurse in charge who could open this record was on duty, so the alert went to a manager or another member of staff who can.",
+      "The alert went to a manager or another member of staff who can see this person, not to a nurse in charge here.",
     ],
     [
       "no one",

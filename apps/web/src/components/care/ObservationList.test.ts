@@ -131,7 +131,7 @@ describe("ObservationList shows a food or drink entry the API kept from a device
     );
     // Said from what happened: here no nurse in charge could open the record (#26 round 3).
     expect(text).toContain(
-      "Food more solid than prescribed was given, with no reason recorded. It may not be safe. No nurse in charge who could open this record was on duty, so the alert went to a manager or another member of staff who can.",
+      "Food more solid than prescribed was given, with no reason recorded. It may not be safe. The alert went to a manager or another member of staff who can see this person, not to a nurse in charge here.",
     );
     expect(text).not.toContain("The nurse in charge was told");
     expect(text).not.toContain("Reason given");

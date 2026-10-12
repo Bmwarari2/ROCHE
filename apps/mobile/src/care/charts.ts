@@ -6,7 +6,9 @@
  * - Food and drink: the IDDSI level given is compared with the person's prescribed level from
  *   their care profile, shown beside the choice; a different level is refused without a reason,
  *   and an unsafe one (food more solid, or a drink thinner, than prescribed) says the nurse in
- *   charge is alerted when it uploads (HZ-016). The rule is `checkIddsiEntry` from
+ *   charge or a manager will be told when it is sent, and to tell them now if possible: offline,
+ *   the phone cannot know who the server will reach (HZ-016; #26 review round 4). The rule is
+ *   `checkIddsiEntry` from
  *   `@harbour/domain`, the one the API runs.
  * - Vital signs: NEWS2 is calculated on the device with `calculateNews2` from `@harbour/domain`,
  *   the server's calculator, on the SpO2 scale the person's record sets, so a raised score shows at

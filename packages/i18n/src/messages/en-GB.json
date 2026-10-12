@@ -812,7 +812,7 @@
   "care.charts.iddsiKeptUnsafeFood": "Food more solid than prescribed was given, with no reason recorded. It may not be safe.",
   "care.charts.iddsiKeptUnreadable": "The prescribed IDDSI level could not be read, so this entry was not checked against it.",
   "care.charts.alert.nurseInCharge": "The nurse in charge was told.",
-  "care.charts.alert.fallback": "No nurse in charge who could open this record was on duty, so the alert went to a manager or another member of staff who can.",
+  "care.charts.alert.fallback": "The alert went to a manager or another member of staff who can see this person, not to a nurse in charge here.",
   "care.charts.alert.noOne": "No one who can open this record could be told. Tell the nurse in charge or a manager now.",
   "care.charts.alert.unknown": "Check that the nurse in charge knows.",
   "care.escalation.policy": "Your organisation's escalation policy:",
