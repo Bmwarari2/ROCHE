@@ -83,6 +83,20 @@ export const TASK_LINK_OUTCOMES = [
 ] as const;
 const TASK_LINK_OUTCOMES_SQL = sql.raw(TASK_LINK_OUTCOMES.map((o) => `'${o}'`).join(", "));
 
+/**
+ * Who sent an entry for its author (`created_by`) when a manager handed over that member's held
+ * entries from a device (care.md section 6, Device integrity part 6): shown as "Sent by". Null when
+ * its author sent it, a hand-over by the owner included. Only the five tables a device writes.
+ */
+const handedOverByColumn = () => ({ handedOverBy: uuid("handed_over_by") });
+
+const handedOverByRef = (name: string, t: { tenantId: AnyPgColumn; handedOverBy: AnyPgColumn }) =>
+  foreignKey({
+    name,
+    columns: [t.tenantId, t.handedOverBy],
+    foreignColumns: [tenantUser.tenantId, tenantUser.id],
+  });
+
 /** An entry names a task when it records what happened to it, and only then. */
 const entryTaskOutcome = (table: string) =>
   check(
@@ -122,6 +136,7 @@ export const careNote = pgTable(
   "care_note",
   {
     ...entryColumns(),
+    ...handedOverByColumn(),
     /** personal_care, nutrition, mood, activity, visit, health, night, other. */
     category: text("category").notNull(),
     body: text("body").notNull(),
@@ -135,6 +150,7 @@ export const careNote = pgTable(
     unique("care_note_tenant_id_id_key").on(t.tenantId, t.id),
     personRef("care_note_person_fk", t),
     entryTaskOutcome("care_note"),
+    handedOverByRef("care_note_handed_over_by_fk", t),
     locationRef("care_note_location_fk", t),
     index("care_note_person_idx").on(t.tenantId, t.personId, t.occurredAt),
     index("care_note_location_idx").on(t.tenantId, t.locationId, t.occurredAt),
@@ -145,6 +161,7 @@ export const observation = pgTable(
   "observation",
   {
     ...entryColumns(),
+    ...handedOverByColumn(),
     /** fluid_intake, fluid_output, food, repositioning, bowel, weight, vitals (NEWS2 set). */
     chart: text("chart").notNull(),
     /** Typed per chart and validated by the API (packages/contracts). */
@@ -156,6 +173,7 @@ export const observation = pgTable(
     unique("observation_tenant_id_id_key").on(t.tenantId, t.id),
     personRef("observation_person_fk", t),
     entryTaskOutcome("observation"),
+    handedOverByRef("observation_handed_over_by_fk", t),
     locationRef("observation_location_fk", t),
     index("observation_person_chart_idx").on(t.tenantId, t.personId, t.chart, t.occurredAt),
     index("observation_location_idx").on(t.tenantId, t.locationId, t.occurredAt),
@@ -166,6 +184,7 @@ export const bodyMapMark = pgTable(
   "body_map_mark",
   {
     ...entryColumns(),
+    ...handedOverByColumn(),
     view: text("view").notNull(),
     region: text("region").notNull(),
     /** The person's side, stated in words and checked against the drawing (HZ-019). */
@@ -189,6 +208,7 @@ export const bodyMapMark = pgTable(
     unique("body_map_mark_tenant_id_id_key").on(t.tenantId, t.id),
     personRef("body_map_mark_person_fk", t),
     entryTaskOutcome("body_map_mark"),
+    handedOverByRef("body_map_mark_handed_over_by_fk", t),
     locationRef("body_map_mark_location_fk", t),
     foreignKey({
       name: "body_map_mark_photo_fk",
@@ -507,6 +527,7 @@ export const activityRecord = pgTable(
   "activity_record",
   {
     ...entryColumns(),
+    ...handedOverByColumn(),
     activity: text("activity").notNull(),
     /** `group` or `one_to_one`. */
     format: text("format").notNull(),
@@ -521,6 +542,7 @@ export const activityRecord = pgTable(
     unique("activity_record_tenant_person_id_key").on(t.tenantId, t.personId, t.id),
     personRef("activity_record_person_fk", t),
     entryTaskOutcome("activity_record"),
+    handedOverByRef("activity_record_handed_over_by_fk", t),
     locationRef("activity_record_location_fk", t),
     foreignKey({
       name: "activity_record_supersedes_fk",
@@ -549,6 +571,7 @@ export const visitLog = pgTable(
   "visit_log",
   {
     ...entryColumns(),
+    ...handedOverByColumn(),
     /** `facilitated_visit`, `visit_out` or `accompaniment`. */
     kind: text("kind").notNull(),
     contactId: uuid("contact_id"),
@@ -564,6 +587,7 @@ export const visitLog = pgTable(
     unique("visit_log_tenant_person_id_key").on(t.tenantId, t.personId, t.id),
     personRef("visit_log_person_fk", t),
     entryTaskOutcome("visit_log"),
+    handedOverByRef("visit_log_handed_over_by_fk", t),
     locationRef("visit_log_location_fk", t),
     foreignKey({
       name: "visit_log_contact_fk",

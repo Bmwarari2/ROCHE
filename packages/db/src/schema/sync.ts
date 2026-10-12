@@ -79,6 +79,36 @@ export const deviceBinding = pgTable(
   ],
 );
 
+/**
+ * The Better Auth sessions bound to a device (part 2; security review of #25, M1): the session that
+ * asked for a sync token or sent a report from the device, recorded with its binding while the
+ * device is not revoked. A revocation ends these sessions, and a request from one of them is
+ * refused whatever device it names (or none). Written in the system's view; append-only.
+ */
+export const deviceSession = pgTable(
+  "device_session",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    deviceId: uuid("device_id").notNull(),
+    tenantUserId: uuid("tenant_user_id").notNull(),
+    /** The Better Auth session's id (never its token). */
+    sessionId: text("session_id").notNull(),
+    boundAt: timestamp("bound_at", { withTimezone: true }).notNull().defaultNow(),
+    ...createdColumns(),
+  },
+  (t) => [
+    unique("device_session_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("device_session_key").on(t.tenantId, t.deviceId, t.sessionId),
+    foreignKey({
+      name: "device_session_binding_fk",
+      columns: [t.tenantId, t.deviceId, t.tenantUserId],
+      foreignColumns: [deviceBinding.tenantId, deviceBinding.deviceId, deviceBinding.tenantUserId],
+    }),
+    index("device_session_session_idx").on(t.tenantId, t.sessionId),
+  ],
+);
+
 /** The stages of a device's deletion of unsent entries (`SYNC_DISCARD_STAGES` in contracts). */
 export const DEVICE_DISCARD_STAGES = ["requested", "deleted", "failed"] as const;
 
@@ -123,6 +153,53 @@ export const REFUSED_ENTRY_TABLES = [
   "activity_record",
   "visit_log",
 ] as const;
+
+/**
+ * Each held entry a hand-over sent (part 6; security review of #25, H1): the hand-over's id, the
+ * device that held the entry, its owner and who sent it, one row per entry, written before the entry
+ * is, in the system's view. A hand-over id names one owner, device and sender; the entries a hold's
+ * hand-overs send are counted against the waiting count the device last reported for it.
+ * Append-only.
+ */
+export const handedOverEntry = pgTable(
+  "handed_over_entry",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    /** The hand-over's id (`x-harbour-handover`), made on the device. */
+    handoverId: uuid("handover_id").notNull(),
+    deviceId: uuid("device_id").notNull(),
+    ownerTenantUserId: uuid("owner_tenant_user_id").notNull(),
+    sentBy: uuid("sent_by").notNull(),
+    /** `REFUSED_ENTRY_TABLES`: the five tables a device writes. */
+    recordTable: text("record_table").notNull(),
+    entryId: uuid("entry_id").notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull().defaultNow(),
+    ...createdColumns(),
+  },
+  (t) => [
+    unique("handed_over_entry_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("handed_over_entry_entry_key").on(t.tenantId, t.recordTable, t.entryId),
+    foreignKey({
+      name: "handed_over_entry_owner_fk",
+      columns: [t.tenantId, t.ownerTenantUserId],
+      foreignColumns: [tenantUser.tenantId, tenantUser.id],
+    }),
+    foreignKey({
+      name: "handed_over_entry_sender_fk",
+      columns: [t.tenantId, t.sentBy],
+      foreignColumns: [tenantUser.tenantId, tenantUser.id],
+    }),
+    index("handed_over_entry_handover_idx").on(t.tenantId, t.handoverId),
+    index("handed_over_entry_hold_idx").on(
+      t.tenantId,
+      t.deviceId,
+      t.ownerTenantUserId,
+      t.acceptedAt,
+    ),
+    check("handed_over_entry_table", sql`record_table IN (${sqlList(REFUSED_ENTRY_TABLES)})`),
+  ],
+);
 
 /**
  * The server's copy of a care entry the API refused from a device (part 5; HZ-006): what the device

@@ -33,6 +33,12 @@ const asNorthManager = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
   inContext(app(), ctx(TENANT_A, a.northManager, "locations", [a.locationNorth]), fn);
 const asOtherTenant = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
   inContext(app(), ctx(TENANT_B, b.manager, "tenant"), fn);
+/** A tenant-wide role in its own view (not the system's: it acts as a member). */
+const asTenantWide = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
+  inContext(app(), ctx(TENANT_A, a.manager, "tenant"), fn);
+/** A job with no member: tenant scope and no user. */
+const asJob = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
+  inContext(app(), ctx(TENANT_A, null, "tenant"), fn);
 
 const devicesSeen = (c: pg.PoolClient) =>
   c
@@ -44,6 +50,13 @@ const devicesSeen = (c: pg.PoolClient) =>
 beforeAll(async () => {
   db = await createTestDatabase();
   await seedTwoTenants(db.pool("harbour_owner"));
+  // The carer works at North House; the manager has no located role there.
+  await asOwner(TENANT_A, (c) =>
+    c.query(
+      "INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES ($1, $2, $3)",
+      [a.carer, a.roleCarer, a.locationNorth],
+    ),
+  );
   await asSystem((c) =>
     c.query(
       `INSERT INTO device_binding (device_id, tenant_user_id) VALUES ($1, $2), ($1, $3), ($4, $3)`,
@@ -68,9 +81,12 @@ describe("hazard HZ-011 device bindings (part 1)", () => {
     expect(await asNorthManager(devicesSeen)).not.toContain(`${DEVICE_B}:${b.manager}`);
   });
 
-  it("shows a member their own devices and a manager the organisation's", async () => {
+  it("shows a member their own devices, a location role its staff's and a tenant-wide role the organisation's", async () => {
     expect(await asCarer(devicesSeen)).toEqual([`${DEVICE}:${a.carer}`]);
-    expect(await asNorthManager(devicesSeen)).toEqual(
+    // North House's manager reads the carer's binding (the carer works there), not the bindings
+    // of a member with no role at North House (#25 review round 2, low).
+    expect(await asNorthManager(devicesSeen)).toEqual([`${DEVICE}:${a.carer}`]);
+    expect(await asTenantWide(devicesSeen)).toEqual(
       [`${DEVICE}:${a.carer}`, `${DEVICE}:${a.manager}`, `${DEVICE_2}:${a.manager}`].sort(),
     );
   });
@@ -327,9 +343,12 @@ describe("hazard HZ-040 hazard HZ-011 deletion lists (part 3)", () => {
     );
   });
 
-  it("shows a member only their own deletions' entries, and a manager the organisation's", async () => {
+  it("shows a member only their own deletions' entries, a location role its staff's and a tenant-wide role the organisation's", async () => {
     expect(await asCarer(listed)).toEqual([`${DISCARD_CARER}:${ENTRY_1}`]);
-    expect(await asNorthManager(listed)).toEqual(
+    // A location role writes any deletion's list (the API checks the manager first) but reads only
+    // those of owners working at its locations (#25 review round 2, low).
+    expect(await asNorthManager(listed)).toEqual([`${DISCARD_CARER}:${ENTRY_1}`]);
+    expect(await asTenantWide(listed)).toEqual(
       [`${DISCARD_CARER}:${ENTRY_1}`, `${DISCARD_MANAGER}:${ENTRY_2}`].sort(),
     );
     expect(await asOtherTenant(listed)).toEqual([]);
@@ -466,7 +485,7 @@ describe("hazard HZ-008 one open sync task per source (part 4)", () => {
     );
   });
 
-  it("closes duplicates an earlier race left, keeping the oldest, and gives flagged tasks their owner and count (migration 0034)", async () => {
+  it("closes duplicates an earlier race left, keeping the oldest with what they carried, and gives flagged tasks their owner and count (migration 0034)", async () => {
     const DUP = "0199d000-0000-4000-8000-0000000000c3";
     const FLAG = "0199d000-0000-4000-8000-0000000000c4";
     const ids = await inContext(
@@ -476,12 +495,21 @@ describe("hazard HZ-008 one open sync task per source (part 4)", () => {
         // As before 0035: no index.
         await c.query("DROP INDEX task_sync_open_source_key");
         const made: string[] = [];
+        // The second is due two hours earlier and urgent, the third in progress: the kept task
+        // takes all three over (#25 review round 2, low).
         for (let i = 0; i < 3; i += 1) {
           const row = await c.query<{ id: string }>(
-            `INSERT INTO task (kind, title, required_permission, source_type, source_id, location_id, due_at, created_at)
+            `INSERT INTO task (kind, title, required_permission, source_type, source_id, location_id, due_at, created_at, priority, status)
            VALUES ('sync.device_hold', 'Unsent care entries are waiting on a device', 'safety.incident.manage',
-                   'device_hold', $1, $2, now(), now() + make_interval(secs => $3)) RETURNING id`,
-            [DUP, a.locationNorth, i],
+                   'device_hold', $1, $2, now() - make_interval(hours => $4), now() + make_interval(secs => $3), $5, $6) RETURNING id`,
+            [
+              DUP,
+              a.locationNorth,
+              i,
+              i === 1 ? 2 : 0,
+              i === 1 ? "urgent" : "routine",
+              i === 2 ? "in_progress" : "open",
+            ],
           );
           made.push(row.rows[0]?.id ?? "");
         }
@@ -498,6 +526,15 @@ describe("hazard HZ-008 one open sync task per source (part 4)", () => {
            ($1, 'sync.entry_flag.added', 'task', $2, jsonb_build_object('count', 2))`,
           [TENANT_A, flagId, a.carer],
         );
+        // A duplicate flagged task for the same deletion, already carrying its entries.
+        await c.query(
+          `INSERT INTO task (kind, title, required_permission, source_type, source_id, location_id, due_at, created_at, details)
+         VALUES ('sync.entry_reported_deleted', 'Check entries: 3', 'safety.incident.manage',
+                 'device_discard', $1, $2, now(), now() + interval '1 minute',
+                 jsonb_build_object('ownerTenantUserId', $3::text, 'entryCount', 3,
+                   'entries', jsonb_build_array(jsonb_build_object('kind', 'care_note', 'entryId', $4::text))))`,
+          [FLAG, a.locationNorth, a.carer, "0199d000-0000-7000-8000-0000000000c5"],
+        );
         return { made, flagId };
       },
     );
@@ -511,14 +548,22 @@ describe("hazard HZ-008 one open sync task per source (part 4)", () => {
       ),
     );
     expect(rows.rows.map((r) => [r.id, r.status])).toEqual([
-      [ids.made[0], "open"],
+      [ids.made[0], "in_progress"],
       [ids.made[1], "cancelled"],
       [ids.made[2], "cancelled"],
     ]);
     expect(rows.rows[1]?.status_reason).toMatch(/duplicate/);
+    const kept = await asOwner(TENANT_A, (c) =>
+      c.query<{ early: boolean; priority: string; status: string }>(
+        `SELECT due_at < now() - interval '1 hour' AS early, priority, status FROM task WHERE id = $1`,
+        [ids.made[0]],
+      ),
+    );
+    expect(kept.rows[0]).toEqual({ early: true, priority: "urgent", status: "in_progress" });
     const audit = await asOwner(TENANT_A, (c) =>
       c.query<{ resource_id: string; kept: string }>(
-        "SELECT resource_id, scope ->> 'keptTaskId' AS kept FROM audit_event WHERE action = 'platform.task.duplicate_closed' ORDER BY resource_id",
+        "SELECT resource_id, scope ->> 'keptTaskId' AS kept FROM audit_event WHERE action = 'platform.task.duplicate_closed' AND scope ->> 'keptTaskId' = $1 ORDER BY resource_id",
+        [ids.made[0]],
       ),
     );
     expect(audit.rows).toEqual(
@@ -527,7 +572,12 @@ describe("hazard HZ-008 one open sync task per source (part 4)", () => {
     const details = await asOwner(TENANT_A, (c) =>
       c.query<{ details: unknown }>("SELECT details FROM task WHERE id = $1", [ids.flagId]),
     );
-    expect(details.rows[0]?.details).toEqual({ ownerTenantUserId: a.carer, entryCount: 2 });
+    // Its own count (2, from its audit events) and the duplicate's (3), with the duplicate's entry.
+    expect(details.rows[0]?.details).toEqual({
+      ownerTenantUserId: a.carer,
+      entryCount: 5,
+      entries: [{ kind: "care_note", entryId: "0199d000-0000-7000-8000-0000000000c5" }],
+    });
   });
 });
 
@@ -671,11 +721,105 @@ describe("hazard HZ-011 shared request limits (part 7)", () => {
   it("counts a member's own requests in their own view, and nobody else's", async () => {
     await asCarer((c) => hit(c, a.carer));
     await expect(asCarer((c) => hit(c, a.manager))).rejects.toThrow(/row-level security/);
-    await asSystem((c) => hit(c, a.northManager));
+    // A tenant-wide role, even in the system's view acting for a member, neither writes nor reads
+    // another member's hits (#25 review round 2, low); a job with no member may.
+    await expect(asTenantWide((c) => hit(c, a.northManager))).rejects.toThrow(/row-level security/);
+    await expect(asSystem((c) => hit(c, a.northManager))).rejects.toThrow(/row-level security/);
+    await asJob((c) => hit(c, a.northManager));
     expect(await asCarer(owners)).toEqual([a.carer]);
-    expect(await asSystem(owners)).toEqual([a.carer, a.northManager].sort());
+    expect(await asTenantWide(owners)).toEqual([]);
+    expect(await asJob(owners)).toEqual([a.carer, a.northManager].sort());
     expect(await asOtherTenant(owners)).toEqual([]);
     // One row per member and limit.
     await expect(asCarer((c) => hit(c, a.carer))).rejects.toThrow(/request_quota_key/);
+  });
+});
+
+describe("hazard HZ-011 hazard HZ-040 device sessions and hand-overs (#25 review round 2)", () => {
+  const SESSION = "session-a-carer-1";
+  const HANDOVER = "0199d000-0000-4000-8000-0000000000e1";
+  const ENTRY = "0199d000-0000-7000-8000-0000000000e2";
+  const sessions = (c: pg.PoolClient) =>
+    c
+      .query<{ session_id: string }>("SELECT session_id FROM device_session ORDER BY 1")
+      .then((r) => r.rows.map((row) => row.session_id));
+  const handedOver = (c: pg.PoolClient) =>
+    c
+      .query<{ entry_id: string }>("SELECT entry_id FROM handed_over_entry ORDER BY 1")
+      .then((r) => r.rows.map((row) => row.entry_id));
+
+  beforeAll(async () => {
+    await asSystem((c) =>
+      c.query(
+        "INSERT INTO device_session (device_id, tenant_user_id, session_id) VALUES ($1, $2, $3)",
+        [DEVICE, a.carer, SESSION],
+      ),
+    );
+    await asSystem((c) =>
+      c.query(
+        `INSERT INTO handed_over_entry (handover_id, device_id, owner_tenant_user_id, sent_by, record_table, entry_id)
+         VALUES ($1, $2, $3, $4, 'care_note', $5)`,
+        [HANDOVER, DEVICE, a.carer, a.manager, ENTRY],
+      ),
+    );
+  });
+
+  it("binds a session only to a device its member is bound to, written in the system's view", async () => {
+    await expect(
+      asCarer((c) =>
+        c.query(
+          "INSERT INTO device_session (device_id, tenant_user_id, session_id) VALUES ($1, $2, 'x')",
+          [DEVICE, a.carer],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    // The carer was never bound to the second device.
+    await expect(
+      asSystem((c) =>
+        c.query(
+          "INSERT INTO device_session (device_id, tenant_user_id, session_id) VALUES ($1, $2, 'y')",
+          [DEVICE_2, a.carer],
+        ),
+      ),
+    ).rejects.toThrow(/device_session_binding_fk/);
+  });
+
+  it("shows a member their own sessions and nobody else, and keeps them append-only", async () => {
+    expect(await asCarer(sessions)).toEqual([SESSION]);
+    expect(await asNorthManager(sessions)).toEqual([]);
+    expect(await asOtherTenant(sessions)).toEqual([]);
+    await expect(
+      asOwner(TENANT_A, (c) => c.query("UPDATE device_session SET session_id = 'z'")),
+    ).rejects.toThrow(/append-only|not allowed|forbid/i);
+  });
+
+  it("shows a hand-over to its sender, its owner and the organisation's managers, and keeps it append-only", async () => {
+    expect(await asCarer(handedOver)).toEqual([ENTRY]);
+    expect(await asTenantWide(handedOver)).toEqual([ENTRY]);
+    // North House's manager: the owner works there.
+    expect(await asNorthManager(handedOver)).toEqual([ENTRY]);
+    expect(await asOtherTenant(handedOver)).toEqual([]);
+    await expect(
+      asCarer((c) =>
+        c.query(
+          `INSERT INTO handed_over_entry (handover_id, device_id, owner_tenant_user_id, sent_by, record_table, entry_id)
+           VALUES ($1, $2, $3, $3, 'care_note', $4)`,
+          [HANDOVER, DEVICE, a.carer, "0199d000-0000-7000-8000-0000000000e3"],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    // One row per entry, whatever the hand-over.
+    await expect(
+      asSystem((c) =>
+        c.query(
+          `INSERT INTO handed_over_entry (handover_id, device_id, owner_tenant_user_id, sent_by, record_table, entry_id)
+           VALUES ($1, $2, $3, $4, 'care_note', $5)`,
+          [crypto.randomUUID(), DEVICE, a.carer, a.manager, ENTRY],
+        ),
+      ),
+    ).rejects.toThrow(/handed_over_entry_entry_key/);
+    await expect(
+      asOwner(TENANT_A, (c) => c.query("DELETE FROM handed_over_entry")),
+    ).rejects.toThrow(/append-only|not allowed|forbid/i);
   });
 });

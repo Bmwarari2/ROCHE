@@ -11,13 +11,22 @@ CREATE POLICY tenant_isolation ON public.device_discard_entry AS PERMISSIVE FOR 
   WITH CHECK (tenant_id = app.current_tenant_id());
 --> statement-breakpoint
 
--- A member reads and writes the lists of their own deletions; tenant-wide and location roles (the
--- managers who may record anyone's deletion, which the API checks first) read and write the
--- organisation's.
-CREATE POLICY device_discard_entry_scope ON public.device_discard_entry AS RESTRICTIVE FOR ALL
+-- A member reads and writes the lists of their own deletions. Tenant-wide and location roles (the
+-- managers who may record anyone's deletion, which the API checks first) write the organisation's;
+-- tenant-wide roles read them all, and a location role those of owners with a role assignment at
+-- one of its locations (#25 review round 2, low).
+CREATE POLICY device_discard_entry_scope ON public.device_discard_entry AS RESTRICTIVE FOR SELECT
   TO harbour_app, harbour_owner
-  USING (app.current_scope() IN ('tenant', 'locations')
-    OR owner_tenant_user_id = app.current_user_id())
+  USING (app.current_scope() = 'tenant'
+    OR owner_tenant_user_id = app.current_user_id()
+    OR (app.current_scope() = 'locations' AND EXISTS (
+      SELECT 1 FROM public.role_assignment ra
+      WHERE ra.tenant_id = device_discard_entry.tenant_id
+        AND ra.tenant_user_id = device_discard_entry.owner_tenant_user_id
+        AND ra.location_id = ANY (app.current_location_ids()))));
+--> statement-breakpoint
+CREATE POLICY device_discard_entry_write ON public.device_discard_entry AS RESTRICTIVE FOR INSERT
+  TO harbour_app, harbour_owner
   WITH CHECK (app.current_scope() IN ('tenant', 'locations')
     OR owner_tenant_user_id = app.current_user_id());
 --> statement-breakpoint

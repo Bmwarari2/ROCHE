@@ -29,6 +29,7 @@ import type pg from "pg";
 import type { Auth } from "../auth/better-auth";
 import type { Config } from "../config";
 import type { Logger } from "../logger";
+import { sessionOnRevokedDevice } from "../services/devices";
 import { writeAudit } from "./audit";
 import { problems } from "./problem";
 import type { RateLimiter } from "./rate-limit";
@@ -152,7 +153,13 @@ async function hasPasskey(authPool: pg.Pool, authUserId: string): Promise<boolea
   return (row?.n ?? 0) > 0;
 }
 
-async function loadAccess(db: Database, tenantId: string, tenantUserId: string, now: Date) {
+async function loadAccess(
+  db: Database,
+  tenantId: string,
+  tenantUserId: string,
+  sessionId: string,
+  now: Date,
+) {
   // Context with scope 'none': enough to read the user's own role rows, nothing about people.
   const context: RequestContext = {
     tenantId,
@@ -198,7 +205,10 @@ async function loadAccess(db: Database, tenantId: string, tenantUserId: string, 
       grants as AccessGrantInput[],
       now,
     );
-    return { effective, mfaRequired: user?.mfaRequired ?? true };
+    // A session bound to a device a manager has since revoked is refused whatever device it names
+    // (care.md section 6, Device integrity part 2; #25 review round 2, M1).
+    const onRevokedDevice = await sessionOnRevokedDevice(tx, sessionId);
+    return { effective, mfaRequired: user?.mfaRequired ?? true, onRevokedDevice };
   });
 }
 
@@ -233,12 +243,14 @@ export const tenantMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   }
 
   const now = new Date();
-  const { effective, mfaRequired } = await loadAccess(
+  const { effective, mfaRequired, onRevokedDevice } = await loadAccess(
     services.db,
     membership.tenantId,
     membership.tenantUserId,
+    session.sessionId,
     now,
   );
+  if (onRevokedDevice) throw problems.deviceRevoked();
   const mfaSatisfied =
     !mfaRequired ||
     session.twoFactorEnabled ||

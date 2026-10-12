@@ -63,8 +63,9 @@ import { and, asc, desc, eq, gt, inArray, isNull, lte, notExists, or, sql } from
 import { alias } from "drizzle-orm/pg-core";
 import { auditInTx } from "../http/audit";
 import type { TenantAccess } from "../http/context";
-import { bindDevice, boundToDevice, deviceFirstSeen } from "./devices";
+import { bindDevice, boundToDevice, deviceFirstSeen, deviceRevoked } from "./devices";
 import { rateNumber } from "./rates";
+import { REFUSED_REVIEW_TASK_KIND } from "./refused-entries";
 import { withTenantWideScope } from "./safety";
 
 /** Who resolves held entries and is told when a deleted entry arrives: Registered Manager, deputy and nurse. */
@@ -88,11 +89,14 @@ type FlaggedEntryKind = (typeof FLAGGED_ENTRY_TASK_KINDS)[number];
 
 /**
  * Task kinds that escalate only to holders of their required permission at their location (clinical
- * review round 5, C-H1): the people who can act on them.
+ * review round 5, C-H1): the people who can act on them. With no one there, the task goes to the
+ * fallback recipient, and a gap with no one at all is audited (round 7, M5). The refused-entry
+ * review is one of them (#25 review round 2, M3).
  */
 export const PERMISSION_ESCALATED_TASK_KINDS: readonly string[] = [
   DEVICE_HOLD_TASK_KIND,
   ...FLAGGED_ENTRY_TASK_KINDS,
+  REFUSED_REVIEW_TASK_KIND,
 ];
 
 /** Devices one reporter may raise a task for in a rolling day, whatever became of them (HZ-008). */
@@ -795,6 +799,7 @@ export async function recordDeviceHold(
         refused: report.refused,
         held: report.held,
         blocked: report.blocked,
+        ...(report.copiesRefused !== undefined ? { copiesRefused: report.copiesRefused } : {}),
         oldestAgeSeconds: report.oldestAgeSeconds,
         heldSince: times.heldSince?.toISOString() ?? null,
         reportedAt: times.reportedAt.toISOString(),
@@ -812,15 +817,24 @@ export async function recordDeviceHold(
     if (!deviceId) return "none";
     // The reporter has now sent a report from the device: bound from here on, judged after this
     // report so it counts for none of its own decisions.
-    await bindDevice(tx, deviceId, reporter, receivedAt);
+    await bindDevice(tx, deviceId, reporter, receivedAt, access.session.sessionId);
 
     if (waiting === 0) {
       return closeIfEntitled(tx, access, deviceId, "report", receivedAt, requestId);
     }
 
-    const dueAt = new Date(since.getTime() + (await heldMaxDays(tx, access.tenantId)) * DAY_MS);
+    // A revoked device's entries can drain only by a hand-over or a recorded deletion: its hold is
+    // due at once and urgent (#25 review round 2, M4).
+    const revoked = await deviceRevoked(tx, deviceId);
+    const dueAt = revoked
+      ? receivedAt
+      : new Date(since.getTime() + (await heldMaxDays(tx, access.tenantId)) * DAY_MS);
     const open = await tx.select().from(task).where(openDeviceTasks(deviceId));
-    if (open.length > 0) return keepOpen(tx, access, open, deviceId, dueAt, receivedAt, requestId);
+    if (open.length > 0) {
+      const outcome = await keepOpen(tx, access, open, deviceId, dueAt, receivedAt, requestId);
+      if (revoked) await makeUrgent(tx, deviceId);
+      return outcome;
+    }
 
     // Closed less than a day ago: the same task again (round 6, N2). An escalated task's level is
     // reset under the once-a-day check, so the new hold signals; when the day's reset is used, the
@@ -854,6 +868,7 @@ export async function recordDeviceHold(
             completedAt: null,
             completedBy: null,
             dueAt,
+            ...(revoked ? { priority: "urgent" } : {}),
             ...(reset ? { escalationLevel: 0, escalatedAt: null } : {}),
           })
           .where(eq(task.id, row.id));
@@ -909,6 +924,9 @@ export async function recordDeviceHold(
         now: receivedAt,
         requestId,
       });
+      if (revoked && merged.length > 0) {
+        await tx.update(task).set({ priority: "urgent" }).where(inArray(task.id, merged));
+      }
       await auditInTx(tx, access, {
         action: DEVICE_HOLD_ACTIONS.capped,
         outcome: "denied",
@@ -949,7 +967,7 @@ export async function recordDeviceHold(
           assigneeTenantUserId: target.assignee,
           assigneeRoleKey: "registered_manager",
           dueAt,
-          priority: "routine",
+          priority: revoked ? "urgent" : "routine",
         })
         // One open task per device, location and assignee (part 4): a racing raise adds nothing.
         .onConflictDoNothing()
@@ -971,6 +989,119 @@ export async function recordDeviceHold(
       });
     }
     return "raised";
+  });
+}
+
+/** The device's open tasks become urgent (a revoked device's hold). */
+async function makeUrgent(tx: Transaction, deviceId: string): Promise<void> {
+  await tx
+    .update(task)
+    .set({ priority: "urgent" })
+    .where(and(openDeviceTasks(deviceId), sql`${task.priority} <> 'urgent'`));
+}
+
+/**
+ * The entries each device last reported waiting (held, unsent and blocked), by device id; a device
+ * that never reported is missing. Read in the system's view.
+ */
+export async function lastReportedWaiting(
+  tx: Transaction,
+  deviceIds: readonly string[],
+): Promise<Map<string, number>> {
+  const result = new Map<string, number>();
+  if (deviceIds.length === 0) return result;
+  const rows = await tx.execute<{ device_id: string; waiting: number | null }>(sql`
+    SELECT DISTINCT ON (resource_id) resource_id AS device_id,
+      (scope ->> 'waiting')::int AS waiting
+    FROM public.audit_event
+    WHERE resource_type = 'device' AND action = ${DEVICE_REPORT_ACTION}
+      AND resource_id IN (${sql.join(
+        deviceIds.map((id) => sql`${id}`),
+        sql`, `,
+      )})
+    ORDER BY resource_id, seq DESC`);
+  for (const row of rows.rows) result.set(row.device_id, Number(row.waiting ?? 0));
+  return result;
+}
+
+/** The notice whoever revoked a device gets when it last reported entries waiting. */
+export const REVOKED_HOLD_NOTICE_KIND = "sync.revoked_device_waiting";
+
+/**
+ * A device was revoked while it last reported entries waiting (#25 review round 2, M4): its open
+ * tasks fall due at once and become urgent, audited as moved, and whoever revoked it is told, so a
+ * hold that can now drain only by a hand-over or a recorded deletion is not left to the escalation
+ * day. No personal data: the notice names the device by opaque id only.
+ */
+export async function hurryRevokedHold(
+  db: Db,
+  access: TenantAccess,
+  input: {
+    readonly deviceId: string;
+    readonly waiting: number;
+    readonly now: Date;
+    readonly requestId: string | undefined;
+  },
+): Promise<void> {
+  if (input.waiting <= 0) return;
+  await withRequestContext(db, systemFor(access), async (tx) => {
+    await lock(tx, access.tenantId, `device_hold:${input.deviceId}`);
+    // The device's own tasks, and any reporter's capped-holds task its hold was merged into.
+    const capped = await tx
+      .select({ scope: auditEvent.scope })
+      .from(auditEvent)
+      .where(
+        and(
+          eq(auditEvent.resourceType, "device"),
+          eq(auditEvent.resourceId, input.deviceId),
+          eq(auditEvent.action, DEVICE_HOLD_ACTIONS.capped),
+        ),
+      );
+    const mergedInto = capped.flatMap((r) => {
+      const ids = (r.scope as Record<string, unknown> | null)?.mergedInto;
+      return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : [];
+    });
+    const open = await tx
+      .select()
+      .from(task)
+      .where(
+        mergedInto.length > 0
+          ? or(
+              openDeviceTasks(input.deviceId),
+              and(
+                inArray(task.id, mergedInto),
+                inArray(task.status, OPEN_STATUSES),
+                isNull(task.deletedAt),
+              ),
+            )
+          : openDeviceTasks(input.deviceId),
+      );
+    for (const row of open) {
+      const due = row.dueAt.getTime() > input.now.getTime() ? input.now : row.dueAt;
+      await tx.update(task).set({ dueAt: due, priority: "urgent" }).where(eq(task.id, row.id));
+      await auditInTx(tx, access, {
+        action: DEVICE_HOLD_ACTIONS.moved,
+        resourceType: "task",
+        resourceId: row.id,
+        scope: { deviceId: input.deviceId, dueAt: due.toISOString(), because: "revoked" },
+        requestId: input.requestId,
+      });
+    }
+    await tx
+      .insert(notification)
+      .values({
+        recipientTenantUserId: access.tenantUserId,
+        kind: REVOKED_HOLD_NOTICE_KIND,
+        severity: "urgent",
+        title: "A device you withdrew still holds unsent care entries",
+        body: "Hand them over or record their deletion on the device. Its task is due now.",
+        link: "/tasks",
+        channels: ["in_app", "push"],
+        sourceType: "device",
+        sourceId: input.deviceId,
+        dedupeKey: `${REVOKED_HOLD_NOTICE_KIND}:${input.deviceId}`,
+      })
+      .onConflictDoNothing();
   });
 }
 

@@ -6788,7 +6788,12 @@ export interface paths {
     post: {
       parameters: {
         query?: never;
-        header?: never;
+        header?: {
+          /** @description A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner. */
+          "x-harbour-handover-owner"?: string;
+          /** @description A hand-over of held entries: its id, made on the device, one owner per id. */
+          "x-harbour-handover"?: string;
+        };
         path: {
           id: string;
         };
@@ -6938,7 +6943,12 @@ export interface paths {
     post: {
       parameters: {
         query?: never;
-        header?: never;
+        header?: {
+          /** @description A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner. */
+          "x-harbour-handover-owner"?: string;
+          /** @description A hand-over of held entries: its id, made on the device, one owner per id. */
+          "x-harbour-handover"?: string;
+        };
         path: {
           id: string;
         };
@@ -7152,7 +7162,12 @@ export interface paths {
     post: {
       parameters: {
         query?: never;
-        header?: never;
+        header?: {
+          /** @description A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner. */
+          "x-harbour-handover-owner"?: string;
+          /** @description A hand-over of held entries: its id, made on the device, one owner per id. */
+          "x-harbour-handover"?: string;
+        };
         path: {
           id: string;
         };
@@ -8710,7 +8725,12 @@ export interface paths {
     post: {
       parameters: {
         query?: never;
-        header?: never;
+        header?: {
+          /** @description A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner. */
+          "x-harbour-handover-owner"?: string;
+          /** @description A hand-over of held entries: its id, made on the device, one owner per id. */
+          "x-harbour-handover"?: string;
+        };
         path: {
           id: string;
         };
@@ -8852,7 +8872,12 @@ export interface paths {
     post: {
       parameters: {
         query?: never;
-        header?: never;
+        header?: {
+          /** @description A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner. */
+          "x-harbour-handover-owner"?: string;
+          /** @description A hand-over of held entries: its id, made on the device, one owner per id. */
+          "x-harbour-handover"?: string;
+        };
         path: {
           id: string;
         };
@@ -12286,7 +12311,7 @@ export interface paths {
     };
     /**
      * Care mode devices staff have used, and whether each is revoked
-     * @description Lists device bindings: the device, the member of staff, when the server first and last saw them together, and any revocation. A location role sees only devices used by staff whose live, or else most recent, role assignment is at one of its locations.
+     * @description Lists device bindings: the device, the member of staff, when the server first and last saw them together, any revocation and the entries the device last reported waiting. A location role sees only devices used by staff whose live, or else most recent, role assignment is at one of its locations.
      */
     get: {
       parameters: {
@@ -12356,7 +12381,7 @@ export interface paths {
     put?: never;
     /**
      * Revoke a lost or withdrawn Care mode device
-     * @description Marks every binding of the device revoked with a coded reason (step-up). At its next sync token or upload the device is refused with 403 device_revoked and wipes, keeping entries not yet sent under the hold rules. A device already revoked changes nothing. A device no member the caller manages has used reads as not found.
+     * @description Marks every binding of the device revoked with a coded reason (step-up) and ends the sessions bound to it. At its next sync token or upload the device is refused with 403 device_revoked and wipes, keeping entries not yet sent under the hold rules; a request from one of its sessions is refused whatever device it names. When the device last reported entries waiting, the revocation needs confirmEntriesWaiting (409 entries_waiting otherwise), and its hold's task falls due at once, urgent, with a notice to the manager. A device already revoked changes nothing. A device no member the caller manages has used reads as not found; a location role may not revoke a device staff it does not manage have also used.
      */
     post: {
       parameters: {
@@ -12409,6 +12434,15 @@ export interface paths {
             "application/problem+json": components["schemas"]["ProblemDetails"];
           };
         };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
         /** @description The request did not validate */
         422: {
           headers: {
@@ -12437,12 +12471,17 @@ export interface paths {
     put?: never;
     /**
      * Keep the server's copy of a care entry the API refused from a device
-     * @description Stores what the device held for an entry the API refused, once per entry id, with the refusal (in the owner's name when a manager hands over another member's held entries, as for the entry routes), and adds it to the person's one open review task for the nurse in charge (due at once, urgent when an observation joins it). Written in the organisation's view, so a copy is kept even when its author can no longer see the person; read like the care record. Each person may send 200 copies a day.
+     * @description Stores the request a device made for an entry the API refused (checked against that entry kind's own contract), once per entry id, with the refusal (in the owner's name when a manager hands over another member's held entries, as for the entry routes), and adds it to the person's one open review task for the nurse in charge (due at once; urgent, with a notice to the nurse in charge, when an observation joins it). A copy about a person is taken only when its author cared for them within the offline window; otherwise, as for a person unknown here, it is refused the same way. Written in the organisation's view, so a copy is kept even when its author can no longer see the person; read like the care record. A revoked device's copies come only with a hand-over. Each author's copies count against 200 a day, after the replay check.
      */
     post: {
       parameters: {
         query?: never;
-        header?: never;
+        header?: {
+          /** @description A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner. */
+          "x-harbour-handover-owner"?: string;
+          /** @description A hand-over of held entries: its id, made on the device, one owner per id. */
+          "x-harbour-handover"?: string;
+        };
         path?: never;
         cookie?: never;
       };
@@ -12503,10 +12542,16 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Copies of entries about the person a device could not save, newest first */
+    /**
+     * Copies of entries about the person a device could not save, newest first
+     * @description Pages of at most `limit` copies (50 by default); pass `nextBefore` as `before` for the next.
+     */
     get: {
       parameters: {
-        query?: never;
+        query?: {
+          before?: string;
+          limit?: number;
+        };
         header?: never;
         path: {
           id: string;
@@ -15211,6 +15256,8 @@ export interface components {
       superseded: boolean;
       /** Format: uuid */
       recordedBy: string | null;
+      /** Format: uuid */
+      handedOverBy: string | null;
       category: components["schemas"]["CareNoteCategory"];
       body: string;
       tags: string[];
@@ -15280,6 +15327,8 @@ export interface components {
       superseded: boolean;
       /** Format: uuid */
       recordedBy: string | null;
+      /** Format: uuid */
+      handedOverBy: string | null;
       chart: string;
       values: {
         [key: string]: unknown;
@@ -15417,6 +15466,8 @@ export interface components {
       superseded: boolean;
       /** Format: uuid */
       recordedBy: string | null;
+      /** Format: uuid */
+      handedOverBy: string | null;
       /** @enum {string} */
       view: "front" | "back";
       region: string;
@@ -15906,6 +15957,8 @@ export interface components {
       superseded: boolean;
       /** Format: uuid */
       recordedBy: string | null;
+      /** Format: uuid */
+      handedOverBy: string | null;
       toolKey: components["schemas"]["AssessmentToolKey"];
       toolVersion: string;
       answers: {
@@ -16180,6 +16233,8 @@ export interface components {
       superseded: boolean;
       /** Format: uuid */
       recordedBy: string | null;
+      /** Format: uuid */
+      handedOverBy: string | null;
       activity: string;
       /** @enum {string} */
       format: "group" | "one_to_one";
@@ -16256,6 +16311,8 @@ export interface components {
       superseded: boolean;
       /** Format: uuid */
       recordedBy: string | null;
+      /** Format: uuid */
+      handedOverBy: string | null;
       kind: components["schemas"]["VisitKind"];
       /** Format: uuid */
       contactId: string | null;
@@ -17813,6 +17870,7 @@ export interface components {
       /** Format: uuid */
       ownerTenantUserId?: string | null;
       locationIds?: string[];
+      copiesRefused?: number;
     };
     DeviceBindingList: {
       items: components["schemas"]["DeviceBindingItem"][];
@@ -17840,6 +17898,7 @@ export interface components {
         | "replaced"
         | "other"
         | null;
+      entriesWaiting: number;
     };
     RevokeDeviceResult: {
       /** Format: uuid */
@@ -17848,10 +17907,12 @@ export interface components {
       revokedAt: string;
       replay: boolean;
       bindings: number;
+      entriesWaiting: number;
     };
     RevokeDevice: {
       /** @enum {string} */
       reasonCode: "lost_or_stolen" | "staff_left" | "access_withdrawn" | "replaced" | "other";
+      confirmEntriesWaiting?: boolean;
     };
     SyncRefusedEntryResult: {
       /** Format: uuid */
@@ -17862,24 +17923,192 @@ export interface components {
       taskId: string | null;
       replay: boolean;
     };
-    SyncRefusedEntry: {
-      /** Format: uuid */
-      entryId: string;
-      /** @enum {string} */
-      table: "care_note" | "observation" | "body_map_mark" | "activity_record" | "visit_log";
-      /** Format: uuid */
-      personId: string | null;
-      payload: {
-        [key: string]: unknown;
-      };
-      httpStatus: number | null;
-      code: string;
-      message: string | null;
-      /** Format: date-time */
-      refusedAt: string;
-    };
+    SyncRefusedEntry:
+      | {
+          /** Format: uuid */
+          entryId: string;
+          /** Format: uuid */
+          personId: string | null;
+          httpStatus: number | null;
+          code: string;
+          message: string | null;
+          /** Format: date-time */
+          refusedAt: string;
+          /** @enum {string} */
+          table: "care_note";
+          payload: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: date-time */
+            occurredAt: string;
+            /** Format: date-time */
+            deviceTime?: string;
+            /** Format: uuid */
+            supersedesId?: string;
+            correctionReason?: string;
+            /** Format: uuid */
+            taskId?: string;
+            category: components["schemas"]["CareNoteCategory"];
+            body: string;
+            /** @default [] */
+            tags: string[];
+            /** @default [] */
+            attachmentDocumentIds: string[];
+          };
+        }
+      | {
+          /** Format: uuid */
+          entryId: string;
+          /** Format: uuid */
+          personId: string | null;
+          httpStatus: number | null;
+          code: string;
+          message: string | null;
+          /** Format: date-time */
+          refusedAt: string;
+          /** @enum {string} */
+          table: "observation";
+          payload: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: date-time */
+            occurredAt: string;
+            /** Format: date-time */
+            deviceTime?: string;
+            /** Format: uuid */
+            supersedesId?: string;
+            correctionReason?: string;
+            /** Format: uuid */
+            taskId?: string;
+            values: components["schemas"]["ObservationValues"];
+          };
+        }
+      | {
+          /** Format: uuid */
+          entryId: string;
+          /** Format: uuid */
+          personId: string | null;
+          httpStatus: number | null;
+          code: string;
+          message: string | null;
+          /** Format: date-time */
+          refusedAt: string;
+          /** @enum {string} */
+          table: "body_map_mark";
+          payload: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: date-time */
+            occurredAt: string;
+            /** Format: date-time */
+            deviceTime?: string;
+            /** Format: uuid */
+            supersedesId?: string;
+            correctionReason?: string;
+            /** Format: uuid */
+            taskId?: string;
+            /** @enum {string} */
+            view: "front" | "back";
+            region: string;
+            /** @enum {string} */
+            drawnSide: "left" | "right" | "midline";
+            /** @enum {string} */
+            side: "left" | "right" | "midline";
+            markType: components["schemas"]["BodyMarkType"];
+            pressureCategory?: components["schemas"]["PressureUlcerCategory"];
+            deviceRelated?: boolean;
+            bruiseExplained?: boolean;
+            lengthMm?: number;
+            widthMm?: number;
+            depthMm?: number;
+            description?: string;
+            /** Format: uuid */
+            photoDocumentId?: string;
+            /**
+             * @default present
+             * @enum {string}
+             */
+            status: "present" | "healed";
+            /** Format: uuid */
+            incidentId?: string;
+          };
+        }
+      | {
+          /** Format: uuid */
+          entryId: string;
+          /** Format: uuid */
+          personId: string | null;
+          httpStatus: number | null;
+          code: string;
+          message: string | null;
+          /** Format: date-time */
+          refusedAt: string;
+          /** @enum {string} */
+          table: "activity_record";
+          payload: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: date-time */
+            occurredAt: string;
+            /** Format: date-time */
+            deviceTime?: string;
+            /** Format: uuid */
+            supersedesId?: string;
+            correctionReason?: string;
+            /** Format: uuid */
+            taskId?: string;
+            activity: string;
+            /** @enum {string} */
+            format: "group" | "one_to_one";
+            /** Format: uuid */
+            groupSessionId?: string;
+            attendance: components["schemas"]["ActivityAttendance"];
+            engagement?: components["schemas"]["ActivityEngagement"];
+            durationMinutes?: number;
+            notes?: string;
+          };
+        }
+      | {
+          /** Format: uuid */
+          entryId: string;
+          /** Format: uuid */
+          personId: string | null;
+          httpStatus: number | null;
+          code: string;
+          message: string | null;
+          /** Format: date-time */
+          refusedAt: string;
+          /** @enum {string} */
+          table: "visit_log";
+          payload: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: date-time */
+            occurredAt: string;
+            /** Format: date-time */
+            deviceTime?: string;
+            /** Format: uuid */
+            supersedesId?: string;
+            correctionReason?: string;
+            /** Format: uuid */
+            taskId?: string;
+            kind: components["schemas"]["VisitKind"];
+            /** Format: uuid */
+            contactId?: string;
+            visitorName?: string;
+            visitorRelationship?: string;
+            /** Format: date-time */
+            endedAt?: string;
+            /** @default false */
+            restrictionsApplied: boolean;
+            restrictionReason?: string;
+            notes?: string;
+          };
+        };
     RefusedEntryList: {
       items: components["schemas"]["RefusedEntryItem"][];
+      /** Format: uuid */
+      nextBefore: string | null;
     };
     /** @description The server's copy of an entry a device could not save */
     RefusedEntryItem: {

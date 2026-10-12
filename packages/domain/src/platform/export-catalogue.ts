@@ -321,6 +321,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       device_time: "exported",
       device_offset_minutes: "exported",
       created_by: "exported",
+      handed_over_by: {
+        description:
+          "Sent by: the manager who handed this entry over from a device for its author (created_by), when one did (tenant_user.id; care.md section 6, Device integrity part 6). Empty when its author sent it.",
+      },
       device_id: "exported",
       late_entry: "exported",
       clock_drift: "exported",
@@ -675,6 +679,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       device_time: "exported",
       device_offset_minutes: "exported",
       created_by: "exported",
+      handed_over_by: {
+        description:
+          "Sent by: the manager who handed this entry over from a device for its author (created_by), when one did (tenant_user.id; care.md section 6, Device integrity part 6). Empty when its author sent it.",
+      },
       device_id: "exported",
       late_entry: "exported",
       clock_drift: "exported",
@@ -916,6 +924,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       device_time: "exported",
       device_offset_minutes: "exported",
       created_by: "exported",
+      handed_over_by: {
+        description:
+          "Sent by: the manager who handed this entry over from a device for its author (created_by), when one did (tenant_user.id; care.md section 6, Device integrity part 6). Empty when its author sent it.",
+      },
       device_id: "exported",
       late_entry: "exported",
       clock_drift: "exported",
@@ -1328,6 +1340,17 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       created_at: "exported",
       created_by: "exported",
     },
+  },
+  "public.device_session": {
+    context: "platform",
+    description:
+      "The Harbour sign-in sessions bound to each Care mode device, so a revocation ends them (care.md section 6, Device integrity part 2).",
+    treatment: "not_exported",
+    retention: "audit_event",
+    personal: true,
+    reasonNotExported:
+      "Security records of sign-in sessions: the session ids are Harbour's own credentials' identifiers and mean nothing outside it; which member used which device is exported in device_binding.",
+    columns: {},
   },
   "public.device_discard_entry": {
     context: "care",
@@ -1843,6 +1866,40 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       updated_by: "exported",
       version: "exported",
       deleted_at: "exported",
+    },
+  },
+  "public.handed_over_entry": {
+    context: "care",
+    description:
+      "Each held entry a manager (or its owner, from a revoked device) sent from a Care mode device in its owner's name: the hand-over, the device, the owner and the sender (append-only; care.md section 6, Device integrity part 6).",
+    treatment: "tenant_rows",
+    retention: "audit_event",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      handover_id: {
+        description: "The hand-over the entry was sent in (one owner, device and sender).",
+      },
+      device_id: { description: "Opaque id of the device that held the entry." },
+      owner_tenant_user_id: { description: "Whose entry it is (tenant_user.id): its author." },
+      sent_by: { description: "Who sent it (tenant_user.id)." },
+      record_table: {
+        description: "The table the entry is in.",
+        codes: {
+          care_note: "A daily note.",
+          observation: "A chart observation.",
+          body_map_mark: "A body-map mark.",
+          activity_record: "An activity record.",
+          visit_log: "A visit.",
+        },
+      },
+      entry_id: { description: "The entry's id in that table." },
+      accepted_at: {
+        description: "When the server accepted the entry for sending (instant, UTC).",
+      },
+      created_at: "exported",
+      created_by: "exported",
     },
   },
   "public.handover": {
@@ -2425,6 +2482,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       device_time: "exported",
       device_offset_minutes: "exported",
       created_by: "exported",
+      handed_over_by: {
+        description:
+          "Sent by: the manager who handed this entry over from a device for its author (created_by), when one did (tenant_user.id; care.md section 6, Device integrity part 6). Empty when its author sent it.",
+      },
       device_id: "exported",
       late_entry: "exported",
       clock_drift: "exported",
@@ -3622,6 +3683,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       device_time: "exported",
       device_offset_minutes: "exported",
       created_by: "exported",
+      handed_over_by: {
+        description:
+          "Sent by: the manager who handed this entry over from a device for its author (created_by), when one did (tenant_user.id; care.md section 6, Device integrity part 6). Empty when its author sent it.",
+      },
       device_id: "exported",
       late_entry: "exported",
       clock_drift: "exported",

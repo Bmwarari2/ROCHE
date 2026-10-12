@@ -62,4 +62,10 @@ export const entryOutput = {
   /** True when a later entry supersedes this one. */
   superseded: z.boolean(),
   recordedBy: uuid.nullable(),
+  /**
+   * Sent by: the manager who handed the entry over from a device for its author (`recordedBy`),
+   * when one did (care.md section 6, Device integrity part 6). Show "Sent by" with their name
+   * beside the author. Null when the author sent it.
+   */
+  handedOverBy: uuid.nullable(),
 };

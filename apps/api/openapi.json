@@ -6734,6 +6734,13 @@
             ],
             "format": "uuid"
           },
+          "handedOverBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
           "category": {
             "$ref": "#/components/schemas/CareNoteCategory"
           },
@@ -6770,6 +6777,7 @@
           "correctionReason",
           "superseded",
           "recordedBy",
+          "handedOverBy",
           "category",
           "body",
           "tags",
@@ -6947,6 +6955,13 @@
             ],
             "format": "uuid"
           },
+          "handedOverBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
           "chart": {
             "type": "string"
           },
@@ -6975,6 +6990,7 @@
           "correctionReason",
           "superseded",
           "recordedBy",
+          "handedOverBy",
           "chart",
           "values",
           "flags"
@@ -7436,6 +7452,13 @@
             ],
             "format": "uuid"
           },
+          "handedOverBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
           "view": {
             "type": "string",
             "enum": [
@@ -7522,6 +7545,7 @@
           "correctionReason",
           "superseded",
           "recordedBy",
+          "handedOverBy",
           "view",
           "region",
           "side",
@@ -9259,6 +9283,13 @@
             ],
             "format": "uuid"
           },
+          "handedOverBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
           "toolKey": {
             "$ref": "#/components/schemas/AssessmentToolKey"
           },
@@ -9322,6 +9353,7 @@
           "correctionReason",
           "superseded",
           "recordedBy",
+          "handedOverBy",
           "toolKey",
           "toolVersion",
           "answers",
@@ -10170,6 +10202,13 @@
             ],
             "format": "uuid"
           },
+          "handedOverBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
           "activity": {
             "type": "string"
           },
@@ -10222,6 +10261,7 @@
           "correctionReason",
           "superseded",
           "recordedBy",
+          "handedOverBy",
           "activity",
           "format",
           "groupSessionId",
@@ -10417,6 +10457,13 @@
             ],
             "format": "uuid"
           },
+          "handedOverBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
           "kind": {
             "$ref": "#/components/schemas/VisitKind"
           },
@@ -10478,6 +10525,7 @@
           "correctionReason",
           "superseded",
           "recordedBy",
+          "handedOverBy",
           "kind",
           "contactId",
           "visitorName",
@@ -16084,6 +16132,11 @@
               "format": "uuid"
             },
             "maxItems": 50
+          },
+          "copiesRefused": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
           }
         },
         "required": [
@@ -16159,6 +16212,10 @@
               "other",
               null
             ]
+          },
+          "entriesWaiting": {
+            "type": "integer",
+            "minimum": 0
           }
         },
         "required": [
@@ -16169,7 +16226,8 @@
           "lastSeenAt",
           "revokedAt",
           "revokedBy",
-          "revocationReason"
+          "revocationReason",
+          "entriesWaiting"
         ],
         "description": "A member of staff's use of a Care mode device, and whether it is revoked"
       },
@@ -16190,13 +16248,18 @@
           "bindings": {
             "type": "integer",
             "minimum": 0
+          },
+          "entriesWaiting": {
+            "type": "integer",
+            "minimum": 0
           }
         },
         "required": [
           "deviceId",
           "revokedAt",
           "replay",
-          "bindings"
+          "bindings",
+          "entriesWaiting"
         ]
       },
       "RevokeDevice": {
@@ -16211,6 +16274,9 @@
               "replaced",
               "other"
             ]
+          },
+          "confirmEntriesWaiting": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -16248,68 +16314,635 @@
         ]
       },
       "SyncRefusedEntry": {
-        "type": "object",
-        "properties": {
-          "entryId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "table": {
-            "type": "string",
-            "enum": [
-              "care_note",
-              "observation",
-              "body_map_mark",
-              "activity_record",
-              "visit_log"
-            ]
-          },
-          "personId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "payload": {
+        "oneOf": [
+          {
             "type": "object",
-            "additionalProperties": {}
-          },
-          "httpStatus": {
-            "type": [
-              "integer",
-              "null"
+            "properties": {
+              "entryId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "personId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "httpStatus": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 100,
+                "maximum": 599
+              },
+              "code": {
+                "type": "string",
+                "pattern": "^[a-z0-9_]{1,80}$"
+              },
+              "message": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 500
+              },
+              "refusedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "table": {
+                "type": "string",
+                "enum": [
+                  "care_note"
+                ]
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "occurredAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "deviceTime": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "supersedesId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "correctionReason": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 500
+                  },
+                  "taskId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "category": {
+                    "$ref": "#/components/schemas/CareNoteCategory"
+                  },
+                  "body": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-z_]{2,40}$"
+                    },
+                    "maxItems": 10,
+                    "default": []
+                  },
+                  "attachmentDocumentIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "maxItems": 10,
+                    "default": []
+                  }
+                },
+                "required": [
+                  "occurredAt",
+                  "category",
+                  "body"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "entryId",
+              "personId",
+              "httpStatus",
+              "code",
+              "message",
+              "refusedAt",
+              "table",
+              "payload"
             ],
-            "minimum": 100,
-            "maximum": 599
+            "additionalProperties": false
           },
-          "code": {
-            "type": "string",
-            "pattern": "^[a-z0-9_]{1,80}$"
-          },
-          "message": {
-            "type": [
-              "string",
-              "null"
+          {
+            "type": "object",
+            "properties": {
+              "entryId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "personId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "httpStatus": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 100,
+                "maximum": 599
+              },
+              "code": {
+                "type": "string",
+                "pattern": "^[a-z0-9_]{1,80}$"
+              },
+              "message": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 500
+              },
+              "refusedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "table": {
+                "type": "string",
+                "enum": [
+                  "observation"
+                ]
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "occurredAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "deviceTime": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "supersedesId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "correctionReason": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 500
+                  },
+                  "taskId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "values": {
+                    "$ref": "#/components/schemas/ObservationValues"
+                  }
+                },
+                "required": [
+                  "occurredAt",
+                  "values"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "entryId",
+              "personId",
+              "httpStatus",
+              "code",
+              "message",
+              "refusedAt",
+              "table",
+              "payload"
             ],
-            "maxLength": 500
+            "additionalProperties": false
           },
-          "refusedAt": {
-            "type": "string",
-            "format": "date-time"
+          {
+            "type": "object",
+            "properties": {
+              "entryId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "personId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "httpStatus": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 100,
+                "maximum": 599
+              },
+              "code": {
+                "type": "string",
+                "pattern": "^[a-z0-9_]{1,80}$"
+              },
+              "message": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 500
+              },
+              "refusedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "table": {
+                "type": "string",
+                "enum": [
+                  "body_map_mark"
+                ]
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "occurredAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "deviceTime": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "supersedesId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "correctionReason": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 500
+                  },
+                  "taskId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "view": {
+                    "type": "string",
+                    "enum": [
+                      "front",
+                      "back"
+                    ]
+                  },
+                  "region": {
+                    "type": "string",
+                    "pattern": "^[a-z_]{2,40}$"
+                  },
+                  "drawnSide": {
+                    "type": "string",
+                    "enum": [
+                      "left",
+                      "right",
+                      "midline"
+                    ]
+                  },
+                  "side": {
+                    "type": "string",
+                    "enum": [
+                      "left",
+                      "right",
+                      "midline"
+                    ]
+                  },
+                  "markType": {
+                    "$ref": "#/components/schemas/BodyMarkType"
+                  },
+                  "pressureCategory": {
+                    "$ref": "#/components/schemas/PressureUlcerCategory"
+                  },
+                  "deviceRelated": {
+                    "type": "boolean"
+                  },
+                  "bruiseExplained": {
+                    "type": "boolean"
+                  },
+                  "lengthMm": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1000
+                  },
+                  "widthMm": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1000
+                  },
+                  "depthMm": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 300
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  "photoDocumentId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "present",
+                      "healed"
+                    ],
+                    "default": "present"
+                  },
+                  "incidentId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "occurredAt",
+                  "view",
+                  "region",
+                  "drawnSide",
+                  "side",
+                  "markType"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "entryId",
+              "personId",
+              "httpStatus",
+              "code",
+              "message",
+              "refusedAt",
+              "table",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "entryId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "personId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "httpStatus": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 100,
+                "maximum": 599
+              },
+              "code": {
+                "type": "string",
+                "pattern": "^[a-z0-9_]{1,80}$"
+              },
+              "message": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 500
+              },
+              "refusedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "table": {
+                "type": "string",
+                "enum": [
+                  "activity_record"
+                ]
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "occurredAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "deviceTime": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "supersedesId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "correctionReason": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 500
+                  },
+                  "taskId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "activity": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 120
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": [
+                      "group",
+                      "one_to_one"
+                    ]
+                  },
+                  "groupSessionId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "attendance": {
+                    "$ref": "#/components/schemas/ActivityAttendance"
+                  },
+                  "engagement": {
+                    "$ref": "#/components/schemas/ActivityEngagement"
+                  },
+                  "durationMinutes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 720
+                  },
+                  "notes": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "occurredAt",
+                  "activity",
+                  "format",
+                  "attendance"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "entryId",
+              "personId",
+              "httpStatus",
+              "code",
+              "message",
+              "refusedAt",
+              "table",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "entryId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "personId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "httpStatus": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 100,
+                "maximum": 599
+              },
+              "code": {
+                "type": "string",
+                "pattern": "^[a-z0-9_]{1,80}$"
+              },
+              "message": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 500
+              },
+              "refusedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "table": {
+                "type": "string",
+                "enum": [
+                  "visit_log"
+                ]
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "occurredAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "deviceTime": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "supersedesId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "correctionReason": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 500
+                  },
+                  "taskId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "kind": {
+                    "$ref": "#/components/schemas/VisitKind"
+                  },
+                  "contactId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "visitorName": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "visitorRelationship": {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "endedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "restrictionsApplied": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "restrictionReason": {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  "notes": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "occurredAt",
+                  "kind"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "entryId",
+              "personId",
+              "httpStatus",
+              "code",
+              "message",
+              "refusedAt",
+              "table",
+              "payload"
+            ],
+            "additionalProperties": false
           }
-        },
-        "required": [
-          "entryId",
-          "table",
-          "personId",
-          "payload",
-          "httpStatus",
-          "code",
-          "message",
-          "refusedAt"
-        ],
-        "additionalProperties": false
+        ]
       },
       "RefusedEntryList": {
         "type": "object",
@@ -16319,10 +16952,18 @@
             "items": {
               "$ref": "#/components/schemas/RefusedEntryItem"
             }
+          },
+          "nextBefore": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
           }
         },
         "required": [
-          "items"
+          "items",
+          "nextBefore"
         ]
       },
       "RefusedEntryItem": {
@@ -24579,6 +25220,28 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner."
+            },
+            "required": false,
+            "description": "A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner.",
+            "name": "x-harbour-handover-owner",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "A hand-over of held entries: its id, made on the device, one owner per id."
+            },
+            "required": false,
+            "description": "A hand-over of held entries: its id, made on the device, one owner per id.",
+            "name": "x-harbour-handover",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -24781,6 +25444,28 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner."
+            },
+            "required": false,
+            "description": "A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner.",
+            "name": "x-harbour-handover-owner",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "A hand-over of held entries: its id, made on the device, one owner per id."
+            },
+            "required": false,
+            "description": "A hand-over of held entries: its id, made on the device, one owner per id.",
+            "name": "x-harbour-handover",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -25069,6 +25754,28 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner."
+            },
+            "required": false,
+            "description": "A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner.",
+            "name": "x-harbour-handover-owner",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "A hand-over of held entries: its id, made on the device, one owner per id."
+            },
+            "required": false,
+            "description": "A hand-over of held entries: its id, made on the device, one owner per id.",
+            "name": "x-harbour-handover",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -26986,6 +27693,28 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner."
+            },
+            "required": false,
+            "description": "A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner.",
+            "name": "x-harbour-handover-owner",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "A hand-over of held entries: its id, made on the device, one owner per id."
+            },
+            "required": false,
+            "description": "A hand-over of held entries: its id, made on the device, one owner per id.",
+            "name": "x-harbour-handover",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -27170,6 +27899,28 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner."
+            },
+            "required": false,
+            "description": "A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner.",
+            "name": "x-harbour-handover-owner",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "A hand-over of held entries: its id, made on the device, one owner per id."
+            },
+            "required": false,
+            "description": "A hand-over of held entries: its id, made on the device, one owner per id.",
+            "name": "x-harbour-handover",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -31271,7 +32022,7 @@
           "platform"
         ],
         "summary": "Care mode devices staff have used, and whether each is revoked",
-        "description": "Lists device bindings: the device, the member of staff, when the server first and last saw them together, and any revocation. A location role sees only devices used by staff whose live, or else most recent, role assignment is at one of its locations.",
+        "description": "Lists device bindings: the device, the member of staff, when the server first and last saw them together, any revocation and the entries the device last reported waiting. A location role sees only devices used by staff whose live, or else most recent, role assignment is at one of its locations.",
         "security": [
           {
             "bearerAuth": []
@@ -31341,7 +32092,7 @@
           "platform"
         ],
         "summary": "Revoke a lost or withdrawn Care mode device",
-        "description": "Marks every binding of the device revoked with a coded reason (step-up). At its next sync token or upload the device is refused with 403 device_revoked and wipes, keeping entries not yet sent under the hold rules. A device already revoked changes nothing. A device no member the caller manages has used reads as not found.",
+        "description": "Marks every binding of the device revoked with a coded reason (step-up) and ends the sessions bound to it. At its next sync token or upload the device is refused with 403 device_revoked and wipes, keeping entries not yet sent under the hold rules; a request from one of its sessions is refused whatever device it names. When the device last reported entries waiting, the revocation needs confirmEntriesWaiting (409 entries_waiting otherwise), and its hold's task falls due at once, urgent, with a notice to the manager. A device already revoked changes nothing. A device no member the caller manages has used reads as not found; a location role may not revoke a device staff it does not manage have also used.",
         "security": [
           {
             "bearerAuth": []
@@ -31411,6 +32162,16 @@
               }
             }
           },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "422": {
             "description": "The request did not validate",
             "content": {
@@ -31430,13 +32191,37 @@
           "sync"
         ],
         "summary": "Keep the server's copy of a care entry the API refused from a device",
-        "description": "Stores what the device held for an entry the API refused, once per entry id, with the refusal (in the owner's name when a manager hands over another member's held entries, as for the entry routes), and adds it to the person's one open review task for the nurse in charge (due at once, urgent when an observation joins it). Written in the organisation's view, so a copy is kept even when its author can no longer see the person; read like the care record. Each person may send 200 copies a day.",
+        "description": "Stores the request a device made for an entry the API refused (checked against that entry kind's own contract), once per entry id, with the refusal (in the owner's name when a manager hands over another member's held entries, as for the entry routes), and adds it to the person's one open review task for the nurse in charge (due at once; urgent, with a notice to the nurse in charge, when an observation joins it). A copy about a person is taken only when its author cared for them within the offline window; otherwise, as for a person unknown here, it is refused the same way. Written in the organisation's view, so a copy is kept even when its author can no longer see the person; read like the care record. A revoked device's copies come only with a hand-over. Each author's copies count against 200 a day, after the replay check.",
         "security": [
           {
             "bearerAuth": []
           },
           {
             "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner."
+            },
+            "required": false,
+            "description": "A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner.",
+            "name": "x-harbour-handover-owner",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "A hand-over of held entries: its id, made on the device, one owner per id."
+            },
+            "required": false,
+            "description": "A hand-over of held entries: its id, made on the device, one owner per id.",
+            "name": "x-harbour-handover",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -31498,6 +32283,7 @@
           "care"
         ],
         "summary": "Copies of entries about the person a device could not save, newest first",
+        "description": "Pages of at most `limit` copies (50 by default); pass `nextBefore` as `before` for the next.",
         "security": [
           {
             "bearerAuth": []
@@ -31515,6 +32301,26 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "before",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
           }
         ],
         "responses": {

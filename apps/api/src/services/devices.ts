@@ -8,23 +8,33 @@
  * trail.
  *
  * Part 2, revocation: a manager holding `platform.device.revoke` (step-up) revokes a lost or
- * withdrawn device with a coded reason; every binding of the device is marked, and the sync token
- * and upload routes then refuse the device with 403 `device_revoked`, each refusal audited. A
- * location role reaches only devices used by staff whose live, or else most recent, located role
- * assignment is at one of its locations; anything else reads as not found.
+ * withdrawn device with a coded reason; every binding of the device is marked, the sessions bound
+ * to it end, and the sync token and upload routes then refuse the device with 403
+ * `device_revoked` (audited at most once an hour per device). A request from a session bound to a
+ * revoked device is refused whatever device it names (#25 review round 2, M1). A location role
+ * reaches only devices used by staff whose live, or else most recent, located role assignment is at
+ * one of its locations, and revokes only a device every member bound to it is such staff; anything
+ * it reaches nobody on reads as not found.
  */
 import type { DeviceBindingItem, DeviceRevocationReason } from "@harbour/contracts";
 import {
+  auditEvent,
+  authSession,
   deviceBinding,
+  deviceSession,
   roleAssignment,
   type Transaction,
   tenantUser,
   withRequestContext,
 } from "@harbour/db";
-import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { isValidWindowDays, OFFLINE_WINDOW_RATE_KEY } from "@harbour/sync/streams";
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
+import type pg from "pg";
 import { auditInTx, writeAudit } from "../http/audit";
 import type { Services, TenantAccess } from "../http/context";
-import { problems } from "../http/problem";
+import { HttpProblem, problems } from "../http/problem";
+import { rateNumber } from "./rates";
 
 type Db = Parameters<typeof withRequestContext>[0];
 
@@ -41,24 +51,145 @@ export function inSystemView<T>(
   );
 }
 
+/** The device's revocation (the earliest), or null while it is not revoked. */
+async function revocationOf(
+  tx: Transaction,
+  deviceId: string,
+): Promise<{ revokedAt: Date; revokedBy: string; revocationReason: string } | null> {
+  const [row] = await tx
+    .select({
+      revokedAt: deviceBinding.revokedAt,
+      revokedBy: deviceBinding.revokedBy,
+      revocationReason: deviceBinding.revocationReason,
+    })
+    .from(deviceBinding)
+    .where(and(eq(deviceBinding.deviceId, deviceId), isNotNull(deviceBinding.revokedAt)))
+    .orderBy(asc(deviceBinding.revokedAt))
+    .limit(1);
+  return row?.revokedAt && row.revokedBy && row.revocationReason
+    ? { revokedAt: row.revokedAt, revokedBy: row.revokedBy, revocationReason: row.revocationReason }
+    : null;
+}
+
 /**
  * Records that the member used the device now: a new binding, or the existing one's last sighting
- * moved on (never back). Call in the system's view (tenant scope): row-level security lets no one
- * else write a binding.
+ * moved on (never back), and the session that did so (part 2). On a revoked device a new binding
+ * is revoked with the rest, so the device stays revoked as a whole, and no session is bound: a
+ * revocation ends the sessions bound before it, and a sign-in afterwards is a hand-over's or a
+ * report's. Call in the system's view (tenant scope): row-level security lets no one else write.
  */
 export async function bindDevice(
   tx: Transaction,
   deviceId: string,
   tenantUserId: string,
   now: Date,
+  sessionId: string | null = null,
 ): Promise<void> {
+  const revocation = await revocationOf(tx, deviceId);
   await tx
     .insert(deviceBinding)
-    .values({ deviceId, tenantUserId, firstSeenAt: now, lastSeenAt: now })
+    .values({ deviceId, tenantUserId, firstSeenAt: now, lastSeenAt: now, ...(revocation ?? {}) })
     .onConflictDoUpdate({
       target: [deviceBinding.tenantId, deviceBinding.deviceId, deviceBinding.tenantUserId],
       set: { lastSeenAt: sql`greatest(${deviceBinding.lastSeenAt}, excluded.last_seen_at)` },
     });
+  if (!revocation && sessionId) {
+    await tx
+      .insert(deviceSession)
+      .values({ deviceId, tenantUserId, sessionId, boundAt: now })
+      .onConflictDoNothing();
+  }
+}
+
+/**
+ * True when the session was bound to a device a manager has since revoked (#25 review round 2,
+ * M1): the API refuses every request from it, whatever device it names. Reads the member's own
+ * rows, so it runs in the member's own view.
+ */
+export async function sessionOnRevokedDevice(tx: Transaction, sessionId: string): Promise<boolean> {
+  const [row] = await tx
+    .select({ id: deviceSession.id })
+    .from(deviceSession)
+    .innerJoin(
+      deviceBinding,
+      and(
+        eq(deviceBinding.tenantId, deviceSession.tenantId),
+        eq(deviceBinding.deviceId, deviceSession.deviceId),
+        eq(deviceBinding.tenantUserId, deviceSession.tenantUserId),
+      ),
+    )
+    .where(and(eq(deviceSession.sessionId, sessionId), isNotNull(deviceBinding.revokedAt)))
+    .limit(1);
+  return row !== undefined;
+}
+
+/** Ends Better Auth sessions by id (a revocation's), on the auth database role. */
+export async function endSessions(
+  authPool: pg.Pool,
+  sessionIds: readonly string[],
+): Promise<number> {
+  if (sessionIds.length === 0) return 0;
+  const removed = await drizzle(authPool)
+    .delete(authSession)
+    .where(inArray(authSession.id, [...sessionIds]))
+    .returning({ id: authSession.id });
+  return removed.length;
+}
+
+/** The member's binding to the device: when first seen there, and any revocation. */
+export async function bindingOf(
+  tx: Transaction,
+  deviceId: string,
+  tenantUserId: string,
+): Promise<{ firstSeenAt: Date; revokedAt: Date | null } | null> {
+  const [row] = await tx
+    .select({ firstSeenAt: deviceBinding.firstSeenAt, revokedAt: deviceBinding.revokedAt })
+    .from(deviceBinding)
+    .where(and(eq(deviceBinding.deviceId, deviceId), eq(deviceBinding.tenantUserId, tenantUserId)))
+    .limit(1);
+  return row ?? null;
+}
+
+/** The offline window in days from the rate table (a day when it is missing or out of range). */
+export async function offlineWindowDaysOf(tx: Transaction, tenantId: string): Promise<number> {
+  const days = await rateNumber(tx, tenantId, OFFLINE_WINDOW_RATE_KEY).catch(() => null);
+  return isValidWindowDays(days) ? days : 1;
+}
+
+/**
+ * True when the member could see the person at some time in `[since, now]` (#25 review round 2, H1
+ * and M2): assigned to them, or holding a tenant-wide role or a location role at the person's
+ * location, in force then (an assignment ended or deleted since counts up to its end). Call in the
+ * system's view. False for a person who does not exist, so a refusal never says which.
+ */
+export async function personReachedBy(
+  tx: Transaction,
+  tenantUserId: string,
+  personId: string,
+  since: Date,
+  now: Date,
+): Promise<boolean> {
+  const result = await tx.execute<{ reached: boolean }>(sql`
+    SELECT EXISTS (
+      SELECT 1 FROM public.person p
+      WHERE p.id = ${personId} AND (
+        EXISTS (
+          SELECT 1 FROM public.person_assignment pa
+          WHERE pa.person_id = p.id AND pa.tenant_user_id = ${tenantUserId}
+            AND pa.valid_from <= ${now}
+            AND coalesce(least(pa.valid_to, pa.deleted_at), 'infinity'::timestamptz) >= ${since})
+        OR EXISTS (
+          SELECT 1 FROM public.role_assignment ra
+          JOIN public.role r ON r.id = ra.role_id AND r.tenant_id = ra.tenant_id
+          WHERE ra.tenant_user_id = ${tenantUserId}
+            AND ra.valid_from <= ${now}
+            AND coalesce(least(ra.valid_to, ra.deleted_at), 'infinity'::timestamptz) >= ${since}
+            AND (r.scope_kind = 'tenant'
+              OR (r.scope_kind = 'location'
+                AND (ra.location_id IS NULL OR ra.location_id = p.location_id))))
+      )
+    ) AS reached`);
+  return result.rows[0]?.reached === true;
 }
 
 /**
@@ -103,10 +234,15 @@ export const DEVICE_REFUSED_ACTION = "sync.device.refused_revoked";
 /** The audit action of a revocation. */
 export const DEVICE_REVOKED_ACTION = "platform.device.revoked";
 
+/** A revoked device's refusals are audited at most once in this many milliseconds. */
+const REFUSAL_AUDIT_MS = 3_600_000;
+
 /**
  * Refuses the request with 403 `device_revoked` when the device it names has been revoked, after
- * auditing the refusal in its own transaction (it must be kept although the request fails). A
- * request that names no device is not a device's request and passes.
+ * auditing the refusal in its own transaction (it must be kept although the request fails), at most
+ * once an hour per device so a device retrying does not fill the audit trail (#25 review round 2,
+ * low). A request that names no device passes here: a session bound to a revoked device is refused
+ * by the tenant middleware whatever it names.
  */
 export async function refuseRevokedDevice(
   services: Pick<Services, "db" | "appPool">,
@@ -116,7 +252,25 @@ export async function refuseRevokedDevice(
 ): Promise<void> {
   const deviceId = access.deviceId;
   if (!deviceId) return;
-  if (!(await inSystemView(services.db, access, (tx) => deviceRevoked(tx, deviceId)))) return;
+  const now = new Date();
+  const state = await inSystemView(services.db, access, async (tx) => {
+    if (!(await deviceRevoked(tx, deviceId))) return "open" as const;
+    const [recent] = await tx
+      .select({ id: auditEvent.id })
+      .from(auditEvent)
+      .where(
+        and(
+          eq(auditEvent.resourceType, "device"),
+          eq(auditEvent.resourceId, deviceId),
+          eq(auditEvent.action, DEVICE_REFUSED_ACTION),
+          gt(auditEvent.occurredAt, new Date(now.getTime() - REFUSAL_AUDIT_MS)),
+        ),
+      )
+      .limit(1);
+    return recent ? ("revoked" as const) : ("revoked_unaudited" as const);
+  });
+  if (state === "open") return;
+  if (state === "revoked") throw problems.deviceRevoked();
   await writeAudit(services.appPool, access, {
     action: DEVICE_REFUSED_ACTION,
     outcome: "denied",
@@ -199,14 +353,30 @@ export async function reachedMembers(
 /** At most this many bindings are listed. */
 const DEVICE_LIST_LIMIT = 500;
 
-/** The devices staff have used, newest sighting first, that the manager reaches (part 2). */
+/**
+ * The devices staff have used, newest sighting first, that the manager reaches (part 2). The
+ * members the manager reaches are worked out first and the limit applied to their bindings, so a
+ * location role is never short of its own staff's devices (#25 review round 2, low). The waiting
+ * counts are the caller's to add.
+ */
 export async function listDevices(
   db: Db,
   access: TenantAccess,
   filter: { readonly tenantUserId?: string | undefined },
   now: Date,
-): Promise<DeviceBindingItem[]> {
+): Promise<Omit<DeviceBindingItem, "entriesWaiting">[]> {
   return inSystemView(db, access, async (tx) => {
+    const members = await tx
+      .selectDistinct({ id: deviceBinding.tenantUserId })
+      .from(deviceBinding)
+      .where(filter.tenantUserId ? eq(deviceBinding.tenantUserId, filter.tenantUserId) : undefined);
+    const reached = await reachedMembers(
+      tx,
+      access,
+      members.map((m) => m.id),
+      now,
+    );
+    if (reached.size === 0) return [];
     const rows = await tx
       .select({
         deviceId: deviceBinding.deviceId,
@@ -220,35 +390,40 @@ export async function listDevices(
       })
       .from(deviceBinding)
       .innerJoin(tenantUser, eq(tenantUser.id, deviceBinding.tenantUserId))
-      .where(filter.tenantUserId ? eq(deviceBinding.tenantUserId, filter.tenantUserId) : undefined)
+      .where(inArray(deviceBinding.tenantUserId, [...reached]))
       .orderBy(desc(deviceBinding.lastSeenAt), asc(deviceBinding.deviceId))
       .limit(DEVICE_LIST_LIMIT);
-    const reached = await reachedMembers(
-      tx,
-      access,
-      [...new Set(rows.map((r) => r.tenantUserId))],
-      now,
-    );
-    return rows
-      .filter((r) => reached.has(r.tenantUserId))
-      .map((r) => ({
-        deviceId: r.deviceId,
-        tenantUserId: r.tenantUserId,
-        memberName: r.memberName,
-        firstSeenAt: r.firstSeenAt.toISOString(),
-        lastSeenAt: r.lastSeenAt.toISOString(),
-        revokedAt: r.revokedAt?.toISOString() ?? null,
-        revokedBy: r.revokedBy,
-        revocationReason: (r.revocationReason as DeviceRevocationReason | null) ?? null,
-      }));
+    return rows.map((r) => ({
+      deviceId: r.deviceId,
+      tenantUserId: r.tenantUserId,
+      memberName: r.memberName,
+      firstSeenAt: r.firstSeenAt.toISOString(),
+      lastSeenAt: r.lastSeenAt.toISOString(),
+      revokedAt: r.revokedAt?.toISOString() ?? null,
+      revokedBy: r.revokedBy,
+      revocationReason: (r.revocationReason as DeviceRevocationReason | null) ?? null,
+    }));
   });
+}
+
+/** A location role reaches some, but not all, of the members bound to the device. */
+export function partlyReached(): HttpProblem {
+  return new HttpProblem(
+    403,
+    "missing_permission",
+    "Staff you do not manage have also used this device.",
+    "Ask a manager who covers the whole organisation to withdraw it.",
+  );
 }
 
 /**
  * Revokes a device (part 2): every binding of the device not yet revoked is marked with the
  * manager, the time and the coded reason, and the revocation is audited. Null when the manager does
  * not reach anyone who used the device (or it was never seen here), which the route answers as not
- * found. A device already revoked changes nothing and says so.
+ * found; a location role reaching only some of them is refused, so nobody withdraws another home's
+ * device by binding a member of their own to it (#25 review round 2, low). A device already revoked
+ * changes nothing and says so. Returns the sessions bound to the device, for the caller to end once
+ * this has committed.
  */
 export async function revokeDevice(
   db: Db,
@@ -258,8 +433,15 @@ export async function revokeDevice(
     readonly reasonCode: DeviceRevocationReason;
     readonly now: Date;
     readonly requestId: string | undefined;
+    /** Entries the device last reported waiting that the manager has not confirmed seeing. */
+    readonly unconfirmedWaiting?: number;
   },
-): Promise<{ revokedAt: Date; replay: boolean; bindings: number } | null> {
+): Promise<{
+  revokedAt: Date;
+  replay: boolean;
+  bindings: number;
+  sessionIds: string[];
+} | null> {
   return inSystemView(db, access, async (tx) => {
     await tx.execute(
       sql`SELECT pg_advisory_xact_lock(hashtext(${`${access.tenantId}:device_revoke:${input.deviceId}`}))`,
@@ -269,13 +451,24 @@ export async function revokeDevice(
       .from(deviceBinding)
       .where(eq(deviceBinding.deviceId, input.deviceId));
     const members = [...new Set(rows.map((r) => r.tenantUserId))].sort();
-    if ((await reachedMembers(tx, access, members, input.now)).size === 0) return null;
+    const reached = await reachedMembers(tx, access, members, input.now);
+    if (reached.size === 0) return null;
+    if (reached.size < members.length) throw partlyReached();
+    const sessions = await tx
+      .select({ sessionId: deviceSession.sessionId })
+      .from(deviceSession)
+      .where(eq(deviceSession.deviceId, input.deviceId));
+    const sessionIds = [...new Set(sessions.map((r) => r.sessionId))];
     const earliest = rows
       .map((r) => r.revokedAt)
       .filter((at): at is Date => at !== null)
       .sort((a, b) => a.getTime() - b.getTime())[0];
     if (earliest && rows.every((r) => r.revokedAt !== null)) {
-      return { revokedAt: earliest, replay: true, bindings: rows.length };
+      return { revokedAt: earliest, replay: true, bindings: rows.length, sessionIds };
+    }
+    // Told first how many entries the device last reported waiting (#25 review round 2, M4).
+    if ((input.unconfirmedWaiting ?? 0) > 0) {
+      throw problems.entriesWaiting(input.unconfirmedWaiting ?? 0);
     }
     await tx
       .update(deviceBinding)
@@ -290,9 +483,14 @@ export async function revokeDevice(
       resourceType: "device",
       resourceId: input.deviceId,
       reason: input.reasonCode,
-      scope: { reasonCode: input.reasonCode, bindings: rows.length, memberIds: members },
+      scope: {
+        reasonCode: input.reasonCode,
+        bindings: rows.length,
+        memberIds: members,
+        sessionsEnded: sessionIds.length,
+      },
       requestId: input.requestId,
     });
-    return { revokedAt: earliest ?? input.now, replay: false, bindings: rows.length };
+    return { revokedAt: earliest ?? input.now, replay: false, bindings: rows.length, sessionIds };
   });
 }

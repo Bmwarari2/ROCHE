@@ -7,6 +7,7 @@ import {
   CreateCareNote,
   CreateObservation,
   FluidDay,
+  HandoverHeaders,
   ObservationItem,
   ObservationList,
   PersonCareProfile,
@@ -52,7 +53,7 @@ import {
 } from "../services/care";
 import { latestMustBand } from "../services/care-planning";
 import { flagIfReportedDeleted } from "../services/device-holds";
-import { auditHandedOver } from "../services/held-handover";
+import { admitHandedOverEntry, auditHandedOver } from "../services/held-handover";
 import { loadPerson, type PersonRecord, requireWrite } from "../services/people";
 import {
   applyLink,
@@ -151,6 +152,8 @@ export const careRouter = createRouter()
       security,
       request: {
         params: PersonParam,
+        // A hand-over of held entries (care.md section 6, Device integrity part 6).
+        headers: HandoverHeaders,
         body: { content: { "application/json": { schema: CreateCareNote } } },
       },
       responses: {
@@ -160,10 +163,20 @@ export const careRouter = createRouter()
       },
     }),
     async (c) => {
-      const { access, author, handover } = await entryWriteAccess(c, "care_note");
+      const { access, author, handover, handedOverBy } = await entryWriteAccess(c, "care_note");
       const { id: personId } = c.req.valid("param");
       const body = c.req.valid("json");
       requireCorrection(body);
+      // A handed-over entry is admitted against the device's hold before it is written (#25 review
+      // round 2, H1): its owner's time on the device, the hold's count and the owner's care.
+      if (handover) {
+        await admitHandedOverEntry(c, handover, {
+          table: "care_note",
+          entryId: body.id,
+          personId,
+          occurredAt: body.occurredAt,
+        });
+      }
       const now = new Date();
       const item = await withLateEntryReview(
         c,
@@ -201,8 +214,10 @@ export const careRouter = createRouter()
               .insert(careNote)
               .values({
                 ...(body.id ? { id: body.id } : {}),
-                // The entry's author: the owner of a handed-over entry (Device integrity part 6).
+                // The entry's author: the owner of a handed-over entry, and who sent it for them
+                // (Device integrity part 6).
                 createdBy: author,
+                handedOverBy,
                 personId,
                 locationId: person.locationId,
                 category: body.category,
@@ -348,6 +363,8 @@ export const careRouter = createRouter()
       security,
       request: {
         params: PersonParam,
+        // A hand-over of held entries (care.md section 6, Device integrity part 6).
+        headers: HandoverHeaders,
         body: { content: { "application/json": { schema: CreateObservation } } },
       },
       responses: {
@@ -357,10 +374,20 @@ export const careRouter = createRouter()
       },
     }),
     async (c) => {
-      const { access, author, handover } = await entryWriteAccess(c, "observation");
+      const { access, author, handover, handedOverBy } = await entryWriteAccess(c, "observation");
       const { id: personId } = c.req.valid("param");
       const body = c.req.valid("json");
       requireCorrection(body);
+      // A handed-over entry is admitted against the device's hold before it is written (#25 review
+      // round 2, H1): its owner's time on the device, the hold's count and the owner's care.
+      if (handover) {
+        await admitHandedOverEntry(c, handover, {
+          table: "observation",
+          entryId: body.id,
+          personId,
+          occurredAt: body.occurredAt,
+        });
+      }
       const now = new Date();
       const item = await withLateEntryReview(
         c,
@@ -403,8 +430,10 @@ export const careRouter = createRouter()
               .insert(observation)
               .values({
                 ...(body.id ? { id: body.id } : {}),
-                // The entry's author: the owner of a handed-over entry (Device integrity part 6).
+                // The entry's author: the owner of a handed-over entry, and who sent it for them
+                // (Device integrity part 6).
                 createdBy: author,
+                handedOverBy,
                 personId,
                 locationId: person.locationId,
                 chart: body.values.chart,
@@ -662,6 +691,8 @@ export const careRouter = createRouter()
       security,
       request: {
         params: PersonParam,
+        // A hand-over of held entries (care.md section 6, Device integrity part 6).
+        headers: HandoverHeaders,
         body: { content: { "application/json": { schema: CreateBodyMapMark } } },
       },
       responses: {
@@ -671,10 +702,20 @@ export const careRouter = createRouter()
       },
     }),
     async (c) => {
-      const { access, author, handover } = await entryWriteAccess(c, "body_map_mark");
+      const { access, author, handover, handedOverBy } = await entryWriteAccess(c, "body_map_mark");
       const { id: personId } = c.req.valid("param");
       const body = c.req.valid("json");
       requireCorrection(body);
+      // A handed-over entry is admitted against the device's hold before it is written (#25 review
+      // round 2, H1): its owner's time on the device, the hold's count and the owner's care.
+      if (handover) {
+        await admitHandedOverEntry(c, handover, {
+          table: "body_map_mark",
+          entryId: body.id,
+          personId,
+          occurredAt: body.occurredAt,
+        });
+      }
       const check = validateMark({
         view: body.view,
         region: body.region,
@@ -732,8 +773,10 @@ export const careRouter = createRouter()
               .insert(bodyMapMark)
               .values({
                 ...(body.id ? { id: body.id } : {}),
-                // The entry's author: the owner of a handed-over entry (Device integrity part 6).
+                // The entry's author: the owner of a handed-over entry, and who sent it for them
+                // (Device integrity part 6).
                 createdBy: author,
+                handedOverBy,
                 personId,
                 locationId: person.locationId,
                 view: body.view,

@@ -62,6 +62,25 @@ export const problems = {
     ),
   invalid: (detail?: string) =>
     new HttpProblem(422, "invalid", "Some details need checking.", detail),
+  /**
+   * A hand-over of held entries the server will not take as sent (care.md section 6, Device
+   * integrity part 6): the device stops and keeps the entry held, never parking it as refused.
+   */
+  handoverRefused: (detail: string) =>
+    new HttpProblem(
+      422,
+      "handover_refused",
+      "This entry cannot be sent for that member of staff from this device.",
+      detail,
+    ),
+  /** A revocation asked for without confirming the entries the device last reported waiting. */
+  entriesWaiting: (count: number) =>
+    new HttpProblem(
+      409,
+      "entries_waiting",
+      "This device last reported entries that have not reached Harbour.",
+      `${count} ${count === 1 ? "entry is" : "entries are"} waiting on it. Confirm to withdraw it anyway: they stay on the device until handed over or deleted, and its task is due at once.`,
+    ),
 };
 
 export function problemResponse(c: Context, problem: HttpProblem, requestId?: string) {

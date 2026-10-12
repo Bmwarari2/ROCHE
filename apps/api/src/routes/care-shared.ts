@@ -7,7 +7,7 @@ import { type AppEnv, requirePermission, type TenantAccess, withTenant } from ".
 import { problems } from "../http/problem";
 import { applyTaskLink, type PlannedTaskLink, planTaskLink } from "../services/care";
 import { refuseRevokedDevice } from "../services/devices";
-import { type HeldHandover, heldHandoverOf } from "../services/held-handover";
+import { type HeldHandover, handedOverByOf, heldHandoverOf } from "../services/held-handover";
 import { CareEventAfterExit, loadPerson, raiseLateEntryReview } from "../services/people";
 
 /**
@@ -51,6 +51,8 @@ export function entryOut(
     supersedesId: string | null;
     correctionReason: string | null;
     createdBy: string | null;
+    /** Only the five tables a device writes have it. */
+    handedOverBy?: string | null;
   },
   superseded: ReadonlySet<string>,
 ) {
@@ -70,6 +72,7 @@ export function entryOut(
     correctionReason: row.correctionReason,
     superseded: superseded.has(row.id),
     recordedBy: row.createdBy,
+    handedOverBy: row.handedOverBy ?? null,
   };
 }
 
@@ -91,13 +94,16 @@ export interface EntryWriter {
   readonly author: string;
   /** The hand-over the entry arrives by, when it does (care.md section 6, Device integrity). */
   readonly handover: HeldHandover | null;
+  /** Who sent the entry for its author ("Sent by", `handed_over_by`): a manager's hand-over. */
+  readonly handedOverBy: string | null;
 }
 
 /**
  * The access for a care entry a device uploads (notes, observations, body-map marks, activities and
- * visits): the route's permission; a hand-over of held entries checked (part 6); otherwise a device
- * a manager revoked refused with 403 `device_revoked`, audited (part 2). A hand-over is how a
- * revoked device's entries leave it, so it is not refused.
+ * visits): the route's permission; a hand-over of held entries checked (part 6; each entry is then
+ * admitted with `admitHandedOverEntry`); otherwise a device a manager revoked refused with 403
+ * `device_revoked`, audited (part 2). A hand-over is how a revoked device's entries leave it, so it
+ * is not refused here: only entries recorded before the revocation are admitted.
  */
 export async function entryWriteAccess(
   c: Context<AppEnv>,
@@ -108,7 +114,12 @@ export async function entryWriteAccess(
   if (!handover) {
     await refuseRevokedDevice(c.get("services"), access, `care.${kind}`, c.get("requestId"));
   }
-  return { access, author: handover?.ownerTenantUserId ?? access.tenantUserId, handover };
+  return {
+    access,
+    author: handover?.ownerTenantUserId ?? access.tenantUserId,
+    handover,
+    handedOverBy: handedOverByOf(handover),
+  };
 }
 
 export function permissionsOf(access: TenantAccess): ReadonlySet<string> {

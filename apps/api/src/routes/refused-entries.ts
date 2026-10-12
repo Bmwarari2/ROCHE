@@ -1,4 +1,5 @@
 import {
+  HandoverHeaders,
   RefusedEntryItem,
   RefusedEntryList,
   SyncRefusedEntry,
@@ -12,6 +13,7 @@ import { requirePermission, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { PerUserQuota } from "../http/quota";
 import { personContext } from "../services/care";
+import { refuseRevokedDevice } from "../services/devices";
 import { heldHandoverOf } from "../services/held-handover";
 import {
   copyRefusedEntry,
@@ -42,9 +44,13 @@ export function createRefusedEntriesRouter() {
         tags: ["sync"],
         summary: "Keep the server's copy of a care entry the API refused from a device",
         description:
-          "Stores what the device held for an entry the API refused, once per entry id, with the refusal (in the owner's name when a manager hands over another member's held entries, as for the entry routes), and adds it to the person's one open review task for the nurse in charge (due at once, urgent when an observation joins it). Written in the organisation's view, so a copy is kept even when its author can no longer see the person; read like the care record. Each person may send 200 copies a day.",
+          "Stores the request a device made for an entry the API refused (checked against that entry kind's own contract), once per entry id, with the refusal (in the owner's name when a manager hands over another member's held entries, as for the entry routes), and adds it to the person's one open review task for the nurse in charge (due at once; urgent, with a notice to the nurse in charge, when an observation joins it). A copy about a person is taken only when its author cared for them within the offline window; otherwise, as for a person unknown here, it is refused the same way. Written in the organisation's view, so a copy is kept even when its author can no longer see the person; read like the care record. A revoked device's copies come only with a hand-over. Each author's copies count against 200 a day, after the replay check.",
         security,
-        request: { body: { content: { "application/json": { schema: SyncRefusedEntry } } } },
+        request: {
+          // A hand-over of held entries (care.md section 6, Device integrity part 6).
+          headers: HandoverHeaders,
+          body: { content: { "application/json": { schema: SyncRefusedEntry } } },
+        },
         responses: {
           200: jsonBody(SyncRefusedEntryResult, "Kept (or kept before)"),
           ...errorResponses,
@@ -56,13 +62,22 @@ export function createRefusedEntriesRouter() {
         // A manager handing over another member's held entries sends their refusals' copies too,
         // in the owner's name (care.md section 6, Device integrity part 6).
         const handover = await heldHandoverOf(c, access);
-        await withTenant(c, (tx) => copyQuota.take(tx, access.tenantUserId));
+        // Otherwise a revoked device's copies are refused like its uploads (#25 review round 2, M2).
+        if (!handover) {
+          await refuseRevokedDevice(
+            c.get("services"),
+            access,
+            "sync.refused_entry",
+            c.get("requestId"),
+          );
+        }
         const result = await copyRefusedEntry(c.get("services").db, access, body, {
           author: handover?.ownerTenantUserId ?? access.tenantUserId,
           deviceId: access.deviceId,
           now: new Date(),
           requestId: c.get("requestId"),
           handoverId: handover?.handoverId,
+          quota: copyQuota,
         });
         return c.json({ ...result, entryId: body.entryId.toLowerCase() }, 200);
       },
@@ -73,8 +88,16 @@ export function createRefusedEntriesRouter() {
         path: "/v1/people/{id}/refused-entries",
         tags: ["care"],
         summary: "Copies of entries about the person a device could not save, newest first",
+        description:
+          "Pages of at most `limit` copies (50 by default); pass `nextBefore` as `before` for the next.",
         security,
-        request: { params: PersonParam },
+        request: {
+          params: PersonParam,
+          query: z.object({
+            before: z.uuid().optional(),
+            limit: z.coerce.number().int().min(1).max(200).default(50),
+          }),
+        },
         responses: {
           200: jsonBody(RefusedEntryList, "Copies"),
           ...errorResponses,
@@ -84,9 +107,10 @@ export function createRefusedEntriesRouter() {
       async (c) => {
         const access = await requirePermission(c, "care.note.read");
         const { id: personId } = c.req.valid("param");
-        const items = await withTenant(c, async (tx) => {
+        const { before, limit } = c.req.valid("query");
+        const page = await withTenant(c, async (tx) => {
           await personContext(tx, personId);
-          const rows = await refusedEntriesFor(tx, personId);
+          const { rows, next } = await refusedEntriesFor(tx, personId, { before, limit });
           await auditInTx(tx, access, {
             action: REFUSED_READ_ACTION,
             resourceType: "person",
@@ -94,9 +118,9 @@ export function createRefusedEntriesRouter() {
             scope: { count: rows.length },
             requestId: c.get("requestId"),
           });
-          return rows.map(refusedEntryOut);
+          return { items: rows.map(refusedEntryOut), nextBefore: next };
         });
-        return c.json({ items }, 200);
+        return c.json(page, 200);
       },
     )
     .openapi(

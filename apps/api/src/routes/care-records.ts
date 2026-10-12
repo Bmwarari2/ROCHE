@@ -10,6 +10,7 @@ import {
   CreateAdvanceCareRecord,
   CreateAssessment,
   CreateVisit,
+  HandoverHeaders,
   UpdateAdvanceCareRecord,
   VisitItem,
   VisitList,
@@ -65,7 +66,7 @@ import {
   toRecordState,
 } from "../services/care-planning";
 import { flagIfReportedDeleted } from "../services/device-holds";
-import { auditHandedOver } from "../services/held-handover";
+import { admitHandedOverEntry, auditHandedOver } from "../services/held-handover";
 import { loadPerson, requireWrite } from "../services/people";
 import {
   applyLink,
@@ -501,6 +502,8 @@ export const careRecordsRouter = createRouter()
       security,
       request: {
         params: PersonParam,
+        // A hand-over of held entries (care.md section 6, Device integrity part 6).
+        headers: HandoverHeaders,
         body: { content: { "application/json": { schema: CreateActivityRecord } } },
       },
       responses: {
@@ -510,10 +513,23 @@ export const careRecordsRouter = createRouter()
       },
     }),
     async (c) => {
-      const { access, author, handover } = await entryWriteAccess(c, "activity_record");
+      const { access, author, handover, handedOverBy } = await entryWriteAccess(
+        c,
+        "activity_record",
+      );
       const { id: personId } = c.req.valid("param");
       const body = c.req.valid("json");
       requireCorrection(body);
+      // A handed-over entry is admitted against the device's hold before it is written (#25 review
+      // round 2, H1): its owner's time on the device, the hold's count and the owner's care.
+      if (handover) {
+        await admitHandedOverEntry(c, handover, {
+          table: "activity_record",
+          entryId: body.id,
+          personId,
+          occurredAt: body.occurredAt,
+        });
+      }
       const check = checkActivity({
         format: body.format,
         groupSessionId: body.groupSessionId ?? null,
@@ -577,8 +593,10 @@ export const careRecordsRouter = createRouter()
               .insert(activityRecord)
               .values({
                 ...(body.id ? { id: body.id } : {}),
-                // The entry's author: the owner of a handed-over entry (Device integrity part 6).
+                // The entry's author: the owner of a handed-over entry, and who sent it for them
+                // (Device integrity part 6).
                 createdBy: author,
+                handedOverBy,
                 personId,
                 locationId: person.locationId,
                 activity: body.activity,
@@ -704,6 +722,8 @@ export const careRecordsRouter = createRouter()
       security,
       request: {
         params: PersonParam,
+        // A hand-over of held entries (care.md section 6, Device integrity part 6).
+        headers: HandoverHeaders,
         body: { content: { "application/json": { schema: CreateVisit } } },
       },
       responses: {
@@ -713,10 +733,20 @@ export const careRecordsRouter = createRouter()
       },
     }),
     async (c) => {
-      const { access, author, handover } = await entryWriteAccess(c, "visit_log");
+      const { access, author, handover, handedOverBy } = await entryWriteAccess(c, "visit_log");
       const { id: personId } = c.req.valid("param");
       const body = c.req.valid("json");
       requireCorrection(body);
+      // A handed-over entry is admitted against the device's hold before it is written (#25 review
+      // round 2, H1): its owner's time on the device, the hold's count and the owner's care.
+      if (handover) {
+        await admitHandedOverEntry(c, handover, {
+          table: "visit_log",
+          entryId: body.id,
+          personId,
+          occurredAt: body.occurredAt,
+        });
+      }
       const now = new Date();
       const check = checkVisit(
         {
@@ -790,8 +820,10 @@ export const careRecordsRouter = createRouter()
               .insert(visitLog)
               .values({
                 ...(body.id ? { id: body.id } : {}),
-                // The entry's author: the owner of a handed-over entry (Device integrity part 6).
+                // The entry's author: the owner of a handed-over entry, and who sent it for them
+                // (Device integrity part 6).
                 createdBy: author,
+                handedOverBy,
                 personId,
                 locationId: person.locationId,
                 kind: body.kind,

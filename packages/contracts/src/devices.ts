@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { CreateBodyMapMark, CreateCareNote, CreateObservation } from "./care";
+import { CreateActivityRecord, CreateVisit } from "./care-planning";
 
 /**
  * Care mode devices (care.md section 6, Device integrity): which member has used which device, a
@@ -23,6 +25,32 @@ export const DEVICE_REVOKED_CODE = "device_revoked";
 export const HANDOVER_OWNER_HEADER = "x-harbour-handover-owner";
 export const HANDOVER_ID_HEADER = "x-harbour-handover";
 
+/**
+ * The problem code (422) of a hand-over the server will not take as sent (care.md section 6, Device
+ * integrity part 6): the sender has not used the device, the device has no open hold for that
+ * owner, the hold's reported count is used up, the entry falls outside the owner's time on the
+ * device, the person was never in the owner's care, or the hand-over id names someone else. The
+ * device stops and keeps the entry held; it is never parked as refused.
+ */
+export const HANDOVER_REFUSED_CODE = "handover_refused";
+
+/**
+ * The problem code (409) of a revocation asked for without confirming that the device last
+ * reported entries waiting (`confirmEntriesWaiting`): the screen warns with the count first.
+ */
+export const ENTRIES_WAITING_CODE = "entries_waiting";
+
+/** The hand-over headers of a care entry upload, as the OpenAPI document describes them. */
+export const HandoverHeaders = z.object({
+  [HANDOVER_OWNER_HEADER]: uuid.optional().meta({
+    description:
+      "A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner.",
+  }),
+  [HANDOVER_ID_HEADER]: uuid.optional().meta({
+    description: "A hand-over of held entries: its id, made on the device, one owner per id.",
+  }),
+});
+
 /** Why a manager revoked a device: a code, never words. */
 export const DEVICE_REVOCATION_REASONS = [
   "lost_or_stolen",
@@ -45,6 +73,8 @@ export const DeviceBindingItem = z
     revokedAt: isoDateTime.nullable(),
     revokedBy: uuid.nullable(),
     revocationReason: z.enum(DEVICE_REVOCATION_REASONS).nullable(),
+    /** Entries the device last reported waiting (held, unsent or blocked); 0 when none. */
+    entriesWaiting: z.number().int().min(0),
   })
   .meta({
     id: "DeviceBindingItem",
@@ -58,7 +88,14 @@ export const DeviceBindingList = z
 export type DeviceBindingList = z.infer<typeof DeviceBindingList>;
 
 export const RevokeDevice = z
-  .object({ reasonCode: z.enum(DEVICE_REVOCATION_REASONS) })
+  .object({
+    reasonCode: z.enum(DEVICE_REVOCATION_REASONS),
+    /**
+     * True once the manager has been told how many entries the device last reported waiting; a
+     * revocation of a device with entries waiting is refused (409 `entries_waiting`) without it.
+     */
+    confirmEntriesWaiting: z.boolean().optional(),
+  })
   .strict()
   .meta({ id: "RevokeDevice" });
 export type RevokeDevice = z.infer<typeof RevokeDevice>;
@@ -71,6 +108,8 @@ export const RevokeDeviceResult = z
     replay: z.boolean(),
     /** How many members' bindings the revocation covers. */
     bindings: z.number().int().min(0),
+    /** Entries the device last reported waiting; its hold's task is due at once when any are. */
+    entriesWaiting: z.number().int().min(0),
   })
   .meta({ id: "RevokeDeviceResult" });
 export type RevokeDeviceResult = z.infer<typeof RevokeDeviceResult>;
@@ -84,26 +123,53 @@ export const REFUSED_ENTRY_TABLES = [
   "visit_log",
 ] as const;
 
+const refusedCopy = {
+  /** The entry's own id, made on the device: one copy each. */
+  entryId: uuid,
+  personId: uuid.nullable(),
+  /** The refusal's HTTP status; null when the device refused it before sending. */
+  httpStatus: z.number().int().min(100).max(599).nullable(),
+  code: z.string().regex(/^[a-z0-9_]{1,80}$/),
+  message: z.string().max(500).nullable(),
+  refusedAt: isoDateTime,
+};
+
 /**
  * A care entry the API refused from a device, sent so the server keeps a copy and the nurse in
  * charge reviews it (care.md section 6, Device integrity part 5; HZ-006). The content is the
- * entry's columns as the device held them.
+ * request the device made for the entry, checked against that entry kind's own contract (#25
+ * review round 2, M2); its `id`, if present, must be the entry's.
  */
 export const SyncRefusedEntry = z
-  .object({
-    /** The entry's own id, made on the device: one copy each. */
-    entryId: uuid,
-    table: z.enum(REFUSED_ENTRY_TABLES),
-    personId: uuid.nullable(),
-    /** The entry's columns as the device held them; `id` and `person_id`, if present, must match. */
-    payload: z.record(z.string(), z.unknown()),
-    /** The refusal's HTTP status; null when the device refused it before sending. */
-    httpStatus: z.number().int().min(100).max(599).nullable(),
-    code: z.string().regex(/^[a-z0-9_]{1,80}$/),
-    message: z.string().max(500).nullable(),
-    refusedAt: isoDateTime,
-  })
-  .strict()
+  .discriminatedUnion("table", [
+    z
+      .object({ ...refusedCopy, table: z.literal("care_note"), payload: CreateCareNote.strict() })
+      .strict(),
+    z
+      .object({
+        ...refusedCopy,
+        table: z.literal("observation"),
+        payload: CreateObservation.strict(),
+      })
+      .strict(),
+    z
+      .object({
+        ...refusedCopy,
+        table: z.literal("body_map_mark"),
+        payload: CreateBodyMapMark.strict(),
+      })
+      .strict(),
+    z
+      .object({
+        ...refusedCopy,
+        table: z.literal("activity_record"),
+        payload: CreateActivityRecord.strict(),
+      })
+      .strict(),
+    z
+      .object({ ...refusedCopy, table: z.literal("visit_log"), payload: CreateVisit.strict() })
+      .strict(),
+  ])
   .meta({ id: "SyncRefusedEntry" });
 export type SyncRefusedEntry = z.infer<typeof SyncRefusedEntry>;
 
@@ -146,6 +212,10 @@ export const RefusedEntryItem = z
 export type RefusedEntryItem = z.infer<typeof RefusedEntryItem>;
 
 export const RefusedEntryList = z
-  .object({ items: z.array(RefusedEntryItem) })
+  .object({
+    items: z.array(RefusedEntryItem),
+    /** Pass as `before` for the next page; null on the last. */
+    nextBefore: uuid.nullable(),
+  })
   .meta({ id: "RefusedEntryList" });
 export type RefusedEntryList = z.infer<typeof RefusedEntryList>;

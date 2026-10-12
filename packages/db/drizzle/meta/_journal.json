@@ -288,6 +288,20 @@
       "when": 1791786063646,
       "tag": "0040_request_quota_security",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1791788876602,
+      "tag": "0041_handover_and_device_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1791788882229,
+      "tag": "0042_handover_and_device_sessions_security",
+      "breakpoints": true
     }
   ]
 }

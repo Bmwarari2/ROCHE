@@ -165,7 +165,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         const deviceId = access.deviceId;
         if (deviceId) {
           await inSystemView(c.get("services").db, access, (tx) =>
-            bindDevice(tx, deviceId, access.tenantUserId, new Date()),
+            bindDevice(tx, deviceId, access.tenantUserId, new Date(), access.session.sessionId),
           );
         }
         const { token, expiresAt } = await signer.sign(claims);
