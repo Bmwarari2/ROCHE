@@ -8,13 +8,17 @@ import {
 } from "./write-scope";
 
 /**
- * Hazard HZ-073 (ADR-0071 review round 2, C2-M3): the phone offers recording only where the
- * user's care.note.write reaches, as the sync token says, so a coordinator who may read people at
- * their home is never offered to record what the server would refuse with no copy kept.
+ * Hazard HZ-073 (ADR-0071 review rounds 2 and 3, C2-M3 and C3-M2): the phone offers recording
+ * only where the user's care.note.write reaches, as the sync token says, so a coordinator who may
+ * read people at their home is never offered to record what the server would refuse with no copy
+ * kept, and a coordinator who is also a care worker records about the clients assigned to them.
  */
 
 const NORTH = "loc-north";
 const SOUTH = "loc-south";
+const ADA = "person-ada";
+const BEN = "person-ben";
+const CARA = "person-cara";
 
 const token = (claims: Record<string, unknown>) =>
   [
@@ -23,17 +27,22 @@ const token = (claims: Record<string, unknown>) =>
     "signature",
   ].join(".");
 
-describe("hazard HZ-073 where the phone may record (review round 2, C2-M3)", () => {
-  it("reads the write claims from the sync token", () => {
+describe("hazard HZ-073 where the phone may record (review rounds 2 and 3, C2-M3 and C3-M2)", () => {
+  it("reads the write claims from the sync token, with the assigned people", () => {
     expect(
       writeScopeFromToken(
         token({
           people_location_ids: [NORTH],
           entries_write_location_ids: [NORTH],
-          entries_write_assigned: false,
+          entries_write_assigned: true,
+          entries_write_person_ids: [ADA],
         }),
       ),
-    ).toEqual({ locationIds: [NORTH], assigned: false, peopleLocationIds: [NORTH] });
+    ).toEqual({ locationIds: [NORTH], assigned: true, personIds: [ADA] });
+    // A token that does not name the people.
+    expect(
+      writeScopeFromToken(token({ entries_write_location_ids: [], entries_write_assigned: true })),
+    ).toEqual({ locationIds: [], assigned: true, personIds: null });
   });
 
   it("reads nothing from a token without write claims or one it cannot read", () => {
@@ -42,35 +51,58 @@ describe("hazard HZ-073 where the phone may record (review round 2, C2-M3)", () 
     expect(writeScopeFromToken("a.%%%.b")).toBeNull();
   });
 
-  const coordinator: WriteScope = { locationIds: [], assigned: false, peopleLocationIds: [NORTH] };
-  const carer: WriteScope = { locationIds: [], assigned: true, peopleLocationIds: [] };
-  const nurse: WriteScope = { locationIds: [NORTH], assigned: false, peopleLocationIds: [NORTH] };
-  const coordinatorAndCarer: WriteScope = {
-    locationIds: [],
-    assigned: true,
-    peopleLocationIds: [NORTH],
-  };
+  const coordinator: WriteScope = { locationIds: [], assigned: false, personIds: null };
+  const carer: WriteScope = { locationIds: [], assigned: true, personIds: [ADA] };
+  const nurse: WriteScope = { locationIds: [NORTH], assigned: false, personIds: null };
+  // Reads everyone at North as a coordinator; records about Ada, assigned to them, as a carer.
+  const coordinatorAndCarer: WriteScope = { locationIds: [], assigned: true, personIds: [ADA] };
+  const unnamed: WriteScope = { locationIds: [], assigned: true, personIds: null };
+  const ada = { id: ADA, locationId: NORTH };
+  const ben = { id: BEN, locationId: NORTH };
+  const cara = { id: CARA, locationId: SOUTH };
 
   it.each([
-    ["a coordinator, at their home", coordinator, NORTH, false],
-    ["a care worker, about someone they are assigned to", carer, NORTH, true],
-    ["a nurse, at their home", nurse, NORTH, true],
-    ["a nurse, about someone elsewhere", nurse, SOUTH, false],
+    ["a coordinator, at their home", coordinator, ben, false],
+    ["a care worker, about someone they are assigned to", carer, ada, true],
+    ["a care worker, about someone they are not assigned to", carer, ben, false],
+    ["a nurse, at their home", nurse, ben, true],
+    ["a nurse, about someone elsewhere", nurse, cara, false],
+    // The server takes it: the care worker role reaches the people assigned to them (C3-M2).
     [
-      "a coordinator who is also a carer, about an assigned person elsewhere",
+      "a coordinator who is also a carer, about an assigned client at the home they read",
       coordinatorAndCarer,
-      SOUTH,
+      ada,
       true,
     ],
-    // Synced through their home, where the user may only read: shown read only (fails closed).
-    ["a coordinator who is also a carer, at the home they read", coordinatorAndCarer, NORTH, false],
-    ["anyone, before any token has been seen", null, NORTH, true],
-  ] as const)("%s: %s", (_name, scope, locationId, expected) => {
-    expect(mayRecordFor(locationId, scope)).toBe(expected);
+    [
+      "a coordinator who is also a carer, about someone else at the home they read",
+      coordinatorAndCarer,
+      ben,
+      false,
+    ],
+    // The token did not name the people: the server decides.
+    ["a carer whose token did not name the people", unnamed, ben, true],
+  ] as const)("%s", (_name, scope, person, expected) => {
+    expect(mayRecordFor(person, scope)).toBe(expected);
   });
 
-  it("keeps the scope across a restart", () => {
+  it.each([
+    ["no permissions known yet", null, true],
+    ["permissions that include care.note.write", ["care.note.read", "care.note.write"], true],
+    // A coordinator signing in on a phone that has seen no token yet (round 3, low).
+    ["permissions without care.note.write", ["people.person.read", "care.plan.read"], false],
+  ] as const)("before any token, with %s", (_name, permissions, expected) => {
+    expect(mayRecordFor(ada, null, permissions)).toBe(expected);
+  });
+
+  it("keeps the scope across a restart, and reads one stored before the people were named", () => {
+    expect(parseStoredWriteScope(serialiseWriteScope(carer))).toEqual(carer);
     expect(parseStoredWriteScope(serialiseWriteScope(nurse))).toEqual(nurse);
+    expect(
+      parseStoredWriteScope(
+        JSON.stringify({ locationIds: [NORTH], assigned: true, peopleLocationIds: [NORTH] }),
+      ),
+    ).toEqual({ locationIds: [NORTH], assigned: true, personIds: null });
     expect(parseStoredWriteScope("{}")).toBeNull();
     expect(parseStoredWriteScope("not json")).toBeNull();
     expect(parseStoredWriteScope(null)).toBeNull();

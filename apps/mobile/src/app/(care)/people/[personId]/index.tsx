@@ -3,6 +3,7 @@ import { useQuery } from "@powersync/react";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useMemo } from "react";
 import { FlatList, View } from "react-native";
+import { useSession } from "../../../../app-state/session";
 import { useVault } from "../../../../app-state/vault";
 import type { EntryItem } from "../../../../care/entry-view";
 import { recentEntries } from "../../../../care/entry-view";
@@ -47,9 +48,13 @@ export default function PersonScreen() {
   const tenantId = useTenantId();
   const { person } = useCarePerson(id);
   // Recording is offered only where the user's care.note.write reaches the person, as the sync
-  // token says; the API decides either way (review round 2, C2-M3).
+  // token says, per person for those assigned to them; the API decides either way (review rounds
+  // 2 and 3, C2-M3 and C3-M2).
   const writeScope = useWriteScope();
-  const mayRecord = person ? mayRecordFor(person.locationId, writeScope) : false;
+  const { me } = useSession();
+  const mayRecord = person
+    ? mayRecordFor({ id, locationId: person.locationId }, writeScope, me?.permissions ?? null)
+    : false;
 
   const params = useMemo(() => [tenantId, id], [tenantId, id]);
   const allergyParams = useMemo(() => personAllergiesParams(tenantId, id), [tenantId, id]);

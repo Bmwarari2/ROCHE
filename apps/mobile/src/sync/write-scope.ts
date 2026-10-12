@@ -1,25 +1,32 @@
 /**
- * Where this phone may record (ADR-0071 review round 2, C2-M3). The sync token carries where the
- * user's care.note.write reaches: `entries_write_location_ids` (homes where they may record about
- * everyone) and `entries_write_assigned` (they may record about the people they are assigned to),
- * with `people_location_ids`, the homes whose people sync in full. A coordinator's phone holds
+ * Where this phone may record (ADR-0071 review rounds 2 and 3, C2-M3 and C3-M2). The sync token
+ * carries where the user's care.note.write reaches: `entries_write_location_ids` (homes where they
+ * may record about everyone), `entries_write_assigned` (they may record about the people they are
+ * assigned to) and `entries_write_person_ids` (those people, by id). A coordinator's phone holds
  * people it may read but not record on; the person screen offers recording only where the server
  * would take it, so nothing is written that would be refused with no copy kept.
  *
- * The phone cannot tell an assigned person from one synced through their home, so a person is
- * taken as assigned only when their home is not one that syncs in full: one who is both assigned
- * and at a home where the user may only read is shown as read only (fails closed); the API decides
- * either way. Before any token has been seen (an app updated while offline), nothing is known and
- * recording is offered as before.
+ * A coordinator who is also a care worker records about the people assigned to them wherever
+ * they live, even at a home whose people sync to the phone for reading only: the phone decides
+ * per person from the ids. A token that does not name the people (more than it carries, or one
+ * from before) leaves the phone offering recording to anyone who may record about assigned
+ * people; the server decides, and keeps a copy of an entry about an assigned person.
+ *
+ * Before any token has been seen (an app updated while offline), recording is offered only when
+ * the user's permissions, as last read, include care.note.write; with no permissions known, as
+ * before.
  */
+
+/** The permission recording needs (notes, charts, body map marks). */
+export const RECORD_PERMISSION = "care.note.write";
 
 export interface WriteScope {
   /** Homes where the user may record about everyone. */
   readonly locationIds: readonly string[];
   /** Whether the user may record about the people they are assigned to. */
   readonly assigned: boolean;
-  /** Homes whose people sync to the phone in full. */
-  readonly peopleLocationIds: readonly string[];
+  /** The people the user is assigned to, or null when the token did not name them. */
+  readonly personIds: readonly string[] | null;
 }
 
 const BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -70,21 +77,24 @@ export function writeScopeFromToken(token: string): WriteScope | null {
   if (typeof claims !== "object" || claims === null) return null;
   const record = claims as Record<string, unknown>;
   const locationIds = strings(record.entries_write_location_ids);
-  const peopleLocationIds = strings(record.people_location_ids);
   if (locationIds === null || typeof record.entries_write_assigned !== "boolean") return null;
   return {
     locationIds,
     assigned: record.entries_write_assigned,
-    peopleLocationIds: peopleLocationIds ?? [],
+    personIds: strings(record.entries_write_person_ids),
   };
 }
 
-/** Whether the phone offers recording about a person at `locationId` (see the module comment). */
-export function mayRecordFor(locationId: string | null, scope: WriteScope | null): boolean {
-  if (scope === null) return true;
-  if (locationId !== null && scope.locationIds.includes(locationId)) return true;
+/** Whether the phone offers recording about a person (see the module comment). */
+export function mayRecordFor(
+  person: { readonly id: string; readonly locationId: string | null },
+  scope: WriteScope | null,
+  permissions: readonly string[] | null = null,
+): boolean {
+  if (scope === null) return permissions === null || permissions.includes(RECORD_PERMISSION);
+  if (person.locationId !== null && scope.locationIds.includes(person.locationId)) return true;
   if (!scope.assigned) return false;
-  return locationId === null || !scope.peopleLocationIds.includes(locationId);
+  return scope.personIds === null || scope.personIds.includes(person.id);
 }
 
 /** Stored form of the scope (plain JSON), so it is known again after a restart while offline. */
@@ -97,11 +107,8 @@ export function parseStoredWriteScope(text: string | null): WriteScope | null {
   try {
     const value = JSON.parse(text) as Record<string, unknown>;
     const locationIds = strings(value.locationIds);
-    const peopleLocationIds = strings(value.peopleLocationIds);
-    if (locationIds === null || peopleLocationIds === null || typeof value.assigned !== "boolean") {
-      return null;
-    }
-    return { locationIds, assigned: value.assigned, peopleLocationIds };
+    if (locationIds === null || typeof value.assigned !== "boolean") return null;
+    return { locationIds, assigned: value.assigned, personIds: strings(value.personIds) };
   } catch {
     return null;
   }

@@ -12,6 +12,7 @@ import {
   deviceDiscardRecord,
   discardReason,
   location,
+  personAssignment,
   tenantUser,
 } from "@harbour/db";
 import {
@@ -27,7 +28,7 @@ import {
   offlineWindowDays,
 } from "@harbour/sync/streams";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { auditInTx } from "../http/audit";
 import { requirePermission, withTenant } from "../http/context";
 import { problems } from "../http/problem";
@@ -86,6 +87,13 @@ export const SYNCED_READS = {
 } as const satisfies Record<string, readonly Permission[]>;
 
 type SyncFamily = keyof typeof SYNCED_READS;
+
+/**
+ * At most this many assigned people are named in the token's `entries_write_person_ids`, so the
+ * token stays small; beyond it the claim is left out and the phone lets the server decide (review
+ * round 3, C3-M2). A care worker is assigned to a handful of people.
+ */
+export const MAX_WRITE_PERSON_IDS = 100;
 
 /**
  * Where one family syncs for a member: the locations whose people it carries in full, and whether
@@ -152,7 +160,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         tags: ["sync"],
         summary: "A short-lived token for the PowerSync service, scoped to tenant and assignments",
         description:
-          "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids and entries_location_ids with people_assigned, care_assigned and entries_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read and care.note.read), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write), and offline_days (the offline window from the rate table, never from the device). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.",
+          "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids and entries_location_ids with people_assigned, care_assigned and entries_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read and care.note.read), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), and offline_days (the offline window from the rate table, never from the device). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.",
         security,
         responses: { 200: jsonBody(SyncToken, "Token"), ...errorResponses },
       }),
@@ -209,6 +217,29 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             },
             requestId: c.get("requestId"),
           });
+          // The people the member is assigned to now (their own rows), named only when a role
+          // scoped to assigned people carries care.note.write, so the phone decides per person
+          // (review round 3, C3-M2); left out beyond MAX_WRITE_PERSON_IDS.
+          const now = new Date();
+          const assignedNow = recording.assigned
+            ? await tx
+                .selectDistinct({ personId: personAssignment.personId })
+                .from(personAssignment)
+                .where(
+                  and(
+                    eq(personAssignment.tenantUserId, access.tenantUserId),
+                    isNull(personAssignment.deletedAt),
+                    lte(personAssignment.validFrom, now),
+                    or(isNull(personAssignment.validTo), gt(personAssignment.validTo, now)),
+                  ),
+                )
+                .orderBy(personAssignment.personId)
+                .limit(MAX_WRITE_PERSON_IDS + 1)
+            : [];
+          const writePersonIds =
+            recording.assigned && assignedNow.length <= MAX_WRITE_PERSON_IDS
+              ? assignedNow.map((a) => a.personId)
+              : null;
           return {
             sub: access.tenantUserId,
             tenant_id: access.tenantId,
@@ -221,6 +252,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             entries_assigned: entries.assigned,
             entries_write_location_ids: recording.locationIds,
             entries_write_assigned: recording.assigned,
+            ...(writePersonIds ? { entries_write_person_ids: writePersonIds } : {}),
             offline_days: offlineDays,
           };
         });

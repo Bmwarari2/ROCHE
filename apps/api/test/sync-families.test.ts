@@ -99,6 +99,9 @@ const cases: ReadonlyArray<{
     write: { locationIds: [NORTH], assigned: true },
   },
   {
+    // Reads everyone at the home as a coordinator; records about the clients assigned to them as a
+    // carer, which the token names (`entries_write_person_ids`), so the phone offers recording for
+    // them although their home syncs in full for reading (review round 3, C3-M2).
     name: "coordinator who also works as a carer",
     roles: ["care_coordinator", "care_worker"],
     people: { locationIds: [NORTH], assigned: true },

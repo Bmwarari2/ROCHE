@@ -208,8 +208,10 @@ export function SessionProvider({ children }: { readonly children: ReactNode }) 
 
   const holdSession = useCallback(async (next: HeldWork, message?: string) => {
     await writePlain(HELD_WORK_ITEM, serialiseHeldWork(next));
-    // The mode is kept so the owner goes straight back to Care mode after signing in again.
-    await Promise.all([deletePlain(SESSION_TOKEN_ITEM), deletePlain(ME_ITEM)]);
+    // The mode is kept so the owner goes straight back to Care mode after signing in again; where
+    // the ended session might record is not, so the next person never inherits it (review
+    // round 3).
+    await Promise.all([deletePlain(SESSION_TOKEN_ITEM), deletePlain(ME_ITEM), clearWriteScope()]);
     setHeld(next);
     setToken(null);
     setMe(null);

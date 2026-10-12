@@ -44,6 +44,14 @@ export interface SyncTokenClaims {
   readonly entries_write_location_ids: readonly string[];
   readonly entries_write_assigned: boolean;
   /**
+   * The people the user is assigned to now, when `entries_write_assigned` is true, so the phone
+   * decides per person where a home syncs in full for reading but the user records only about
+   * the people assigned to them (review round 3, C3-M2). Absent when there are more than
+   * `MAX_WRITE_PERSON_IDS` (the token stays small); the phone then offers recording and the
+   * server decides.
+   */
+  readonly entries_write_person_ids?: readonly string[];
+  /**
    * UTC days of the offline window (`offlineWindowDays` in ../client/window.ts), from the tenant's
    * `mobile.offline_window_days` in the rate table. Without it no point-of-care entries sync.
    */
