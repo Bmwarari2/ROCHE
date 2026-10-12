@@ -186,6 +186,23 @@ export interface PlanActionDraft {
   readonly generatesTasks: boolean;
   readonly recurrence: Recurrence | null;
   readonly roleKey: string | null;
+  /** The need domain of the action's section, where known. */
+  readonly domain?: PcspDomain;
+}
+
+/**
+ * Need domains whose actions never generate tasks (care.md rule 14). Medicines rounds come from
+ * the medicines record (the eMAR, Phase 2), never from the care plan, so a care plan task can never
+ * be ticked off as if it were a dose (HZ-003, HZ-004). The CSO confirms the rule (H-151).
+ */
+export const DOMAINS_WITHOUT_PLAN_TASKS: readonly PcspDomain[] = ["medicines"];
+
+export const MEDICINES_ACTION_MESSAGE =
+  "Medicines rounds come from the medicines record, so a medicines action cannot generate tasks. Describe the support here and leave the rounds to the MAR.";
+
+/** Whether an action in this need domain may generate tasks. */
+export function planActionGeneratesTasks(domain: PcspDomain): boolean {
+  return !DOMAINS_WITHOUT_PLAN_TASKS.includes(domain);
 }
 
 export interface PlanSectionDraft {
@@ -215,14 +232,22 @@ const filled = (value: string | null | undefined) => (value?.trim().length ?? 0)
 
 export type ActionCheck =
   | { readonly ok: true }
-  | { readonly ok: false; readonly field: "recurrence" | "role"; readonly message: string };
+  | {
+      readonly ok: false;
+      readonly field: "recurrence" | "role" | "generatesTasks";
+      readonly message: string;
+    };
 
 /**
- * An action that generates tasks (slice 5 turns it into a task series) needs a valid schedule in
- * the location's time zone and the role that carries it out. Other actions are done as needed.
+ * An action that generates tasks (a task series, care.md rule 14) needs a valid schedule in the
+ * location's time zone and the role that carries it out, and never sits in a domain without plan
+ * tasks (medicines). Other actions are done as needed.
  */
 export function checkPlanAction(action: PlanActionDraft, startsOn: string): ActionCheck {
   if (!action.generatesTasks) return { ok: true };
+  if (action.domain && !planActionGeneratesTasks(action.domain)) {
+    return { ok: false, field: "generatesTasks", message: MEDICINES_ACTION_MESSAGE };
+  }
   if (action.recurrence === null) {
     return { ok: false, field: "recurrence", message: "Say when the action happens." };
   }
@@ -268,7 +293,7 @@ export function checkPublication(plan: {
       });
     }
     for (const action of section.actions) {
-      const check = checkPlanAction(action, "2000-01-01");
+      const check = checkPlanAction({ ...action, domain: section.domain }, "2000-01-01");
       if (!check.ok) {
         issues.push({
           problem: "action_incomplete",

@@ -2,20 +2,31 @@ import { describe, expect, it } from "vitest";
 import { readRateTable } from "../../test/rate-table";
 import { resolveRate } from "../platform/rates";
 import {
+  type AlertNotification,
   acknowledgementState,
+  alertConditions,
+  checkHandoverAcknowledgement,
   checkHandoverKeepsItems,
+  checkHandoverNote,
   compileHandover,
+  HANDOVER_NOTIFICATION_KIND,
   HANDOVER_RATE_KEYS,
+  type HandoverItem,
   type HandoverSources,
   type HandoverTaskSource,
+  handoverOpen,
   lateAdditionRecipients,
+  lateAdditionSeverity,
+  MAX_HANDOVER_NOTE_LENGTH,
   MUST_FOLLOW_UP_TASK_KINDS,
   nextShift,
   observationIsRefusal,
+  previousShift,
   refreshHandover,
   ShiftPatternError,
   shiftAt,
   twoShiftPattern,
+  viewerAcknowledgement,
 } from "./handover";
 
 const PATTERN = twoShiftPattern(8 * 60, 20 * 60);
@@ -483,5 +494,228 @@ describe("hazard HZ-018 items synced after compilation are appended as late addi
       to: "nurse_in_charge",
       recipients: ["nic"],
     });
+  });
+});
+
+describe("hazard HZ-018 the shift a handover compiles at the end of", () => {
+  it.each([
+    [
+      "the day shift's handover from the night",
+      "2026-10-11T10:00:00Z",
+      "night",
+      "2026-10-10T19:00:00.000Z",
+    ],
+    [
+      "the night's handover from the day",
+      "2026-10-11T22:00:00Z",
+      "day",
+      "2026-10-11T07:00:00.000Z",
+    ],
+    // The night of 24 to 25 October 2026 is 13 hours long; the day after it starts at 08:00 GMT.
+    [
+      "the 13-hour night when the clocks go back",
+      "2026-10-25T09:00:00Z",
+      "night",
+      "2026-10-24T19:00:00.000Z",
+    ],
+  ])("%s", (_label, at, name, start) => {
+    const before = previousShift(shiftAt(t(at), PATTERN), PATTERN);
+    expect([before.name, before.start.toISOString()]).toEqual([name, start]);
+    expect(before.end.getTime()).toBe(shiftAt(t(at), PATTERN).start.getTime());
+  });
+
+  it.each([
+    ["while the shift runs", "2026-10-11T18:59:00Z", null, true],
+    ["once the shift has ended", "2026-10-11T19:00:00Z", null, false],
+    ["once it is locked, even early", "2026-10-11T18:00:00Z", "2026-10-11T17:59:00Z", false],
+  ])("is open for notes %s", (_label, now, lockedAt, open) => {
+    expect(handoverOpen(shift, lockedAt ? t(lockedAt) : null, t(now))).toBe(open);
+  });
+});
+
+describe("hazard HZ-018 an urgent alert is one item however many people it reached", () => {
+  const n = (
+    id: string,
+    extra: Omit<Partial<AlertNotification>, "createdAt"> & { createdAt: string },
+  ): AlertNotification => ({
+    id,
+    kind: "care.urgent_result",
+    severity: "urgent",
+    sourceType: "observation",
+    sourceId: "o-high",
+    personId: "p1",
+    acknowledgedAt: null,
+    ...extra,
+    createdAt: t(extra.createdAt),
+  });
+
+  it("groups each recipient's copy, keeps the first, and counts it acknowledged once anyone has", () => {
+    const alerts = alertConditions([
+      n("n-nurse", {
+        createdAt: "2026-10-11T09:02:00Z",
+        acknowledgedAt: t("2026-10-11T09:20:00Z"),
+      }),
+      n("n-lead", { createdAt: "2026-10-11T09:02:00Z", acknowledgedAt: t("2026-10-11T09:10:00Z") }),
+      n("n-manager", { createdAt: "2026-10-11T09:03:00Z" }),
+      n("n-other", { createdAt: "2026-10-11T09:05:00Z", sourceId: "o-other", personId: "p2" }),
+    ]);
+    expect(alerts).toEqual([
+      {
+        id: "n-lead",
+        personId: "p1",
+        severity: "urgent",
+        createdAt: t("2026-10-11T09:02:00Z"),
+        acknowledgedAt: t("2026-10-11T09:10:00Z"),
+      },
+      {
+        id: "n-other",
+        personId: "p2",
+        severity: "urgent",
+        createdAt: t("2026-10-11T09:05:00Z"),
+        acknowledgedAt: null,
+      },
+    ]);
+  });
+
+  it("leaves out escalation copies and the handover's own notices, so it never lists itself", () => {
+    expect(
+      alertConditions([
+        n("escalated", {
+          createdAt: "2026-10-11T09:12:00Z",
+          sourceType: "notification",
+          sourceId: "n-1",
+        }),
+        n("handover", { createdAt: "2026-10-11T09:12:00Z", kind: HANDOVER_NOTIFICATION_KIND }),
+      ]),
+    ).toEqual([]);
+  });
+
+  it("keeps an alert with no source as its own condition", () => {
+    const alerts = alertConditions([
+      n("a", { createdAt: "2026-10-11T09:00:00Z", sourceType: null, sourceId: null }),
+      n("b", { createdAt: "2026-10-11T09:00:00Z", sourceType: null, sourceId: null }),
+    ]);
+    expect(alerts.map((a) => a.id)).toEqual(["a", "b"]);
+  });
+});
+
+describe("hazard HZ-018 each member of staff acknowledges the items they can see", () => {
+  const first = compileHandover(
+    shift,
+    { ...empty, bodyMapMarks: sources.bodyMapMarks },
+    compiledAt,
+  );
+  const later = t("2026-10-11T20:15:00Z");
+  const { items, added } = refreshHandover(first, shift, sources, later);
+  const assigned = new Set(["p3"]);
+  const visible = (i: HandoverItem) => i.personId === null || assigned.has(i.personId);
+
+  it("shows everything visible to someone who has not acknowledged", () => {
+    const state = viewerAcknowledgement(items, visible, [], "carer");
+    expect(state.acknowledged).toBe(false);
+    expect(state.itemsSeen).toBeNull();
+    expect(state.unseen).toEqual(items.filter(visible));
+  });
+
+  it("asks again only for late additions they can see", () => {
+    const acks = [
+      { tenantUserId: "carer", at: t("2026-10-11T19:05:00Z"), itemsSeen: first.length },
+    ];
+    const state = viewerAcknowledgement(items, visible, acks, "carer");
+    expect(state.unseen).toEqual(added.filter(visible));
+    expect(state.unseen.length).toBeGreaterThan(0);
+    expect(state.acknowledged).toBe(false);
+    // Late additions only about other people do not make them pending again.
+    const onlyOthers = viewerAcknowledgement(
+      items,
+      (i) => i.personId === "p3" && !i.lateAddition,
+      acks,
+      "carer",
+    );
+    expect(onlyOthers).toMatchObject({ acknowledged: true, unseen: [] });
+  });
+
+  it("counts the highest acknowledgement, never another person's", () => {
+    const state = viewerAcknowledgement(
+      items,
+      visible,
+      [
+        { tenantUserId: "carer", at: t("2026-10-11T19:05:00Z"), itemsSeen: items.length },
+        { tenantUserId: "carer", at: t("2026-10-11T19:06:00Z"), itemsSeen: 1 },
+        { tenantUserId: "nurse", at: t("2026-10-11T19:06:00Z"), itemsSeen: 0 },
+      ],
+      "carer",
+    );
+    expect(state).toMatchObject({ acknowledged: true, itemsSeen: items.length, unseen: [] });
+    expect(viewerAcknowledgement(items, visible, [], "nurse").acknowledged).toBe(false);
+  });
+
+  it.each([
+    [0, 0, true],
+    [3, 5, true],
+    [5, 5, true],
+    [6, 5, false],
+  ])("accepts an acknowledgement of %i items when the handover holds %i: %s", (seen, count, ok) => {
+    expect(checkHandoverAcknowledgement(seen, count).ok).toBe(ok);
+  });
+});
+
+describe("hazard HZ-018 notes add to a handover; they never replace an item", () => {
+  const keys = ["fall:incident:i-1:p1", "news2:observation:o-1:p2"];
+  it.each([
+    ["a general note while open", { open: true, body: "Lift out of order.", itemKey: null }, null],
+    ["a note on an item", { open: true, body: "GP called back.", itemKey: keys[0] ?? null }, null],
+    [
+      "a blank note",
+      { open: true, body: "   ", itemKey: null },
+      "Write the note before saving it.",
+    ],
+    [
+      "a note on an item the handover does not have",
+      { open: true, body: "Seen.", itemKey: "fall:incident:other:p9" },
+      "That item is not on this handover.",
+    ],
+    [
+      "a note once the handover has closed",
+      { open: false, body: "Seen.", itemKey: null },
+      "This handover has closed. Record anything new on the person's record, where the next handover finds it.",
+    ],
+  ])("%s", (_label, input, message) => {
+    const check = checkHandoverNote({ ...input, itemKeys: keys });
+    expect(check.ok ? null : check.message).toBe(message);
+  });
+
+  it("refuses a note longer than the limit", () => {
+    const check = checkHandoverNote({
+      open: true,
+      body: "a".repeat(MAX_HANDOVER_NOTE_LENGTH + 1),
+      itemKey: null,
+      itemKeys: keys,
+    });
+    expect(check.ok).toBe(false);
+  });
+});
+
+describe("hazard HZ-008 a late addition interrupts only for what cannot wait", () => {
+  const item = (kind: HandoverItem["kind"]): HandoverItem => ({
+    key: `${kind}:x`,
+    kind,
+    personId: "p1",
+    sourceType: "task",
+    sourceId: "x",
+    at: compiledAt,
+    lateAddition: true,
+    addedAt: compiledAt,
+  });
+  it.each([
+    [[], null],
+    [["refusal", "overdue_task"], "warning"],
+    [["body_map_mark"], "warning"],
+    [["refusal", "fall"], "urgent"],
+    [["news2"], "urgent"],
+    [["incident"], "urgent"],
+    [["alert"], "urgent"],
+  ] as const)("added %j: %s", (kinds, severity) => {
+    expect(lateAdditionSeverity(kinds.map(item))).toBe(severity);
   });
 });

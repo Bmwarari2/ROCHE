@@ -462,3 +462,162 @@ export function acknowledgementState(
   const acknowledged = staff.filter((id) => !unseen.has(id));
   return { acknowledged, pending, complete: staff.length > 0 && pending.length === 0, unseen };
 }
+
+// ------------------------------------------------------------------------------------------------
+// Slice 5: the stored handover (care.md rule 8 as built in slice 5)
+// ------------------------------------------------------------------------------------------------
+
+/** The shift before this one: the handover compiled when this shift starts. */
+export function previousShift(shift: ShiftWindow, pattern: ShiftPattern): ShiftWindow {
+  return shiftAt(new Date(shift.start.getTime() - 1), pattern);
+}
+
+/**
+ * Whether the outgoing staff may still add notes: until the shift ends or the handover is locked,
+ * whichever comes first. Late additions and acknowledgements continue after that.
+ */
+export function handoverOpen(shift: ShiftWindow, lockedAt: Date | null, now: Date): boolean {
+  return lockedAt === null && now.getTime() < shift.end.getTime();
+}
+
+/** The notice that a handover has late additions; never itself an item of a handover. */
+export const HANDOVER_NOTIFICATION_KIND = "care.handover.updated";
+
+/** One notification row as stored: each recipient has their own copy. */
+export interface AlertNotification {
+  readonly id: string;
+  readonly kind: string;
+  readonly severity: Severity;
+  readonly sourceType: string | null;
+  readonly sourceId: string | null;
+  readonly personId: string | null;
+  readonly createdAt: Date;
+  readonly acknowledgedAt: Date | null;
+}
+
+/**
+ * The alerts a handover reads: one per condition (the same kind about the same record), however
+ * many people it reached (HZ-008), identified by its first copy so it keeps its key from one
+ * compilation to the next. It counts as acknowledged from the first time anyone acknowledged it.
+ * Escalation copies (re-sent to the next people in a chain) belong to the alert they escalate, and
+ * the handover's own notices are never an item of a handover.
+ */
+export function alertConditions(rows: readonly AlertNotification[]): HandoverAlertSource[] {
+  const groups = new Map<string, AlertNotification[]>();
+  for (const row of rows) {
+    if (row.sourceType === "notification" || row.kind === HANDOVER_NOTIFICATION_KIND) continue;
+    const key =
+      row.sourceType && row.sourceId
+        ? `${row.kind}:${row.sourceType}:${row.sourceId}`
+        : `own:${row.id}`;
+    groups.set(key, [...(groups.get(key) ?? []), row]);
+  }
+  const alerts: HandoverAlertSource[] = [];
+  for (const copies of groups.values()) {
+    const sorted = [...copies].sort(
+      (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id),
+    );
+    const first = sorted[0] as AlertNotification;
+    const acknowledged = copies
+      .map((c) => c.acknowledgedAt)
+      .filter((d): d is Date => d !== null)
+      .sort((a, b) => a.getTime() - b.getTime());
+    alerts.push({
+      id: first.id,
+      personId: copies.find((c) => c.personId !== null)?.personId ?? null,
+      severity: copies.some((c) => c.severity === "urgent") ? "urgent" : first.severity,
+      createdAt: first.createdAt,
+      acknowledgedAt: acknowledged[0] ?? null,
+    });
+  }
+  return alerts.sort(
+    (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id),
+  );
+}
+
+/**
+ * Where one member of staff stands with a handover, over the items they can see: items about
+ * people outside their scope are never shown to them (HZ-011), and late additions about those
+ * people do not ask them to acknowledge again. Their highest acknowledgement counts.
+ */
+export function viewerAcknowledgement(
+  items: readonly HandoverItem[],
+  isVisible: (item: HandoverItem) => boolean,
+  acknowledgements: readonly HandoverAcknowledgement[],
+  tenantUserId: string,
+): {
+  readonly acknowledged: boolean;
+  readonly itemsSeen: number | null;
+  readonly unseen: readonly HandoverItem[];
+} {
+  const own = acknowledgements.filter((a) => a.tenantUserId === tenantUserId);
+  const itemsSeen = own.length === 0 ? null : Math.max(...own.map((a) => a.itemsSeen));
+  const unseen = items.slice(itemsSeen ?? 0).filter(isVisible);
+  return { acknowledged: itemsSeen !== null && unseen.length === 0, itemsSeen, unseen };
+}
+
+export type HandoverCheck =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly message: string };
+
+/** An acknowledgement names how many items the person saw; never more than the handover holds. */
+export function checkHandoverAcknowledgement(itemsSeen: number, itemCount: number): HandoverCheck {
+  if (!Number.isInteger(itemsSeen) || itemsSeen < 0 || itemsSeen > itemCount) {
+    return {
+      ok: false,
+      message: "The handover has changed since you opened it. Open it again and acknowledge it.",
+    };
+  }
+  return { ok: true };
+}
+
+export const MAX_HANDOVER_NOTE_LENGTH = 2000;
+
+/**
+ * A note the outgoing staff add, on the handover or on one of its items, while it is open. Notes
+ * add to items; they never replace or remove one.
+ */
+export function checkHandoverNote(input: {
+  readonly open: boolean;
+  readonly body: string;
+  readonly itemKey: string | null;
+  readonly itemKeys: readonly string[];
+}): HandoverCheck {
+  if (!input.open) {
+    return {
+      ok: false,
+      message:
+        "This handover has closed. Record anything new on the person's record, where the next handover finds it.",
+    };
+  }
+  const body = input.body.trim();
+  if (body.length === 0) return { ok: false, message: "Write the note before saving it." };
+  if (body.length > MAX_HANDOVER_NOTE_LENGTH) {
+    return {
+      ok: false,
+      message: `Keep a note to ${MAX_HANDOVER_NOTE_LENGTH} characters, or add a second note.`,
+    };
+  }
+  if (input.itemKey !== null && !input.itemKeys.includes(input.itemKey)) {
+    return { ok: false, message: "That item is not on this handover." };
+  }
+  return { ok: true };
+}
+
+/** Item kinds whose late addition interrupts (push as well as in the app): they cannot wait. */
+export const URGENT_LATE_ADDITION_KINDS: readonly HandoverItemKind[] = [
+  "fall",
+  "news2",
+  "incident",
+  "alert",
+];
+
+/**
+ * How loudly a late addition is announced (HZ-008 tiering): urgent when it adds a fall, a raised
+ * NEWS2, an incident or an urgent alert; a warning in the app for anything else; nothing when
+ * nothing was added.
+ */
+export function lateAdditionSeverity(added: readonly HandoverItem[]): "urgent" | "warning" | null {
+  if (added.length === 0) return null;
+  return added.some((i) => URGENT_LATE_ADDITION_KINDS.includes(i.kind)) ? "urgent" : "warning";
+}
