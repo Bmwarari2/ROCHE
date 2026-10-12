@@ -114,6 +114,13 @@ import {
 import { resolveOfflineWindow } from "../sync/offline-window";
 import { flushRefusedCopies } from "../sync/refused-copies";
 import {
+  HandOverNotAllowedError,
+  type HandOverResult,
+  handOverHeldWork,
+  handOverMessage,
+  handOverRefusal,
+} from "./handover";
+import {
   admitToDatabase,
   canDiscardHeld,
   checkDiscardReason,
@@ -132,6 +139,7 @@ import {
   handleSessionEnded,
   heldEntriesInTenant,
   holdUnsentWork,
+  KeyNotReadError,
   locationIdsOf,
   RestoreFailedError,
   readHeldIds,
@@ -203,6 +211,15 @@ interface VaultValue {
    * The signer's session is ended afterwards.
    */
   discardHeld(choice: DiscardReason, signerToken: string): Promise<void>;
+  /**
+   * Hands over held entries from the sign-in screen (care.md section 6, Device integrity part 6):
+   * `signerToken` is a session just signed in for the purpose, by a manager (or, on a revoked
+   * device, the owner). Device authentication opens the held database; each entry goes to Harbour
+   * in its owner's name. When everything is on the server the device is wiped; otherwise the hold
+   * stays with its count brought up to date. The signer's session is ended afterwards. Returns what
+   * to tell the person.
+   */
+  handOverHeld(signerToken: string): Promise<string>;
   /** Removes one refused entry: device authentication, a coded reason, on record first (C1). */
   removeRefused(id: string, choice: DiscardReason): Promise<void>;
   dismissResetNotice(): void;
@@ -1048,6 +1065,83 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
     [closeKeepingData, session.held, session.blockHeld, session.clearHeld, session.clearSession],
   );
 
+  const handOverHeld = useCallback(
+    async (signerToken: string): Promise<string> => {
+      const held = session.held;
+      try {
+        if (!held) return "";
+        const signer = await authClient.getMe(signerToken);
+        const refusal = handOverRefusal(held, signer);
+        if (refusal) throw new HandOverNotAllowedError(refusal);
+        const deviceId = await readPlain(DEVICE_ID_ITEM);
+        if (!isOpaqueId(deviceId)) throw new HandOverNotAllowedError("unknown_owner");
+        // Reading the key shows the face or fingerprint prompt: the device authentication.
+        let key: DatabaseKey | null;
+        try {
+          key = await readDatabaseKey(secretStore, keyOptions);
+        } catch {
+          throw new KeyNotReadError();
+        }
+        if (!key) throw new KeyNotReadError();
+        if (key.protection === "passcode") await confirmIdentity();
+        await closeKeepingData();
+        const filename = databaseFilename(key.id, appEnv.demoMode);
+        const opened = await openDatabase({
+          filename,
+          encryptionKey: key.sqlcipherKey,
+          demo: appEnv.demoMode,
+        });
+        const options = {
+          ...(await apiFor(signerToken, held.tenantId)),
+          deviceId: deviceId.toLowerCase(),
+        };
+        let result: HandOverResult;
+        try {
+          // The hold's own report goes first, so the server sees what was held and for how long.
+          await flushPendingReport(tombstoneStore, options).catch(() => undefined);
+          result = await handOverHeldWork({
+            held,
+            db: opened as unknown as HoldDb,
+            api: options,
+            handoverId: Crypto.randomUUID(),
+            now: () => new Date(),
+          });
+          // What is left, from the device that held it: nothing waiting closes its task.
+          const report = await buildDeviceReport(opened as unknown as ReportDb, new Date()).catch(
+            () => null,
+          );
+          if (report) {
+            await sendDeviceReport(
+              options,
+              withOwner(report, held.tenantUserId, held.locationIds ?? []),
+            ).catch(() => false);
+          }
+        } finally {
+          await opened.close().catch(() => undefined);
+        }
+        const message = handOverMessage(result);
+        if (result.remaining === 0) {
+          // Everything is on the server (sent, or copied for review): the hold is over.
+          deleteDatabaseFile(filename);
+          await destroyDatabaseKey(secretStore, keyOptions);
+          await tombstoneStore.remove(PENDING_REPORT_ITEM).catch(() => undefined);
+          void cancelHeldNotifications();
+          clearPhotoCache();
+          setError(null);
+          await session.clearHeld();
+          await session.clearSession(message);
+        } else {
+          await session.blockHeld({ ...held, entries: result.remaining });
+        }
+        return message;
+      } finally {
+        // The signer signed in only to send; that session ends here.
+        void authClient.signOut(signerToken).catch(() => undefined);
+      }
+    },
+    [closeKeepingData, session.held, session.blockHeld, session.clearHeld, session.clearSession],
+  );
+
   const removeRefused = useCallback(
     async (id: string, choice: DiscardReason) => {
       const reasonCode = requireReason(choice, true);
@@ -1195,6 +1289,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       countUnsent,
       signOutDiscarding,
       discardHeld,
+      handOverHeld,
       removeRefused,
       dismissResetNotice,
     }),
@@ -1218,6 +1313,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       countUnsent,
       signOutDiscarding,
       discardHeld,
+      handOverHeld,
       removeRefused,
       dismissResetNotice,
     ],

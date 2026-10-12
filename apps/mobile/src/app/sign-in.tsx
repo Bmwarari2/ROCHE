@@ -34,8 +34,11 @@ type Step =
   | { readonly kind: "credentials" }
   | { readonly kind: "totp"; readonly challenge: TwoFactorChallenge };
 
-/** Signing in to use Harbour, or (with held entries) to delete them as their owner or a manager. */
-type Purpose = "signIn" | "discard";
+/**
+ * Signing in to use Harbour; or, with held entries, to delete them as their owner or a manager, or
+ * to send them in their owner's name as a manager (or the owner, on a revoked device).
+ */
+type Purpose = "signIn" | "discard" | "handOver";
 
 function messageFor(error: unknown): string {
   if (
@@ -70,10 +73,12 @@ function HeldEntries({
   held,
   discarding,
   onDiscard,
+  onHandOver,
 }: {
   readonly held: HeldWork;
   readonly discarding: boolean;
   readonly onDiscard: () => void;
+  readonly onHandOver: () => void;
 }) {
   const theme = useTheme();
   const view = heldView(held, useMinuteClock());
@@ -94,6 +99,15 @@ function HeldEntries({
           </Text>
         )}
       </View>
+      {discarding || held.uploadBlocked || !held.tenantUserId ? null : (
+        <Button
+          label={view.handOverLabel}
+          variant="secondary"
+          onPress={onHandOver}
+          fullWidth
+          testID="held-hand-over"
+        />
+      )}
       {discarding ? null : (
         <Button
           label={view.discardLabel}
@@ -125,6 +139,8 @@ export default function SignInScreen() {
   const passwordRef = useRef<TextInput>(null);
   const held = session.held;
   const discarding = purpose === "discard" && held !== null;
+  const handingOver = purpose === "handOver" && held !== null;
+  const actingOnHeld = discarding || handingOver;
 
   const backToSignIn = () => {
     setPurpose("signIn");
@@ -172,6 +188,14 @@ export default function SignInScreen() {
   const finish = async (token: string) => {
     if (discarding) {
       await confirmDiscard(token);
+      return;
+    }
+    if (handingOver) {
+      // Sent in the owner's name; the signer's session ends whatever happens.
+      const message = await vault.handOverHeld(token);
+      haptics?.success();
+      backToSignIn();
+      if (message) Alert.alert(t("mobile.held.handOverSignInTitle"), message);
       return;
     }
     await session.completeSignIn(token);
@@ -233,23 +257,33 @@ export default function SignInScreen() {
         >
           <View style={{ gap: theme.space[1] }}>
             <Text variant="title" accessibilityRole="header">
-              {discarding ? t("mobile.held.discardSignInTitle") : "Sign in to Harbour"}
+              {discarding
+                ? t("mobile.held.discardSignInTitle")
+                : handingOver
+                  ? t("mobile.held.handOverSignInTitle")
+                  : "Sign in to Harbour"}
             </Text>
             <Text tone="secondary">
               {discarding
                 ? t("mobile.held.discardSignInBody")
-                : step.kind === "credentials"
-                  ? "Use the email address and password from your care provider."
-                  : "Enter the 6-digit code from your authenticator app."}
+                : handingOver
+                  ? t("mobile.held.handOverSignInBody")
+                  : step.kind === "credentials"
+                    ? "Use the email address and password from your care provider."
+                    : "Enter the 6-digit code from your authenticator app."}
             </Text>
           </View>
 
           {held ? (
             <HeldEntries
               held={held}
-              discarding={discarding}
+              discarding={actingOnHeld}
               onDiscard={() => {
                 setPurpose("discard");
+                setError(null);
+              }}
+              onHandOver={() => {
+                setPurpose("handOver");
                 setError(null);
               }}
             />
@@ -265,7 +299,7 @@ export default function SignInScreen() {
             />
           ) : null}
 
-          {session.notice && !discarding ? (
+          {session.notice && !actingOnHeld ? (
             <Text tone="warning" accessibilityRole="alert" testID="sign-in-notice">
               {session.notice}
             </Text>
@@ -334,7 +368,13 @@ export default function SignInScreen() {
           <View style={{ gap: theme.space[1.5] }}>
             {step.kind === "credentials" ? (
               <Button
-                label={discarding ? t("mobile.held.discardSignIn") : "Sign in"}
+                label={
+                  discarding
+                    ? t("mobile.held.discardSignIn")
+                    : handingOver
+                      ? t("mobile.held.handOverSignIn")
+                      : "Sign in"
+                }
                 variant={discarding ? "destructive" : "primary"}
                 onPress={() => {
                   void submitCredentials();
@@ -369,7 +409,7 @@ export default function SignInScreen() {
                 />
               </>
             )}
-            {discarding ? (
+            {actingOnHeld ? (
               <Button
                 label={t("common.cancel")}
                 variant="secondary"

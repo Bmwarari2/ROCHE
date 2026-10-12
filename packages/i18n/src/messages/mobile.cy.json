@@ -316,5 +316,15 @@
   "mobile.sync.issuesUnknown": "Entries the server refused could not be counted and need attention. Harbour tries again each time it unlocks.",
   "mobile.held.revoked": "A manager withdrew this device from Harbour, so the care records on it have been removed. These entries had not reached Harbour and are kept, encrypted. The member of staff who wrote them, or a manager, can sign in here to send them, or a manager can delete them with a reason.",
   "mobile.held.revokedSignIn": "A manager withdrew this device from Harbour, so Care mode cannot be used on it. The entries waiting here can still be sent from this screen, or deleted with a reason. That sign-in has been ended.",
-  "mobile.vault.deviceRevoked": "A manager withdrew this device from Harbour, so the care records stored on it have been removed. Use another device, or ask your manager."
+  "mobile.vault.deviceRevoked": "A manager withdrew this device from Harbour, so the care records stored on it have been removed. Use another device, or ask your manager.",
+  "mobile.held.handOverStart": "{count, plural, one {Send # entry for them} other {Send # entries for them}}",
+  "mobile.held.handOverStartUnknown": "Send the unsent entries for them",
+  "mobile.held.handOverSignInTitle": "Sign in to send unsent entries",
+  "mobile.held.handOverSignInBody": "A manager can sign in on this device to send another member of staff's entries to Harbour in their name, and is recorded as having sent them. On a device a manager withdrew, the member of staff who wrote them can send them here too. The sign-in is used only for this and ends straight after.",
+  "mobile.held.handOverSignIn": "Sign in and send",
+  "mobile.held.handOverNotAllowed": "Only a manager, or on a withdrawn device the member of staff who wrote them, can send these entries. That sign-in has been ended.",
+  "mobile.held.handOverUnknownOwner": "This device cannot tell whose these entries are, so they cannot be sent in anyone's name. A manager can delete them with a reason. That sign-in has been ended.",
+  "mobile.held.handOverBlocked": "These entries are left from a deletion that did not finish, so they will not be sent. A manager can delete them with a reason. That sign-in has been ended.",
+  "mobile.held.handOverDone": "{count, plural, one {# entry was sent to Harbour.} other {# entries were sent to Harbour.}} {parked, plural, =0 {Nothing is left on this device.} one {# entry Harbour could not save was kept for the nurse in charge to review. Nothing is left on this device.} other {# entries Harbour could not save were kept for the nurse in charge to review. Nothing is left on this device.}}",
+  "mobile.held.handOverPartial": "{sent, plural, one {# entry was sent.} other {# entries were sent.}} {remaining, plural, one {# entry is still on this device.} other {# entries are still on this device.}} Try again when the device is online, or a manager can delete them with a reason."
 }

@@ -44,6 +44,15 @@ describe("hazard HZ-040 the sign-in screen on held entries (clinical review H2, 
     expect(view.time).toContain("Nothing is deleted automatically.");
   });
 
+  it("hazard HZ-040 offers to send the entries for their owner, naming the count (Device integrity part 6)", () => {
+    expect(heldView(held, new Date("2026-10-11T08:00:00Z")).handOverLabel).toBe(
+      "Send 2 entries for them",
+    );
+    expect(
+      heldView({ ...held, entries: null }, new Date("2026-10-11T08:00:00Z")).handOverLabel,
+    ).toBe("Send the unsent entries for them");
+  });
+
   it("gives a final warning naming the count in the last day", () => {
     const view = heldView(held, new Date(DEADLINE - FINAL_WARNING_MS + 60_000));
     expect(view).toMatchObject({ state: "final", urgent: true });
