@@ -75,6 +75,38 @@ run "dev_defaults" {
     condition     = module.observability.log_metric_filter_patterns.worker_job_failed == "{ $.event = \"worker.job.failed\" }"
     error_message = "The failed job alarm must match the worker's worker.job.failed event."
   }
+
+  # Each filter reads the worker's own log group, and each alarm reads the metric its filter
+  # writes.
+  assert {
+    condition = alltrue([
+      for rule in values(module.observability.log_alarm_rules) :
+      rule.log_group_name == module.svc_worker.log_group_name && rule.alarm_metric == rule.filter_metric
+    ])
+    error_message = "Each worker log alarm must read the worker's log group through its own metric filter."
+  }
+
+  # Any unrouted line in a day alarms; one or more failed jobs in 15 minutes alarm by default.
+  assert {
+    condition = (
+      module.observability.log_alarm_rules.escalation_unrouted_daily.statistic == "Sum" &&
+      module.observability.log_alarm_rules.escalation_unrouted_daily.period == 86400 &&
+      module.observability.log_alarm_rules.escalation_unrouted_daily.threshold == 1 &&
+      module.observability.log_alarm_rules.escalation_unrouted_daily.comparison_operator == "GreaterThanOrEqualToThreshold" &&
+      module.observability.log_alarm_rules.escalation_unrouted_daily.treat_missing_data == "notBreaching"
+    )
+    error_message = "The unrouted escalation alarm must fire on any escalation.unrouted.daily line in a day."
+  }
+
+  assert {
+    condition = (
+      module.observability.log_alarm_rules.worker_job_failed.statistic == "Sum" &&
+      module.observability.log_alarm_rules.worker_job_failed.period == 900 &&
+      module.observability.log_alarm_rules.worker_job_failed.threshold == 1 &&
+      module.observability.log_alarm_rules.worker_job_failed.comparison_operator == "GreaterThanOrEqualToThreshold"
+    )
+    error_message = "The failed job alarm must fire on one or more worker.job.failed lines in 15 minutes."
+  }
 }
 
 run "flagsmith_and_route53" {
