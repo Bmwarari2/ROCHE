@@ -287,10 +287,19 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
   `platform.location.manage` at the location (or a job with no member) changes or confirms them; a
   confirmation (`downtime_places_confirmed_at`, `_by`) is in the confirmer's own name, and a place
   changed without one is unconfirmed again (H-201).
-- Not yet: the back-entry columns on the care events, the cancel refusal once a back-entry cites
-  an outage, and the database check that the reconciler entered none of its paper records (part
-  2, with the back-entry columns); the API, nightly job and PDF (part 3); outages and packs in the
-  sync streams (with the mobile step).
+- Part 2 (migration 0053; `packages/db/test/back-entry.test.ts`): the expand-only back-entry
+  columns on `care_note`, `observation`, `body_map_mark`, `activity_record` and `visit_log`
+  (`late_entry_reason`, `outage_id`, `paper_date`, `paper_time`, `paper_occurrence`,
+  `outside_outage_reason`, `paper_reference`, `not_from_paper_reason`), empty on every entry written
+  at the time. A CHECK ties them together: a back-entry (`downtime`) has its outage, the date and
+  time written (to the minute) and the occurrence, and no not-from-paper reason; any other entry
+  has none of the paper details, and names an outage only with a reason it was not from paper.
+  `app.entry_outage_guard` refuses an outage at another location, a cancelled one, or one the
+  writer cannot see. `app.outage_guard` refuses to cancel an outage once a back-entry cites it
+  (rule 15) and a reconciler who entered any of its back-entries (rule 14), both counted in the
+  organisation's view, so a back-entry about someone the caller can no longer see still counts.
+- Not yet: the API, nightly job and PDF (part 3); outages and packs in the sync streams (with the
+  mobile step).
 - Part 3 requirements (#32 review round 1):
   - A pack is hidden from the location's holders once someone it names moves away (H-200). The
     API builds a fresh pack on demand whenever anyone moves into, out of or away from the

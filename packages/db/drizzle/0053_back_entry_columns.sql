@@ -137,24 +137,24 @@ END
 $$;
 --> statement-breakpoint
 
--- The outage guard of 0051, plus rules 14 and 15: an outage is not cancelled once a back-entry
--- cites it, and is reconciled only by someone who entered none of its back-entries. Both look in
--- the organisation's view and restore the caller's before going on (as
+-- The outage guard of 0051 (with #32 review round 1), plus rules 14 and 15: an outage is not
+-- cancelled once a back-entry cites it, and is reconciled only by someone who entered none of its
+-- back-entries. Both look in the organisation's view and restore the caller's before going on (as
 -- app.admit_handed_over_entry does; an error rolls the setting back with its statement), so a
 -- back-entry about someone the caller can no longer see still counts; tenant isolation still
 -- applies. A trigger function cannot be called on its own, so the wider view reaches nothing else.
 CREATE OR REPLACE FUNCTION app.outage_guard() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
+  v_closing boolean := OLD.state = 'declared' AND NEW.state = 'closed';
   v_scope text;
   v_found boolean;
 BEGIN
   IF NEW.location_id IS DISTINCT FROM OLD.location_id
-     OR NEW.started_at IS DISTINCT FROM OLD.started_at
      OR NEW.declared_at IS DISTINCT FROM OLD.declared_at
      OR NEW.declared_by IS DISTINCT FROM OLD.declared_by
      OR NEW.deleted_at IS DISTINCT FROM OLD.deleted_at THEN
-    RAISE EXCEPTION 'An outage keeps its location, start and declaration, and is never deleted'
+    RAISE EXCEPTION 'An outage keeps its location and declaration, and is never deleted'
       USING ERRCODE = 'integrity_constraint_violation';
   END IF;
   IF OLD.state IN ('reconciled', 'cancelled') THEN
@@ -176,23 +176,23 @@ BEGIN
       v_scope := coalesce(current_setting('app.scope', true), '');
       PERFORM set_config('app.scope', 'tenant', true);
       SELECT EXISTS (
-         SELECT 1 FROM (
-           SELECT created_by FROM public.care_note
-             WHERE tenant_id = OLD.tenant_id AND outage_id = OLD.id AND late_entry_reason = 'downtime'
-           UNION ALL
-           SELECT created_by FROM public.observation
-             WHERE tenant_id = OLD.tenant_id AND outage_id = OLD.id AND late_entry_reason = 'downtime'
-           UNION ALL
-           SELECT created_by FROM public.body_map_mark
-             WHERE tenant_id = OLD.tenant_id AND outage_id = OLD.id AND late_entry_reason = 'downtime'
-           UNION ALL
-           SELECT created_by FROM public.activity_record
-             WHERE tenant_id = OLD.tenant_id AND outage_id = OLD.id AND late_entry_reason = 'downtime'
-           UNION ALL
-           SELECT created_by FROM public.visit_log
-             WHERE tenant_id = OLD.tenant_id AND outage_id = OLD.id AND late_entry_reason = 'downtime'
-         ) e
-         WHERE NEW.state = 'cancelled' OR e.created_by IS NOT DISTINCT FROM NEW.reconciled_by)
+        SELECT 1 FROM (
+          SELECT created_by FROM public.care_note
+            WHERE tenant_id = OLD.tenant_id AND outage_id = OLD.id AND late_entry_reason = 'downtime'
+          UNION ALL
+          SELECT created_by FROM public.observation
+            WHERE tenant_id = OLD.tenant_id AND outage_id = OLD.id AND late_entry_reason = 'downtime'
+          UNION ALL
+          SELECT created_by FROM public.body_map_mark
+            WHERE tenant_id = OLD.tenant_id AND outage_id = OLD.id AND late_entry_reason = 'downtime'
+          UNION ALL
+          SELECT created_by FROM public.activity_record
+            WHERE tenant_id = OLD.tenant_id AND outage_id = OLD.id AND late_entry_reason = 'downtime'
+          UNION ALL
+          SELECT created_by FROM public.visit_log
+            WHERE tenant_id = OLD.tenant_id AND outage_id = OLD.id AND late_entry_reason = 'downtime'
+        ) e
+        WHERE NEW.state = 'cancelled' OR e.created_by IS NOT DISTINCT FROM NEW.reconciled_by)
         INTO v_found;
       PERFORM set_config('app.scope', v_scope, true);
       IF v_found THEN
@@ -203,12 +203,33 @@ BEGIN
       END IF;
     END IF;
   END IF;
-  IF (NEW.ended_at, NEW.closed_at, NEW.closed_by, NEW.back_entry_due_at) IS DISTINCT FROM
-       (OLD.ended_at, OLD.closed_at, OLD.closed_by, OLD.back_entry_due_at)
-     AND NOT (OLD.state = 'declared' AND NEW.state = 'closed') THEN
-    RAISE EXCEPTION 'An outage''s end and closure are set once, when it closes'
+  IF (NEW.closed_at, NEW.closed_by, NEW.back_entry_due_at)
+       IS DISTINCT FROM (OLD.closed_at, OLD.closed_by, OLD.back_entry_due_at)
+     AND NOT v_closing THEN
+    RAISE EXCEPTION 'An outage''s closure is set once, when it closes'
       USING ERRCODE = 'integrity_constraint_violation';
   END IF;
+  IF v_closing THEN
+    IF NEW.started_at IS DISTINCT FROM OLD.started_at
+       OR NEW.correction_reason IS DISTINCT FROM OLD.correction_reason THEN
+      RAISE EXCEPTION 'Close an outage and correct its start separately'
+        USING ERRCODE = 'integrity_constraint_violation';
+    END IF;
+  ELSIF (NEW.started_at, NEW.ended_at) IS DISTINCT FROM (OLD.started_at, OLD.ended_at) THEN
+    IF NEW.state IS DISTINCT FROM OLD.state
+       OR (OLD.ended_at IS NULL) <> (NEW.ended_at IS NULL)
+       OR coalesce(btrim(NEW.correction_reason), '') = ''
+       OR NEW.correction_reason IS NOT DISTINCT FROM OLD.correction_reason THEN
+      RAISE EXCEPTION 'An outage''s start or end is corrected only with a reason of its own, before it is reconciled, and an open outage stays open'
+        USING ERRCODE = 'integrity_constraint_violation';
+    END IF;
+  ELSIF NEW.correction_reason IS DISTINCT FROM OLD.correction_reason THEN
+    RAISE EXCEPTION 'A correction reason goes with a corrected start or end'
+      USING ERRCODE = 'integrity_constraint_violation';
+  END IF;
+  NEW.declared_late := CASE WHEN NEW.started_at IS DISTINCT FROM OLD.started_at
+    THEN app.outage_declared_late(NEW.location_id, NEW.started_at, NEW.declared_at)
+    ELSE OLD.declared_late END;
   RETURN NEW;
 END
 $$;

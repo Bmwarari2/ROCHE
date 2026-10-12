@@ -1123,3 +1123,18 @@ Security and clinical safety reviews of the downtime pack and outage schema. Fix
   kept out of `document`'s general view, and STATUS follow-ups.
 
 **Tests**: `packages/db` 408 passing locally (15 in `downtime.test.ts`).
+
+## 2026-10-12: Slice 11 part 2, back-entry columns (OPS-028)
+
+Stacked on #32. Migration 0053 (numbered after Lane C's 0052):
+
+- Expand-only back-entry columns on `care_note`, `observation`, `body_map_mark`,
+  `activity_record` and `visit_log`, empty on every existing entry, with a CHECK tying them
+  together and a composite reference to `outage` (which gains its `(tenant_id, id)` key).
+- An entry names only an outage at its own location that was not cancelled (`entry_outage_guard`).
+- `outage_guard` refuses to cancel an outage once a back-entry cites it, and a reconciler who
+  entered any of its back-entries, both counted in the organisation's view and giving the caller
+  their own view back.
+- The export catalogue describes the eight columns on each of the five entries.
+
+**Tests**: `packages/db` 415 passing locally (7 new in `back-entry.test.ts`).

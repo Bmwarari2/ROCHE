@@ -153,6 +153,9 @@ only when they link spec, code, tests and user documentation; no user guides exi
      - store an outage's start as typed with the occurrence chosen in a repeated hour (needs the
        domain's declaration to carry the written form, as `resolvePaperTime` does);
      - who may change the other `location` columns is still enforced only by the API.
+   - Slice 11 part 2, back-entry columns (`feat/operations-back-entry-columns`, stacked on #32,
+     migration 0053; operations.md section 12): built, PR to follow #32. Next, part 3: the API,
+     nightly job and PDF, with the round 1 part 3 requirements.
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; admin session revoke and idle timeouts
    per role; record history PDF export; device push registration; OpenFeature provider; user
