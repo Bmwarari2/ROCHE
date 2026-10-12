@@ -302,6 +302,20 @@
       "when": 1791788882229,
       "tag": "0042_handover_and_device_sessions_security",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1791796942655,
+      "tag": "0043_care_api_follow_ups",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1791796997676,
+      "tag": "0044_care_api_follow_ups_security",
+      "breakpoints": true
     }
   ]
 }

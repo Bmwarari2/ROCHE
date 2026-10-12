@@ -4,6 +4,7 @@ import {
   boolean,
   check,
   date,
+  doublePrecision,
   foreignKey,
   index,
   integer,
@@ -189,6 +190,16 @@ export const bodyMapMark = pgTable(
     region: text("region").notNull(),
     /** The person's side, stated in words and checked against the drawing (HZ-019). */
     side: text("side").notNull(),
+    /**
+     * Where the mark was placed on the drawing (`BODY_MAP_DRAWING` units, x from the viewer's
+     * left, y from the top), when a point was tapped; and the zone of the drawing, from the point
+     * or the buttons beside it. Null for marks recorded before the server worked out the side.
+     */
+    drawnX: doublePrecision("drawn_x"),
+    drawnY: doublePrecision("drawn_y"),
+    drawnZone: text("drawn_zone"),
+    /** The person's side as the server worked it out from the drawing and the view (HZ-019). */
+    drawnSide: text("drawn_side"),
     markType: text("mark_type").notNull(),
     pressureCategory: text("pressure_category"),
     /** Pressure ulcers: caused by a medical device (counted separately in reporting). */
@@ -223,8 +234,98 @@ export const bodyMapMark = pgTable(
     }),
     index("body_map_mark_person_idx").on(t.tenantId, t.personId, t.occurredAt),
     index("body_map_mark_incident_idx").on(t.tenantId, t.incidentId),
+    check(
+      "body_map_mark_drawing",
+      sql`(drawn_x IS NULL) = (drawn_y IS NULL)
+        AND (drawn_x IS NULL OR (drawn_x BETWEEN 0 AND 120 AND drawn_y BETWEEN 0 AND 240))
+        AND (drawn_zone IS NULL OR drawn_zone IN ('viewer_left', 'centre', 'viewer_right'))
+        AND (drawn_side IS NULL OR drawn_side IN ('left', 'right', 'midline'))
+        AND ((drawn_side IS NULL) = (drawn_zone IS NULL))
+        AND (drawn_x IS NULL OR drawn_zone IS NOT NULL)`,
+    ),
   ],
 );
+
+/** The tools whose results link an escalation policy (`ESCALATION_POLICY_TOOLS` in the domain). */
+export const ESCALATION_POLICY_TOOL_KEYS = [
+  "news2",
+  "must",
+  "waterlow",
+  "braden",
+  "ng249_falls",
+] as const;
+
+/** The bands a link may name, per tool (`ESCALATION_POLICY_BANDS` in the domain; a test checks). */
+export const ESCALATION_POLICY_TOOL_BANDS: Readonly<
+  Record<(typeof ESCALATION_POLICY_TOOL_KEYS)[number], readonly string[]>
+> = {
+  news2: ["low", "low_medium", "medium", "high"],
+  must: ["low", "medium", "high"],
+  waterlow: ["not_at_risk", "at_risk", "high_risk", "very_high_risk"],
+  braden: ["severe_risk", "high_risk", "moderate_risk", "at_risk", "below_at_risk_threshold"],
+  ng249_falls: [],
+};
+
+const ESCALATION_BAND_CHECK = sql.raw(
+  Object.entries(ESCALATION_POLICY_TOOL_BANDS)
+    .map(([tool, bands]) =>
+      bands.length === 0
+        ? `(tool_key = '${tool}' AND band IS NULL)`
+        : `(tool_key = '${tool}' AND (band IS NULL OR band IN (${bands.map((b) => `'${b}'`).join(", ")})))`,
+    )
+    .join(" OR "),
+);
+
+/**
+ * The organisation's escalation policy for a validated tool's result (care.md section 5,
+ * escalation policies; medical-device boundary section 5 rule 4; HZ-012, HZ-014): a tool, one of
+ * its bands or every band, the whole organisation or one location, and the policy's own name,
+ * reference and document. Results link the most specific live link; Harbour adds no
+ * recommendation. Configuration, not personal data: every member reads it, holders of
+ * `quality.policy.manage` change it (organisation-wide links only with tenant-wide scope).
+ * Mutable, versioned; removal is a soft delete.
+ */
+export const escalationPolicyLink = pgTable(
+  "escalation_policy_link",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    /** `ESCALATION_POLICY_TOOL_KEYS`. */
+    toolKey: text("tool_key").notNull(),
+    /** One band of the tool; null for every band. */
+    band: text("band"),
+    /** One location; null for the whole organisation. */
+    locationId: uuid("location_id"),
+    title: text("title").notNull(),
+    reference: text("reference"),
+    documentId: uuid("document_id"),
+    ...mutableColumns(),
+  },
+  (t) => [
+    unique("escalation_policy_link_tenant_id_id_key").on(t.tenantId, t.id),
+    // One live link per tool, band and place: every band is '' and the organisation the nil id.
+    uniqueIndex("escalation_policy_link_live_key")
+      .on(
+        t.tenantId,
+        t.toolKey,
+        sql`coalesce(${t.band}, '')`,
+        sql`coalesce(${t.locationId}, '00000000-0000-0000-0000-000000000000'::uuid)`,
+      )
+      .where(sql`deleted_at IS NULL`),
+    locationRef("escalation_policy_link_location_fk", t),
+    foreignKey({
+      name: "escalation_policy_link_document_fk",
+      columns: [t.tenantId, t.documentId],
+      foreignColumns: [document.tenantId, document.id],
+    }),
+    check("escalation_policy_link_band", sql`${ESCALATION_BAND_CHECK}`),
+    check(
+      "escalation_policy_link_text",
+      sql`char_length(btrim(title)) BETWEEN 3 AND 200 AND (reference IS NULL OR char_length(reference) <= 100)`,
+    ),
+  ],
+);
+export type EscalationPolicyLinkRow = typeof escalationPolicyLink.$inferSelect;
 
 // ------------------------------------------------------------------------------------------------
 // Slice 4b: care plans, risk assessments, stored assessments, activities, visits and advance care
