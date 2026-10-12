@@ -1064,3 +1064,22 @@ another organisation's first line (CloudWatch notifies only on a change of state
 sums over an hour, so it clears within the hour after each daily run and every run with a line
 notifies again; the stack test and the on-call runbook say so. The lows are STATUS follow-ups.
 Hosted CI (now running, the repository being public) was green on `67c3fdc`.
+
+## 2026-10-12: Slice 11 part 1, downtime pack and outage schema (OPS-028)
+
+The first schema step for operations.md section 2, on the slice 11 domain rules. The back-entry
+columns on the care events follow in part 2 (they reference `outage`), to keep this PR small.
+
+- `downtime_pack` (append-only) and `outage` (mutable, versioned) with forced row-level security
+  (migrations 0050 and 0051). A pack is visible only where the reader holds
+  `operations.downtime.read` and can see every person on it; an outage to staff at its location,
+  written only by holders of `operations.downtime.manage` there. Windows at a location never
+  overlap; `app.outage_guard` keeps the window back-entries rely on and the workflow's order.
+- Location settings `downtime.mar_location` and `downtime.peep_location` as two columns on
+  `location`, seeded with the domain defaults.
+- The export catalogue classifies both tables and the two columns (retention `downtime_pack` and
+  `downtime_record`); data standards and records of processing add the cancellation and pack
+  fields; HZ-011, HZ-017 and HZ-021 name the new database tests.
+
+**Tests**: `packages/db` 406 (13 new in `downtime.test.ts`), `packages/domain` operations and export
+tests passing locally.

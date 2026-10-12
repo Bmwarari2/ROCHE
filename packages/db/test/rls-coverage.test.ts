@@ -35,6 +35,7 @@ const APPEND_ONLY_TABLES = [
   "handed_over_entry",
   "device_discard_record",
   "entry_device_deletion_flag",
+  "downtime_pack",
 ];
 /** Audit and history rows may be written before a tenant is chosen. */
 const NULLABLE_TENANT_TABLES = ["audit_event", "record_version"];
