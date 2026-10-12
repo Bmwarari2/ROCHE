@@ -5,6 +5,7 @@ import {
   DEVICE_WRITABLE_TABLES,
   NEVER_EVICT_TABLES,
   OFFLINE_WINDOW_TABLES,
+  ROUND_AND_HANDOVER_TABLES,
 } from "../src/client/schema";
 import { readSyncConfig } from "../src/streams/index";
 import { compile, ids, syncFor } from "./support/simulator";
@@ -64,9 +65,11 @@ describe("client schema covers every stream", () => {
     }
   });
 
-  it("splits the care tables into reference data and windowed entries, and only entries are written", () => {
+  it("splits the care tables into reference data, windowed entries and the round and handover, and only entries are written", () => {
     const synced = AppSchema.tables.filter((t) => !t.localOnly).map((t) => t.name);
-    expect([...NEVER_EVICT_TABLES, ...OFFLINE_WINDOW_TABLES].sort()).toEqual(synced.sort());
+    expect(
+      [...NEVER_EVICT_TABLES, ...OFFLINE_WINDOW_TABLES, ...ROUND_AND_HANDOVER_TABLES].sort(),
+    ).toEqual(synced.sort());
     expect(DEVICE_WRITABLE_TABLES).toEqual(OFFLINE_WINDOW_TABLES);
   });
 

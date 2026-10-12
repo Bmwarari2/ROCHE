@@ -131,8 +131,12 @@ const claims = (overrides: Partial<SyncTokenClaims>): Partial<SyncTokenClaims> =
   ...overrides,
 });
 
-/** The family of each people-carrying stream and its read permission (ADR-0071 review round 1). */
-const FAMILY: Record<string, "people" | "care" | "entries"> = {
+/**
+ * The family of each people-carrying stream and its read permission (ADR-0071 review round 1): the
+ * round's open tasks follow care.plan.read, as the round view does, and the handovers
+ * care.handover.manage.
+ */
+const FAMILY: Record<string, "people" | "care" | "entries" | "handover"> = {
   assigned_people: "people",
   assigned_allergies: "people",
   location_people: "people",
@@ -143,6 +147,10 @@ const FAMILY: Record<string, "people" | "care" | "entries"> = {
   location_care_plan_details: "care",
   assigned_recent_entries: "entries",
   location_recent_entries: "entries",
+  assigned_open_tasks: "care",
+  location_open_tasks: "care",
+  assigned_handovers: "handover",
+  location_handovers: "handover",
 };
 
 let hydrated: ReturnType<typeof compile>["hydrated"];
@@ -188,7 +196,7 @@ describe("sync streams definition", () => {
         expect(query, stream).toContain(`AND auth.parameter('${family}_assigned') = true`);
       } else {
         expect(query, stream).toContain(`IN auth.parameter('${family}_location_ids')`);
-        for (const other of ["people", "care", "entries"].filter((f) => f !== family)) {
+        for (const other of ["people", "care", "entries", "handover"].filter((f) => f !== family)) {
           expect(query, stream).not.toContain(`auth.parameter('${other}_location_ids')`);
         }
       }
@@ -207,10 +215,30 @@ describe("sync streams definition", () => {
     }
   });
 
-  it("carries people receiving care only on every location-scope stream (L1)", () => {
-    const location = streamQueries().filter(({ stream }) => stream.startsWith("location_"));
-    // People, allergies, and the five reference, two plan and five entry queries.
-    expect(location.length).toBe(14);
+  it("limits every open task and handover to the offline window", () => {
+    const shiftQueries = streamQueries().filter(
+      ({ stream }) => stream.endsWith("_open_tasks") || stream.endsWith("_handovers"),
+    );
+    expect(shiftQueries).toHaveLength(15);
+    for (const { stream, query } of shiftQueries) {
+      expect(query, stream).toMatch(
+        /substring\((task\.due_at|handover\.shift_end), 1, 10\) IN auth\.parameter\('offline_days'\)/,
+      );
+    }
+  });
+
+  it("carries people receiving care only on every location-scope stream of a person's record (L1)", () => {
+    // Handover items and notes follow row-level security, which has no status filter, so a death
+    // in the shift reaches the handover (HZ-018, task-handover-streams.test.ts); a task about
+    // nobody has no person.
+    const location = streamQueries().filter(
+      ({ stream, query }) =>
+        stream.startsWith("location_") &&
+        FAMILY[stream] !== "handover" &&
+        !query.includes("person_id IS NULL"),
+    );
+    // People, allergies, the five reference, two plan and five entry queries, and tasks.
+    expect(location.length).toBe(15);
     const live = (column: string) =>
       `(${column} = 'active' OR ${column} = 'on_leave' OR ${column} = 'in_hospital')`;
     for (const { stream, query } of location) {
