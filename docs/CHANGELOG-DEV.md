@@ -424,3 +424,48 @@ staff (Phase 2).
 **Tests**: `packages/domain` 3,836, `packages/db` 306, `packages/contracts` 29, `apps/api` 506,
 `packages/sync` 59, `apps/mobile` 807, `apps/web` 306, `packages/ui` 342, `packages/ui-native` 141,
 all passing locally through `scripts/ci-local.sh` (every gate).
+
+## 2026-10-12: #24 review round 2 (tasks, rounds and handover)
+
+**What changed**
+
+- Handover security (S-M1, S-M2, S-M3): items moved from a JSON column into the append-only
+  `handover_item` table (one row each, unique key and position), readable only by staff who can
+  see the item's person; only the system's view (scope `tenant`) may insert or update a handover
+  or its items, and the guard also refuses a change of organisation or a soft delete; a note on an
+  item takes its person from the item by trigger and needs an item the writer can see (composite
+  foreign key). Readers who are not a tenant-wide role or a role at the location see counts over
+  their own items, only their own acknowledgements, and no hidden count or version. An
+  acknowledgement sends the seen token of the view the reader was shown; the server records the
+  keys of the items they could see and refuses an old token with 409. Compiling refuses a time
+  before the offline window and is limited per user a minute
+  (`HANDOVER_COMPILE_REQUESTS_PER_MINUTE`). Alerts reference their person by a composite foreign
+  key; notices about late additions are urgent only from items the recipient can see.
+- Round windows (C-M1): worked out from the real instants of consecutive rounds (`roundTimes`),
+  each side under half the real gap and capped by the rate table, never nothing; times under 10
+  minutes apart refused, and occurrences a clock change makes one instant merged; used by the task
+  engine and the lifecycle's gap filling. Table tests over the 2026 and 2027 clock changes.
+- Plans and rounds (C-M2, C-M7): a round from a changed plan says "From an earlier plan: check the
+  current plan" with the plan's status; a plan change no longer cancels a round in progress;
+  medicines actions say "Not a round: see the medicines record" on the plan and on the round stop.
+- Header (C-M3): the point-of-care summary carries the prescribed IDDSI food and drink levels, or
+  `not_recorded`.
+- Handover rules (C-M4 to C-M6): late additions reach the nurse in charge when no acknowledger can
+  see them, and always for falls, raised NEWS2, incidents and urgent alerts; only an acknowledgement
+  at or after the shift's end covering everything its author can see counts for the incoming
+  shift, and the nurse in charge gets one alert after `handover.acknowledgement_grace_minutes` (60,
+  to verify); a fixed `handover` note tag ("Include in handover") is compiled, and the
+  closed-handover message names it.
+- Worker: the sweep compiles and locks every shift missed within the offline window; one
+  organisation's failure no longer stops the others and is audited (`platform.job.tenant_failed`);
+  the nurse in charge and staff scope honour assignment validity and staff status.
+- Migrations 0027 and 0028 amended in place (not yet on `main`), snapshots and journal regenerated
+  with drizzle-kit; OpenAPI and the client regenerated.
+- Docs: hazard log (HZ-001, HZ-003, HZ-004, HZ-008, HZ-011, HZ-016, HZ-018, HZ-024), care.md,
+  comms.md, rates.md, data standards, records of processing.
+
+**Human actions logged**: H-150 to H-154 reworded; H-155 (which notes reach the handover).
+
+**Tests**: `packages/domain` 3,902, `packages/db` 313, `packages/contracts` 30, `apps/api` 513,
+`packages/sync` 59, `apps/mobile` 807, `apps/web` 306, `packages/i18n` 48, all passing locally
+through `scripts/ci-local.sh`.

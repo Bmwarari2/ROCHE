@@ -81,7 +81,7 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `document_signature` | the class of the signed document |
 | `legal_hold`, `destruction_certificate` | kept permanently (proof of records management); never destroyed by the engine |
 | `task`, `task_series`, `workflow_instance`, `workflow_transition` | the class of the record they concern (care_record for tasks about a person) |
-| `handover`, `handover_note`, `handover_acknowledgement` ([care.md](care.md) rule 8) | care_record: a handover is a record of the care handed over at a location, kept as long as the care records it lists |
+| `handover`, `handover_item`, `handover_note`, `handover_acknowledgement` ([care.md](care.md) rule 8) | care_record: a handover is a record of the care handed over at a location, kept as long as the care records it lists |
 | `downtime_pack` ([operations.md](operations.md)) | downtime_pack, or downtime_record when in force during a declared outage |
 | `outage` | downtime_record |
 | Back-entered care events (the back-entry columns on `care_note`, `observation` and the others) | care_record, as the event |

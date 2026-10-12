@@ -8,8 +8,11 @@ reading age 9 on family surfaces) and section 17 for offline behaviour. Phase 1 
 email templates with approval (slice 11) and the family feed with the communications integrations
 (slice 12); handover acknowledgement (COMMS-006) is specified and built with the handover in
 [care.md](care.md) rule 8 (slice 5: `POST /v1/locations/{id}/handovers/{handoverId}/acknowledgements`,
-the append-only `handover_acknowledgement` table, and the late-addition notice, which is a staff
-notification, never a family one). The person's portal, professional access, messaging and the public site
+the append-only `handover_acknowledgement` table, which records the keys of the items the reader
+could see when they sent the seen token of the view they were shown, and refuses an old token; the
+late-addition notice and the alert to the nurse in charge when nobody on the incoming shift has
+acknowledged by `handover.acknowledgement_grace_minutes`, both staff notifications, never family
+ones). The person's portal, professional access, messaging and the public site
 arrive in Phase 4. Status per feature lives in the [feature register](feature-register.md).
 
 ## 1. Purpose and register rows
