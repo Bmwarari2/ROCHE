@@ -83,14 +83,14 @@ mocks and contract tests (section 20 rule 2).
 
 | Package | Tests |
 | --- | --- |
-| `packages/domain` | 3,996 |
-| `packages/db` | 365 (real Postgres: RLS coverage, isolation, scope, audit chain, seed, tasks, documents, care record, care planning, MCA and incidents, people lifecycle, bank holidays, pools, export catalogue, handovers, device integrity, the care API follow-ups) |
+| `packages/domain` | 4,014 |
+| `packages/db` | 366 (real Postgres: RLS coverage, isolation, scope, audit chain, seed, tasks, documents, care record, care planning, MCA and incidents, people lifecycle, bank holidays, pools, export catalogue, handovers, device integrity, the care API follow-ups) |
 | `packages/sync` | 59 (PowerSync rules engine) |
 | `packages/contracts` | 34 |
 | `packages/i18n` | 48 |
 | `packages/ui` | 342 (231 axe runs) |
 | `packages/ui-native` | 141 |
-| `apps/api` | 586 |
-| `apps/mobile` | 869 |
-| `apps/web` | 311 unit; Playwright journeys with axe (WCAG 2.2 AA) in CI |
+| `apps/api` | 598 |
+| `apps/mobile` | 870 |
+| `apps/web` | 327 unit; Playwright journeys with axe (WCAG 2.2 AA) in CI |
 | `infra` | `terraform test` 3, TFLint, Trivy and Checkov clean |
