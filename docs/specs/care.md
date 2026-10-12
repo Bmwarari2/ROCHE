@@ -1266,6 +1266,30 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
 - **Not yet on the device**: tasks, rounds and handover; writing assessments, activities and visits
   (the upload path takes activities and visits already); photos; incidents; the conflict review.
   Body-map marks and chart history older than the window are not on the device (HZ-028).
+- **The round and the handover: streams (slice 10 part 2, first PR).** Five tables sync read-only,
+  scoped as the API's views are (HZ-011; `packages/sync/test/task-handover-streams.test.ts`).
+  `*_open_tasks` carry the open (`open`, `in_progress`) tasks due on a day of the offline window
+  (the UTC day of `due_at`), as the round view shows them (`care.plan.read`, the care claims):
+  about the people in that scope (at a location, only people active, on leave or in hospital),
+  about nobody at the locations it reaches whole, and about nobody and given to the user. This
+  replaces "today and tomorrow" in the table above: unfinished tasks from earlier rounds in the
+  window stay on the round; one due before the window is on the web round and in the handover
+  (HZ-028). A task done, skipped or cancelled leaves the device; `details` and `status_reason` are
+  not sent. `*_handovers` carry the handovers of shifts ending on a day of the window (the current
+  and last shift among them) with their items, notes and acknowledgements, as the handover views
+  show them (`care.handover.manage`, new token claims `handover_location_ids` and
+  `handover_assigned`): whole at the locations it reaches; otherwise the handovers where the
+  people assigned to the user live, the items and notes about those people (from every handover
+  in the window, so none is missing), the notes on the whole handover and the user's own
+  acknowledgements, never an item about nobody or a note on one. Items and notes about a person
+  carry no status filter, as row-level security has none (a death in the shift reaches the
+  incoming staff, HZ-018). `handover_item.key` arrives as `item_key`; no refresh time or version
+  is sent (the API shows those to whole readers only). The tables must join the `powersync`
+  publication, with the sync role's read policy and grant, before anything arrives (a migration,
+  sequenced separately). Still to do: completing or skipping a task and acknowledging a handover
+  offline (queued against `POST /v1/tasks/{id}/transition` with the version seen, and
+  `POST /v1/locations/{id}/handovers/{handoverId}/acknowledgements` with a device id and the seen
+  token worked out over the items shown), then the round and handover screens.
 - **API follow-ups**: the revocation signal, the manager hand-over and the server copy of refused
   entries are built (Device integrity, above), and so, with the care API follow-ups, are keeping an
   IDDSI entry from a device with a flag and an alert to the nurse in charge instead of refusing it

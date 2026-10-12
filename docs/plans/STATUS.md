@@ -161,6 +161,18 @@ only when they link spec, code, tests and user documentation; no user guides exi
     under each member's settings) inside the entry's transaction.
     Measure it against the 100 ms point-of-care budget on a large organisation; if it is slow,
     evaluate the scope for all candidates at once in a database function.
+13. Slice 10 part 2 on the phone (Lane C), the round and the handover: the sync streams, the
+    token's handover claims and the client tables are in review (`feat/mobile-tasks-handover-sync`,
+    [care.md](../specs/care.md) section 6). Before they deliver anything, a migration (Lane A) adds
+    `task`, `handover`, `handover_item`, `handover_note` and `handover_acknowledgement` to the
+    `powersync` publication with the `sync_replication_read` policy and `SELECT` for
+    `harbour_sync`, and a database test that every table the streams read is published. Then:
+    completing or skipping a task and acknowledging a handover offline (queued, idempotent, the
+    task's version and the seen token over the items shown; a refusal to "needs attention"), then
+    the round and handover screens in Care mode (staff names where the API gives them, the window
+    and last sync said on the round, HZ-028). Follow-ups: the worded summary per handover item
+    (item 4), so the phone need not hold each item's source; whether the round on the phone should
+    also hold unfinished tasks due before the window.
 
 ## Human actions outstanding
 

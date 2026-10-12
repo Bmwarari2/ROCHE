@@ -1082,3 +1082,31 @@ Hosted CI (now running, the repository being public) was green on `67c3fdc`.
   run failed, since `eachTenant` catches a failure (review round 1 of #30).
 - esbuild in `apps/api` is on 0.28 (STATUS dependencies item).
 
+## 2026-10-12: The round and the handover on the phone, streams (slice 10 part 2, Lane C)
+
+First of three pull requests for tasks and handovers in Care mode
+(`feat/mobile-tasks-handover-sync`).
+
+- Sync streams (`packages/sync/src/streams/sync-config.yaml`): `assigned_open_tasks` and
+  `location_open_tasks` carry the open tasks due on a day of the offline window, scoped as the
+  round view (`care.plan.read`, `app.task_visible`); `assigned_handovers` and
+  `location_handovers` carry the handovers of shifts ending in the window with the items, notes
+  and acknowledgements the handover views show (`care.handover.manage`). Limited readers get only
+  their people's items and notes, the handover's own notes and their own acknowledgements; items
+  about a person carry no status filter, as row-level security has none (HZ-018). No task details
+  or reasons, handover refresh time, version or device ids reach a device.
+- The sync token carries `handover_location_ids` and `handover_assigned` (`familyReach` for
+  `care.handover.manage`), audited with the other families; the device schema gains `task`,
+  `handover`, `handover_item` (`key` as `item_key`), `handover_note` and
+  `handover_acknowledgement`, read-only.
+- Isolation through the real sync-rules engine (`task-handover-streams.test.ts`, 16 tests):
+  scopes, ended assignments, moved and deceased people, items about nobody, acknowledgements,
+  each family only with its own claims, two tenants, hostile connection parameters, no window or
+  tenant. Hazard log rows on HZ-011, HZ-018 and HZ-028; care.md section 6, records of processing
+  and data standards updated.
+- Needs a migration before anything syncs (Lane A): the five tables join the `powersync`
+  publication with the sync role's read policy and grant. Next: the offline completion and
+  acknowledgement, then the screens (STATUS item 13).
+
+**Tests**: `packages/sync` 79, `apps/mobile` 891, and in `apps/api` the sync family, scope per
+permission and API suites (128), passing locally; typecheck clean for sync, API and mobile.
