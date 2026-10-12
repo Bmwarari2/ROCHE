@@ -1,6 +1,7 @@
 import { Button, Text, useHaptics, useTheme } from "@harbour/ui-native";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -9,19 +10,101 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { heldView } from "../app-state/held-view";
+import {
+  checkDiscardReason,
+  type DiscardReason,
+  HeldDiscardNotAllowedError,
+  type HeldWork,
+  HeldWorkOwnerError,
+} from "../app-state/held-work";
 import { useSession } from "../app-state/session";
+import { useVault } from "../app-state/vault";
 import { AuthError, type TwoFactorChallenge } from "../auth/auth-client";
 import { authClient } from "../auth/clients";
+import type { FieldError } from "../care/entries";
+import { Card } from "../components/Card";
+import { DiscardReasonFields, EMPTY_REASON } from "../components/DeleteWithReason";
 import { TextField } from "../components/TextField";
 import { appEnv } from "../config/app-env";
 import { DEMO_TOTP_CODE } from "../demo/demo-auth";
+import { t } from "../i18n/t";
 
 type Step =
   | { readonly kind: "credentials" }
   | { readonly kind: "totp"; readonly challenge: TwoFactorChallenge };
 
+/** Signing in to use Harbour, or (with held entries) to delete them as their owner or a manager. */
+type Purpose = "signIn" | "discard";
+
 function messageFor(error: unknown): string {
-  return error instanceof AuthError ? error.message : new AuthError("unexpected").message;
+  if (
+    error instanceof AuthError ||
+    error instanceof HeldWorkOwnerError ||
+    error instanceof HeldDiscardNotAllowedError
+  ) {
+    return error.message;
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return new AuthError("unexpected").message;
+}
+
+/** Re-renders every minute, so the hold's final warning and escalation show on time. */
+function useMinuteClock(): Date {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(interval);
+  }, []);
+  return now;
+}
+
+/**
+ * Entries kept on the device after the session ended (HZ-006, HZ-040): whose they are (C8), how
+ * many, and where the hold stands: until the deadline, a final warning in the last day, then a
+ * manager must resolve them (M3). Nothing is deleted automatically. Only their owner can sign in
+ * and send them. Deleting them needs the owner or a manager to sign in on the device (M2), a coded
+ * reason, a confirmation naming the count and device authentication.
+ */
+function HeldEntries({
+  held,
+  discarding,
+  onDiscard,
+}: {
+  readonly held: HeldWork;
+  readonly discarding: boolean;
+  readonly onDiscard: () => void;
+}) {
+  const theme = useTheme();
+  const view = heldView(held, useMinuteClock());
+
+  return (
+    <Card testID="held-entries">
+      <View accessible accessibilityRole="alert" style={{ gap: theme.space[1] }}>
+        <Text emphasis>{view.title}</Text>
+        <Text testID="held-owner">{view.owner}</Text>
+        <Text variant="bodyDense">{view.body}</Text>
+        {view.urgent ? (
+          <Text tone="danger" emphasis testID={`held-${view.state}`}>
+            {view.time}
+          </Text>
+        ) : (
+          <Text variant="bodyDense" testID="held-deadline">
+            {view.time}
+          </Text>
+        )}
+      </View>
+      {discarding ? null : (
+        <Button
+          label={view.discardLabel}
+          variant="destructive"
+          onPress={onDiscard}
+          fullWidth
+          testID="held-discard"
+        />
+      )}
+    </Card>
+  );
 }
 
 /** Email and password, then the authenticator code when the account has TOTP. */
@@ -29,6 +112,10 @@ export default function SignInScreen() {
   const theme = useTheme();
   const haptics = useHaptics();
   const session = useSession();
+  const vault = useVault();
+  const [purpose, setPurpose] = useState<Purpose>("signIn");
+  const [choice, setChoice] = useState<DiscardReason>(EMPTY_REASON);
+  const [reasonError, setReasonError] = useState<FieldError | null>(null);
   const [step, setStep] = useState<Step>({ kind: "credentials" });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -36,14 +123,68 @@ export default function SignInScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const passwordRef = useRef<TextInput>(null);
+  const held = session.held;
+  const discarding = purpose === "discard" && held !== null;
+
+  const backToSignIn = () => {
+    setPurpose("signIn");
+    setChoice(EMPTY_REASON);
+    setReasonError(null);
+    setStep({ kind: "credentials" });
+    setCode("");
+    setError(null);
+  };
+
+  /** The signer is known only after signing in: the confirmation names the count, then deletes. */
+  const confirmDiscard = (token: string) =>
+    new Promise<void>((resolve) => {
+      const view = held ? heldView(held, new Date()) : null;
+      Alert.alert(
+        view?.confirmTitle ?? t("mobile.held.discardTitleUnknown"),
+        t("mobile.held.discardBody"),
+        [
+          {
+            text: t("common.cancel"),
+            style: "cancel",
+            onPress: () => {
+              void authClient.signOut(token).catch(() => undefined);
+              resolve();
+            },
+          },
+          {
+            text: t("mobile.held.discardConfirm"),
+            style: "destructive",
+            onPress: () => {
+              vault
+                .discardHeld(choice, token)
+                .then(() => {
+                  haptics?.success();
+                  backToSignIn();
+                })
+                .catch((caught: unknown) => setError(messageFor(caught)))
+                .finally(resolve);
+            },
+          },
+        ],
+      );
+    });
 
   const finish = async (token: string) => {
+    if (discarding) {
+      await confirmDiscard(token);
+      return;
+    }
     await session.completeSignIn(token);
     haptics?.success();
   };
 
   const submitCredentials = async () => {
     if (busy) return;
+    if (discarding) {
+      const problem = checkDiscardReason(choice);
+      setReasonError(problem);
+      if (problem) return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -92,16 +233,39 @@ export default function SignInScreen() {
         >
           <View style={{ gap: theme.space[1] }}>
             <Text variant="title" accessibilityRole="header">
-              Sign in to Harbour
+              {discarding ? t("mobile.held.discardSignInTitle") : "Sign in to Harbour"}
             </Text>
             <Text tone="secondary">
-              {step.kind === "credentials"
-                ? "Use the email address and password from your care provider."
-                : "Enter the 6-digit code from your authenticator app."}
+              {discarding
+                ? t("mobile.held.discardSignInBody")
+                : step.kind === "credentials"
+                  ? "Use the email address and password from your care provider."
+                  : "Enter the 6-digit code from your authenticator app."}
             </Text>
           </View>
 
-          {session.notice ? (
+          {held ? (
+            <HeldEntries
+              held={held}
+              discarding={discarding}
+              onDiscard={() => {
+                setPurpose("discard");
+                setError(null);
+              }}
+            />
+          ) : null}
+
+          {discarding ? (
+            <DiscardReasonFields
+              label={t("mobile.discard.reasonLabel")}
+              value={choice}
+              onChange={setChoice}
+              error={reasonError}
+              testID="held-discard"
+            />
+          ) : null}
+
+          {session.notice && !discarding ? (
             <Text tone="warning" accessibilityRole="alert" testID="sign-in-notice">
               {session.notice}
             </Text>
@@ -170,7 +334,8 @@ export default function SignInScreen() {
           <View style={{ gap: theme.space[1.5] }}>
             {step.kind === "credentials" ? (
               <Button
-                label="Sign in"
+                label={discarding ? t("mobile.held.discardSignIn") : "Sign in"}
+                variant={discarding ? "destructive" : "primary"}
                 onPress={() => {
                   void submitCredentials();
                 }}
@@ -204,6 +369,15 @@ export default function SignInScreen() {
                 />
               </>
             )}
+            {discarding ? (
+              <Button
+                label={t("common.cancel")}
+                variant="secondary"
+                onPress={backToSignIn}
+                fullWidth
+                testID="held-discard-cancel"
+              />
+            ) : null}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

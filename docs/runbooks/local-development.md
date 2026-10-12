@@ -61,3 +61,25 @@ because the PowerSync rules engine uses `using` declarations (configured in each
 Husky runs on commit: refuses `.env` files, keys and commits to `main`; Biome on staged files; a
 typecheck of the packages you touched; commitlint on the message. `git push` runs the full
 typecheck.
+
+## Running CI locally
+
+`scripts/ci-local.sh <base-sha> [labels]` runs the `ci.yml` gates on your machine, in order, and
+prints a pass or fail line per gate with the log path. Use it when GitHub-hosted minutes are
+used up (the account includes 2,000 a month; jobs then fail in a second with no runner and no
+logs) or before pushing a large change.
+
+```sh
+git fetch origin main
+PATH="/path/to/gitleaks:/path/to/oasdiff:$PATH" \
+  scripts/ci-local.sh "$(git merge-base origin/main HEAD)" "clinical,data-protection"
+```
+
+- The second argument is the pull request's labels, for the docs gate.
+- It needs the local Postgres above, Chromium for Playwright, and `gitleaks` and `oasdiff` on
+  `PATH` (both are single binaries from their GitHub releases).
+- The e2e step drops and recreates the local `harbour` database.
+- It does not cover the container image builds (they need Docker), CodeQL (its licence covers
+  private code only when GitHub runs it), Trivy or Maestro. Run those on `main` once hosted
+  minutes are back, and record the local results on the pull request when merging without
+  hosted CI.

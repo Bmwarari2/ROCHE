@@ -121,6 +121,43 @@ export async function loadOrCreateDatabaseKey(deps: {
   };
 }
 
+/**
+ * Reads the key without ever making one (deleting held entries reads their ids first): null when
+ * there is none or it is not usable. With biometric protection the read shows the system prompt.
+ */
+export async function readDatabaseKey(
+  store: SecretStore,
+  options: KeyOptions,
+): Promise<DatabaseKey | null> {
+  const id = await store.getItem(DB_ID_ITEM, options.plainOptions);
+  const protection = parseProtection(
+    await store.getItem(DB_KEY_PROTECTION_ITEM, options.plainOptions),
+  );
+  if (!id || !protection) return null;
+  const hex = await store.getItem(DB_KEY_ITEM, options.protectedOptions(protection));
+  return isValidKeyHex(hex) ? { id, sqlcipherKey: sqlcipherRawKey(hex), protection } : null;
+}
+
+/**
+ * True while the key or its bookkeeping is still in the keystore (S5, checked after a deletion).
+ * The bookkeeping is plain, and a passcode-protected key is readable without a prompt, so both are
+ * read back. A biometric-protected key cannot be read without a prompt; its deletion is repeated
+ * instead, which throws if the keystore refuses it.
+ */
+export async function databaseKeyRemains(
+  store: SecretStore,
+  options: KeyOptions,
+): Promise<boolean> {
+  const [id, protection, passcodeKey] = await Promise.all([
+    store.getItem(DB_ID_ITEM, options.plainOptions),
+    store.getItem(DB_KEY_PROTECTION_ITEM, options.plainOptions),
+    store.getItem(DB_KEY_ITEM, options.protectedOptions("passcode")),
+  ]);
+  if (id !== null || protection !== null || passcodeKey !== null) return true;
+  await store.deleteItem(DB_KEY_ITEM, options.protectedOptions("biometric"));
+  return false;
+}
+
 /** Deletes the key and its bookkeeping. The database file becomes unreadable. */
 export async function destroyDatabaseKey(store: SecretStore, options: KeyOptions): Promise<void> {
   const protection = parseProtection(

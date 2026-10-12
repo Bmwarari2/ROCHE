@@ -64,6 +64,7 @@ import {
   REVIEW_TASKS,
   toRecordState,
 } from "../services/care-planning";
+import { flagIfReportedDeleted } from "../services/device-holds";
 import { loadPerson, requireWrite } from "../services/people";
 import {
   applyLink,
@@ -353,6 +354,13 @@ export const careRecordsRouter = createRouter()
               personId,
             );
             if (inserted) {
+              // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
+              await flagIfReportedDeleted(tx, access, {
+                resourceType: "assessment",
+                id: row.id,
+                locationId: person.locationId,
+                requestId: c.get("requestId"),
+              });
               if (link) {
                 await applyLink(tx, access, c.get("requestId"), link, {
                   evidenceType: "assessment",
@@ -588,6 +596,13 @@ export const careRecordsRouter = createRouter()
               personId,
             );
             if (inserted) {
+              // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
+              await flagIfReportedDeleted(tx, access, {
+                resourceType: "activity_record",
+                id: row.id,
+                locationId: person.locationId,
+                requestId: c.get("requestId"),
+              });
               if (link) {
                 await applyLink(tx, access, c.get("requestId"), link, {
                   evidenceType: "activity_record",
@@ -780,6 +795,13 @@ export const careRecordsRouter = createRouter()
               personId,
             );
             if (inserted) {
+              // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
+              await flagIfReportedDeleted(tx, access, {
+                resourceType: "visit_log",
+                id: row.id,
+                locationId: person.locationId,
+                requestId: c.get("requestId"),
+              });
               if (link) {
                 await applyLink(tx, access, c.get("requestId"), link, {
                   evidenceType: "visit_log",

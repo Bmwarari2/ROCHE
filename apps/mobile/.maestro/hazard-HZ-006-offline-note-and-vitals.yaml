@@ -1,0 +1,207 @@
+# Hazards HZ-006 (silent sync failure), HZ-002 (stale data), HZ-001 (point-of-care header) and
+# HZ-015 (resuscitation status): with no signal, a carer writes a note and records vital signs,
+# sees a raised NEWS2 score at once, and both entries say they are waiting to upload. They survive
+# the app being closed, and once the network returns they upload and read as saved.
+#
+# Needs the live API stack (the test tenant's care worker is assigned HARBOUR_EXPECTED_PERSON), like
+# the other offline flows: a demo build never syncs, so "Up to date" never appears. setAirplaneMode
+# is Android only in Maestro (see the README, "End-to-end tests").
+appId: uk.co.thapsus.harbour
+name: Offline note and vital signs upload when the network returns
+tags:
+  - offline
+env:
+  HARBOUR_EXPECTED_PERSON: ${HARBOUR_EXPECTED_PERSON || "Ada Example"}
+  HARBOUR_NOTE: ${HARBOUR_NOTE || "Offline check, helped with a wash and skin on heels intact"}
+---
+- runFlow: sign-in.yaml
+# The first sync brings the person and their care record to the device.
+- extendedWaitUntil:
+    visible:
+      text: "Up to date.*"
+    timeout: 60000
+- assertVisible:
+    id: "today-sync-last"
+- assertVisible:
+    text: "No changes waiting to upload"
+- tapOn:
+    text: "${HARBOUR_EXPECTED_PERSON}.*"
+- extendedWaitUntil:
+    visible:
+      id: "person-screen"
+    timeout: 15000
+- assertVisible:
+    id: "person-header"
+- assertVisible:
+    id: "person-header-flags-resuscitation"
+
+- setAirplaneMode: enabled
+- extendedWaitUntil:
+    visible:
+      text: "Offline.*"
+    timeout: 30000
+
+# A note written offline.
+- tapOn:
+    id: "action-note"
+- extendedWaitUntil:
+    visible:
+      id: "note-screen"
+    timeout: 10000
+- assertVisible:
+    id: "person-header"
+- scrollUntilVisible:
+    element:
+      id: "note-category-personal_care"
+- tapOn:
+    id: "note-category-personal_care"
+- scrollUntilVisible:
+    element:
+      id: "note-body"
+- tapOn:
+    id: "note-body"
+- inputText: ${HARBOUR_NOTE}
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: "save-entry"
+- tapOn:
+    id: "save-entry"
+- extendedWaitUntil:
+    visible:
+      id: "person-screen"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: ".*${HARBOUR_NOTE}.*"
+- assertVisible:
+    text: "Waiting to upload"
+
+# Vital signs recorded offline: respiration 25 and pulse 131 each score 3, so NEWS2 is 6 and the
+# raised score shows on the device before anything uploads.
+- scrollUntilVisible:
+    element:
+      id: "action-chart"
+    direction: UP
+- tapOn:
+    id: "action-chart"
+- scrollUntilVisible:
+    element:
+      id: "chart-choose-vitals"
+- tapOn:
+    id: "chart-choose-vitals"
+- extendedWaitUntil:
+    visible:
+      id: "chart-screen-vitals"
+    timeout: 10000
+- assertVisible:
+    id: "person-header"
+- scrollUntilVisible:
+    element:
+      id: "chart-respirationRate"
+- tapOn:
+    id: "chart-respirationRate"
+- inputText: "25"
+- scrollUntilVisible:
+    element:
+      id: "chart-spo2"
+- tapOn:
+    id: "chart-spo2"
+- inputText: "97"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: "chart-oxygen-air"
+- tapOn:
+    id: "chart-oxygen-air"
+- scrollUntilVisible:
+    element:
+      id: "chart-systolic"
+- tapOn:
+    id: "chart-systolic"
+- inputText: "125"
+- scrollUntilVisible:
+    element:
+      id: "chart-pulse"
+- tapOn:
+    id: "chart-pulse"
+- inputText: "131"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: "chart-consciousness-alert"
+- tapOn:
+    id: "chart-consciousness-alert"
+- scrollUntilVisible:
+    element:
+      id: "chart-temperature"
+- tapOn:
+    id: "chart-temperature"
+- inputText: "37.0"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: "news2-result"
+- assertVisible:
+    text: "NEWS2 score 6"
+- assertVisible:
+    text: "Clinical risk: Medium"
+- scrollUntilVisible:
+    element:
+      id: "save-entry"
+- tapOn:
+    id: "save-entry"
+- extendedWaitUntil:
+    visible:
+      id: "person-screen"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: ".*NEWS2 6, clinical risk Medium.*"
+
+# Queued entries survive the app being closed while still offline.
+- stopApp
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "lock-screen"
+    timeout: 30000
+- tapOn:
+    id: "unlock-button"
+- extendedWaitUntil:
+    visible:
+      id: "today-screen"
+    timeout: 30000
+- assertVisible:
+    text: "Offline.*"
+- assertVisible:
+    text: "2 changes waiting to upload"
+
+# Back online: both upload by themselves and read as saved.
+- setAirplaneMode: disabled
+- extendedWaitUntil:
+    visible:
+      text: "No changes waiting to upload"
+    timeout: 90000
+- extendedWaitUntil:
+    visible:
+      text: "Up to date.*"
+    timeout: 90000
+- assertNotVisible:
+    text: "Sync failed.*"
+- assertNotVisible:
+    id: "upload-issues"
+- tapOn:
+    text: "${HARBOUR_EXPECTED_PERSON}.*"
+- extendedWaitUntil:
+    visible:
+      id: "person-screen"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: ".*${HARBOUR_NOTE}.*"
+- assertNotVisible:
+    text: "Waiting to upload"
+- assertVisible:
+    text: "Saved"

@@ -1,4 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { parse } from "yaml";
+import { OFFLINE_WINDOW_TABLES } from "../src/client/schema";
 import { readSyncConfig, type SyncTokenClaims } from "../src/streams/index";
 import { compile, ids, type SourceRows, syncFor } from "./support/simulator";
 
@@ -131,12 +133,60 @@ beforeAll(() => {
   hydrated = compiled.hydrated;
 });
 
+interface StreamDefinition {
+  readonly query?: string;
+  readonly queries?: readonly string[];
+}
+
+function streamQueries(): Array<{ stream: string; query: string }> {
+  const parsed = parse(readSyncConfig()) as { streams: Record<string, StreamDefinition> };
+  return Object.entries(parsed.streams).flatMap(([stream, definition]) =>
+    [...(definition.query ? [definition.query] : []), ...(definition.queries ?? [])].map(
+      (query) => ({ stream, query }),
+    ),
+  );
+}
+
 describe("sync streams definition", () => {
   it("pins every stream query to the token's tenant", () => {
-    const yaml = readSyncConfig();
-    const queries = yaml.split(/\n {2}[a-z_]+:\n/).slice(1);
+    const queries = streamQueries();
     expect(queries.length).toBeGreaterThanOrEqual(5);
-    for (const q of queries) expect(q).toContain("auth.parameter('tenant_id')");
+    for (const { stream, query } of queries) {
+      expect(query, stream).toContain("auth.parameter('tenant_id')");
+    }
+  });
+
+  it("takes the people in scope from the token, never from the device", () => {
+    for (const { stream, query } of streamQueries()) {
+      if (stream === "my_locations") continue;
+      const scoped =
+        query.includes("auth.user_id()") || query.includes("auth.parameter('people_location_ids')");
+      expect(scoped, stream).toBe(true);
+      // Nothing the device sends is read: not the scope, and not the offline window (S1).
+      expect(query, stream).not.toContain("connection.parameter");
+    }
+  });
+
+  it("limits every point-of-care entry to the offline window", () => {
+    const entryQueries = streamQueries().filter(({ query }) =>
+      OFFLINE_WINDOW_TABLES.some((t) => query.includes(`FROM ${t},`)),
+    );
+    expect(entryQueries).toHaveLength(OFFLINE_WINDOW_TABLES.length * 2);
+    for (const { stream, query } of entryQueries) {
+      expect(query, stream).toContain("IN auth.parameter('offline_days')");
+    }
+  });
+
+  it("carries people receiving care only on every location-scope stream (L1)", () => {
+    const location = streamQueries().filter(({ stream }) => stream.startsWith("location_"));
+    // People, allergies, and the five reference, two plan and five entry queries.
+    expect(location.length).toBe(14);
+    const live = (column: string) =>
+      `(${column} = 'active' OR ${column} = 'on_leave' OR ${column} = 'in_hospital')`;
+    for (const { stream, query } of location) {
+      const filtered = query.includes(live("status")) || query.includes(live("person.status"));
+      expect(filtered, stream).toBe(true);
+    }
   });
 });
 
@@ -181,6 +231,44 @@ describe("hazard HZ-011 location manager (locations scope)", () => {
     );
     expect(ids(device, "person")).toEqual(["ada", "ben"]);
     expect(ids(device, "allergy")).toEqual(["allergy-ada"]);
+  });
+
+  it("receives only people active, on leave or in hospital, with their allergies (L1)", async () => {
+    const statuses = ["enquiry", "discharged", "deceased", "archived", "on_leave", "in_hospital"];
+    const extra = statuses.map((status, i) => ({
+      ...person(`p-${status}`, A, "loc-a-north", `999 000 00${10 + i}`),
+      status,
+    }));
+    const extraAllergies = statuses.map((status) => ({
+      id: `allergy-${status}`,
+      tenant_id: A,
+      person_id: `p-${status}`,
+      substance: "Invented",
+      reaction: null,
+      severity: "mild",
+      status: "active",
+      recorded_at: "2026-10-01T09:00:00Z",
+    }));
+    const device = await syncFor(
+      hydrated,
+      {
+        ...source,
+        person: [...(source.person ?? []), ...extra],
+        allergy: [...(source.allergy ?? []), ...extraAllergies],
+      },
+      claims({
+        sub: "manager-a",
+        tenant_id: A,
+        location_ids: ["loc-a-north"],
+        people_location_ids: ["loc-a-north"],
+      }),
+    );
+    expect(ids(device, "person")).toEqual(["ada", "ben", "p-in_hospital", "p-on_leave"]);
+    expect(ids(device, "allergy")).toEqual([
+      "allergy-ada",
+      "allergy-in_hospital",
+      "allergy-on_leave",
+    ]);
   });
 });
 

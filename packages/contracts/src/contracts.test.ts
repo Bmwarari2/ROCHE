@@ -14,6 +14,8 @@ import {
   ProblemDetails,
   PublishCarePlan,
   ResuscitationStatus,
+  SyncDeviceReport,
+  SyncDiscard,
   SyncUpload,
   UpdateAboutMe,
   UpdateCandour,
@@ -214,5 +216,81 @@ describe("slice 8 people lifecycle contracts", () => {
     expect(BreakGlassRequest.safeParse({ ...request, reasonCode: "curiosity" }).success).toBe(
       false,
     );
+  });
+});
+
+describe("hazard HZ-040 device discards and reports", () => {
+  const discard = {
+    id: "0199d000-0000-7000-8000-0000000000d1",
+    kind: "held_deleted",
+    stage: "requested",
+    reasonCode: "recorded_elsewhere",
+    ownerTenantUserId: "00000000-0000-4000-8000-0000000000c1",
+    entryIds: ["0199d000-0000-7000-8000-0000000000e1"],
+    personIds: ["00000000-0000-4000-8000-0000000000b1"],
+    count: 1,
+    discardedAt: "2026-10-11T07:30:00.000Z",
+  };
+
+  it("takes a coded reason and refuses the person's words (round 4, M3; round 5, S-L6)", () => {
+    expect(SyncDiscard.safeParse(discard).success).toBe(true);
+    expect(SyncDiscard.safeParse({ ...discard, reasonCode: "other" }).success).toBe(true);
+    expect(SyncDiscard.safeParse({ ...discard, reason: "Recorded on paper for Ada" }).success).toBe(
+      false,
+    );
+  });
+
+  it("takes what a deletion left behind, and why it has no ids (round 5, C-M1 and C-M2)", () => {
+    expect(
+      SyncDiscard.safeParse({ ...discard, stage: "deleted", leftover: ["file", "key"] }).success,
+    ).toBe(true);
+    expect(SyncDiscard.safeParse({ ...discard, leftover: ["rows"] }).success).toBe(false);
+    expect(
+      SyncDiscard.safeParse({ ...discard, entryIds: [], count: null, idsMissing: "key_absent" })
+        .success,
+    ).toBe(true);
+    expect(SyncDiscard.safeParse({ ...discard, idsMissing: "cancelled" }).success).toBe(false);
+  });
+
+  it.each(["requested", "deleted", "failed"])("takes the %s stage (round 4, H1)", (stage) => {
+    expect(SyncDiscard.safeParse({ ...discard, stage }).success).toBe(true);
+  });
+
+  it("never carries more entry ids than entries (round 4, M4)", () => {
+    const ids = ["0199d000-0000-7000-8000-0000000000e1", "0199d000-0000-7000-8000-0000000000e2"];
+    expect(SyncDiscard.safeParse({ ...discard, entryIds: ids, count: 1 }).success).toBe(false);
+    expect(SyncDiscard.safeParse({ ...discard, entryIds: ids, count: 900 }).success).toBe(true);
+    expect(SyncDiscard.safeParse({ ...discard, entryIds: ids, count: null }).success).toBe(true);
+  });
+
+  it.each([
+    ["an unknown kind", { kind: "anything" }],
+    ["an unknown reason code", { reasonCode: "because" }],
+    ["entry ids that are not ids", { entryIds: ["Ada's note"] }],
+    ["a deleter that is not an id", { deletedByTenantUserId: "Mo Manager" }],
+    ["an unknown stage", { stage: "maybe" }],
+    ["no stage", { stage: undefined }],
+  ])("refuses %s", (_case, change) => {
+    expect(SyncDiscard.safeParse({ ...discard, ...change }).success).toBe(false);
+  });
+
+  it("carries counts and an age only in a device report", () => {
+    const report = {
+      unsent: 3,
+      refused: 1,
+      held: 0,
+      blocked: 0,
+      oldestAgeSeconds: 3600,
+      reportedAt: "2026-10-11T07:30:00.000Z",
+    };
+    expect(SyncDeviceReport.safeParse(report).success).toBe(true);
+    expect(SyncDeviceReport.safeParse({ ...report, unsent: -1 }).success).toBe(false);
+    // Unknown keys are refused, so nothing else can ride along (round 5, S-L6).
+    expect(SyncDeviceReport.safeParse({ ...report, name: "Ada" }).success).toBe(false);
+    expect(SyncDeviceReport.safeParse({ ...report, blocked: undefined }).success).toBe(false);
+    expect(
+      SyncDeviceReport.safeParse({ ...report, held: 2, heldSince: "2026-10-11T07:00:00.000Z" })
+        .success,
+    ).toBe(true);
   });
 });

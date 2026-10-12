@@ -87,6 +87,17 @@ function dayAfter(isoDate: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * Figures a device turns into a list of days (one sync bucket per person and day), checked when
+ * the seed reads them: the sync service limits buckets per connection, so a figure outside these
+ * bounds is refused here rather than at the first token (`packages/sync/src/client/window.ts`).
+ */
+const DEVICE_DAY_RANGES: Readonly<Record<string, { readonly min: number; readonly max: number }>> =
+  {
+    "mobile.offline_window_days": { min: 1, max: 31 },
+    "mobile.held_entries_max_days": { min: 1, max: 31 },
+  };
+
 export function parseRates(markdown: string): RateSeedRow[] {
   return tableUnderHeading(markdown, "## Rate table").map((cells, index) => {
     const where = `rates.md row ${index + 1}`;
@@ -114,6 +125,20 @@ export function parseRates(markdown: string): RateSeedRow[] {
     if (!NATIONS.has(nation)) throw new ReferenceDataError(`${where}: unknown nation ${nation}`);
     if (!STATUSES.has(status)) throw new ReferenceDataError(`${where}: unknown status ${status}`);
     if (!unit) throw new ReferenceDataError(`${where}: missing unit`);
+    const dayRange = DEVICE_DAY_RANGES[key];
+    if (dayRange) {
+      const days = Number(value);
+      if (
+        !Number.isInteger(days) ||
+        days < dayRange.min ||
+        days > dayRange.max ||
+        unit !== "days"
+      ) {
+        throw new ReferenceDataError(
+          `${where}: ${key} must be a whole number of days from ${dayRange.min} to ${dayRange.max}`,
+        );
+      }
+    }
     return {
       key,
       value,

@@ -66,6 +66,18 @@ describe("parseRates", () => {
     ["| a.b | 1 | x | 2026-01-01 | - | uk | s | guessed |", /status/],
     ["| a.b | 1 |  | 2026-01-01 | - | uk | s | verified |", /unit/],
     ["| a.b | 1 | x | 2026-01-01 | - | uk |", /8 columns/],
+    // A device turns these into one sync bucket per day: 1 to 31 whole days only (L3).
+    ["| mobile.offline_window_days | 0 | days | 2000-01-01 | - | all | s | verified |", /1 to 31/],
+    ["| mobile.offline_window_days | 32 | days | 2000-01-01 | - | all | s | verified |", /1 to 31/],
+    [
+      "| mobile.offline_window_days | 7.5 | days | 2000-01-01 | - | all | s | verified |",
+      /1 to 31/,
+    ],
+    ["| mobile.offline_window_days | 7 | hours | 2000-01-01 | - | all | s | verified |", /1 to 31/],
+    [
+      "| mobile.held_entries_max_days | 99 | days | 2000-01-01 | - | all | s | to-verify |",
+      /1 to 31/,
+    ],
   ])("rejects %s", (row, message) => {
     const md = `## Rate table\n\n| h |\n| - |\n${row}\n`;
     expect(() => parseRates(md)).toThrow(message);

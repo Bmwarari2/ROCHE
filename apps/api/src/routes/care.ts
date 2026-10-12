@@ -51,6 +51,7 @@ import {
   raiseCareTriggers,
 } from "../services/care";
 import { latestMustBand } from "../services/care-planning";
+import { flagIfReportedDeleted } from "../services/device-holds";
 import { loadPerson, type PersonRecord, requireWrite } from "../services/people";
 import {
   applyLink,
@@ -221,6 +222,13 @@ export const careRouter = createRouter()
             if (!row || row.personId !== personId)
               throw problems.invalid("That id is already used.");
             if (inserted) {
+              // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
+              await flagIfReportedDeleted(tx, access, {
+                resourceType: "care_note",
+                id: row.id,
+                locationId: person.locationId,
+                requestId: c.get("requestId"),
+              });
               if (link) {
                 await applyLink(tx, access, c.get("requestId"), link, {
                   evidenceType: "care_note",
@@ -400,6 +408,13 @@ export const careRouter = createRouter()
             if (!row || row.personId !== personId)
               throw problems.invalid("That id is already used.");
             if (inserted) {
+              // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
+              await flagIfReportedDeleted(tx, access, {
+                resourceType: "observation",
+                id: row.id,
+                locationId: person.locationId,
+                requestId: c.get("requestId"),
+              });
               // A result recorded before a move to hospital or on leave still alerts the nurse in
               // charge; after a discharge or death only the safety prompts are raised (rule 3).
               await raiseCareTriggers(
@@ -743,6 +758,13 @@ export const careRouter = createRouter()
               );
             }
             if (inserted) {
+              // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
+              await flagIfReportedDeleted(tx, access, {
+                resourceType: "body_map_mark",
+                id: row.id,
+                locationId: person.locationId,
+                requestId: c.get("requestId"),
+              });
               if (link) {
                 await applyLink(tx, access, c.get("requestId"), link, {
                   evidenceType: "body_map_mark",

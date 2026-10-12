@@ -35,6 +35,10 @@ module "stack" {
   enable_flagsmith = var.enable_flagsmith
   use_fargate_spot = true
 
+  # Pinned AWS managed rule group versions; required in prod (human action H-140).
+  waf_managed_rule_group_versions     = var.waf_managed_rule_group_versions
+  waf_managed_rule_groups_unversioned = var.waf_managed_rule_groups_unversioned
+
   alb_deletion_protection = false
   force_destroy_buckets   = true
   log_retention_days      = 365

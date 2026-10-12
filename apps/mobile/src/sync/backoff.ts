@@ -10,12 +10,19 @@ export interface BackoffPolicy {
   readonly maxDelayMs: number;
   /** Total attempts including the first. */
   readonly maxAttempts: number;
+  /**
+   * The longest a server's Retry-After is honoured; longer hints wait this long. Defaults to
+   * `maxDelayMs`. Kept above the web application firewall's 300 seconds, so a rate-limited device
+   * waits as asked rather than coming back early (security review round 4).
+   */
+  readonly maxRetryAfterMs?: number;
 }
 
 export const UPLOAD_BACKOFF: BackoffPolicy = {
   baseDelayMs: 1_000,
   maxDelayMs: 30_000,
   maxAttempts: 5,
+  maxRetryAfterMs: 600_000,
 };
 
 /**
@@ -70,7 +77,7 @@ export async function retryWithBackoff<T>(
       const delayMs =
         serverHint === null
           ? jittered
-          : Math.min(Math.max(serverHint, jittered), policy.maxDelayMs);
+          : Math.min(Math.max(serverHint, jittered), policy.maxRetryAfterMs ?? policy.maxDelayMs);
       options.onRetry?.({ attempt, delayMs, error });
       await sleep(delayMs);
     }
