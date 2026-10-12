@@ -66,6 +66,9 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `break_glass_event`, `break_glass_weekly_report` | audit_event |
 | `device_binding`, `device_session`, `device_discard_entry`, `handed_over_entry` (Care mode devices, the sessions bound to them, the entries their deletions listed and the entries hand-overs sent; [care.md](care.md) section 6) | audit_event |
 | `refused_entry` (the server copy of an entry the API refused from a device) | care_record |
+| `device_discard_record` (one row per stage of a deletion of unsent entries, with its coded reason; [care.md](care.md) section 6, Device integrity part 8) | audit_event |
+| `entry_device_deletion_flag` (the server's flag on an entry its device recorded deleting) | care_record, as the entry |
+| `discard_reason`, `escalation_policy_link` (the organisation's coded deletion reasons and the escalation policy each validated tool's result links; [care.md](care.md) section 5) | tenant configuration, kept while current; each change kept in `record_version` and the audit trail |
 | `care_plan`, `care_plan_item`, `assessment`, `risk_assessment`, `care_note`, `observation` | care_record |
 | `consent_record`, `capacity_assessment`, `best_interests_decision`, `dols_authorisation`, `dols_legal_change_review` | care_record |
 | `incident` with `retention_class` `care_record` (no notification applies), and its `incident_person`, `classifier_answer` and `investigation` rows | care_record |

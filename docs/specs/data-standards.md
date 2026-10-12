@@ -471,6 +471,13 @@ assurance pack.
 | `recorded_after_exit` on `care_note`, `observation`, `body_map_mark`, `assessment`, `activity_record` and `visit_log` | Harbour | `true` or `false` | Phase 1. True when an entry about an event at or before a discharge, death or move to hospital, or within the clock tolerance after it (`sync.clock_drift_flag_minutes`), is accepted after it (people.md rule 3, HZ-006); shown with the late-entry flag. |
 | `handed_over_by` on `care_note`, `observation`, `body_map_mark`, `activity_record` and `visit_log` | Harbour | UUIDv7 (`tenant_user.id`) or null | Phase 1 (migration 0041). "Sent by": the manager who handed the entry over from a device for its author (`created_by`), when one did (care.md section 6, Device integrity part 6); null when its author sent it. Returned as `handedOverBy` with every entry item. |
 | `task_id`, `task_outcome` on `care_note`, `observation`, `body_map_mark`, `assessment`, `activity_record` and `visit_log` | Harbour (`TASK_LINK_OUTCOMES`) | UUIDv7; `completed`, `task_cancelled`, `task_already_closed`, `not_linked`, `medicines_conflict` (migration 0026) | Phase 1 (migration 0023). The task the entry named and what the entry did to it (care.md rule 13, HZ-004, HZ-006): set together or not at all (check `<table>_task_outcome`). `task_already_closed` and `not_linked` are listed for review by the nurse in charge; `medicines_conflict` (a medicines task the entry could not complete) for an urgent conflict review. |
+| `body_map_mark.drawn_x`, `drawn_y`, `drawn_zone`, `drawn_side` | Harbour (`BODY_MAP_DRAWING` in `packages/domain`) | `drawn_x` 0 to 120 and `drawn_y` 0 to 240 in the drawing's own units (x from the viewer's left, y from the top), or both null when a zone was chosen with the buttons; `drawn_zone` `viewer_left`, `centre`, `viewer_right`; `drawn_side` `left`, `right`, `midline` (the person's own) | Phase 1 (migration 0043; care API follow-ups). Where the mark was placed and the side the server worked out from it and the view (care.md rule 7, HZ-019); never taken from the client. Set together (check `body_map_mark_drawing`); null on marks recorded before. Returned as `drawnSide` on `BodyMapMarkItem`. |
+| `observation.flags.iddsiProblem` | Harbour | `level_not_recorded`, `reason_missing`, `prescribed_unreadable` | Phase 1 (care API follow-ups). On a food or drink entry kept from a device although the web form would have refused it for its IDDSI level (care.md rule 6, HZ-016, C3), beside `iddsi` (`outcome` adds `level_not_recorded` and `prescribed_unreadable`) and `iddsiAlert`; absent otherwise. |
+| `StaffName` on API outputs (`recordedByStaff`, `handedOverByStaff`, `changedByStaff`, `publishedByStaff`, `assigneeStaff`, `completedByStaff`, `createdByStaff`, `decidedByStaff`, `authorStaff`, `sentByStaff`, a handover's `staff` and acknowledgements) | Harbour (from `tenant_user.display_name` and `job_title`) | `{ id, displayName, jobTitle }` or null | Phase 1 (care API follow-ups; care.md section 5). Beside every opaque staff id a care response returns, read under the caller's row-level security and only on records the route already lets them read; null for a member not of the organisation (a system job). Never the email. Regulation 17 attribution. |
+| `escalation_policy_link` | Harbour (`ESCALATION_POLICY_TOOL_BANDS` in `packages/domain`) | Tool `news2`, `must`, `waterlow`, `braden`, `ng249_falls`; band one of the tool's bands (NEWS2 `low`, `low_medium`, `medium`, `high`; MUST `low`, `medium`, `high`; Waterlow `not_at_risk`, `at_risk`, `high_risk`, `very_high_risk`; Braden `severe_risk`, `high_risk`, `moderate_risk`, `at_risk`, `below_at_risk_threshold`; none for the falls pathway) or null for every band; location or null for the organisation; title (3 to 200 characters), reference (up to 100), policy document | Phase 1 (migration 0043; care API follow-ups). The organisation's escalation policy a validated tool's result links (care.md rule 5, HZ-012, HZ-014): a location's own policy for the band wins, then the location's for the tool, then the organisation's for the band, then for the tool; otherwise `not_configured`. Returned as `EscalationPolicyRef`. Configuration, not personal data; mutable, versioned, soft-deleted; one live link per tool, band and place. |
+| `discard_reason` | Harbour (`DEFAULT_DISCARD_REASONS` in `packages/domain`) | Code `^[a-z][a-z0-9_]{1,39}$`; English and Welsh labels; order; seeded; retired at | Phase 1 (migrations 0043 and 0044; care API follow-ups). The organisation's coded reasons for deleting unsent entries on a device (care.md section 6, Device integrity part 8; HZ-040, H-146). Every organisation starts with the five the phone offers (`recorded_elsewhere`, `entered_in_error`, `staff_left`, `nurse_in_charge_informed`, `other`), seeded by a trigger on `tenant`; a code is never deleted, only retired. Configuration, not personal data. |
+| `device_discard_record` | Harbour | Deletion id, stage `requested`, `deleted`, `failed`; kind `held_deleted`, `signed_out_with_unsent`, `refused_removed`; coded reason (a `discard_reason` code); owner, deleter and sender `tenant_user` ids; device id; count; when deleted and recorded | Phase 1 (migrations 0043 and 0044; care API follow-ups). One row per stage of each deletion record (the discard replay index: unique on deletion and stage), written only in the system's view, append-only; the audit events stay the hash-chained record. Filled from the audit trail by migration 0044. Retention class `audit_event`. |
+| `entry_device_deletion_flag` | Harbour (`DEVICE_DELETION_FLAGS`) | Entry id and table (`care_note`, `observation`, `body_map_mark`, `activity_record`, `visit_log`, `assessment`); flag `uploaded_after_deletion`, `deleted_after_upload`; person, location, owner, deletion id, review task | Phase 1 (migrations 0043 and 0044; care API follow-ups). The server's flag on an entry its device recorded deleting (care.md section 6, Device integrity part 8; HZ-040), one per entry, append-only, written only in the system's view and read like the entry. Returned as `deviceDeletion` on every entry item. Filled from the audit trail by migration 0044. Retention class `care_record`. |
 | `break_glass_event.reason_code` | Harbour | `emergency_care`, `covering_another_area`, `safeguarding`, `incident_or_complaint`, `request_from_professional`, `other` | Phase 1; the typed justification is kept as well. |
 
 ## Packs and governance (Phase 1, slice 11)
@@ -580,7 +587,11 @@ device made for the entry as JSON, in that kind's own contract shape (`CreateCar
 `CreateObservation`, `CreateBodyMapMark`, `CreateActivityRecord`, `CreateVisit`), the refusal's
 HTTP status, code and reason, when it was refused, the device and its author; exported with the
 care record) and `handed_over_entry` (each entry a hand-over sent: the hand-over id, the device
-that held it, its owner, who sent it, the table and entry id and when it was accepted).
+that held it, its owner, who sent it, the table and entry id and when it was accepted), and from
+the care API follow-ups `device_discard_record` (one row per stage of each deletion record, with
+its coded reason), `discard_reason` (the organisation's coded reasons) and `escalation_policy_link`
+(the escalation policy each validated tool's result links), all described in the table above;
+`entry_device_deletion_flag` is exported with the care record.
 `request_quota` (the recent request times of each member under each per-user limit) is
 operational and not exported, and `device_session` (the sign-in session ids bound to each device,
 so the API refuses them once the device is revoked; read by their member and by jobs, never by a
@@ -615,8 +626,12 @@ section 6). Device columns use the database column names, so this mapping applie
 these differences, defined in `packages/sync/src/client/schema.ts`:
 
 - `observation.values` is `chart_values` on the device, because `values` is a reserved word in SQLite.
-- `body_map_mark.drawn_side` exists only on the device: the side where the mark was drawn, sent with
-  the upload as `drawnSide` so the API repeats the HZ-019 check. The database keeps `side` only.
+- `body_map_mark.drawn_side`, `drawn_zone`, `drawn_x` and `drawn_y` are written on the device and
+  sent with the upload as `drawnSide`, `drawnZone` and `drawnAt` (`{ x, y }`, the point tapped in
+  the drawing's own units; none when a zone button was used); an entry queued before the device
+  kept the zone is sent with the zone its drawn side names on that view. The API works the side out
+  again from the place and the view and stores all four (HZ-019); the streams do not send them
+  back, so they are empty on synced rows.
 - `upload_issue` exists only on the device: an entry the API refused, with its content, until
   someone removes it with a recorded reason (the content never ages out). The device also sends
   the content to the server, which keeps a copy (`refused_entry`; contract `SyncRefusedEntry`,
@@ -674,7 +689,11 @@ these differences, defined in `packages/sync/src/client/schema.ts`:
   security event (`sync.device.residue`, scope `leftover`). An entry uploaded later whose id its
   owner's device recorded as deleted gets a `sync.entry.after_discard` audit event; an entry a
   deletion lists that had already reached the server gets `sync.entry.before_discard` once the
-  deletion is recorded as done (scope: the deletion record's id and the task's id). Each deletion
+  deletion is recorded as done (scope: the deletion record's id and the task's id); each is also
+  kept once on the entry as `entry_device_deletion_flag` (`uploaded_after_deletion`,
+  `deleted_after_upload`), returned as `deviceDeletion` on the entry. Each stage of a deletion is
+  one `device_discard_record` row; an organisation's own code travels as `organisationReasonCode`
+  with `reasonCode` `other`, and only a code in its `discard_reason` list is taken. Each deletion
   record has one review task per kind and location (`sync.entry_reported_deleted`,
   `sync.entry_deleted_after_upload`; source `device_discard`, the record's id; no person id), whose
   title carries the count, whose details carry the owner, the count and the entries, and whose

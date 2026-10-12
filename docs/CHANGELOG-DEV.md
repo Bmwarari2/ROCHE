@@ -625,3 +625,53 @@ holder's confirmation is a CSO and DPO decision and that no screen shows "Sent b
 **Tests**: `packages/domain` 3,914, `packages/db` 341, `packages/contracts` 30, `apps/api` 562,
 `packages/sync` 59, `apps/mobile` 863, `apps/web` 306, `packages/i18n` 48, all passing locally
 through `scripts/ci-local.sh`.
+
+## 2026-10-12: Care API follow-ups (the rest of the #15 reviews)
+
+**What changed**
+
+- IDDSI on the server (HZ-016, C3): `checkIddsiEntry` needs a drink's level whenever a drink level
+  is prescribed. The web is refused, naming the prescribed level; an entry from a device is kept,
+  flagged (`flags.iddsiProblem`: `level_not_recorded`, `reason_missing`, `prescribed_unreadable`)
+  and, when it may not be safe, alerts the nurse in charge. The web shows the flag in words with
+  an icon on the saved entry.
+- Escalation policy link (HZ-012, HZ-014; medical-device boundary rule 4):
+  `escalation_policy_link` (per tool, optional band and location; migrations 0043 and 0044) and
+  `GET`, `POST`, `PUT /v1/escalation-policies` with `.../{linkId}/remove` (`quality.policy.manage`,
+  a location role only for its locations). Every NEWS2, MUST, Waterlow, Braden and falls result
+  returns `escalationPolicy`, or `not_configured`.
+- Body-map side on the server (HZ-019): the shared drawing (`BODY_MAP_DRAWING`) and
+  `sideFromDrawing`; marks carry `drawnAt` or `drawnZone`, the server works out and stores the side
+  (`drawn_x`, `drawn_y`, `drawn_zone`, `drawn_side`) and refuses any disagreement. The web sends
+  each spot (some spots moved so each reads as its own side); the phone sends the point tapped or
+  the zone chosen, and an entry queued before as the zone its drawn side names.
+- Discard reasons, replay index and flag (HZ-040): `discard_reason` per organisation, seeded by a
+  trigger on `tenant` and by the migration, with `GET`, `POST`, `PUT /v1/discard-reasons`
+  (`platform.tenant.manage`, tenant-wide); `SyncDiscard.organisationReasonCode`;
+  `device_discard_record`, unique on deletion and stage, as the replay guard;
+  `entry_device_deletion_flag` and `deviceDeletion` on every entry item. Both tables filled from
+  the audit trail by migration 0044.
+- Staff names: `StaffName` (display name and job title) beside every staff id in care responses
+  (entries, sign-offs, publications, history, tasks, rounds, handovers, MCA records, refused
+  entries), read under the caller's row-level security.
+- Client ids (HZ-029): `id` on `CreateAdvanceCareRecord`, `CreateRiskAssessment`,
+  `CreateCarePlan`, `CreateCarePlanAction`, `CreateConsent` and `CreateDols`, and the
+  `Idempotency-Key` header on every care create route; the web now sends kept ids for advance
+  care records, risk assessments, care plan drafts and actions.
+- OpenAPI and the client regenerated (additive only; `oasdiff breaking` clean); export catalogue
+  entries for the four tables; Welsh catalogue keys added and listed as untranslated.
+- Docs: care.md (sections 2 to 7, 9 and 10; Device integrity part 8), hazard log (HZ-012, HZ-014,
+  HZ-016, HZ-019, HZ-029, HZ-040), medical-device boundary, records of processing, data standards,
+  retention mapping, feature register (CARE-001, CARE-002, CARE-003, CARE-007, CARE-010,
+  CARE-012, CARE-015, CARE-021, CARE-022, MOB-006).
+
+**Next**: review of this branch; the screens for the escalation policy link, staff names and the
+deletion flag (H-73), settings screens for links and coded reasons, the phone offering the
+organisation's reasons (H-164); the stale-device check (H-141); client ids on create routes outside
+care.
+
+**Human actions logged**: H-160 (IDDSI entries kept from a device), H-161 (the new processing and
+staff names), H-162 (the body map drawing), H-163 (the escalation policy lookup), H-164 (coded
+reasons per organisation); H-73, H-74 and H-146 updated.
+
+**Tests**: see the totals in STATUS.md, all passing locally through `scripts/ci-local.sh`.
