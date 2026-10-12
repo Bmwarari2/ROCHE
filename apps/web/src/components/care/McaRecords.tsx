@@ -16,6 +16,8 @@ import {
   Clock,
   History,
   type LucideIcon,
+  RefreshCw,
+  TriangleAlert,
   UserCheck,
   UserX,
 } from "lucide-react";
@@ -27,17 +29,21 @@ import {
   BEST_INTERESTS_ITEMS,
   capacityChip,
   checklistAnswered,
-  consentChip,
   consentGivenBy,
   consentRecordChip,
   consentRecordState,
+  decisionView,
   dolsChip,
   dolsClock,
-  dolsCqcLine,
+  dolsCqcLines,
+  dolsHistoryLines,
   dolsReminders,
+  dolsTitle,
   FUNCTIONAL_ELEMENTS,
+  legalReviewView,
   type McaChip,
   type McaIcon,
+  type McaLine,
   reviewOverdue,
   staffName,
 } from "@/lib/mca";
@@ -56,6 +62,8 @@ const ICONS: Record<McaIcon, LucideIcon> = {
   "circle-minus": CircleMinus,
   ban: Ban,
   clock: Clock,
+  "refresh-cw": RefreshCw,
+  "triangle-alert": TriangleAlert,
   history: History,
   "user-check": UserCheck,
   "user-x": UserX,
@@ -65,23 +73,32 @@ function Chip({ chip }: { readonly chip: McaChip }) {
   return <StatusChip status={chip.status} label={chip.label} icon={ICONS[chip.icon]} />;
 }
 
-const when = (iso: string | null | undefined) => formatDateTime(iso) ?? t("common.notRecorded");
+/** A line of words; one about a moment carries it in a `<time>` element. */
+function Line({ line, className = "" }: { readonly line: McaLine; readonly className?: string }) {
+  return (
+    <p className={`m-0 ${className}`}>
+      {line.dateTime ? <time dateTime={line.dateTime}>{line.text}</time> : line.text}
+    </p>
+  );
+}
 
-/** Labelled values; empty ones are left out. */
+/** Labelled values; empty ones are left out. Long references wrap rather than overflow. */
 function Fields({ rows }: { readonly rows: readonly (readonly [string, string | null])[] }) {
   const shown = rows.filter(([, value]) => Boolean(value));
   if (shown.length === 0) return null;
   return (
     <dl className="m-0 grid grid-cols-1 gap-3 sm:grid-cols-2">
       {shown.map(([field, value]) => (
-        <div key={field}>
+        <div key={field} className="min-w-0">
           <dt className="text-body-dense font-semibold">{t("care.mca.field", { field })}</dt>
-          <dd className="m-0 whitespace-pre-line">{value}</dd>
+          <dd className="m-0 whitespace-pre-line break-words">{value}</dd>
         </div>
       ))}
     </dl>
   );
 }
+
+const when = (iso: string | null | undefined) => formatDateTime(iso) ?? t("common.notRecorded");
 
 const yesNo = (value: boolean | null | undefined) =>
   value === null || value === undefined ? null : t(value ? "care.common.yes" : "care.common.no");
@@ -150,13 +167,19 @@ function ReviewOverdue() {
 /** Whether a valid consent exists now for each decision, and the capacity found for it. */
 export function ConsentDecisions({
   decisions,
+  records,
+  assessments,
+  personName,
 }: {
   readonly decisions: readonly ConsentDecisionStatus[];
+  readonly records: readonly ConsentItem[];
+  readonly assessments: readonly CapacityAssessmentItem[];
+  readonly personName: string;
 }) {
   return (
     <ul className="m-0 flex list-none flex-col gap-3 p-0">
       {decisions.map((decision) => {
-        const chip = consentChip(decision, t);
+        const view = decisionView(decision, records, assessments, personName, t);
         return (
           <li
             key={decision.decision}
@@ -167,8 +190,8 @@ export function ConsentDecisions({
               <span className="font-semibold">
                 {t("care.mca.decision", { decision: decision.decision })}
               </span>
-              <Chip chip={chip} />
-              {decision.capacityReviewOverdue ? (
+              <Chip chip={view.chip} />
+              {view.reviewOverdue ? (
                 <StatusChip
                   status="overdue"
                   label={t("care.mca.consent.capacityReviewOverdue")}
@@ -176,12 +199,10 @@ export function ConsentDecisions({
                 />
               ) : null}
             </span>
-            <span className="text-body-dense text-text-secondary">
-              {t("care.mca.consent.capacityNow", { capacity: decision.capacity })}
-            </span>
-            {/* Who refused, or why no consent is valid, in the API's words (English only). */}
-            {decision.message && (chip.status === "overdue" || decision.status === "refused") ? (
-              <span className="text-body-dense">{decision.message}</span>
+            {view.reason ? <span className="text-body-dense">{view.reason}</span> : null}
+            <span className="text-body-dense text-text-secondary">{view.capacity}</span>
+            {view.review ? (
+              <span className="text-body-dense text-text-secondary">{view.review}</span>
             ) : null}
           </li>
         );
@@ -193,51 +214,37 @@ export function ConsentDecisions({
 /** One DoLS request or authorisation: its status, clock, reminders and CQC notification (HZ-020). */
 export function DolsCard({
   item,
+  renewed,
   personId,
 }: {
   readonly item: DolsItem;
+  readonly renewed: boolean;
   readonly personId: string;
 }) {
+  const legal = legalReviewView(item, t);
   return (
-    <Card as="article" title={t("care.mca.dols.type", { type: item.type })} headingLevel={4}>
-      <div className="flex flex-col gap-2" data-dols={item.status}>
+    <Card as="article" title={dolsTitle(item, t)} headingLevel={4}>
+      <div className="flex min-w-0 flex-col gap-2" data-dols={item.status}>
         <p className="m-0 flex flex-wrap items-center gap-2">
-          <Chip chip={dolsChip(item.status, t)} />
+          <Chip chip={dolsChip(item.status, renewed, t)} />
+          {legal?.chip ? <Chip chip={legal.chip} /> : null}
         </p>
-        {dolsClock(item, t).map((line) => (
-          <p key={line} className="m-0 font-semibold">
-            {line}
-          </p>
+        {dolsClock(item, t).map((clock) => (
+          <Line key={clock.text} line={clock} className="font-semibold" />
         ))}
-        <p className="m-0">
-          {t("care.mca.dols.requested", { type: item.type, dateTime: when(item.requestedAt) })}
-        </p>
-        {item.outcome !== "pending" ? (
-          <p className="m-0">
-            {t("care.mca.dols.outcome", { outcome: item.outcome, dateTime: when(item.outcomeAt) })}
-          </p>
-        ) : null}
+        {legal ? <p className="m-0">{legal.text}</p> : null}
+        {dolsHistoryLines(item, t).map((entry) => (
+          <Line key={entry.text} line={entry} />
+        ))}
         {item.precededByUrgent ? (
           <p className="m-0">{t("care.mca.dols.precededByUrgent")}</p>
         ) : null}
-        {item.extensions.map((extension) => (
-          <p key={extension.requestedAt} className="m-0">
-            {t("care.mca.dols.extension", {
-              outcome: extension.outcome,
-              dateTime: when(extension.requestedAt),
-              to: when(extension.extendedTo),
-            })}
-          </p>
+        {dolsReminders(item, t).map((reminder) => (
+          <Line key={reminder.text} line={reminder} className="text-body-dense" />
         ))}
-        {dolsReminders(item, t).map((line) => (
-          <p key={line} className="m-0 text-body-dense">
-            {line}
-          </p>
+        {dolsCqcLines(item, t).map((cqc) => (
+          <Line key={cqc.text} line={cqc} />
         ))}
-        <p className="m-0">{dolsCqcLine(item, t)}</p>
-        {item.legalChangeReview ? (
-          <p className="m-0">{t("care.mca.dols.legalReview", { state: item.legalChangeReview })}</p>
-        ) : null}
         <Fields
           rows={[
             ["supervisoryBody", item.supervisoryBody],
@@ -249,7 +256,14 @@ export function DolsCard({
             ["objection", item.objectionEvidence],
           ]}
         />
-        <HistoryLink href={`/people/${personId}/history/dols_authorisation/${item.id}`} />
+        <p className="m-0 text-body-dense">
+          <Link
+            href={`/people/${personId}/history/dols_authorisation/${item.id}`}
+            className="inline-flex min-h-target items-center"
+          >
+            {dolsTitle(item, t, true)}
+          </Link>
+        </p>
       </div>
     </Card>
   );

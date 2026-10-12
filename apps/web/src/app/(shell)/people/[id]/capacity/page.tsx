@@ -13,6 +13,7 @@ import { RecordFrame } from "@/components/care/RecordFrame";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { can, entryChains, tabHref } from "@/lib/care-record";
 import { t } from "@/lib/i18n";
+import { renewedIds } from "@/lib/mca";
 import { personNames } from "@/lib/people";
 import { getPerson, readOrFail } from "@/lib/person-record";
 import { recordMetadata } from "@/lib/record-metadata";
@@ -53,9 +54,9 @@ function Part({
 /**
  * The consent, capacity and DoLS tab (register rows CARE-021 and CARE-022; hazards HZ-020 and
  * HZ-026): whether a valid consent is in place now for each decision, with the capacity found for
- * it; the DoLS register with each authorisation's clock in words and dates; the capacity
- * assessments and best-interests decisions with their corrections; and the consent records. The
- * forms follow (docs/plans/STATUS.md).
+ * it, and the DoLS register with each authorisation's clock in words and dates. The capacity
+ * assessments, best-interests decisions and consent records, and the forms, follow
+ * (docs/plans/STATUS.md).
  */
 async function CapacityTab({ params }: { readonly params: Params }) {
   const { id } = await params;
@@ -69,12 +70,14 @@ async function CapacityTab({ params }: { readonly params: Params }) {
   const [consents, dols, capacity, bestInterests] = await Promise.all([
     api.GET("/v1/people/{id}/consents", query).then((r) => readOrFail(r, path)),
     api.GET("/v1/people/{id}/dols", query).then((r) => readOrFail(r, path)),
+    // Read to show the date and review date of the capacity finding for each decision.
     api.GET("/v1/people/{id}/capacity-assessments", query).then((r) => readOrFail(r, path)),
     api.GET("/v1/people/{id}/best-interests", query).then((r) => readOrFail(r, path)),
   ]);
   if (!consents || !dols || !capacity || !bestInterests) return <NoAccess />;
-  const name = personNames(person).preferred;
   const today = ukToday();
+  const name = personNames(person).preferred;
+  const renewed = renewedIds(dols.items);
 
   return (
     <>
@@ -87,12 +90,17 @@ async function CapacityTab({ params }: { readonly params: Params }) {
           <p className="m-0 max-w-prose text-body-dense text-text-secondary">
             {t("care.mca.decisionsHint")}
           </p>
-          <ConsentDecisions decisions={consents.decisions} />
+          <ConsentDecisions
+            decisions={consents.decisions}
+            records={consents.items}
+            assessments={capacity.items}
+            personName={name}
+          />
         </div>
       </Card>
       <Part part="dols" empty={dols.items.length === 0}>
         {dols.items.map((item) => (
-          <DolsCard key={item.id} item={item} personId={id} />
+          <DolsCard key={item.id} item={item} renewed={renewed.has(item.id)} personId={id} />
         ))}
       </Part>
       <Part part="capacity" empty={capacity.items.length === 0}>

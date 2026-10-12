@@ -1097,3 +1097,21 @@ item 13); two API gaps are in care.md section 10.
 `e2e/capacity.spec.ts` (records through the API as the demo nurse, then reads the tab, with axe in
 both themes and on the DoLS history) and the existing record journeys with the new tab, run
 locally.
+
+## 2026-10-12: The consent, capacity and DoLS tab, review round 1 (#34)
+
+Accessibility and clinical review of part 1. Every reason, CQC line, type, outcome and review
+state is now in the catalogue's words (en-GB and Welsh), with no internal or roadmap names; an
+unknown value warns. Consent: "Refused" is a warning that says who refused, nothing recorded reads
+"No consent recorded" with the next step, and each decision shows the date of the capacity
+finding and its review date. DoLS: a midnight end reads as the last day in force and the days
+count to it; a renewed authorisation reads "Renewed"; one from before the June 2026 judgment with
+no review warns with the next step; each authorisation and its history link are named with the
+date; dates are in `<time>` elements; the history link is 44 px; long references wrap.
+`/people/{id}/dols` (the expiry alert's link) opens the tab. Human actions H-250 to H-253 for the
+CSO; STATUS item 14 for the follow-ups.
+
+**Tests**: `apps/web` 388 unit (31 in `src/lib/mca.test.ts`), `packages/i18n` 48; Playwright
+`e2e/capacity.spec.ts` (every warning state, the alert link, axe in both themes, keyboard to the
+history link with its focus ring, 320 px, the empty tab), run locally.
+

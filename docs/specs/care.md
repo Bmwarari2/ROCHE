@@ -636,19 +636,35 @@ After the accessibility and clinical reviews of slice 9, the web forms also:
   read, warn when follow-ups or workings rows cannot be read (with their codes), and put the late
   and clock-drift flags on the overview tiles (HZ-012, HZ-014, HZ-017).
 
-Built in slice 9 (web, the consent, capacity and DoLS tab, part 1): an eleventh tab,
-`/people/{id}/capacity`, readable with `care.plan.read`, reads `/consents` and `/dols` and shows
-whether a valid consent is in place now for each decision ("Consent in place", "Refused", "Not
-recorded" as a warning, or "No valid consent" with the API's reason as the stronger warning; an
-unknown status is never shown as in place) with the capacity found for it and an overdue capacity
-review (HZ-026); and the DoLS register: each authorisation's status as an icon and a word ("Ending
-soon", "Expired"; an unknown one reads "Status could not be read"), when it started or starts, when
-it ends or ended (the API's `endsAt`, the first moment it is no longer in force) as a UK date and
-24-hour time, the whole days left from the API, the expiry reminders while it is still to end, the
-extensions, where the CQC notification stands or why none is needed, the legal-change review state
-and a link to its history (HZ-020). View logic is in `apps/web/src/lib/mca.ts`; the journey with
-axe is `apps/web/e2e/capacity.spec.ts`. The capacity assessments, best-interests decisions and
-consent records, and the forms, come next (STATUS).
+Built in slice 9 (web, the consent, capacity and DoLS tab, part 1, with review round 1): an
+eleventh tab, `/people/{id}/capacity`, readable with `care.plan.read`, reads `/consents`, `/dols`
+and `/capacity-assessments`. Every reason, CQC line, type, outcome and review state is in the
+catalogue's words, never the API's English or internal names, and an unknown value reads "could
+not be read" as a warning, never as a fact.
+
+- **Consent by decision** (HZ-026): "Consent in place"; "Refused" as a warning, saying who refused
+  (H-252); "No consent recorded" as a warning with the next step; or "No valid consent", the
+  stronger warning, with every reason `consentStatus` gave; an unknown status is never shown as in
+  place. Beside it, the capacity found for the decision with the date of the assessment, found
+  again with the domain's `capacityFinding` ("Assessed on 01/10/2026 as lacking capacity for this
+  decision"), its review date or "No review date set", and an overdue capacity review.
+- **DoLS register** (HZ-020): each authorisation, named with its date ("Urgent authorisation of
+  12/10/2026"), shows its status as an icon and a word ("Ending soon", "Expired"); an expired one
+  that a later granted authorisation names (`precededByAuthorisationId`) reads "Renewed" (H-251).
+  Then when it started or starts; when it ends, as the last day in force when the API's `endsAt`
+  (the first moment it is no longer in force) is 00:00 UK time ("In force until the end of
+  20/10/2026"), else the date and 24-hour time (H-250); the days until the last day in force,
+  "Today is the last day in force" only on that day; the outcome, never beside a missing date; the
+  extensions; the expiry reminders while it is still to end; where the CQC notification stands or
+  why none is needed; and, for one granted before 2 June 2026 and still in force with no review,
+  "Review after the legal change: not started" as a warning with the next step, whatever the
+  tenant flag (H-253). Dates are in `<time>` elements; each history link is named with the
+  authorisation and its date. `/people/{id}/dols`, where the API's expiry alert links, opens the
+  tab.
+
+View logic is in `apps/web/src/lib/mca.ts`; the journey with axe (every warning state, keyboard,
+320 px, the empty tab) is `apps/web/e2e/capacity.spec.ts`. The capacity assessments,
+best-interests decisions and consent records, and the forms, come next (STATUS).
 
 Built in the care API follow-ups (the remaining findings of the #15 reviews; migrations 0043 and
 0044; `apps/api/src/routes/care-settings.ts`, `services/staff.ts`, `services/escalation-policies.ts`):
@@ -1473,8 +1489,10 @@ through recorded sharing decisions ([people.md](people.md)).
     would show them in English.
   - A group activity is recorded per person, with a new session id each time; a route that records a
     group session for several people at once is needed to count attendance.
-  - The consent, capacity and DoLS tab (slice 9): a consent decision's reason
-    (`ConsentDecisionStatus.message`) and the CQC notification's reason come in English only (the
-    consent `problems` codes could be worded in the catalogue instead); and an expired
-    authorisation that a later one followed (`precededByAuthorisationId`) still reads as
-    "Expired", so the register cannot tell a lapse from a renewal.
+  - The consent, capacity and DoLS tab (slice 9): the API's `dolsStatus` still calls a renewed
+    authorisation "expired" and does not say whether there was a gap between it and the one that
+    followed; the web reads `precededByAuthorisationId` (H-251). The consent decision does not
+    name the assessment it used, so the web finds it again with the domain's `capacityFinding`.
+    The legal-change review flag is not served to `care.plan.read` holders, so the web warns about
+    a missing review whatever the flag (H-253). Consent reasons and CQC reasons are worded from
+    codes and fields in the web; the API's English `message` and `reason` are not shown.

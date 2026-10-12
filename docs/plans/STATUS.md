@@ -178,6 +178,12 @@ only when they link spec, code, tests and user documentation; no user guides exi
     (`/v1/dols/legal-change-review`). Also: consents and DoLS in the history tab's list of records
     with earlier versions, and the API gaps in care.md section 10 (English-only reasons; an
     expired authorisation that a later one followed reads as expired).
+14. Follow-ups from review round 1 of the consent, capacity and DoLS tab (#34; H-250 to H-253 ask
+    the CSO): a drafted CQC notification past its due time has no overdue cue on the tab; the
+    expiry reminder lines do not say whether the reminder was sent or acted on; check the timing
+    of "Today is the last day in force" against the API's `daysLeft` and the expiry job once the
+    CSO answers H-250; the empty DoLS register gives no next step (who to ask, or the form once it
+    exists); the legal-change review warning does not follow the tenant flag (H-253).
 
 ## Human actions outstanding
 
