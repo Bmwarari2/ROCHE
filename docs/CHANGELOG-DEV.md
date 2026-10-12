@@ -826,7 +826,8 @@ through `scripts/ci-local.sh`.
 - Readers of the merged scope now name their permission: device lists and revocation, the sync
   token's `people_location_ids` (the narrowest of the three reads the location streams serve),
   handover whole views and staff views, urgent alert recipients, the weekly break-glass report,
-  `/v1/me`'s `scope`, audit defaults, per-user limits and `personReachedBy` (`care.note.write`).
+  `/v1/me`'s `scope`, audit defaults, per-user limits and `personReachedBy` (`care.note.write`,
+  by role or by a grant that was never revoked).
   A second permission on one record counts only where it reaches it: task completion, status
   changes, return checks, the task an entry completes, incident changes and manager answers.
 - Database: no migration; every policy reads the narrowed `app.scope`. `app.holds_permission_at`
@@ -850,7 +851,7 @@ the operator console never reach `withTenant`.
 **Human actions logged**: none. After merge, the release note asks Registered Managers to check
 role bundles.
 
-**Tests**: `packages/domain` 4,055, `packages/db` 384, `packages/contracts` 34, `apps/api` 627,
+**Tests**: `packages/domain` 4,055, `packages/db` 384, `packages/contracts` 34, `apps/api` 628,
 `packages/sync` 59, `apps/mobile` 871, `apps/web` 338, `packages/ui` 342, `packages/ui-native`
 141, all passing locally (`pnpm turbo run test --force --concurrency=2`) and through
 `scripts/ci-local.sh`.
