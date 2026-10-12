@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { runJob, WORKER_JOB_FAILED_EVENT } from "../src/jobs/run-job";
+import { errorCode, runJob, WORKER_JOB_FAILED_EVENT } from "../src/jobs/run-job";
 import type { Logger } from "../src/logger";
 
 /** A logger that keeps what was written at error level, as the alarm's log group would. */
@@ -47,6 +47,21 @@ describe("hazard HZ-008 hazard HZ-013 a failed worker job is logged for the oper
       },
     ]);
     expect(JSON.stringify(lines)).not.toContain("Ada");
+  });
+
+  it("names the database code of a driver error the query builder wraps", async () => {
+    const { lines, logger } = capture();
+    const wrapped = new Error("Failed query: insert into notification", {
+      cause: Object.assign(new Error("injected failure"), { code: "P0001" }),
+    });
+    await expect(
+      runJob(logger, "task-escalations", async () => {
+        throw wrapped;
+      }),
+    ).rejects.toBe(wrapped);
+    expect(lines[0]?.fields).toMatchObject({ error: "Error", code: "P0001" });
+    expect(errorCode({ code: 42 })).toBe("42");
+    expect(errorCode("text")).toBeNull();
   });
 
   it("names no code when the error has none", async () => {

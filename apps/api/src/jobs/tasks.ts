@@ -34,7 +34,11 @@ import { raisePeopleReviews } from "../services/people";
 import { generatePlanTasks } from "../services/plan-tasks";
 import { REFUSED_REVIEW_UNROUTED_ACTION } from "../services/refused-entries";
 import { roleHolders, toldOf } from "../services/role-holders";
-import { detectLocationOutbreaks, escalateOverdueNotifications } from "../services/safety";
+import {
+  detectLocationOutbreaks,
+  escalateOverdueNotifications,
+  NOTIFICATION_UNROUTED_ACTION,
+} from "../services/safety";
 import {
   ESCALATION_UNROUTED_ACTION,
   type EscalationRun,
@@ -42,6 +46,7 @@ import {
   materialiseSeries,
   TASK_ESCALATION_UNROUTED_ACTION,
 } from "../services/tasks";
+import { errorCode, WORKER_JOB_FAILED_EVENT } from "./run-job";
 
 /**
  * Background tasks run by pg-boss (section 6). Cross-tenant scanning uses the harbour_worker role,
@@ -261,7 +266,7 @@ export async function endExpiredAssignments(deps: TaskDeps): Promise<number> {
 
 async function activeTenants(deps: TaskDeps): Promise<string[]> {
   const { rows } = await deps.workerPool.query<{ id: string }>(
-    "SELECT id FROM tenant WHERE status IN ('onboarding', 'active')",
+    "SELECT id FROM tenant WHERE status IN ('onboarding', 'active') ORDER BY id",
   );
   return rows.map((r) => r.id);
 }
@@ -306,14 +311,12 @@ export async function escalateTasks(
   now = new Date(),
   run: EscalationRun = "due",
 ): Promise<number> {
-  let escalated = 0;
-  for (const tenantId of await activeTenants(deps)) {
-    escalated += await withRequestContext(
-      deps.appDb,
-      { tenantId, userId: null, scope: "tenant", locationIds: [] },
-      (tx) => escalateOverdueTasks(tx, tenantId, now, run),
-    );
-  }
+  // One organisation's failure never stops the others' (`eachTenant`; review round 5, C5-M2).
+  const escalated = await eachTenant(
+    deps,
+    run === "due" ? "task-escalations" : "task-escalation-retries",
+    (tx, tenantId) => escalateOverdueTasks(tx, tenantId, now, run),
+  );
   if (escalated > 0) deps.logger.info({ escalated, run }, "overdue tasks escalated");
   return escalated;
 }
@@ -335,47 +338,49 @@ export const UNROUTED_ACTIONS = [
   REFUSED_REVIEW_UNROUTED_ACTION,
   CARE_ALERT_UNROUTED_ACTION,
   BREAK_GLASS_ALERT_UNROUTED_ACTION,
+  NOTIFICATION_UNROUTED_ACTION,
 ] as const;
 
 /** The structured log line the operator alarms on (docs/runbooks/on-call.md). */
 export const UNROUTED_DAILY_EVENT = "escalation.unrouted.daily";
 
+/** How far back the daily signal counts: a day and an hour, so nothing falls between two runs. */
+export const UNROUTED_REPORT_WINDOW_MS = 25 * 3_600_000;
+
 /**
  * The operator's daily signal (ADR-0071 review round 4, C4-M1): for each organisation with any
  * unrouted audit event in the last day, one structured log line, `escalation.unrouted.daily`, with
  * the opaque tenant id and the count per action (`UNROUTED_ACTIONS`). No personal data and no free
- * text. Returns the counts it logged, by tenant.
+ * text. Returns the counts it logged, by tenant. The window is 25 hours, so an event at the edge
+ * of a day is never missed between two runs (review round 5); one organisation's failure never
+ * stops the others' (`eachTenant`, C5-M2).
  */
 export async function reportUnroutedDaily(
   deps: TaskDeps,
   now = new Date(),
 ): Promise<Map<string, Record<string, number>>> {
-  const since = new Date(now.getTime() - 86_400_000);
+  const since = new Date(now.getTime() - UNROUTED_REPORT_WINDOW_MS);
   const reported = new Map<string, Record<string, number>>();
-  for (const tenantId of await activeTenants(deps)) {
-    const rows = await withRequestContext(
-      deps.appDb,
-      { tenantId, userId: null, scope: "tenant", locationIds: [] },
-      (tx) =>
-        tx
-          .select({ action: auditEvent.action, count: sql<number>`count(*)::int` })
-          .from(auditEvent)
-          .where(
-            and(
-              inArray(auditEvent.action, [...UNROUTED_ACTIONS]),
-              gt(auditEvent.occurredAt, since),
-              lte(auditEvent.occurredAt, now),
-            ),
-          )
-          .groupBy(auditEvent.action),
-    );
-    if (rows.length === 0) continue;
+  await eachTenant(deps, "unrouted-daily-report", async (tx, tenantId) => {
+    const rows = await tx
+      .select({ action: auditEvent.action, count: sql<number>`count(*)::int` })
+      .from(auditEvent)
+      .where(
+        and(
+          inArray(auditEvent.action, [...UNROUTED_ACTIONS]),
+          gt(auditEvent.occurredAt, since),
+          lte(auditEvent.occurredAt, now),
+        ),
+      )
+      .groupBy(auditEvent.action);
+    if (rows.length === 0) return 0;
     const counts = Object.fromEntries(
       UNROUTED_ACTIONS.map((action) => [action, rows.find((r) => r.action === action)?.count ?? 0]),
     );
     reported.set(tenantId, counts);
     deps.logger.warn({ event: UNROUTED_DAILY_EVENT, tenantId, counts }, UNROUTED_DAILY_EVENT);
-  }
+    return 1;
+  });
   return reported;
 }
 
@@ -403,7 +408,8 @@ export const TENANT_SWEEP_FAILED_ACTION = "platform.job.tenant_failed";
  * Runs a per-tenant sweep as the application role in each active tenant's context. One
  * organisation's failure never stops the others' (a handover or an alert missed everywhere because
  * of one tenant's data; HZ-018): its transaction rolls back, the failure is logged by opaque ids
- * and error code only, and audited as the system in a transaction of its own, so it is seen.
+ * and error code only (`worker.job.failed`, which the operator's alarm counts), and audited as the
+ * system in a transaction of its own, so it is seen.
  */
 export async function eachTenant(
   deps: TaskDeps,
@@ -416,13 +422,13 @@ export async function eachTenant(
     try {
       total += await withRequestContext(deps.appDb, context, (tx) => fn(tx, tenantId));
     } catch (error) {
-      const code =
-        typeof error === "object" && error !== null && "code" in error
-          ? String((error as { code: unknown }).code)
-          : error instanceof Error
-            ? error.name
-            : "unknown";
-      deps.logger.error({ tenantId, job, code }, "tenant sweep failed");
+      // The database code, also when the query builder wraps the driver's error (review round 5).
+      const code = errorCode(error) ?? (error instanceof Error ? error.name : "unknown");
+      // The operator's failed-job alarm counts it (`worker.job.failed`; review round 5, C5-M1).
+      deps.logger.error(
+        { event: WORKER_JOB_FAILED_EVENT, queue: job, tenantId, code },
+        WORKER_JOB_FAILED_EVENT,
+      );
       try {
         await withRequestContext(deps.appDb, context, (tx) =>
           tx.insert(auditEvent).values({

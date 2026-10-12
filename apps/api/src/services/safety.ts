@@ -1,5 +1,6 @@
 import {
   accessGrant,
+  auditEvent,
   bodyMapMark,
   candourRecord,
   classifierAnswer,
@@ -58,7 +59,7 @@ import {
   ukIsoDate,
   type YesNoUnsure,
 } from "@harbour/domain";
-import { and, desc, eq, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import { publish } from "../outbox";
 import { accessRowsOf } from "./access-rows";
 import { bankHolidays, rateNumber } from "./rates";
@@ -1095,6 +1096,46 @@ export async function submitHolders(
  * tenant's escalation chain, and publishes `safety.notification.overdue`. The chain carries on
  * until the notification is submitted or marked not required (which acknowledges the alerts).
  */
+/**
+ * An overdue statutory notification no active member of staff can submit (ADR-0071 review round 5,
+ * C5-M3; HZ-013): audited as the system, coded `no_active_submitter`, at most once a day per
+ * notification, and counted in the operator's daily unrouted signal.
+ */
+export const NOTIFICATION_UNROUTED_ACTION = "safety.notification.unrouted";
+
+async function recordUnroutedNotification(
+  tx: Transaction,
+  n: NotificationRow,
+  now: Date,
+): Promise<void> {
+  const [recent] = await tx
+    .select({ id: auditEvent.id })
+    .from(auditEvent)
+    .where(
+      and(
+        eq(auditEvent.action, NOTIFICATION_UNROUTED_ACTION),
+        eq(auditEvent.resourceType, "statutory_notification"),
+        eq(auditEvent.resourceId, n.id),
+        gt(auditEvent.occurredAt, new Date(now.getTime() - 86_400_000)),
+      ),
+    )
+    .limit(1);
+  if (recent) return;
+  await tx.insert(auditEvent).values({
+    tenantId: n.tenantId,
+    action: NOTIFICATION_UNROUTED_ACTION,
+    outcome: "error",
+    resourceType: "statutory_notification",
+    resourceId: n.id,
+    reason: "no_active_submitter",
+    scope: {
+      locationId: n.locationId,
+      dueAt: n.dueAt.toISOString(),
+      reasonCode: "no_active_submitter",
+    },
+  });
+}
+
 export async function escalateOverdueNotifications(
   tx: Transaction,
   tenantId: string,
@@ -1118,9 +1159,13 @@ export async function escalateOverdueNotifications(
   let alerted = 0;
   for (const n of overdue) {
     const recipients = await submitHolders(tx, n.locationId, now);
-    // Nobody can submit here (no holder and no acting-up grant): keep it overdue and unalerted, so
-    // the next run tries again once someone is given the permission (HZ-013).
-    if (recipients.length === 0) continue;
+    // Nobody active can submit here (no holder and no acting-up grant): keep it overdue and
+    // unalerted, so the next run tries again once someone is given the permission, and audit the
+    // gap once a day so the operator's daily signal counts it (HZ-013; review round 5, C5-M3).
+    if (recipients.length === 0) {
+      await recordUnroutedNotification(tx, n, now);
+      continue;
+    }
     alerted++;
     for (const recipient of recipients) {
       await tx
