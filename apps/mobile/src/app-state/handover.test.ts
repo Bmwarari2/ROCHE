@@ -122,13 +122,25 @@ function fakeFetch(answers: Array<number | Error | Response>) {
   return { fetch, calls };
 }
 
-const deps = (db: Parameters<typeof handOverHeldWork>[0]["db"], fetch: FetchLike, hold = held) => ({
+const deps = (
+  db: Parameters<typeof handOverHeldWork>[0]["db"],
+  fetch: FetchLike,
+  hold = held,
+  sendReport: () => Promise<boolean> = async () => true,
+) => ({
   held: hold,
   db,
   api: { apiUrl: API, fetch, token: "tok-mo", tenantId: DEMO_TENANT_ID, deviceId: DEVICE },
   handoverId: HANDOVER,
   now: () => NOW,
+  sendReport,
 });
+
+const problem = (status: number, code: string, detail: string) =>
+  new Response(JSON.stringify({ code, detail }), {
+    status,
+    headers: { "content-type": "application/problem+json" },
+  });
 
 const E1 = "0199d000-0000-7000-8000-0000000000f1";
 const E2 = "0199d000-0000-7000-8000-0000000000f2";
@@ -190,11 +202,13 @@ describe("hazard HZ-040 hazard HZ-006 handing over held entries (Device integrit
     );
   });
 
-  it("moves an entry the API refuses to needs attention and sends its copy in the owner's name", async () => {
+  it("hazard HZ-006 moves an entry the API refuses to needs attention, sends its copy in the owner's name, and keeps the database while it waits (#25 review round 2, H2)", async () => {
     const { db, rows } = await heldDatabase([{ id: E1 }, { id: E2 }]);
     const { fetch, calls } = fakeFetch([422, 201, 200]);
     const result = await handOverHeldWork(deps(db, fetch));
-    expect(result).toMatchObject({ sent: 1, parked: 1, copied: 1, remaining: 0 });
+    // The refused entry is still on the device although the server has its copy: no screen reads
+    // the copy yet, so the device is not wiped (H-134).
+    expect(result).toMatchObject({ sent: 1, parked: 1, copied: 1, remaining: 1, stopped: null });
     expect(rows("upload_issue")).toEqual([
       expect.objectContaining({ id: E1, code: "invalid", server_copy: "copied" }),
     ]);
@@ -202,9 +216,59 @@ describe("hazard HZ-040 hazard HZ-006 handing over held entries (Device integrit
     expect(copy?.url).toBe(`${API}/v1/sync/refused-entries`);
     expect(new Headers(copy?.init?.headers).get(HANDOVER_OWNER_HEADER)).toBe(sam.tenantUserId);
     expect(JSON.parse(String(copy?.init?.body))).toMatchObject({ entryId: E1, code: "invalid" });
-    expect(handOverMessage(result)).toContain(
-      "1 entry Harbour could not save was kept for the nurse in charge to review.",
+    expect(handOverMessage(result)).toContain("wait under Not saved: needs attention");
+  });
+
+  it("hazard HZ-006 stops and keeps the entry held when the server cannot find the person in the sender's scope, never parking it (#25 review round 2, H2)", async () => {
+    const { db, rows } = await heldDatabase([{ id: E1 }, { id: E2 }]);
+    const { fetch, calls } = fakeFetch([problem(404, "not_found", "We could not find that.")]);
+    const result = await handOverHeldWork(deps(db, fetch));
+    expect(result).toMatchObject({ sent: 0, parked: 0, remaining: 2, stopped: "not_taken" });
+    expect(calls).toHaveLength(1);
+    expect(rows("held_entry").map((r) => r.id)).toEqual([E1, E2]);
+    expect(rows("upload_issue")).toEqual([]);
+  });
+
+  it("hazard HZ-040 stops and keeps the entry held when the server will not take the hand-over, saying why (#25 review round 2, H1 and H2)", async () => {
+    const { db, rows } = await heldDatabase([{ id: E1 }]);
+    const reason = "This entry is timed after the device was withdrawn.";
+    const result = await handOverHeldWork(
+      deps(db, fakeFetch([problem(422, "handover_refused", reason)]).fetch),
     );
+    expect(result).toMatchObject({ sent: 0, parked: 0, remaining: 1, stopped: "not_taken" });
+    expect(rows("held_entry").map((r) => r.id)).toEqual([E1]);
+    expect(rows("upload_issue")).toEqual([]);
+    expect(handOverMessage(result)).toContain(reason);
+  });
+
+  it("hazard HZ-040 sends the device's report from the sender's sign-in first, and sends nothing when it cannot (#25 review round 2, H1)", async () => {
+    const { db, rows } = await heldDatabase([{ id: E1 }]);
+    const order: string[] = [];
+    const { fetch, calls } = fakeFetch([201]);
+    const sent = await handOverHeldWork(
+      deps(
+        db,
+        async (url, init) => {
+          order.push("entry");
+          return fetch(url, init);
+        },
+        held,
+        async () => {
+          order.push("report");
+          return true;
+        },
+      ),
+    );
+    expect(order).toEqual(["report", "entry"]);
+    expect(sent).toMatchObject({ sent: 1, remaining: 0 });
+    expect(calls).toHaveLength(1);
+    const again = await heldDatabase([{ id: E2 }]);
+    const offline = await handOverHeldWork(
+      deps(again.db, fakeFetch([]).fetch, held, async () => false),
+    );
+    expect(offline).toMatchObject({ sent: 0, remaining: 1, stopped: "offline" });
+    expect(again.rows("held_entry").map((r) => r.id)).toEqual([E2]);
+    expect(rows("held_entry")).toEqual([]);
   });
 
   it("stops when the device goes offline, keeping the rest held and counted", async () => {
@@ -215,11 +279,11 @@ describe("hazard HZ-040 hazard HZ-006 handing over held entries (Device integrit
     expect(result).toEqual({ sent: 1, parked: 0, copied: 0, remaining: 1, stopped: "offline" });
     expect(rows("held_entry").map((r) => r.id)).toEqual([E2]);
     expect(handOverMessage(result)).toBe(
-      "1 entry was sent. 1 entry is still on this device. Try again when the device is online, or a manager can delete them with a reason.",
+      "1 entry was sent. 1 entry is still on this device. Entries Harbour could not save wait under Not saved: needs attention for the nurse in charge. Send the rest again when the device is online, or a manager can delete them with a reason.",
     );
   });
 
-  it("stops at a refusal of the sign-in or the permission, never parking the entry", async () => {
+  it("hazard HZ-006 stops at a refusal of the sign-in, the permission or any other 403, never parking the entry (#25 review round 2, H2)", async () => {
     const { db, rows } = await heldDatabase([{ id: E1 }]);
     const result = await handOverHeldWork(deps(db, fakeFetch([403]).fetch));
     expect(result).toMatchObject({ sent: 0, parked: 0, remaining: 1, stopped: "session" });
@@ -232,6 +296,7 @@ describe("hazard HZ-040 hazard HZ-006 handing over held entries (Device integrit
     const result = await handOverHeldWork(deps(db, fetch));
     expect(calls).toEqual([]);
     expect(result).toMatchObject({ parked: 1, remaining: 1 });
+    // Still on the device: the hold stays rather than the database being deleted.
     expect(rows("upload_issue")).toEqual([
       expect.objectContaining({ id: E1, code: "held_not_restored", server_copy: "not_copied" }),
     ]);

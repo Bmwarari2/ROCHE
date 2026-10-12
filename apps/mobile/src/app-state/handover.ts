@@ -7,13 +7,18 @@
  * a revoked device the owner may do the same. The sign-in is the step-up the API asks for, and
  * device authentication opens the held database.
  *
- * Each held entry goes, in the order it was written, to its own endpoint with the hand-over headers
- * (the owner, an id for the hand-over, and the device that held it): sent ones leave `held_entry`;
- * one the API refuses moves to "needs attention" (`upload_issue`), and every needs-attention entry's
- * content then goes to the server's copy in the owner's name. A session refusal, a missing
- * permission or a network failure stops the hand-over with the rest still held. When everything is
- * on the server (sent, or copied), the hold is over and the caller wipes the device; otherwise the
- * hold stays with its count brought up to date.
+ * The device first sends its report from the signer's session, so the server binds the signer to
+ * the device and knows the hold's count (#25 review round 2, H1). Then each held entry goes, in the
+ * order it was written, to its own endpoint with the hand-over headers (the owner, an id for the
+ * hand-over, and the device that held it): sent ones leave `held_entry`; one the API refuses for
+ * what it is moves to "needs attention" (`upload_issue`), and every needs-attention entry's content
+ * then goes to the server's copy in the owner's name. A session refusal or any other 403, a 404 (a
+ * person outside the signer's scope), a hand-over the server will not take (`handover_refused`) or a
+ * network failure stops the hand-over with the entry and the rest still held, never parked as
+ * refused (#25 review round 2, H2). The hold is over, and the caller wipes the device, only when
+ * nothing is left: no held entry and no needs-attention entry, whether or not the server has a copy,
+ * until a screen shows the copies and the CSO closes H-134; otherwise the hold stays with its count
+ * brought up to date.
  *
  * Pure apart from the injected dependencies, so the rules are unit-tested.
  */
@@ -81,6 +86,12 @@ export interface HandOverDeps {
   readonly api: ApiOptions & { readonly deviceId: string };
   readonly handoverId: string;
   readonly now: () => Date;
+  /**
+   * Sends the device's report from the signer's session, naming the owner; true when the server
+   * has it. The server takes a hand-over only from someone bound to the device, and counts it
+   * against the hold the device reported.
+   */
+  readonly sendReport: () => Promise<boolean>;
 }
 
 export interface HandOverResult {
@@ -90,17 +101,26 @@ export interface HandOverResult {
   readonly parked: number;
   /** Needs-attention entries whose copy the server now has. */
   readonly copied: number;
-  /** Entries still only on this device (held, or needing attention without a copy). */
+  /** Entries still on this device: held, or needing attention (with a server copy or not). */
   readonly remaining: number;
-  /** Why sending stopped early, when it did. */
-  readonly stopped: "session" | "offline" | null;
+  /**
+   * Why sending stopped early, when it did: the signer's session or permission, the network, or
+   * the server not taking the hand-over (a 404, or `handover_refused`).
+   */
+  readonly stopped: "session" | "offline" | "not_taken" | null;
+  /** The server's reason when it did not take the hand-over. */
+  readonly reason?: string;
 }
+
+/** The problem code of a hand-over the server will not take (`HANDOVER_REFUSED_CODE`). */
+export const HANDOVER_REFUSED_CODE = "handover_refused";
 
 type Sent =
   | "sent"
   | { readonly refused: number; readonly code: string; readonly reason: string }
   | "session"
-  | "offline";
+  | "offline"
+  | { readonly notTaken: string };
 
 async function sendEntry(
   deps: HandOverDeps,
@@ -145,10 +165,16 @@ async function sendEntry(
     return "offline";
   }
   if (response.ok) return "sent";
-  // The signer's session, permission or step-up: nothing more can go with this sign-in.
+  // The signer's session, permission or step-up, or any other 403: nothing more can go with this
+  // sign-in, and the entry stays held (#25 review round 2, H2).
   if (response.status === 401 || response.status === 403) return "session";
   if (isRetryableStatus(response.status)) return "offline";
   const problem = await readProblem(response);
+  // Not found (a person outside the signer's scope) or a hand-over the server will not take: the
+  // entry may be perfectly good, so it stays held, never parked as refused (H2).
+  if (response.status === 404 || problem.code === HANDOVER_REFUSED_CODE) {
+    return { notTaken: problem.reason ?? t("mobile.issues.unknownReason") };
+  }
   return {
     refused: response.status,
     code: problem.code,
@@ -156,12 +182,14 @@ async function sendEntry(
   };
 }
 
-/** Counts what is still only on this device: held entries, and refusals without a server copy. */
+/**
+ * Counts what is still on this device: held entries, and every needs-attention entry, copied to the
+ * server or not. A server copy is not yet something anyone reads (no screen shows it, H-134), so a
+ * refused entry keeps the database (#25 review round 2, H2).
+ */
 async function stillOnDevice(db: HandOverDb): Promise<number> {
   const held = await db.getOptional<{ n: number }>("SELECT COUNT(*) AS n FROM held_entry");
-  const refused = await db.getOptional<{ n: number }>(
-    "SELECT COUNT(*) AS n FROM upload_issue WHERE server_copy IS NULL OR server_copy <> 'copied'",
-  );
+  const refused = await db.getOptional<{ n: number }>("SELECT COUNT(*) AS n FROM upload_issue");
   return Number(held?.n ?? 0) + Number(refused?.n ?? 0);
 }
 
@@ -172,16 +200,32 @@ async function stillOnDevice(db: HandOverDb): Promise<number> {
 export async function handOverHeldWork(deps: HandOverDeps): Promise<HandOverResult> {
   const owner = deps.held.tenantUserId;
   if (!owner || !deps.held.tenantId) throw new HandOverNotAllowedError("unknown_owner");
+  // The signer's report first: the server binds them to the device and learns the hold's count.
+  if (!(await deps.sendReport().catch(() => false))) {
+    return {
+      sent: 0,
+      parked: 0,
+      copied: 0,
+      remaining: await stillOnDevice(deps.db),
+      stopped: "offline",
+    };
+  }
   const rows = await deps.db.getAll<HeldEntryRow>(
     "SELECT id, tenant_id, person_id, record_table, op, payload FROM held_entry ORDER BY position, id",
   );
   let sent = 0;
   let parked = 0;
   let stopped: HandOverResult["stopped"] = null;
+  let reason: string | undefined;
   for (const row of rows) {
     const outcome = await sendEntry(deps, row, owner);
     if (outcome === "session" || outcome === "offline") {
       stopped = outcome;
+      break;
+    }
+    if (typeof outcome === "object" && "notTaken" in outcome) {
+      stopped = "not_taken";
+      reason = outcome.notTaken;
       break;
     }
     if (outcome === "sent") {
@@ -223,13 +267,24 @@ export async function handOverHeldWork(deps: HandOverDeps): Promise<HandOverResu
         [HANDOVER_OWNER_HEADER]: owner,
         [HANDOVER_ID_HEADER]: deps.handoverId,
       });
-  return { sent, parked, copied, remaining: await stillOnDevice(deps.db), stopped };
+  return {
+    sent,
+    parked,
+    copied,
+    remaining: await stillOnDevice(deps.db),
+    stopped,
+    ...(reason ? { reason } : {}),
+  };
 }
 
 /** What the person sees when the hand-over ends. */
 export function handOverMessage(result: HandOverResult): string {
-  if (result.remaining === 0) {
-    return t("mobile.held.handOverDone", { count: result.sent, parked: result.parked });
+  if (result.remaining === 0) return t("mobile.held.handOverDone", { count: result.sent });
+  if (result.stopped === "not_taken") {
+    return t("mobile.held.handOverNotTaken", {
+      sent: result.sent,
+      reason: result.reason ?? t("mobile.issues.unknownReason"),
+    });
   }
   return t("mobile.held.handOverPartial", { sent: result.sent, remaining: result.remaining });
 }

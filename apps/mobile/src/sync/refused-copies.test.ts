@@ -74,7 +74,8 @@ describe("hazard HZ-006 a refused entry's copy, as the API takes it (care.md sec
       code: "care_event_after_exit",
       refusedAt: "2026-10-11T14:59:00.000Z",
     });
-    expect(copy.body.payload.body).toBe("Settled; checked at 03:00.");
+    // The request the device made for the note, as the API's own contract for notes has it.
+    expect((copy.body.payload as { body?: string }).body).toBe("Settled; checked at 03:00.");
   });
 
   it("sends a refusal the device made before sending, and a code it does not know, as codes", () => {
@@ -94,10 +95,19 @@ describe("hazard HZ-006 a refused entry's copy, as the API takes it (care.md sec
   it.each([
     ["an entry a deletion that did not finish left", { code: "held_discard_failed" }],
     ["a change to a table the device never writes", { record_table: "person" }],
-    ["a refusal whose id is not an entry id", { id: "refused-0" }],
   ])("never sends %s", (_case, overrides) => {
     expect(toRefusedCopy(row(overrides), NOW)).toEqual({ kind: "skip" });
   });
+
+  it.each([
+    ["a refusal whose id is not an entry id", { id: "refused-0" }],
+    ["an entry with no time, which is no valid request", { payload: "{}" }],
+  ])(
+    "hazard HZ-006 reports %s as one the server cannot keep (#25 review round 2, M2)",
+    (_case, overrides) => {
+      expect(toRefusedCopy(row(overrides), NOW)).toEqual({ kind: "unbuildable" });
+    },
+  );
 
   it.each([
     [201, "copied"],

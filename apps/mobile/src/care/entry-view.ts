@@ -217,6 +217,8 @@ export interface IssueItem {
   readonly reason: string;
   readonly content: string | null;
   readonly when: string;
+  /** Whether Harbour has a copy, in words, when it is known (Device integrity part 5). */
+  readonly copy: string | null;
 }
 
 /** A refused upload, with enough of its content for someone to record it again. */
@@ -261,5 +263,11 @@ export function issueItem(row: UploadIssueRow): IssueItem {
     // What was recorded stays until someone removes the entry (clinical review M1).
     content: content ? t("mobile.issues.content", { content }) : null,
     when: when(occurred),
+    copy:
+      row.server_copy === "copied"
+        ? t("mobile.issues.copySent")
+        : row.server_copy === "refused"
+          ? t("mobile.issues.copyRefused")
+          : null,
   };
 }

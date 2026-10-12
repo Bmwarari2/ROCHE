@@ -325,6 +325,9 @@
   "mobile.held.handOverNotAllowed": "Only a manager, or on a withdrawn device the member of staff who wrote them, can send these entries. That sign-in has been ended.",
   "mobile.held.handOverUnknownOwner": "This device cannot tell whose these entries are, so they cannot be sent in anyone's name. A manager can delete them with a reason. That sign-in has been ended.",
   "mobile.held.handOverBlocked": "These entries are left from a deletion that did not finish, so they will not be sent. A manager can delete them with a reason. That sign-in has been ended.",
-  "mobile.held.handOverDone": "{count, plural, one {# entry was sent to Harbour.} other {# entries were sent to Harbour.}} {parked, plural, =0 {Nothing is left on this device.} one {# entry Harbour could not save was kept for the nurse in charge to review. Nothing is left on this device.} other {# entries Harbour could not save were kept for the nurse in charge to review. Nothing is left on this device.}}",
-  "mobile.held.handOverPartial": "{sent, plural, one {# entry was sent.} other {# entries were sent.}} {remaining, plural, one {# entry is still on this device.} other {# entries are still on this device.}} Try again when the device is online, or a manager can delete them with a reason."
+  "mobile.held.handOverDone": "{count, plural, one {# entry was sent to Harbour.} other {# entries were sent to Harbour.}} Nothing is left on this device.",
+  "mobile.held.handOverPartial": "{sent, plural, one {# entry was sent.} other {# entries were sent.}} {remaining, plural, one {# entry is still on this device.} other {# entries are still on this device.}} Entries Harbour could not save wait under Not saved: needs attention for the nurse in charge. Send the rest again when the device is online, or a manager can delete them with a reason.",
+  "mobile.held.handOverNotTaken": "{sent, plural, =0 {Nothing was sent.} one {# entry was sent.} other {# entries were sent.}} Harbour did not take the next entry from this device: {reason} The rest are still on this device, protected. Tell the Registered Manager.",
+  "mobile.issues.copySent": "Harbour has a copy for the nurse in charge to review.",
+  "mobile.issues.copyRefused": "Harbour could not keep a copy: only this device has this entry. Tell the nurse in charge."
 }

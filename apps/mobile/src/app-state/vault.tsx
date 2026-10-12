@@ -1105,6 +1105,17 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
             api: options,
             handoverId: Crypto.randomUUID(),
             now: () => new Date(),
+            // From the signer's session, naming the owner: the server binds the signer to the
+            // device and counts the hand-over against this hold (#25 review round 2, H1).
+            sendReport: async () =>
+              sendDeviceReport(
+                options,
+                withOwner(
+                  await buildDeviceReport(opened as unknown as ReportDb, new Date()),
+                  held.tenantUserId,
+                  held.locationIds ?? [],
+                ),
+              ),
           });
           // What is left, from the device that held it: nothing waiting closes its task.
           const report = await buildDeviceReport(opened as unknown as ReportDb, new Date()).catch(
@@ -1121,7 +1132,9 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
         }
         const message = handOverMessage(result);
         if (result.remaining === 0) {
-          // Everything is on the server (sent, or copied for review): the hold is over.
+          // Everything was sent and nothing waits under needs attention: the hold is over. A
+          // refused entry keeps the database even with its copy on the server (#25 review round 2,
+          // H2), until a screen shows the copies and the CSO closes H-134.
           deleteDatabaseFile(filename);
           await destroyDatabaseKey(secretStore, keyOptions);
           await tombstoneStore.remove(PENDING_REPORT_ITEM).catch(() => undefined);

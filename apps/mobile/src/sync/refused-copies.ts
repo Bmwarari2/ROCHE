@@ -8,10 +8,16 @@
  * server has it; `upload_issue.server_copy` says where each stands. The entry stays on the device
  * all the same, until someone removes it with a recorded reason.
  *
+ * The copy carries the request the device made for the entry (`toCareUpload`), which the server
+ * checks against that entry kind's own contract (#25 review round 2, M2). An entry that cannot
+ * become a valid request, and one the server will not keep, is marked `refused`: the device's
+ * report counts it (`copiesRefused`) and the needs-attention list says only this device has it.
+ *
  * Entries a deletion that did not finish left (`held_discard_failed`) are never sent: their
  * deletion is on record, and the person chose not to send them.
  */
 import type { SyncRefusedEntry } from "@harbour/contracts";
+import { isCareEntryTable, toCareUpload } from "./care-upload";
 import { type ApiOptions, apiHeaders } from "./discards";
 
 /** The tables a device writes care entries to: the only refusals the server copies. */
@@ -61,22 +67,38 @@ export function copyCode(code: string | null): string {
 
 /**
  * The copy the server takes for a refusal, or why none is sent: an entry that is never copied (a
- * recorded deletion's, or not a care entry), or one whose id is not an entry id.
+ * recorded deletion's, or not a care entry: `skip`), or one that cannot become a valid request for
+ * its kind (`unbuildable`: only this device has it).
  */
 export function toRefusedCopy(
   row: UploadIssueRow,
   now: Date,
-): { readonly kind: "copy"; readonly body: SyncRefusedEntry } | { readonly kind: "skip" } {
-  if (!row.record_table || !REFUSED_COPY_TABLES.has(row.record_table)) return { kind: "skip" };
+):
+  | { readonly kind: "copy"; readonly body: SyncRefusedEntry }
+  | { readonly kind: "skip" }
+  | { readonly kind: "unbuildable" } {
+  const table = row.record_table;
+  if (!table || !REFUSED_COPY_TABLES.has(table) || !isCareEntryTable(table)) {
+    return { kind: "skip" };
+  }
   if (row.code && NOT_COPIED_CODES.has(row.code)) return { kind: "skip" };
-  if (!UUID.test(row.id)) return { kind: "skip" };
-  let payload: Record<string, unknown> = {};
+  if (!UUID.test(row.id)) return { kind: "unbuildable" };
+  let data: Record<string, unknown> = {};
   try {
     const parsed: unknown = JSON.parse(row.payload ?? "{}");
-    if (isRecord(parsed)) payload = parsed;
+    if (isRecord(parsed)) data = parsed;
   } catch {
-    payload = {};
+    data = {};
   }
+  // The request the device made (or would have made) for the entry.
+  const request = toCareUpload({
+    op: "PUT",
+    table,
+    id: row.id,
+    // The refusal keeps the entry's tenant and person in their own columns too.
+    opData: { tenant_id: row.tenant_id, person_id: row.person_id, ...data },
+  });
+  if (request.kind !== "request") return { kind: "unbuildable" };
   const refusedAt =
     row.rejected_at && !Number.isNaN(Date.parse(row.rejected_at))
       ? new Date(row.rejected_at).toISOString()
@@ -85,9 +107,9 @@ export function toRefusedCopy(
     kind: "copy",
     body: {
       entryId: row.id.toLowerCase(),
-      table: row.record_table as SyncRefusedEntry["table"],
+      table,
       personId: row.person_id && UUID.test(row.person_id) ? row.person_id.toLowerCase() : null,
-      payload,
+      payload: request.body,
       httpStatus:
         typeof row.http_status === "number" && row.http_status >= 100 && row.http_status <= 599
           ? row.http_status
@@ -95,7 +117,8 @@ export function toRefusedCopy(
       code: copyCode(row.code),
       message: row.message ? row.message.slice(0, 500) : null,
       refusedAt,
-    },
+      // The request's shape is the contract's for its table (care-upload.ts builds each from it).
+    } as SyncRefusedEntry,
   };
 }
 
@@ -163,6 +186,9 @@ export async function flushRefusedCopies(
     let state: ServerCopyState;
     if (copy.kind === "skip") {
       state = "not_copied";
+    } else if (copy.kind === "unbuildable") {
+      // Reported, never silently dropped: only this device has it (#25 review round 2, low).
+      state = "refused";
     } else {
       const sent = await sendRefusedCopy(options, copy.body, extraHeaders);
       if (sent === "retry") break;
