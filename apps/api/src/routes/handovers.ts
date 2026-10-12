@@ -45,8 +45,15 @@ import {
 } from "../services/handover";
 import { rateNumber } from "../services/rates";
 import { type StaffLookup, staffNames } from "../services/staff";
-import { iso, withClientId } from "./care-shared";
-import { createRouter, errorResponses, jsonBody, notFoundResponse, security } from "./openapi";
+import { iso, lockClientId, refuseUsedId, withClientId } from "./care-shared";
+import {
+  conflictResponse,
+  createRouter,
+  errorResponses,
+  jsonBody,
+  notFoundResponse,
+  security,
+} from "./openapi";
 import { personSummaries } from "./people";
 
 /**
@@ -493,6 +500,7 @@ export const handoversRouter = createRouter()
         201: jsonBody(HandoverDetail, "Note saved (or the earlier copy of a replayed save)"),
         ...errorResponses,
         ...notFoundResponse,
+        ...conflictResponse,
       },
     }),
     async (c) => {
@@ -503,6 +511,9 @@ export const handoversRouter = createRouter()
       const result = await withTenant(c, async (tx) => {
         const row = await loadHandover(tx, locationId, handoverId);
         if (body.id) {
+          // Two sends of the same note are taken in turn, and an id another record has is refused
+          // in words, never as a server error (#26 review round 2, low).
+          await lockClientId(tx, "handover_note", body.id);
           const [replayed] = await tx
             .select()
             .from(handoverNote)
@@ -531,7 +542,9 @@ export const handoversRouter = createRouter()
             body: body.body.trim(),
             deviceId: access.deviceId,
           })
-          .returning();
+          .returning()
+          // An id another record has (one the writer cannot see) is refused in words.
+          .catch(refuseUsedId);
         if (!note) throw problems.conflict();
         await auditInTx(tx, access, {
           action: "care.handover.note.create",
@@ -573,6 +586,8 @@ export const handoversRouter = createRouter()
       const result = await withTenant(c, async (tx) => {
         const row = await loadHandover(tx, locationId, handoverId);
         if (body.id) {
+          // Two sends of the same acknowledgement are taken in turn (#26 review round 2, low).
+          await lockClientId(tx, "handover_acknowledgement", body.id);
           const [replayed] = await tx
             .select()
             .from(handoverAcknowledgement)
@@ -603,7 +618,9 @@ export const handoversRouter = createRouter()
             acknowledgedAt: now,
             deviceId: access.deviceId,
           })
-          .returning();
+          .returning()
+          // An id another record has (one the reader cannot see) is refused in words.
+          .catch(refuseUsedId);
         if (!ack) throw problems.conflict();
         await auditInTx(tx, access, {
           action: "care.handover.acknowledge",

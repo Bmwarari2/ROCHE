@@ -13,7 +13,7 @@ import { auditInTx } from "../http/audit";
 import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { applyTaskLink, type PlannedTaskLink, planTaskLink } from "../services/care";
-import { deletionFlags } from "../services/device-holds";
+import { deletionFlags, type FlaggedEntryTable } from "../services/device-holds";
 import { refuseRevokedDevice } from "../services/devices";
 import { type HeldHandover, handedOverByOf, heldHandoverOf } from "../services/held-handover";
 import { CareEventAfterExit, loadPerson, raiseLateEntryReview } from "../services/people";
@@ -84,6 +84,52 @@ export function sameRecordOrRefuse<R extends { personId: string }>(row: R, perso
   return row;
 }
 
+/** Said when a save sent again with its client id carries different details (409). */
+export const REPLAY_CHANGED =
+  "This was already saved with different details: reload before changing it.";
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}(T.*)?$/;
+
+/** A value as it compares across a request and a stored row: dates by instant, text trimmed. */
+function comparable(value: unknown): unknown {
+  if (value === undefined || value === null) return null;
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "string") {
+    const text = value.trim();
+    if (text === "") return null;
+    if (ISO_DATE.test(text)) {
+      const at = Date.parse(text);
+      if (!Number.isNaN(at)) return at;
+    }
+    return text;
+  }
+  if (Array.isArray(value)) return JSON.stringify(value.map(comparable));
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined && v !== null)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([k, v]) => [k, comparable(v)]);
+    return JSON.stringify(entries);
+  }
+  return value;
+}
+
+/**
+ * A save sent again with its client id must carry the details the record holds (HZ-029; #26
+ * review round 2, C5): a form keeps its id until a save is confirmed, so a reply lost on the way
+ * back and a change made before sending again would otherwise return the old record as if the
+ * new one were saved. Every field given is compared with the stored record (missing and empty
+ * read as nothing; dates by instant); any difference is refused with 409, and nothing is saved.
+ */
+export function requireSameDetails(
+  stored: Readonly<Record<string, unknown>>,
+  sent: Readonly<Record<string, unknown>>,
+): void {
+  for (const [key, value] of Object.entries(sent)) {
+    if (comparable(value) !== comparable(stored[key])) throw problems.conflict(REPLAY_CHANGED);
+  }
+}
+
 export const range = z.object({
   from: z.iso.datetime({ offset: true }).optional(),
   to: z.iso.datetime({ offset: true }).optional(),
@@ -112,9 +158,13 @@ export interface EntryExtras {
 
 export const NO_EXTRAS: EntryExtras = { staff: NO_STAFF, deletion: new Map() };
 
-/** Reads the extras for the entries a response returns, in the reader's transaction. */
+/**
+ * Reads the extras for the entries of one table a response returns, in the reader's transaction.
+ * The flag is read by table and id, the key it is stored under.
+ */
 export async function entryExtras(
   tx: Transaction,
+  table: FlaggedEntryTable,
   rows: readonly { id: string; createdBy: string | null; handedOverBy?: string | null }[],
 ): Promise<EntryExtras> {
   if (rows.length === 0) return NO_EXTRAS;
@@ -126,6 +176,7 @@ export async function entryExtras(
     staff,
     deletion: await deletionFlags(
       tx,
+      table,
       rows.map((r) => r.id),
     ),
   };

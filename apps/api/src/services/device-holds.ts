@@ -1788,11 +1788,13 @@ async function recordDeletionFlags(
 }
 
 /**
- * The server's flags on the entries a response returns (Device integrity part 3), read in the
- * reader's transaction: the flag follows the entry's person, as the entry does.
+ * The server's flags on the entries of one table a response returns (Device integrity part 3),
+ * read in the reader's transaction by the key they are stored under, table and id (#26 review
+ * round 2, low): the flag follows the entry's person, as the entry does.
  */
 export async function deletionFlags(
   tx: Transaction,
+  table: FlaggedEntryTable,
   entryIds: readonly string[],
 ): Promise<ReadonlyMap<string, DeviceDeletionFlag>> {
   const flags = new Map<string, DeviceDeletionFlag>();
@@ -1802,7 +1804,12 @@ export async function deletionFlags(
     const rows = await tx
       .select({ entryId: entryDeviceDeletionFlag.entryId, flag: entryDeviceDeletionFlag.flag })
       .from(entryDeviceDeletionFlag)
-      .where(inArray(entryDeviceDeletionFlag.entryId, chunk));
+      .where(
+        and(
+          eq(entryDeviceDeletionFlag.recordTable, table),
+          inArray(entryDeviceDeletionFlag.entryId, chunk),
+        ),
+      );
     for (const row of rows) flags.set(row.entryId, row.flag as DeviceDeletionFlag);
   }
   return flags;
@@ -1850,10 +1857,13 @@ export async function flagEntriesAlreadyUploaded(
     if (found.length === 0) return 0;
     // An entry flagged before, under an earlier record or on its upload, is not flagged again:
     // one read of the server's flags by their unique key (Device integrity part 3).
-    const seenIds = new Set(
+    const seen = new Set(
       (
         await tx
-          .select({ id: entryDeviceDeletionFlag.entryId })
+          .select({
+            table: entryDeviceDeletionFlag.recordTable,
+            id: entryDeviceDeletionFlag.entryId,
+          })
           .from(entryDeviceDeletionFlag)
           .where(
             inArray(
@@ -1861,9 +1871,9 @@ export async function flagEntriesAlreadyUploaded(
               found.map((e) => e.id),
             ),
           )
-      ).map((s) => s.id),
+      ).map((s) => `${s.table}:${s.id}`),
     );
-    const fresh = found.filter((e) => !seenIds.has(e.id));
+    const fresh = found.filter((e) => !seen.has(`${e.resourceType}:${e.id}`));
     if (fresh.length === 0) return 0;
     const now = new Date();
     const outcomes = await raiseFlaggedTasks(tx, access, {

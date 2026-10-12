@@ -147,6 +147,14 @@ export const FluidDay = z
     /** Target minus intake so far; null when no target is set. */
     shortfallMl: z.number().int().nullable(),
     entries: z.number().int(),
+    /**
+     * Of the entries counted, those a device recorded deleting (`deviceDeletion` on the entry), and
+     * the intake and output they add. They stay in the totals, flagged: show them beside the total
+     * so staff check for duplicates (HZ-040; whether they should count is for the CSO, H-165).
+     */
+    flaggedEntries: z.number().int(),
+    flaggedIntakeMl: z.number().int(),
+    flaggedOutputMl: z.number().int(),
   })
   .meta({ id: "FluidDay", description: "Fluid balance for one UK calendar day (00:00 to 24:00)" });
 export type FluidDay = z.infer<typeof FluidDay>;
@@ -209,8 +217,10 @@ export const CreateBodyMapMark = z
      */
     drawnZone: BodyMapViewerZone.optional(),
     /**
-     * The side the device worked out from the drawing. Optional: the server works the side out
-     * itself and refuses a mark whose `drawnSide` disagrees with it.
+     * The side the device worked out from the drawing. With `drawnAt` or `drawnZone` the server
+     * works the side out itself and refuses a mark whose `drawnSide` disagrees. Sent alone (a phone
+     * from before the server read the drawing), it is read as the zone it names on the view and
+     * the mark is flagged `drawnFromDeviceSide`.
      */
     drawnSide: z.enum(["left", "right", "midline"]).optional(),
     side: z.enum(["left", "right", "midline"]),
@@ -243,6 +253,12 @@ export const BodyMapMarkItem = z
      * null for marks recorded before the server did (HZ-019).
      */
     drawnSide: z.enum(["left", "right", "midline"]).nullable(),
+    /**
+     * True when the place on the drawing was taken from the side a phone said it drew (an app from
+     * before the server read the drawing sent no point or zone; HZ-019): show that the side was
+     * not checked against a place on the drawing.
+     */
+    drawnFromDeviceSide: z.boolean(),
     markType: BodyMarkType,
     pressureCategory: PressureUlcerCategory.nullable(),
     lengthMm: z.number().nullable(),

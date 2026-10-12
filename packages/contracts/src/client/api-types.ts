@@ -7772,6 +7772,15 @@ export interface paths {
             "application/problem+json": components["schemas"]["ProblemDetails"];
           };
         };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
         /** @description The request did not validate */
         422: {
           headers: {
@@ -8240,6 +8249,15 @@ export interface paths {
         };
         /** @description Not found or outside your access */
         404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
           headers: {
             [name: string]: unknown;
           };
@@ -9084,6 +9102,15 @@ export interface paths {
         };
         /** @description Not found or outside your access */
         404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
           headers: {
             [name: string]: unknown;
           };
@@ -10092,6 +10119,15 @@ export interface paths {
             "application/problem+json": components["schemas"]["ProblemDetails"];
           };
         };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
         /** @description The request did not validate */
         422: {
           headers: {
@@ -10315,6 +10351,15 @@ export interface paths {
         };
         /** @description Not found or outside your access */
         404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
           headers: {
             [name: string]: unknown;
           };
@@ -10829,6 +10874,15 @@ export interface paths {
         };
         /** @description Not found or outside your access */
         404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
           headers: {
             [name: string]: unknown;
           };
@@ -16049,6 +16103,9 @@ export interface components {
       targetMl: number | null;
       shortfallMl: number | null;
       entries: number;
+      flaggedEntries: number;
+      flaggedIntakeMl: number;
+      flaggedOutputMl: number;
     };
     BodyMapMarkItem: {
       /** Format: uuid */
@@ -16094,6 +16151,7 @@ export interface components {
       side: "left" | "right" | "midline";
       /** @enum {string|null} */
       drawnSide: "left" | "right" | "midline" | null;
+      drawnFromDeviceSide: boolean;
       markType: components["schemas"]["BodyMarkType"];
       pressureCategory: components["schemas"]["PressureUlcerCategory"];
       lengthMm: number | null;

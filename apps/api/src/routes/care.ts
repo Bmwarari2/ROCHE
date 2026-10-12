@@ -37,6 +37,7 @@ import {
   ukIsoDate,
   validateMark,
   weightInterval,
+  zoneForPersonSide,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, desc, eq, gte, inArray, lt } from "drizzle-orm";
@@ -54,7 +55,7 @@ import {
   raiseCareTriggers,
 } from "../services/care";
 import { latestMustBand } from "../services/care-planning";
-import { flagIfReportedDeleted } from "../services/device-holds";
+import { deletionFlags, flagIfReportedDeleted } from "../services/device-holds";
 import { escalationLinks, escalationRef, news2Band } from "../services/escalation-policies";
 import {
   auditHandedOver,
@@ -202,7 +203,11 @@ export const careRouter = createRouter()
               if (replayed) {
                 if (replayed.personId !== personId)
                   throw problems.invalid("That id is already used.");
-                return noteItem(replayed, new Set(), await entryExtras(tx, [replayed]));
+                return noteItem(
+                  replayed,
+                  new Set(),
+                  await entryExtras(tx, "care_note", [replayed]),
+                );
               }
             }
             // Admitted in the entry's own transaction, so a refusal uses none of the count.
@@ -302,7 +307,7 @@ export const careRouter = createRouter()
                 payload: { noteId: row.id, lateEntry: row.lateEntry },
               });
             }
-            return noteItem(row, new Set(), await entryExtras(tx, [row]));
+            return noteItem(row, new Set(), await entryExtras(tx, "care_note", [row]));
           }),
       );
       return c.json(item, 201);
@@ -362,7 +367,7 @@ export const careRouter = createRouter()
           requestId: c.get("requestId"),
         });
         const superseded = supersededIds(rows);
-        const extras = await entryExtras(tx, rows);
+        const extras = await entryExtras(tx, "care_note", rows);
         return rows.map((r) => noteItem(r, superseded, extras));
       });
       return c.json({ items }, 200);
@@ -424,7 +429,7 @@ export const careRouter = createRouter()
                 return observationItem(
                   replayed,
                   new Set(),
-                  await entryExtras(tx, [replayed]),
+                  await entryExtras(tx, "observation", [replayed]),
                   await escalationLinks(tx),
                 );
               }
@@ -579,7 +584,7 @@ export const careRouter = createRouter()
             return observationItem(
               row,
               new Set(),
-              await entryExtras(tx, [row]),
+              await entryExtras(tx, "observation", [row]),
               await escalationLinks(tx),
             );
           }),
@@ -644,7 +649,7 @@ export const careRouter = createRouter()
           requestId: c.get("requestId"),
         });
         const superseded = supersededIds(rows);
-        const extras = await entryExtras(tx, rows);
+        const extras = await entryExtras(tx, "observation", rows);
         const links = await escalationLinks(tx);
         return rows.map((r) => observationItem(r, superseded, extras, links));
       });
@@ -708,6 +713,20 @@ export const careRouter = createRouter()
           requestId: c.get("requestId"),
         });
         const s = outcome.summary;
+        // Entries a device recorded deleting stay in the totals, counted beside them, so a
+        // possible duplicate is checked rather than hidden or silently left out (#26 review
+        // round 2, C3; HZ-040, H-165).
+        const counted = current.filter((r) => Number((r.values as { ml?: number }).ml ?? 0) > 0);
+        const flags = await deletionFlags(
+          tx,
+          "observation",
+          counted.map((r) => r.id),
+        );
+        const flagged = counted.filter((r) => flags.has(r.id));
+        const ml = (rows: typeof flagged, chart: string) =>
+          rows
+            .filter((r) => r.chart === chart)
+            .reduce((sum, r) => sum + Number((r.values as { ml?: number }).ml ?? 0), 0);
         return {
           date,
           intakeMl: s.intakeMl,
@@ -715,6 +734,9 @@ export const careRouter = createRouter()
           targetMl: s.target.status === "target_set" ? s.target.targetMl : null,
           shortfallMl: s.target.status === "target_set" ? s.target.shortfallMl : null,
           entries: s.entriesCounted,
+          flaggedEntries: flagged.length,
+          flaggedIntakeMl: ml(flagged, "fluid_intake"),
+          flaggedOutputMl: ml(flagged, "fluid_output"),
         };
       });
       return c.json(day, 200);
@@ -757,11 +779,17 @@ export const careRouter = createRouter()
           })
         : null;
       // HZ-019: the side where the mark was drawn is worked out here, from the place on the drawing
-      // and the view, never taken from the device; the side in words must agree with it, and so
-      // must any side the device worked out itself.
+      // and the view; the side in words must agree with it, and so must any side the device worked
+      // out itself. A phone from before the server read the drawing sends only the side it worked
+      // out: that side names one zone on the view, which is read instead and the mark flagged
+      // (`drawnFromDeviceSide`), so those phones' marks are kept rather than refused (#26 review
+      // round 2, C4), as the current phone does for entries queued before it was updated.
+      const fromDeviceSide = !body.drawnAt && !body.drawnZone && body.drawnSide !== undefined;
       const drawn = sideFromDrawing(body.view, {
         point: body.drawnAt ?? null,
-        zone: body.drawnZone ?? null,
+        zone:
+          body.drawnZone ??
+          (fromDeviceSide && body.drawnSide ? zoneForPersonSide(body.view, body.drawnSide) : null),
       });
       if (!drawn.ok) throw problems.invalid(drawn.message);
       if (body.drawnSide && body.drawnSide !== drawn.side) {
@@ -801,7 +829,11 @@ export const careRouter = createRouter()
               if (replayed) {
                 if (replayed.personId !== personId)
                   throw problems.invalid("That id is already used.");
-                return markItem(replayed, new Set(), await entryExtras(tx, [replayed]));
+                return markItem(
+                  replayed,
+                  new Set(),
+                  await entryExtras(tx, "body_map_mark", [replayed]),
+                );
               }
             }
             // Admitted in the entry's own transaction, so a refusal uses none of the count.
@@ -841,6 +873,7 @@ export const careRouter = createRouter()
                 drawnY: body.drawnAt?.y ?? null,
                 drawnZone: drawn.zone,
                 drawnSide: drawn.side,
+                drawnFromDeviceSide: fromDeviceSide,
                 markType: body.markType,
                 pressureCategory: body.pressureCategory ?? null,
                 deviceRelated: body.deviceRelated ?? null,
@@ -939,7 +972,7 @@ export const careRouter = createRouter()
                 requestId: c.get("requestId"),
               });
             }
-            return markItem(row, new Set(), await entryExtras(tx, [row]));
+            return markItem(row, new Set(), await entryExtras(tx, "body_map_mark", [row]));
           }),
       );
       return c.json(item, 201);
@@ -985,7 +1018,7 @@ export const careRouter = createRouter()
           scope: { count: current.length },
           requestId: c.get("requestId"),
         });
-        const extras = await entryExtras(tx, current);
+        const extras = await entryExtras(tx, "body_map_mark", current);
         return current.map((r) => markItem(r, superseded, extras));
       });
       return c.json({ items }, 200);
@@ -1133,8 +1166,11 @@ function chartRules(
     const kind = values.chart === "food" ? "food" : "drink";
     const prescribed =
       (kind === "food" ? profile?.iddsiFoodLevel : profile?.iddsiDrinkLevel) ?? null;
-    // A drink with no level and none prescribed carries no IDDSI flags, as before.
-    if (!values.iddsiLevel && kind === "drink" && prescribed === null) {
+    // A drink with no level carries no IDDSI flags when none is prescribed, as before, or when it
+    // was refused: nothing was given, so there is no texture to check and nothing to alert (#26
+    // review round 2, low).
+    const refusedDrink = values.chart === "fluid_intake" && values.refused === true;
+    if (!values.iddsiLevel && kind === "drink" && (prescribed === null || refusedDrink)) {
       return { flags: {}, triggers: [] };
     }
     const check = checkIddsiEntry({
@@ -1263,6 +1299,7 @@ function markItem(
     region: row.region,
     side: row.side as "left" | "right" | "midline",
     drawnSide: row.drawnSide as BodyMapMarkItem["drawnSide"],
+    drawnFromDeviceSide: row.drawnFromDeviceSide,
     markType: row.markType as BodyMapMarkItem["markType"],
     pressureCategory: row.pressureCategory as BodyMapMarkItem["pressureCategory"],
     lengthMm: num(row.lengthMm),

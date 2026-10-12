@@ -1,4 +1,5 @@
 import {
+  auditEvent,
   location,
   notification,
   person,
@@ -33,6 +34,8 @@ import {
 } from "@harbour/domain";
 import { and, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { HttpProblem, problems } from "../http/problem";
+import { fallbackRecipients } from "./device-holds";
+import { withTenantWideScope } from "./safety";
 import { anyoneMayBeGiven, mayBeAssigned, OVERDUE_FIRST_RESPONDERS } from "./tasks";
 
 /**
@@ -208,6 +211,48 @@ export async function nurseInCharge(tx: Transaction, locationId: string): Promis
   return managers.map((m) => m.id);
 }
 
+/** Who acts on a care result alert when the fallback is used: holders of the care plan. */
+const ALERT_FALLBACK_PERMISSION = "care.plan.write";
+/** The audit action of an urgent result alert no one could be told about (HZ-014, HZ-016). */
+export const CARE_ALERT_UNROUTED_ACTION = "care.alert.unrouted";
+
+/**
+ * Who an urgent result alert goes to (#26 review round 2, C2; HZ-014, HZ-016): the nurse in
+ * charge at the location (the nurse or senior on shift, else its Registered Manager); with no one
+ * there, the fallback the sync tasks use (`fallbackRecipients`: the Registered Managers anywhere in
+ * the organisation, longest-serving first, else the holders of the care plan anywhere). Empty only
+ * when the organisation has no one who could act.
+ */
+export async function urgentAlertRecipients(
+  tx: Transaction,
+  locationId: string,
+  now: Date,
+): Promise<string[]> {
+  const nurses = await nurseInCharge(tx, locationId);
+  if (nurses.length > 0) return nurses;
+  return fallbackRecipients(tx, ALERT_FALLBACK_PERMISSION, now);
+}
+
+/**
+ * Audits an urgent result alert that no one could be told about, as the system (no actor), with
+ * the result's opaque ids and the reason in Harbour's words, never the person's details.
+ */
+async function recordUnroutedAlert(
+  tx: Transaction,
+  source: TriggerSource,
+  reason: string,
+): Promise<void> {
+  await tx.insert(auditEvent).values({
+    tenantId: sql`app.current_tenant_id()`,
+    action: CARE_ALERT_UNROUTED_ACTION,
+    outcome: "error",
+    resourceType: source.sourceType,
+    resourceId: source.sourceId,
+    reason,
+    scope: { personId: source.personId, locationId: source.locationId },
+  });
+}
+
 export interface TriggerSource {
   readonly personId: string;
   readonly locationId: string;
@@ -314,26 +359,36 @@ export async function raiseCareTriggers(
   let raised = 0;
   for (const trigger of triggers) {
     if (trigger.kind === "urgent_alert") {
-      for (const recipient of await nurseInCharge(tx, source.locationId)) {
-        await tx
-          .insert(notification)
-          .values({
-            recipientTenantUserId: recipient,
-            kind: "care.urgent_result",
-            severity: "urgent",
-            title: "An observation needs a response now",
-            body: "Open the person's record to see the result and the response to take.",
-            link: `/people/${source.personId}`,
-            channels: ["in_app", "push"],
-            sourceType: source.sourceType,
-            sourceId: source.sourceId,
-            personId: source.personId,
-            locationId: source.locationId,
-            dedupeKey: `care_alert:${source.sourceId}`,
-          })
-          .onConflictDoNothing();
+      const recipients = await urgentAlertRecipients(tx, source.locationId, now);
+      let written = 0;
+      for (const recipient of recipients) {
+        // In the organisation's view, so the alert written for someone else can be counted.
+        const made = await withTenantWideScope(tx, () =>
+          tx
+            .insert(notification)
+            .values({
+              recipientTenantUserId: recipient,
+              kind: "care.urgent_result",
+              severity: "urgent",
+              title: "An observation needs a response now",
+              body: "Open the person's record to see the result and the response to take.",
+              link: `/people/${source.personId}`,
+              channels: ["in_app", "push"],
+              sourceType: source.sourceType,
+              sourceId: source.sourceId,
+              personId: source.personId,
+              locationId: source.locationId,
+              dedupeKey: `care_alert:${source.sourceId}`,
+            })
+            .onConflictDoNothing()
+            .returning({ id: notification.id }),
+        );
+        written += made.length;
       }
-      raised++;
+      // Counted only when someone was told (#26 review round 2, C2); with no one to tell, the
+      // alert is audited as unrouted so it is never lost silently.
+      if (written > 0) raised++;
+      if (recipients.length === 0) await recordUnroutedAlert(tx, source, trigger.reason);
     } else if (trigger.kind === "task") {
       await tx.insert(task).values({
         kind: `care.${trigger.task}`,

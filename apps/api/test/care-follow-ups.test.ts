@@ -17,10 +17,12 @@ import type {
   RiskAssessmentItem,
   TaskItem,
 } from "@harbour/contracts";
+import { createDatabase, createPool, withRequestContext } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createHarness, type Harness } from "./support/harness";
+import { CARE_ALERT_UNROUTED_ACTION, raiseCareTriggers } from "../src/services/care";
+import { createHarness, type Harness, LODGE } from "./support/harness";
 
 /**
  * The care API follow-ups from the #15 reviews (care.md sections 5 and 6): the IDDSI drink level
@@ -246,8 +248,8 @@ describe("hazard HZ-019 the server works out the side of a body-map mark from th
     expect(both.status).toBe(422);
   });
 
-  it("refuses a mark with no place on the drawing", async () => {
-    const response = await mark({ view: "front", drawnSide: "left", side: "left" });
+  it("refuses a mark with no place on the drawing and no side drawn", async () => {
+    const response = await mark({ view: "front", side: "left" });
     expect(response.status).toBe(422);
     expect((await json<ProblemDetails>(response)).detail).toBe(
       "Mark the place on the body map drawing, so the side can be checked.",
@@ -438,10 +440,25 @@ describe("hazard HZ-040 coded discard reasons, the replay index and the server's
   });
 
   it("takes a deletion with one of the organisation's codes, a retired one too, and refuses one it never had", async () => {
-    expect(
-      (await send(discard({ reasonCode: "other", organisationReasonCode: "agency_shift_ended" })))
-        .status,
-    ).toBe(200);
+    const withOwnCode = discard({
+      reasonCode: "other",
+      organisationReasonCode: "agency_shift_ended",
+    });
+    expect((await send(withOwnCode)).status).toBe(200);
+    // The hash-chained audit keeps "other" and the reason's id, never the organisation's own
+    // words (#26 review round 2, low); the deletion record keeps the code.
+    const [event] = await asDemoTenant((c) =>
+      c
+        .query<{ reason: string; scope: Record<string, unknown> }>(
+          "SELECT reason, scope FROM audit_event WHERE resource_type = 'device_discard' AND resource_id = $1",
+          [withOwnCode.id],
+        )
+        .then((r) => r.rows),
+    );
+    expect(event?.reason).toBe("other");
+    expect(event?.scope.reasonCode).toBe("other");
+    expect(event?.scope.organisationReasonId).toEqual(expect.any(String));
+    expect(JSON.stringify(event)).not.toContain("agency_shift_ended");
     const unknown = await send(
       discard({ reasonCode: "other", organisationReasonCode: "because_i_said" }),
     );
@@ -752,5 +769,386 @@ describe("hazard HZ-029 a save sent twice with the same client id is recorded on
     });
     expect(other.status).toBe(422);
     expect((await json<ProblemDetails>(other)).detail).toBe("That id is already used.");
+  });
+});
+
+// ------------------------------------------------------------------------------------------------
+// #26 review round 2
+// ------------------------------------------------------------------------------------------------
+
+describe("hazard HZ-014 hazard HZ-016 an urgent result alert always reaches someone or is audited (#26 review round 2, C2)", () => {
+  const veryHigh = {
+    chart: "vitals",
+    respirationRate: 26,
+    spo2: 90,
+    onOxygen: false,
+    systolic: 90,
+    pulse: 135,
+    consciousness: "alert",
+    temperature: 39.5,
+  };
+
+  it("goes to the fallback, the Registered Manager, where the home has no nurse in charge", async () => {
+    // Harbour Lodge has no clinical lead, team leader or Registered Manager of its own.
+    const response = await as("owner", `/v1/people/${LODGE.personId}/observations`, {
+      method: "POST",
+      body: { occurredAt: ago(5), values: veryHigh },
+    });
+    expect(response.status).toBe(201);
+    const saved = await json<ObservationItem>(response);
+    const recipients = await asDemoTenant((c) =>
+      c
+        .query<{ recipient: string }>(
+          "SELECT recipient_tenant_user_id AS recipient FROM notification WHERE kind = 'care.urgent_result' AND source_id = $1",
+          [saved.id],
+        )
+        .then((r) => r.rows.map((row) => row.recipient)),
+    );
+    expect(recipients).toEqual([DEMO.users.manager.id]);
+  });
+
+  it("is audited as unrouted, and not counted, when the organisation has no one who could act", async () => {
+    const tenantId = "0194f000-0000-7000-8000-000000000001";
+    const locationId = "0194f000-0000-7000-8000-000000000101";
+    const personId = "0194f000-0000-7000-8000-000000000401";
+    const sourceId = "0194f000-0000-7000-8000-0000000004a1";
+    const inEmptyTenant = async <T>(fn: (c: pg.PoolClient) => Promise<T>): Promise<T> => {
+      const client = await h.db.pool("harbour_owner").connect();
+      try {
+        await client.query("BEGIN");
+        await client.query(
+          "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+          [tenantId],
+        );
+        const result = await fn(client);
+        await client.query("COMMIT");
+        return result;
+      } finally {
+        client.release();
+      }
+    };
+    await inEmptyTenant(async (c) => {
+      await c.query(
+        `INSERT INTO tenant (id, name, legal_name, legal_form, status)
+         VALUES ($1, 'Empty Provider', 'Empty Provider Ltd', 'limited_company', 'onboarding')`,
+        [tenantId],
+      );
+      await c.query("INSERT INTO location (id, name) VALUES ($1, 'Quiet House')", [locationId]);
+      await c.query(
+        `INSERT INTO person (id, location_id, status, given_name, family_name, nhs_number)
+         VALUES ($1, $2, 'active', 'Ivy', 'Example', '9990000093')`,
+        [personId, locationId],
+      );
+    });
+    const pool = createPool(h.db.url("harbour_app"));
+    try {
+      const raised = await withRequestContext(
+        createDatabase(pool),
+        { tenantId, userId: null, scope: "tenant", locationIds: [] },
+        (tx) =>
+          raiseCareTriggers(
+            tx,
+            { personId, locationId, sourceType: "observation", sourceId },
+            [{ kind: "urgent_alert", recipient: "nurse_in_charge", reason: "Test alert" }],
+            new Date(),
+          ),
+      );
+      expect(raised).toBe(0);
+    } finally {
+      await pool.end();
+    }
+    const audited = await inEmptyTenant((c) =>
+      c
+        .query<{ action: string; outcome: string; scope: unknown }>(
+          "SELECT action, outcome, scope FROM audit_event WHERE resource_id = $1",
+          [sourceId],
+        )
+        .then((r) => r.rows),
+    );
+    expect(audited).toEqual([
+      { action: CARE_ALERT_UNROUTED_ACTION, outcome: "error", scope: { personId, locationId } },
+    ]);
+  });
+
+  it("hazard HZ-016 asks no IDDSI level of a drink refused, and raises nothing", async () => {
+    // Ada (resident 1) has a drink level prescribed; nothing was given, so there is no texture.
+    const response = await observe(1, { chart: "fluid_intake", ml: 0, refused: true });
+    expect(response.status).toBe(201);
+    const saved = await json<ObservationItem>(response);
+    expect(saved.flags).toEqual({});
+    expect(await urgentAlerts(saved.id)).toBe(0);
+  });
+});
+
+describe("hazard HZ-040 entries a device recorded deleting are counted beside the fluid total (#26 review round 2, C3)", () => {
+  it("keeps them in the totals, says how many and how much, and marks them on the list", async () => {
+    const entryId = newId();
+    const deletion = {
+      id: crypto.randomUUID(),
+      kind: "held_deleted",
+      stage: "requested",
+      reasonCode: "recorded_elsewhere",
+      ownerTenantUserId: DEMO.users.carer.id,
+      deletedByTenantUserId: DEMO.users.carer.id,
+      entryIds: [entryId],
+      personIds: [resident(3)],
+      count: 1,
+      discardedAt: new Date().toISOString(),
+    };
+    for (const stage of ["requested", "deleted"]) {
+      const sent = await as("carer", "/v1/sync/discards", {
+        method: "POST",
+        body: { ...deletion, stage },
+        headers: fromDevice,
+      });
+      expect(sent.status).toBe(200);
+    }
+    const plain = await observe(3, { chart: "fluid_intake", ml: 200 }, { headers: fromDevice });
+    expect(plain.status).toBe(201);
+    const flagged = await observe(
+      3,
+      { chart: "fluid_intake", ml: 300 },
+      { headers: fromDevice, id: entryId },
+    );
+    expect(flagged.status).toBe(201);
+    expect((await json<ObservationItem>(flagged)).deviceDeletion).toBe("uploaded_after_deletion");
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/London" });
+    const day = await json<{
+      intakeMl: number;
+      flaggedEntries: number;
+      flaggedIntakeMl: number;
+      flaggedOutputMl: number;
+    }>(await as("manager", `/v1/people/${resident(3)}/charts/fluid?date=${today}`));
+    expect(day).toMatchObject({ flaggedEntries: 1, flaggedIntakeMl: 300, flaggedOutputMl: 0 });
+    expect(day.intakeMl).toBeGreaterThanOrEqual(500);
+    const list = await json<{ items: ObservationItem[] }>(
+      await as("manager", `/v1/people/${resident(3)}/observations`),
+    );
+    expect(list.items.find((o) => o.id === entryId)?.deviceDeletion).toBe(
+      "uploaded_after_deletion",
+    );
+  });
+});
+
+describe("hazard HZ-019 marks from phones not yet updated, and refused marks that may be harm (#26 review round 2, C4)", () => {
+  const oldPhoneMark = (side: string) =>
+    as("carer", `/v1/people/${resident(2)}/body-map`, {
+      method: "POST",
+      body: {
+        occurredAt: ago(5),
+        view: "front",
+        region: "knee",
+        drawnSide: "left",
+        side,
+        markType: "bruise",
+        bruiseExplained: true,
+      },
+      headers: fromDevice,
+    });
+
+  it("reads a mark sent with only the side the phone worked out as that side's zone, and flags it", async () => {
+    const response = await oldPhoneMark("left");
+    expect(response.status).toBe(201);
+    const saved = await json<BodyMapMarkItem>(response);
+    expect(saved).toMatchObject({ drawnSide: "left", drawnFromDeviceSide: true, side: "left" });
+    const stored = await asDemoTenant((c) =>
+      c
+        .query<{ drawn_zone: string; drawn_x: number | null }>(
+          "SELECT drawn_zone, drawn_x FROM body_map_mark WHERE id = $1",
+          [saved.id],
+        )
+        .then((r) => r.rows[0]),
+    );
+    expect(stored).toEqual({ drawn_zone: "viewer_right", drawn_x: null });
+    // The side in words is still checked against it.
+    expect((await oldPhoneMark("right")).status).toBe(422);
+  });
+
+  it("makes the review of a refused bruise urgent at once", async () => {
+    const entryId = newId();
+    const copy = await as("carer", "/v1/sync/refused-entries", {
+      method: "POST",
+      body: {
+        entryId,
+        table: "body_map_mark",
+        personId: resident(3),
+        payload: {
+          id: entryId,
+          occurredAt: ago(30),
+          view: "front",
+          region: "knee",
+          drawnZone: "viewer_right",
+          side: "right",
+          markType: "bruise",
+          bruiseExplained: false,
+        },
+        httpStatus: 422,
+        code: "invalid",
+        message: "The side chosen in words is not the side of the area marked on the drawing.",
+        refusedAt: ago(1),
+      },
+      headers: fromDevice,
+    });
+    expect(copy.status).toBe(200);
+    const { taskId } = await json<{ taskId: string }>(copy);
+    const priority = await asDemoTenant((c) =>
+      c
+        .query<{ priority: string }>("SELECT priority FROM task WHERE id = $1", [taskId])
+        .then((r) => r.rows[0]?.priority),
+    );
+    expect(priority).toBe("urgent");
+  });
+});
+
+describe("hazard HZ-029 a save sent again with other details is refused, never shown as saved (#26 review round 2, C5)", () => {
+  const today = () => new Date().toISOString().slice(0, 10);
+
+  it("refuses a ReSPECT plan sent again with a changed CPR decision, and a DNACPR with a changed clinician", async () => {
+    const path = `/v1/people/${resident(3)}/advance-care`;
+    const id = newId();
+    const respect = {
+      id,
+      kind: "respect",
+      cprDecision: "attempt_cpr",
+      clinicianName: "Dr Example",
+      clinicianRole: "GP",
+      completedOn: today(),
+    };
+    expect((await as("manager", path, { method: "POST", body: respect })).status).toBe(201);
+    const changed = await as("manager", path, {
+      method: "POST",
+      body: { ...respect, cprDecision: "do_not_attempt_cpr" },
+    });
+    expect(changed.status).toBe(409);
+    expect((await json<ProblemDetails>(changed)).detail).toBe(
+      "This was already saved with different details: reload before changing it.",
+    );
+    const stored = await json<{ items: AdvanceCareItem[] }>(await as("manager", path));
+    expect(stored.items.find((i) => i.id === id)?.cprDecision).toBe("attempt_cpr");
+    // The same details again return the record.
+    expect((await as("manager", path, { method: "POST", body: respect })).status).toBe(201);
+
+    const dnacpr = {
+      id: newId(),
+      kind: "dnacpr",
+      clinicianName: "Dr Example",
+      clinicianRole: "GP",
+      completedOn: today(),
+    };
+    expect((await as("manager", path, { method: "POST", body: dnacpr })).status).toBe(201);
+    const otherClinician = await as("manager", path, {
+      method: "POST",
+      body: { ...dnacpr, clinicianName: "Dr Someone Else" },
+    });
+    expect(otherClinician.status).toBe(409);
+  });
+
+  it("refuses a consent and a DoLS entry sent again with changed details", async () => {
+    const consentPath = `/v1/people/${resident(3)}/consents`;
+    const consent = {
+      id: newId(),
+      decision: "photos",
+      outcome: "given",
+      givenBy: "person",
+      givenAt: ago(10),
+      evidence: "Agreed when asked in the lounge.",
+    };
+    expect((await as("manager", consentPath, { method: "POST", body: consent })).status).toBe(201);
+    const refused = await as("manager", consentPath, {
+      method: "POST",
+      body: { ...consent, outcome: "refused" },
+    });
+    expect(refused.status).toBe(409);
+    expect((await as("manager", consentPath, { method: "POST", body: consent })).status).toBe(201);
+
+    const dolsPath = `/v1/people/${resident(3)}/dols`;
+    const dols = { id: newId(), type: "standard", requestedAt: ago(60) };
+    expect((await as("manager", dolsPath, { method: "POST", body: dols })).status).toBe(201);
+    const urgent = await as("manager", dolsPath, {
+      method: "POST",
+      body: { ...dols, type: "urgent" },
+    });
+    expect(urgent.status).toBe(409);
+  });
+
+  it("never returns a removed escalation policy link as live", async () => {
+    const id = newId();
+    const link = { id, toolKey: "waterlow", title: "Skin integrity policy" };
+    const made = await as("owner", "/v1/escalation-policies", { method: "POST", body: link });
+    expect(made.status).toBe(201);
+    const item = await json<EscalationPolicyLinkItem>(made);
+    const removed = await as("owner", `/v1/escalation-policies/${id}/remove`, {
+      method: "POST",
+      body: { version: item.version },
+    });
+    expect(removed.status).toBe(200);
+    const replay = await as("owner", "/v1/escalation-policies", { method: "POST", body: link });
+    expect(replay.status).toBe(409);
+  });
+});
+
+describe("escalation links and coded reasons follow the roles that carry the permission (#26 review round 2, S1)", () => {
+  /** Extra roles for the Registered Manager at Harbour House, removed again after each test. */
+  const withExtraRoles = async (
+    roles: readonly ("administrator" | "group_executive" | "owner")[],
+    atLodge: readonly string[],
+    fn: () => Promise<void>,
+  ) => {
+    const ids = await asDemoTenant((c) =>
+      c
+        .query<{ id: string }>(
+          `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, reason)
+           SELECT $1, id, CASE WHEN key = ANY($3) THEN $2::uuid END, 'Test'
+           FROM role WHERE key = ANY($4) AND tenant_id = $5
+           RETURNING id`,
+          [DEMO.users.manager.id, LODGE.locationId, atLodge, roles, DEMO.tenantId],
+        )
+        .then((r) => r.rows.map((row) => row.id)),
+    );
+    expect(ids).toHaveLength(roles.length);
+    try {
+      await fn();
+    } finally {
+      await asDemoTenant((c) =>
+        c.query("UPDATE role_assignment SET deleted_at = now() WHERE id = ANY($1)", [ids]),
+      );
+    }
+  };
+
+  it("refuses a Registered Manager's links where another role gives them scope only, and organisation-wide", async () => {
+    // Also an administrator at Harbour Lodge and a group executive: neither role carries
+    // quality.policy.manage, though together they widen the manager's scope to the organisation.
+    await withExtraRoles(["administrator", "group_executive"], ["administrator"], async () => {
+      const atLodge = await as("manager", "/v1/escalation-policies", {
+        method: "POST",
+        body: { toolKey: "braden", locationId: LODGE.locationId, title: "Lodge skin policy" },
+      });
+      expect(atLodge.status).toBe(403);
+      const organisation = await as("manager", "/v1/escalation-policies", {
+        method: "POST",
+        body: { toolKey: "braden", title: "Organisation skin policy" },
+      });
+      expect(organisation.status).toBe(403);
+      const atHome = await as("manager", "/v1/escalation-policies", {
+        method: "POST",
+        body: { toolKey: "braden", locationId: DEMO.locationId, title: "House skin policy" },
+      });
+      expect(atHome.status).toBe(201);
+    });
+  });
+
+  it("refuses the organisation's coded reasons to the owner role held at one home only", async () => {
+    await withExtraRoles(["owner", "group_executive"], ["owner"], async () => {
+      const added = await as("manager", "/v1/discard-reasons", {
+        method: "POST",
+        body: { code: "lodge_only", label: "A reason for the Lodge" },
+      });
+      expect(added.status).toBe(403);
+    });
+  });
+
+  it("lists the coded reasons only to whoever may record a deletion", async () => {
+    expect((await as("quality", "/v1/discard-reasons")).status).toBe(403);
+    expect((await as("carer", "/v1/discard-reasons")).status).toBe(200);
   });
 });

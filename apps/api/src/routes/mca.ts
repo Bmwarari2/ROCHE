@@ -85,6 +85,7 @@ import {
   lockClientId,
   PersonParam,
   requireOpenRecord,
+  requireSameDetails,
   sameRecordOrRefuse,
   withClientId,
 } from "./care-shared";
@@ -634,6 +635,7 @@ export const mcaRouter = createRouter()
         201: jsonBody(ConsentItem, "Consent recorded"),
         ...errorResponses,
         ...notFoundResponse,
+        ...conflictResponse,
       },
     }),
     async (c) => {
@@ -650,7 +652,33 @@ export const mcaRouter = createRouter()
             .from(consentRecord)
             .where(eq(consentRecord.id, body.id));
           if (replayed) {
+            // The same details or nothing (#26 review round 2, C5). The capacity found is the
+            // server's, so it is not compared.
             const row = sameRecordOrRefuse(replayed, personId);
+            const sent = body.representative;
+            requireSameDetails(row, {
+              decision: body.decision,
+              outcome: body.outcome,
+              givenByKind: body.givenBy,
+              representativeKind: sent?.kind ?? null,
+              representativeContactId: sent?.contactId ?? null,
+              representativeName: sent?.name ?? null,
+              lpaRegistered: sent?.registered ?? null,
+              opgReference: sent?.opgReference ?? null,
+              excludedDecisions: sent?.excludedDecisions ?? [],
+              deputyScope: sent?.deputyScope ?? null,
+              deputyDecisions: sent?.deputyDecisions ?? [],
+              deputyRestraintAuthorised: sent?.restraintExpresslyAuthorised ?? null,
+              deputyOrderEndsAt: sent?.orderEndsAt ?? null,
+              courtReference: sent?.courtReference ?? null,
+              givenAt: body.givenAt,
+              expiresAt: body.expiresAt ?? null,
+              evidence: body.evidence,
+              evidenceDocumentId: body.evidenceDocumentId ?? null,
+              restraintNecessary: body.restraintConditions?.necessaryToPreventHarm ?? null,
+              restraintProportionate: body.restraintConditions?.proportionate ?? null,
+              bestInterestsDecisionId: body.bestInterestsDecisionId ?? null,
+            });
             return consentItem(row, await staffNames(tx, [row.createdBy]));
           }
         }
@@ -864,6 +892,8 @@ export const mcaRouter = createRouter()
         const person = await personContext(tx, personId);
         requireOpenRecord(person);
         if (body.id) {
+          // Two sends of the same save are taken in turn (#26 review round 2, low).
+          await lockClientId(tx, "capacity_assessment", body.id);
           const [replayed] = await tx
             .select()
             .from(capacityAssessment)
@@ -1015,6 +1045,8 @@ export const mcaRouter = createRouter()
         const person = await personContext(tx, personId);
         requireOpenRecord(person);
         if (body.id) {
+          // Two sends of the same save are taken in turn (#26 review round 2, low).
+          await lockClientId(tx, "best_interests_decision", body.id);
           const [replayed] = await tx
             .select()
             .from(bestInterestsDecision)
@@ -1142,6 +1174,7 @@ export const mcaRouter = createRouter()
         201: jsonBody(DolsItem, "Recorded"),
         ...errorResponses,
         ...notFoundResponse,
+        ...conflictResponse,
       },
     }),
     async (c) => {
@@ -1158,12 +1191,10 @@ export const mcaRouter = createRouter()
             .from(dolsAuthorisation)
             .where(eq(dolsAuthorisation.id, clientId));
           if (replayed) {
-            const [out] = await dolsItems(
-              tx,
-              access.tenantId,
-              [sameRecordOrRefuse(replayed, personId)],
-              now,
-            );
+            // The same details or nothing (#26 review round 2, C5).
+            const row = sameRecordOrRefuse(replayed, personId);
+            requireSameDetails(row, dolsValues(body));
+            const [out] = await dolsItems(tx, access.tenantId, [row], now);
             if (!out) throw problems.notFound();
             return out;
           }

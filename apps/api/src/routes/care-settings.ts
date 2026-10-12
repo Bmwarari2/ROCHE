@@ -22,13 +22,16 @@ import {
   checkDiscardReason,
   checkEscalationPolicyLink,
   ESCALATION_POLICY_BANDS,
+  placesCover,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, eq, isNull } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { auditInTx } from "../http/audit";
 import { requirePermission, type TenantAccess, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
-import { lockClientId, withClientId } from "./care-shared";
+import { permissionPlaces } from "../services/permission-places";
+import { lockClientId, requireSameDetails, withClientId } from "./care-shared";
 import {
   conflictResponse,
   createRouter,
@@ -83,38 +86,70 @@ function reasonItem(row: ReasonRow): DiscardReasonItem {
 }
 
 /**
- * A link for the whole organisation needs organisation-wide access; one for a location needs that
- * location in the caller's scope (row-level security checks both again).
+ * A link for the whole organisation needs quality.policy.manage across the organisation; one for
+ * a location needs it there. Read from the roles and grants that carry the permission, never the
+ * request's merged scope, which a second role elsewhere widens (#26 review round 2, S1).
+ * Row-level security checks it again (`app.holds_permission_at`, migration 0046).
  */
-function requireLinkPlace(access: TenantAccess, locationId: string | null) {
-  const scope = access.context.scope;
-  if (scope === "tenant") return;
-  if (
-    locationId !== null &&
-    scope === "locations" &&
-    access.context.locationIds.includes(locationId)
-  )
-    return;
+async function requireLinkPlace(
+  tx: Transaction,
+  access: TenantAccess,
+  locationId: string | null,
+): Promise<void> {
+  const places = await permissionPlaces(tx, access.tenantUserId, POLICY_PERMISSION, new Date());
+  if (placesCover(places, locationId)) return;
   throw new HttpProblem(
     403,
     "missing_permission",
-    "You can change escalation policies only for the locations you manage.",
+    "You can change escalation policies only where you manage policies.",
     locationId === null
-      ? "A policy for the whole organisation needs organisation-wide access."
+      ? "A policy for the whole organisation needs a role that manages policies across the organisation."
       : undefined,
   );
 }
 
-/** The policy document must be one of the organisation's documents, not a person's. */
+/**
+ * The organisation's coded reasons are its settings: only a member who holds
+ * platform.tenant.manage across the organisation changes them (#26 review round 2, S1).
+ */
+async function requireOrganisationSettings(tx: Transaction, access: TenantAccess): Promise<void> {
+  const places = await permissionPlaces(tx, access.tenantUserId, SETTINGS_PERMISSION, new Date());
+  if (!placesCover(places, null)) throw problems.forbidden();
+}
+
+/**
+ * The policy document must be one of the organisation's current documents: an organisation
+ * document (never a person's), available (not quarantined or destroyed) and its latest version
+ * (#26 review round 2, low).
+ */
 async function requirePolicyDocument(tx: Transaction, documentId: string | null | undefined) {
   if (!documentId) return;
+  const newer = alias(document, "newer_version");
   const [found] = await tx
-    .select({ personId: document.personId })
+    .select({
+      personId: document.personId,
+      category: document.category,
+      status: document.status,
+      destroyedAt: document.destroyedAt,
+      newerId: newer.id,
+    })
     .from(document)
+    .leftJoin(newer, and(eq(newer.previousVersionId, document.id), isNull(newer.deletedAt)))
     .where(and(eq(document.id, documentId), isNull(document.deletedAt)));
-  if (!found || found.personId !== null) {
+  if (
+    !found ||
+    found.personId !== null ||
+    found.category !== "organisation_document" ||
+    found.status !== "available" ||
+    found.destroyedAt !== null
+  ) {
     throw problems.invalid(
-      "The policy document was not found among your organisation's documents.",
+      "The policy document was not found among your organisation's current policy documents.",
+    );
+  }
+  if (found.newerId !== null) {
+    throw problems.invalid(
+      "A newer version of this policy document has been uploaded. Link the newer version.",
     );
   }
 }
@@ -196,8 +231,8 @@ export const careSettingsRouter = createRouter()
         reference: body.reference ?? null,
       });
       if (!check.ok) throw problems.invalid(check.message);
-      requireLinkPlace(access, body.locationId);
       const item = await withTenant(c, async (tx) => {
+        await requireLinkPlace(tx, access, body.locationId);
         if (body.id) {
           await lockClientId(tx, "escalation_policy_link", body.id);
           const [replayed] = await tx
@@ -205,13 +240,21 @@ export const careSettingsRouter = createRouter()
             .from(escalationPolicyLink)
             .where(eq(escalationPolicyLink.id, body.id));
           if (replayed) {
-            if (
-              replayed.toolKey !== body.toolKey ||
-              replayed.band !== body.band ||
-              replayed.locationId !== body.locationId
-            ) {
-              throw problems.invalid("That id is already used.");
+            // A link removed since is never returned as live, and a link sent again with other
+            // details is refused (#26 review round 2, C5).
+            if (replayed.deletedAt !== null) {
+              throw problems.conflict(
+                "This policy link has been removed since it was saved: reload before linking a policy again.",
+              );
             }
+            requireSameDetails(replayed, {
+              toolKey: body.toolKey,
+              band: body.band,
+              locationId: body.locationId,
+              title: body.title,
+              reference: body.reference ?? null,
+              documentId: body.documentId ?? null,
+            });
             return linkItem(replayed);
           }
         }
@@ -278,7 +321,7 @@ export const careSettingsRouter = createRouter()
           .from(escalationPolicyLink)
           .where(and(eq(escalationPolicyLink.id, linkId), isNull(escalationPolicyLink.deletedAt)));
         if (!current) throw problems.notFound();
-        requireLinkPlace(access, current.locationId);
+        await requireLinkPlace(tx, access, current.locationId);
         const check = checkEscalationPolicyLink({
           toolKey: current.toolKey,
           band: current.band,
@@ -344,7 +387,7 @@ export const careSettingsRouter = createRouter()
           .from(escalationPolicyLink)
           .where(and(eq(escalationPolicyLink.id, linkId), isNull(escalationPolicyLink.deletedAt)));
         if (!current) throw problems.notFound();
-        requireLinkPlace(access, current.locationId);
+        await requireLinkPlace(tx, access, current.locationId);
         const [row] = await tx
           .update(escalationPolicyLink)
           .set({ deletedAt: new Date() })
@@ -380,7 +423,9 @@ export const careSettingsRouter = createRouter()
       responses: { 200: jsonBody(DiscardReasonList, "Reasons"), ...errorResponses },
     }),
     async (c) => {
-      // Any member may read them: a device offers them before anything is deleted.
+      // Whoever may record a deletion reads them (the permission POST /v1/sync/discards needs):
+      // a device offers them before anything is deleted (#26 review round 2, low).
+      await requirePermission(c, "care.note.write");
       const rows = await withTenant(c, (tx) =>
         tx
           .select()
@@ -418,9 +463,9 @@ export const careSettingsRouter = createRouter()
     }),
     async (c) => {
       const access = await requirePermission(c, SETTINGS_PERMISSION);
-      if (access.context.scope !== "tenant") throw problems.forbidden();
       const body = c.req.valid("json");
       const item = await withTenant(c, async (tx) => {
+        await requireOrganisationSettings(tx, access);
         const existing = await tx
           .select({ code: discardReason.code, retiredAt: discardReason.retiredAt })
           .from(discardReason);
@@ -478,11 +523,11 @@ export const careSettingsRouter = createRouter()
     }),
     async (c) => {
       const access = await requirePermission(c, SETTINGS_PERMISSION);
-      if (access.context.scope !== "tenant") throw problems.forbidden();
       const { code } = c.req.valid("param");
       const body = c.req.valid("json");
       const now = new Date();
       const item = await withTenant(c, async (tx) => {
+        await requireOrganisationSettings(tx, access);
         const [current] = await tx.select().from(discardReason).where(eq(discardReason.code, code));
         if (!current) throw problems.notFound();
         if (current.version !== body.version) throw problems.conflict();

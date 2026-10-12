@@ -89,6 +89,7 @@ import {
   refuseUsedId,
   requireCorrection,
   requireOpenRecord,
+  requireSameDetails,
   SENT_AT_HEADER,
   sameRecordOrRefuse,
   supersededIds,
@@ -299,7 +300,7 @@ export const careRecordsRouter = createRouter()
                 return assessmentItem(
                   replayed,
                   new Set(),
-                  await entryExtras(tx, [replayed]),
+                  await entryExtras(tx, "assessment", [replayed]),
                   await escalationLinks(tx),
                 );
               }
@@ -477,7 +478,7 @@ export const careRecordsRouter = createRouter()
             return assessmentItem(
               row,
               new Set(),
-              await entryExtras(tx, [row]),
+              await entryExtras(tx, "assessment", [row]),
               await escalationLinks(tx),
             );
           }),
@@ -531,7 +532,7 @@ export const careRecordsRouter = createRouter()
           resourceId: personId,
           scope: { count: shown.length, toolKey: q.toolKey ?? null, latest: q.latest === "true" },
         });
-        const extras = await entryExtras(tx, shown);
+        const extras = await entryExtras(tx, "assessment", shown);
         const links = await escalationLinks(tx);
         return shown.map((r) => assessmentItem(r, superseded, extras, links));
       });
@@ -604,7 +605,11 @@ export const careRecordsRouter = createRouter()
               if (replayed) {
                 if (replayed.personId !== personId)
                   throw problems.invalid("That id is already used.");
-                return activityItem(replayed, new Set(), await entryExtras(tx, [replayed]));
+                return activityItem(
+                  replayed,
+                  new Set(),
+                  await entryExtras(tx, "activity_record", [replayed]),
+                );
               }
             }
             // Admitted in the entry's own transaction, so a refusal uses none of the count.
@@ -710,7 +715,7 @@ export const careRecordsRouter = createRouter()
                 requestId: c.get("requestId"),
               });
             }
-            return activityItem(row, new Set(), await entryExtras(tx, [row]));
+            return activityItem(row, new Set(), await entryExtras(tx, "activity_record", [row]));
           }),
       );
       return c.json(item, 201);
@@ -755,7 +760,7 @@ export const careRecordsRouter = createRouter()
           scope: { count: rows.length },
         });
         const superseded = supersededIds(rows);
-        const extras = await entryExtras(tx, rows);
+        const extras = await entryExtras(tx, "activity_record", rows);
         return rows.map((r) => activityItem(r, superseded, extras));
       });
       return c.json({ items }, 200);
@@ -824,7 +829,11 @@ export const careRecordsRouter = createRouter()
               if (replayed) {
                 if (replayed.personId !== personId)
                   throw problems.invalid("That id is already used.");
-                return visitItem(replayed, new Set(), await entryExtras(tx, [replayed]));
+                return visitItem(
+                  replayed,
+                  new Set(),
+                  await entryExtras(tx, "visit_log", [replayed]),
+                );
               }
             }
             // Admitted in the entry's own transaction, so a refusal uses none of the count.
@@ -944,7 +953,7 @@ export const careRecordsRouter = createRouter()
                 requestId: c.get("requestId"),
               });
             }
-            return visitItem(row, new Set(), await entryExtras(tx, [row]));
+            return visitItem(row, new Set(), await entryExtras(tx, "visit_log", [row]));
           }),
       );
       return c.json(item, 201);
@@ -985,7 +994,7 @@ export const careRecordsRouter = createRouter()
           scope: { count: rows.length },
         });
         const superseded = supersededIds(rows);
-        const extras = await entryExtras(tx, rows);
+        const extras = await entryExtras(tx, "visit_log", rows);
         return rows.map((r) => visitItem(r, superseded, extras));
       });
       return c.json({ items }, 200);
@@ -1054,6 +1063,7 @@ export const careRecordsRouter = createRouter()
         201: jsonBody(AdvanceCareItem, "Recorded"),
         ...errorResponses,
         ...notFoundResponse,
+        ...conflictResponse,
       },
     }),
     async (c) => {
@@ -1074,14 +1084,29 @@ export const careRecordsRouter = createRouter()
       if (!check.ok) throw problems.invalid(check.issues.map((i) => i.message).join(" "));
       const item = await withTenant(c, async (tx) => {
         // A save tried again with its client id returns the record it made, superseding nothing
-        // again (HZ-029). The lock takes two sends of the same save in turn.
+        // again (HZ-029), only when it carries the same details: a changed CPR decision sent
+        // again after a lost reply is refused, never shown as saved (#26 review round 2, C5). The
+        // lock takes two sends of the same save in turn.
         if (body.id) {
           await lockClientId(tx, "advance_care_record", body.id);
           const [replayed] = await tx
             .select()
             .from(advanceCareRecord)
             .where(eq(advanceCareRecord.id, body.id));
-          if (replayed) return advanceCareItem(sameRecordOrRefuse(replayed, personId), today);
+          if (replayed) {
+            const row = sameRecordOrRefuse(replayed, personId);
+            requireSameDetails(row, {
+              kind: body.kind,
+              cprDecision: check.cprDecision,
+              clinicianName: body.clinicianName ?? null,
+              clinicianRole: body.clinicianRole ?? null,
+              completedOn: body.completedOn,
+              reviewDueOn: body.reviewDueOn ?? null,
+              documentId: body.documentId ?? null,
+              details: body.details ?? null,
+            });
+            return advanceCareItem(row, today);
+          }
         }
         const person = await personContext(tx, personId);
         requireOpenRecord(person);

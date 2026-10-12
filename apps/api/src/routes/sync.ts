@@ -276,7 +276,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
           // code it never had is refused; a retired one is still taken, because the device may
           // have recorded the deletion before it was retired, and a deletion is never stranded.
           const [reason] = await tx
-            .select({ code: discardReason.code })
+            .select({ id: discardReason.id, code: discardReason.code })
             .from(discardReason)
             .where(eq(discardReason.code, reasonCode));
           if (!reason) {
@@ -361,12 +361,15 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             resourceType: "device_discard",
             resourceId: body.id,
             // The coded reason only: the person's words never enter the hash-chained trail (M3).
-            reason: reasonCode,
+            // One of the five is audited by its code; a code the organisation wrote is audited as
+            // "other" with the reason's id, so no name it might contain enters the trail (#26
+            // review round 2, low). The deletion record keeps the code.
+            reason: body.organisationReasonCode ? "other" : reasonCode,
             scope: {
               kind: body.kind,
               stage: body.stage,
-              reasonCode,
-              ...(body.organisationReasonCode ? { organisationReason: true } : {}),
+              reasonCode: body.organisationReasonCode ? "other" : reasonCode,
+              ...(body.organisationReasonCode ? { organisationReasonId: reason.id } : {}),
               ownerTenantUserId: body.ownerTenantUserId,
               // As the device recorded it; the event's actor is whoever sent this request.
               deletedByTenantUserId: recordedDeleter,

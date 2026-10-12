@@ -75,6 +75,7 @@ import {
   PersonParam,
   refuseUsedId,
   requireOpenRecord,
+  requireSameDetails,
   sameRecordOrRefuse,
   withClientId,
 } from "./care-shared";
@@ -437,7 +438,11 @@ export const carePlansRouter = createRouter()
         if (body.id) {
           await lockClientId(tx, "care_plan", body.id);
           const [replayed] = await tx.select().from(carePlan).where(eq(carePlan.id, body.id));
-          if (replayed) return planDetail(tx, sameRecordOrRefuse(replayed, personId));
+          if (replayed) {
+            const row = sameRecordOrRefuse(replayed, personId);
+            if (body.summary !== undefined) requireSameDetails(row, { summary: body.summary });
+            return planDetail(tx, row);
+          }
         }
         const person = await personContext(tx, personId);
         requireOpenRecord(person);
@@ -631,6 +636,7 @@ export const carePlansRouter = createRouter()
         201: jsonBody(CarePlanActionItem, "Action added"),
         ...errorResponses,
         ...notFoundResponse,
+        ...conflictResponse,
       },
     }),
     async (c) => {
@@ -649,7 +655,26 @@ export const carePlansRouter = createRouter()
             if (sameRecordOrRefuse(replayed, personId).planId !== planId) {
               throw problems.invalid("That id is already used.");
             }
-            return actionItem(replayed, domain as DomainPcsp);
+            // Labelled with the domain of the section it was added to, and refused when sent
+            // again with other details or for another domain (#26 review round 2, C5 and low).
+            const [stored] = await tx
+              .select({ domain: carePlanSection.domain })
+              .from(carePlanSection)
+              .where(eq(carePlanSection.id, replayed.sectionId));
+            requireSameDetails(
+              { ...replayed, domain: stored?.domain ?? null },
+              {
+                domain,
+                action: body.action,
+                roleKey: body.roleKey ?? null,
+                recurrence: body.recurrence ?? null,
+                whenText: body.whenText ?? null,
+                generatesTasks: body.generatesTasks,
+                evidenceRequired: body.evidenceRequired,
+                riskAssessmentId: body.riskAssessmentId ?? null,
+              },
+            );
+            return actionItem(replayed, (stored?.domain ?? domain) as DomainPcsp);
           }
         }
         const person = await personContext(tx, personId);
@@ -1119,6 +1144,7 @@ export const carePlansRouter = createRouter()
         201: jsonBody(RiskAssessmentItem, "Saved"),
         ...errorResponses,
         ...notFoundResponse,
+        ...conflictResponse,
       },
     }),
     async (c) => {
@@ -1133,7 +1159,27 @@ export const carePlansRouter = createRouter()
             .select()
             .from(riskAssessment)
             .where(eq(riskAssessment.id, body.id));
-          if (replayed) return riskItem(sameRecordOrRefuse(replayed, personId));
+          if (replayed) {
+            // The same details or nothing (#26 review round 2, C5): the review date is compared
+            // only when sent, since the server sets it otherwise.
+            const row = sameRecordOrRefuse(replayed, personId);
+            requireSameDetails(row, {
+              templateKey: body.templateKey,
+              hazard: body.hazard,
+              whoAtRisk: body.whoAtRisk,
+              answers: body.answers,
+              likelihood: body.likelihood,
+              severity: body.severity,
+              residualLikelihood: body.residualLikelihood,
+              residualSeverity: body.residualSeverity,
+              controls: body.controls,
+              positiveRiskStatement: body.positiveRiskStatement ?? null,
+              personViews: body.personViews ?? null,
+              assessedOn: body.assessedOn,
+              ...(body.reviewDueOn ? { reviewDueOn: body.reviewDueOn } : {}),
+            });
+            return riskItem(row);
+          }
         }
         const person = await personContext(tx, personId);
         requireOpenRecord(person);

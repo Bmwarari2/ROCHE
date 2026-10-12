@@ -7553,6 +7553,15 @@
           },
           "entries": {
             "type": "integer"
+          },
+          "flaggedEntries": {
+            "type": "integer"
+          },
+          "flaggedIntakeMl": {
+            "type": "integer"
+          },
+          "flaggedOutputMl": {
+            "type": "integer"
           }
         },
         "required": [
@@ -7561,7 +7570,10 @@
           "outputMl",
           "targetMl",
           "shortfallMl",
-          "entries"
+          "entries",
+          "flaggedEntries",
+          "flaggedIntakeMl",
+          "flaggedOutputMl"
         ],
         "description": "Fluid balance for one UK calendar day (00:00 to 24:00)"
       },
@@ -7694,6 +7706,9 @@
               null
             ]
           },
+          "drawnFromDeviceSide": {
+            "type": "boolean"
+          },
           "markType": {
             "$ref": "#/components/schemas/BodyMarkType"
           },
@@ -7770,6 +7785,7 @@
           "region",
           "side",
           "drawnSide",
+          "drawnFromDeviceSide",
           "markType",
           "pressureCategory",
           "lengthMm",
@@ -27357,6 +27373,16 @@
               }
             }
           },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "422": {
             "description": "The request did not validate",
             "content": {
@@ -27929,6 +27955,16 @@
           },
           "404": {
             "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -29070,6 +29106,16 @@
           },
           "404": {
             "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -30243,6 +30289,16 @@
               }
             }
           },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "422": {
             "description": "The request did not validate",
             "content": {
@@ -30522,6 +30578,16 @@
           },
           "404": {
             "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -31160,6 +31226,16 @@
           },
           "404": {
             "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
             "content": {
               "application/problem+json": {
                 "schema": {
