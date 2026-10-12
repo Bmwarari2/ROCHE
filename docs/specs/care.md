@@ -1314,9 +1314,19 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   acknowledgement is a new `handover_acknowledgement` row with its own UUIDv7, the location (for
   the route) and the seen token worked out over the keys of the items shown, in their compiled
   order, exactly as the API does (SHA-256, base64url, 43 characters). Hooks for the screens:
-  `useMoveTask`, `useAcknowledgeHandover`. Until the upload (the third PR) lands, the connector
-  sends neither to its route: one queued in between goes to `POST /v1/sync/upload`, which
-  refuses it, and stays as needs attention.
+  `useMoveTask`, `useAcknowledgeHandover`.
+- **The round and the handover: uploading what was written offline (slice 10 part 2, third PR).**
+  The connector sends each to its own route (`round-upload.ts`): a move to
+  `POST /v1/tasks/{id}/transition` with `{ to, reason, version }`, an acknowledgement to
+  `POST /v1/locations/{id}/handovers/{handoverId}/acknowledgements` with `{ id, seenToken }`, with
+  the idempotency key (the move's or the acknowledgement's own id), tenant, device and sent-at
+  headers entries use; care entries and these share one request path. A refusal for good moves it
+  to "needs attention" with what the carer did and the reason, in the phone's words for a task
+  someone else changed first (`version_conflict`) and a handover changed since it was read
+  (`handover_changed`); the server's copy then puts the task or the handover back as it is there.
+  A 409 on a move whose answer was lost counts as sent when the task list shows the task in that
+  state, completed by the same member of staff (HZ-029). A move or acknowledgement held at
+  sign-out is kept as needs attention on return, never resent.
 - **API follow-ups**: the revocation signal, the manager hand-over and the server copy of refused
   entries are built (Device integrity, above), and so, with the care API follow-ups, are keeping an
   IDDSI entry from a device with a flag and an alert to the nurse in charge instead of refusing it

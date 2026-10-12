@@ -192,6 +192,10 @@ only when they link spec, code, tests and user documentation; no user guides exi
       done, a handover acknowledged) on `feat/mobile-offline-round-writes`, and their upload
       (each to its own route, a refusal to "needs attention") on
       `feat/mobile-offline-round-upload`, stacked on #33; then the screens, behind the gate.
+    - Follow-up (offline writes): a refused move or acknowledgement is removed from "needs
+      attention" through the deletion record built for unsent entries (a coded reason, device
+      authentication, audited as `refused_removed`); decide with the screens whether these need
+      a lighter dismissal, and whether the device report should count them apart from entries.
 
 ## Human actions outstanding
 

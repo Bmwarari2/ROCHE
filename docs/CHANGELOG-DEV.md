@@ -1149,3 +1149,18 @@ Second of four pull requests (`feat/mobile-offline-round-writes`, stacked on #33
 
 **Tests**: `apps/mobile` 910, `packages/sync` 81, `packages/i18n` 48, passing locally;
 typecheck clean for mobile and sync.
+
+## 2026-10-12: The round and the handover on the phone, offline upload (slice 10 part 2, Lane C)
+
+Third of four pull requests (`feat/mobile-offline-round-upload`, stacked on the writes).
+
+- The connector sends a task's move to `POST /v1/tasks/{id}/transition` and an acknowledgement
+  to the handover's acknowledgements route, each with the entry headers; care entries and these
+  share one request path.
+- A refusal moves it to "needs attention" with what the carer did, in the phone's words for a
+  task changed first or a handover changed since it was read; a 409 on a move whose answer was
+  lost counts as sent when the task list shows it made by the same member of staff (HZ-029).
+- Hazard rows on HZ-006, HZ-018 and HZ-029; care.md section 6; a STATUS follow-up on dismissing
+  a refused move or acknowledgement.
+
+**Tests**: `apps/mobile` 924, `packages/i18n` 48, passing locally; typecheck clean for mobile.
