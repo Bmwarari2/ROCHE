@@ -41,6 +41,18 @@ export const problems = {
   featureDisabled: (detail?: string) =>
     new HttpProblem(403, "feature_disabled", "This is switched off for your organisation.", detail),
   notFound: () => new HttpProblem(404, "not_found", "We could not find that."),
+  /**
+   * The device was revoked by a manager (care.md section 6, Device integrity part 2): distinct from
+   * an expired session (401) and from the session codes, so the device wipes, keeping unsent
+   * entries under the hold rules.
+   */
+  deviceRevoked: () =>
+    new HttpProblem(
+      403,
+      "device_revoked",
+      "This device has been withdrawn from Harbour by a manager.",
+      "Care records leave the device. Entries not yet sent stay on it, protected, until they are handed over or deleted.",
+    ),
   conflict: (detail?: string) =>
     new HttpProblem(
       409,

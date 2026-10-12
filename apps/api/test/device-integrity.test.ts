@@ -1,7 +1,8 @@
-import { DEVICE_HEADER } from "@harbour/contracts";
+import { DEVICE_REVOCATION_REASONS as CONTRACT_REASONS, DEVICE_HEADER } from "@harbour/contracts";
+import { DEVICE_REVOCATION_REASONS as TABLE_REASONS } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createHarness, type Harness, OTHER } from "./support/harness";
+import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 
 /**
  * Device integrity (care.md section 6; the follow-ups from the #15 reviews): device bindings,
@@ -174,5 +175,161 @@ describe("part 1: device bindings", () => {
     expect(
       await asTenant("SELECT 1 FROM device_binding WHERE device_id = $1", [device], OTHER.tenantId),
     ).toHaveLength(1);
+  });
+});
+
+const json = async <T>(response: Response) => (await response.json()) as T;
+const resident = (n: number) => `0194d000-0000-7000-8600-${n.toString(16).padStart(12, "0")}`;
+/** A UUIDv7-shaped id as a device would make it. */
+const newId = () => {
+  const hex = Date.now().toString(16).padStart(12, "0");
+  const rand = crypto.randomUUID().replace(/-/g, "");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-7${rand.slice(0, 3)}-8${rand.slice(3, 6)}-${rand.slice(6, 18)}`;
+};
+const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+
+const noteFrom = (who: Who, device: string | undefined, extra: Record<string, string> = {}) =>
+  call(who, `/v1/people/${resident(1)}/notes`, {
+    method: "POST",
+    ...(device ? { device } : {}),
+    headers: extra,
+    body: {
+      id: newId(),
+      category: "personal_care",
+      body: "Assisted with a wash; skin intact.",
+      occurredAt: minutesAgo(5),
+    },
+  });
+
+/** Moves a member's session sign-in back an hour, so a step-up permission needs a new sign-in. */
+async function staleSignIn(who: Who, fn: () => Promise<void>) {
+  const token = h.tokens[who]?.split(".")[0];
+  const auth = h.db.pool("harbour_auth");
+  await auth.query(
+    "UPDATE auth.session SET created_at = now() - interval '1 hour' WHERE token = $1",
+    [token],
+  );
+  try {
+    await fn();
+  } finally {
+    await auth.query("UPDATE auth.session SET created_at = now() WHERE token = $1", [token]);
+  }
+}
+
+describe("part 2: revocation", () => {
+  it("offers the same revocation reasons in the contract as the table takes", () => {
+    expect([...CONTRACT_REASONS]).toEqual([...TABLE_REASONS]);
+  });
+
+  const revoke = (who: Who, device: string, reasonCode = "lost_or_stolen") =>
+    call(who, `/v1/devices/${device}/revoke`, { method: "POST", body: { reasonCode } });
+  const listed = async (who: Who, query = "") =>
+    (
+      await json<{ items: { deviceId: string; tenantUserId: string; revokedAt: string | null }[] }>(
+        await call(who, `/v1/devices${query}`),
+      )
+    ).items;
+
+  it("hazard HZ-011 lists the devices a manager's staff have used, and only theirs", async () => {
+    const carers = "0199d000-0000-4000-8000-0000000b0201";
+    const quality = "0199d000-0000-4000-8000-0000000b0202";
+    await syncToken("carer", carers);
+    await asTenant(
+      "INSERT INTO device_binding (tenant_id, device_id, tenant_user_id) VALUES ($1, $2, $3)",
+      [DEMO.tenantId, quality, LODGE.qualityLeadId],
+    );
+    // The Registered Manager reaches the carer at their home, not the organisation-wide quality lead.
+    const managers = (await listed("manager")).map((d) => d.deviceId);
+    expect(managers).toContain(carers);
+    expect(managers).not.toContain(quality);
+    // The owner reaches everyone; a member's list can be asked for alone.
+    expect((await listed("owner")).map((d) => d.deviceId)).toEqual(
+      expect.arrayContaining([carers, quality]),
+    );
+    expect(
+      (await listed("owner", `?tenantUserId=${DEMO.users.carer.id}`)).every(
+        (d) => d.tenantUserId === DEMO.users.carer.id,
+      ),
+    ).toBe(true);
+    // A care worker may not list devices; another organisation sees none of these.
+    expect((await call("carer", "/v1/devices")).status).toBe(403);
+    const other = await h.request("/v1/devices", { token: h.tokens.rae, tenant: OTHER.tenantId });
+    expect(other.status).toBe(403);
+  });
+
+  it("hazard HZ-040 revokes a device with a coded reason after a fresh sign-in, audited; a second revocation changes nothing", async () => {
+    const device = "0199d000-0000-4000-8000-0000000b0203";
+    await syncToken("carer", device);
+    await staleSignIn("manager", async () => {
+      const refused = await revoke("manager", device);
+      expect(refused.status).toBe(403);
+      expect((await json<{ code: string }>(refused)).code).toBe("step_up_required");
+    });
+    const first = await revoke("manager", device, "staff_left");
+    expect(first.status).toBe(200);
+    expect(await json(first)).toMatchObject({ deviceId: device, replay: false, bindings: 1 });
+    const again = await json<{ replay: boolean }>(await revoke("manager", device));
+    expect(again.replay).toBe(true);
+    const audit = await asTenant<{ actor: string; reason: string; scope: Record<string, unknown> }>(
+      "SELECT actor_tenant_user_id AS actor, reason, scope FROM audit_event WHERE action = 'platform.device.revoked' AND resource_id = $1",
+      [device],
+    );
+    expect(audit).toEqual([
+      {
+        actor: DEMO.users.manager.id,
+        reason: "staff_left",
+        scope: { reasonCode: "staff_left", bindings: 1, memberIds: [DEMO.users.carer.id] },
+      },
+    ]);
+    // An unknown reason is refused, and a care worker may not revoke.
+    expect((await revoke("manager", device, "because")).status).toBe(422);
+    expect((await revoke("carer", device)).status).toBe(403);
+  });
+
+  it("hazard HZ-011 reads a device no member the manager manages has used as not found", async () => {
+    const device = "0199d000-0000-4000-8000-0000000b0204";
+    await asTenant(
+      "INSERT INTO device_binding (tenant_id, device_id, tenant_user_id) VALUES ($1, $2, $3)",
+      [DEMO.tenantId, device, LODGE.qualityLeadId],
+    );
+    expect((await revoke("manager", device)).status).toBe(404);
+    expect((await revoke("manager", "0199d000-0000-4000-8000-0000000b02ff")).status).toBe(404);
+    expect((await revoke("owner", device)).status).toBe(200);
+  });
+
+  it("hazard HZ-006 tells a revoked device apart from an expired session: 403 device_revoked on the token and uploads, audited", async () => {
+    const device = "0199d000-0000-4000-8000-0000000b0205";
+    expect((await syncToken("carer", device)).status).toBe(200);
+    expect((await noteFrom("carer", device)).status).toBe(201);
+    expect((await revoke("manager", device)).status).toBe(200);
+    for (const response of [
+      await syncToken("carer", device),
+      // Someone else signing in on the device is refused too: the device is revoked, not a member.
+      await syncToken("owner", device),
+      await call("carer", "/v1/sync/upload", {
+        method: "POST",
+        device,
+        body: { operations: [] },
+      }),
+      await noteFrom("carer", device),
+    ]) {
+      expect(response.status).toBe(403);
+      expect((await json<{ code: string }>(response)).code).toBe("device_revoked");
+    }
+    const refusals = await asTenant<{ route: string }>(
+      "SELECT scope ->> 'route' AS route FROM audit_event WHERE action = 'sync.device.refused_revoked' AND resource_id = $1 ORDER BY seq",
+      [device],
+    );
+    expect(refusals.map((r) => r.route)).toEqual([
+      "sync.token",
+      "sync.token",
+      "sync.upload",
+      "care.care_note",
+    ]);
+    // The member's session stands: from another device, or none, the same requests work.
+    expect((await syncToken("carer")).status).toBe(200);
+    expect((await noteFrom("carer", undefined)).status).toBe(201);
+    // The server still hears what the revoked device holds.
+    expect((await report("carer", { held: 1 }, device)).status).toBe(204);
   });
 });

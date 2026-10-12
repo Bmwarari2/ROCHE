@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { BUILTIN_ROLES } from "@harbour/domain";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDatabase, type TestDatabase } from "./support/database";
@@ -204,5 +205,94 @@ describe("hazard HZ-011 device bindings (part 1)", () => {
         "SELECT relforcerowsecurity FROM pg_class WHERE relname = 'audit_event'",
       );
     expect(forced.rows[0]?.relforcerowsecurity).toBe(true);
+  });
+});
+
+/** Runs a migration file (or one section of it) again, statement by statement, as the owner. */
+async function rerun(file: string, section?: { begin: string; end: string }) {
+  let sql = readFileSync(fileURLToPath(new URL(`../drizzle/${file}`, import.meta.url)), "utf8");
+  if (section) sql = sql.slice(sql.indexOf(section.begin), sql.indexOf(section.end));
+  const client = await db.pool("harbour_owner").connect();
+  try {
+    await client.query("BEGIN");
+    for (const statement of sql.split("--> statement-breakpoint")) {
+      if (statement.replace(/--.*$/gm, "").trim()) await client.query(statement);
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/** The permissions a role-permission migration adds for each built-in key, read from the file. */
+function grantsIn(file: string): Map<string, string[]> {
+  const sql = readFileSync(fileURLToPath(new URL(`../drizzle/${file}`, import.meta.url)), "utf8");
+  const grants = new Map<string, string[]>();
+  for (const match of sql.matchAll(/\('([a-z_]+)', ARRAY\[([^\]]*)\]\)/g)) {
+    grants.set(
+      match[1] ?? "",
+      [...(match[2] ?? "").matchAll(/'([^']+)'/g)].map((m) => m[1] ?? ""),
+    );
+  }
+  return grants;
+}
+
+describe("existing tenants' role copies gain the device permissions (migration 0031)", () => {
+  const FILE = "0031_device_permissions.sql";
+  const PERMISSIONS = ["platform.device.read", "platform.device.revoke"];
+
+  it("lists the same roles as the built-in definitions", () => {
+    const grants = grantsIn(FILE);
+    for (const permission of PERMISSIONS) {
+      const holders = BUILTIN_ROLES.filter((r) =>
+        (r.permissions as readonly string[]).includes(permission),
+      ).map((r) => r.key);
+      const named = [...grants].filter(([, add]) => add.includes(permission)).map(([key]) => key);
+      expect(named.sort()).toEqual([...holders].sort());
+    }
+  });
+
+  it("adds them once to each copy that lacks them, as a new version, audited as the system", async () => {
+    await asOwner(TENANT_B, (c) =>
+      c.query(
+        `INSERT INTO role (key, name, scope_kind, permissions, is_builtin) VALUES
+           ('registered_manager', 'Registered Manager', 'location', '{people.person.read}', true),
+           ('deputy_manager', 'Deputy manager', 'location', '{people.person.read,platform.device.read}', true),
+           ('care_worker', 'Care worker', 'assigned', '{people.person.read}', true)`,
+      ),
+    );
+    await rerun(FILE);
+    await rerun(FILE);
+    const roles = await asOwner(TENANT_B, (c) =>
+      c.query<{ key: string; permissions: string[]; version: number }>(
+        "SELECT key, permissions, version FROM role ORDER BY key",
+      ),
+    );
+    expect(roles.rows.map((r) => [r.key, r.permissions, r.version])).toEqual([
+      ["care_worker", ["people.person.read"], 1],
+      [
+        "deputy_manager",
+        ["people.person.read", "platform.device.read", "platform.device.revoke"],
+        2,
+      ],
+      [
+        "registered_manager",
+        ["people.person.read", "platform.device.read", "platform.device.revoke"],
+        2,
+      ],
+    ]);
+    const audit = await asOwner(TENANT_B, (c) =>
+      c.query<{ actor: string; scope: { roleKey: string; added: string[] } }>(
+        `SELECT actor_auth_user_id AS actor, scope FROM audit_event
+         WHERE action = 'platform.role.permissions_migrated' ORDER BY scope ->> 'roleKey'`,
+      ),
+    );
+    expect(audit.rows.map((r) => [r.actor, r.scope.roleKey, r.scope.added])).toEqual([
+      ["system", "deputy_manager", ["platform.device.revoke"]],
+      ["system", "registered_manager", ["platform.device.read", "platform.device.revoke"]],
+    ]);
   });
 });

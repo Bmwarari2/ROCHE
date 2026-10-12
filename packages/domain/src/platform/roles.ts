@@ -69,6 +69,8 @@ const registeredManager: Permission[] = ALL_PERMISSIONS.filter(
   "platform.onboarding.read",
   "platform.dpia.read",
   "platform.dpia.prepare",
+  "platform.device.read",
+  "platform.device.revoke",
 ]);
 
 export const BUILTIN_ROLES: readonly BuiltinRole[] = [

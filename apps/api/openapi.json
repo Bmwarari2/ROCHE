@@ -16075,6 +16075,128 @@
         ],
         "additionalProperties": false
       },
+      "DeviceBindingList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeviceBindingItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "DeviceBindingItem": {
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "memberName": {
+            "type": "string"
+          },
+          "firstSeenAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revokedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "revokedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "revocationReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "lost_or_stolen",
+              "staff_left",
+              "access_withdrawn",
+              "replaced",
+              "other",
+              null
+            ]
+          }
+        },
+        "required": [
+          "deviceId",
+          "tenantUserId",
+          "memberName",
+          "firstSeenAt",
+          "lastSeenAt",
+          "revokedAt",
+          "revokedBy",
+          "revocationReason"
+        ],
+        "description": "A member of staff's use of a Care mode device, and whether it is revoked"
+      },
+      "RevokeDeviceResult": {
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revokedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "replay": {
+            "type": "boolean"
+          },
+          "bindings": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "deviceId",
+          "revokedAt",
+          "replay",
+          "bindings"
+        ]
+      },
+      "RevokeDevice": {
+        "type": "object",
+        "properties": {
+          "reasonCode": {
+            "type": "string",
+            "enum": [
+              "lost_or_stolen",
+              "staff_left",
+              "access_withdrawn",
+              "replaced",
+              "other"
+            ]
+          }
+        },
+        "required": [
+          "reasonCode"
+        ],
+        "additionalProperties": false
+      },
       "IntegrationConnection": {
         "type": "object",
         "properties": {
@@ -30659,6 +30781,7 @@
           "sync"
         ],
         "summary": "A short-lived token for the PowerSync service, scoped to tenant and assignments",
+        "description": "Claims: sub, tenant_id, location_ids, people_location_ids and offline_days (the offline window from the rate table, never from the device). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.",
         "security": [
           {
             "bearerAuth": []
@@ -30886,6 +31009,165 @@
           },
           "403": {
             "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/devices": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Care mode devices staff have used, and whether each is revoked",
+        "description": "Lists device bindings: the device, the member of staff, when the server first and last saw them together, and any revocation. A location role sees only devices used by staff whose live, or else most recent, role assignment is at one of its locations.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "tenantUserId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Devices",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceBindingList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/devices/{deviceId}/revoke": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Revoke a lost or withdrawn Care mode device",
+        "description": "Marks every binding of the device revoked with a coded reason (step-up). At its next sync token or upload the device is refused with 403 device_revoked and wipes, keeping entries not yet sent under the hold rules. A device already revoked changes nothing. A device no member the caller manages has used reads as not found.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "deviceId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeDevice"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Revoked (or already revoked)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevokeDeviceResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
             "content": {
               "application/problem+json": {
                 "schema": {

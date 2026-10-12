@@ -12015,7 +12015,10 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** A short-lived token for the PowerSync service, scoped to tenant and assignments */
+    /**
+     * A short-lived token for the PowerSync service, scoped to tenant and assignments
+     * @description Claims: sub, tenant_id, location_ids, people_location_ids and offline_days (the offline window from the rate table, never from the device). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.
+     */
     post: {
       parameters: {
         query?: never;
@@ -12250,6 +12253,155 @@ export interface paths {
         };
         /** @description Not a member, missing permission, MFA not set up or step-up needed */
         403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/devices": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Care mode devices staff have used, and whether each is revoked
+     * @description Lists device bindings: the device, the member of staff, when the server first and last saw them together, and any revocation. A location role sees only devices used by staff whose live, or else most recent, role assignment is at one of its locations.
+     */
+    get: {
+      parameters: {
+        query?: {
+          tenantUserId?: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Devices */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DeviceBindingList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/devices/{deviceId}/revoke": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Revoke a lost or withdrawn Care mode device
+     * @description Marks every binding of the device revoked with a coded reason (step-up). At its next sync token or upload the device is refused with 403 device_revoked and wipes, keeping entries not yet sent under the hold rules. A device already revoked changes nothing. A device no member the caller manages has used reads as not found.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          deviceId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RevokeDevice"];
+        };
+      };
+      responses: {
+        /** @description Revoked (or already revoked) */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RevokeDeviceResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
           headers: {
             [name: string]: unknown;
           };
@@ -17437,6 +17589,45 @@ export interface components {
       /** Format: uuid */
       ownerTenantUserId?: string | null;
       locationIds?: string[];
+    };
+    DeviceBindingList: {
+      items: components["schemas"]["DeviceBindingItem"][];
+    };
+    /** @description A member of staff's use of a Care mode device, and whether it is revoked */
+    DeviceBindingItem: {
+      /** Format: uuid */
+      deviceId: string;
+      /** Format: uuid */
+      tenantUserId: string;
+      memberName: string;
+      /** Format: date-time */
+      firstSeenAt: string;
+      /** Format: date-time */
+      lastSeenAt: string;
+      /** Format: date-time */
+      revokedAt: string | null;
+      /** Format: uuid */
+      revokedBy: string | null;
+      /** @enum {string|null} */
+      revocationReason:
+        | "lost_or_stolen"
+        | "staff_left"
+        | "access_withdrawn"
+        | "replaced"
+        | "other"
+        | null;
+    };
+    RevokeDeviceResult: {
+      /** Format: uuid */
+      deviceId: string;
+      /** Format: date-time */
+      revokedAt: string;
+      replay: boolean;
+      bindings: number;
+    };
+    RevokeDevice: {
+      /** @enum {string} */
+      reasonCode: "lost_or_stolen" | "staff_left" | "access_withdrawn" | "replaced" | "other";
     };
     IntegrationConnection: {
       port: string;

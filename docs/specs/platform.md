@@ -40,7 +40,8 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   The API passes `"portal"` from the family portal step onwards.
 - MFA: required for every permission that touches care records (`mfa_enrolment_required` otherwise).
 - Step-up: controlled drugs, residents' money approval, data export, break-glass, statutory
-  notifications and support-access approval need a sign-in within 10 minutes.
+  notifications, support-access approval and revoking a Care mode device need a sign-in within 10
+  minutes.
 - Break-glass: `POST /v1/people/break-glass` with a justification of at least 20 characters and an
   optional `reasonCode`; access lapses after 60 minutes; the Registered Manager for the location and
   quality leads are notified; the reason is audited. Weekly break-glass report: the aggregation by

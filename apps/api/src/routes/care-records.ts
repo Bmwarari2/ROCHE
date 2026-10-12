@@ -69,6 +69,7 @@ import { loadPerson, requireWrite } from "../services/people";
 import {
   applyLink,
   entryOut,
+  entryWriteAccess,
   iso,
   PersonParam,
   planLink,
@@ -508,7 +509,7 @@ export const careRecordsRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, "care.note.write");
+      const access = await entryWriteAccess(c, "activity_record");
       const { id: personId } = c.req.valid("param");
       const body = c.req.valid("json");
       requireCorrection(body);
@@ -691,7 +692,7 @@ export const careRecordsRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, "care.note.write");
+      const access = await entryWriteAccess(c, "visit_log");
       const { id: personId } = c.req.valid("param");
       const body = c.req.valid("json");
       requireCorrection(body);

@@ -16,6 +16,7 @@ import { breakGlassReportRouter } from "./routes/break-glass-report";
 import { careRouter } from "./routes/care";
 import { carePlansRouter } from "./routes/care-plans";
 import { careRecordsRouter } from "./routes/care-records";
+import { devicesRouter } from "./routes/devices";
 import { documentsRouter } from "./routes/documents";
 import { handoversRouter } from "./routes/handovers";
 import { incidentsRouter } from "./routes/incidents";
@@ -184,6 +185,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", statutoryNotificationsRouter);
   app.route("/", ratesRouter);
   app.route("/", createSyncRouter(signer));
+  app.route("/", devicesRouter);
   app.route("/", integrationsRouter);
   app.route("/", supportAccessRouter);
   app.route("/", operatorRouter);

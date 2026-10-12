@@ -3,9 +3,10 @@ import type { CareTrigger, PersonRecordKind } from "@harbour/domain";
 import { z } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
-import { type AppEnv, type TenantAccess, withTenant } from "../http/context";
+import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { applyTaskLink, type PlannedTaskLink, planTaskLink } from "../services/care";
+import { refuseRevokedDevice } from "../services/devices";
 import { CareEventAfterExit, loadPerson, raiseLateEntryReview } from "../services/people";
 
 /**
@@ -80,6 +81,20 @@ export function requireCorrection(body: { supersedesId?: string; correctionReaso
   if (body.supersedesId && !body.correctionReason) {
     throw problems.invalid("Say why the entry is being corrected.");
   }
+}
+
+/**
+ * The access for a care entry a device uploads (notes, observations, body-map marks, activities and
+ * visits): the route's permission, and a device a manager revoked refused with 403
+ * `device_revoked`, audited (care.md section 6, Device integrity part 2).
+ */
+export async function entryWriteAccess(
+  c: Context<AppEnv>,
+  kind: "care_note" | "observation" | "body_map_mark" | "activity_record" | "visit_log",
+): Promise<TenantAccess> {
+  const access = await requirePermission(c, "care.note.write");
+  await refuseRevokedDevice(c.get("services"), access, `care.${kind}`, c.get("requestId"));
+  return access;
 }
 
 export function permissionsOf(access: TenantAccess): ReadonlySet<string> {

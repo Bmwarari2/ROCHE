@@ -26,7 +26,7 @@ import {
   flagEntriesAlreadyUploaded,
   recordDeviceHold,
 } from "../services/device-holds";
-import { bindDevice, inSystemView } from "../services/devices";
+import { bindDevice, inSystemView, refuseRevokedDevice } from "../services/devices";
 import { rateNumber } from "../services/rates";
 import type { SyncTokenSigner } from "../sync/token";
 
@@ -89,12 +89,16 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         path: "/v1/sync/token",
         tags: ["sync"],
         summary: "A short-lived token for the PowerSync service, scoped to tenant and assignments",
+        description:
+          "Claims: sub, tenant_id, location_ids, people_location_ids and offline_days (the offline window from the rate table, never from the device). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.",
         security,
         responses: { 200: jsonBody(SyncToken, "Token"), ...errorResponses },
       }),
       async (c) => {
         const access = await requirePermission(c, "people.person.read");
         const { config } = c.get("services");
+        // A revoked device never gets another token (care.md section 6, Device integrity part 2).
+        await refuseRevokedDevice(c.get("services"), access, "sync.token", c.get("requestId"));
         const claims = await withTenant(c, async (tx) => {
           const locations = await tx
             .select({ id: location.id })
@@ -182,6 +186,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
       }),
       async (c) => {
         const access = c.get("access");
+        await refuseRevokedDevice(c.get("services"), access, "sync.upload", c.get("requestId"));
         const { operations } = c.req.valid("json");
         const receivedAt = new Date();
         const drift = operations.some(

@@ -56,6 +56,7 @@ import { loadPerson, type PersonRecord, requireWrite } from "../services/people"
 import {
   applyLink,
   entryOut,
+  entryWriteAccess,
   eventKind,
   PersonParam,
   planLink,
@@ -158,7 +159,7 @@ export const careRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, "care.note.write");
+      const access = await entryWriteAccess(c, "care_note");
       const { id: personId } = c.req.valid("param");
       const body = c.req.valid("json");
       requireCorrection(body);
@@ -340,7 +341,7 @@ export const careRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, "care.note.write");
+      const access = await entryWriteAccess(c, "observation");
       const { id: personId } = c.req.valid("param");
       const body = c.req.valid("json");
       requireCorrection(body);
@@ -639,7 +640,7 @@ export const careRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, "care.note.write");
+      const access = await entryWriteAccess(c, "body_map_mark");
       const { id: personId } = c.req.valid("param");
       const body = c.req.valid("json");
       requireCorrection(body);
