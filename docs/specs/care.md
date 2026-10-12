@@ -48,7 +48,7 @@ Append-only tables have no UPDATE or DELETE grant for the app; a correction is a
 | `dols_legal_change_review` | mutable, versioned | authorisation (one review each), state (`awaiting_review`, `reviewed`, `referred`, `closed`, mirroring the workflow engine), the DHSC multifactorial factors, objection and its forms, consent signs, decision, decided at and by, referral to the local authority, closing reason | `care_record` |
 | `refused_entry` | append-only | the entry's id (one copy each), table, person (when known) and their location, the request the device made for it (checked against that kind's contract), the refusal's HTTP status, code and reason, when refused, author, device, the review task; written only in the system's view, read like the care record (Device integrity, part 5) | `care_record` |
 | `device_discard_entry` | append-only | the deletion record (`device_discard` audit resource id), its stage, the entry id, the owner; the index that tells an upload its entry was deleted (Device integrity, part 3) | `audit_event` |
-| `handed_over_entry` | append-only | the hand-over id, the device that held the entry, its owner, who sent it, the table and entry id, when accepted; one row per entry, written before the entry in the system's view; a hand-over id names one owner, device and sender (Device integrity, part 6) | `audit_event` |
+| `handed_over_entry` | append-only | the hand-over id, the device that held the entry, its owner, who sent it, the table and entry id, when accepted; one row per entry, written in the entry's own transaction by `app.admit_handed_over_entry`; a hand-over id names one owner, device and sender (Device integrity, part 6) | `audit_event` |
 | `handed_over_by` on `care_note`, `observation`, `body_map_mark`, `activity_record`, `visit_log` | append-only (with the entry) | who sent the entry for its author in a manager's hand-over ("Sent by"; null when the author sent it), returned with every entry item (Device integrity, part 6) | `care_record` |
 
 New personal data fields are added to `docs/compliance/records-of-processing.md` and mapped in
@@ -822,13 +822,17 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
      names the device, and `POST /v1/sync/device-report` writes it for the reporter, after the
      report has been judged, with the Better Auth session that did so (`device_session`, migrations
      0041 and 0042), while the device is not revoked; on a revoked device a new binding is revoked
-     with the rest. A hold report's named owner is bound when they have a row for the
+     with the rest. Any other request naming the device binds the member and the session too, once
+     per session (the tenant middleware; #25 review round 3, M2), except a hand-over, whose sender
+     is bound by the report the device sends first; a member reads their own sessions and a job all
+     of them, never a tenant-wide role. A hold report's named owner is bound when they have a row for the
      device (revoked or not: the row proves they used it); the start floor is the earliest first
      seen of any row for the device. Both replace reads of the audit trail. The migration fills
      the table from the audit trail's sync token and report events, so devices seen before keep
      their bindings and floors. Rows are written only in the system's view (tenant scope); a member
      reads their own rows, tenant-wide roles the organisation's, and a location role those of staff
-     with a role assignment at one of its locations, as the API narrows them (#25 review round 2).
+     with a live, undeleted role assignment at one of its locations, as the API narrows them (#25
+     review rounds 2 and 3).
      Mutable without a version history: every change that matters (a revocation) is audited.
      Retention class `audit_event`; the sessions are security records, not exported.
   2. **Revocation** (permissions `platform.device.read` and `platform.device.revoke`, the second
@@ -838,17 +842,23 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
      `POST /v1/devices/{deviceId}/revoke` with a coded reason (`lost_or_stolen`, `staff_left`,
      `access_withdrawn`, `replaced`, `other`) revokes every binding of the device at once and is
      audited (`platform.device.revoked`); a second revocation changes nothing and says so. The
-     list gives each device's last reported waiting count (`entriesWaiting`); when it is above
+     list gives each device's last reported waiting count (`entriesWaiting`: held, unsent,
+     blocked, and refused with no server copy) and when it was reported (`lastReportedAt`), as the
+     revocation does (#25 review round 3, M3); when the count is above
      zero the revocation needs `confirmEntriesWaiting` (409 `entries_waiting` otherwise), and once
      revoked the device's hold task (and any capped-holds task it joined) falls due at once,
      urgent, and the manager who revoked it is told (`sync.revoked_device_waiting`), because the
-     hold can now drain only by a hand-over or a recorded deletion (#25 review round 2, M4). A
+     hold can now drain only by a hand-over or a recorded deletion (#25 review round 2, M4); a
+     second revocation hurries it again, moving only what is not yet due and urgent. A
      location role sees only devices used by staff whose live or most recent role assignment is at
      one of its locations (filtered before the list's limit), and revokes one only when every
      member bound to it is such staff (403 otherwise); any other device reads as not found. The
-     revocation ends every session bound to the device (`device_session`), and the tenant
-     middleware refuses any request from a session bound to a revoked device, whatever device it
-     names or none (#25 review round 2, M1). A new sign-in naming the revoked device id is refused
+     sessions bound to the device (`device_session`) are not ended, since a device given a 401
+     could not tell it was revoked; the tenant middleware refuses every request from one with 403
+     `device_revoked`, whatever device it names or none, except `POST /v1/sync/device-report`,
+     which may raise or hurry the hold's task but never close it (#25 review rounds 2 and 3, M1
+     and M2). Mobile sessions live at the deploy that brings this in are ended then, so every live
+     session is bound. A new sign-in naming the revoked device id is refused
      with a 403 whose code is `device_revoked` (distinct from an expired session's 401 and from
      `not_a_member`, `mfa_enrolment_required` and `step_up_required`) by `POST /v1/sync/token`,
      `POST /v1/sync/upload`, the five care entry uploads and `POST /v1/sync/refused-entries`,
@@ -860,8 +870,8 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
      has lasts at most 15 minutes. The device reacts as to a remote wipe: with nothing unsent it
      deletes its database and key and says the device was withdrawn; with entries unsent it holds
      them under the hold rules above (everything else synced cleared, encrypted, escalating to a
-     manager, deleted only with a recorded reason), marked revoked, and the session is ended on the
-     server. A revoked hold never resumes uploading: the owner's sign-in is refused with words
+     manager, deleted only with a recorded reason), marked revoked, and the session is signed out
+     on the server once the hold is reported. A revoked hold never resumes uploading: the owner's sign-in is refused with words
      saying so, and the entries leave only by the hand-over (the owner's own, or a manager's) of
      those recorded before the revocation, or a recorded deletion. Whether a revoked device should instead delete its held entries at once is
      for the DPO and CSO (H-156).
@@ -921,26 +931,37 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
      naming the owner (a report binds the reporter), then each held entry, in order, to its own
      endpoint with `x-harbour-device` naming the device that held it, `x-harbour-handover-owner`
      naming the owner and `x-harbour-handover` (an id for the hand-over), all three in the OpenAPI
-     document. The API takes it only when (#25 review round 2, H1): the owner is staff of the
-     organisation (whatever their status now) bound to that device; the sender is the owner or
-     holds the permission, and is bound to the device too; the device's last report shows a hold
-     for that owner, and the hold's entries handed over since the hold's report from someone other
-     than the sender (else the latest) stay within the count it gave, a replay not counting again;
-     the entry is timed at or after the owner first used the device and, on a revoked device, at
-     or before the revocation; the person was in the owner's care within the offline window (an
-     assignment, or a tenant-wide or location role at their location); and the hand-over id names
-     that owner, device and sender only. Each entry is recorded in `handed_over_entry` before it is
-     written. The API writes the entry as the owner's (`created_by`) with the sender kept as
+     document. The API takes it only when (#25 review rounds 2 and 3, H1, item 1 and M1): the owner
+     is staff of the organisation (whatever their status now) bound to that device; the sender is
+     the owner or holds the permission, and is bound to the device too; the device's reports show
+     an open hold for that owner (each since it began says entries wait and names them), and the
+     hold's entries handed over since the latest report in it not sent by the sender (the owner's
+     own preferred; when the owner sends their own, their own) stay within the count it gave, a
+     replay not counting again; with no such report the hand-over is refused, since the sender's
+     own reports never set the count (a second holder's confirmation is for the CSO and DPO,
+     H-158); the entry's time, when it was written on the device (`deviceTime`, else its event
+     time), is within `sync.clock_drift_flag_minutes` at or after the owner first used the device,
+     at or before that report and, on a revoked device, at or before the revocation; the person
+     was in the owner's care (an assignment, or a tenant-wide or location role at their location)
+     within the offline window before the entry's own time; and the hand-over id names that owner,
+     device and sender only. The entry is checked against the hold before its transaction and
+     admitted in it (`app.admit_handed_over_entry`, which takes one hand-over id and then one hold
+     at a time and records the entry in `handed_over_entry`), so an entry refused after its
+     admission uses none of the count. A copy of a refused entry sent with a hand-over is checked
+     and admitted the same way. The API writes the entry as the owner's (`created_by`) with the sender kept as
      `handed_over_by` and returned as `handedOverBy` ("Sent by") with every entry item, judges any
      task the entry completes on the owner's permission when the care was recorded (never the
      manager's), flags it against the owner's deletions, and audits `sync.entry.handed_over` (the
      sender as actor, the owner, the device and the hand-over id). The person must also be in the
      sender's scope. A hand-over the API will not take is a 422 `handover_refused` with the reason;
-     on that, a 404 or any 403 the device stops with the entry and the rest still held, never parked
-     as refused (H2). An entry refused for what it is moves to needs attention and its copy is sent
-     naming the owner; a network failure stops the hand-over with the rest still held. Only when no
-     held entry and no needs-attention entry remain does the device report nothing waiting (closing
-     its task), delete its database and key, and end the sender's session; a refused entry keeps
+     on that or a 404 the device keeps the entry held with the reason (`held_entry.handover_refusal`,
+     shown in the hand-over's result), never parked as refused, and sends the rest; any 403 stops
+     it with the rest still held (H2; round 3, M1). An entry refused for what it is moves to needs
+     attention and its copy is sent naming the owner; a network failure stops the hand-over with the
+     rest still held. Before sending, the device holds anything still in its upload queue (a hold
+     whose copy failed). Only when no held, needs-attention or queued entry remains, each counted,
+     does the device report nothing waiting (closing its task), delete its database and key, and
+     end the sender's session; a count that cannot be read keeps everything (round 3, M4); a refused entry keeps
      the database even with its copy on the server, until a screen shows the copies and the CSO
      closes H-134; otherwise the hold stays, with its count brought up to date. What the hand-over
      may do is for the CSO and DPO (H-158).
@@ -1069,11 +1090,14 @@ through recorded sharing decisions ([people.md](people.md)).
   giving existing role copies their permissions once, audited); `apps/api/test/device-integrity.test.ts`
   (part 1: binding at each token and report, the bound owner, the first-seen floor from the table;
   part 2: listing and revoking by location, step-up, `device_revoked` on the token, uploads and
-  care entries, a hand-over still taken, sessions ended and a surviving one refused, the
-  confirmation of entries waiting; part 3: the flag from `device_discard_entry`; part 4: one
+  care entries, a hand-over still taken, the sessions kept and each refused but for its report,
+  which never closes the task, the confirmation of entries waiting, a replay hurrying again, refused
+  entries with no copy counted as waiting; part 3: the flag from `device_discard_entry`; part 4: one
   task per source under racing raises, details on flagged tasks; part 5: the copy, its review task,
   its scope, the author's care of the person, replays, limits and pages; part 6: the hand-over
-  rules, each refusal of #25 review round 2 H1 by name; part 7: quotas shared by two app
+  rules, each refusal of #25 review round 2 H1 by name, and round 3's count basis, clock
+  tolerance, back-dated entries, care judged from the entry's time and admission in the entry's
+  transaction; part 7: quotas shared by two app
   instances); `apps/api/test/rate-limit.test.ts` (the sliding window);
   `apps/mobile/src/sync/connector.test.ts` (a `device_revoked` refusal), `app-state/held-work.test.ts` (wiping or holding a revoked device,
   a revoked hold refusing the owner's resume), `app-state/handover.test.ts` (the hand-over) and

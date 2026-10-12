@@ -60,14 +60,18 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
 - Care mode devices ([care.md](care.md) section 6, Device integrity): `device_binding` records
   which member of staff has used which device (the PowerSync client id), first and last seen,
   written by the sync token and device report routes in the system's view, with the session that
-  did so (`device_session`). `GET /v1/devices` (`platform.device.read`) lists them with the
-  entries each last reported waiting; `POST /v1/devices/{deviceId}/revoke`
+  did so (`device_session`); any other request naming the device binds the session too
+  (#25 review round 3, M2). `GET /v1/devices` (`platform.device.read`) lists them with the
+  entries each last reported waiting and when (`lastReportedAt`); `POST /v1/devices/{deviceId}/revoke`
   (`platform.device.revoke`, step-up) revokes a lost or withdrawn device with a coded reason,
   audited, once the manager has confirmed any entries it reported waiting. Owner, Registered
   Manager and deputy hold both; a location role sees only devices used by staff working at its
   locations, and revokes one only when every member bound to it is such staff. The revocation
-  ends the sessions bound to the device, and the tenant middleware refuses any request from a
-  session bound to a revoked device, whatever device it names (#25 review round 2, M1). A new
+  does not end the sessions bound to the device (a device given a 401 could not tell it was
+  revoked); the tenant middleware refuses every request from one with 403 `device_revoked`,
+  whatever device it names, except its device report, which may raise or hurry the hold's task
+  but never close it (#25 review rounds 2 and 3, M1 and M2). Mobile sessions live at the deploy
+  that brings this in are ended then, so every live session is bound. A new
   sign-in naming a revoked device is refused with 403 `device_revoked` on the sync token and
   uploads, and the device wipes, keeping unsent entries under the hold rules. The member's
   sessions on other devices are not ended (identity-level; the admin session revoke is a Phase 0

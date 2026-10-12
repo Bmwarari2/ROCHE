@@ -29,8 +29,14 @@ only when they link spec, code, tests and user documentation; no user guides exi
    HZ-040; human actions H-156 to H-159). Review round 2 answered: hand-overs tied to the
    device's reported hold, the owner's time on the device and their care, with "Sent by" on the
    entry; a hand-over that is not taken keeps the entry held, and the device keeps its database
-   while any refused entry waits; revocation ends the device's sessions and hurries its hold;
-   copies checked against their contracts and the author's care. Then the screens: devices and
+   while any refused entry waits; revocation hurries the device's hold; copies checked against
+   their contracts and the author's care. Review round 3 answered: the hand-over's count never
+   comes from the sender's own reports, entry times are judged by when they were written with the
+   clock-drift tolerance and the owner's care from the entry's time, admission is in the entry's
+   transaction, a refused entry no longer strands the rest, the upload queue is counted before
+   the database may go, refused entries with no copy count as waiting, and a revoked device's
+   sessions are kept but refused (`device_revoked`) except their report; end mobile sessions at
+   the deploy that brings this in. Then the screens: devices and
    revocation, and refused copies on the review task (which H-134 waits on), in the web record
    (slice 9); the round and handover screens in the web record and Care mode (slice 10 part 2,
    with sync streams for tasks and handovers and offline acknowledgement).
@@ -78,13 +84,13 @@ mocks and contract tests (section 20 rule 2).
 | Package | Tests |
 | --- | --- |
 | `packages/domain` | 3,914 |
-| `packages/db` | 338 (real Postgres: RLS coverage, isolation, scope, audit chain, seed, tasks, documents, care record, care planning, MCA and incidents, people lifecycle, bank holidays, pools, export catalogue, handovers, device integrity) |
+| `packages/db` | 341 (real Postgres: RLS coverage, isolation, scope, audit chain, seed, tasks, documents, care record, care planning, MCA and incidents, people lifecycle, bank holidays, pools, export catalogue, handovers, device integrity) |
 | `packages/sync` | 59 (PowerSync rules engine) |
 | `packages/contracts` | 30 |
 | `packages/i18n` | 48 |
 | `packages/ui` | 342 (231 axe runs) |
 | `packages/ui-native` | 141 |
-| `apps/api` | 553 |
-| `apps/mobile` | 861 |
+| `apps/api` | 562 |
+| `apps/mobile` | 863 |
 | `apps/web` | 306 unit; Playwright journeys with axe (WCAG 2.2 AA) in CI |
 | `infra` | `terraform test` 3, TFLint, Trivy and Checkov clean |

@@ -583,7 +583,8 @@ care record) and `handed_over_entry` (each entry a hand-over sent: the hand-over
 that held it, its owner, who sent it, the table and entry id and when it was accepted).
 `request_quota` (the recent request times of each member under each per-user limit) is
 operational and not exported, and `device_session` (the sign-in session ids bound to each device,
-so a revocation can end them) is a security record and not exported (the global
+so the API refuses them once the device is revoked; read by their member and by jobs, never by a
+tenant-wide role) is a security record and not exported (the global
 `sub_processor_notice` table is Thapsus's and is not exported either). Every exported table is described in
 `EXPORT_TABLES` (`packages/domain/src/platform/export.ts`), which a test keeps in step with the
 schema. The task engine's `task` and `task_series` are exported the same way; from migration 0023
@@ -633,7 +634,9 @@ these differences, defined in `packages/sync/src/client/schema.ts`:
   then each entry in the owner's name, with `x-harbour-handover-owner` and `x-harbour-handover`,
   recorded in `handed_over_entry`, kept on the entry as `handed_over_by` and audited as
   `sync.entry.handed_over`: the sender as actor, the owner, the device and the hand-over id; a
-  refusal is 422 `handover_refused`, on which, a 404 or any 403 the entry stays held), or the
+  refusal is 422 `handover_refused`, on which or a 404 the entry stays held with the server's
+  reason in `handover_refusal`, a plain-English sentence with no personal data, and the rest are
+  sent; any 403 stops the hand-over), or the
   owner or a manager
   deletes them with a recorded reason (nothing is deleted automatically; at
   `mobile.held_entries_max_days` the hold escalates to a manager). `sync_meta` keeps the database's
