@@ -57,8 +57,11 @@ with a merge commit and `expectedHeadSha`.
   hand-written lines): back-entry columns on the five care tables, cancel refused once cited,
   reconciler check, correction refused if it leaves a citing entry outside the window. Needs #32
   and #33 merged first (journal skips idx 52 until 0052 lands), then a full round 1.
-- Lane A part 3 (downtime API, nightly job, PDF): in progress when the session stopped; see
-  Lane A's last report for its branch and SHA if it pushed. Requirements in operations.md section
+- Lane A part 3 `feat/operations-downtime-api` (head `e75ee9e`, work in progress, on part 2):
+  done and typechecking: the pack service (build, store, latest pack, rebuild check), the pack PDF
+  renderer, header and page-owner support in the PDF writer, shared helpers and the
+  `DowntimePackOut` contract. Not done: the routes, nightly job, rebuild on moves, the places route
+  and its task, the outages and back-entry API, OpenAPI and client generation, tests and docs. Requirements in operations.md section
   12 (rebuild on any move, kiosk fetch context, pack PDFs out of `document` or behind a restrictive
   policy, unconfirmed MAR/PEEP places printed as not set with a task for the Registered Manager).
 - Lane C PR 2(a) `feat/mobile-offline-round-writes` (head `7d53fa8`, 703 lines, on #33) and PR
