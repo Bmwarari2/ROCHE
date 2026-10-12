@@ -14140,7 +14140,6 @@ export interface components {
       version: number;
       access?: {
         reaching: string[];
-        mfaRequired?: boolean;
         recordCare: boolean;
         editCarePlan: boolean;
         /** @enum {string|null} */

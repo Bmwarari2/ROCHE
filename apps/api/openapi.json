@@ -494,9 +494,6 @@
                   "type": "string"
                 }
               },
-              "mfaRequired": {
-                "type": "boolean"
-              },
               "recordCare": {
                 "type": "boolean"
               },

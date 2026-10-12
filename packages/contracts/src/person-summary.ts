@@ -75,14 +75,12 @@ export const PersonSummary = z
      * them (notes, charts, body map marks, activities and visits), `editCarePlan` when
      * care.plan.write is (chart settings and the care profile); and why a write the caller holds
      * may not be listed: `break_glass` when the record is open to them only by break-glass,
-     * `scope` when their roles reach the person for reading only, null when they may record care;
-     * and `mfaRequired` when the session has not met the two-step sign-in care records need, so a
-     * write is missing for that reason (review round 4).
+     * `scope` when their roles reach the person for reading only, null when they may record care.
+     * There is no two-step sign-in reason: a session without it cannot read the person at all.
      */
     access: z
       .object({
         reaching: z.array(z.string()),
-        mfaRequired: z.boolean().optional(),
         recordCare: z.boolean(),
         editCarePlan: z.boolean(),
         readOnlyReason: z.enum(["break_glass", "scope"]).nullable(),

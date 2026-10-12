@@ -955,6 +955,6 @@
     "care.taskDetails.notListedBefore",
     "care.readOnly.breakGlass",
     "care.readOnly.scope",
-    "care.readOnly.mfa"
+    "care.readOnly.chartEntries"
   ]
 }

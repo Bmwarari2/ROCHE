@@ -12,12 +12,12 @@ import { WindowNote } from "@/components/care/WindowNote";
 import { getShellContext, tenantApi } from "@/lib/api";
 import {
   can,
+  chartsNotice,
   mayEditCarePlan,
   readingWindow,
   recordCareAccess,
   tabHref,
   windowStart,
-  writeAccess,
 } from "@/lib/care-record";
 import { CHARTS, type ChartKind, fluidDayView, isChart } from "@/lib/charts";
 import { formatDate } from "@/lib/format";
@@ -111,12 +111,11 @@ async function ChartsTab({
   const fluidView = fluidDayView(fluid, t);
   const dateLabel = formatDate(fluid.date) ?? fluid.date;
   // The form only where the viewer's care.note.write reaches the person (review round 2, C2-M2).
-  const { canRecord: canWrite, readOnlyNotice } = recordCareAccess(person, me.permissions);
+  const { canRecord: canWrite } = recordCareAccess(person, me.permissions);
   const canSetUp = mayEditCarePlan(person, me.permissions) && profile !== null;
-  // Chart settings hidden from someone who holds care.plan.write but not care.note.write still
-  // say why (review round 4); someone who may record sees no line about the settings.
-  const settings = writeAccess(person, me.permissions, "care.plan.write");
-  const chartsNotice = canWrite ? null : (readOnlyNotice ?? settings.readOnlyNotice);
+  // Why entries cannot be recorded, scoped to entries above chart settings the viewer can still
+  // change, and why the settings are hidden when they cannot (review rounds 4 and 5).
+  const notice = chartsNotice(person, me.permissions);
 
   return (
     <>
@@ -207,7 +206,7 @@ async function ChartsTab({
         }))}
       />
 
-      {chartsNotice ? <ReadOnlyNotice text={t(chartsNotice)} /> : null}
+      {notice ? <ReadOnlyNotice text={t(notice)} /> : null}
       {canWrite ? (
         <Card as="section" title={t("care.charts.record.title", { chart })} headingLevel={3}>
           <ChartEntryForm

@@ -3,6 +3,7 @@ import { createTranslator } from "@harbour/i18n";
 import { describe, expect, it } from "vitest";
 import {
   can,
+  chartsNotice,
   entryAuthor,
   entryChains,
   iddsiLabel,
@@ -362,29 +363,6 @@ describe("hazard HZ-011 hazard HZ-073 every write form is offered only where the
     });
   });
 
-  it("says a second way to sign in is needed when that is why a write does not reach (review round 4)", () => {
-    const withoutMfa = {
-      reaching: [],
-      mfaRequired: true,
-      recordCare: false,
-      editCarePlan: false,
-      readOnlyReason: "scope",
-    } as const;
-    expect(writeAccess({ access: withoutMfa }, ["care.note.write"], "care.note.write")).toEqual({
-      canWrite: false,
-      readOnlyNotice: "care.readOnly.mfa",
-    });
-    expect(t("care.readOnly.mfa")).toContain("to record in this record");
-    // Break-glass is said first: the record is for reading only whatever the sign-in.
-    expect(
-      writeAccess(
-        { access: { ...withoutMfa, readOnlyReason: "break_glass" } },
-        ["care.note.write"],
-        "care.note.write",
-      ).readOnlyNotice,
-    ).toBe("care.readOnly.breakGlass");
-  });
-
   it("leaves the form when the API does not say (the API still refuses what it would not take)", () => {
     expect(writeAccess({ access: undefined }, ["care.plan.write"], "care.plan.write")).toEqual({
       canWrite: true,
@@ -404,6 +382,29 @@ describe("hazard HZ-011 hazard HZ-073 every write form is offered only where the
     expect(mayEditCarePlan({ access: own }, ["care.plan.write"])).toBe(true);
     expect(mayEditCarePlan({ access: breakGlass }, ["care.plan.write"])).toBe(false);
     expect(mayEditCarePlan({ access: own }, ["care.plan.read"])).toBe(false);
+  });
+
+  it("never says the record cannot be recorded in above chart settings the viewer can change (review round 5)", () => {
+    const planOnly = {
+      reaching: ["care.plan.write", "people.person.read"],
+      recordCare: false,
+      editCarePlan: true,
+      readOnlyReason: "scope",
+    } as const;
+    const held = ["care.note.write", "care.plan.write"];
+    // The settings form stays: the line is about entries only.
+    expect(mayEditCarePlan({ access: planOnly }, held)).toBe(true);
+    expect(chartsNotice({ access: planOnly }, held)).toBe("care.readOnly.chartEntries");
+    expect(t("care.readOnly.chartEntries")).toContain("cannot record entries");
+    expect(t("care.readOnly.chartEntries")).not.toContain("cannot record in it");
+    // Neither reaches: the line says the record is for reading (the settings are hidden too).
+    expect(chartsNotice({ access: readingOnly }, held)).toBe("care.readOnly.scope");
+    // Settings only held, and not reaching: why they are hidden (review round 4).
+    expect(chartsNotice({ access: readingOnly }, ["care.plan.write"])).toBe("care.readOnly.scope");
+    // Settings only held, and reaching: no line above a form they can use.
+    expect(chartsNotice({ access: planOnly }, ["care.plan.write"])).toBeNull();
+    expect(chartsNotice({ access: breakGlass }, held)).toBe("care.readOnly.breakGlass");
+    expect(chartsNotice({ access: own }, held)).toBeNull();
   });
 
   it("says in words that a break-glass record is for reading only, in English and Welsh", () => {

@@ -50,17 +50,13 @@ export function can(permissions: readonly string[], permission: string): boolean
 /** What the API says the viewer may record about one person (`PersonSummary.access`). */
 export interface PersonAccess {
   readonly reaching: readonly string[];
-  readonly mfaRequired?: boolean | undefined;
   readonly recordCare: boolean;
   readonly editCarePlan: boolean;
   readonly readOnlyReason: "break_glass" | "scope" | null;
 }
 
 /** The line that says why a form is not offered on a record open for reading only. */
-export type ReadOnlyNoticeKey =
-  | "care.readOnly.breakGlass"
-  | "care.readOnly.scope"
-  | "care.readOnly.mfa";
+export type ReadOnlyNoticeKey = "care.readOnly.breakGlass" | "care.readOnly.scope";
 
 /**
  * Whether the viewer may use one write permission on this person's record, and the line that
@@ -82,14 +78,10 @@ export function writeAccess(
   }
   return {
     canWrite: false,
-    // The cause, in order: a record open only by break-glass; a session without the two-step
-    // sign-in care records need (review round 4); roles that reach the person for reading only.
     readOnlyNotice:
       person.access.readOnlyReason === "break_glass"
         ? "care.readOnly.breakGlass"
-        : person.access.mfaRequired
-          ? "care.readOnly.mfa"
-          : "care.readOnly.scope",
+        : "care.readOnly.scope",
   };
 }
 
@@ -114,6 +106,23 @@ export function recordCareAccess(
 ): { readonly canRecord: boolean; readonly readOnlyNotice: ReadOnlyNoticeKey | null } {
   const { canWrite, readOnlyNotice } = writeAccess(person, permissions, "care.note.write");
   return { canRecord: canWrite, readOnlyNotice };
+}
+
+/**
+ * The line above the charts tab's forms (ADR-0071 review rounds 4 and 5): none when the viewer
+ * may record entries. When the chart settings stay open to them, a line about entries only, never
+ * one saying the record cannot be changed above a form they can use; otherwise why nothing can be
+ * recorded here, including why the chart settings are hidden from a holder of care.plan.write.
+ */
+export function chartsNotice(
+  person: { readonly access?: PersonAccess | undefined },
+  permissions: readonly string[],
+): ReadOnlyNoticeKey | "care.readOnly.chartEntries" | null {
+  const entries = writeAccess(person, permissions, "care.note.write");
+  if (entries.canWrite) return null;
+  const settings = writeAccess(person, permissions, "care.plan.write");
+  if (settings.canWrite) return entries.readOnlyNotice ? "care.readOnly.chartEntries" : null;
+  return entries.readOnlyNotice ?? settings.readOnlyNotice;
 }
 
 /** The address of a tab: the overview is the person's own page. */
