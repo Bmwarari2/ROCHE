@@ -63,7 +63,7 @@ import {
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, desc, eq, inArray, isNull, notInArray } from "drizzle-orm";
-import { requirePermission, withTenant } from "../http/context";
+import { permissionsReaching, requirePermission, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import {
   currentPlacement,
@@ -852,7 +852,8 @@ export const peopleLifecycleRouter = createRouter()
           conditions: body.conditions,
           decidedBy: access.tenantUserId,
           decidedAt,
-          deciderPermissions: new Set(access.effective.permissions),
+          // Only the permissions reaching this person (ADR-0071 review round 1, L9).
+          deciderPermissions: new Set(await permissionsReaching(tx, access, id)),
           plannedAdmissionOn: body.plannedAdmissionOn ?? null,
           trialEndsOn: body.trialEndsOn ?? null,
         });

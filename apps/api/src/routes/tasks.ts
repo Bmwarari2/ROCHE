@@ -68,7 +68,7 @@ const DAY_MS = 86_400_000;
 
 /** Why someone may not be given a task. */
 const ASSIGNEE_REFUSED =
-  "That person cannot be given this task: they do not hold its permission at this location.";
+  "That person cannot be given this task: they do not hold its permission at this location, or cannot see the person it is about.";
 
 /**
  * Whether the caller may move a task (no step-up: completing is not submitting): anyone holding

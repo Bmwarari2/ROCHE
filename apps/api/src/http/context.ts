@@ -424,7 +424,9 @@ export const SCOPE_WITHOUT_PERMISSION: Readonly<Record<string, Permission>> = {
   "GET /v1/tasks": "people.person.read",
   "POST /v1/tasks/:id/transition": "people.person.read",
   // Documents: the row is found first, then a document about a person needs people.person.read
-  // (an organisation's document needs nothing); a new version needs its category's permission too.
+  // and its category's read permission, and is found again where both reach (review round 1,
+  // S-M2; an organisation's document needs nothing); a new version needs its category's upload
+  // permission too, and is found again where that reaches before anything is stored (L4).
   "GET /v1/documents/:id": "people.person.read",
   "GET /v1/documents/:id/content": "people.person.read",
   "POST /v1/documents/:id/signatures": "people.person.read",
@@ -500,11 +502,29 @@ export async function inScopeOf<T>(
 }
 
 /**
- * The permissions the user may use on one person's record: those the session may use now (MFA and
- * step-up, as `requirePermission` judges them; review round 1, L7) whose roles and grants reach the
- * person (ADR-0071), as row-level security judges it in the caller's transaction. For the domain's
- * own checks on that record (a status change, a task an entry completes, a return check), which
- * would otherwise count a permission the user holds only somewhere else.
+ * The permissions the session may use for the domain's own checks (review round 1, L7): those it
+ * holds whose MFA it meets, as `requirePermission` judges them. One that needs a fresh sign-in
+ * stays in: every domain check given these is also given the session's freshness and refuses it
+ * as `step_up_required`, so the person is asked to sign in again rather than told they lack it.
+ */
+export function usablePermissions(
+  access: TenantAccess,
+  now: Date = new Date(),
+): ReadonlySet<Permission> {
+  return new Set(
+    [...access.effective.permissions].filter((p) => {
+      const refused = refusalOf(access, p, now);
+      return refused === null || refused === "step_up_required";
+    }),
+  );
+}
+
+/**
+ * The permissions the user may use on one person's record: those the session may use
+ * (`usablePermissions`; review round 1, L7) whose roles and grants reach the person (ADR-0071),
+ * as row-level security judges it in the caller's transaction. For the domain's own checks on
+ * that record (a status change, a workflow move, a task an entry completes, a return check),
+ * which would otherwise count a permission the user holds only somewhere else.
  */
 export async function permissionsReaching(
   tx: Transaction,
@@ -513,9 +533,7 @@ export async function permissionsReaching(
 ): Promise<ReadonlySet<Permission>> {
   const reached = new Set<Permission>();
   const verdicts = new Map<string, boolean>();
-  const now = new Date();
-  for (const permission of access.effective.permissions) {
-    if (refusalOf(access, permission, now) !== null) continue;
+  for (const permission of usablePermissions(access)) {
     const scope = scopeFor(access.effective, permission);
     const key = [
       scope.scope,

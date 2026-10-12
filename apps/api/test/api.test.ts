@@ -414,7 +414,12 @@ describe("hazard HZ-011 break-glass access", () => {
       await demo("manager", `/v1/audit?resourceType=person&resourceId=${LODGE.personId}`),
     );
     expect(audit.items.map((e) => e.action)).toContain("people.person.break_glass");
-    expect(audit.items.find((e) => e.action === "people.person.break_glass")?.reason).toContain(
+    // The reason is for the organisation's view of the trail only (ADR-0071 review round 1, S-M3).
+    expect(audit.items.find((e) => e.action === "people.person.break_glass")?.reason).toBeNull();
+    const whole = await json<AuditList>(
+      await demo("quality", `/v1/audit?resourceType=person&resourceId=${LODGE.personId}`),
+    );
+    expect(whole.items.find((e) => e.action === "people.person.break_glass")?.reason).toContain(
       "emergency",
     );
   });

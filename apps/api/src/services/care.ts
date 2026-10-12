@@ -284,7 +284,7 @@ async function alertFallback(tx: Transaction, personId: string, now: Date): Prom
     .select({
       id: roleAssignment.tenantUserId,
       manager: sql<boolean>`bool_or(${role.key} = 'registered_manager')`,
-      organisationManager: sql<boolean>`bool_or(${role.key} = 'registered_manager' AND ${roleAssignment.locationId} IS NULL)`,
+      organisationManager: sql<boolean>`bool_or(${role.key} = 'registered_manager' AND ${roleAssignment.locationId} IS NULL AND ${roleAssignment.organisationWide})`,
     })
     .from(roleAssignment)
     .innerJoin(role, eq(role.id, roleAssignment.roleId))

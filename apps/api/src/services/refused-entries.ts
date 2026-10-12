@@ -41,7 +41,7 @@ import type { TenantAccess } from "../http/context";
 import { problems } from "../http/problem";
 import type { PerUserQuota } from "../http/quota";
 import { appendTaskDetail, nurseInCharge } from "./care";
-import { fallbackRecipients, REFUSED_REVIEW_TASK_KIND } from "./device-holds";
+import { fallbackRecipients, permissionHolders, REFUSED_REVIEW_TASK_KIND } from "./device-holds";
 import {
   ENTRY_PERMISSION,
   inSystemView,
@@ -51,7 +51,6 @@ import {
 } from "./devices";
 import { type HandedOverAdmission, recordHandedOverEntry } from "./held-handover";
 import type { StaffLookup } from "./staff";
-import { membersSeeingPerson } from "./staff-views";
 
 type Db = Parameters<typeof inSystemView>[0];
 
@@ -167,9 +166,10 @@ async function reviewTask(
  * Tells the nurse in charge at the review's location that it has become urgent (#25 review round
  * 2, M3): an observation a device could not save may belong in the day's totals, and a mark that
  * may be harm must not wait (#26 review round 2, C4); with none at the location, the
- * escalation's fallback (round 3, low). For a review about a person, only those who can open it:
- * `people.person.read` and the review's permission reach the person (ADR-0071 review round 1,
- * C-M4). The notice names no one; the link opens the tasks.
+ * escalation's fallback (round 3, low). Only those who can act on it: holding the review's
+ * permission at the location with `people.person.read` there, and for a review about a person,
+ * both reaching the person (ADR-0071 review round 1, C-M3 and C-M4). The notice names no one; the
+ * link opens the tasks.
  */
 async function noticeUrgentReview(
   tx: Transaction,
@@ -180,11 +180,14 @@ async function noticeUrgentReview(
     readonly now: Date;
   },
 ): Promise<void> {
+  // The nurse in charge who can act on the review: holding its permission where it is, and for a
+  // review about a person, seeing the person with people.person.read and that permission. A
+  // senior carer in charge without care.plan.write is not told (ADR-0071 review round 1, C-M3).
   const inCharge = await nurseInCharge(tx, input.locationId);
-  const nurses =
-    input.personId === null
-      ? inCharge
-      : await membersSeeingPerson(tx, inCharge, input.personId, REVIEW_PERMISSION, input.now);
+  const holders = new Set(
+    await permissionHolders(tx, REVIEW_PERMISSION, input.locationId, input.now, input.personId),
+  );
+  const nurses = inCharge.filter((id) => holders.has(id));
   const recipients =
     nurses.length > 0
       ? nurses

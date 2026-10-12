@@ -753,12 +753,17 @@ describe("statutory notifications: clocks, step-up and escalation", () => {
       status: "not_required",
       notRequiredReason: reason,
     });
-    const audit = await json<AuditList>(
-      await as("manager", `/v1/audit?resourceType=statutory_notification&resourceId=${police?.id}`),
-    );
-    expect(audit.items.find((a) => a.action === "safety.notification.not_required")?.reason).toBe(
-      reason,
-    );
+    const trail = (user: "manager" | "quality") =>
+      as(user, `/v1/audit?resourceType=statutory_notification&resourceId=${police?.id}`).then((r) =>
+        json<AuditList>(r),
+      );
+    // The reason is audited; only the organisation's view of the trail shows it (ADR-0071 review
+    // round 1, S-M3): the manager, who holds platform.audit.read at one home, sees their own event
+    // without it.
+    const notRequired = (list: AuditList) =>
+      list.items.find((a) => a.action === "safety.notification.not_required");
+    expect(notRequired(await trail("quality"))?.reason).toBe(reason);
+    expect(notRequired(await trail("manager"))).toMatchObject({ reason: null });
   });
 });
 

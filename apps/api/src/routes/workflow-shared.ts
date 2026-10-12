@@ -2,7 +2,7 @@ import type { Transaction } from "@harbour/db";
 import type { WorkflowDefinition } from "@harbour/domain";
 import type { Context } from "hono";
 import { writeAudit } from "../http/audit";
-import type { AppEnv } from "../http/context";
+import { type AppEnv, permissionsReaching, usablePermissions } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { moveWorkflow, WorkflowMoveRefused, type WorkflowSubject } from "../services/workflow";
 
@@ -19,7 +19,12 @@ export function stepUpFresh(c: Context<AppEnv>): boolean {
   return Date.now() - access.session.sessionCreatedAt.getTime() <= windowSeconds * 1000;
 }
 
-/** Moves a workflow, or throws the problem a person can act on (and audits the refusal). */
+/**
+ * Moves a workflow, or throws the problem a person can act on (and audits the refusal). The
+ * guards see the permissions that reach the subject's person (`permissionsReaching`), or for a
+ * subject about no one those the session may use (ADR-0071 review round 1, L9), never one held
+ * only at another home.
+ */
 export async function moveOrRefuse<S extends string>(
   c: Context<AppEnv>,
   tx: Transaction,
@@ -30,6 +35,9 @@ export async function moveOrRefuse<S extends string>(
   now: Date,
 ) {
   const access = c.get("access");
+  const permissions = subject.personId
+    ? await permissionsReaching(tx, access, subject.personId)
+    : usablePermissions(access);
   try {
     return await moveWorkflow(
       tx,
@@ -39,7 +47,7 @@ export async function moveOrRefuse<S extends string>(
       {
         to,
         actorTenantUserId: access.tenantUserId,
-        permissions: new Set(access.effective.permissions),
+        permissions: new Set(permissions),
         reason: reason ?? null,
         stepUpFresh: stepUpFresh(c),
       },

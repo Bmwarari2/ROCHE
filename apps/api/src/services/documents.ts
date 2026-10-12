@@ -18,8 +18,10 @@ import { isPrintableImage } from "./pdf";
 
 /**
  * Document store service (section 9.1): content checks, malware scan, storage, versioning and the
- * metadata view. Bytes are written to storage before the row commits; a failed transaction leaves
- * an orphan object with an opaque key, never a row pointing at nothing.
+ * metadata view. Bytes are written to storage only once the row is inserted (so a row the
+ * caller's scope refuses stores nothing), and a transaction that fails afterwards has them
+ * destroyed again (`destroyingOnFailure`; ADR-0071 review round 1, L4): never a row pointing at
+ * nothing, and no orphan object left behind by a refused or failed upload.
  */
 
 type DocumentRow = typeof document.$inferSelect;
@@ -81,7 +83,6 @@ export async function storeDocument(
     { id: string },
   ];
   const key = documentStorageKey(tenantId, id);
-  await deps.storage.put(key, upload.bytes, check.contentType);
   const rules = DOCUMENT_CATEGORIES[upload.category];
   const [row] = await tx
     .insert(document)
@@ -108,7 +109,37 @@ export async function storeDocument(
     })
     .returning();
   if (!row) throw new Error("document row was not created");
+  // Only now that the row is in (row-level security has accepted it) are the bytes stored.
+  await deps.storage.put(key, upload.bytes, check.contentType);
   return row;
+}
+
+/**
+ * Runs an upload's transaction with a storage that remembers what it wrote, and destroys those
+ * objects when the transaction fails, so a refused or failed upload leaves no bytes behind
+ * (ADR-0071 review round 1, L4). A destroy that fails is left to the retention sweep.
+ */
+export async function destroyingOnFailure<T>(
+  storage: DocumentStoragePort,
+  run: (storage: DocumentStoragePort) => Promise<T>,
+): Promise<T> {
+  const written: string[] = [];
+  const tracking: DocumentStoragePort = {
+    provider: storage.provider,
+    put: async (key, bytes, contentType) => {
+      written.push(key);
+      await storage.put(key, bytes, contentType);
+    },
+    get: (key) => storage.get(key),
+    destroy: (key) => storage.destroy(key),
+    health: () => storage.health(),
+  };
+  try {
+    return await run(tracking);
+  } catch (error) {
+    for (const key of written) await storage.destroy(key).catch(() => undefined);
+    throw error;
+  }
 }
 
 export async function activeHolds(tx: Transaction): Promise<LegalHoldView[]> {

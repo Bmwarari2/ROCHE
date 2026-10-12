@@ -1049,6 +1049,12 @@ describe("part 6: hand-over of held entries", () => {
       "UPDATE person_assignment SET valid_from = now() - interval '30 days' WHERE tenant_user_id = $1 AND valid_to IS NULL",
       [DEMO.users.carer.id],
     );
+    // In the care worker role for as long: an assignment counts for an entry only while a role
+    // scoped to assigned people carried the entry's permission (ADR-0071 review round 1, S-M1).
+    await asTenant(
+      "UPDATE role_assignment SET valid_from = now() - interval '30 days' WHERE tenant_user_id = $1 AND valid_to IS NULL",
+      [DEMO.users.carer.id],
+    );
   });
   const entryRow = (id: string) =>
     asTenant<{

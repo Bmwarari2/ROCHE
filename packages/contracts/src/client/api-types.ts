@@ -5317,7 +5317,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Audit trail for the organisation, with hash-chain verification */
+    /**
+     * Audit trail for the organisation, with hash-chain verification
+     * @description Whoever holds platform.audit.read across the organisation sees every event, with its reason. Someone who holds it at some locations only sees their own events and events about the people at those locations (resource type person), never a reason; every other event is withheld until audit events carry their location.
+     */
     get: {
       parameters: {
         query?: {

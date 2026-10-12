@@ -45,6 +45,8 @@ import {
   type OutputDeadline,
   type PostFallTaskKind,
   type PressureUlcerCategory,
+  placesCover,
+  placesHoldingPermission,
   postFallChecklist,
   type RateRow,
   resolveDolsRates,
@@ -58,6 +60,7 @@ import {
 } from "@harbour/domain";
 import { and, desc, eq, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import { publish } from "../outbox";
+import { accessRowsOf } from "./access-rows";
 import { bankHolidays, rateNumber } from "./rates";
 import { startWorkflow } from "./workflow";
 
@@ -1034,7 +1037,12 @@ async function overdueChain(tx: Transaction, tenantId: string) {
   return created;
 }
 
-/** Who may submit at a location: role holders and current acting-up grants. */
+/**
+ * Who may submit at a location: role holders and current acting-up grants, where they hold the
+ * permission (`placesHoldingPermission`: a role or grant with no location counts across the
+ * organisation only for a role scoped to it or one marked organisation-wide; ADR-0071 review
+ * round 1, L1 and L2).
+ */
 export async function submitHolders(
   tx: Transaction,
   locationId: string,
@@ -1051,7 +1059,6 @@ export async function submitHolders(
         isNull(role.archivedAt),
         lte(roleAssignment.validFrom, now),
         or(isNull(roleAssignment.validTo), sql`${roleAssignment.validTo} > ${now}`),
-        or(isNull(roleAssignment.locationId), eq(roleAssignment.locationId, locationId)),
       ),
     );
   const grants = await tx
@@ -1064,10 +1071,20 @@ export async function submitHolders(
         isNull(accessGrant.revokedAt),
         lte(accessGrant.validFrom, now),
         sql`${accessGrant.validTo} > ${now}`,
-        or(isNull(accessGrant.locationId), eq(accessGrant.locationId, locationId)),
       ),
     );
-  return [...new Set([...holders, ...grants].map((h) => h.id))];
+  const candidates = [...new Set([...holders, ...grants].map((h) => h.id))];
+  const rows = await accessRowsOf(tx, candidates);
+  return candidates.filter((id) => {
+    const mine = rows.get(id);
+    return (
+      mine !== undefined &&
+      placesCover(
+        placesHoldingPermission(mine.assignments, mine.grants, "safety.notification.submit", now),
+        locationId,
+      )
+    );
+  });
 }
 
 /**

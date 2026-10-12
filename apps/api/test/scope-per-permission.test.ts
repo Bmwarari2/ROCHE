@@ -1,4 +1,11 @@
-import type { CareNoteList, Me, PersonList, SyncToken, TaskList } from "@harbour/contracts";
+import type {
+  AuditList,
+  CareNoteList,
+  Me,
+  PersonList,
+  SyncToken,
+  TaskList,
+} from "@harbour/contracts";
 import { withRequestContext } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
 import { sql } from "drizzle-orm";
@@ -6,6 +13,7 @@ import { jwtVerify } from "jose";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MOBILE_APP_ORIGIN } from "../src/auth/token-exposure";
 import { inScopeOf, SCOPE_WITHOUT_PERMISSION } from "../src/http/context";
+import { fallbackRecipients } from "../src/services/device-holds";
 import { ENTRY_PERMISSION, personReachedBy } from "../src/services/devices";
 import { createHarness, type Harness, LODGE, PASSWORD } from "./support/harness";
 
@@ -350,5 +358,249 @@ describe("hazard HZ-011 data scope is per permission (ADR-0071)", () => {
     expect(seen.inside).toEqual({ scope: "tenant", locations: "" });
     expect(seen.after).toEqual({ scope: "locations", locations: DEMO.locationId });
     expect(seen.afterRefusal).toEqual({ scope: "locations", locations: DEMO.locationId });
+  });
+});
+
+describe("hazard HZ-011 data scope per permission, review round 1 (ADR-0071)", () => {
+  // More invented staff:
+  // - Sam Shiftsplit is a care worker (scoped to assigned people) and a clinical lead at Harbour
+  //   House, and is assigned to Gwen at Harbour Lodge.
+  // - Cora Coordinator is a care coordinator at Harbour House (people.person.read and
+  //   care.plan.read there, no care.note.read) with a grant of care.note.read and care.note.write
+  //   at Harbour Lodge.
+  // - Bea Backup is a Registered Manager at Harbour House; Lou Longserving one at Harbour Lodge,
+  //   in post for longer than anyone.
+  const SAM = "0194d000-0000-7000-8000-0000000003b1";
+  const CORA = "0194d000-0000-7000-8000-0000000003b2";
+  const BEA = "0194d000-0000-7000-8000-0000000003b3";
+  const LOU = "0194d000-0000-7000-8000-0000000003b4";
+  const staff: Record<"sam" | "cora" | "bea", string> = { sam: "", cora: "", bea: "" };
+  const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
+  const PDF = new TextEncoder().encode("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF\n");
+  // A resident at Harbour House the demo care worker is not assigned to.
+  const UNASSIGNED = "0194d000-0000-7000-8600-000000000005";
+
+  const tokenOf = (key: string) => h.tokens[key] ?? "";
+  const asStaff = (
+    token: string,
+    path: string,
+    init: {
+      method?: string;
+      body?: unknown;
+      raw?: { bytes: Uint8Array; contentType: string };
+    } = {},
+  ) => h.request(path, { token, tenant: DEMO.tenantId, ...init });
+
+  beforeAll(async () => {
+    staff.sam = await member(SAM, "Sam Shiftsplit", "sam.shiftsplit@example.invalid");
+    staff.cora = await member(CORA, "Cora Coordinator", "cora.coordinator@example.invalid");
+    staff.bea = await member(BEA, "Bea Backup", "bea.backup@example.invalid");
+    await asOwner(
+      `INSERT INTO tenant_user (id, display_name, email, status)
+       VALUES ($1, 'Lou Longserving', 'lou.longserving@example.invalid', 'active')`,
+      [LOU],
+    );
+    await asOwner(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, location_id)
+       SELECT $1::uuid, id, $2::uuid FROM role WHERE key IN ('care_worker', 'clinical_lead')
+       UNION ALL SELECT $3::uuid, id, $2::uuid FROM role WHERE key = 'care_coordinator'
+       UNION ALL SELECT $4::uuid, id, $2::uuid FROM role WHERE key = 'registered_manager'`,
+      [SAM, DEMO.locationId, CORA, BEA],
+    );
+    await asOwner(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, valid_from)
+       SELECT $1, id, $2, now() - interval '400 days' FROM role WHERE key = 'registered_manager'`,
+      [LOU, LODGE.locationId],
+    );
+    await asOwner("INSERT INTO person_assignment (tenant_user_id, person_id) VALUES ($1, $2)", [
+      SAM,
+      LODGE_PERSON,
+    ]);
+    await asOwner(
+      `INSERT INTO access_grant
+         (tenant_user_id, permissions, location_id, valid_from, valid_to, reason, granted_by)
+       VALUES ($1, '{care.note.read,care.note.write}', $2, $3, $4, 'Covering notes', $5)`,
+      [
+        CORA,
+        LODGE.locationId,
+        new Date(Date.now() - DAY),
+        new Date(Date.now() + DAY),
+        DEMO.users.owner.id,
+      ],
+    );
+  }, 180_000);
+
+  describe("S-M1: assigned and break-glass people count only for the permissions that reach them", () => {
+    it("lets the care worker role reach the assigned person, and nothing of the clinical lead role", async () => {
+      // The care worker role carries people.person.read and care.note.write for assigned people.
+      expect((await asStaff(staff.sam, `/v1/people/${LODGE_PERSON}`)).status).toBe(200);
+      const note = await asStaff(staff.sam, `/v1/people/${LODGE_PERSON}/notes`, {
+        method: "POST",
+        body: {
+          category: "personal_care",
+          body: "Assisted with a wash; skin intact.",
+          occurredAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+        },
+      });
+      expect(note.status).toBe(201);
+      // ReSPECT and a status change come from the clinical lead role at Harbour House only.
+      const respect = await asStaff(staff.sam, `/v1/people/${LODGE_PERSON}/advance-care`, {
+        method: "POST",
+        body: {
+          kind: "respect",
+          cprDecision: "attempt_cpr",
+          clinicianName: "Dr Example",
+          clinicianRole: "GP",
+          completedOn: new Date().toISOString().slice(0, 10),
+        },
+      });
+      expect(respect.status).toBe(404);
+      const status = await asStaff(staff.sam, `/v1/people/${LODGE_PERSON}/status`, {
+        method: "POST",
+        body: { to: "in_hospital", effectiveAt: new Date().toISOString(), version: 1 },
+      });
+      expect(status.status).toBe(404);
+    });
+
+    it("opens a break-glass person for reading only", async () => {
+      expect((await asStaff(staff.bea, `/v1/people/${LODGE_PERSON}`)).status).toBe(404);
+      const opened = await asStaff(staff.bea, "/v1/people/break-glass", {
+        method: "POST",
+        body: {
+          personId: LODGE_PERSON,
+          justification: "Covering an emergency at the lodge tonight",
+        },
+      });
+      expect(opened.status).toBe(201);
+      expect((await asStaff(staff.bea, `/v1/people/${LODGE_PERSON}`)).status).toBe(200);
+      expect((await asStaff(staff.bea, `/v1/people/${LODGE_PERSON}/notes`)).status).toBe(200);
+      const write = await asStaff(staff.bea, `/v1/people/${LODGE_PERSON}/notes`, {
+        method: "POST",
+        body: {
+          category: "personal_care",
+          body: "Not mine to write.",
+          occurredAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+        },
+      });
+      expect(write.status).toBe(404);
+    });
+  });
+
+  describe("S-M2, L4 and L5: documents are read with their category's permission", () => {
+    let attachment = "";
+    let letter = "";
+
+    beforeAll(async () => {
+      const upload = async (category: string, title: string, bytes: Uint8Array, type: string) => {
+        const response = await h.request(
+          `/v1/documents?${new URLSearchParams({ category, title, personId: HOUSE_PERSON })}`,
+          {
+            token: tokenOf("manager"),
+            tenant: DEMO.tenantId,
+            method: "POST",
+            raw: { bytes, contentType: type },
+          },
+        );
+        expect(response.status).toBe(201);
+        return ((await response.json()) as { id: string }).id;
+      };
+      attachment = await upload("care_attachment", "Wound photo", JPEG, "image/jpeg");
+      letter = await upload("person_document", "Hospital letter", PDF, "application/pdf");
+    });
+
+    it("shows a care attachment only where care.note.read reaches the person", async () => {
+      // Cora reads people at Harbour House, but care notes only at Harbour Lodge.
+      expect((await asStaff(staff.cora, `/v1/documents/${letter}`)).status).toBe(200);
+      expect((await asStaff(staff.cora, `/v1/documents/${attachment}`)).status).toBe(404);
+      expect((await asStaff(staff.cora, `/v1/documents/${attachment}/content`)).status).toBe(404);
+      const list = await asStaff(staff.cora, `/v1/documents?personId=${HOUSE_PERSON}`);
+      expect(list.status).toBe(200);
+      const ids = ((await list.json()) as { items: { id: string }[] }).items.map((d) => d.id);
+      expect(ids).toContain(letter);
+      expect(ids).not.toContain(attachment);
+      // The manager, whose care.note.read reaches Harbour House, sees both.
+      const managers = await asStaff(tokenOf("manager"), `/v1/documents?personId=${HOUSE_PERSON}`);
+      const all = ((await managers.json()) as { items: { id: string }[] }).items.map((d) => d.id);
+      expect(all).toEqual(expect.arrayContaining([letter, attachment]));
+    });
+
+    it("refuses a new version where the upload permission does not reach, storing nothing", async () => {
+      const response = await asStaff(staff.cora, `/v1/documents/${attachment}/versions`, {
+        method: "POST",
+        raw: { bytes: JPEG, contentType: "image/jpeg" },
+      });
+      expect(response.status).toBe(404);
+      const versions = await asOwner(
+        "SELECT count(*)::int AS n FROM document WHERE previous_version_id = $1",
+        [attachment],
+      );
+      expect(versions[0]?.n).toBe(0);
+    });
+
+    it("answers HEAD on an allow-listed route as its GET route (L5)", async () => {
+      const head = await asStaff(staff.cora, `/v1/documents/${letter}/content`, { method: "HEAD" });
+      expect(head.status).toBe(200);
+    });
+  });
+
+  describe("S-M3: the audit trail follows the reach of platform.audit.read", () => {
+    it("shows a manager at one home their own events and events about people there, never a reason", async () => {
+      // Ned views Gwen at the Lodge; Tia views a resident at the House.
+      expect((await as("ned", `/v1/people/${LODGE_PERSON}`)).status).toBe(200);
+      expect((await as("tia", `/v1/people/${HOUSE_PERSON}`)).status).toBe(200);
+      const trail = async (token: string, personId: string) => {
+        const response = await asStaff(
+          token,
+          `/v1/audit?resourceType=person&resourceId=${personId}&limit=500`,
+        );
+        expect(response.status).toBe(200);
+        return ((await response.json()) as AuditList).items;
+      };
+      const views = (items: AuditList["items"], actor: string) =>
+        items.filter((e) => e.action === "people.person.view" && e.actorTenantUserId === actor);
+      // The Registered Manager at the House: the House resident, not Gwen.
+      expect(views(await trail(tokenOf("manager"), HOUSE_PERSON), TIA).length).toBeGreaterThan(0);
+      expect(views(await trail(tokenOf("manager"), LODGE_PERSON), NED)).toEqual([]);
+      for (const event of await trail(tokenOf("manager"), HOUSE_PERSON)) {
+        expect(event.reason).toBeNull();
+      }
+      // The quality lead holds it across the organisation and sees both.
+      expect(views(await trail(tokenOf("quality"), LODGE_PERSON), NED).length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("C-M4: a task about a person goes only to someone who can see the person", () => {
+    const createTask = (personId: string, assignee: string) =>
+      asStaff(tokenOf("manager"), "/v1/tasks", {
+        method: "POST",
+        body: {
+          title: "Check skin on heels",
+          personId,
+          locationId: DEMO.locationId,
+          assigneeTenantUserId: assignee,
+          dueAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+        },
+      });
+
+    it("refuses to give a task about a person to a care worker not assigned to them", async () => {
+      expect((await createTask(UNASSIGNED, DEMO.users.carer.id)).status).toBe(422);
+      expect((await createTask(HOUSE_PERSON, DEMO.users.carer.id)).status).toBe(201);
+    });
+
+    it("skips a Registered Manager at another home in the fallback for a task about a person", async () => {
+      const [anyone, forHouse] = await withRequestContext(
+        h.handle.services.db,
+        { tenantId: DEMO.tenantId, userId: null, scope: "tenant", locationIds: [] },
+        async (tx) => [
+          await fallbackRecipients(tx, "care.plan.write", new Date()),
+          await fallbackRecipients(tx, "care.plan.write", new Date(), HOUSE_PERSON),
+        ],
+      );
+      // Longest serving: Lou at the Lodge, for a task about no one.
+      expect(anyone?.[0]).toBe(LOU);
+      // About someone at the House: Lou cannot open the record, so a manager there is chosen.
+      expect(forHouse).not.toContain(LOU);
+      expect(forHouse?.[0]).toBe(DEMO.users.manager.id);
+    });
   });
 });
