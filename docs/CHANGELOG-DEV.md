@@ -903,3 +903,52 @@ twelve lows. All are fixed on `fix/platform-scope-per-permission` as fast-forwar
 `packages/sync` 62, `apps/mobile` 871, `apps/web` 338, `packages/ui` 342, `packages/ui-native`
 141, all passing locally (`pnpm turbo run test --force --concurrency=2`, 0 cached) and through
 `scripts/ci-local.sh`.
+
+## 2026-10-12: Data scope per permission, review round 2 (ADR-0071)
+
+No Highs. The clinical safety review found three new Mediums and one older one, the security
+review two, with thirteen lows. All are fixed on `fix/platform-scope-per-permission` as
+fast-forwards; three items are STATUS follow-ups.
+
+- The nurse in charge (C2-M1): one definition (`nurseInCharge`, clinical leads and team leaders
+  whose roles in force reach the home, else the Registered Manager) for urgent result alerts,
+  care plan and risk review notices and refused-entry reviews, filtered only by what the recipient
+  can see (`nurseInChargeSeeing`). An urgent refused-entry review tells the nurse in charge whose
+  `people.person.read` and `care.note.read` reach the person and the `care.plan.write` holders
+  who can see them, else the fallback, else audits `care.refused_entry.unrouted`. A home with
+  team leaders and no clinical lead tells its team leader; the HZ-008 test asserts exactly who
+  was told.
+- Read only where the API refuses (C2-M2, C2-M3): `GET /v1/people/{id}` returns `access`
+  (`recordCare`, `editCarePlan`, `readOnlyReason`); the notes, charts and body map pages, and the
+  chart settings, offer their forms only when it allows and otherwise say why, in English and
+  Welsh; the break-glass sheet says the record opens for reading only. The sync token carries
+  `entries_write_location_ids` and `entries_write_assigned`; the phone keeps them
+  (`harbour.write-scope.v1`) and offers recording only there. A Playwright journey opens a record
+  by break-glass at a second demo home (Harbour Mews, web journeys only) and finds no form.
+- Who is told by role (C2-M4, lows): `roleHolders` and `roleInForce` (assignment in force, role
+  not archived, member invited or active, no location reaching everywhere only when scoped to the
+  organisation or marked) for the overdue escalation, escalation chains, Registered Manager
+  lookups, break-glass alert and weekly report recipients, the fallbacks and device-hold carriers;
+  a fallback about no one prefers whoever reaches the location; `personReachedBy` checks the
+  assignment and role windows together; a new round keeps its series' assignee only while they may
+  be given it; `workLocationIds` gives `/v1/me` and the token the same work locations.
+- Documents (S2-M1, low): signing a person's document needs the category's write permission
+  reaching the person without break-glass; an organisation's document refuses a person and a
+  person's subject type, and a person-category document with no person is not found.
+- Grants with no location (S2-M2): migration 0048 stops, naming the count, while any is live. The
+  access report lists narrows and widens for the record on screen and the three sync families,
+  counts assigned people instead of naming them, and reads a tenant role assigned at a location
+  as that location, as before.
+- Other lows: the people sync family needs `care.plan.read` too; a refused break-glass attempt is
+  audited after the rollback; `planTaskLink` and the return check honour step-up through the
+  session's freshness; `assignment_change` has a `USING` expression; HZ-073 proposed at Major /
+  Low / 3 with its own DCB0160 row, linked from HZ-011; the release note and runbook say how to
+  check every device has synced.
+- Follow-ups in STATUS: bounding grant and role assignment writes by the granter's own
+  permissions; `withTenantWideScope` restoring the scope in a `finally`; recording a failed
+  storage destroy for the retention sweep.
+
+**Tests**: `packages/domain` 4,069, `packages/db` 393, `packages/contracts` 34, `packages/i18n` 48,
+`apps/api` 684, `packages/sync` 62, `apps/mobile` 882, `apps/web` 349, `packages/ui` 342,
+`packages/ui-native` 141, all passing locally (`pnpm turbo run test --force --concurrency=2` on
+`118a916`, 0 cached) and through `scripts/ci-local.sh`.

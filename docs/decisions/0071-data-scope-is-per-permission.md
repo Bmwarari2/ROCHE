@@ -310,8 +310,9 @@ Confirmation for round 2: `device-integrity.test.ts` (`hazard HZ-073 hazard HZ-0
 leader in charge about an urgent review at a home with no nurse`, and who exactly is told);
 `tasks.test.ts` (`an overdue task is never told only to someone who has left`); `jobs.test.ts`;
 `scope-per-permission.test.ts` (the `access` field, signing under break-glass, organisation
-documents, the people family needing `care.plan.read`, the write claims, work locations from roles
-in force); `sync-families.test.ts`; `packages/db/test/scope.test.ts` (migration 0048 stopping on a
+documents and a person-category document with no person, the people family needing
+`care.plan.read`, the write claims, work locations from roles in force, a refused break-glass
+attempt audited, assignment and role windows together, a series' assignee rechecked); `sync-families.test.ts`; `packages/db/test/scope.test.ts` (migration 0048 stopping on a
 live grant with no location; the `assignment_change` policy); `apps/web/src/lib/care-record.test.ts`
 and `apps/web/e2e/break-glass.spec.ts` (no form under break-glass, with axe);
 `apps/mobile/src/sync/write-scope.test.ts` and the connector test.
