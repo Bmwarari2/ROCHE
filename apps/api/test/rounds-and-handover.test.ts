@@ -239,7 +239,7 @@ describe("care.md rule 14: care plan actions generate the shift's rounds (CARE-0
     turns = carried;
   });
 
-  it("hazard HZ-024 ends a changed action's rounds with the reason and starts the new schedule", async () => {
+  it("hazard HZ-024 ends a changed action's rounds with the reason and starts the new schedule, leaving a round in progress", async () => {
     const draft = await json<CarePlanDetail>(
       await as("manager", plansPath(4), { method: "POST", body: { copyFromActive: true } }),
     );
@@ -251,6 +251,15 @@ describe("care.md rule 14: care plan actions generate the shift's rounds (CARE-0
         version: copy.version,
       },
     });
+    // A round someone has started stays theirs to finish (clinical review round 2).
+    const [started] = await query<{ id: string }>(
+      `UPDATE task SET status = 'in_progress'
+       WHERE id = (SELECT id FROM task WHERE series_id = $1 AND status = 'open' AND due_at > now()
+                   ORDER BY due_at LIMIT 1)
+       RETURNING id`,
+      [turns.taskSeriesId],
+    );
+    expect(started).toBeDefined();
     const v3 = await publish(4, draft);
     const changed = v3.sections[0]?.actions.find((a) => a.generatesTasks) as CarePlanActionItem;
     expect(changed.taskSeriesId).not.toBe(turns.taskSeriesId);
@@ -260,11 +269,12 @@ describe("care.md rule 14: care plan actions generate the shift's rounds (CARE-0
     );
     expect(old).toEqual({ active: false, inactive_code: null });
     const oldRounds = await planTasks(resident(4), turns.taskSeriesId ?? undefined);
-    const future = oldRounds.filter((t) => t.due_at.getTime() > Date.now());
+    const future = oldRounds.filter((t) => t.due_at.getTime() > Date.now() && t.id !== started?.id);
     expect(future.length).toBeGreaterThan(0);
     expect(
       future.every((t) => t.status === "cancelled" && t.status_reason === PLAN_CHANGED_REASON),
     ).toBe(true);
+    expect(oldRounds.find((t) => t.id === started?.id)?.status).toBe("in_progress");
     const newRounds = await planTasks(resident(4), changed.taskSeriesId ?? undefined);
     expect(newRounds.length).toBeGreaterThanOrEqual(23);
     turns = changed;
