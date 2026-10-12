@@ -386,6 +386,50 @@ suspended member, documents); `tasks.test.ts` (`an overdue task goes down the or
 active is told`); `jobs.test.ts` (the chain step fallback and its audit); `device-integrity.test.ts`
 (the unrouted refused-entry audit; the owner no longer told where the home has holders).
 
+### Review round 4 (security and clinical safety reviews of #27)
+
+Security found nothing high or medium. Clinical safety found one medium: a general overdue task
+counted its assignee alone as told, so it was marked escalated, never retried and not audited
+when no one else could act.
+
+**Escalation means someone other than the assignee (C4-M1).** Each tier of the order (first
+responders, a Registered Manager reaching the home, `care.plan.write` holders) leaves out the
+assignee; with no one left, the assignee is still reminded, the task stays at level 0, and
+`task.escalation_unrouted` is audited with `assignee_only` (or `no_one_sees_person`,
+`no_one_reaches_location` with no one at all). The audit is written on the first occurrence and
+then at most once a day per task: the minute run (`due`) skips a task audited in the last day,
+and an hourly run (`retry`, the worker's `task-escalation-retries` queue) tries those tasks again,
+so routing is retried every hour while the audit grows by one row a day at most. A task about a
+person with no location takes the person's home, and each tier keeps only those who can see the
+person; `POST /v1/tasks` stores the person's home when none is given.
+
+**The operator's daily signal.** A daily job (`unrouted-daily-report`) writes one structured log
+line, `escalation.unrouted.daily`, per organisation with any unrouted audit event in the last day:
+the opaque tenant id and a count for each action (`task.escalation_unrouted`,
+`sync.escalation_unrouted`, `platform.escalation.unrouted`, `care.refused_entry.unrouted`,
+`care.alert.unrouted`, `people.break_glass_alert.unrouted`). The on-call runbook alarms on it.
+There is no operator console attention list to add it to yet. Whether the organisation also
+needs a signal in the product is a decision for the CSO (H-170).
+
+**Lows.** A break-glass alert no one active can receive is audited
+(`people.break_glass_alert.unrouted`, `no_recipient`) and counted in the daily signal; CQC
+notification escalations tell only active staff (`submitHolders`). Above 100 assigned people the
+token names none, and the phone falls back to round 2's location rule, failing closed where the
+home syncs for reading only. `access.mfaRequired` lets a tab say that a second way to sign in is
+needed, rather than the scope line; the charts tab says why chart settings are hidden from
+someone who holds `care.plan.write` but not `care.note.write`. The device check counts staff who
+work only through a live grant and ignores deleted, portal and mixed roles; a one-off check per
+environment lists organisation documents attached outside the new allow-list. A write scope the
+phone cannot keep is logged (the item's name and the error's kind) and the phone records about no
+one until the next token. Follow-ups in STATUS: future-dated assignments and the write claim, and
+Playwright coverage of the draft plan page and the review, close, withdraw and correct controls.
+
+Confirmation for round 4: `tasks.test.ts` (`hazard HZ-008 hazard HZ-073 escalation means someone
+other than the assignee is told`: the assignee told and the gap audited once, the hourly retry,
+the person's home, the daily line); `scope-per-permission.test.ts` (round 4: over 100 people, the
+break-glass alert); `write-scope.test.ts` and `write-scope-store.test.ts`; `care-record.test.ts`
+(the MFA line).
+
 ## Pros and cons of the options
 
 ### One merged scope, with per-permission checks where they matter

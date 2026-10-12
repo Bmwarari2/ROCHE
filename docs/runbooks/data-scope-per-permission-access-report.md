@@ -53,8 +53,8 @@ Typical rows:
      synced, or revoked (`staff_left`, `replaced` or `lost_or_stolen`) once any entries it reported
      waiting are resolved;
    - read-only, as `harbour_owner`, the device check lists the devices not seen since the cut-off
-     and the staff who may use Care mode whose phone the server has never seen (ask each whether
-     they use one; if so it syncs first). Give the cut-off as a UK time: it is read in
+     and the staff who may use Care mode (through a staff role, or a live grant alone) whose phone
+     the server has never seen (ask each whether they use one; if so it syncs first). Give the cut-off as a UK time: it is read in
      Europe/London, so British Summer Time is applied when in force; the output is in UTC.
 
      ```sh
@@ -89,6 +89,26 @@ Typical rows:
    widen it as the guard exists to prevent.
 5. Run the report again until the remaining rows are the change the organisation intends, and
    record the review in the organisation's DCB0160 assessment (HZ-011 and HZ-073 rows).
+
+**Organisation documents attached to other records (once per environment).** Since review
+round 3 an organisation's document, which every member reads, is attached only to the
+organisation's own records (no subject, or a location, escalation policy, statement of purpose
+version or letter template version), never to a person, and a subject id needs its type. To find
+rows written before then, run this read-only check for every organisation, as `harbour_owner`:
+
+```sh
+for t in $(psql "$OWNER_DATABASE_URL" -Atc "SELECT id FROM tenant"); do
+  psql "$OWNER_DATABASE_URL" -v tenant_id="$t" \
+    -f docs/runbooks/data-scope-per-permission-document-subjects.sql
+done
+```
+
+It lists opaque ids, kinds and dates only. For each row, someone with
+`platform.document.manage` in that organisation opens the document and decides: a policy or
+procedure that names no one is uploaded again as an organisation's document with no subject (or
+one of the allowed subjects), and the old one withdrawn; anything about a person is uploaded
+again in a person's category on that person's record (`person_document`, or `care_attachment`
+for care), and the old one withdrawn. Record each decision with the deployment record.
 
 **Environments that ran the round 1 version of migration 0048.** Before review round 2, 0048
 marked every grant with no location as organisation-wide, live ones included, without stopping.

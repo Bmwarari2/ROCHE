@@ -44,6 +44,11 @@ only when they link spec, code, tests and user documentation; no user guides exi
    (`entries_write_person_ids`); an overdue task and an escalation chain step go down their order
    until someone active is told, else the gap is audited and nothing is marked done; only active
    staff are told; document subjects are an allow-list; `seed-users` needs an explicit opt-in.
+   Review round 4: escalation means someone other than the assignee is told (else the assignee
+   is told, the gap audited at most once a day and the task retried hourly); the worker writes
+   one `escalation.unrouted.daily` line per organisation for the operator to alarm on (H-170 asks
+   the CSO whether the organisation needs an in-product signal); a break-glass alert no one
+   receives is audited; a task about a person with no location takes the person's.
    Before deploying to a live tenant: sync every device (checked on Today, in the device list and
    with the device check), run the pre-deployment access report
    ([runbook](../runbooks/data-scope-per-permission-access-report.md)), end or place any grant
@@ -61,6 +66,14 @@ only when they link spec, code, tests and user documentation; no user guides exi
    - (review round 2) when `destroyingOnFailure` cannot destroy the bytes stored for a
      transaction that then failed, record the storage key (today the failure is swallowed), so the
      retention sweep finds and destroys them.
+   - (review round 4) future-dated assignments and the sync token's write claim: an assignment
+     or role that starts later is not in `entries_write_*` until a token is issued after it
+     starts (`apps/api/src/routes/sync.ts`); decide whether the phone should learn it at the start
+     time while offline.
+   - (review round 4) Playwright coverage of the care plan draft page (`care-plan/[planId]`) and
+     of the review, close, withdraw and correct controls on the record (risk review and close,
+     withdrawing an advance care record, correcting a note or chart), each with axe and with the
+     read-only case.
 3. The screens the care API follow-ups (#26) wait on (slice 9 and slice 10 part 2): the
    escalation policy link on the phone, staff names on the web and phone (H-73); the settings for
    escalation policies and coded reasons; the phone offering the organisation's coded reasons (H-164);
@@ -104,7 +117,7 @@ only when they link spec, code, tests and user documentation; no user guides exi
 
 ## Human actions outstanding
 
-All of [human-actions.md](human-actions.md) is open (H-01 to H-169). The project owner has
+All of [human-actions.md](human-actions.md) is open (H-01 to H-170). The project owner has
 scheduled the accounts (H-01, H-02, H-04, H-10, H-11) and the named roles (H-20 Clinical Safety
 Officer, H-30 data protection lead, H-31 ICO registration) for after the build, and is choosing
 the UK SMS provider (H-09, which also settles H-105). Until then the build continues against the

@@ -20,7 +20,8 @@ offers a form on such a record, and each says "You opened this record for readin
 record something in it, tell the person in charge of this shift or your manager, or record it on
 paper and enter it when you have access."; the break-glass sheet says so before it opens, and a
 person's document cannot be signed through it. Where your roles let you read a record but not
-write to one part of it, that tab says so instead of offering a form the server would refuse. The
+write to one part of it, that tab says so instead of offering a form the server would refuse; where
+the reason is that you have not set up a second way to sign in, it says that instead. The
 audit trail is shown whole only to those who hold it across the organisation.
 
 Clinical safety changes
@@ -39,7 +40,8 @@ Clinical safety changes
   otherwise says "You can read this record but cannot record in it. If something needs
   recording, tell the person in charge of this shift or your manager." A coordinator who also
   works as a care worker records about the clients assigned to them, as before: the sync token
-  names those clients. Add care note permissions to the coordinator's role if they need more.
+  names those clients (up to 100; above that the phone records only about people at homes that
+  sync just for them). Add care note permissions to the coordinator's role if they need more.
 - Before a phone has had its first sync token after this update, it offers recording only if the
   user's permissions include recording care notes. The server refuses anything it would not
   take; it keeps a copy of a refused entry only about someone the author could record about, so
@@ -53,10 +55,14 @@ Clinical safety changes
   organisation only when no one holds that at the home; with no one at all, the gap is audited.
 - An overdue task goes, besides its assignee, to the clinical leads and team leaders at its home;
   with none, to a Registered Manager whose role reaches it (there or across the organisation);
-  with none, to whoever can act on the care plan and see the person. With no one at all it is
-  not marked escalated: the gap is audited and it is tried again an hour later. A step of an
+  with none, to whoever can act on the care plan and see the person. Escalation means someone
+  other than the assignee is told: with no one else, the assignee is still reminded, but the task
+  is not marked escalated, the gap is audited (once a day while it lasts) and it is tried again
+  every hour. A task about a person takes the person's home when none is given. A step of an
   escalation chain no one holds goes to a Registered Manager reaching the home, else the owner,
-  and one that can reach no one is audited.
+  and one that can reach no one is audited; so is a break-glass alert no one active can receive.
+- Each day, the operator receives one signal per organisation where safety work reached no one
+  who could act, and tells the organisation's Registered Manager or owner the same working day.
 - Only staff who have signed in (active) are told about anything: someone invited who has never
   signed in, suspended or who has left is never the one told, so the next in line is.
 - Administrators, and any role that cannot open people's records, see in the task list only the
