@@ -1,3 +1,4 @@
+import { CreateBodyMapMark } from "@harbour/contracts";
 import { describe, expect, it } from "vitest";
 import { CARE_ENTRY_PATHS, isCareEntryTable, toCareUpload } from "./care-upload";
 
@@ -103,7 +104,7 @@ describe("toCareUpload", () => {
     });
   });
 
-  it("hazard HZ-019 sends the side drawn and the side chosen in words, and reads booleans", () => {
+  it("hazard HZ-019 sends the place drawn, the side drawn and the side chosen in words, and reads booleans", () => {
     const request = toCareUpload({
       op: "PUT",
       table: "body_map_mark",
@@ -114,6 +115,9 @@ describe("toCareUpload", () => {
         region: "sacrum",
         side: "midline",
         drawn_side: "midline",
+        drawn_zone: "centre",
+        drawn_x: 60.5,
+        drawn_y: 110,
         mark_type: "pressure_ulcer",
         pressure_category: "category_2",
         device_related: 0,
@@ -131,6 +135,8 @@ describe("toCareUpload", () => {
       deviceTime: base.device_time,
       view: "back",
       region: "sacrum",
+      drawnAt: { x: 60.5, y: 110 },
+      drawnZone: "centre",
       drawnSide: "midline",
       side: "midline",
       markType: "pressure_ulcer",
@@ -139,7 +145,38 @@ describe("toCareUpload", () => {
       lengthMm: 12.5,
       status: "present",
     });
+    expect(request.kind === "request" && CreateBodyMapMark.safeParse(request.body).success).toBe(
+      true,
+    );
   });
+
+  it.each([
+    // The front view faces the carer: the person's left is on the carer's right.
+    ["front", "left", "viewer_right"],
+    ["front", "right", "viewer_left"],
+    ["back", "left", "viewer_left"],
+    ["back", "midline", "centre"],
+  ] as const)(
+    "hazard HZ-019 sends an entry queued with only the side drawn (%s view, %s) as its zone of the drawing",
+    (view, side, zone) => {
+      const request = toCareUpload({
+        op: "PUT",
+        table: "body_map_mark",
+        id: ID,
+        opData: {
+          ...base,
+          view,
+          region: "shin",
+          side,
+          drawn_side: side,
+          mark_type: "rash",
+          status: "present",
+        },
+      });
+      expect(request.kind === "request" && request.body).toMatchObject({ drawnZone: zone });
+      expect(request.kind === "request" && "drawnAt" in request.body).toBe(false);
+    },
+  );
 
   it("sends activities and visits with their own fields", () => {
     const activity = toCareUpload({

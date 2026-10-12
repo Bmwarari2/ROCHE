@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   fluidDayView,
   iddsiOutcome,
+  iddsiProblem,
   isChart,
   news2Chip,
   news2FromFlags,
@@ -164,6 +165,10 @@ describe("chart entries in words", () => {
     expect(iddsiOutcome({ iddsi: { outcome: "unsafe_mismatch" } })).toBe("unsafe_mismatch");
     expect(iddsiOutcome({ iddsi: { outcome: "other" } })).toBeNull();
     expect(iddsiOutcome({})).toBeNull();
+    expect(iddsiOutcome({ iddsi: { outcome: "level_not_recorded" } })).toBe("level_not_recorded");
+    expect(iddsiProblem({ iddsiProblem: "reason_missing" })).toBe("reason_missing");
+    expect(iddsiProblem({ iddsiProblem: "other" })).toBeNull();
+    expect(iddsiProblem({})).toBeNull();
     expect(isChart("vitals")).toBe(true);
     expect(isChart("blood_glucose")).toBe(false);
   });

@@ -1,5 +1,5 @@
 import { CreateBodyMapMark } from "@harbour/contracts";
-import type { BodySide } from "@harbour/domain";
+import { type BodySide, sideFromDrawing } from "@harbour/domain";
 import { describe, expect, it } from "vitest";
 import { toCareUpload } from "../sync/care-upload";
 import {
@@ -121,11 +121,14 @@ describe("hazard HZ-019 the side on the drawing and in words", () => {
     });
   });
 
-  it("saves a mark whose two sides agree, keeping the drawn side for the API's own check", () => {
+  it("saves a mark whose two sides agree, keeping the place drawn for the API's own check", () => {
     const result = checkMark(draft(), context, NOW, sideWords);
     expect(result.ok && result.row).toMatchObject({
       side: "left",
       drawn_side: "left",
+      drawn_zone: "viewer_right",
+      drawn_x: null,
+      drawn_y: null,
       view: "front",
     });
     if (!result.ok) throw new Error("expected a valid mark");
@@ -139,9 +142,42 @@ describe("hazard HZ-019 the side on the drawing and in words", () => {
       true,
     );
     expect(request.kind === "request" && request.body).toMatchObject({
+      drawnZone: "viewer_right",
       drawnSide: "left",
       side: "left",
     });
+  });
+
+  it("hazard HZ-019 sends the point tapped, which the API reads as the same side the device did", () => {
+    // The person's left shin on the front view: on the carer's right of the drawing.
+    const point = { x: 71, y: 180 };
+    const result = checkMark(draft({ zone: zoneAt(point), point }), context, NOW, sideWords);
+    if (!result.ok) throw new Error("expected a valid mark");
+    expect(result.row).toMatchObject({ drawn_x: 71, drawn_y: 180, drawn_zone: "viewer_right" });
+    const request = toCareUpload({
+      op: "PUT",
+      table: "body_map_mark",
+      id: String(result.row.id),
+      opData: result.row,
+    });
+    if (request.kind !== "request") throw new Error("expected a request");
+    const body = CreateBodyMapMark.parse(request.body);
+    expect(body.drawnAt).toEqual(point);
+    expect(sideFromDrawing(body.view, { point: body.drawnAt, zone: body.drawnZone })).toEqual({
+      ok: true,
+      zone: "viewer_right",
+      side: "left",
+    });
+  });
+
+  it("hazard HZ-019 asks for the drawing again when the point and the zone disagree", () => {
+    const result = checkMark(
+      draft({ zone: "viewer_left", point: { x: 71, y: 180 } }),
+      context,
+      NOW,
+      sideWords,
+    );
+    expect(!result.ok && result.errors.zone?.key).toBe("mobile.bodyMap.drawingRequired");
   });
 
   it("refuses the midline for a paired body area", () => {

@@ -2,7 +2,13 @@ import type { ObservationItem } from "@harbour/contracts";
 import { StatusChip } from "@harbour/ui";
 import { Activity, History, TriangleAlert } from "lucide-react";
 import { entryAuthor } from "@/lib/care-record";
-import { iddsiOutcome, news2Chip, news2FromFlags, observationSummary } from "@/lib/charts";
+import {
+  iddsiOutcome,
+  iddsiProblem,
+  news2Chip,
+  news2FromFlags,
+  observationSummary,
+} from "@/lib/charts";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { EntryBadges } from "./EntryBadges";
@@ -30,6 +36,7 @@ export function ObservationList({
         const parts = observationSummary(item, t);
         const news2 = item.chart === "vitals" ? news2FromFlags(item.flags) : null;
         const iddsi = iddsiOutcome(item.flags);
+        const problem = iddsiProblem(item.flags);
         const summary = parts.join(" · ");
         return (
           <li
@@ -99,7 +106,22 @@ export function ObservationList({
                 {t("care.news2.unreadable")}
               </p>
             ) : null}
-            {iddsi === "mismatch" || iddsi === "unsafe_mismatch" ? (
+            {problem === "level_not_recorded" || problem === "reason_missing" ? (
+              <p className="m-0 flex items-start gap-2 font-semibold" data-iddsi-problem={problem}>
+                <TriangleAlert
+                  size={18}
+                  strokeWidth={1.5}
+                  aria-hidden="true"
+                  className="mt-0.5 shrink-0"
+                />
+                {t(
+                  problem === "level_not_recorded"
+                    ? "care.charts.iddsiKeptNoLevel"
+                    : "care.charts.iddsiKeptNoReason",
+                )}
+              </p>
+            ) : null}
+            {(iddsi === "mismatch" || iddsi === "unsafe_mismatch") && problem === null ? (
               <p className="m-0 text-body-dense">
                 {t("care.charts.overrideGiven", {
                   reason:

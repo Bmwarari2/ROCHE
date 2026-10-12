@@ -63,6 +63,7 @@ export async function recordAdvanceCare(
     api.POST("/v1/people/{id}/advance-care", {
       params: { path: { id: personId } },
       body: {
+        ...(input.id && isUuid(input.id) ? { id: input.id } : {}),
         kind: input.kind,
         completedOn: input.completedOn,
         ...(input.cprDecision ? { cprDecision: input.cprDecision } : {}),

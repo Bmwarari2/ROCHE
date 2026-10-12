@@ -128,15 +128,40 @@ export function news2Chip(band: string): ChipStatus {
 /** The IDDSI comparison the API stored with a food or drink entry. */
 export function iddsiOutcome(
   flags: Record<string, unknown>,
-): "match" | "mismatch" | "unsafe_mismatch" | "no_prescribed_level" | null {
+):
+  | "match"
+  | "mismatch"
+  | "unsafe_mismatch"
+  | "no_prescribed_level"
+  | "level_not_recorded"
+  | "prescribed_unreadable"
+  | null {
   const iddsi = flags.iddsi;
   if (!isRecord(iddsi) || typeof iddsi.outcome !== "string") return null;
   const outcome = iddsi.outcome;
   return outcome === "match" ||
     outcome === "mismatch" ||
     outcome === "unsafe_mismatch" ||
-    outcome === "no_prescribed_level"
+    outcome === "no_prescribed_level" ||
+    outcome === "level_not_recorded" ||
+    outcome === "prescribed_unreadable"
     ? outcome
+    : null;
+}
+
+/**
+ * What the API flagged on a food or drink entry it kept from a device although the rules would
+ * have refused it on the web form (HZ-016, clinical review C3): no level recorded, or a different
+ * level with no reason. Null when there is nothing to say.
+ */
+export function iddsiProblem(
+  flags: Record<string, unknown>,
+): "level_not_recorded" | "reason_missing" | "prescribed_unreadable" | null {
+  const problem = flags.iddsiProblem;
+  return problem === "level_not_recorded" ||
+    problem === "reason_missing" ||
+    problem === "prescribed_unreadable"
+    ? problem
     : null;
 }
 

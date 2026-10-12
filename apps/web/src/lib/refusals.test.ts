@@ -150,6 +150,11 @@ describe("refusals the API makes by rule", () => {
       "iddsiMismatch",
     ],
     [
+      "hazard HZ-016 a drink without its level while a drink level is prescribed",
+      () => checkIddsiEntry({ kind: "drink", prescribed: "2", recorded: null }),
+      "iddsiLevel",
+    ],
+    [
       "a restriction without its reason (Regulation 9A)",
       () => checkVisit({ ...visit, restrictionsApplied: true }, new Date("2026-10-11T12:00:00Z")),
       "restrictionReason",

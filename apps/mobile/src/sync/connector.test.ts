@@ -403,7 +403,14 @@ describe("uploadData: care entries go to their own endpoints", () => {
     [
       "body_map_mark",
       "body-map",
-      { view: "front", region: "shin", side: "left", drawn_side: "left", mark_type: "rash" },
+      {
+        view: "front",
+        region: "shin",
+        side: "left",
+        drawn_side: "left",
+        drawn_zone: "viewer_right",
+        mark_type: "rash",
+      },
     ],
     [
       "activity_record",

@@ -219,6 +219,8 @@
     "care.charts.fluid.valueWithTarget",
     "care.charts.foodDescription",
     "care.charts.foodLevel",
+    "care.charts.iddsiKeptNoLevel",
+    "care.charts.iddsiKeptNoReason",
     "care.charts.kind",
     "care.charts.levelNotRecorded",
     "care.charts.levelRequired",

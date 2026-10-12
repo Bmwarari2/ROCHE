@@ -13,7 +13,7 @@ import { ACTION_ROLES, roleLabel } from "@/lib/care-plan";
 import { characterCount, t } from "@/lib/i18n";
 import { type ActionResult, errorFor } from "@/lib/outcome";
 import { FormFeedback } from "./FormFeedback";
-import { useFieldIds } from "./form-state";
+import { useEntryId, useFieldIds } from "./form-state";
 
 const TEXT_MAX = 4000;
 
@@ -102,6 +102,8 @@ export function SectionEditor({
   const [saved, setSaved] = useState<ActionResult<unknown> | null>(null);
   const [added, setAdded] = useState<ActionResult<unknown> | null>(null);
   const [addedMessage, setAddedMessage] = useState(t("care.plan.edit.actionAdded"));
+  // The new action's client id, kept across retries of the same save (HZ-029).
+  const actionEntry = useEntryId();
   const [addRound, setAddRound] = useState(0);
   const [pending, startTransition] = useTransition();
   const sectionIds = useFieldIds(SECTION_FIELDS);
@@ -130,6 +132,7 @@ export function SectionEditor({
     const form = new FormData(event.currentTarget);
     startTransition(async () => {
       const outcome = await addCarePlanAction(personId, planId, domain, {
+        id: actionEntry.id,
         action: String(form.get("action") ?? ""),
         roleKey: String(form.get("roleKey") ?? ""),
         whenText: String(form.get("whenText") ?? ""),
@@ -137,7 +140,10 @@ export function SectionEditor({
       });
       setAddedMessage(t("care.plan.edit.actionAdded"));
       setAdded(outcome);
-      if (outcome.ok) setAddRound((n) => n + 1);
+      if (outcome.ok) {
+        setAddRound((n) => n + 1);
+        actionEntry.next();
+      }
     });
   };
 
