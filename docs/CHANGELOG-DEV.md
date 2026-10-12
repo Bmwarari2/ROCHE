@@ -1082,3 +1082,18 @@ Hosted CI (now running, the repository being public) was green on `67c3fdc`.
   run failed, since `eachTenant` catches a failure (review round 1 of #30).
 - esbuild in `apps/api` is on 0.28 (STATUS dependencies item).
 
+## 2026-10-12: The consent, capacity and DoLS tab, part 1 (slice 9, Lane B)
+
+The web record gains an eleventh tab, "Consent, capacity and DoLS" (`/people/{id}/capacity`,
+`care.plan.read`), on the API already on `main`: whether a valid consent is in place now for each
+decision, with the capacity found for it, and the DoLS register with each authorisation's clock in
+words and UK dates, its reminders, CQC notification and legal-change review state, and a link to
+its history (the web history page now opens DoLS authorisations). Statuses are icon and word; an
+unknown one is a warning (HZ-020, HZ-026). No API, schema or permission change. The capacity
+assessments, best-interests decisions, consent records and the forms are the next part (STATUS
+item 13); two API gaps are in care.md section 10.
+
+**Tests**: `apps/web` 378 unit (18 new in `src/lib/mca.test.ts`), `packages/i18n` 48; Playwright
+`e2e/capacity.spec.ts` (records through the API as the demo nurse, then reads the tab, with axe in
+both themes and on the DoLS history) and the existing record journeys with the new tab, run
+locally.

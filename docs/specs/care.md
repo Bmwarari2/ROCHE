@@ -636,6 +636,20 @@ After the accessibility and clinical reviews of slice 9, the web forms also:
   read, warn when follow-ups or workings rows cannot be read (with their codes), and put the late
   and clock-drift flags on the overview tiles (HZ-012, HZ-014, HZ-017).
 
+Built in slice 9 (web, the consent, capacity and DoLS tab, part 1): an eleventh tab,
+`/people/{id}/capacity`, readable with `care.plan.read`, reads `/consents` and `/dols` and shows
+whether a valid consent is in place now for each decision ("Consent in place", "Refused", "Not
+recorded" as a warning, or "No valid consent" with the API's reason as the stronger warning; an
+unknown status is never shown as in place) with the capacity found for it and an overdue capacity
+review (HZ-026); and the DoLS register: each authorisation's status as an icon and a word ("Ending
+soon", "Expired"; an unknown one reads "Status could not be read"), when it started or starts, when
+it ends or ended (the API's `endsAt`, the first moment it is no longer in force) as a UK date and
+24-hour time, the whole days left from the API, the expiry reminders while it is still to end, the
+extensions, where the CQC notification stands or why none is needed, the legal-change review state
+and a link to its history (HZ-020). View logic is in `apps/web/src/lib/mca.ts`; the journey with
+axe is `apps/web/e2e/capacity.spec.ts`. The capacity assessments, best-interests decisions and
+consent records, and the forms, come next (STATUS).
+
 Built in the care API follow-ups (the remaining findings of the #15 reviews; migrations 0043 and
 0044; `apps/api/src/routes/care-settings.ts`, `services/staff.ts`, `services/escalation-policies.ts`):
 
@@ -1459,3 +1473,8 @@ through recorded sharing decisions ([people.md](people.md)).
     would show them in English.
   - A group activity is recorded per person, with a new session id each time; a route that records a
     group session for several people at once is needed to count attendance.
+  - The consent, capacity and DoLS tab (slice 9): a consent decision's reason
+    (`ConsentDecisionStatus.message`) and the CQC notification's reason come in English only (the
+    consent `problems` codes could be worded in the catalogue instead); and an expired
+    authorisation that a later one followed (`precededByAuthorisationId`) still reads as
+    "Expired", so the register cannot tell a lapse from a renewal.

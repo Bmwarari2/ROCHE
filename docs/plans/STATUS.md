@@ -161,6 +161,23 @@ only when they link spec, code, tests and user documentation; no user guides exi
     under each member's settings) inside the entry's transaction.
     Measure it against the 100 ms point-of-care budget on a large organisation; if it is slow,
     evaluate the scope for all candidates at once in a database function.
+13. The consent, capacity and DoLS tab, the rest (slice 9, CARE-021 and CARE-022; consent by
+    decision and the DoLS register are on `feat/web-mca-tab`): read views of the capacity
+    assessments (the two-stage answers, the outcome in the Act's words, corrections struck
+    through), the best-interests decisions (checklist, consultations, the IMCA prompt as a warning)
+    and the consent records (whether each decides its decision now, was replaced, withdrawn or
+    expired; the representative's authority; history links); then the forms, each offered only
+    where `access.reaching` lists its permission and with the read-only line otherwise (ADR-0071),
+    each with a client UUIDv7 kept across retries (HZ-029) and its refusals mapped in
+    `refusals.ts`: record a consent or refusal (the representative and their authority, the
+    restraint conditions for bed rails, the best-interests decision for covert medicines) and
+    withdraw one (`care.capacity.write`); a two-stage capacity assessment and its correction; a
+    best-interests decision; record a DoLS request or authorisation and update its outcome, dates,
+    extension or end (`care.dols.manage`), deciding with the CSO how a typed end date maps to the
+    API's exclusive `grantedTo` (HZ-020); and the legal-change review screen
+    (`/v1/dols/legal-change-review`). Also: consents and DoLS in the history tab's list of records
+    with earlier versions, and the API gaps in care.md section 10 (English-only reasons; an
+    expired authorisation that a later one followed reads as expired).
 
 ## Human actions outstanding
 
