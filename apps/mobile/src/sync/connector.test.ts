@@ -841,3 +841,133 @@ describe("hazard HZ-006 a refused entry's copy goes to the server at once (Devic
     expect(refusedSignals.count).toBe(1);
   });
 });
+
+describe("uploadData: the round and the handover go to their own routes", () => {
+  const TASK = "0199d000-0000-7000-8000-0000000000a1";
+  const MOVE = "0199d000-0000-7000-8000-000000000101";
+  const ACK = "0199d000-0000-7000-8000-000000000201";
+  const queued = {
+    id: MOVE,
+    to: "done",
+    reason: null,
+    version: 3,
+    by: "user-carer",
+    at: "2026-10-11T02:05:00.000Z",
+    tenantId: TENANT,
+    personId: PERSON,
+    dueAt: "2026-10-11 02:00:00Z",
+    title: "Reposition",
+  };
+  const move = (): CrudEntryLike => ({
+    op: "PATCH",
+    table: "task",
+    id: TASK,
+    opData: { status: "done", queued_transition: JSON.stringify(queued) },
+  });
+  const acknowledgement = (): CrudEntryLike => ({
+    op: "PUT",
+    table: "handover_acknowledgement",
+    id: ACK,
+    opData: {
+      tenant_id: TENANT,
+      handover_id: "0199d000-0000-7000-8000-000000000301",
+      location_id: "0199d000-0000-7000-8000-000000000401",
+      seen_token: "token-43",
+      item_keys: "[]",
+      acknowledged_at: "2026-10-11T07:10:00.000Z",
+    },
+  });
+
+  it("sends a task's move with the version seen, keyed by the move's own id", async () => {
+    const { fetch, calls } = fakeFetch([json({}, 200)]);
+    const queue = fakeQueue([move()]);
+    await connector(fetch).instance.uploadData(queue.source);
+    expect(calls[0]?.url).toBe(`${API}/v1/tasks/${TASK}/transition`);
+    const headers = new Headers(calls[0]?.init?.headers);
+    expect(headers.get("idempotency-key")).toBe(MOVE);
+    expect(headers.get(TENANT_HEADER)).toBe(TENANT);
+    expect(headers.get(DEVICE_HEADER)).toBe("client-1");
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({ to: "done", version: 3 });
+    expect(queue.issues()).toEqual([]);
+    expect(queue.state.completed).toBe(1);
+  });
+
+  it("hazard HZ-029 counts a move the API already took as sent when its answer was lost", async () => {
+    const { fetch, calls } = fakeFetch([
+      problem(409, "version_conflict", "Someone else changed this record."),
+      json({ items: [{ id: TASK, status: "done", completedBy: "user-carer" }] }),
+    ]);
+    const queue = fakeQueue([move()]);
+    await connector(fetch).instance.uploadData(queue.source);
+    expect(calls[1]?.url).toBe(
+      `${API}/v1/tasks?status=closed&from=2026-10-11T01%3A59%3A59.000Z&to=2026-10-11T02%3A00%3A01.000Z`,
+    );
+    expect(calls[1]?.init?.method).toBe("GET");
+    expect(queue.issues()).toEqual([]);
+    expect(queue.state.completed).toBe(1);
+  });
+
+  it("hazard HZ-006 keeps a move someone else overtook as needs attention, in the phone's words", async () => {
+    const { fetch } = fakeFetch([
+      problem(409, "version_conflict", "Someone else changed this record."),
+      json({ items: [{ id: TASK, status: "done", completedBy: "user-other" }] }),
+    ]);
+    const queue = fakeQueue([move()]);
+    await connector(fetch).instance.uploadData(queue.source);
+    expect(queue.issues()).toEqual([
+      {
+        id: MOVE,
+        tenantId: TENANT,
+        personId: PERSON,
+        table: "task",
+        httpStatus: 409,
+        code: "version_conflict",
+        message: expect.stringMatching(/^Someone else changed this task/),
+        payload: move().opData,
+      },
+    ]);
+    expect(queue.state.completed).toBe(1);
+  });
+
+  it("hazard HZ-018 sends an acknowledgement with its id and seen token, and keeps a changed handover's refusal", async () => {
+    const { fetch, calls } = fakeFetch([
+      json({}, 201),
+      problem(
+        409,
+        "handover_changed",
+        "The handover has changed since you opened it.",
+        "Open it again to see what was added, then acknowledge it.",
+      ),
+    ]);
+    const { instance } = connector(fetch);
+    const sent = fakeQueue([acknowledgement()]);
+    await instance.uploadData(sent.source);
+    expect(calls[0]?.url).toBe(
+      `${API}/v1/locations/0199d000-0000-7000-8000-000000000401/handovers/0199d000-0000-7000-8000-000000000301/acknowledgements`,
+    );
+    expect(new Headers(calls[0]?.init?.headers).get("idempotency-key")).toBe(ACK);
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({ id: ACK, seenToken: "token-43" });
+    expect(sent.issues()).toEqual([]);
+
+    const refused = fakeQueue([acknowledgement()]);
+    await instance.uploadData(refused.source);
+    expect(refused.issues()).toMatchObject([
+      {
+        id: ACK,
+        table: "handover_acknowledgement",
+        httpStatus: 409,
+        code: "handover_changed",
+        message: expect.stringMatching(/^The handover changed before your acknowledgement/),
+      },
+    ]);
+    expect(refused.state.completed).toBe(1);
+  });
+
+  it("keeps a change to a task that is not a readable move as needs attention, unsent", async () => {
+    const { fetch, calls } = fakeFetch([]);
+    const queue = fakeQueue([{ op: "PATCH", table: "task", id: TASK, opData: { status: "done" } }]);
+    await connector(fetch).instance.uploadData(queue.source);
+    expect(calls).toEqual([]);
+    expect(queue.issues()).toMatchObject([{ id: TASK, code: "round_change_unreadable" }]);
+  });
+});

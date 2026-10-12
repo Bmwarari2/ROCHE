@@ -25,12 +25,15 @@
  * saved: needs attention" until someone deals with them, and the content goes to the server's copy
  * of refused entries (`onRefused`, `refused-copies.ts`), so it is never only on one phone.
  */
+
+import type { RoundWritableTable } from "@harbour/sync/client";
 import type {
   CommonPowerSyncDatabase,
   PowerSyncBackendConnector,
   PowerSyncCredentials,
 } from "@powersync/common";
 import { type FetchLike, HttpError, isRetryableStatus, parseRetryAfter } from "../auth/http";
+import type { QueuedTaskMove } from "../care/round-actions";
 import { t } from "../i18n/t";
 import {
   type BackoffPolicy,
@@ -39,6 +42,13 @@ import {
   UPLOAD_BACKOFF,
 } from "./backoff";
 import { isCareEntryTable, toCareUpload } from "./care-upload";
+import {
+  isRoundWritableTable,
+  moveAlreadyMade,
+  moveCheckPath,
+  roundRefusalMessage,
+  toRoundUpload,
+} from "./round-upload";
 import {
   checkSession,
   classifyForbidden,
@@ -395,6 +405,8 @@ export class HarbourConnector implements PowerSyncBackendConnector {
     for (const entry of transaction.crud) {
       if (isCareEntryTable(entry.table)) {
         await this.uploadCareEntry(database, { ...entry, table: entry.table }, clientId);
+      } else if (isRoundWritableTable(entry.table)) {
+        await this.uploadRoundChange(database, { ...entry, table: entry.table }, clientId);
       } else {
         others.push(entry);
       }
@@ -429,50 +441,8 @@ export class HarbourConnector implements PowerSyncBackendConnector {
       this.options.onRefused?.();
       return;
     }
-    const body = JSON.stringify(request.body);
     try {
-      await retryWithBackoff(async () => {
-        const headers = await this.authorisedHeaders();
-        const response = await this.options.fetch(`${this.options.apiUrl}${request.path}`, {
-          method: "POST",
-          headers: {
-            ...headers,
-            "Content-Type": "application/json",
-            "Idempotency-Key": request.recordId,
-            [TENANT_HEADER]: request.tenantId,
-            [DEVICE_HEADER]: clientId,
-            // The device clock as this request leaves, so drift is measured at send time and time
-            // spent in the queue is never mistaken for drift (HZ-010).
-            [SENT_AT_HEADER]: this.now().toISOString(),
-          },
-          credentials: "omit",
-          body,
-        });
-        if (response.ok) return;
-        if (response.status === 401) {
-          this.options.onSessionRevoked();
-          throw new SessionRevokedError();
-        }
-        if (isRetryableStatus(response.status)) {
-          throw new HttpError(
-            response.status,
-            "Upload failed",
-            parseRetryAfter(response.headers.get("retry-after")),
-          );
-        }
-        if (response.status === 403) {
-          // A session code, or `GET /v1/me` after an unexplained 403, ends the session (H1). Any
-          // other code from the API refuses this entry, which moves to "needs attention"; when an
-          // unexplained 403 cannot be checked the entry stays queued and is tried again later.
-          const refusal = await this.forbidden(response, false);
-          if (refusal.session === "unknown") {
-            throw new HttpError(403, "Upload refused; the session could not be checked");
-          }
-          throw new UploadRejectedError(403, refusal.code ?? "http_403", refusal.reason);
-        }
-        const problem = await readProblem(response);
-        throw new UploadRejectedError(response.status, problem.code, problem.reason);
-      }, this.retryOptions());
+      await this.postChange(request, clientId);
     } catch (error) {
       if (!(error instanceof UploadRejectedError)) throw error;
       await recordUploadIssue(database, {
@@ -488,6 +458,129 @@ export class HarbourConnector implements PowerSyncBackendConnector {
       });
       this.options.onRefused?.();
     }
+  }
+
+  /**
+   * A task's move or a handover acknowledgement to its own route (`round-upload.ts`). A refusal
+   * moves it to "needs attention" with the phone's words for the two a carer must act on; the
+   * server's copy then puts the task or the handover back as it is there. A 409 on a move the task
+   * list shows as already made by the carer was a lost response to a move the API took, so it
+   * counts as sent (HZ-029).
+   */
+  private async uploadRoundChange(
+    database: UploadSource,
+    entry: CrudEntryLike & { readonly table: RoundWritableTable },
+    clientId: string,
+  ): Promise<void> {
+    const request = toRoundUpload(entry);
+    const park = (status: number | null, code: string, message: string) =>
+      recordUploadIssue(database, {
+        id: request.recordId,
+        tenantId: request.tenantId,
+        personId: request.personId,
+        table: entry.table,
+        httpStatus: status,
+        code,
+        message,
+        payload: { ...(entry.opData ?? {}) },
+        rejectedAt: this.now(),
+      });
+    if (request.kind === "refused") {
+      await park(null, request.code, request.message);
+      return;
+    }
+    try {
+      await this.postChange(request, clientId);
+    } catch (error) {
+      if (!(error instanceof UploadRejectedError)) throw error;
+      if (error.status === 409 && request.move && (await this.moveAlreadyMade(request.move))) {
+        return;
+      }
+      await park(
+        error.status,
+        error.code,
+        roundRefusalMessage(entry.table, error.code, error.reason) ??
+          t("mobile.issues.unknownReason"),
+      );
+    }
+  }
+
+  /** Whether the task list shows the move as made by the carer; false when it cannot tell. */
+  private async moveAlreadyMade(
+    move: QueuedTaskMove & { readonly taskId: string },
+  ): Promise<boolean> {
+    const path = moveCheckPath(move);
+    if (!path) return false;
+    try {
+      const headers = await this.authorisedHeaders();
+      const response = await this.options.fetch(`${this.options.apiUrl}${path}`, {
+        method: "GET",
+        headers: { ...headers, [TENANT_HEADER]: move.tenantId },
+        credentials: "omit",
+      });
+      return response.ok && moveAlreadyMade(await response.json(), move);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * One queued change to its own endpoint, with the device's id for it, the device and the time
+   * the request leaves. Transient failures retry with backoff and then stay queued; a refusal for
+   * good throws `UploadRejectedError`.
+   */
+  private async postChange(
+    request: {
+      readonly path: string;
+      readonly recordId: string;
+      readonly tenantId: string;
+      readonly body: unknown;
+    },
+    clientId: string,
+  ): Promise<void> {
+    const body = JSON.stringify(request.body);
+    await retryWithBackoff(async () => {
+      const headers = await this.authorisedHeaders();
+      const response = await this.options.fetch(`${this.options.apiUrl}${request.path}`, {
+        method: "POST",
+        headers: {
+          ...headers,
+          "Content-Type": "application/json",
+          "Idempotency-Key": request.recordId,
+          [TENANT_HEADER]: request.tenantId,
+          [DEVICE_HEADER]: clientId,
+          // The device clock as this request leaves, so drift is measured at send time and time
+          // spent in the queue is never mistaken for drift (HZ-010).
+          [SENT_AT_HEADER]: this.now().toISOString(),
+        },
+        credentials: "omit",
+        body,
+      });
+      if (response.ok) return;
+      if (response.status === 401) {
+        this.options.onSessionRevoked();
+        throw new SessionRevokedError();
+      }
+      if (isRetryableStatus(response.status)) {
+        throw new HttpError(
+          response.status,
+          "Upload failed",
+          parseRetryAfter(response.headers.get("retry-after")),
+        );
+      }
+      if (response.status === 403) {
+        // A session code, or `GET /v1/me` after an unexplained 403, ends the session (H1). Any
+        // other code from the API refuses this change, which moves to "needs attention"; when an
+        // unexplained 403 cannot be checked the change stays queued and is tried again later.
+        const refusal = await this.forbidden(response, false);
+        if (refusal.session === "unknown") {
+          throw new HttpError(403, "Upload refused; the session could not be checked");
+        }
+        throw new UploadRejectedError(403, refusal.code ?? "http_403", refusal.reason);
+      }
+      const problem = await readProblem(response);
+      throw new UploadRejectedError(response.status, problem.code, problem.reason);
+    }, this.retryOptions());
   }
 
   /** Other tables through `POST /v1/sync/upload` (none is writable from a device yet). */

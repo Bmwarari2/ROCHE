@@ -160,6 +160,54 @@ describe("hazard HZ-006 refused entries stay readable", () => {
     });
   });
 
+  it("hazard HZ-006 says which task a refused move was for and what the carer did", () => {
+    const move = {
+      id: "m1",
+      to: "skipped",
+      reason: "Asleep, will turn at 03:00",
+      version: 3,
+      by: "u1",
+      at: "2026-10-11T02:05:00.000Z",
+      tenantId: "t1",
+      personId: "p1",
+      dueAt: "2026-10-11 02:00:00Z",
+      title: "Reposition",
+    };
+    const row: UploadIssueRow = {
+      id: "m1",
+      person_id: "p1",
+      record_table: "task",
+      http_status: 409,
+      code: "version_conflict",
+      message: "Someone else changed this task before your change reached Harbour.",
+      payload: JSON.stringify({ status: "skipped", queued_transition: JSON.stringify(move) }),
+      rejected_at: null,
+      preferred_name: "Bea",
+      given_name: "Beatrice",
+      family_name: "Sample",
+    };
+    expect(issueItem(row)).toMatchObject({
+      title: "Task for Bea Sample",
+      content: "What was recorded: Reposition: not done, because Asleep, will turn at 03:00",
+      when: "11/10/2026 at 03:05",
+    });
+    // A task about nobody, and an acknowledgement, name no one.
+    expect(issueItem({ ...row, person_id: null }).title).toBe("Task");
+    expect(
+      issueItem({
+        ...row,
+        id: "a1",
+        person_id: null,
+        record_table: "handover_acknowledgement",
+        payload: JSON.stringify({ acknowledged_at: "2026-10-11T07:10:00.000Z" }),
+      }),
+    ).toMatchObject({
+      title: "Handover acknowledgement",
+      content: "What was recorded: Handover acknowledged",
+      when: "11/10/2026 at 08:10",
+    });
+  });
+
   it.each([
     ["copied", "Harbour has a copy for the nurse in charge to review."],
     [

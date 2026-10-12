@@ -18,7 +18,7 @@
   "mobile.sync.window": "{days, plural, one {Entries from today are kept on this device.} other {Entries from the last # days are kept on this device.}}",
   "mobile.issues.title": "Not saved: needs attention",
   "mobile.issues.body": "The server did not accept these entries, so they are only on this device. Tell the nurse in charge, and record them again if they are still needed.",
-  "mobile.issues.item": "{table, select, care_note {Note} observation {Chart entry} body_map_mark {Body map mark} activity_record {Activity} visit_log {Visit} other {Entry}} for {name}",
+  "mobile.issues.item": "{table, select, care_note {Note} observation {Chart entry} body_map_mark {Body map mark} activity_record {Activity} visit_log {Visit} task {Task} handover_acknowledgement {Handover acknowledgement} other {Entry}} for {name}",
   "mobile.issues.reason": "Reason: {reason}",
   "mobile.issues.content": "What was recorded: {content}",
   "mobile.issues.remove": "Remove from this device",
@@ -338,5 +338,12 @@
   "mobile.round.alreadyQueued": "This task is already marked and waiting to upload.",
   "mobile.round.reasonRequired": "Say why the task was not done ({min} characters or more).",
   "mobile.round.reasonTooLong": "Keep the reason to {max} characters or fewer.",
-  "mobile.round.evidenceRequired": "Record the entry this task asks for. Saving it completes the task."
+  "mobile.round.evidenceRequired": "Record the entry this task asks for. Saving it completes the task.",
+  "mobile.round.moveUnreadable": "This change to a task could not be read on this device.",
+  "mobile.round.taskChanged": "Someone else changed this task before your change reached Harbour. Check the round, and do it again if it is still needed.",
+  "mobile.round.move": "{to, select, done {{title}: done} skipped {{title}: not done, because {reason}} other {{title}}}",
+  "mobile.handover.changed": "The handover changed before your acknowledgement reached Harbour. Open it again, read what was added, then acknowledge it.",
+  "mobile.handover.acknowledgementUnreadable": "This acknowledgement could not be read on this device.",
+  "mobile.handover.acknowledged": "Handover acknowledged",
+  "mobile.issues.itemNoPerson": "{table, select, task {Task} handover_acknowledgement {Handover acknowledgement} other {Entry}}"
 }
