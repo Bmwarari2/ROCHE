@@ -81,6 +81,7 @@ people only (plus break-glass), `none` no person records.
 | `care.note.read` |  | yes | yes | yes | yes | yes | yes | yes | yes |  |  |  |  |  |  |  |  | yes | yes |  |  | yes |  |
 | `care.assessment.write` |  | yes | yes |  | yes | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |
 | `care.handover.manage` |  | yes | yes |  | yes | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |
+| `care.held_entry.hand_over` | yes | yes | yes |  | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `care.capacity.write` |  | yes | yes |  | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `care.dols.manage` |  | yes | yes |  | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `care.respect.record` |  | yes | yes |  | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |

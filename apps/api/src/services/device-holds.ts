@@ -1538,15 +1538,21 @@ export async function flagIfReportedDeleted(
     readonly id: string;
     readonly locationId: string | null;
     readonly requestId: string | undefined;
+    /**
+     * Whose entry it is, when not the caller's: the owner of a handed-over entry, whose own
+     * deletions count (care.md section 6, Device integrity part 6).
+     */
+    readonly uploader?: string | undefined;
   },
 ): Promise<boolean> {
-  const discardId = await reportedDeletedBy(tx, entry.id, access.tenantUserId);
+  const uploader = entry.uploader ?? access.tenantUserId;
+  const discardId = await reportedDeletedBy(tx, entry.id, uploader);
   if (!discardId) return false;
   const outcomes = await withTenantWideScope(tx, () =>
     raiseFlaggedTasks(tx, access, {
       kind: REPORTED_DELETED_TASK_KIND,
       discardId,
-      ownerTenantUserId: access.tenantUserId,
+      ownerTenantUserId: uploader,
       entries: [entry],
       now: new Date(),
       requestId: entry.requestId,

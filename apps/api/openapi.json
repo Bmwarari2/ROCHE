@@ -31430,7 +31430,7 @@
           "sync"
         ],
         "summary": "Keep the server's copy of a care entry the API refused from a device",
-        "description": "Stores what the device held for an entry the API refused, once per entry id, with the refusal, and adds it to the person's one open review task for the nurse in charge (due at once, urgent when an observation joins it). Written in the organisation's view, so a copy is kept even when its author can no longer see the person; read like the care record. Each person may send 200 copies a day.",
+        "description": "Stores what the device held for an entry the API refused, once per entry id, with the refusal (in the owner's name when a manager hands over another member's held entries, as for the entry routes), and adds it to the person's one open review task for the nurse in charge (due at once, urgent when an observation joins it). Written in the organisation's view, so a copy is kept even when its author can no longer see the person; read like the care record. Each person may send 200 copies a day.",
         "security": [
           {
             "bearerAuth": []

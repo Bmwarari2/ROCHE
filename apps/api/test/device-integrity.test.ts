@@ -1,4 +1,9 @@
-import { DEVICE_REVOCATION_REASONS as CONTRACT_REASONS, DEVICE_HEADER } from "@harbour/contracts";
+import {
+  DEVICE_REVOCATION_REASONS as CONTRACT_REASONS,
+  DEVICE_HEADER,
+  HANDOVER_ID_HEADER,
+  HANDOVER_OWNER_HEADER,
+} from "@harbour/contracts";
 import { DEVICE_REVOCATION_REASONS as TABLE_REASONS } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -704,5 +709,180 @@ describe("part 5: copies of refused entries", () => {
     }
     // Members without care.note.write may not send copies.
     expect((await sendCopy("quality", refusal(entryId))).status).toBe(403);
+  });
+});
+
+describe("part 6: hand-over of held entries", () => {
+  const handoverHeaders = (owner: string, handoverId = crypto.randomUUID()) => ({
+    [HANDOVER_OWNER_HEADER]: owner,
+    [HANDOVER_ID_HEADER]: handoverId,
+  });
+  const entryRow = (id: string) =>
+    asTenant<{ created_by: string; device_id: string | null; task_outcome: string | null }>(
+      "SELECT created_by, device_id, task_outcome FROM care_note WHERE id = $1",
+      [id],
+    );
+  const handedOver = (id: string) =>
+    asTenant<{ actor: string; scope: Record<string, unknown> }>(
+      "SELECT actor_tenant_user_id AS actor, scope FROM audit_event WHERE action = 'sync.entry.handed_over' AND resource_id = $1",
+      [id],
+    );
+
+  it("hazard HZ-040 a manager hands over a member's held entries: written as the owner's, with the manager recorded", async () => {
+    const device = "0199d000-0000-4000-8000-0000000b0601";
+    await syncToken("carer", device);
+    const id = newId();
+    const handoverId = crypto.randomUUID();
+    const response = await noteFrom(
+      "manager",
+      device,
+      handoverHeaders(DEMO.users.carer.id, handoverId),
+      id,
+    );
+    expect(response.status).toBe(201);
+    expect((await json<{ recordedBy: string }>(response)).recordedBy).toBe(DEMO.users.carer.id);
+    expect(await entryRow(id)).toEqual([
+      { created_by: DEMO.users.carer.id, device_id: device, task_outcome: null },
+    ]);
+    expect(await handedOver(id)).toEqual([
+      {
+        actor: DEMO.users.manager.id,
+        scope: {
+          ownerTenantUserId: DEMO.users.carer.id,
+          heldOnDeviceId: device,
+          handoverId,
+          byOwner: false,
+        },
+      },
+    ]);
+    // An ordinary upload is not a hand-over and records none.
+    const own = newId();
+    expect((await noteFrom("carer", device, {}, own)).status).toBe(201);
+    expect(await handedOver(own)).toEqual([]);
+  });
+
+  it("hazard HZ-040 needs the hand-over permission and a fresh sign-in for someone else's entries", async () => {
+    const device = "0199d000-0000-4000-8000-0000000b0602";
+    await syncToken("carer", device);
+    await syncToken("manager", device);
+    await staleSignIn("owner", async () => {
+      const refused = await noteFrom("owner", device, handoverHeaders(DEMO.users.carer.id));
+      expect(refused.status).toBe(403);
+      expect((await json<{ code: string }>(refused)).code).toBe("step_up_required");
+    });
+    // A care worker may not send another member's entries.
+    const carer = await noteFrom("carer", device, handoverHeaders(DEMO.users.manager.id));
+    expect(carer.status).toBe(403);
+    expect((await json<{ code: string }>(carer)).code).toBe("missing_permission");
+  });
+
+  it("hazard HZ-040 refuses an owner who never used the device, or a hand-over without its device or id", async () => {
+    const device = "0199d000-0000-4000-8000-0000000b0603";
+    await syncToken("carer", device);
+    // The nurse never used this device: their name cannot be put on entries from it.
+    expect((await noteFrom("manager", device, handoverHeaders(DEMO.users.nurse.id))).status).toBe(
+      422,
+    );
+    // Another organisation's member is not staff here.
+    expect((await noteFrom("manager", device, handoverHeaders(OTHER.managerId))).status).toBe(422);
+    expect(
+      (await noteFrom("manager", undefined, handoverHeaders(DEMO.users.carer.id))).status,
+    ).toBe(422);
+    expect(
+      (
+        await noteFrom("manager", device, {
+          [HANDOVER_OWNER_HEADER]: DEMO.users.carer.id,
+          [HANDOVER_ID_HEADER]: "not-an-id",
+        })
+      ).status,
+    ).toBe(422);
+  });
+
+  it("hazard HZ-040 takes a hand-over from a revoked device, the owner's own as well as a manager's", async () => {
+    const device = "0199d000-0000-4000-8000-0000000b0604";
+    await syncToken("carer", device);
+    expect(
+      (
+        await call("manager", `/v1/devices/${device}/revoke`, {
+          method: "POST",
+          body: { reasonCode: "lost_or_stolen" },
+        })
+      ).status,
+    ).toBe(200);
+    expect((await noteFrom("carer", device)).status).toBe(403);
+    const byManager = newId();
+    expect(
+      (await noteFrom("manager", device, handoverHeaders(DEMO.users.carer.id), byManager)).status,
+    ).toBe(201);
+    // The owner sends their own from the revoked device: no manager's permission needed.
+    const byOwner = newId();
+    expect(
+      (await noteFrom("carer", device, handoverHeaders(DEMO.users.carer.id), byOwner)).status,
+    ).toBe(201);
+    expect((await handedOver(byOwner))[0]?.scope).toMatchObject({ byOwner: true });
+    // Their refusals' copies too, in the owner's name.
+    const refused = newId();
+    const copy = await call("manager", "/v1/sync/refused-entries", {
+      method: "POST",
+      device,
+      headers: handoverHeaders(DEMO.users.carer.id),
+      body: refusal(refused),
+    });
+    expect(copy.status).toBe(200);
+    const [kept] = await asTenant<{ author: string; sender: string }>(
+      "SELECT author_tenant_user_id AS author, created_by AS sender FROM refused_entry WHERE entry_id = $1",
+      [refused],
+    );
+    expect(kept).toEqual({ author: DEMO.users.carer.id, sender: DEMO.users.manager.id });
+  });
+
+  it("hazard HZ-004 judges the round a handed-over entry answers on its owner's permission when the care was recorded, never the manager's", async () => {
+    const device = "0199d000-0000-4000-8000-0000000b0605";
+    await syncToken("carer", device);
+    // A round only someone holding care.plan.write may complete: the manager may, the carer may not.
+    const round = async () => {
+      const [made] = await asTenant<{ id: string }>(
+        `INSERT INTO task (person_id, location_id, kind, title, required_permission, due_at)
+         VALUES ($1, $2, 'care.plan_action', 'Review the plan', 'care.plan.write', now()) RETURNING id`,
+        [resident(1), DEMO.locationId],
+      );
+      return made?.id ?? "";
+    };
+    const handedTask = await round();
+    const id = newId();
+    const response = await call("manager", `/v1/people/${resident(1)}/notes`, {
+      method: "POST",
+      device,
+      headers: handoverHeaders(DEMO.users.carer.id),
+      body: {
+        id,
+        category: "personal_care",
+        body: "Assisted with a wash; skin intact.",
+        occurredAt: minutesAgo(5),
+        taskId: handedTask,
+      },
+    });
+    expect(response.status).toBe(201);
+    const [status] = await asTenant<{ status: string }>("SELECT status FROM task WHERE id = $1", [
+      handedTask,
+    ]);
+    expect(status?.status).toBe("open");
+    expect((await entryRow(id))[0]?.task_outcome).not.toBe("completed");
+    // The manager's own entry completes the same kind of round.
+    const ownTask = await round();
+    await call("manager", `/v1/people/${resident(1)}/notes`, {
+      method: "POST",
+      body: {
+        id: newId(),
+        category: "personal_care",
+        body: "Assisted with a wash; skin intact.",
+        occurredAt: minutesAgo(5),
+        taskId: ownTask,
+      },
+    });
+    const [own] = await asTenant<{ status: string }>("SELECT status FROM task WHERE id = $1", [
+      ownTask,
+    ]);
+    expect(own?.status).toBe("done");
   });
 });

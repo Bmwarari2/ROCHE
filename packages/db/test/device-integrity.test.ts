@@ -603,3 +603,56 @@ describe("hazard HZ-006 hazard HZ-011 copies of refused entries (part 5)", () =>
     ).rejects.toThrow(/refused_entry_person_fk/);
   });
 });
+
+describe("existing tenants' role copies gain the hand-over permission (migration 0038)", () => {
+  const FILE = "0038_handover_permission.sql";
+
+  it("lists the same roles as the built-in definitions", () => {
+    const holders = BUILTIN_ROLES.filter((r) =>
+      (r.permissions as readonly string[]).includes("care.held_entry.hand_over"),
+    ).map((r) => r.key);
+    const named = [...grantsIn(FILE)]
+      .filter(([, add]) => add.includes("care.held_entry.hand_over"))
+      .map(([key]) => key);
+    expect(named.sort()).toEqual([...holders].sort());
+    // The same people who may delete held entries (safety.incident.manage).
+    const deleters = BUILTIN_ROLES.filter((r) =>
+      (r.permissions as readonly string[]).includes("safety.incident.manage"),
+    ).map((r) => r.key);
+    expect([...holders].sort()).toEqual([...deleters].sort());
+  });
+
+  it("adds it once to each copy that lacks it, audited as the system", async () => {
+    await asOwner(TENANT_B, (c) =>
+      c.query(
+        `INSERT INTO role (key, name, scope_kind, permissions, is_builtin) VALUES
+           ('clinical_lead', 'Clinical lead', 'location', '{people.person.read}', true)`,
+      ),
+    );
+    await rerun(FILE);
+    await rerun(FILE);
+    const roles = await asOwner(TENANT_B, (c) =>
+      c.query<{ key: string; has: boolean }>(
+        "SELECT key, 'care.held_entry.hand_over' = ANY (permissions) AS has FROM role ORDER BY key",
+      ),
+    );
+    expect(roles.rows).toEqual([
+      { key: "care_worker", has: false },
+      { key: "clinical_lead", has: true },
+      { key: "deputy_manager", has: true },
+      { key: "registered_manager", has: true },
+    ]);
+    const audit = await asOwner(TENANT_B, (c) =>
+      c.query<{ key: string }>(
+        `SELECT scope ->> 'roleKey' AS key FROM audit_event
+         WHERE action = 'platform.role.permissions_migrated'
+           AND scope ->> 'migration' = '0038_handover_permission' ORDER BY 1`,
+      ),
+    );
+    expect(audit.rows.map((r) => r.key)).toEqual([
+      "clinical_lead",
+      "deputy_manager",
+      "registered_manager",
+    ]);
+  });
+});

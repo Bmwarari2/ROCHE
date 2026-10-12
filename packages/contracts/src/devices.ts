@@ -15,6 +15,14 @@ const isoDateTime = z.iso.datetime({ offset: true });
  */
 export const DEVICE_REVOKED_CODE = "device_revoked";
 
+/**
+ * Headers of a hand-over of held entries (care.md section 6, Device integrity part 6): the owner
+ * whose entries a manager (or the owner, on a revoked device) is sending, and an id for the
+ * hand-over. The device that held them is `x-harbour-device`.
+ */
+export const HANDOVER_OWNER_HEADER = "x-harbour-handover-owner";
+export const HANDOVER_ID_HEADER = "x-harbour-handover";
+
 /** Why a manager revoked a device: a code, never words. */
 export const DEVICE_REVOCATION_REASONS = [
   "lost_or_stolen",

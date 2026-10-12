@@ -12,6 +12,7 @@ import { requirePermission, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { PerUserQuota } from "../http/quota";
 import { personContext } from "../services/care";
+import { heldHandoverOf } from "../services/held-handover";
 import {
   copyRefusedEntry,
   REFUSED_READ_ACTION,
@@ -41,7 +42,7 @@ export function createRefusedEntriesRouter() {
         tags: ["sync"],
         summary: "Keep the server's copy of a care entry the API refused from a device",
         description:
-          "Stores what the device held for an entry the API refused, once per entry id, with the refusal, and adds it to the person's one open review task for the nurse in charge (due at once, urgent when an observation joins it). Written in the organisation's view, so a copy is kept even when its author can no longer see the person; read like the care record. Each person may send 200 copies a day.",
+          "Stores what the device held for an entry the API refused, once per entry id, with the refusal (in the owner's name when a manager hands over another member's held entries, as for the entry routes), and adds it to the person's one open review task for the nurse in charge (due at once, urgent when an observation joins it). Written in the organisation's view, so a copy is kept even when its author can no longer see the person; read like the care record. Each person may send 200 copies a day.",
         security,
         request: { body: { content: { "application/json": { schema: SyncRefusedEntry } } } },
         responses: {
@@ -52,12 +53,16 @@ export function createRefusedEntriesRouter() {
       async (c) => {
         const access = await requirePermission(c, "care.note.write");
         const body = c.req.valid("json");
+        // A manager handing over another member's held entries sends their refusals' copies too,
+        // in the owner's name (care.md section 6, Device integrity part 6).
+        const handover = await heldHandoverOf(c, access);
         copyQuota.take(access.tenantUserId);
         const result = await copyRefusedEntry(c.get("services").db, access, body, {
-          author: access.tenantUserId,
+          author: handover?.ownerTenantUserId ?? access.tenantUserId,
           deviceId: access.deviceId,
           now: new Date(),
           requestId: c.get("requestId"),
+          handoverId: handover?.handoverId,
         });
         return c.json({ ...result, entryId: body.entryId.toLowerCase() }, 200);
       },

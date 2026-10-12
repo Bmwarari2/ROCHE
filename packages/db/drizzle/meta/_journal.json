@@ -267,6 +267,13 @@
       "when": 1791784683626,
       "tag": "0037_refused_entry_security",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1791785331401,
+      "tag": "0038_handover_permission",
+      "breakpoints": true
     }
   ]
 }

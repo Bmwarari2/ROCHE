@@ -65,6 +65,7 @@ import {
   toRecordState,
 } from "../services/care-planning";
 import { flagIfReportedDeleted } from "../services/device-holds";
+import { auditHandedOver } from "../services/held-handover";
 import { loadPerson, requireWrite } from "../services/people";
 import {
   applyLink,
@@ -509,7 +510,7 @@ export const careRecordsRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await entryWriteAccess(c, "activity_record");
+      const { access, author, handover } = await entryWriteAccess(c, "activity_record");
       const { id: personId } = c.req.valid("param");
       const body = c.req.valid("json");
       requireCorrection(body);
@@ -523,7 +524,12 @@ export const careRecordsRouter = createRouter()
       const now = new Date();
       const item = await withLateEntryReview(
         c,
-        { kind: "activity_record", clientId: body.id, occurredAt: body.occurredAt },
+        {
+          kind: "activity_record",
+          clientId: body.id,
+          occurredAt: body.occurredAt,
+          recordedBy: author,
+        },
         () =>
           withTenant(c, async (tx) => {
             // A replayed upload (the same device id) returns the stored entry before anything is
@@ -559,11 +565,20 @@ export const careRecordsRouter = createRouter()
                 throw problems.invalid("The entry being corrected was not found.");
               }
             }
-            const link = await planLink(tx, access, body.taskId, personId, times.occurredAt);
+            const link = await planLink(
+              tx,
+              access,
+              body.taskId,
+              personId,
+              times.occurredAt,
+              author,
+            );
             const [inserted] = await tx
               .insert(activityRecord)
               .values({
                 ...(body.id ? { id: body.id } : {}),
+                // The entry's author: the owner of a handed-over entry (Device integrity part 6).
+                createdBy: author,
                 personId,
                 locationId: person.locationId,
                 activity: body.activity,
@@ -599,6 +614,7 @@ export const careRecordsRouter = createRouter()
             if (inserted) {
               // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
               await flagIfReportedDeleted(tx, access, {
+                uploader: author,
                 resourceType: "activity_record",
                 id: row.id,
                 locationId: person.locationId,
@@ -610,7 +626,7 @@ export const careRecordsRouter = createRouter()
                   evidenceId: row.id,
                   personId,
                   locationId: row.locationId,
-                  actorTenantUserId: access.tenantUserId,
+                  actorTenantUserId: author,
                   deviceId: access.deviceId,
                   now,
                 });
@@ -620,6 +636,11 @@ export const careRecordsRouter = createRouter()
                 resourceType: "activity_record",
                 resourceId: row.id,
                 reason: body.correctionReason,
+              });
+              await auditHandedOver(tx, access, handover, {
+                resourceType: "activity_record",
+                id: row.id,
+                requestId: c.get("requestId"),
               });
             }
             return activityItem(row, new Set());
@@ -692,7 +713,7 @@ export const careRecordsRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await entryWriteAccess(c, "visit_log");
+      const { access, author, handover } = await entryWriteAccess(c, "visit_log");
       const { id: personId } = c.req.valid("param");
       const body = c.req.valid("json");
       requireCorrection(body);
@@ -712,7 +733,7 @@ export const careRecordsRouter = createRouter()
       if (!check.ok) throw problems.invalid(check.message);
       const item = await withLateEntryReview(
         c,
-        { kind: "visit_log", clientId: body.id, occurredAt: body.occurredAt },
+        { kind: "visit_log", clientId: body.id, occurredAt: body.occurredAt, recordedBy: author },
         () =>
           withTenant(c, async (tx) => {
             // A replayed upload (the same device id) returns the stored entry before anything is
@@ -757,11 +778,20 @@ export const careRecordsRouter = createRouter()
                 throw problems.invalid("The entry being corrected was not found.");
               }
             }
-            const link = await planLink(tx, access, body.taskId, personId, times.occurredAt);
+            const link = await planLink(
+              tx,
+              access,
+              body.taskId,
+              personId,
+              times.occurredAt,
+              author,
+            );
             const [inserted] = await tx
               .insert(visitLog)
               .values({
                 ...(body.id ? { id: body.id } : {}),
+                // The entry's author: the owner of a handed-over entry (Device integrity part 6).
+                createdBy: author,
                 personId,
                 locationId: person.locationId,
                 kind: body.kind,
@@ -798,6 +828,7 @@ export const careRecordsRouter = createRouter()
             if (inserted) {
               // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
               await flagIfReportedDeleted(tx, access, {
+                uploader: author,
                 resourceType: "visit_log",
                 id: row.id,
                 locationId: person.locationId,
@@ -809,7 +840,7 @@ export const careRecordsRouter = createRouter()
                   evidenceId: row.id,
                   personId,
                   locationId: row.locationId,
-                  actorTenantUserId: access.tenantUserId,
+                  actorTenantUserId: author,
                   deviceId: access.deviceId,
                   now,
                 });
@@ -820,6 +851,11 @@ export const careRecordsRouter = createRouter()
                 resourceId: row.id,
                 reason: body.correctionReason,
                 scope: { kind: row.kind, restrictionsApplied: row.restrictionsApplied },
+              });
+              await auditHandedOver(tx, access, handover, {
+                resourceType: "visit_log",
+                id: row.id,
+                requestId: c.get("requestId"),
               });
             }
             return visitItem(row, new Set());

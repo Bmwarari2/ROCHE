@@ -131,6 +131,14 @@ export const PERMISSIONS = {
     description: "Read, compile, annotate and acknowledge shift handovers",
     careRecord: true,
   },
+  "care.held_entry.hand_over": {
+    // care.md section 6, Device integrity part 6: entries are written as their owner's, and the
+    // manager is recorded (HZ-040).
+    description:
+      "Send another member of staff's unsent entries held on a device to Harbour, on their behalf",
+    stepUp: true,
+    careRecord: true,
+  },
   "care.capacity.write": {
     description: "Record consent, capacity assessments and best-interests decisions",
     careRecord: true,
