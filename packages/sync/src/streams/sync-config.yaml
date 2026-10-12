@@ -9,7 +9,10 @@
 #   tenant_id             the active tenant
 #   location_ids          locations the user works at (location switcher)
 #   people_location_ids   locations whose people sync in full: managers and nurses only; empty for
-#                         care workers, who receive assigned people only
+#                         care workers, who receive assigned people only. Only where every read
+#                         permission the location streams serve reaches (people.person.read,
+#                         care.plan.read and care.note.read, from the roles and grants carrying
+#                         each; ADR-0071), never where another role reaches further
 #   offline_days          UTC calendar days (yyyy-mm-dd) of the offline window: tomorrow, today and
 #                         the days before it, `mobile.offline_window_days` in all, read by the API
 #                         from the rate table when it mints the token (offlineWindowDays in

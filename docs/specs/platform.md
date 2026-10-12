@@ -30,8 +30,17 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   travels in `x-harbour-tenant`.
 - Roles: per-tenant copies of the 21 built-in roles in `packages/domain/src/platform/roles.ts`;
   permission matrix: [permissions.md](permissions.md) (generated).
-- Effective access: `resolveAccess` unions active role assignments and time-boxed grants; the widest
-  scope wins (`tenant` > `locations` > `assigned` > `none`). Staff and portal sessions never mix
+- Effective access: `resolveAccess` unions the permissions of active role assignments and
+  time-boxed grants, and gives each permission its own scope (`scopeFor`,
+  [ADR-0071](../decisions/0071-data-scope-is-per-permission.md)): the union of the roles that carry
+  it (`tenant` > `locations` > `assigned` > `none`) and the grants that carry it (at the grant's
+  location, or the whole organisation without one), never the scope of another role. A request
+  starts with scope `none`; `requirePermission` narrows its row-level security context to the
+  permission's scope (the narrowest of several, `narrowestScope`), `requireAnyPermission` to the
+  union of the alternatives the session may use, and only the routes in
+  `SCOPE_WITHOUT_PERMISSION` (the task list and task moves, document lookups) run in a
+  permission's scope without requiring it. `GET /v1/me` reports `scope` as that of
+  `people.person.read`. Staff and portal sessions never mix
   (ADR-0061): a staff session (the default) skips portal roles and drops portal-only permissions
   (`PORTAL_ONLY_PERMISSIONS`) from grants; a portal session (`resolveAccess(..., "portal")`, for
   family members and later the person's own portal) takes portal roles only, with no grants and
@@ -129,14 +138,17 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
 - Tasks (`task`): kind (`module.what`), generic title, optional person and location, assignee,
   due time and window, priority, status, the reason for a skip or cancellation, evidence (the note,
   observation or document that shows it was done), escalation state. A task about a person follows
-  the person's scope; other tasks are visible to tenant-wide roles, the assignee and staff at the
-  location (`app.task_visible`).
+  the person's scope (in the task list and task moves, the scope of `people.person.read`,
+  ADR-0071; completing one needs its permission where the task is, or being its assignee); other
+  tasks are visible to tenant-wide roles, the assignee and staff at the location
+  (`app.task_visible`).
 - Recurring tasks (`task_series`): daily, weekly or monthly at UK local times, or every N hours of
   elapsed time (`packages/domain/src/platform/tasks.ts`). The worker materialises the next 48 hours
   every 15 minutes, idempotently; a worker outage never backfills more than an hour.
 - Rules: skip and cancel need a reason; tasks that ask for evidence cannot be completed without it;
   finished tasks never change; two devices cannot overwrite each other (version check). Anyone
-  holding the permission the task names completes it, and so does its assignee while they could
+  holding the permission the task names where the task is (ADR-0071) completes it, and so does its
+  assignee while they could
   still be given it; managers with `platform.task.manage` create, assign and schedule. Because the
   assignee may complete it, a task that names a permission other than `platform.task.manage` (a
   clinical check, a medicines round) is given, on creation, on scheduling or by assignment, only

@@ -22,7 +22,10 @@ export interface SyncTokenClaims {
   readonly tenant_id: string;
   /** Locations the user works at (for the location list). */
   readonly location_ids: readonly string[];
-  /** Locations whose people sync in full; empty for care workers (assigned people only). */
+  /**
+   * Locations whose people sync in full; empty for care workers (assigned people only). Only where
+   * people.person.read, care.plan.read and care.note.read all reach (ADR-0071).
+   */
   readonly people_location_ids: readonly string[];
   /**
    * UTC days of the offline window (`offlineWindowDays` in ../client/window.ts), from the tenant's

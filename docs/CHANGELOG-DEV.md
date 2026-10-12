@@ -802,3 +802,55 @@ through `scripts/ci-local.sh`.
 **Tests**: `packages/domain` 4,018, `packages/db` 381, `packages/contracts` 34, `apps/api` 616,
 `packages/sync` 59, `apps/mobile` 871, `apps/web` 338, `packages/i18n` 48, all passing locally
 through `scripts/ci-local.sh`.
+
+## 2026-10-12: Data scope is per permission (security fix, ADR-0071)
+
+**What changed**
+
+- The defect: `resolveAccess` took the widest data scope across every role, whatever each role
+  carried, and the API set that one scope as every request's row-level security context. A care
+  worker at one home who also held an organisation-wide finance role read and wrote care records
+  at every home; a grant's permissions applied wherever the user's roles reached, not where the
+  grant was given.
+- Domain: `EffectiveAccess` carries a scope per permission (`scopes`, read with `scopeFor`): the
+  union of the active, non-mixed roles carrying it and the grants carrying it (a grant at its
+  location, or the whole organisation without one). The merged `scope` and `locationIds` are
+  removed. `narrowestScope` (several permissions at once) and `widestScope` (alternatives) are pure
+  functions with table-driven tests. Search holds each kind of record and each document category
+  to its own permission's scope.
+- API: a request starts with scope `none`; `requirePermission` narrows it to the permission's
+  scope, intersected with any required before; `requireAnyPermission` to the union of the
+  alternatives the session may use. `SCOPE_WITHOUT_PERMISSION` is the explicit allow-list of routes
+  every member uses that borrow `people.person.read`'s scope (the task list, task moves and
+  document lookups), enforced at run time.
+- Readers of the merged scope now name their permission: device lists and revocation, the sync
+  token's `people_location_ids` (the narrowest of the three reads the location streams serve),
+  handover whole views and staff views, urgent alert recipients, the weekly break-glass report,
+  `/v1/me`'s `scope`, audit defaults, per-user limits and `personReachedBy` (`care.note.write`).
+  A second permission on one record counts only where it reaches it: task completion, status
+  changes, return checks, the task an entry completes, incident changes and manager answers.
+- Database: no migration; every policy reads the narrowed `app.scope`. `app.holds_permission_at`
+  was already per permission; the handover and device policies judge the reader by the request's
+  scope and the staff shown by their own assignments, so none needed a change.
+- Docs: ADR-0071, the ADR-0002 cross-reference, the permission matrix (generator text), platform.md
+  PLAT-004 and tasks, the security checklist (V8), records of processing (A4 and the sync row),
+  HZ-011 (cause, controls and tests), the sync stream claim notes, and a changeset release note.
+
+**Route audit**: 186 handlers. 165 call `requirePermission` (directly or through a helper) before
+`withTenant`, but three of those helpers read first: the document lookups (`GET
+/v1/documents/{id}`, `/content`, `POST /v1/documents/{id}/signatures`) find the row and then
+require `people.person.read` for a person's document. Of the 21 others, `POST
+/v1/documents/{id}/versions` reads the row before requiring its category's permission, and `GET
+/v1/tasks` and `POST /v1/tasks/{id}/transition` require nothing. These six relied on the old
+merged scope and are the allow-list. `/v1/me`, notifications, form templates, rates, sync uploads
+and device reports require nothing and run with scope `none` (own rows, reference data, or the
+system's view where they write); the tenantless routes (memberships, sessions, JWKS, health) and
+the operator console never reach `withTenant`.
+
+**Human actions logged**: none. After merge, the release note asks Registered Managers to check
+role bundles.
+
+**Tests**: `packages/domain` 4,055, `packages/db` 384, `packages/contracts` 34, `apps/api` 627,
+`packages/sync` 59, `apps/mobile` 871, `apps/web` 338, `packages/ui` 342, `packages/ui-native`
+141, all passing locally (`pnpm turbo run test --force --concurrency=2`) and through
+`scripts/ci-local.sh`.

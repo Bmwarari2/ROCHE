@@ -10,7 +10,7 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | Phase | Scope | State |
 | --- | --- | --- |
 | 0 Foundations | Repo, CI, docs, design system, tenancy and RLS, auth, audit, notifications, forms skeleton, rate table, integrations framework, operator API, API, web and mobile skeletons, Terraform | Merged to `main` (#1, with web copy, `TextArea` and `AccountMenu` in #7). See [phase-0.md](phase-0.md) |
-| 1 Residential MVP | People lifecycle, care plans, assessments, notes, charts, body map, tasks and handover, MCA and DoLS, incidents and classifier, downtime pack, offline Care mode, family feed | In progress: [phase-1.md](phase-1.md). On `main`: plan (#2), task and workflow engine (#3), documents and retention (#4), validated tools (#5), notes, charts, body map and care profile (#6), working days (#8), handover and round rules (#9), database pool resilience (#10), people lifecycle rules (#11), care planning schema and API (#12), consent, capacity, DoLS and incident rules (#13) and their schema and API (#14), one rule for event times typed during a clock change (#16), the web person record (#17), and the spec and rules for slice 11 packs and governance (#18), slice 12 family feed (#19) and slice 13 search, export, onboarding and DPIA (#20), offline Care mode with device holds (#15), local CI while Actions minutes are exhausted (#23), the people lifecycle schema and API (#21), the slice 5 tasks, rounds and handover API (#24) and sync and device integrity (#25). Open: the care API follow-ups from the #15 reviews (`feat/care-api-follow-ups`) |
+| 1 Residential MVP | People lifecycle, care plans, assessments, notes, charts, body map, tasks and handover, MCA and DoLS, incidents and classifier, downtime pack, offline Care mode, family feed | In progress: [phase-1.md](phase-1.md). On `main`: plan (#2), task and workflow engine (#3), documents and retention (#4), validated tools (#5), notes, charts, body map and care profile (#6), working days (#8), handover and round rules (#9), database pool resilience (#10), people lifecycle rules (#11), care planning schema and API (#12), consent, capacity, DoLS and incident rules (#13) and their schema and API (#14), one rule for event times typed during a clock change (#16), the web person record (#17), and the spec and rules for slice 11 packs and governance (#18), slice 12 family feed (#19) and slice 13 search, export, onboarding and DPIA (#20), offline Care mode with device holds (#15), local CI while Actions minutes are exhausted (#23), the people lifecycle schema and API (#21), the slice 5 tasks, rounds and handover API (#24), sync and device integrity (#25) and the care API follow-ups from the #15 reviews (#26). Open: data scope per permission, a security fix (`fix/platform-scope-per-permission`, ADR-0071) |
 | 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Not started |
 | 3 Money and buildings | Funding, billing, council portals, residents' money, P&L, facilities, catering, enquiries, group reporting | Not started |
 | 4 Home care and family | Packages, runs, ECM, supported living, portals, Manage mode | Not started |
@@ -20,34 +20,20 @@ only when they link spec, code, tests and user documentation; no user guides exi
 
 ## Next items (in order)
 
-1. Review and merge the care API follow-ups from the #15 reviews (`feat/care-api-follow-ups`;
-   [care.md](../specs/care.md) section 5, rules 5 to 7 and section 6, Device integrity part 8;
-   migrations 0043 to 0047; hazards HZ-011, HZ-012, HZ-014, HZ-016, HZ-019, HZ-029, HZ-040;
-   human actions H-160 to H-164): the IDDSI drink level required on the server (refused from the
-   web, kept and flagged with an alert from a device); the escalation policy link on every
-   validated result (`escalation_policy_link`, configured per tenant and location); the body-map
-   side worked out on the server from the place drawn (web spots and the phone's tap or zone
-   sent); coded discard reasons per organisation (`discard_reason`), the discard replay index
-   (`device_discard_record`) and the server's flag on entries (`entry_device_deletion_flag`);
-   staff names beside every staff id in care responses; client ids on advance care records, risk
-   assessments, care plan drafts and actions, consents and DoLS, and the `Idempotency-Key`
-   header on every care create route. Review round 2 answered (migrations 0045 and 0046; H-165,
-   H-166): every IDDSI problem shown in words, the alert falling back when no nurse in charge and
-   audited when no one can be told, flagged entries counted beside the fluid total and marked on
-   the entry, older phones' marks kept and flagged, a resent save with other details refused,
-   the escalation policy shown on the web (the onboarding rule built, its route not yet), and
-   links and coded reasons following the roles that carry their permission. Review round 3
-   answered (migration 0047; H-167): the urgent alert only to someone who can open the record,
-   naming the home, with who it reached kept on the entry and said on the web; a resent save
-   with other details refused with its own code and message; the NEWS2 result after saving
-   names the policy; a refused drink counted as offered, never drunk; coded reasons changed and
-   audited by id; mixed roles giving no right to change links or reasons. Review round 4
-   answered: the refused-drink tests named for HZ-014, a table-driven test of the alert's
-   fallback order and the staff it skips, the fallback said by role rather than rota, the
-   phone's unsafe-level copy true offline, and lock-screen push text kept generic.
-2. The screens these wait on (slice 9 and slice 10 part 2): the escalation policy link on the
-   phone, staff names on the web and phone (H-73); the settings for escalation
-   policies and coded reasons; the phone offering the organisation's coded reasons (H-164);
+1. Review and merge data scope per permission (`fix/platform-scope-per-permission`;
+   [ADR-0071](../decisions/0071-data-scope-is-per-permission.md); hazard HZ-011; PLAT-004): each
+   permission reaches only the people its own roles and grants reach (`scopeFor`), and each
+   request runs under the scope of the permission it uses (the narrowest of several, `none` when
+   it requires none; the task list, task moves and document lookups run in `people.person.read`'s
+   scope from an explicit allow-list). The sync token, device reach, handover and alert views, the
+   break-glass report, task completion, incident management, status changes, return checks and
+   the task an entry completes all follow the permission they act for. No migration. After merge:
+   tell tenants (release note) that some staff will see fewer people and Registered Managers
+   should check role bundles; when a grant route is built, it must check that the granter holds
+   `platform.grant.manage` wherever the grant reaches.
+2. The screens the care API follow-ups (#26) wait on (slice 9 and slice 10 part 2): the
+   escalation policy link on the phone, staff names on the web and phone (H-73); the settings for
+   escalation policies and coded reasons; the phone offering the organisation's coded reasons (H-164);
    devices and revocation, and refused copies on the review task (which H-134 waits on), in the
    web record; the round and handover screens in the web record and Care mode (with sync streams
    for tasks and handovers and offline acknowledgement). Still open from the #15 reviews: the
@@ -80,8 +66,9 @@ only when they link spec, code, tests and user documentation; no user guides exi
     (decode-uri-component in the app waits for the next Expo SDK; the rest are build tools).
 11. Urgent alert fallback cost (#26 review round 4): when no nurse in charge can open the record,
     `alertFallback` reads every Registered Manager's and care plan holder's view of the person in
-    one `staffViews` call, but that runs two statements per candidate (the person scope is
-    row-level security, evaluated under each member's settings) inside the entry's transaction.
+    two `staffViews` calls (one for `people.person.read`, one for `care.plan.write`, ADR-0071),
+    each running two statements per candidate (the person scope is row-level security, evaluated
+    under each member's settings) inside the entry's transaction.
     Measure it against the 100 ms point-of-care budget on a large organisation; if it is slow,
     evaluate the scope for all candidates at once in a database function.
 
@@ -93,18 +80,18 @@ Officer, H-30 data protection lead, H-31 ICO registration) for after the build, 
 the UK SMS provider (H-09, which also settles H-105). Until then the build continues against the
 mocks and contract tests (section 20 rule 2).
 
-## Test totals (local, the care API follow-ups branch on the current `main`)
+## Test totals (local, the data-scope-per-permission branch on the current `main`)
 
 | Package | Tests |
 | --- | --- |
-| `packages/domain` | 4,018 |
-| `packages/db` | 381 (real Postgres: RLS coverage, isolation, scope, audit chain, seed, tasks, documents, care record, care planning, MCA and incidents, people lifecycle, bank holidays, pools, export catalogue, handovers, device integrity, the care API follow-ups) |
+| `packages/domain` | 4,055 |
+| `packages/db` | 384 (real Postgres: RLS coverage, isolation, scope, audit chain, seed, tasks, documents, care record, care planning, MCA and incidents, people lifecycle, bank holidays, pools, export catalogue, handovers, device integrity, the care API follow-ups, scope per permission) |
 | `packages/sync` | 59 (PowerSync rules engine) |
 | `packages/contracts` | 34 |
 | `packages/i18n` | 48 |
 | `packages/ui` | 342 (231 axe runs) |
 | `packages/ui-native` | 141 |
-| `apps/api` | 616 |
+| `apps/api` | 627 |
 | `apps/mobile` | 871 |
 | `apps/web` | 338 unit; Playwright journeys with axe (WCAG 2.2 AA) in CI |
 | `infra` | `terraform test` 3, TFLint, Trivy and Checkov clean |
