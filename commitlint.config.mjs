@@ -19,6 +19,9 @@ const contexts = [
 
 export default {
   extends: ["@commitlint/config-conventional"],
+  // Dependabot writes its own subject and scope ("chore(deps-dev): Bump ..."); its pull requests are
+  // reviewed on the diff, so its commits are not held to the Harbour scopes.
+  ignores: [(message) => /^Signed-off-by: dependabot\[bot\]/m.test(message)],
   rules: {
     "scope-enum": [
       2,
