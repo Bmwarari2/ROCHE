@@ -3,6 +3,7 @@ import { PgBoss } from "pg-boss";
 import { loadConfig } from "../config";
 import { createAdapterResolver } from "../integrations/registry";
 import { createLogger, idleErrorLogger } from "../logger";
+import { runJob } from "./run-job";
 import {
   compileHandovers,
   detectOutbreaks,
@@ -65,56 +66,60 @@ const QUEUES = {
 
 for (const name of Object.values(QUEUES)) await boss.createQueue(name);
 
-await boss.work(QUEUES.outbox, async () => {
+/** Every job logs one structured line when it fails (`worker.job.failed`), then pg-boss retries it. */
+const work = (queue: string, job: () => Promise<unknown>) =>
+  boss.work(queue, () => runJob(logger, queue, job));
+
+await work(QUEUES.outbox, async () => {
   while ((await relayOutbox(deps, handlers)) > 0) {
     // Drain in batches until the outbox is empty.
   }
 });
-await boss.work(QUEUES.escalations, async () => {
+await work(QUEUES.escalations, async () => {
   await runEscalations(deps);
 });
-await boss.work(QUEUES.assignments, async () => {
+await work(QUEUES.assignments, async () => {
   await endExpiredAssignments(deps);
 });
 const adapterFor = createAdapterResolver({ production: config.NODE_ENV === "production" });
-await boss.work(QUEUES.deliveries, async () => {
+await work(QUEUES.deliveries, async () => {
   await processDeliveries({ ...deps, adapterFor });
 });
 
-await boss.work(QUEUES.taskSeries, async () => {
+await work(QUEUES.taskSeries, async () => {
   await materialiseTaskSeries(deps);
 });
-await boss.work(QUEUES.taskEscalations, async () => {
+await work(QUEUES.taskEscalations, async () => {
   await escalateTasks(deps);
 });
-await boss.work(QUEUES.careReviews, async () => {
+await work(QUEUES.careReviews, async () => {
   await raiseCareReviews(deps);
 });
-await boss.work(QUEUES.dolsExpiry, async () => {
+await work(QUEUES.dolsExpiry, async () => {
   await remindDolsExpiry(deps);
 });
-await boss.work(QUEUES.statutoryNotifications, async () => {
+await work(QUEUES.statutoryNotifications, async () => {
   await escalateStatutoryNotifications(deps);
 });
-await boss.work(QUEUES.outbreaks, async () => {
+await work(QUEUES.outbreaks, async () => {
   await detectOutbreaks(deps);
 });
-await boss.work(QUEUES.peopleReviews, async () => {
+await work(QUEUES.peopleReviews, async () => {
   await raiseReviews(deps);
 });
-await boss.work(QUEUES.breakGlassReport, async () => {
+await work(QUEUES.breakGlassReport, async () => {
   await reportBreakGlass(deps);
 });
-await boss.work(QUEUES.planTasks, async () => {
+await work(QUEUES.planTasks, async () => {
   await generatePlanTaskSeries(deps);
 });
-await boss.work(QUEUES.handovers, async () => {
+await work(QUEUES.handovers, async () => {
   await compileHandovers(deps);
 });
-await boss.work(QUEUES.taskEscalationRetries, async () => {
+await work(QUEUES.taskEscalationRetries, async () => {
   await retryUnroutedTasks(deps);
 });
-await boss.work(QUEUES.unroutedReport, async () => {
+await work(QUEUES.unroutedReport, async () => {
   await reportUnroutedDaily(deps);
 });
 

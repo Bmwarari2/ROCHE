@@ -81,3 +81,21 @@ variable "replica_lag_threshold_seconds" {
   type        = number
   default     = 60
 }
+
+variable "worker_log_group_name" {
+  description = "CloudWatch log group of the worker service, whose structured lines raise the escalation.unrouted.daily and worker.job.failed alarms."
+  type        = string
+}
+
+variable "worker_job_failure_threshold" {
+  description = "Failed worker jobs (worker.job.failed lines) per period that raise an alarm."
+  type        = number
+  default     = 1
+}
+
+variable "worker_job_failure_period_seconds" {
+  description = "Period over which failed worker jobs are counted."
+  type        = number
+  default     = 900
+}
+

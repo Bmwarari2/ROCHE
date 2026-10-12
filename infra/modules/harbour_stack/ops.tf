@@ -22,6 +22,7 @@ module "observability" {
   alert_email_addresses = var.alert_email_addresses
   alb_arn_suffix        = module.alb.arn_suffix
   ecs_cluster_name      = local.cluster_name
+  worker_log_group_name = module.svc_worker.log_group_name
 
   target_group_arn_suffixes = merge(
     {

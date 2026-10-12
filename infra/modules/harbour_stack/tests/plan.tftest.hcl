@@ -63,6 +63,18 @@ run "dev_defaults" {
     condition     = output.manual_dns_records != null
     error_message = "Without a hosted zone the stack must list the DNS records to create by hand."
   }
+
+  # The worker logs JSON (pino), so its alarms match the structured `event` field
+  # (ADR-0071 review round 5, C5-M1; docs/runbooks/on-call.md).
+  assert {
+    condition     = module.observability.log_metric_filter_patterns.escalation_unrouted_daily == "{ $.event = \"escalation.unrouted.daily\" }"
+    error_message = "The unrouted escalation alarm must match the worker's escalation.unrouted.daily event."
+  }
+
+  assert {
+    condition     = module.observability.log_metric_filter_patterns.worker_job_failed == "{ $.event = \"worker.job.failed\" }"
+    error_message = "The failed job alarm must match the worker's worker.job.failed event."
+  }
 }
 
 run "flagsmith_and_route53" {
