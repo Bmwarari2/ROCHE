@@ -530,3 +530,76 @@ describe("hazard HZ-008 one open sync task per source (part 4)", () => {
     expect(details.rows[0]?.details).toEqual({ ownerTenantUserId: a.carer, entryCount: 2 });
   });
 });
+
+describe("hazard HZ-006 hazard HZ-011 copies of refused entries (part 5)", () => {
+  const ENTRY_ADA = "0199d000-0000-7000-8000-0000000000b1";
+  const ENTRY_CARA = "0199d000-0000-7000-8000-0000000000b2";
+  const ENTRY_NOBODY = "0199d000-0000-7000-8000-0000000000b3";
+  const ENTRY_B = "0199d000-0000-7000-8000-0000000000b4";
+  const copy = (
+    c: pg.PoolClient,
+    entryId: string,
+    personId: string | null,
+    locationId: string | null,
+    author: string,
+  ) =>
+    c.query(
+      `INSERT INTO refused_entry (entry_id, record_table, person_id, location_id, payload, http_status,
+         refusal_code, refusal_message, refused_at, author_tenant_user_id)
+       VALUES ($1, 'care_note', $2, $3, '{"body":"Assisted with a wash."}', 422, 'care_event_after_exit',
+         'The person had left.', now(), $4)`,
+      [entryId, personId, locationId, author],
+    );
+  const copies = (c: pg.PoolClient) =>
+    c
+      .query<{ entry_id: string }>("SELECT entry_id FROM refused_entry ORDER BY entry_id")
+      .then((r) => r.rows.map((row) => row.entry_id));
+
+  beforeAll(async () => {
+    await asSystem(async (c) => {
+      await copy(c, ENTRY_ADA, a.personAda, a.locationNorth, a.carer);
+      await copy(c, ENTRY_CARA, a.personCara, a.locationSouth, a.carer);
+      await copy(c, ENTRY_NOBODY, null, a.locationNorth, a.carer);
+    });
+    await inContext(app(), ctx(TENANT_B, b.manager, "tenant"), (c) =>
+      copy(c, ENTRY_B, b.personDev, b.location, b.manager),
+    );
+  });
+
+  it("reads a copy like the care record it would have been", async () => {
+    // The carer is assigned to Ada only, so sees Ada's copy and not Cara's or the one about nobody.
+    expect(await asCarer(copies)).toEqual([ENTRY_ADA]);
+    // North's manager sees North's people and the copy about nobody at North.
+    expect(await asNorthManager(copies)).toEqual([ENTRY_ADA, ENTRY_NOBODY].sort());
+    // The organisation sees its own; the other organisation sees only its own.
+    expect(await asSystem(copies)).toEqual([ENTRY_ADA, ENTRY_CARA, ENTRY_NOBODY].sort());
+    expect(await asOtherTenant(copies)).toEqual([ENTRY_B]);
+  });
+
+  it("is written only in the system's view, once per entry, and never changed", async () => {
+    await expect(
+      asCarer((c) => copy(c, "0199d000-0000-7000-8000-0000000000b5", a.personAda, null, a.carer)),
+    ).rejects.toThrow(/row-level security/);
+    await expect(asSystem((c) => copy(c, ENTRY_ADA, a.personAda, null, a.carer))).rejects.toThrow(
+      /refused_entry_entry_key/,
+    );
+    await expect(
+      asOwner(TENANT_A, (c) => c.query("UPDATE refused_entry SET refusal_code = 'other'")),
+    ).rejects.toThrow(/append-only/);
+    await expect(
+      asSystem((c) =>
+        c.query(
+          `INSERT INTO refused_entry (entry_id, record_table, payload, refusal_code, refused_at, author_tenant_user_id)
+           VALUES ($1, 'person', '[]', 'Not a code!', now(), $2)`,
+          ["0199d000-0000-7000-8000-0000000000b6", a.carer],
+        ),
+      ),
+    ).rejects.toThrow(/refused_entry_(table|payload|code)/);
+  });
+
+  it("never points at another organisation's person, location or member", async () => {
+    await expect(
+      asSystem((c) => copy(c, "0199d000-0000-7000-8000-0000000000b7", b.personDev, null, a.carer)),
+    ).rejects.toThrow(/refused_entry_person_fk/);
+  });
+});

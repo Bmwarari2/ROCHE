@@ -496,3 +496,213 @@ describe("part 4: one open sync task per source", () => {
     expect((await tasksVisibleTo("carer")).map((t) => t.id)).not.toContain(task?.id);
   });
 });
+
+const refusal = (
+  entryId: string,
+  overrides: Record<string, unknown> = {},
+  person: number | null = 1,
+): Record<string, unknown> => ({
+  entryId,
+  table: "care_note",
+  personId: person === null ? null : resident(person),
+  payload: {
+    id: entryId,
+    ...(person === null ? {} : { person_id: resident(person) }),
+    category: "personal_care",
+    body: "Assisted with a wash; skin intact.",
+    occurred_at: minutesAgo(30),
+  },
+  httpStatus: 422,
+  code: "care_event_after_exit",
+  message: "The person had left before this was recorded.",
+  refusedAt: minutesAgo(1),
+  ...overrides,
+});
+const sendCopy = (who: Who, body: Record<string, unknown>, device?: string) =>
+  call(who, "/v1/sync/refused-entries", { method: "POST", body, ...(device ? { device } : {}) });
+
+describe("part 5: copies of refused entries", () => {
+  type ReviewTask = {
+    id: string;
+    kind: string;
+    person_id: string | null;
+    location_id: string | null;
+    assignee_role_key: string;
+    required_permission: string;
+    priority: string;
+    due_at: Date;
+    details: { entries?: Record<string, unknown>[] } | null;
+  };
+  const reviewOf = (person: number) =>
+    asTenant<ReviewTask>(
+      `SELECT id, kind, person_id, location_id, assignee_role_key, required_permission, priority, due_at, details
+       FROM task WHERE kind = 'care.refused_entry_review' AND person_id = $1 AND status = 'open'`,
+      [resident(person)],
+    );
+
+  it("hazard HZ-006 a refused care entry is kept on the server with a review task", async () => {
+    const device = "0199d000-0000-4000-8000-0000000b0501";
+    const entryId = newId();
+    const before = Date.now();
+    const response = await sendCopy("carer", refusal(entryId), device);
+    expect(response.status).toBe(200);
+    const result = await json<{ id: string; taskId: string; replay: boolean }>(response);
+    expect(result.replay).toBe(false);
+    const [copy] = await asTenant<Record<string, unknown>>(
+      "SELECT entry_id, record_table, person_id, location_id, payload, refusal_code, author_tenant_user_id, created_by, device_id, review_task_id FROM refused_entry WHERE id = $1",
+      [result.id],
+    );
+    expect(copy).toMatchObject({
+      entry_id: entryId,
+      record_table: "care_note",
+      person_id: resident(1),
+      location_id: DEMO.locationId,
+      refusal_code: "care_event_after_exit",
+      author_tenant_user_id: DEMO.users.carer.id,
+      created_by: DEMO.users.carer.id,
+      device_id: device,
+      review_task_id: result.taskId,
+    });
+    expect((copy?.payload as Record<string, unknown> | undefined)?.body).toBe(
+      "Assisted with a wash; skin intact.",
+    );
+    // One review for the nurse in charge, due now, listing the copy without its content.
+    const [review] = await reviewOf(1);
+    expect(review).toMatchObject({
+      id: result.taskId,
+      location_id: DEMO.locationId,
+      assignee_role_key: "clinical_lead",
+      required_permission: "care.plan.write",
+      priority: "routine",
+    });
+    expect(new Date(review?.due_at ?? 0).getTime()).toBeLessThanOrEqual(Date.now());
+    expect(new Date(review?.due_at ?? 0).getTime()).toBeGreaterThanOrEqual(before - 1_000);
+    expect(review?.details?.entries).toEqual([
+      expect.objectContaining({
+        kind: "care_note",
+        clientId: entryId,
+        refusedEntryId: result.id,
+        refusalCode: "care_event_after_exit",
+        deviceId: device,
+        recordedBy: DEMO.users.carer.id,
+      }),
+    ]);
+    expect(JSON.stringify(review?.details)).not.toContain("wash");
+    const audit = await asTenant<{ actor: string }>(
+      "SELECT actor_tenant_user_id AS actor FROM audit_event WHERE action = 'sync.refused_entry.copied' AND resource_id = $1",
+      [result.id],
+    );
+    expect(audit).toEqual([{ actor: DEMO.users.carer.id }]);
+  });
+
+  it("hazard HZ-008 adds each copy to the person's one review, urgent once an observation joins", async () => {
+    await sendCopy("carer", refusal(newId(), {}, 2));
+    await sendCopy("carer", refusal(newId(), {}, 2));
+    expect((await reviewOf(2)).map((t) => t.priority)).toEqual(["routine"]);
+    const observation = newId();
+    await sendCopy(
+      "carer",
+      refusal(
+        observation,
+        {
+          table: "observation",
+          payload: { id: observation, person_id: resident(2), chart: "fluid_intake" },
+        },
+        2,
+      ),
+    );
+    const reviews = await reviewOf(2);
+    expect(reviews).toHaveLength(1);
+    expect(reviews[0]?.priority).toBe("urgent");
+    expect(reviews[0]?.details?.entries).toHaveLength(3);
+  });
+
+  it("takes a replay as the same copy, and refuses another member reusing its id", async () => {
+    const entryId = newId();
+    const first = await json<{ id: string }>(await sendCopy("carer", refusal(entryId)));
+    const again = await json<{ id: string; replay: boolean }>(
+      await sendCopy("carer", refusal(entryId)),
+    );
+    expect(again).toMatchObject({ id: first.id, replay: true });
+    expect((await sendCopy("manager", refusal(entryId))).status).toBe(422);
+  });
+
+  it("hazard HZ-011 reads a copy like the care record it would have been", async () => {
+    const entryId = newId();
+    const { id } = await json<{ id: string }>(await sendCopy("carer", refusal(entryId)));
+    // The carer (assigned) and the manager (the location) can read it; another organisation cannot.
+    for (const who of ["carer", "manager"] as const) {
+      expect((await call(who, `/v1/refused-entries/${id}`)).status).toBe(200);
+      const list = await json<{ items: { id: string }[] }>(
+        await call(who, `/v1/people/${resident(1)}/refused-entries`),
+      );
+      expect(list.items.map((i) => i.id)).toContain(id);
+    }
+    // Another organisation's manager never reads it (no copy there to read: row-level security, as
+    // packages/db/test/device-integrity.test.ts proves; here refused before the read).
+    const other = await h.request(`/v1/refused-entries/${id}`, {
+      token: h.tokens.rae,
+      tenant: OTHER.tenantId,
+    });
+    expect([403, 404]).toContain(other.status);
+    // A care worker not assigned to the person cannot read it either.
+    expect((await call("carer", `/v1/people/${resident(4)}/refused-entries`)).status).toBe(404);
+    // Every read is audited.
+    expect(
+      await asTenant(
+        "SELECT 1 FROM audit_event WHERE action = 'care.refused_entry.read' AND resource_id = $1",
+        [id],
+      ),
+    ).toHaveLength(2);
+  });
+
+  it("hazard HZ-006 keeps a copy its author can no longer see, for the manager, never for the author", async () => {
+    // The carer is not assigned to the fourth resident (an assignment ended, say).
+    const entryId = newId();
+    const response = await sendCopy("carer", refusal(entryId, {}, 4));
+    expect(response.status).toBe(200);
+    const { id } = await json<{ id: string }>(response);
+    expect((await call("carer", `/v1/refused-entries/${id}`)).status).toBe(404);
+    expect((await call("manager", `/v1/refused-entries/${id}`)).status).toBe(200);
+    expect(await reviewOf(4)).toHaveLength(1);
+  });
+
+  it("joins a copy about nobody known to its author's review at their location", async () => {
+    const entryId = newId();
+    const { id, taskId } = await json<{ id: string; taskId: string }>(
+      await sendCopy(
+        "carer",
+        refusal(
+          entryId,
+          { personId: "0199d000-0000-4000-8000-0000000b05ff", payload: { id: entryId } },
+          null,
+        ),
+      ),
+    );
+    const [copy] = await asTenant<{ person_id: string | null; location_id: string | null }>(
+      "SELECT person_id, location_id FROM refused_entry WHERE id = $1",
+      [id],
+    );
+    expect(copy).toEqual({ person_id: null, location_id: DEMO.locationId });
+    const [task] = await asTenant<{ source_type: string; source_id: string }>(
+      "SELECT source_type, source_id FROM task WHERE id = $1",
+      [taskId],
+    );
+    expect(task).toEqual({ source_type: "tenant_user", source_id: DEMO.users.carer.id });
+  });
+
+  it("refuses content that names another entry or person, unknown fields and a code that is not a code", async () => {
+    const entryId = newId();
+    for (const body of [
+      refusal(entryId, { payload: { id: newId() } }),
+      refusal(entryId, { payload: { person_id: resident(2) } }),
+      { ...refusal(entryId), extra: "field" },
+      refusal(entryId, { code: "Not a code" }),
+      refusal(entryId, { table: "person" }),
+    ]) {
+      expect((await sendCopy("carer", body)).status).toBe(422);
+    }
+    // Members without care.note.write may not send copies.
+    expect((await sendCopy("quality", refusal(entryId))).status).toBe(403);
+  });
+});

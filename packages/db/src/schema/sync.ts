@@ -3,6 +3,8 @@ import {
   check,
   foreignKey,
   index,
+  integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -11,7 +13,9 @@ import {
 } from "drizzle-orm/pg-core";
 import { sqlList } from "./_codes";
 import { createdColumns, id, tenantId } from "./_columns";
-import { tenantUser } from "./platform";
+import { person } from "./people";
+import { location, tenantUser } from "./platform";
+import { task } from "./work";
 
 /**
  * Care mode devices and what the server keeps about them (docs/specs/care.md section 6, Device
@@ -108,5 +112,74 @@ export const deviceDiscardEntry = pgTable(
     }),
     index("device_discard_entry_entry_idx").on(t.tenantId, t.entryId, t.ownerTenantUserId),
     check("device_discard_entry_stage", sql`stage IN (${sqlList(DEVICE_DISCARD_STAGES)})`),
+  ],
+);
+
+/** The tables a device writes care entries to (`DEVICE_WRITABLE_TABLES` in packages/sync). */
+export const REFUSED_ENTRY_TABLES = [
+  "care_note",
+  "observation",
+  "body_map_mark",
+  "activity_record",
+  "visit_log",
+] as const;
+
+/**
+ * The server's copy of a care entry the API refused from a device (part 5; HZ-006): what the device
+ * held, why it was refused, who wrote it and the review task it joined, so a refused entry is never
+ * only on one phone. Written in the system's view only, once per entry id; read like the care
+ * record it would have been (the person's scope). Append-only.
+ */
+export const refusedEntry = pgTable(
+  "refused_entry",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    /** The entry's own id, made on the device (the id it was uploaded with). */
+    entryId: uuid("entry_id").notNull(),
+    /** `REFUSED_ENTRY_TABLES`. */
+    recordTable: text("record_table").notNull(),
+    personId: uuid("person_id"),
+    locationId: uuid("location_id"),
+    /** The entry's columns as the device held them, JSON. */
+    payload: jsonb("payload").notNull(),
+    httpStatus: integer("http_status"),
+    refusalCode: text("refusal_code").notNull(),
+    refusalMessage: text("refusal_message"),
+    refusedAt: timestamp("refused_at", { withTimezone: true }).notNull(),
+    /** Who wrote the entry (the uploader, or the owner of a handed-over entry). */
+    authorTenantUserId: uuid("author_tenant_user_id").notNull(),
+    deviceId: uuid("device_id"),
+    reviewTaskId: uuid("review_task_id"),
+    ...createdColumns(),
+  },
+  (t) => [
+    unique("refused_entry_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("refused_entry_entry_key").on(t.tenantId, t.entryId),
+    foreignKey({
+      name: "refused_entry_person_fk",
+      columns: [t.tenantId, t.personId],
+      foreignColumns: [person.tenantId, person.id],
+    }),
+    foreignKey({
+      name: "refused_entry_location_fk",
+      columns: [t.tenantId, t.locationId],
+      foreignColumns: [location.tenantId, location.id],
+    }),
+    foreignKey({
+      name: "refused_entry_author_fk",
+      columns: [t.tenantId, t.authorTenantUserId],
+      foreignColumns: [tenantUser.tenantId, tenantUser.id],
+    }),
+    foreignKey({
+      name: "refused_entry_task_fk",
+      columns: [t.tenantId, t.reviewTaskId],
+      foreignColumns: [task.tenantId, task.id],
+    }),
+    index("refused_entry_person_idx").on(t.tenantId, t.personId, t.refusedAt),
+    check("refused_entry_table", sql`record_table IN (${sqlList(REFUSED_ENTRY_TABLES)})`),
+    check("refused_entry_payload", sql`jsonb_typeof(payload) = 'object'`),
+    check("refused_entry_code", sql`refusal_code ~ '^[a-z0-9_]{1,80}$'`),
+    check("refused_entry_status", sql`http_status IS NULL OR http_status BETWEEN 100 AND 599`),
   ],
 );

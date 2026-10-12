@@ -39,6 +39,7 @@ import {
   notificationsRouter,
   ratesRouter,
 } from "./routes/platform";
+import { createRefusedEntriesRouter } from "./routes/refused-entries";
 import { roundsRouter } from "./routes/rounds";
 import { sessionsRouter } from "./routes/sessions";
 import { statutoryNotificationsRouter } from "./routes/statutory-notifications";
@@ -186,6 +187,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", ratesRouter);
   app.route("/", createSyncRouter(signer));
   app.route("/", devicesRouter);
+  app.route("/", createRefusedEntriesRouter());
   app.route("/", integrationsRouter);
   app.route("/", supportAccessRouter);
   app.route("/", operatorRouter);

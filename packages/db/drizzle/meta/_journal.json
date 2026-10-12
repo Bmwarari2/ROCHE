@@ -253,6 +253,20 @@
       "when": 1791784308165,
       "tag": "0035_sync_task_open_key",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1791784681456,
+      "tag": "0036_refused_entry",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1791784683626,
+      "tag": "0037_refused_entry_security",
+      "breakpoints": true
     }
   ]
 }

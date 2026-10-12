@@ -115,6 +115,7 @@ export const CLINICAL_EXPORT_TABLES: readonly string[] = [
   "public.handover_item",
   "public.handover_note",
   "public.handover_acknowledgement",
+  "public.refused_entry",
 ];
 
 interface ConventionalDoc {
@@ -2879,6 +2880,69 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       valid_to: "exported",
       changed_by: "exported",
       data: { description: "The record as it was before the change, JSON." },
+    },
+  },
+  "public.refused_entry": {
+    context: "care",
+    description:
+      "The server's copy of a care entry the API refused from a device, kept so a refused entry is never only on one phone, with the review task it joined (append-only; care.md section 6).",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      entry_id: {
+        description:
+          "The entry's own id, made on the device; the same id the entry would have had in its table.",
+      },
+      record_table: {
+        description: "The table the entry was meant for.",
+        codes: {
+          care_note: "A daily note (care_note).",
+          observation: "A chart entry (observation).",
+          body_map_mark: "A body-map mark (body_map_mark).",
+          activity_record: "An activity record (activity_record).",
+          visit_log: "A visit (visit_log).",
+        },
+      },
+      person_id: {
+        description:
+          "The person receiving care the entry is about (person.id); empty when the device named no person known here.",
+      },
+      location_id: {
+        description:
+          "The person's location when the copy arrived, or the author's when no person was known (location.id).",
+      },
+      payload: {
+        description:
+          "The entry's columns as the device held them, JSON with snake_case keys as in the entry's own table; not validated, so read it as the device's record, not the care record.",
+      },
+      http_status: {
+        description:
+          "The HTTP status of the refusal; empty when the device refused it before sending.",
+        unit: "HTTP status code",
+      },
+      refusal_code: {
+        description: "The API's code for the refusal (for example care_event_after_exit, invalid).",
+      },
+      refusal_message: {
+        description: "The API's reason for the refusal, in English, as the device showed it.",
+      },
+      refused_at: {
+        description:
+          "When the device recorded the refusal (instant, UTC), never later than the copy arrived.",
+      },
+      author_tenant_user_id: {
+        description: "The member of staff who wrote the entry (tenant_user.id).",
+      },
+      device_id: { description: "Opaque id of the device that held the entry." },
+      review_task_id: { description: "The review task the copy joined (task.id)." },
+      created_at: "exported",
+      created_by: {
+        description:
+          "Who sent the copy (tenant_user.id): the author, or a manager handing over their entries.",
+      },
     },
   },
   "public.retention_class": {

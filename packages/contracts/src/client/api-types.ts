@@ -12426,6 +12426,224 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/sync/refused-entries": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Keep the server's copy of a care entry the API refused from a device
+     * @description Stores what the device held for an entry the API refused, once per entry id, with the refusal, and adds it to the person's one open review task for the nurse in charge (due at once, urgent when an observation joins it). Written in the organisation's view, so a copy is kept even when its author can no longer see the person; read like the care record. Each person may send 200 copies a day.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SyncRefusedEntry"];
+        };
+      };
+      responses: {
+        /** @description Kept (or kept before) */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SyncRefusedEntryResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/refused-entries": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Copies of entries about the person a device could not save, newest first */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Copies */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RefusedEntryList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/refused-entries/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The server's copy of one entry a device could not save */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The copy */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RefusedEntryItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/integrations": {
     parameters: {
       query?: never;
@@ -14724,6 +14942,9 @@ export interface components {
         recordedBy?: string | null;
         /** Format: date-time */
         at?: string | null;
+        /** Format: uuid */
+        refusedEntryId?: string | null;
+        refusalCode?: string | null;
       }[];
       missedTasks?: {
         /** Format: uuid */
@@ -17631,6 +17852,65 @@ export interface components {
     RevokeDevice: {
       /** @enum {string} */
       reasonCode: "lost_or_stolen" | "staff_left" | "access_withdrawn" | "replaced" | "other";
+    };
+    SyncRefusedEntryResult: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      entryId: string;
+      /** Format: uuid */
+      taskId: string | null;
+      replay: boolean;
+    };
+    SyncRefusedEntry: {
+      /** Format: uuid */
+      entryId: string;
+      /** @enum {string} */
+      table: "care_note" | "observation" | "body_map_mark" | "activity_record" | "visit_log";
+      /** Format: uuid */
+      personId: string | null;
+      payload: {
+        [key: string]: unknown;
+      };
+      httpStatus: number | null;
+      code: string;
+      message: string | null;
+      /** Format: date-time */
+      refusedAt: string;
+    };
+    RefusedEntryList: {
+      items: components["schemas"]["RefusedEntryItem"][];
+    };
+    /** @description The server's copy of an entry a device could not save */
+    RefusedEntryItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      entryId: string;
+      /** @enum {string} */
+      table: "care_note" | "observation" | "body_map_mark" | "activity_record" | "visit_log";
+      /** Format: uuid */
+      personId: string | null;
+      /** Format: uuid */
+      locationId: string | null;
+      payload: {
+        [key: string]: unknown;
+      };
+      httpStatus: number | null;
+      code: string;
+      message: string | null;
+      /** Format: date-time */
+      refusedAt: string;
+      /** Format: date-time */
+      receivedAt: string;
+      /** Format: uuid */
+      authorTenantUserId: string;
+      /** Format: uuid */
+      sentByTenantUserId: string | null;
+      /** Format: uuid */
+      deviceId: string | null;
+      /** Format: uuid */
+      reviewTaskId: string | null;
     };
     IntegrationConnection: {
       port: string;

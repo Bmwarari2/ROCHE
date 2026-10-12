@@ -43,6 +43,9 @@ export const TaskDetails = z
           deviceId: z.string().nullable().optional(),
           recordedBy: uuid.nullable().optional(),
           at: isoDateTime.nullable().optional(),
+          /** A refused entry's server copy (refused_entry.id) and the API's refusal code. */
+          refusedEntryId: uuid.nullable().optional(),
+          refusalCode: z.string().nullable().optional(),
         }),
       )
       .optional(),

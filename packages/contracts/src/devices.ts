@@ -66,3 +66,78 @@ export const RevokeDeviceResult = z
   })
   .meta({ id: "RevokeDeviceResult" });
 export type RevokeDeviceResult = z.infer<typeof RevokeDeviceResult>;
+
+/** The tables a device writes care entries to: a refused one is copied to the server. */
+export const REFUSED_ENTRY_TABLES = [
+  "care_note",
+  "observation",
+  "body_map_mark",
+  "activity_record",
+  "visit_log",
+] as const;
+
+/**
+ * A care entry the API refused from a device, sent so the server keeps a copy and the nurse in
+ * charge reviews it (care.md section 6, Device integrity part 5; HZ-006). The content is the
+ * entry's columns as the device held them.
+ */
+export const SyncRefusedEntry = z
+  .object({
+    /** The entry's own id, made on the device: one copy each. */
+    entryId: uuid,
+    table: z.enum(REFUSED_ENTRY_TABLES),
+    personId: uuid.nullable(),
+    /** The entry's columns as the device held them; `id` and `person_id`, if present, must match. */
+    payload: z.record(z.string(), z.unknown()),
+    /** The refusal's HTTP status; null when the device refused it before sending. */
+    httpStatus: z.number().int().min(100).max(599).nullable(),
+    code: z.string().regex(/^[a-z0-9_]{1,80}$/),
+    message: z.string().max(500).nullable(),
+    refusedAt: isoDateTime,
+  })
+  .strict()
+  .meta({ id: "SyncRefusedEntry" });
+export type SyncRefusedEntry = z.infer<typeof SyncRefusedEntry>;
+
+export const SyncRefusedEntryResult = z
+  .object({
+    id: uuid,
+    entryId: uuid,
+    /** The review task the copy joined. */
+    taskId: uuid.nullable(),
+    /** True when the server already had this copy. */
+    replay: z.boolean(),
+  })
+  .meta({ id: "SyncRefusedEntryResult" });
+export type SyncRefusedEntryResult = z.infer<typeof SyncRefusedEntryResult>;
+
+export const RefusedEntryItem = z
+  .object({
+    id: uuid,
+    entryId: uuid,
+    table: z.enum(REFUSED_ENTRY_TABLES),
+    personId: uuid.nullable(),
+    locationId: uuid.nullable(),
+    /** The entry as the device held it: read it as the device's record, not the care record. */
+    payload: z.record(z.string(), z.unknown()),
+    httpStatus: z.number().int().nullable(),
+    code: z.string(),
+    message: z.string().nullable(),
+    refusedAt: isoDateTime,
+    receivedAt: isoDateTime,
+    authorTenantUserId: uuid,
+    /** Who sent the copy: the author, or a manager handing over their entries. */
+    sentByTenantUserId: uuid.nullable(),
+    deviceId: uuid.nullable(),
+    reviewTaskId: uuid.nullable(),
+  })
+  .meta({
+    id: "RefusedEntryItem",
+    description: "The server's copy of an entry a device could not save",
+  });
+export type RefusedEntryItem = z.infer<typeof RefusedEntryItem>;
+
+export const RefusedEntryList = z
+  .object({ items: z.array(RefusedEntryItem) })
+  .meta({ id: "RefusedEntryList" });
+export type RefusedEntryList = z.infer<typeof RefusedEntryList>;
