@@ -1,3 +1,11 @@
+import {
+  type AccessGrantInput,
+  type Permission,
+  type RoleAssignmentInput,
+  resolveAccess,
+  type ScopeKind,
+  scopeFor,
+} from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDatabase, type TestDatabase } from "./support/database";
 import { ctx, ids, inContext, seedTwoTenants, TENANT_A } from "./support/fixtures";
@@ -137,5 +145,140 @@ describe("hazard HZ-011 break-glass access", () => {
         ),
       ),
     ).rejects.toThrow(/row-level security/);
+  });
+});
+
+describe("hazard HZ-011 data scope per permission (ADR-0071)", () => {
+  // Invented staff: Tia is a team leader at North House who also views finance across the
+  // organisation; Gil is an administrator at North House acting up at South House by a grant.
+  const TIA = "0193a000-0000-7000-8000-0000000003a1";
+  const GIL = "0193a000-0000-7000-8000-0000000003a2";
+  const roles = {
+    teamLeader: "0193a000-0000-7000-8000-0000000005a1",
+    financeViewer: "0193a000-0000-7000-8000-0000000005a2",
+    administrator: "0193a000-0000-7000-8000-0000000005a3",
+  };
+
+  beforeAll(async () => {
+    await inContext(db.pool("harbour_owner"), ctx(TENANT_A, null, "tenant"), async (c) => {
+      await c.query(
+        `INSERT INTO tenant_user (id, display_name, email, status) VALUES
+           ($1, 'Tia Twohomes', 'tia.twohomes@example.invalid', 'active'),
+           ($2, 'Gil Granted', 'gil.granted@example.invalid', 'active')`,
+        [TIA, GIL],
+      );
+      await c.query(
+        `INSERT INTO role (id, key, name, scope_kind, permissions) VALUES
+           ($1, 'tenant_team_leader', 'Team leader', 'location',
+            '{people.person.read,care.note.read,care.note.write}'),
+           ($2, 'tenant_finance_viewer', 'Finance viewer', 'tenant', '{finance.reporting.read}'),
+           ($3, 'tenant_administrator', 'Administrator', 'location', '{people.demographics.read}')`,
+        [roles.teamLeader, roles.financeViewer, roles.administrator],
+      );
+      await c.query(
+        `INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES
+           ($1, $3, $5), ($1, $4, NULL), ($2, $6, $5)`,
+        [TIA, GIL, roles.teamLeader, roles.financeViewer, ids.a.locationNorth, roles.administrator],
+      );
+      await c.query(
+        `INSERT INTO access_grant
+           (tenant_user_id, permissions, location_id, valid_from, valid_to, reason, granted_by)
+         VALUES ($1, '{people.person.read,care.note.read,care.note.write}', $2,
+                 now() - interval '1 day', now() + interval '1 day', 'Acting up', $3)`,
+        [GIL, ids.a.locationSouth, ids.a.manager],
+      );
+    });
+  });
+
+  /** The member's access as the API resolves it: their own role and grant rows, read as them. */
+  async function accessOf(userId: string) {
+    return inContext(app(), ctx(TENANT_A, userId, "none"), async (c) => {
+      const assignments = await c.query<{
+        role_key: string;
+        scope_kind: ScopeKind;
+        permissions: string[];
+        location_id: string | null;
+        valid_from: Date;
+        valid_to: Date | null;
+      }>(
+        `SELECT r.key AS role_key, r.scope_kind, r.permissions, ra.location_id, ra.valid_from,
+                ra.valid_to
+         FROM role_assignment ra JOIN role r ON r.id = ra.role_id
+         WHERE ra.tenant_user_id = $1 AND ra.deleted_at IS NULL`,
+        [userId],
+      );
+      const grants = await c.query<{
+        permissions: string[];
+        location_id: string | null;
+        valid_from: Date;
+        valid_to: Date;
+        revoked_at: Date | null;
+      }>(
+        `SELECT permissions, location_id, valid_from, valid_to, revoked_at FROM access_grant
+         WHERE tenant_user_id = $1 AND deleted_at IS NULL`,
+        [userId],
+      );
+      return resolveAccess(
+        assignments.rows.map(
+          (a): RoleAssignmentInput => ({
+            roleKey: a.role_key,
+            scopeKind: a.scope_kind,
+            permissions: a.permissions,
+            locationId: a.location_id,
+            validFrom: a.valid_from,
+            validTo: a.valid_to,
+          }),
+        ),
+        grants.rows.map(
+          (g): AccessGrantInput => ({
+            permissions: g.permissions,
+            locationId: g.location_id,
+            validFrom: g.valid_from,
+            validTo: g.valid_to,
+            revokedAt: g.revoked_at,
+          }),
+        ),
+        new Date(),
+      );
+    });
+  }
+
+  /** The row-level security context a request using one permission runs under. */
+  async function contextFor(userId: string, permission: Permission) {
+    const { scope, locationIds } = scopeFor(await accessOf(userId), permission);
+    return ctx(TENANT_A, userId, scope, locationIds);
+  }
+
+  const writeAllergy = async (userId: string, personId: string) =>
+    inContext(app(), await contextFor(userId, "care.note.write"), (c) =>
+      c.query(
+        "INSERT INTO allergy (person_id, substance, severity) VALUES ($1, 'Pollen', 'mild')",
+        [personId],
+      ),
+    );
+
+  it("keeps the team leader's care permissions at North House, whatever the finance role reaches", async () => {
+    expect(await visiblePeople(await contextFor(TIA, "care.note.read"))).toEqual(["Ada", "Ben"]);
+    expect(await visiblePeople(await contextFor(TIA, "people.person.read"))).toEqual([
+      "Ada",
+      "Ben",
+    ]);
+    // The finance permission reaches the whole organisation, and only it.
+    expect(await contextFor(TIA, "finance.reporting.read")).toMatchObject({ scope: "tenant" });
+  });
+
+  it("refuses the team leader's write about someone at South House, and allows one at North House", async () => {
+    await expect(writeAllergy(TIA, ids.a.personCara)).rejects.toThrow(/row-level security/);
+    await expect(writeAllergy(TIA, ids.a.personBen)).resolves.toBeDefined();
+  });
+
+  it("lets a grant reach South House only, and the role's own permission North House only", async () => {
+    expect(await visiblePeople(await contextFor(GIL, "care.note.read"))).toEqual(["Cara"]);
+    expect(await contextFor(GIL, "people.demographics.read")).toMatchObject({
+      scope: "locations",
+      locationIds: [ids.a.locationNorth],
+    });
+    await expect(writeAllergy(GIL, ids.a.personAda)).rejects.toThrow(/row-level security/);
+    await expect(writeAllergy(GIL, ids.a.personCara)).resolves.toBeDefined();
   });
 });
