@@ -381,3 +381,46 @@ when its entries fall on two days).
 `apps/web` 306, `packages/ui` 342, `packages/ui-native` 134, `packages/i18n` 34, all passing
 locally (run with `--concurrency=3`: under full parallel load a web time-zone test that reads every
 minute of a day can pass its 5-second limit).
+
+## 2026-10-12: Phase 1 slice 5 API (tasks, rounds and handover)
+
+**What changed**
+
+- Specs: care.md rule 8 as built in slice 5 and new rule 14 (care plan rounds), the slice 5 route
+  permission matrix, schema rows, tests and open questions; comms.md (COMMS-006 built with the
+  handover); two rate-table defaults for the window around a care plan round
+  (`care_plan.task_window_before_minutes` 30, `care_plan.task_window_after_minutes` 60, to
+  verify); retention.md (the handover tables are care records).
+- Domain (tests first): `plan-tasks.ts` (which series a plan needs, carried forward unchanged
+  across versions or ended; windows cut so no instant is inside two rounds' windows, even on a
+  clock-change night); the medicines domain never generates tasks; handover additions
+  (`previousShift`, `handoverOpen`, `alertConditions`, `viewerAcknowledgement`,
+  `checkHandoverAcknowledgement`, `checkHandoverNote`, `lateAdditionSeverity`).
+- Database: migrations 0027 and 0028: `handover` (items only ever added: a trigger refuses
+  removing, changing or reordering one, moving the shift or unlocking), `handover_note` and
+  `handover_acknowledgement` (append-only, client ids, acknowledgements only for oneself),
+  forced RLS with a location scope that follows the people a reader can see,
+  `care_plan_action.based_on_action_id`, one live task series per care plan action, and
+  `notification.person_id` and `location_id` with a backfill from each alert's source. Export
+  catalogue entries for the new tables and columns.
+- API: publishing a plan generates its rounds (and an hourly sweep, as the system); the round view
+  with the point-of-care header on every stop; the handover list, compile or refresh, detail,
+  notes and acknowledgements, compiled in the system's view and read in the reader's; who is
+  pending and who hears of a late addition worked out over each member's own scope with the
+  database's person-scope policy; a worker job every 5 minutes locks each shift's handover and
+  appends late additions (reading back 10 minutes so an entry committed just after a refresh is
+  never missed); urgent alerts carry their person and location; the task series end route
+  refuses a care plan series. OpenAPI and the client regenerated (no breaking change).
+- Docs: hazard log (HZ-018, HZ-024, HZ-003, HZ-004, HZ-008, HZ-001, HZ-011), records of
+  processing, data standards, feature register rows CARE-013 and COMMS-006.
+
+**Human actions logged**: H-150 to H-154 (CSO).
+
+**Follow-ups**: round and handover screens (web slice 9, Care mode slice 10 part 2, with sync
+streams for tasks and handovers and offline acknowledgement); moving a person's care plan rounds
+when they move location; a worded summary per handover item; rota-defined shifts and incoming
+staff (Phase 2).
+
+**Tests**: `packages/domain` 3,836, `packages/db` 306, `packages/contracts` 29, `apps/api` 506,
+`packages/sync` 59, `apps/mobile` 807, `apps/web` 306, `packages/ui` 342, `packages/ui-native` 141,
+all passing locally through `scripts/ci-local.sh` (every gate).
