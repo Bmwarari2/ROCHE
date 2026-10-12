@@ -1123,3 +1123,13 @@ Security and clinical safety reviews of the downtime pack and outage schema. Fix
   kept out of `document`'s general view, and STATUS follow-ups.
 
 **Tests**: `packages/db` 408 passing locally (15 in `downtime.test.ts`).
+
+## 2026-10-12: Slice 11 part 1, review round 2 (#32)
+
+Security closed M1 and M2. Clinical safety found one new medium: a pack's `person_ids` took in the
+content's `excluded` people (another location's, former residents), hiding the pack from every
+location-scoped nurse in charge. Now `person_ids` comes from the pages only; the stored content
+names no one left out, holds only the pack's own keys and warnings about its own people; the
+`warnings` column holds counts only; and a pack with no pages is refused while anyone is receiving
+care at the location. H-202 notes that a narrowing correction can drop entries from the duplicate
+review; three STATUS follow-ups.

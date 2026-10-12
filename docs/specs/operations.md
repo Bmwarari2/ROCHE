@@ -261,11 +261,14 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
 `packages/db/test/downtime.test.ts`. No API yet.
 
 - `downtime_pack`: append-only (INSERT and SELECT for the application, `append_only` triggers).
-  `person_ids` lists everyone the content names (its pages and anyone left out), worked out by a
-  trigger whatever the caller sends; a pack without its pages, or a page naming no one, is refused. Visible only in tenant scope or location scope at its
-  location, when the reader can see every person on it (`app.downtime_pack_visible`; a person who
-  has since moved away hides the pack from the old location), and, for a member, only where they
-  hold `operations.downtime.read`; a member builds one only in their own name, and the nightly
+  `person_ids` lists the people on its pages, worked out by a trigger whatever the caller sends
+  (#32 review round 2). The stored content names no one else: only the pack's own keys, an empty
+  or absent `excluded`, and warnings only about people on its pages; the `warnings` column holds
+  counts only. A pack without its pages, a page naming no one, or a pack with no pages while
+  anyone is receiving care at the location, is refused. Visible only in tenant scope or location
+  scope at its location, when the reader can see every person on it
+  (`app.downtime_pack_visible`; a person who has since moved away hides the pack from the old
+  location), and, for a member, only where they hold `operations.downtime.read`; a member builds one only in their own name, and the nightly
   pack (`server_nightly`, no `generated_by`) only the system. Retention `downtime_pack`; a pack in
   force during a declared outage is kept as `downtime_record`, worked out from the outages at its
   location (the row is append-only, so no class is stored on it).
@@ -305,3 +308,5 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
   - While the MAR and PEEP places are unconfirmed, the pack and the location page say so and a
     task asks a holder of `platform.location.manage` to confirm them (H-201).
   - The full export reads packs as the system or as a holder of `operations.downtime.read`.
+  - The builder passes `assembleDowntimePack` only the location's own people receiving care,
+    so nothing is left out, and stores the pack without anyone left out (#32 review round 2).

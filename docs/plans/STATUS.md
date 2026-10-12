@@ -153,6 +153,12 @@ only when they link spec, code, tests and user documentation; no user guides exi
      - store an outage's start as typed with the occurrence chosen in a repeated hour (needs the
        domain's declaration to carry the written form, as `resolvePaperTime` does);
      - who may change the other `location` columns is still enforced only by the API.
+   - Follow-ups from #32 review round 2:
+     - a missing `care_note.late_entry_hours` rate marks every outage late without saying why:
+       audit it as a configuration gap;
+     - the database does not refuse a corrected start in the future;
+     - `rate_table` writes have no permission check, so any member could override
+       `care_note.late_entry_hours` (an existing gap).
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; admin session revoke and idle timeouts
    per role; record history PDF export; device push registration; OpenFeature provider; user

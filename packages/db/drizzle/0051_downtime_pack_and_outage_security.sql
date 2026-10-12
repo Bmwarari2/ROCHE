@@ -212,24 +212,41 @@ CREATE TRIGGER capture_version AFTER UPDATE ON public.outage
   FOR EACH ROW EXECUTE FUNCTION app.capture_version();
 --> statement-breakpoint
 
--- The people a pack names are the ones in its content (#32 review round 1, M2): everyone with a
--- page and everyone left out, worked out here whatever the caller sends, so the policy above can
--- never be told less than the pack holds. A pack without its pages, or a page or exclusion that
--- names no person, is refused.
+-- The people a pack names are the people on its pages (#32 review rounds 1 and 2): worked out here
+-- whatever the caller sends, so the policy above is never told less than the pack holds. The
+-- stored content names no one else: only the pack's own keys, no one left out (the builder passes
+-- only the location's own people, so `excluded` is empty or absent), and pack-level warnings only
+-- about people on its pages. The `warnings` column holds counts only. A pack with no pages is
+-- refused while anyone is receiving care at the location (as far as the writer can see).
 CREATE OR REPLACE FUNCTION app.downtime_pack_people() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
   IF jsonb_typeof(NEW.content -> 'pages') IS DISTINCT FROM 'array'
-     OR jsonb_typeof(COALESCE(NEW.content -> 'excluded', '[]'::jsonb)) <> 'array' THEN
-    RAISE EXCEPTION 'A downtime pack lists its pages, and anyone left out, as arrays'
+     OR EXISTS (SELECT 1 FROM jsonb_object_keys(NEW.content) AS k
+                WHERE k NOT IN ('packId', 'locationId', 'locationName', 'generatedAt', 'asAt',
+                                'validUntil', 'pages', 'excluded', 'warnings'))
+     OR COALESCE(NEW.content -> 'excluded', '[]'::jsonb) <> '[]'::jsonb
+     OR jsonb_typeof(COALESCE(NEW.content -> 'warnings', '[]'::jsonb)) <> 'array'
+     OR EXISTS (SELECT 1 FROM jsonb_each(NEW.warnings) AS w WHERE jsonb_typeof(w.value) <> 'number') THEN
+    RAISE EXCEPTION 'A downtime pack holds its own keys, its pages and no one left out, and counts of warnings only'
       USING ERRCODE = 'check_violation';
   END IF;
   NEW.person_ids := ARRAY(
     SELECT DISTINCT (e ->> 'personId')::uuid
-    FROM jsonb_array_elements((NEW.content -> 'pages') || COALESCE(NEW.content -> 'excluded', '[]'::jsonb)) AS e
+    FROM jsonb_array_elements(NEW.content -> 'pages') AS e
     ORDER BY 1);
-  IF array_position(NEW.person_ids, NULL) IS NOT NULL THEN
-    RAISE EXCEPTION 'Every page of a downtime pack, and everyone left out, names their person'
+  IF array_position(NEW.person_ids, NULL) IS NOT NULL
+     OR EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(NEW.content -> 'warnings', '[]'::jsonb)) AS w
+                WHERE (w ->> 'personId') IS NOT NULL
+                  AND NOT (w ->> 'personId')::uuid = ANY (NEW.person_ids)) THEN
+    RAISE EXCEPTION 'Every page of a downtime pack names its person, and its warnings are about them'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  IF cardinality(NEW.person_ids) = 0 AND EXISTS (
+       SELECT 1 FROM public.person p
+       WHERE p.location_id = NEW.location_id AND p.deleted_at IS NULL
+         AND p.status IN ('active', 'on_leave', 'in_hospital')) THEN
+    RAISE EXCEPTION 'A downtime pack has a page for everyone receiving care at the location'
       USING ERRCODE = 'check_violation';
   END IF;
   RETURN NEW;
