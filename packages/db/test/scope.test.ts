@@ -119,7 +119,8 @@ describe("hazard HZ-011 person scope", () => {
 
 describe("hazard HZ-011 break-glass access", () => {
   it("opens a person outside scope until the break-glass record expires", async () => {
-    const carer = ctx(TENANT_A, ids.a.carer, "assigned");
+    // A read permission: break-glass opens it (ADR-0071 review round 1, S-M1).
+    const carer = ctx(TENANT_A, ids.a.carer, "assigned", [], { includesBreakGlass: true });
     await inContext(app(), carer, (c) =>
       c.query(
         `INSERT INTO break_glass_event (tenant_user_id, person_id, justification, expires_at)
@@ -198,11 +199,12 @@ describe("hazard HZ-011 data scope per permission (ADR-0071)", () => {
         scope_kind: ScopeKind;
         permissions: string[];
         location_id: string | null;
+        organisation_wide: boolean;
         valid_from: Date;
         valid_to: Date | null;
       }>(
-        `SELECT r.key AS role_key, r.scope_kind, r.permissions, ra.location_id, ra.valid_from,
-                ra.valid_to
+        `SELECT r.key AS role_key, r.scope_kind, r.permissions, ra.location_id,
+                ra.organisation_wide, ra.valid_from, ra.valid_to
          FROM role_assignment ra JOIN role r ON r.id = ra.role_id
          WHERE ra.tenant_user_id = $1 AND ra.deleted_at IS NULL`,
         [userId],
@@ -210,11 +212,13 @@ describe("hazard HZ-011 data scope per permission (ADR-0071)", () => {
       const grants = await c.query<{
         permissions: string[];
         location_id: string | null;
+        organisation_wide: boolean;
         valid_from: Date;
         valid_to: Date;
         revoked_at: Date | null;
       }>(
-        `SELECT permissions, location_id, valid_from, valid_to, revoked_at FROM access_grant
+        `SELECT permissions, location_id, organisation_wide, valid_from, valid_to, revoked_at
+         FROM access_grant
          WHERE tenant_user_id = $1 AND deleted_at IS NULL`,
         [userId],
       );
@@ -225,6 +229,7 @@ describe("hazard HZ-011 data scope per permission (ADR-0071)", () => {
             scopeKind: a.scope_kind,
             permissions: a.permissions,
             locationId: a.location_id,
+            organisationWide: a.organisation_wide,
             validFrom: a.valid_from,
             validTo: a.valid_to,
           }),
@@ -233,6 +238,7 @@ describe("hazard HZ-011 data scope per permission (ADR-0071)", () => {
           (g): AccessGrantInput => ({
             permissions: g.permissions,
             locationId: g.location_id,
+            organisationWide: g.organisation_wide,
             validFrom: g.valid_from,
             validTo: g.valid_to,
             revokedAt: g.revoked_at,
@@ -245,8 +251,11 @@ describe("hazard HZ-011 data scope per permission (ADR-0071)", () => {
 
   /** The row-level security context a request using one permission runs under. */
   async function contextFor(userId: string, permission: Permission) {
-    const { scope, locationIds } = scopeFor(await accessOf(userId), permission);
-    return ctx(TENANT_A, userId, scope, locationIds);
+    const { scope, locationIds, includesAssigned, includesBreakGlass } = scopeFor(
+      await accessOf(userId),
+      permission,
+    );
+    return ctx(TENANT_A, userId, scope, locationIds, { includesAssigned, includesBreakGlass });
   }
 
   const writeAllergy = async (userId: string, personId: string) =>
@@ -280,5 +289,130 @@ describe("hazard HZ-011 data scope per permission (ADR-0071)", () => {
     });
     await expect(writeAllergy(GIL, ids.a.personAda)).rejects.toThrow(/row-level security/);
     await expect(writeAllergy(GIL, ids.a.personCara)).resolves.toBeDefined();
+  });
+});
+
+describe("hazard HZ-011 assigned and break-glass people count only when the scope says so (ADR-0071 review round 1)", () => {
+  // An invented location lead role that may manage grants and assignments where it is held.
+  const LOCATION_LEAD = "0193a000-0000-7000-8000-0000000005b1";
+
+  beforeAll(async () => {
+    await inContext(db.pool("harbour_owner"), ctx(TENANT_A, null, "tenant"), async (c) => {
+      await c.query(
+        `INSERT INTO role (id, key, name, scope_kind, permissions) VALUES
+           ($1, 'tenant_location_lead', 'Location lead', 'location',
+            '{people.person.read,people.assignment.manage,platform.grant.manage}')`,
+        [LOCATION_LEAD],
+      );
+      await c.query(
+        "INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES ($1, $2, $3)",
+        [ids.a.northManager, LOCATION_LEAD, ids.a.locationNorth],
+      );
+    });
+  });
+
+  it("shows a location scope the people the member is assigned to only with the assigned flag", async () => {
+    const south = [ids.a.locationSouth];
+    expect(await visiblePeople(ctx(TENANT_A, ids.a.carer, "locations", south))).toEqual(["Cara"]);
+    expect(
+      await visiblePeople(
+        ctx(TENANT_A, ids.a.carer, "locations", south, { includesAssigned: true }),
+      ),
+    ).toEqual(["Ada", "Cara"]);
+  });
+
+  it("shows a person opened by break-glass only with the break-glass flag", async () => {
+    const north = [ids.a.locationNorth];
+    await inContext(
+      app(),
+      ctx(TENANT_A, ids.a.northManager, "locations", north, { includesBreakGlass: true }),
+      (c) =>
+        c.query(
+          `INSERT INTO break_glass_event (tenant_user_id, person_id, justification, expires_at)
+           VALUES ($1, $2, 'Covering an emergency on South House', now() + interval '1 hour')`,
+          [ids.a.northManager, ids.a.personCara],
+        ),
+    );
+    expect(await visiblePeople(ctx(TENANT_A, ids.a.northManager, "locations", north))).toEqual([
+      "Ada",
+      "Ben",
+    ]);
+    expect(
+      await visiblePeople(
+        ctx(TENANT_A, ids.a.northManager, "locations", north, { includesBreakGlass: true }),
+      ),
+    ).toEqual(["Ada", "Ben", "Cara"]);
+    // A write under the same location scope never reaches the break-glass person.
+    await expect(
+      inContext(app(), ctx(TENANT_A, ids.a.northManager, "locations", north), (c) =>
+        c.query(
+          "INSERT INTO allergy (person_id, substance, severity) VALUES ($1, 'Latex', 'mild')",
+          [ids.a.personCara],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it("refuses a location role assigned with no location unless it is marked organisation-wide (L2)", async () => {
+    await expect(
+      inContext(db.pool("harbour_owner"), ctx(TENANT_A, null, "tenant"), (c) =>
+        c.query("INSERT INTO role_assignment (tenant_user_id, role_id) VALUES ($1, $2)", [
+          ids.a.carer,
+          LOCATION_LEAD,
+        ]),
+      ),
+    ).rejects.toThrow(/needs a location, or to be marked organisation-wide/);
+    await expect(
+      inContext(db.pool("harbour_owner"), ctx(TENANT_A, null, "tenant"), (c) =>
+        c.query(
+          `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, organisation_wide)
+           VALUES ($1, $2, $3, true)`,
+          [ids.a.carer, LOCATION_LEAD, ids.a.locationNorth],
+        ),
+      ),
+    ).rejects.toThrow(/role_assignment_organisation_wide/);
+  });
+
+  it("refuses a grant with no location unless it is marked organisation-wide (L1)", async () => {
+    await expect(
+      inContext(db.pool("harbour_owner"), ctx(TENANT_A, null, "tenant"), (c) =>
+        c.query(
+          `INSERT INTO access_grant
+             (tenant_user_id, permissions, valid_from, valid_to, reason, granted_by)
+           VALUES ($1, '{people.person.read}', now(), now() + interval '1 day', 'Cover', $2)`,
+          [ids.a.carer, ids.a.manager],
+        ),
+      ),
+    ).rejects.toThrow(/access_grant_place/);
+  });
+
+  const giveGrant = (locationId: string | null) =>
+    inContext(app(), ctx(TENANT_A, ids.a.northManager, "locations", [ids.a.locationNorth]), (c) =>
+      c.query(
+        `INSERT INTO access_grant (tenant_user_id, permissions, location_id, organisation_wide,
+                                   valid_from, valid_to, reason, granted_by)
+         VALUES ($1, '{people.person.read}', $2, $2::uuid IS NULL, now(),
+                 now() + interval '1 day', 'Cover', $3)`,
+        [ids.a.carer, locationId, ids.a.northManager],
+      ),
+    );
+
+  it("lets the application give a grant only where the member holds platform.grant.manage (L1)", async () => {
+    await expect(giveGrant(ids.a.locationSouth)).rejects.toThrow(/row-level security/);
+    await expect(giveGrant(null)).rejects.toThrow(/row-level security/);
+    await expect(giveGrant(ids.a.locationNorth)).resolves.toBeDefined();
+  });
+
+  const assign = (personId: string) =>
+    inContext(app(), ctx(TENANT_A, ids.a.northManager, "tenant"), (c) =>
+      c.query("INSERT INTO person_assignment (tenant_user_id, person_id) VALUES ($1, $2)", [
+        ids.a.carer,
+        personId,
+      ]),
+    );
+
+  it("lets the application assign someone only where the member holds people.assignment.manage (L8)", async () => {
+    await expect(assign(ids.a.personCara)).rejects.toThrow(/row-level security/);
+    await expect(assign(ids.a.personBen)).resolves.toBeDefined();
   });
 });

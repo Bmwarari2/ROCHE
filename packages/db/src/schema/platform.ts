@@ -185,8 +185,14 @@ export const roleAssignment = pgTable(
     tenantId: tenantId(),
     tenantUserId: uuid("tenant_user_id").notNull(),
     roleId: uuid("role_id").notNull(),
-    /** NULL means every location in the tenant. */
+    /**
+     * NULL means every location in the tenant for a role scoped to the organisation; a role scoped
+     * to locations needs `organisation_wide` set to mean that (a trigger refuses it otherwise,
+     * ADR-0071 review round 1, L2).
+     */
     locationId: uuid("location_id"),
+    /** A location role deliberately assigned across the whole organisation. */
+    organisationWide: boolean("organisation_wide").notNull().default(false),
     validFrom: timestamp("valid_from", { withTimezone: true }).notNull().defaultNow(),
     /** Agency and visiting professionals always get an expiry. */
     validTo: timestamp("valid_to", { withTimezone: true }),
@@ -194,6 +200,10 @@ export const roleAssignment = pgTable(
     ...mutableColumns(),
   },
   (t) => [
+    check(
+      "role_assignment_organisation_wide",
+      sql`NOT ${t.organisationWide} OR ${t.locationId} IS NULL`,
+    ),
     foreignKey({
       name: "role_assignment_user_fk",
       columns: [t.tenantId, t.tenantUserId],
@@ -221,7 +231,10 @@ export const accessGrant = pgTable(
     tenantId: tenantId(),
     tenantUserId: uuid("tenant_user_id").notNull(),
     permissions: text("permissions").array().notNull(),
+    /** The location the grant is for; NULL only for a grant marked `organisation_wide`. */
     locationId: uuid("location_id"),
+    /** The grant reaches the whole organisation (ADR-0071 review round 1, L1). */
+    organisationWide: boolean("organisation_wide").notNull().default(false),
     validFrom: timestamp("valid_from", { withTimezone: true }).notNull().defaultNow(),
     validTo: timestamp("valid_to", { withTimezone: true }).notNull(),
     reason: text("reason").notNull(),
@@ -230,6 +243,7 @@ export const accessGrant = pgTable(
     ...mutableColumns(),
   },
   (t) => [
+    check("access_grant_place", sql`(${t.locationId} IS NULL) = ${t.organisationWide}`),
     foreignKey({
       name: "access_grant_user_fk",
       columns: [t.tenantId, t.tenantUserId],

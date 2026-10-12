@@ -337,6 +337,20 @@
       "when": 1791806475201,
       "tag": "0047_care_api_follow_ups_round_3",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1791815389311,
+      "tag": "0048_scope_per_permission_places",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1791815419426,
+      "tag": "0049_scope_per_permission_security",
+      "breakpoints": true
     }
   ]
 }

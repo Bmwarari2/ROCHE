@@ -37,8 +37,9 @@ export function ctx(
   userId: string | null,
   scope: RequestContext["scope"],
   locationIds: readonly string[] = [],
+  flags: Pick<RequestContext, "includesAssigned" | "includesBreakGlass"> = {},
 ): RequestContext {
-  return { tenantId, userId, scope, locationIds };
+  return { tenantId, userId, scope, locationIds, ...flags };
 }
 
 /** Runs `fn` in a transaction on one connection with the request context applied. */
@@ -53,8 +54,17 @@ export async function inContext<T>(
     if (context) {
       await client.query(
         `SELECT set_config('app.tenant_id', $1, true), set_config('app.user_id', $2, true),
-                set_config('app.scope', $3, true), set_config('app.location_ids', $4, true)`,
-        [context.tenantId, context.userId ?? "", context.scope, context.locationIds.join(",")],
+                set_config('app.scope', $3, true), set_config('app.location_ids', $4, true),
+                set_config('app.scope_assigned', $5, true),
+                set_config('app.scope_break_glass', $6, true)`,
+        [
+          context.tenantId,
+          context.userId ?? "",
+          context.scope,
+          context.locationIds.join(","),
+          context.includesAssigned ? "true" : "",
+          context.includesBreakGlass ? "true" : "",
+        ],
       );
     }
     const result = await fn(client);
