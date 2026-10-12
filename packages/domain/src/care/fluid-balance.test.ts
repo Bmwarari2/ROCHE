@@ -139,12 +139,18 @@ describe("fluid balance totals and target", () => {
     expect(outcome).toMatchObject({ ok: false, issues: [{ item }] });
   });
 
+  it("refuses to compute the bounds of a day that does not exist", () => {
+    expect(() => ukDayBounds("2026-02-30")).toThrow(RangeError);
+  });
+});
+
+// #26 review round 3: a drink offered and refused was not taken, so it never hides a shortfall.
+describe("hazard HZ-014 a drink offered and refused is never counted as drunk (#26 review round 3)", () => {
   const refusedDrink = (iso: string, volumeMl: number): FluidEntry => ({
     ...intake(iso, volumeMl),
     refused: true,
   });
 
-  // #26 review round 3: a drink offered and refused was not taken, so it never hides a shortfall.
   it.each([
     {
       name: "a refused drink adds nothing to the intake and is reported as offered",
@@ -193,8 +199,4 @@ describe("fluid balance totals and target", () => {
       expect(day.target).toMatchObject({ shortfallMl, met: shortfallMl === 0 });
     },
   );
-
-  it("refuses to compute the bounds of a day that does not exist", () => {
-    expect(() => ukDayBounds("2026-02-30")).toThrow(RangeError);
-  });
 });

@@ -21,7 +21,11 @@ import { createDatabase, createPool, withRequestContext } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { CARE_ALERT_UNROUTED_ACTION, raiseCareTriggers } from "../src/services/care";
+import {
+  CARE_ALERT_UNROUTED_ACTION,
+  raiseCareTriggers,
+  urgentAlertRecipients,
+} from "../src/services/care";
 import { urgentRefusedCopy } from "../src/services/refused-entries";
 import { createHarness, type Harness, LODGE } from "./support/harness";
 
@@ -81,13 +85,25 @@ async function asDemoTenant<T>(fn: (c: pg.PoolClient) => Promise<T>): Promise<T>
 const observe = (
   person: number,
   values: Record<string, unknown>,
-  init: { user?: keyof Harness["tokens"]; headers?: Record<string, string>; id?: string } = {},
+  init: {
+    user?: keyof Harness["tokens"];
+    headers?: Record<string, string>;
+    id?: string;
+    occurredAt?: string;
+  } = {},
 ) =>
   as(init.user ?? "carer", `/v1/people/${resident(person)}/observations`, {
     method: "POST",
-    body: { occurredAt: ago(5), values, ...(init.id ? { id: init.id } : {}) },
+    body: { occurredAt: init.occurredAt ?? ago(5), values, ...(init.id ? { id: init.id } : {}) },
     ...(init.headers ? { headers: init.headers } : {}),
   });
+
+/**
+ * A fixed UK day two days ago, and a time late in its morning UTC: the same London day in summer
+ * and winter time, so a fluid-day test passes at any hour, midnight included (as care.test.ts does).
+ */
+const FLUID_DAY = new Date(Date.now() - 2 * 24 * 60 * MIN).toISOString().slice(0, 10);
+const onFluidDay = (time: string) => `${FLUID_DAY}T${time}:00.000Z`;
 
 const urgentAlerts = (sourceId: string) =>
   asDemoTenant((c) =>
@@ -931,6 +947,256 @@ describe("hazard HZ-014 hazard HZ-016 an urgent result alert always reaches some
   });
 });
 
+describe("hazard HZ-014 hazard HZ-016 an urgent alert's fallback order, and the staff it skips (#26 review round 4)", () => {
+  /**
+   * One organisation per case: the person lives at "home"; "elsewhere" is another home. A team
+   * leader is the nurse in charge (`nurseInCharge`); `blind` gives their role a scope of assigned
+   * people only, so they cannot open the person's record. "holder" is a role carrying
+   * care.plan.write at the home.
+   */
+  type Member = {
+    readonly name: string;
+    readonly role: "team_leader" | "registered_manager" | "holder";
+    readonly at: "home" | "elsewhere" | "organisation";
+    readonly blind?: boolean;
+    readonly status?: "active" | "suspended" | "left";
+    readonly validFrom?: string;
+    readonly validTo?: string;
+  };
+  const HOUR = 3_600_000;
+  const hoursFromNow = (hours: number) => new Date(Date.now() + hours * HOUR).toISOString();
+  const blindNurse: Member = { name: "nurse", role: "team_leader", at: "home", blind: true };
+  const cases: readonly {
+    readonly name: string;
+    readonly members: readonly Member[];
+    readonly route: "nurse_in_charge" | "fallback" | "no_one";
+    readonly told: readonly string[];
+  }[] = [
+    {
+      name: "a nurse in charge who can see the person is told first",
+      members: [
+        { name: "nurse", role: "team_leader", at: "home" },
+        { name: "organisation manager", role: "registered_manager", at: "organisation" },
+      ],
+      route: "nurse_in_charge",
+      told: ["nurse"],
+    },
+    {
+      name: "(a) an organisation-wide Registered Manager before one at the home",
+      members: [
+        blindNurse,
+        { name: "home manager", role: "registered_manager", at: "home" },
+        { name: "organisation manager", role: "registered_manager", at: "organisation" },
+        { name: "holder", role: "holder", at: "home" },
+      ],
+      route: "fallback",
+      told: ["organisation manager"],
+    },
+    {
+      name: "(b) a Registered Manager who can see the person before holders of care.plan.write, and never one who cannot",
+      members: [
+        blindNurse,
+        { name: "other home manager", role: "registered_manager", at: "elsewhere" },
+        { name: "home manager", role: "registered_manager", at: "home" },
+        { name: "holder", role: "holder", at: "home" },
+      ],
+      route: "fallback",
+      told: ["home manager"],
+    },
+    {
+      name: "(c) a nurse in charge who cannot see the person, so the alert falls back",
+      members: [blindNurse, { name: "holder", role: "holder", at: "home" }],
+      route: "fallback",
+      told: ["holder"],
+    },
+    {
+      name: "(d) a suspended or departed member of staff is skipped",
+      members: [
+        { name: "nurse", role: "team_leader", at: "home", status: "suspended" },
+        {
+          name: "organisation manager",
+          role: "registered_manager",
+          at: "organisation",
+          status: "suspended",
+        },
+        { name: "home manager", role: "registered_manager", at: "home", status: "left" },
+        { name: "holder", role: "holder", at: "home" },
+      ],
+      route: "fallback",
+      told: ["holder"],
+    },
+    {
+      name: "(e) a role assignment that has ended, or has not started, is skipped",
+      members: [
+        {
+          name: "nurse",
+          role: "team_leader",
+          at: "home",
+          validFrom: hoursFromNow(-48),
+          validTo: hoursFromNow(-1),
+        },
+        {
+          name: "organisation manager",
+          role: "registered_manager",
+          at: "organisation",
+          validFrom: hoursFromNow(24),
+        },
+        {
+          name: "home manager",
+          role: "registered_manager",
+          at: "home",
+          validFrom: hoursFromNow(-48),
+          validTo: hoursFromNow(-1),
+        },
+        { name: "holder", role: "holder", at: "home" },
+      ],
+      route: "fallback",
+      told: ["holder"],
+    },
+    {
+      name: "(f) nobody qualifies: route no_one, nothing counted as raised, and care.alert.unrouted audited with the coded reason",
+      members: [
+        blindNurse,
+        { name: "other home manager", role: "registered_manager", at: "elsewhere" },
+        { name: "holder", role: "holder", at: "home", status: "suspended" },
+      ],
+      route: "no_one",
+      told: [],
+    },
+  ];
+
+  let pool: pg.Pool;
+  beforeAll(() => {
+    pool = createPool(h.db.url("harbour_app"));
+  });
+  afterAll(async () => {
+    await pool?.end();
+  });
+
+  it.each(cases.map((c, n) => ({ ...c, n })))("$name", async ({ members, route, told, n }) => {
+    const id = (block: string, i = 0) =>
+      `0194f1${n.toString(16).padStart(2, "0")}-0000-7000-${block}-${i.toString(16).padStart(12, "0")}`;
+    const tenantId = id("8000");
+    const home = id("8001");
+    const elsewhere = id("8002");
+    const personId = id("8003");
+    const roles = {
+      team_leader: id("8004", 1),
+      registered_manager: id("8004", 2),
+      holder: id("8004", 3),
+    };
+    // A blind nurse in charge is a team leader whose role sees assigned people only (none here).
+    const nurseScope = members.some((m) => m.blind) ? "assigned" : "location";
+    const memberId = (i: number) => id("8005", i + 1);
+    const client = await h.db.pool("harbour_owner").connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+        [tenantId],
+      );
+      await client.query(
+        `INSERT INTO tenant (id, name, legal_name, legal_form, status)
+           VALUES ($1, 'Case Provider', 'Case Provider Ltd', 'limited_company', 'active')`,
+        [tenantId],
+      );
+      await client.query(
+        "INSERT INTO location (id, name) VALUES ($1, 'Case Home'), ($2, 'Other Home')",
+        [home, elsewhere],
+      );
+      await client.query(
+        `INSERT INTO person (id, location_id, status, given_name, family_name, nhs_number)
+           VALUES ($1, $2, 'active', 'Ivy', 'Example', '9990000093')`,
+        [personId, home],
+      );
+      await client.query(
+        `INSERT INTO role (id, key, name, scope_kind, permissions) VALUES
+             ($1, 'team_leader', 'Team leader', $4, '{care.note.read,care.note.write}'),
+             ($2, 'registered_manager', 'Registered Manager', 'location', '{people.person.read,care.plan.write}'),
+             ($3, 'care_coordinator', 'Care coordinator', 'location', '{people.person.read,care.plan.write}')`,
+        [roles.team_leader, roles.registered_manager, roles.holder, nurseScope],
+      );
+      for (const [i, member] of members.entries()) {
+        await client.query(
+          "INSERT INTO tenant_user (id, display_name, email, status) VALUES ($1, $2, $3, $4)",
+          [
+            memberId(i),
+            `Member ${i}`,
+            `member${n}-${i}@example.invalid`,
+            member.status ?? "active",
+          ],
+        );
+        const roleId = roles[member.role];
+        await client.query(
+          `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, valid_from, valid_to)
+             VALUES ($1, $2, $3, $4, $5)`,
+          [
+            memberId(i),
+            roleId,
+            member.at === "organisation" ? null : member.at === "home" ? home : elsewhere,
+            member.validFrom ?? hoursFromNow(-24),
+            member.validTo ?? null,
+          ],
+        );
+      }
+      await client.query("COMMIT");
+    } finally {
+      client.release();
+    }
+    const sourceId = id("8006");
+    const db = createDatabase(pool);
+    const context = { tenantId, userId: null, scope: "tenant" as const, locationIds: [] };
+    const alert = await withRequestContext(db, context, (tx) =>
+      urgentAlertRecipients(tx, { personId, locationId: home }, new Date()),
+    );
+    const names = new Map(members.map((m, i) => [memberId(i), m.name]));
+    expect(alert.route).toBe(route);
+    expect(alert.recipients.map((r) => names.get(r))).toEqual(told);
+    // The alert is raised as routed: counted only when someone was told, and audited with its
+    // coded reason when no one could be.
+    const raised = await withRequestContext(db, context, (tx) =>
+      raiseCareTriggers(
+        tx,
+        { personId, locationId: home, sourceType: "observation", sourceId },
+        [
+          {
+            kind: "urgent_alert",
+            recipient: "nurse_in_charge",
+            reason: "A different level with no reason",
+            code: "iddsi_reason_missing",
+          },
+        ],
+        new Date(),
+        alert,
+      ),
+    );
+    expect(raised).toBe(told.length > 0 ? 1 : 0);
+    const reader = await h.db.pool("harbour_owner").connect();
+    let audited: { action: string; reason: string }[] = [];
+    try {
+      await reader.query("BEGIN");
+      await reader.query(
+        "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+        [tenantId],
+      );
+      audited = (
+        await reader.query<{ action: string; reason: string }>(
+          "SELECT action, reason FROM audit_event WHERE resource_id = $1",
+          [sourceId],
+        )
+      ).rows;
+      await reader.query("COMMIT");
+    } finally {
+      reader.release();
+    }
+    expect(audited).toEqual(
+      route === "no_one"
+        ? [{ action: CARE_ALERT_UNROUTED_ACTION, reason: "iddsi_reason_missing" }]
+        : [],
+    );
+  });
+});
+
 describe("hazard HZ-040 entries a device recorded deleting are counted beside the fluid total (#26 review round 2, C3)", () => {
   it("keeps them in the totals, says how many and how much, and marks them on the list", async () => {
     const entryId = newId();
@@ -954,22 +1220,26 @@ describe("hazard HZ-040 entries a device recorded deleting are counted beside th
       });
       expect(sent.status).toBe(200);
     }
-    const plain = await observe(3, { chart: "fluid_intake", ml: 200 }, { headers: fromDevice });
+    // On a fixed day, so the test passes at any hour (#26 review round 4).
+    const plain = await observe(
+      3,
+      { chart: "fluid_intake", ml: 200 },
+      { headers: fromDevice, occurredAt: onFluidDay("10:00") },
+    );
     expect(plain.status).toBe(201);
     const flagged = await observe(
       3,
       { chart: "fluid_intake", ml: 300 },
-      { headers: fromDevice, id: entryId },
+      { headers: fromDevice, id: entryId, occurredAt: onFluidDay("10:30") },
     );
     expect(flagged.status).toBe(201);
     expect((await json<ObservationItem>(flagged)).deviceDeletion).toBe("uploaded_after_deletion");
-    const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/London" });
     const day = await json<{
       intakeMl: number;
       flaggedEntries: number;
       flaggedIntakeMl: number;
       flaggedOutputMl: number;
-    }>(await as("manager", `/v1/people/${resident(3)}/charts/fluid?date=${today}`));
+    }>(await as("manager", `/v1/people/${resident(3)}/charts/fluid?date=${FLUID_DAY}`));
     expect(day).toMatchObject({ flaggedEntries: 1, flaggedIntakeMl: 300, flaggedOutputMl: 0 });
     expect(day.intakeMl).toBeGreaterThanOrEqual(500);
     const list = await json<{ items: ObservationItem[] }>(
@@ -981,14 +1251,17 @@ describe("hazard HZ-040 entries a device recorded deleting are counted beside th
   });
 });
 
-describe("fluid balance: a drink offered and refused is never counted as drunk (#26 review round 3)", () => {
+describe("hazard HZ-014 fluid balance: a drink offered and refused is never counted as drunk (#26 review round 3)", () => {
   it("leaves the intake and shortfall as they were and reports the amount offered", async () => {
-    const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/London" });
     type Day = { intakeMl: number; refusedEntries: number; refusedOfferedMl: number };
     const day = async () =>
-      json<Day>(await as("manager", `/v1/people/${resident(2)}/charts/fluid?date=${today}`));
+      json<Day>(await as("manager", `/v1/people/${resident(2)}/charts/fluid?date=${FLUID_DAY}`));
     const before = await day();
-    const refused = await observe(2, { chart: "fluid_intake", ml: 250, refused: true });
+    const refused = await observe(
+      2,
+      { chart: "fluid_intake", ml: 250, refused: true },
+      { occurredAt: onFluidDay("11:00") },
+    );
     expect(refused.status).toBe(201);
     const after = await day();
     expect(after.intakeMl).toBe(before.intakeMl);
