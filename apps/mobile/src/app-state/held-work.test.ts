@@ -51,6 +51,7 @@ import {
   forgetDiscardNotes,
   type HeldIdsDeps,
   HeldIdsUnreadableError,
+  HeldRevokedError,
   type HeldWork,
   HeldWorkOwnerError,
   type HoldDb,
@@ -1506,5 +1507,123 @@ describe("hazard HZ-040 a hold names where its owner works, so the manager's tas
     };
     await admitToDatabase(deps(moved));
     expect(await readDeviceOwner(dev.db)).toMatchObject({ locationIds: [HOME, LODGE] });
+  });
+});
+
+describe("hazard HZ-040 a device a manager revoked (care.md section 6, Device integrity part 2)", () => {
+  /** The API's answer to a revoked device: 403 with its own code. */
+  const revokedFetch = () => {
+    const calls: string[] = [];
+    const fetch: FetchLike = async (url) => {
+      calls.push(url);
+      return new Response(
+        JSON.stringify({ status: 403, code: "device_revoked", title: "Withdrawn" }),
+        {
+          status: 403,
+          headers: { "content-type": "application/problem+json" },
+        },
+      );
+    };
+    return { fetch, calls };
+  };
+
+  /** The vault's wiring for a revocation: the same hold-or-wipe rule, marked revoked. */
+  function revokedConnector(dev: Device, fetch: FetchLike) {
+    const outcomes: Array<Promise<"wiped" | "held">> = [];
+    const sessionEnded = { count: 0 };
+    const instance = new HarbourConnector({
+      apiUrl: API,
+      fetch,
+      getToken: async () => "tok-1",
+      onSessionRevoked: () => {
+        sessionEnded.count += 1;
+      },
+      onDeviceRevoked: () => {
+        outcomes.push(
+          handleSessionEnded({
+            countPending: () => countPendingWork(dev.db),
+            owner: sam,
+            now: NOW,
+            expiresAt: heldDeadline(NOW, 7),
+            lastServerTime: null,
+            wipe: dev.wipe,
+            hold: dev.hold,
+            revoked: true,
+          }),
+        );
+      },
+      backoff: { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 1 },
+      random: () => 0.5,
+      sleep: async () => undefined,
+      now: () => NOW,
+    });
+    return { instance, outcomes, sessionEnded };
+  }
+
+  it("hazard HZ-040 wipes a revoked device with nothing unsent, as a remote wipe", async () => {
+    const dev = await device();
+    const { instance, outcomes, sessionEnded } = revokedConnector(dev, revokedFetch().fetch);
+    await expect(instance.fetchCredentials()).resolves.toBeNull();
+    await expect(outcomes[0]).resolves.toBe("wiped");
+    expect(sessionEnded.count).toBe(0);
+    expect(dev.files.size).toBe(0);
+    expect(await dev.store.getItem(DB_ID_ITEM, keyOptions.plainOptions)).toBeNull();
+  });
+
+  it("hazard HZ-040 hazard HZ-006 keeps a revoked device's unsent entries under the hold rules, marked revoked", async () => {
+    const dev = await device({ queued: 1, refused: 1 });
+    const { instance, outcomes } = revokedConnector(dev, revokedFetch().fetch);
+    // The care entry is refused by the revocation: it is never parked as refused, and is held.
+    await expect(instance.uploadData(asSource(dev))).rejects.toBeInstanceOf(SessionRevokedError);
+    await expect(outcomes[0]).resolves.toBe("held");
+    expect(dev.count("held_entry")).toBe(1);
+    expect(dev.count("upload_issue")).toBe(1);
+    for (const table of SYNCED_TABLES) expect(dev.count(table), table).toBe(0);
+    const held = parseHeldWork(dev.marker.value);
+    expect(held).toMatchObject({ revoked: true, entries: 2, tenantUserId: sam.tenantUserId });
+    // Nothing is deleted automatically: the hold escalates as any other.
+    expect(held?.expiresAt).toBe("2026-10-18T07:30:00.000Z");
+  });
+
+  it("hazard HZ-040 never lets anyone resume syncing on a revoked device, not even the owner", async () => {
+    const dev = await device({ queued: 1 });
+    const { instance, outcomes } = revokedConnector(dev, revokedFetch().fetch);
+    await instance.fetchCredentials();
+    await outcomes[0];
+    const held = parseHeldWork(dev.marker.value);
+    if (!held) throw new Error("expected held entries");
+    for (const me of [sam, kit]) {
+      const signedOut: string[] = [];
+      const attempt = admitSignIn({
+        held,
+        me,
+        token: `tok-${me.user.id}`,
+        signOut: async (token) => {
+          signedOut.push(token);
+        },
+      });
+      await expect(attempt).rejects.toBeInstanceOf(HeldRevokedError);
+      await expect(attempt).rejects.toThrow(t("mobile.held.revokedSignIn"));
+      expect(signedOut).toEqual([`tok-${me.user.id}`]);
+    }
+    expect(dev.count("held_entry")).toBe(1);
+  });
+
+  it("keeps the revocation on the marker it reads back, and on the screen's words", () => {
+    const marker = parseHeldWork(
+      serialiseHeldWork({
+        tenantId: DEMO_TENANT_ID,
+        tenantUserId: sam.tenantUserId,
+        userId: sam.user.id,
+        ownerName: "Sam Example",
+        entries: 1,
+        heldAt: NOW.toISOString(),
+        expiresAt: heldDeadline(NOW, 7).toISOString(),
+        lastServerTime: null,
+        revoked: true,
+      }),
+    );
+    expect(marker?.revoked).toBe(true);
+    expect(parseHeldWork(JSON.stringify({ ...marker, revoked: "yes" }))?.revoked).toBeUndefined();
   });
 });

@@ -384,7 +384,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
   const wipingRef = useRef(false);
   const busyRef = useRef(false);
   const signOutAndWipeRef = useRef<(notice?: string) => Promise<void>>(async () => undefined);
-  const sessionEndedRef = useRef<() => Promise<void>>(async () => undefined);
+  const sessionEndedRef = useRef<(revoked?: boolean) => Promise<void>>(async () => undefined);
   const afterSyncRef = useRef<() => Promise<void>>(async () => undefined);
   const meRef = useRef<Me | null>(session.me);
   meRef.current = session.me;
@@ -616,6 +616,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
           afterReset,
           now,
           uploadBlocked,
+          revoked: heldRef.current?.revoked === true,
           cachedHeldMaxDays: () => readCachedHeldMaxDays(opened),
           reset: async () => {
             await closeAndDeleteRef.current(true);
@@ -659,6 +660,11 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
           getDeviceId: () => opened.getClientId(),
           onSessionRevoked: () => {
             void sessionEndedRef.current();
+          },
+          // A manager revoked this device: a remote wipe, keeping unsent entries under the hold
+          // rules, marked revoked (care.md section 6, Device integrity part 2).
+          onDeviceRevoked: () => {
+            void sessionEndedRef.current(true);
           },
         });
         connectorRef.current = connector;
@@ -773,62 +779,70 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
   const holdingRef = useRef(false);
 
   /**
-   * The API says the session has ended. With nothing unsent the device is wiped as before; with
-   * entries waiting, uploads stop and the encrypted database is kept for its owner (HZ-006). The
+   * The API says the session has ended, or that a manager revoked this device. With nothing unsent
+   * the device is wiped as before; with entries waiting, uploads stop and the encrypted database is
+   * kept for its owner (HZ-006), marked revoked when it was, so nobody resumes syncing on it. The
    * hold's report and notifications start here.
    */
-  const sessionEnded = useCallback(async () => {
-    if (wipingRef.current || holdingRef.current) return;
-    holdingRef.current = true;
-    try {
-      const current = dbRef.current;
-      const token = tokenRef.current;
-      const now = new Date();
-      const days =
-        heldMaxDaysRef.current ??
-        (current ? await readCachedHeldMaxDays(current) : null) ??
-        HELD_FAIL_SAFE_DAYS;
-      await handleSessionEnded({
-        countPending: async () => (current ? countPendingWork(current) : null),
-        owner: meRef.current,
-        now,
-        expiresAt: heldDeadline(now, days),
-        lastServerTime: current?.currentStatus.lastSyncedAt ?? null,
-        // The session is ended on the server too: access withdrawn leaves it alive otherwise
-        // (security review round 5, S-L3).
-        wipe: () => signOutAndWipe(REMOTE_WIPE_NOTICE, true),
-        hold: async (held: HeldWork) => {
-          idle.stop();
-          setStatus("locked");
-          // Only the unsent work stays (S2). If the copy fails, the whole database stays
-          // encrypted rather than losing entries.
-          let report: SyncDeviceReport | null = null;
-          if (current) {
-            await holdUnsentWork(current as unknown as HoldDb, now).catch(() => 0);
-            report = await buildDeviceReport(current as unknown as ReportDb, now).catch(() => null);
-          }
-          await closeKeepingData();
-          clearPhotoCache();
-          setOfflineWindowDays(null);
-          windowValidUntilRef.current = null;
-          setRestoreProblemText(null);
-          setError(null);
-          await session.holdSession(held);
-          void scheduleHeldNotifications(planHeldNotifications(held, now));
-          // The server hears of the hold at once when it can, and again while the app runs; then
-          // the ended session is ended on the server too (security review round 5, S-L3).
-          const sent = await reportHold(held, report, token);
-          if (token && !sent && held.tenantId) {
-            holdReportRef.current = { token, held, until: Date.now() + HOLD_REPORT_RETRY_MS };
-          } else if (token) {
-            revokeSession(token);
-          }
-        },
-      });
-    } finally {
-      holdingRef.current = false;
-    }
-  }, [closeKeepingData, idle, session.holdSession, signOutAndWipe]);
+  const sessionEnded = useCallback(
+    async (revoked = false) => {
+      if (wipingRef.current || holdingRef.current) return;
+      holdingRef.current = true;
+      try {
+        const current = dbRef.current;
+        const token = tokenRef.current;
+        const now = new Date();
+        const days =
+          heldMaxDaysRef.current ??
+          (current ? await readCachedHeldMaxDays(current) : null) ??
+          HELD_FAIL_SAFE_DAYS;
+        await handleSessionEnded({
+          countPending: async () => (current ? countPendingWork(current) : null),
+          owner: meRef.current,
+          now,
+          expiresAt: heldDeadline(now, days),
+          lastServerTime: current?.currentStatus.lastSyncedAt ?? null,
+          // The session is ended on the server too: access withdrawn leaves it alive otherwise
+          // (security review round 5, S-L3).
+          wipe: () =>
+            signOutAndWipe(revoked ? t("mobile.vault.deviceRevoked") : REMOTE_WIPE_NOTICE, true),
+          revoked,
+          hold: async (held: HeldWork) => {
+            idle.stop();
+            setStatus("locked");
+            // Only the unsent work stays (S2). If the copy fails, the whole database stays
+            // encrypted rather than losing entries.
+            let report: SyncDeviceReport | null = null;
+            if (current) {
+              await holdUnsentWork(current as unknown as HoldDb, now).catch(() => 0);
+              report = await buildDeviceReport(current as unknown as ReportDb, now).catch(
+                () => null,
+              );
+            }
+            await closeKeepingData();
+            clearPhotoCache();
+            setOfflineWindowDays(null);
+            windowValidUntilRef.current = null;
+            setRestoreProblemText(null);
+            setError(null);
+            await session.holdSession(held, revoked ? t("mobile.held.revoked") : undefined);
+            void scheduleHeldNotifications(planHeldNotifications(held, now));
+            // The server hears of the hold at once when it can, and again while the app runs; then
+            // the ended session is ended on the server too (security review round 5, S-L3).
+            const sent = await reportHold(held, report, token);
+            if (token && !sent && held.tenantId) {
+              holdReportRef.current = { token, held, until: Date.now() + HOLD_REPORT_RETRY_MS };
+            } else if (token) {
+              revokeSession(token);
+            }
+          },
+        });
+      } finally {
+        holdingRef.current = false;
+      }
+    },
+    [closeKeepingData, idle, session.holdSession, signOutAndWipe],
+  );
   sessionEndedRef.current = sessionEnded;
 
   const countUnsent = useCallback(async (): Promise<number | null> => {

@@ -35,6 +35,15 @@ describe("hazard HZ-040 the sign-in screen on held entries (clinical review H2, 
     expect(view.body).toContain("they will not be sent");
   });
 
+  it("hazard HZ-040 says a device a manager revoked keeps its entries to be sent or deleted (Device integrity part 2)", () => {
+    const view = heldView({ ...held, revoked: true }, new Date("2026-10-11T08:00:00Z"));
+    expect(view.body).toBe(t("mobile.held.revoked"));
+    expect(view.body).toContain("withdrew this device");
+    // Still counted, still escalating, never deleted automatically.
+    expect(view.title).toBe("Sign in again to send 2 entries");
+    expect(view.time).toContain("Nothing is deleted automatically.");
+  });
+
   it("gives a final warning naming the count in the last day", () => {
     const view = heldView(held, new Date(DEADLINE - FINAL_WARNING_MS + 60_000));
     expect(view).toMatchObject({ state: "final", urgent: true });

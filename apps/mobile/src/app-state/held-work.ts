@@ -75,6 +75,12 @@ export interface HeldWork {
    */
   readonly uploadBlocked?: boolean;
   /**
+   * A manager revoked this device (403 `device_revoked`; care.md section 6, Device integrity part
+   * 2): everything else synced has gone, and the entries leave only by the hand-over (their owner's
+   * or a manager's sign-in for that alone) or a recorded deletion. Nobody resumes syncing here.
+   */
+  readonly revoked?: boolean;
+  /**
    * The locations of the owner's sync scope (opaque ids), which the hold's report names so the
    * manager's task goes where the owner works (clinical review round 6, M2).
    */
@@ -136,6 +142,7 @@ export function parseHeldWork(raw: string | null | undefined): HeldWork | null {
       expiresAt: text(value.expiresAt),
       lastServerTime: text(value.lastServerTime),
       ...(value.uploadBlocked === true ? { uploadBlocked: true } : {}),
+      ...(value.revoked === true ? { revoked: true } : {}),
       ...storedLocations(value.locationIds),
     };
   } catch {
@@ -656,6 +663,8 @@ export interface OpenCheckDeps {
   readonly cachedHeldMaxDays: () => Promise<number | null>;
   /** The held marker says a deletion did not finish: nothing here is ever uploaded (round 4, H1). */
   readonly uploadBlocked?: boolean;
+  /** The held marker says a manager revoked this device: kept on any new marker. */
+  readonly revoked?: boolean;
   /** Closes and deletes this database and destroys its key, so a new one is made. */
   readonly reset: () => Promise<void>;
   /** Closes the database, keeping the file and its key. */
@@ -720,6 +729,7 @@ export async function admitToDatabase(deps: OpenCheckDeps): Promise<OpenOutcome>
         expiresAt: heldDeadline(deps.now, days).toISOString(),
         lastServerTime: null,
         ...(deps.uploadBlocked ? { uploadBlocked: true } : {}),
+        ...(deps.revoked ? { revoked: true } : {}),
         ...storedLocations(owner?.locationIds),
       },
     };
@@ -791,12 +801,18 @@ export interface SessionEndedDeps {
   readonly lastServerTime: Date | null;
   readonly wipe: () => Promise<void>;
   readonly hold: (held: HeldWork) => Promise<void>;
+  /**
+   * A manager revoked the device (403 `device_revoked`), rather than the session ending: the same
+   * remote wipe, and a hold is marked revoked (care.md section 6, Device integrity part 2).
+   */
+  readonly revoked?: boolean;
 }
 
 /**
- * The session ended (401 or a session-level 403 from the sync token, an upload or `/v1/me`).
- * Wipes only when the device holds nothing unsent; otherwise holds it for its owner. When the
- * count fails, the entries are kept: losing care records is the worse outcome.
+ * The session ended (401 or a session-level 403 from the sync token, an upload or `/v1/me`), or a
+ * manager revoked the device. Wipes only when the device holds nothing unsent; otherwise holds it
+ * for its owner (marked revoked when it was). When the count fails, the entries are kept: losing
+ * care records is the worse outcome.
  */
 export async function handleSessionEnded(deps: SessionEndedDeps): Promise<"wiped" | "held"> {
   let counts: PendingCounts | null;
@@ -818,6 +834,7 @@ export async function handleSessionEnded(deps: SessionEndedDeps): Promise<"wiped
     heldAt: deps.now.toISOString(),
     expiresAt: (deps.expiresAt ?? heldDeadline(deps.now, HELD_FAIL_SAFE_DAYS)).toISOString(),
     lastServerTime: deps.lastServerTime ? deps.lastServerTime.toISOString() : null,
+    ...(deps.revoked ? { revoked: true } : {}),
     ...storedLocations(locationIdsOf(deps.owner)),
   });
   return "held";
@@ -844,15 +861,27 @@ export interface SignInDeps {
 }
 
 /**
+ * A manager revoked this device: nobody resumes syncing on it, not even the entries' owner. The
+ * entries leave by the hand-over or a recorded deletion (care.md section 6, Device integrity).
+ */
+export class HeldRevokedError extends Error {
+  constructor() {
+    super(t("mobile.held.revokedSignIn"));
+    this.name = "HeldRevokedError";
+  }
+}
+
+/**
  * Admits a sign-in. With held entries, only their owner gets in (and resumes the uploads); the
  * new session of anyone else is ended and refused with a message. The marker stays until the vault
- * has put the entries back.
+ * has put the entries back. On a revoked device nobody resumes: the sign-in is ended and refused,
+ * and the entries wait for the hand-over or a recorded deletion.
  */
 export async function admitSignIn(deps: SignInDeps): Promise<"continue" | "resume"> {
   if (!deps.held) return "continue";
-  if (isHeldWorkOwner(deps.held, deps.me)) return "resume";
+  if (!deps.held.revoked && isHeldWorkOwner(deps.held, deps.me)) return "resume";
   await deps.signOut(deps.token).catch(() => undefined);
-  throw new HeldWorkOwnerError();
+  throw deps.held.revoked ? new HeldRevokedError() : new HeldWorkOwnerError();
 }
 
 // -------------------------------------------------------------------------------------------------

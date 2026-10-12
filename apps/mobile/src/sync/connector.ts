@@ -3,8 +3,10 @@
  *
  * - fetchCredentials: exchanges the Better Auth session for a short-lived PowerSync token
  *   (`POST /v1/sync/token`), in the session's organisation. A 401 means the session expired or was
- *   revoked elsewhere. A 403 whose problem body comes from the API (a session code, or any other
- *   code such as `missing_permission`) means the session or the access Care mode needs has gone; a
+ *   revoked elsewhere. A 403 `device_revoked`, on the token or any upload, means a manager revoked
+ *   this device, which the vault treats as a remote wipe (`onDeviceRevoked`). A 403 whose problem
+ *   body comes from the API (a session code, or any other code such as `missing_permission`) means
+ *   the session or the access Care mode needs has gone; a
  *   403 with no body, an HTML page or the edge's `edge_blocked` is checked with `GET /v1/me` first
  *   (`session-signals.ts`). The connector reports an ended session and the vault decides (HZ-006,
  *   `held-work.ts`): wipe when nothing is waiting to upload, otherwise hold the unsent entries for
@@ -77,6 +79,19 @@ export class SessionRevokedError extends Error {
   constructor() {
     super("The session is no longer valid");
     this.name = "SessionRevokedError";
+  }
+}
+
+/**
+ * A manager revoked this device (403 `device_revoked`; care.md section 6, Device integrity part 2).
+ * An ended session all the same, so nothing is parked or retried, but the vault reacts to it as to
+ * a remote wipe.
+ */
+export class DeviceRevokedError extends SessionRevokedError {
+  constructor() {
+    super();
+    this.message = "This device has been withdrawn from Harbour";
+    this.name = "DeviceRevokedError";
   }
 }
 
@@ -215,6 +230,11 @@ export interface HarbourConnectorOptions {
   /** Called once when the API says the session is no longer valid. */
   readonly onSessionRevoked: () => void;
   /**
+   * Called instead when the API says a manager revoked this device (403 `device_revoked`): the
+   * device wipes, keeping unsent entries under the hold rules. Without it, an ended session.
+   */
+  readonly onDeviceRevoked?: () => void;
+  /**
    * The device's opaque id (the PowerSync client id), sent with the sync token request so the
    * server knows this member has used the device: a hold report naming them as its owner counts
    * only then (security review round 7, M1).
@@ -268,6 +288,12 @@ export class HarbourConnector implements PowerSyncBackendConnector {
     throw new SessionRevokedError();
   }
 
+  /** A manager revoked this device: never parked, never retried, reported as a revocation. */
+  private revoked(): never {
+    (this.options.onDeviceRevoked ?? this.options.onSessionRevoked)();
+    throw new DeviceRevokedError();
+  }
+
   /**
    * A 403 (security reviews round 3 and round 4, H1). A session code ends the session. Any other
    * code from the API is the API's decision: `accessWithdrawn` says what it means here (true on
@@ -288,6 +314,7 @@ export class HarbourConnector implements PowerSyncBackendConnector {
     const problem = await readProblemBody(response);
     const kind = classifyForbidden(problem.code);
     if (kind === "session") this.ended();
+    if (kind === "revoked") this.revoked();
     if (kind === "api") {
       if (accessWithdrawn) this.ended();
       return { kind, session: "ok", code: problem.code, reason: problem.reason };

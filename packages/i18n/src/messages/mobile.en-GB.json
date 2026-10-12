@@ -313,5 +313,8 @@
   "mobile.vault.restoreBlockedFailed": "Entries left by a deletion that did not finish could not be moved to the entries that need attention. They are still on this device and will never be sent. Harbour will not connect until they have moved. Close Harbour, open it again and unlock to try again. If this keeps happening, tell the nurse in charge.",
   "mobile.held.keyNotRead": "The entries could not be unlocked to record which ones are deleted, so nothing has been deleted. Try again, and confirm with your face, fingerprint or passcode when asked.",
   "mobile.discard.blockFailed": "This device could not mark the entries as never to be sent, so nothing has been deleted. Try again, or restart the device and try again.",
-  "mobile.sync.issuesUnknown": "Entries the server refused could not be counted and need attention. Harbour tries again each time it unlocks."
+  "mobile.sync.issuesUnknown": "Entries the server refused could not be counted and need attention. Harbour tries again each time it unlocks.",
+  "mobile.held.revoked": "A manager withdrew this device from Harbour, so the care records on it have been removed. These entries had not reached Harbour and are kept, encrypted. The member of staff who wrote them, or a manager, can sign in here to send them, or a manager can delete them with a reason.",
+  "mobile.held.revokedSignIn": "A manager withdrew this device from Harbour, so Care mode cannot be used on it. The entries waiting here can still be sent from this screen, or deleted with a reason. That sign-in has been ended.",
+  "mobile.vault.deviceRevoked": "A manager withdrew this device from Harbour, so the care records stored on it have been removed. Use another device, or ask your manager."
 }

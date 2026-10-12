@@ -47,8 +47,13 @@ export function heldView(held: HeldWork, now: Date): HeldView {
     title:
       entries === null ? t("mobile.held.titleUnknown") : t("mobile.held.title", { count: entries }),
     owner: held.tenantId !== "" ? t("mobile.held.owner", who) : t("mobile.held.ownerUnknown"),
-    // A deletion that did not finish: these are never sent (clinical review round 4, H1).
-    body: held.uploadBlocked ? t("mobile.held.blocked") : t("mobile.held.body"),
+    // A deletion that did not finish: these are never sent (clinical review round 4, H1). A device
+    // a manager revoked: sent only by the hand-over (care.md section 6, Device integrity).
+    body: held.uploadBlocked
+      ? t("mobile.held.blocked")
+      : held.revoked
+        ? t("mobile.held.revoked")
+        : t("mobile.held.body"),
     time,
     urgent: state !== "open",
     discardLabel:
