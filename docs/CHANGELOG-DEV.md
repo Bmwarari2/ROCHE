@@ -677,3 +677,54 @@ reasons per organisation); H-73, H-74 and H-146 updated.
 **Tests**: `packages/domain` 3,996, `packages/db` 365, `packages/contracts` 34, `apps/api` 586,
 `packages/sync` 59, `apps/mobile` 869, `apps/web` 311, `packages/i18n` 48, all passing locally
 through `scripts/ci-local.sh`.
+
+## 2026-10-12: #26 review round 2 (care API follow-ups)
+
+**What changed**
+
+- IDDSI in words (clinical C1; HZ-016): the web shows every kept problem in words beside its icon,
+  `prescribed_unreadable` included, and says "it may not be safe: the nurse in charge was told"
+  only when the entry raised the alert (a thinner drink or more solid food than prescribed); a
+  refused drink needs no level and raises nothing, on the server, the web and the phone.
+- Urgent alert routing (clinical C2; HZ-016, HZ-012): with no nurse in charge on shift, the IDDSI
+  and other urgent care alerts go to the fallback (the Registered Manager, else holders of
+  `care.plan.write`); only notifications written are counted; with no one to tell,
+  `care.alert.unrouted` is audited (opaque ids only).
+- Flagged entries in totals (clinical C3; HZ-040): the fluid day returns `flaggedEntries`,
+  `flaggedIntakeMl` and `flaggedOutputMl`; every list carries `deviceDeletion`; the web shows an
+  icon and words on the entry and beside the day's total. Nothing is left out (H-165).
+- Older phones' marks (clinical C4; HZ-019): a mark with only a drawn side is stored at the zone
+  that side names and flagged (`body_map_mark.drawn_from_device_side`, migration 0045); the spec
+  line saying such marks are refused is corrected. A refused copy of a category 2 or worse pressure
+  ulcer, a bruise or an injury makes the review task and notice urgent (H-162).
+- Replays (clinical C5; HZ-029): a resent create with the same id and other material details is
+  refused with 409 "This was already saved with different details: reload before changing it."
+  (advance care records, risk assessments, care plan drafts and actions, consents, DoLS,
+  escalation links); a replayed link that has since been removed is refused, never returned.
+- Escalation policy on the web (clinical C6; HZ-014, HZ-012): assessment results and the
+  observation list show the linked policy as a link to the document, or "No escalation policy is
+  configured for this result" with an icon; `validatedToolsWithLinks` feeds the onboarding item
+  `escalation_policies_linked` from the links (bands and locations covered), for the onboarding
+  route to call; the demo seed links a NEWS2 policy; Playwright and axe cover both states.
+- Who may change links and reasons (security S1; HZ-012, HZ-040): decided from the role
+  assignments and grants that carry `quality.policy.manage` or `platform.tenant.manage`
+  (`placesHoldingPermission`, `app.holds_permission_at`, migration 0046), in the API and in RLS,
+  never from the merged scope; `resolveAccess` unchanged.
+- Lows: `GET /v1/discard-reasons` needs `care.note.write`; handover notes and acknowledgements,
+  capacity and best-interests records lock their client id and answer a used id with 422, never
+  500; `entry_device_deletion_flag` is unique on tenant, table and entry, and flags are looked up
+  by table and id; the audit names an organisation's reason by id, not its text; the policy
+  document must be the current version of an organisation policy; a care plan action's replay is
+  labelled with its stored section's domain. Migration 0044's backfill skips flags already there.
+- OpenAPI and the client regenerated (additive; `oasdiff breaking` clean).
+- Docs: care.md (rules 5 to 7, permissions, sections 5, 6 part 8, 9 and 10), hazard log (HZ-012,
+  HZ-014, HZ-016, HZ-019, HZ-029, HZ-040), medical-device boundary, data standards, records of
+  processing, feature register (CARE-003).
+
+**Human actions logged**: H-165 (flagged entries in totals), H-166 (the IDDSI level compared with
+the prescription at upload, not at the time given); H-73, H-160, H-162 and H-163 updated (H-163
+notes that a location's all-bands link wins over an organisation's band-specific one).
+
+**Tests**: `packages/domain` 4,014, `packages/db` 366, `packages/contracts` 34, `apps/api` 598,
+`packages/sync` 59, `apps/mobile` 870, `apps/web` 327, `packages/i18n` 48, all passing locally
+through `scripts/ci-local.sh`.

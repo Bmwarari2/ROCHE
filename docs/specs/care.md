@@ -50,11 +50,11 @@ Append-only tables have no UPDATE or DELETE grant for the app; a correction is a
 | `device_discard_entry` | append-only | the deletion record (`device_discard` audit resource id), its stage, the entry id, the owner; the index that tells an upload its entry was deleted (Device integrity, part 3) | `audit_event` |
 | `handed_over_entry` | append-only | the hand-over id, the device that held the entry, its owner, who sent it, the table and entry id, when accepted; one row per entry, written in the entry's own transaction by `app.admit_handed_over_entry`; a hand-over id names one owner, device and sender (Device integrity, part 6) | `audit_event` |
 | `handed_over_by` on `care_note`, `observation`, `body_map_mark`, `activity_record`, `visit_log` | append-only (with the entry) | who sent the entry for its author in a manager's hand-over ("Sent by"; null when the author sent it), returned with every entry item (Device integrity, part 6) | `care_record` |
-| `drawn_x`, `drawn_y`, `drawn_zone`, `drawn_side` on `body_map_mark` (migration 0043) | append-only (with the mark) | where the mark was placed on the drawing (the point in the drawing's own units, or the zone chosen with the buttons) and the person's side the server worked out from it and the view, set together (rule 7) | `care_record` |
+| `drawn_x`, `drawn_y`, `drawn_zone`, `drawn_side` (migration 0043) and `drawn_from_device_side` (migration 0045) on `body_map_mark` | append-only (with the mark) | where the mark was placed on the drawing (the point in the drawing's own units, or the zone chosen with the buttons) and the person's side the server worked out from it and the view, set together; flagged when the place was taken from the side a phone from before sent (rule 7) | `care_record` |
 | `escalation_policy_link` (migrations 0043 and 0044) | mutable, versioned, soft-deleted | validated tool, band (or every band), location (or the whole organisation), title, reference, the policy document; one live link per tool, band and place (rule 5) | tenant configuration |
 | `discard_reason` (migrations 0043 and 0044) | mutable, versioned, never deleted (retired instead) | code, English and Welsh labels, order, whether seeded, when and by whom retired; the five the phone offers seeded for every organisation (Device integrity, part 8) | tenant configuration |
 | `device_discard_record` (migrations 0043 and 0044) | append-only | one row per stage of each deletion record: the deletion id, stage, kind, coded reason (a `discard_reason` code), owner, who deleted, who sent it, device, count, when; unique on deletion and stage (Device integrity, part 8) | `audit_event` |
-| `entry_device_deletion_flag` (migrations 0043 and 0044) | append-only | the server's flag on an entry its device recorded deleting: the entry and its table, person, location, owner, flag (`uploaded_after_deletion`, `deleted_after_upload`), the deletion id and the review task; one per entry (Device integrity, part 8) | `care_record` |
+| `entry_device_deletion_flag` (migrations 0043 and 0044) | append-only | the server's flag on an entry its device recorded deleting: the entry and its table, person, location, owner, flag (`uploaded_after_deletion`, `deleted_after_upload`), the deletion id and the review task; one per entry, by table and id (Device integrity, part 8) | `care_record` |
 
 New personal data fields are added to `docs/compliance/records-of-processing.md` and mapped in
 `data-standards.md` (PRSB PCSP sections, SNOMED CT for chart concepts where a code exists) in the
@@ -98,9 +98,9 @@ Care API follow-up routes (section 5; no new permission):
 | Route | Permission | Scope |
 | --- | --- | --- |
 | `GET /v1/escalation-policies` | `care.plan.read` | Every link in the organisation (configuration, read beside every result) |
-| `POST /v1/escalation-policies`, `PUT /v1/escalation-policies/{linkId}`, `POST .../{linkId}/remove` | `quality.policy.manage` | A link for the whole organisation needs a tenant-wide role; a location's link a role at that location (checked in the API and again by restrictive policies) |
-| `GET /v1/discard-reasons` | Any member (a device offers them before it deletes anything) | The organisation |
-| `POST /v1/discard-reasons`, `PUT /v1/discard-reasons/{code}` | `platform.tenant.manage` | Tenant-wide roles only (API and restrictive policies) |
+| `POST /v1/escalation-policies`, `PUT /v1/escalation-policies/{linkId}`, `POST .../{linkId}/remove` | `quality.policy.manage` | Where a role or grant carrying `quality.policy.manage` is held: a link for the whole organisation needs it across the organisation (a role assigned with no location, or a grant with none), a location's link needs it there. Read from those roles and grants, never the session's merged scope, which another role widens (#26 review round 2, S1); checked in the API (`permissionPlaces`) and again by restrictive policies (`app.holds_permission_at`, migration 0046) |
+| `GET /v1/discard-reasons` | `care.note.write` (the permission recording a deletion needs; a device offers them before it deletes anything) | The organisation |
+| `POST /v1/discard-reasons`, `PUT /v1/discard-reasons/{code}` | `platform.tenant.manage` | Only from a role or grant carrying it across the organisation (an owner role assigned at one home does not count), in the API and the restrictive policies (migration 0046) |
 
 A location is in scope for tenant-wide roles, for location roles there, and for anyone who can see
 a person living there (an assigned care worker).
@@ -151,13 +151,21 @@ applies). Figures come from `rate_table` by key.
      section 5 rule 4). Every result of NEWS2 (vital signs), MUST, Waterlow, Braden and the NG249
      falls pathway is returned with `escalationPolicy`: the organisation's own escalation policy for
      the tool and the result's band (title, reference, policy document, and what it matched on), or
-     `not_configured`, which screens show as "No escalation policy configured" and never as nothing.
+     `not_configured`, which the web shows on assessment results and NEWS2 entries as "No
+     escalation policy is configured for this result. Follow your organisation's procedures and
+     tell the nurse in charge." with an icon, and never as nothing; a configured policy shows its
+     title and reference, linking the policy document (`/documents/{id}`, a PDF the API audits).
+     The phone shows it next (H-73).
      Links live in `escalation_policy_link`, per tool and optionally per band (none for the falls
      pathway, which has no band) and per location; a result takes the location's link for its band,
      then the location's for the tool, then the organisation's for the band, then the
-     organisation's for the tool (`escalationPolicyFor`). They are resolved when the result is read,
-     so a changed policy shows on old results too. Harbour stores and shows the link only; it adds
-     no recommendation of its own.
+     organisation's for the tool (`escalationPolicyFor`), so a location's policy for every band
+     wins over the organisation's policy for one band (for the CSO, H-163). They are resolved when
+     the result is read, so a changed policy shows on old results too. The policy document must be
+     a current organisation document (available, its latest version). Harbour stores and shows the
+     link only; it adds no recommendation of its own. The onboarding item
+     `escalation_policies_linked` reads the links (`validatedToolsWithLinks`: linked when every
+     band of the tool, at every location, finds a policy), for the onboarding route to call.
 6. **Charts.** Fluid balance keeps a daily target per person and a running total from 00:00 in the
    location's time zone, with the shortfall visible by mid-afternoon; food intake records the IDDSI
    level (0 to 7) and shows the person's prescribed level beside it, refusing a mismatched level
@@ -176,8 +184,23 @@ applies). Figures come from `rate_table` by key.
    `reason_missing`, or `prescribed_unreadable` when the prescribed level stored is not an IDDSI
    level) and, when it may not be safe (no level while one is prescribed, a level more solid or
    thinner than prescribed, an unreadable prescription), the nurse in charge is alerted as for an
-   unsafe level. A code that is not an IDDSI level is refused from both. The web shows a kept entry's
-   flag in words with an icon, in place of the reason line.
+   unsafe level. A code that is not an IDDSI level is refused from both. The web shows every kept
+   entry's problem in words with an icon, in place of the reason line, and says plainly when a
+   thinner drink or more solid food may not be safe (#26 review round 2, C1). A drink recorded as
+   refused (not given) needs no level and raises nothing, since there was no texture to check.
+   The level given is compared with the prescription in the care profile when the entry reaches
+   the server, not when it was given (for the CSO, H-166).
+   An urgent result alert (a NEWS2 band, an IDDSI entry) goes to the nurse in charge at the location; with
+   no one there it goes to the fallback the sync tasks use (the Registered Managers anywhere in
+   the organisation, longest-serving first, else the holders of `care.plan.write`), and with no
+   one at all it is audited as `care.alert.unrouted` (#26 review round 2, C2). Only alerts written
+   count as raised.
+   An entry its device recorded deleting stays in the fluid totals and NEWS2 lists, flagged: the
+   fluid day returns how many such entries it counted and their intake and output
+   (`flaggedEntries`, `flaggedIntakeMl`, `flaggedOutputMl`), which the web shows beside the total
+   ("Includes 2 entries that a device recorded as deleted (300 ml in, 0 ml out): check for
+   duplicates."), and every entry carries `deviceDeletion`, shown on the entry with an icon.
+   Whether such entries should count is for the CSO (H-165); they are never left out silently.
 7. **Body maps.** Side is chosen in words (left, right, midline) as well as on the drawing, and the
    two must agree before saving. Pressure ulcers use the NPIAP and NHS England categories 1 to 4,
    unstageable, deep tissue injury, with device-related and moisture-associated damage recorded
@@ -189,10 +212,18 @@ applies). Figures come from `rate_table` by key.
    carries where it was placed, as `drawnAt` (the point, scaled to those units) or `drawnZone`
    (`viewer_left`, `centre`, `viewer_right`, from the buttons beside the drawing), or both, which
    must agree. `sideFromDrawing` reads the person's side from the place and the view (on the front
-   view the person's left is on the viewer's right); a mark with no place, a point off the drawing,
-   or a side in words that disagrees is refused, and so is a `drawnSide` a device sends that is not
-   the side the server worked out. The place and the side are stored with the mark and the side is
-   returned as `drawnSide`. The web sends each area's spot as a point (its drawing is twice the
+   view the person's left is on the viewer's right); a mark with no place and no side drawn, a
+   point off the drawing, or a side in words that disagrees is refused, and so is a `drawnSide` a
+   device sends with a place that is not the side the server worked out. A phone from before this
+   was built sends only `drawnSide`: the server reads it as the zone that side names on the view
+   (`zoneForPersonSide`), exactly as the current phone sends an entry queued before it was
+   updated, checks the side in words against it, and stores the mark flagged
+   `drawn_from_device_side` (returned as `drawnFromDeviceSide`), so those phones' marks are kept,
+   not refused, and the record says the place was the phone's (#26 review round 2, C4). The place
+   and the side are stored with the mark and the side is returned as `drawnSide`. A refused mark's
+   review is urgent at once when it may be harm: a pressure ulcer of category 2 or worse, a
+   bruise, a skin tear, a laceration, a burn or a wound (Device integrity, part 5). The web sends
+   each area's spot as a point (its drawing is twice the
    size; the left and right spots of the neck, back of the neck, genitals and coccyx moved just
    outside the centre band, and the groin and genitals just above where the legs begin, so every
    spot reads as its own side: H-162); the phone sends the point tapped, or the zone chosen with a
@@ -602,8 +633,26 @@ Built in the care API follow-ups (the remaining findings of the #15 reviews; mig
   `care.escalation_policy.link`, `.update` and `.remove` (tool, band and location; never the
   document).
 - **Body-map side from the drawing** (rule 7; HZ-019): `CreateBodyMapMark` takes `drawnAt` and
-  `drawnZone`; `drawnSide` is optional and, when sent, must be the side the server works out.
-  `BodyMapMarkItem.drawnSide` returns it (null on marks recorded before).
+  `drawnZone`; `drawnSide` is optional and, sent with a place, must be the side the server works
+  out; sent alone (a phone from before), it is read as its zone and the mark flagged.
+  `BodyMapMarkItem.drawnSide` returns the side (null on marks recorded before) and
+  `drawnFromDeviceSide` the flag (migration 0045).
+- **Review round 2 of #26** (migrations 0045 and 0046): an urgent result alert falls back when the
+  location has no nurse in charge and is audited when no one can be told; the fluid day counts
+  entries a device recorded deleting beside its totals (`FluidDay.flaggedEntries`,
+  `flaggedIntakeMl`, `flaggedOutputMl`); a save sent again with its client id must carry the
+  details the record holds (409 "This was already saved with different details: reload before
+  changing it." otherwise) on advance care records, risk assessments, care plan drafts (their
+  summary) and actions (and their domain), consents, DoLS and escalation policy links, and a
+  removed link is never returned as live; handover notes, acknowledgements, capacity assessments
+  and best-interests decisions take the client-id lock too, and an id another record has is
+  refused in words, never a server error; escalation links and coded reasons follow the roles
+  that carry their permission (section 3); `GET /v1/discard-reasons` needs `care.note.write`; the
+  flag on entries is keyed by table and id; a deletion with an organisation's own code is audited
+  as `other` with the reason's id, so the organisation's words never enter the hash-chained trail
+  (`device_discard_record` keeps the code); a drink refused needs no IDDSI level; the policy
+  document must be a current organisation document; the OpenAPI document names the DoLS create
+  body `CreateDols` (it was `DolsInput`; the same fields plus `id`).
 - **Coded discard reasons, the replay index and the flag on entries** (section 6, Device integrity
   part 8; HZ-040): `GET /v1/discard-reasons` (live reasons first, then retired), `POST` (a new code;
   409 when the organisation has it) and `PUT /v1/discard-reasons/{code}` (relabel in English or
@@ -633,9 +682,13 @@ Built in the care API follow-ups (the remaining findings of the #15 reviews; mig
   assessments, consents, capacity assessments, best-interests decisions, DoLS, handover notes and
   acknowledgements, escalation policy links) also takes it as the `Idempotency-Key` header; when
   both are sent they must be the same id. A save sent again with the same id returns the record
-  already saved (the id is locked for the transaction, so two racing sends record once); an id
+  already saved when it carries the same details (the id is locked for the transaction, so two
+  racing sends record once); with other details it is refused with 409, so a changed CPR
+  decision resent after a lost reply is never shown as saved (#26 review round 2, C5); an id
   already used for another person or another kind of record is refused ("That id is already
-  used."). Create routes outside care that take no client id are listed in section 10.
+  used."). Entries a device sends (notes, observations, marks, activities, visits) and handover
+  notes return the stored entry, as before. Create routes outside care that take no client id are
+  listed in section 10.
 
 
 Resources under `/v1/people/{personId}/...`: `care-plans`, `risk-assessments`, `assessments`,
@@ -1016,7 +1069,9 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
      and `GET /v1/refused-entries/{id}`, `care.note.read`, the person in scope; every read audited),
      and retention class `care_record`. Each copy joins the person's one open review task
      (`care.refused_entry_review`, for the nurse in charge, `care.plan.write`, due at once, urgent
-     when any copy is an observation, when the nurse in charge is told), whose details list each
+     when any copy is an observation or a body-map mark that may be harm (a pressure ulcer of
+     category 2 or worse, a bruise, skin tear, laceration, burn or wound; #26 review round 2, C4),
+     when the nurse in charge is told), whose details list each
      copy by kind, entry id, copy id, refusal code, time, device and author, never content;
      overdue, it escalates like the sync tasks, with the fallback when no one at its location can
      act (M3; H-157). Each author's copies count against 200 a day, after the replay check and the
@@ -1082,13 +1137,17 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
        entries, with English and Welsh labels and an order. A trigger on `tenant` seeds the five
        the phone offers (`recorded_elsewhere`, `entered_in_error`, `staff_left`,
        `nurse_in_charge_informed`, `other`; `DEFAULT_DISCARD_REASONS`) for every new organisation,
-       and the migration seeds existing ones. Tenant-wide roles with `platform.tenant.manage` add,
-       relabel, reorder and retire codes (restrictive policies on scope `tenant`); a code is never
+       and the migration seeds existing ones. Members holding `platform.tenant.manage` across the
+       organisation add, relabel, reorder and retire codes (read from the roles and grants that
+       carry it, in the API and the restrictive policies of migration 0046); a code is never
        deleted, and a retired code is still taken from a device that recorded it before, so a
        deletion is never stranded. `POST /v1/sync/discards` refuses a code the organisation never
        had. The contract keeps `reasonCode` as the five, so existing phones are unchanged; a code
-       the organisation added travels as `organisationReasonCode` with `reasonCode` `other`. The
-       phone offers the five until it reads the list.
+       the organisation added travels as `organisationReasonCode` with `reasonCode` `other`, and is
+       audited as `other` with the reason's id (`organisationReasonId`), never its code, so no name
+       an organisation writes enters the hash-chained trail; the deletion record keeps the code.
+       The phone offers the five until it reads the list (`GET /v1/discard-reasons`,
+       `care.note.write`).
      - *The replay index* (`device_discard_record`): one append-only row per stage of each
        deletion record (the deletion id, stage, kind, coded reason, owner, who deleted, who sent it,
        device, count and when), unique on (deletion, stage). A stage sent twice, however two
@@ -1099,14 +1158,17 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
        roles the organisation's, and a location role those of owners at its locations. The audit
        events stay the hash-chained record. Retention class `audit_event`.
      - *The flag on entries* (`entry_device_deletion_flag`): the server's own mark on an entry its
-       device recorded deleting, one per entry: `uploaded_after_deletion` (it arrived after its
+       device recorded deleting, one per entry (unique on table and id, migration 0045):
+       `uploaded_after_deletion` (it arrived after its
        owner's device recorded deleting it) or `deleted_after_upload` (it had already reached
        Harbour when the deletion was recorded as done), with the person, location, owner, the
        deletion record and the review task. It is written in the system's view when the flag of
        part 3 is raised, read like the entry (`app.person_visible`), append-only, and returned as
        `deviceDeletion` on every entry item, so a screen can show the flag on the entry itself, not
-       only on the Registered Manager's task. The "already reached Harbour" check reads this table
-       instead of scanning audit events. Retention class `care_record`.
+       only on the Registered Manager's task. The web shows it on the entry with an icon and words,
+       and the fluid day counts flagged entries beside its totals (rule 6; H-165). The "already
+       reached Harbour" check reads this table instead of scanning audit events. Retention class
+       `care_record`.
      - Migration 0044 fills both tables from the audit trail (each stage of each deletion once, the
        staff kept only when they are staff of the organisation; each flagged entry once).
 - **Conflicts.** Entries are append-only, so they never conflict; a correction is a new entry with
@@ -1154,7 +1216,8 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   phone sends the point tapped or the zone chosen), the coded reasons, replay index and flag on
   entries (Device integrity, part 8). Still to do: a stale-device check, now possible from
   `device_binding` (H-141); the phone offering the organisation's own coded reasons (H-164); the
-  web screens for devices, refused-entry copies, flagged-entry details and escalation policy links
+  web screens for devices, refused-entry copies and flagged-entry details, and the settings screens
+  for escalation policy links and coded reasons
   (slice 9).
 
 ## 7. Clinical safety
@@ -1263,7 +1326,14 @@ through recorded sharing decisions ([people.md](people.md)).
   `apps/mobile/src/care/body-map.test.ts` and `sync/care-upload.test.ts` (HZ-019: the point and
   zone sent, and an entry queued before sent as its zone); `apps/web/src/lib/body-map.test.ts`
   (HZ-019: every spot reads as its own side on the shared drawing) and
-  `components/care/ObservationList.test.ts` (HZ-016: a kept entry's flag in words).
+  `components/care/ObservationList.test.ts` (HZ-016: a kept entry's flag in words). Review round 2
+  of #26: `packages/domain/src/platform/access.test.ts` (the places a permission is held),
+  `escalation-policy.test.ts` (the onboarding coverage), `body-map.test.ts` (the zone a side
+  names), `packages/db/test/care-follow-ups.test.ts` (S1: a merged scope never widens who changes
+  links or reasons), `apps/api/test/care-follow-ups.test.ts` (C2 to C5 and S1 through the routes),
+  `apps/web` (`EntryBadges.test.ts`, `ObservationList.test.ts`, `charts.test.ts`,
+  `chart-entry.test.ts`) and the Playwright journeys for NEWS2 (a configured policy) and MUST (none
+  configured), with axe.
 
 ## 10. Open questions
 
@@ -1291,12 +1361,14 @@ through recorded sharing decisions ([people.md](people.md)).
 - API gaps found building the web screens (slice 9), for the API owners:
   - Closed by the care API follow-ups: staff names (`StaffName` beside every staff id a care
     response returns; the screens still say "recorded by you" or "by a colleague" until they read
-    it), the escalation policy link on every validated result (`escalationPolicy`; the screens show
+    it), the escalation policy link on every validated result (`escalationPolicy`; the phone shows
     it next), the drink IDDSI level on the server (HZ-016), the body-map side worked out on the
     server (HZ-019) and client ids on advance care records, risk assessments, new care plan drafts,
     care plan actions, consents and DoLS (HZ-029). See section 5. The web shows a food or drink
-    entry kept from a device with its IDDSI flag in words; it does not yet show `escalationPolicy`,
-    staff names or `deviceDeletion` (slice 9 follow-ups).
+    entry kept from a device with its IDDSI problem in words, every validated result with the
+    escalation policy or that none is configured, and the deletion flag on entries and beside the
+    fluid total (#26 review round 2); it does not yet show staff names or `drawnFromDeviceSide`
+    (slice 9 follow-ups).
   - The NEWS2 flags omit the RCP's chart 4 clinical response lines.
   - Validated tool citations (`VALIDATED_TOOLS`), body map regions, and the low-band MUST wording are
     not served, so the web keeps copies. Only the copies with tests are checked: body map regions

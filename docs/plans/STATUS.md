@@ -31,9 +31,14 @@ only when they link spec, code, tests and user documentation; no user guides exi
    (`device_discard_record`) and the server's flag on entries (`entry_device_deletion_flag`);
    staff names beside every staff id in care responses; client ids on advance care records, risk
    assessments, care plan drafts and actions, consents and DoLS, and the `Idempotency-Key`
-   header on every care create route.
-2. The screens these wait on (slice 9 and slice 10 part 2): the escalation policy link, staff
-   names and the deletion flag on results and entries (H-73); the settings for escalation
+   header on every care create route. Review round 2 answered (migrations 0045 and 0046; H-165,
+   H-166): every IDDSI problem shown in words, the alert falling back when no nurse in charge and
+   audited when no one can be told, flagged entries counted beside the fluid total and marked on
+   the entry, older phones' marks kept and flagged, a resent save with other details refused,
+   the escalation policy shown on the web (and fed to onboarding), and links and coded reasons
+   following the roles that carry their permission.
+2. The screens these wait on (slice 9 and slice 10 part 2): the escalation policy link on the
+   phone, staff names on the web and phone (H-73); the settings for escalation
    policies and coded reasons; the phone offering the organisation's coded reasons (H-164);
    devices and revocation, and refused copies on the review task (which H-134 waits on), in the
    web record; the round and handover screens in the web record and Care mode (with sync streams
@@ -68,7 +73,7 @@ only when they link spec, code, tests and user documentation; no user guides exi
 
 ## Human actions outstanding
 
-All of [human-actions.md](human-actions.md) is open (H-01 to H-164). The project owner has
+All of [human-actions.md](human-actions.md) is open (H-01 to H-166). The project owner has
 scheduled the accounts (H-01, H-02, H-04, H-10, H-11) and the named roles (H-20 Clinical Safety
 Officer, H-30 data protection lead, H-31 ICO registration) for after the build, and is choosing
 the UK SMS provider (H-09, which also settles H-105). Until then the build continues against the
