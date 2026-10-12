@@ -15,10 +15,14 @@ import {
   type EscalationStep,
   nextEscalationAt,
 } from "@harbour/domain";
-import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type pg from "pg";
 import type { Logger } from "../logger";
-import { generateBreakGlassReports } from "../services/break-glass-report";
+import {
+  BREAK_GLASS_ALERT_UNROUTED_ACTION,
+  generateBreakGlassReports,
+} from "../services/break-glass-report";
+import { CARE_ALERT_UNROUTED_ACTION } from "../services/care";
 import { raiseOverdueCareReviews } from "../services/care-planning";
 import {
   draftDeathNotifications,
@@ -28,9 +32,16 @@ import { sweepHandovers } from "../services/handover";
 import { raiseDolsReminders } from "../services/mca";
 import { raisePeopleReviews } from "../services/people";
 import { generatePlanTasks } from "../services/plan-tasks";
+import { REFUSED_REVIEW_UNROUTED_ACTION } from "../services/refused-entries";
 import { roleHolders, toldOf } from "../services/role-holders";
 import { detectLocationOutbreaks, escalateOverdueNotifications } from "../services/safety";
-import { escalateOverdueTasks, materialiseSeries } from "../services/tasks";
+import {
+  ESCALATION_UNROUTED_ACTION,
+  type EscalationRun,
+  escalateOverdueTasks,
+  materialiseSeries,
+  TASK_ESCALATION_UNROUTED_ACTION,
+} from "../services/tasks";
 
 /**
  * Background tasks run by pg-boss (section 6). Cross-tenant scanning uses the harbour_worker role,
@@ -284,18 +295,88 @@ export async function materialiseTaskSeries(deps: TaskDeps, now = new Date()): P
   return created;
 }
 
-/** Escalates overdue tasks once each to the people on shift (hazard HZ-008). */
-export async function escalateTasks(deps: TaskDeps, now = new Date()): Promise<number> {
+/**
+ * Escalates overdue tasks once each to the people on shift (hazard HZ-008). The `due` run (every
+ * minute) takes tasks not found unrouted in the last day; the `retry` run (hourly) tries again
+ * those that were, so the audit is written at most once a day while routing is retried every hour
+ * (ADR-0071 review round 4, C4-M1).
+ */
+export async function escalateTasks(
+  deps: TaskDeps,
+  now = new Date(),
+  run: EscalationRun = "due",
+): Promise<number> {
   let escalated = 0;
   for (const tenantId of await activeTenants(deps)) {
     escalated += await withRequestContext(
       deps.appDb,
       { tenantId, userId: null, scope: "tenant", locationIds: [] },
-      (tx) => escalateOverdueTasks(tx, tenantId, now),
+      (tx) => escalateOverdueTasks(tx, tenantId, now, run),
     );
   }
-  if (escalated > 0) deps.logger.info({ escalated }, "overdue tasks escalated");
+  if (escalated > 0) deps.logger.info({ escalated, run }, "overdue tasks escalated");
   return escalated;
+}
+
+/** The hourly retry of overdue tasks no one other than their assignee could be told about. */
+export function retryUnroutedTasks(deps: TaskDeps, now = new Date()): Promise<number> {
+  return escalateTasks(deps, now, "retry");
+}
+
+/**
+ * The audit actions that mean no one could be told about safety work (ADR-0071 review rounds 2 to
+ * 4): an overdue task, a sync task, an escalation chain step, an urgent refused-entry review, an
+ * urgent result alert and a break-glass alert.
+ */
+export const UNROUTED_ACTIONS = [
+  TASK_ESCALATION_UNROUTED_ACTION,
+  ESCALATION_UNROUTED_ACTION,
+  ESCALATION_STEP_UNROUTED_ACTION,
+  REFUSED_REVIEW_UNROUTED_ACTION,
+  CARE_ALERT_UNROUTED_ACTION,
+  BREAK_GLASS_ALERT_UNROUTED_ACTION,
+] as const;
+
+/** The structured log line the operator alarms on (docs/runbooks/on-call.md). */
+export const UNROUTED_DAILY_EVENT = "escalation.unrouted.daily";
+
+/**
+ * The operator's daily signal (ADR-0071 review round 4, C4-M1): for each organisation with any
+ * unrouted audit event in the last day, one structured log line, `escalation.unrouted.daily`, with
+ * the opaque tenant id and the count per action (`UNROUTED_ACTIONS`). No personal data and no free
+ * text. Returns the counts it logged, by tenant.
+ */
+export async function reportUnroutedDaily(
+  deps: TaskDeps,
+  now = new Date(),
+): Promise<Map<string, Record<string, number>>> {
+  const since = new Date(now.getTime() - 86_400_000);
+  const reported = new Map<string, Record<string, number>>();
+  for (const tenantId of await activeTenants(deps)) {
+    const rows = await withRequestContext(
+      deps.appDb,
+      { tenantId, userId: null, scope: "tenant", locationIds: [] },
+      (tx) =>
+        tx
+          .select({ action: auditEvent.action, count: sql<number>`count(*)::int` })
+          .from(auditEvent)
+          .where(
+            and(
+              inArray(auditEvent.action, [...UNROUTED_ACTIONS]),
+              gt(auditEvent.occurredAt, since),
+              lte(auditEvent.occurredAt, now),
+            ),
+          )
+          .groupBy(auditEvent.action),
+    );
+    if (rows.length === 0) continue;
+    const counts = Object.fromEntries(
+      UNROUTED_ACTIONS.map((action) => [action, rows.find((r) => r.action === action)?.count ?? 0]),
+    );
+    reported.set(tenantId, counts);
+    deps.logger.warn({ event: UNROUTED_DAILY_EVENT, tenantId, counts }, UNROUTED_DAILY_EVENT);
+  }
+  return reported;
 }
 
 /**

@@ -18,6 +18,8 @@ import {
   relayOutbox,
   remindDolsExpiry,
   reportBreakGlass,
+  reportUnroutedDaily,
+  retryUnroutedTasks,
   runEscalations,
 } from "./tasks";
 
@@ -57,6 +59,8 @@ const QUEUES = {
   breakGlassReport: "break-glass-weekly-report",
   planTasks: "care-plan-rounds",
   handovers: "shift-handovers",
+  taskEscalationRetries: "task-escalation-retries",
+  unroutedReport: "unrouted-daily-report",
 } as const;
 
 for (const name of Object.values(QUEUES)) await boss.createQueue(name);
@@ -107,6 +111,12 @@ await boss.work(QUEUES.planTasks, async () => {
 await boss.work(QUEUES.handovers, async () => {
   await compileHandovers(deps);
 });
+await boss.work(QUEUES.taskEscalationRetries, async () => {
+  await retryUnroutedTasks(deps);
+});
+await boss.work(QUEUES.unroutedReport, async () => {
+  await reportUnroutedDaily(deps);
+});
 
 // Every minute: escalations are measured in minutes (section 9.1, e.g. on-call after 10 minutes).
 await boss.schedule(QUEUES.outbox, "* * * * *");
@@ -133,6 +143,11 @@ await boss.schedule(QUEUES.planTasks, "43 * * * *");
 // Every 5 minutes (HANDOVER_SWEEP_MINUTES): a shift's handover is locked soon after it ends and a
 // late addition reaches the incoming staff within minutes (HZ-018).
 await boss.schedule(QUEUES.handovers, "*/5 * * * *");
+// Hourly: an overdue task no one other than its assignee could be told about is tried again, so
+// someone who has just started is told within the hour (ADR-0071 review round 4, C4-M1).
+await boss.schedule(QUEUES.taskEscalationRetries, "53 * * * *");
+// Daily: one operator signal per organisation with unrouted safety work (on-call.md).
+await boss.schedule(QUEUES.unroutedReport, "47 6 * * *");
 
 logger.info("Harbour worker started");
 

@@ -62,6 +62,7 @@ import { and, desc, eq, inArray, isNotNull, isNull, lte, or, sql } from "drizzle
 import { publish } from "../outbox";
 import { accessRowsOf } from "./access-rows";
 import { bankHolidays, rateNumber } from "./rates";
+import { toldOf } from "./role-holders";
 import { startWorkflow } from "./workflow";
 
 /**
@@ -1073,7 +1074,9 @@ export async function submitHolders(
         sql`${accessGrant.validTo} > ${now}`,
       ),
     );
-  const candidates = [...new Set([...holders, ...grants].map((h) => h.id))];
+  // Only active staff are told (`TOLD`; ADR-0071 review round 4).
+  const told = await toldOf(tx, [...new Set([...holders, ...grants].map((h) => h.id))]);
+  const candidates = [...told].sort();
   const rows = await accessRowsOf(tx, candidates);
   return candidates.filter((id) => {
     const mine = rows.get(id);

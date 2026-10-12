@@ -29,6 +29,12 @@ import { toJson } from "./safety";
  * alone, so the job can run every day and catch up after a missed Monday.
  */
 
+/**
+ * A break-glass alert no one active could be sent (ADR-0071 review round 4): audited as the
+ * system with a coded reason, and counted in the operator's daily unrouted signal.
+ */
+export const BREAK_GLASS_ALERT_UNROUTED_ACTION = "people.break_glass_alert.unrouted";
+
 /** The data protection lead: holders of the quality and compliance lead role (human action H-80). */
 export const DATA_PROTECTION_LEAD_ROLES = ["quality_lead"] as const;
 

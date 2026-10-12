@@ -21,7 +21,7 @@ import {
 import { rateNumber } from "./rates";
 import { roleHolders, toldOf } from "./role-holders";
 import { type StaffLookup, staffNames } from "./staff";
-import { membersSeeingPerson } from "./staff-views";
+import { membersSeeingPerson, RECORD_READ_PERMISSION } from "./staff-views";
 
 /** How far ahead recurring tasks exist as rows, so devices can sync tomorrow's round tonight. */
 export const MATERIALISE_AHEAD_HOURS = 48;
@@ -188,38 +188,36 @@ export async function materialiseSeries(
 export const ESCALATION_UNROUTED_ACTION = "sync.escalation_unrouted";
 
 /**
- * Any other overdue task that no one could be told about (ADR-0071 review round 3, C3-M3), with a
- * coded reason: `no_one_sees_person` for a task about a person, `no_one_reaches_location` for one
- * about no one.
+ * Any other overdue task that could not be escalated (ADR-0071 review rounds 3 and 4, C3-M3 and
+ * C4-M1), with a coded reason (`UnroutedReason`).
  */
 export const TASK_ESCALATION_UNROUTED_ACTION = "task.escalation_unrouted";
 
-const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
 
 /**
- * How long an unrouted task waits before the next run tries it again, so a batch is never crowded
- * by tasks no one can be told about (security review round 7, L3): a sync task a day, any other
- * task an hour, so someone who has just started is told soon (review round 3, C3-M3).
+ * Why an overdue task was not escalated (ADR-0071 review rounds 3 and 4): no one other than its
+ * assignee could be told (`assignee_only`, who is still told), or no one at all, about a person
+ * (`no_one_sees_person`) or about no one (`no_one_reaches_location`).
  */
-const UNROUTED_RETRY_MS: Readonly<Record<string, number>> = {
-  [ESCALATION_UNROUTED_ACTION]: DAY_MS,
-  [TASK_ESCALATION_UNROUTED_ACTION]: HOUR_MS,
-};
+export type UnroutedReason = "assignee_only" | "no_one_sees_person" | "no_one_reaches_location";
 
 /**
- * Audits an overdue task no one could be told about, as the system (no actor), at most once per
- * retry window per task: for a sync task, the organisation has no Registered Manager and no holder
- * of the task's permission; for any other, no first responder, Registered Manager or holder of
- * care.plan.write can see it. It is never marked escalated, so a later run tries again.
+ * Audits an overdue task that could not be escalated, as the system (no actor): on the first
+ * occurrence, then at most once a day per task while it stays so (review round 4), so the audit
+ * does not grow with each hourly retry. For a sync task, the organisation has no Registered
+ * Manager and no holder of the task's permission; for any other, no first responder, Registered
+ * Manager or holder of care.plan.write other than its assignee can see it. It is never marked
+ * escalated, so a later run tries again.
  */
 async function recordUnrouted(
   tx: Transaction,
   t: TaskRow,
   now: Date,
   action: string = ESCALATION_UNROUTED_ACTION,
+  reason: UnroutedReason | null = null,
 ): Promise<void> {
-  const since = new Date(now.getTime() - (UNROUTED_RETRY_MS[action] ?? DAY_MS));
+  const since = new Date(now.getTime() - DAY_MS);
   const [recent] = await tx
     .select({ id: auditEvent.id })
     .from(auditEvent)
@@ -233,12 +231,6 @@ async function recordUnrouted(
     )
     .limit(1);
   if (recent) return;
-  const reason =
-    action === TASK_ESCALATION_UNROUTED_ACTION
-      ? t.personId
-        ? "no_one_sees_person"
-        : "no_one_reaches_location"
-      : null;
   await tx.insert(auditEvent).values({
     tenantId: t.tenantId,
     action,
@@ -266,15 +258,56 @@ const PLAN_WRITE_PERMISSION = "care.plan.write";
 export const OVERDUE_FIRST_RESPONDERS = ["clinical_lead", "team_leader"] as const;
 
 /**
+ * Which overdue tasks a run takes (review round 4): `due`, those not audited as unrouted in the
+ * last day (every minute, so a batch is never crowded by tasks no one can be told about; security
+ * review round 7, L3); `retry`, the tasks other than sync tasks audited as unrouted in the last
+ * day (hourly), so someone who has just started is told within the hour while the audit is
+ * written at most once a day.
+ */
+export type EscalationRun = "due" | "retry";
+
+/** Tells each recipient once that a task is overdue (the key carries the task, and for a sync task its version). */
+async function notifyOverdue(
+  tx: Transaction,
+  t: TaskRow,
+  recipients: ReadonlySet<string>,
+): Promise<void> {
+  // A device's task whose escalation was reset (a new hold after a refused close, or a reopen, at
+  // most once a day; clinical reviews rounds 6 and 7) signals again: its key carries its version.
+  const occurrence = PERMISSION_ESCALATED_TASK_KINDS.includes(t.kind) ? `:v${t.version}` : "";
+  for (const recipient of recipients) {
+    await tx
+      .insert(notification)
+      .values({
+        recipientTenantUserId: recipient,
+        kind: "platform.task.overdue",
+        severity: t.priority === "urgent" ? "urgent" : "warning",
+        title: "A task is overdue",
+        body: "Open the task list to see what is late.",
+        link: t.personId ? `/people/${t.personId}` : "/tasks",
+        channels: t.priority === "urgent" ? ["in_app", "push"] : ["in_app"],
+        sourceType: "task",
+        sourceId: t.id,
+        personId: t.personId,
+        locationId: t.locationId,
+        dedupeKey: `task_overdue:${t.id}${occurrence}:${recipient}`,
+      })
+      .onConflictDoNothing();
+  }
+}
+
+/**
  * Raises one notification per overdue task once it passes the escalation threshold (hazard HZ-008:
- * one escalation, not a stream). Recipients: the assignee, and, in order, the first of these with
- * anyone (ADR-0071 review round 3, C3-M3): the clinical leads and team leaders whose roles reach
- * the task's location; a Registered Manager whose role reaches it (there, or across the
- * organisation); the holders of care.plan.write who can see the person (for a task about no one,
- * who reach the location). Everyone told is active (`TOLD`): an invited member who has never
- * signed in, or one who has left, is never the one told. With no one at all, the task is not
- * marked escalated and the gap is audited (`task.escalation_unrouted`, a coded reason); the next
- * run after an hour tries again.
+ * one escalation, not a stream). Recipients: the assignee (while active), and the first of these
+ * with anyone other than the assignee (ADR-0071 review rounds 3 and 4, C3-M3 and C4-M1): the
+ * clinical leads and team leaders whose roles reach the task's location; a Registered Manager
+ * whose role reaches it (there, or across the organisation); the holders of care.plan.write. For
+ * a task about a person, each tier keeps only those who can see the person, and a task with no
+ * location takes the person's. Everyone told is active (`TOLD`). Escalation means someone other
+ * than the assignee is told: with no one else, the assignee is still told, but the task is not
+ * marked escalated, the gap is audited (`task.escalation_unrouted`, `assignee_only`,
+ * `no_one_sees_person` or `no_one_reaches_location`, at most once a day) and the hourly `retry`
+ * run tries again.
  *
  * The sync tasks (a device holding entries, an entry uploaded after or before its deletion) go only
  * to people who can act on them (clinical review round 5, C-H1): the assignee, and the holders of
@@ -288,9 +321,16 @@ export async function escalateOverdueTasks(
   tx: Transaction,
   tenantId: string,
   now: Date,
+  run: EscalationRun = "due",
 ): Promise<number> {
   const minutes = await escalationMinutes(tx, tenantId);
   const threshold = new Date(now.getTime() - minutes * 60_000);
+  const dayAgo = new Date(now.getTime() - DAY_MS);
+  const auditedUnrouted = (action: string) => sql`EXISTS (
+          SELECT 1 FROM audit_event a
+          WHERE a.tenant_id = ${task.tenantId} AND a.resource_type = 'task'
+            AND a.resource_id = ${task.id}::text AND a.action = ${action}
+            AND a.occurred_at > ${dayAgo})`;
   const overdue = await tx
     .select()
     .from(task)
@@ -300,16 +340,15 @@ export async function escalateOverdueTasks(
         eq(task.escalationLevel, 0),
         isNull(task.deletedAt),
         lt(sql`coalesce(${task.windowEnd}, ${task.dueAt})`, threshold),
-        // A task no one could be told about today waits a day, so it cannot crowd out the batch
-        // (security review round 7, L3).
-        sql`NOT EXISTS (
-          SELECT 1 FROM audit_event a
-          WHERE a.tenant_id = ${task.tenantId} AND a.resource_type = 'task'
-            AND a.resource_id = ${task.id}::text
-            AND ((a.action = ${ESCALATION_UNROUTED_ACTION}
-                  AND a.occurred_at > ${new Date(now.getTime() - DAY_MS)})
-              OR (a.action = ${TASK_ESCALATION_UNROUTED_ACTION}
-                  AND a.occurred_at > ${new Date(now.getTime() - HOUR_MS)})))`,
+        run === "due"
+          ? // A task no one could be told about waits for the hourly retry (any other task) or a
+            // day (a sync task), so it cannot crowd out the batch (security review round 7, L3).
+            sql`NOT ${auditedUnrouted(ESCALATION_UNROUTED_ACTION)}
+              AND NOT ${auditedUnrouted(TASK_ESCALATION_UNROUTED_ACTION)}`
+          : and(
+              auditedUnrouted(TASK_ESCALATION_UNROUTED_ACTION),
+              sql`NOT ${auditedUnrouted(ESCALATION_UNROUTED_ACTION)}`,
+            ),
       ),
     )
     .orderBy(sql`coalesce(${task.windowEnd}, ${task.dueAt})`)
@@ -319,14 +358,11 @@ export async function escalateOverdueTasks(
     const recipients = new Set<string>();
     let assignTo: string | null = null;
     // The assignee is told only while active (review round 3, C3-M3).
-    if (t.assigneeTenantUserId && (await toldOf(tx, [t.assigneeTenantUserId])).size > 0) {
-      recipients.add(t.assigneeTenantUserId);
-    }
-    // Role holders in force now and on the staff, where their role reaches the task's location: a
-    // team leader who has left, or whose role has ended, is never the only one told, so the
-    // Registered Manager fallback runs (ADR-0071 review round 2, C2-M4).
-    const atLocation = (keys: readonly string[]) =>
-      roleHolders(tx, keys, t.locationId ? [t.locationId] : null, now);
+    const assignee =
+      t.assigneeTenantUserId && (await toldOf(tx, [t.assigneeTenantUserId])).size > 0
+        ? t.assigneeTenantUserId
+        : null;
+    if (assignee) recipients.add(assignee);
     if (PERMISSION_ESCALATED_TASK_KINDS.includes(t.kind)) {
       if (t.locationId || !t.assigneeTenantUserId) {
         const holders = await permissionHolders(
@@ -360,47 +396,44 @@ export async function escalateOverdueTasks(
         assignTo = fallback;
       }
     } else {
-      // Down the order until someone is told (review round 3, C3-M3).
-      let responders = await atLocation(OVERDUE_FIRST_RESPONDERS);
-      if (responders.length === 0) responders = await atLocation(["registered_manager"]);
+      // Down the order until someone other than the assignee is told (review rounds 3 and 4). A
+      // task about a person with no location takes the person's, and each tier keeps only those
+      // who can see the person.
+      const placeId = t.locationId ?? (t.personId ? await personLocation(tx, t.personId) : null);
+      const others = (ids: readonly string[]) => ids.filter((id) => id !== t.assigneeTenantUserId);
+      const seeing = async (ids: string[]) =>
+        t.personId === null
+          ? ids
+          : membersSeeingPerson(tx, ids, t.personId, RECORD_READ_PERMISSION, now);
+      const tier = async (keys: readonly string[]) =>
+        others(await seeing(await roleHolders(tx, keys, placeId ? [placeId] : null, now)));
+      let responders = await tier(OVERDUE_FIRST_RESPONDERS);
+      if (responders.length === 0) responders = await tier(["registered_manager"]);
       if (responders.length === 0) {
-        responders = await permissionHolders(
-          tx,
-          PLAN_WRITE_PERMISSION,
-          t.locationId,
-          now,
-          t.personId,
+        responders = others(
+          await permissionHolders(tx, PLAN_WRITE_PERMISSION, placeId, now, t.personId),
         );
       }
-      for (const r of responders) recipients.add(r);
-      if (recipients.size === 0) {
-        // Never marked escalated with no one told: it stays due, and the gap is audited.
-        await recordUnrouted(tx, t, now, TASK_ESCALATION_UNROUTED_ACTION);
+      if (responders.length === 0) {
+        // Escalation means someone other than the assignee is told (C4-M1): the assignee is still
+        // told, but the task is not marked escalated, and the gap is audited.
+        await notifyOverdue(tx, t, recipients);
+        await recordUnrouted(
+          tx,
+          t,
+          now,
+          TASK_ESCALATION_UNROUTED_ACTION,
+          assignee
+            ? "assignee_only"
+            : t.personId
+              ? "no_one_sees_person"
+              : "no_one_reaches_location",
+        );
         continue;
       }
+      for (const r of responders) recipients.add(r);
     }
-    // A device's task whose escalation was reset (a new hold after a refused close, or a reopen, at
-    // most once a day; clinical reviews rounds 6 and 7) signals again: its key carries its version.
-    const occurrence = PERMISSION_ESCALATED_TASK_KINDS.includes(t.kind) ? `:v${t.version}` : "";
-    for (const recipient of recipients) {
-      await tx
-        .insert(notification)
-        .values({
-          recipientTenantUserId: recipient,
-          kind: "platform.task.overdue",
-          severity: t.priority === "urgent" ? "urgent" : "warning",
-          title: "A task is overdue",
-          body: "Open the task list to see what is late.",
-          link: t.personId ? `/people/${t.personId}` : "/tasks",
-          channels: t.priority === "urgent" ? ["in_app", "push"] : ["in_app"],
-          sourceType: "task",
-          sourceId: t.id,
-          personId: t.personId,
-          locationId: t.locationId,
-          dedupeKey: `task_overdue:${t.id}${occurrence}:${recipient}`,
-        })
-        .onConflictDoNothing();
-    }
+    await notifyOverdue(tx, t, recipients);
     await tx
       .update(task)
       .set({
@@ -412,6 +445,15 @@ export async function escalateOverdueTasks(
     escalated += 1;
   }
   return escalated;
+}
+
+/** Where a person lives, or null when they cannot be read. */
+async function personLocation(tx: Transaction, personId: string): Promise<string | null> {
+  const [row] = await tx
+    .select({ locationId: person.locationId })
+    .from(person)
+    .where(eq(person.id, personId));
+  return row?.locationId ?? null;
 }
 
 /**

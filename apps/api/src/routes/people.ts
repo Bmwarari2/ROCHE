@@ -8,6 +8,7 @@ import {
 } from "@harbour/contracts";
 import {
   allergy,
+  auditEvent,
   breakGlassEvent,
   notification,
   person,
@@ -17,7 +18,7 @@ import {
 } from "@harbour/db";
 import { scopeFor } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx, writeAudit } from "../http/audit";
 import {
@@ -30,6 +31,7 @@ import {
 } from "../http/context";
 import { problems } from "../http/problem";
 import { publish } from "../outbox";
+import { BREAK_GLASS_ALERT_UNROUTED_ACTION } from "../services/break-glass-report";
 import { resuscitationFor } from "../services/care-planning";
 import { contentHeaders, readDocumentContent } from "../services/documents";
 import { roleHolders } from "../services/role-holders";
@@ -253,6 +255,7 @@ export const peopleRouter = createRouter()
           ...summary,
           access: {
             reaching: [...reaching].sort(),
+            mfaRequired: !access.mfaSatisfied,
             recordCare,
             editCarePlan: reaching.has("care.plan.write"),
             readOnlyReason: recordCare ? null : own ? ("scope" as const) : ("break_glass" as const),
@@ -412,6 +415,19 @@ export const peopleRouter = createRouter()
           ...(await roleHolders(tx, ["registered_manager"], [target.locationId], now)),
           ...(await roleHolders(tx, ["quality_lead"], null, now)),
         ]);
+        if (recipients.size === 0) {
+          // No Registered Manager reaching the home and no quality lead is active: the record
+          // still opens, and the gap is audited as the system (review round 4).
+          await tx.insert(auditEvent).values({
+            tenantId: sql`app.current_tenant_id()`,
+            action: BREAK_GLASS_ALERT_UNROUTED_ACTION,
+            outcome: "error",
+            resourceType: "break_glass_event",
+            resourceId: opened.id,
+            reason: "no_recipient",
+            scope: { personId, locationId: target.locationId, reasonCode: "no_recipient" },
+          });
+        }
         for (const recipient of recipients) {
           await tx.insert(notification).values({
             recipientTenantUserId: recipient,

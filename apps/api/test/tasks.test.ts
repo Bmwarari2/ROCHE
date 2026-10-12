@@ -3,8 +3,16 @@ import { createDatabase, createPool } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { escalateTasks, materialiseTaskSeries, type TaskDeps } from "../src/jobs/tasks";
-import { createLogger } from "../src/logger";
+import {
+  escalateTasks,
+  materialiseTaskSeries,
+  reportUnroutedDaily,
+  retryUnroutedTasks,
+  type TaskDeps,
+  UNROUTED_ACTIONS,
+  UNROUTED_DAILY_EVENT,
+} from "../src/jobs/tasks";
+import { createLogger, type Logger } from "../src/logger";
 import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 
 let h: Harness;
@@ -793,5 +801,160 @@ describe("hazard HZ-008 hazard HZ-073 an overdue task goes down the order until 
         c.query("UPDATE tenant_user SET status = 'active' WHERE id = $1", [DEMO.users.owner.id]),
       );
     }
+  });
+});
+
+describe("hazard HZ-008 hazard HZ-073 escalation means someone other than the assignee is told (ADR-0071 review round 4, C4-M1)", () => {
+  // An invented home, Harbour Byre, with one resident, Bryn Example; Ivo, a care worker there
+  // assigned to Bryn. No one else works there, and the owner is suspended for the first tests.
+  const IVO = "0194d000-0000-7000-8000-0000000003f7";
+  const BYRE = "0194d000-0000-7000-8000-0000000001f2";
+  const BRYN = "0194d000-0000-7000-8600-0000000001f2";
+  const MINUTE = 60_000;
+
+  const overdueFor = (locationId: string | null) =>
+    asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ id: string }>(
+        `INSERT INTO task (person_id, location_id, kind, title, required_permission, due_at,
+           assignee_tenant_user_id)
+         VALUES ($1, $2, 'platform.manual', 'Reposition', 'care.note.write',
+                 now() - interval '3 hours', $3)
+         RETURNING id`,
+        [BRYN, locationId, IVO],
+      );
+      return rows[0]?.id ?? "";
+    });
+  const state = (taskId: string) =>
+    asDemoTenant(async (c) => {
+      const told = await c.query<{ recipient_tenant_user_id: string }>(
+        "SELECT recipient_tenant_user_id FROM notification WHERE source_type = 'task' AND source_id = $1",
+        [taskId],
+      );
+      const row = await c.query<{ escalation_level: number }>(
+        "SELECT escalation_level FROM task WHERE id = $1",
+        [taskId],
+      );
+      const audited = await c.query<{ reason: string }>(
+        `SELECT reason FROM audit_event
+         WHERE action = 'task.escalation_unrouted' AND resource_id = $1 ORDER BY seq`,
+        [taskId],
+      );
+      return {
+        told: told.rows.map((r) => r.recipient_tenant_user_id).sort(),
+        level: row.rows[0]?.escalation_level,
+        unrouted: audited.rows.map((r) => r.reason),
+      };
+    });
+  const setOwner = (status: string) =>
+    asDemoTenant((c) =>
+      c.query("UPDATE tenant_user SET status = $2 WHERE id = $1", [DEMO.users.owner.id, status]),
+    );
+
+  beforeAll(async () => {
+    await asDemoTenant(async (c) => {
+      await c.query("INSERT INTO location (id, name) VALUES ($1, 'Harbour Byre')", [BYRE]);
+      await c.query(
+        `INSERT INTO person (id, location_id, status, given_name, family_name, nhs_number)
+         VALUES ($1, $2, 'active', 'Bryn', 'Example', '9990000131')`,
+        [BRYN, BYRE],
+      );
+      await c.query(
+        `INSERT INTO tenant_user (id, display_name, email, status)
+         VALUES ($1, 'Ivo Carer', 'ivo.carer@example.invalid', 'active')`,
+        [IVO],
+      );
+      await c.query(
+        `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, valid_from)
+         SELECT $1, id, $2, now() - interval '30 days' FROM role WHERE key = 'care_worker'`,
+        [IVO, BYRE],
+      );
+      await c.query(
+        `INSERT INTO person_assignment (tenant_user_id, person_id, valid_from)
+         VALUES ($1, $2, now() - interval '30 days')`,
+        [IVO, BRYN],
+      );
+    });
+  });
+
+  it("tells the assignee but audits the gap, keeps the level and tries again within the hour, auditing once a day", async () => {
+    await setOwner("suspended");
+    let taskId = "";
+    try {
+      const now = new Date();
+      taskId = await overdueFor(BYRE);
+      await escalateTasks(deps, now);
+      expect(await state(taskId)).toEqual({ told: [IVO], level: 0, unrouted: ["assignee_only"] });
+      // The minute run leaves it to the hourly retry; the retry finds no one either and writes
+      // no second audit within the day.
+      await escalateTasks(deps, new Date(now.getTime() + MINUTE));
+      await retryUnroutedTasks(deps, new Date(now.getTime() + 60 * MINUTE));
+      expect(await state(taskId)).toEqual({ told: [IVO], level: 0, unrouted: ["assignee_only"] });
+    } finally {
+      await setOwner("active");
+    }
+    // Someone who can act is back: the next hourly retry escalates to them.
+    await retryUnroutedTasks(deps, new Date(Date.now() + 120 * MINUTE));
+    expect(await state(taskId)).toEqual({
+      told: [DEMO.users.owner.id, IVO].sort(),
+      level: 1,
+      unrouted: ["assignee_only"],
+    });
+  });
+
+  it("routes a task about a person with no location to the person's home, only to those who can see them", async () => {
+    // The Registered Manager at Harbour House holds the role nearest a task with no place, but
+    // cannot see Bryn: the owner, who can, is told.
+    const taskId = await overdueFor(null);
+    await escalateTasks(deps, new Date());
+    expect(await state(taskId)).toEqual({
+      told: [DEMO.users.owner.id, IVO].sort(),
+      level: 1,
+      unrouted: [],
+    });
+  });
+
+  it("gives a new task about a person the person's home when none is given (low)", async () => {
+    const created = await createTask({
+      title: "Check skin on heels",
+      personId: resident(1),
+      dueAt: new Date(Date.now() + HOUR).toISOString(),
+    });
+    expect(created.locationId).toBe(DEMO.locationId);
+  });
+
+  it("writes one operator line a day per organisation with unrouted safety work, counting each kind", async () => {
+    const lines: { event: string; tenantId: string; counts: Record<string, number> }[] = [];
+    const logger = {
+      warn: (fields: { event: string; tenantId: string; counts: Record<string, number> }) =>
+        lines.push(fields),
+      info: () => undefined,
+      error: () => undefined,
+      debug: () => undefined,
+    } as unknown as Logger;
+    const now = new Date();
+    const reported = await reportUnroutedDaily({ ...deps, logger }, now);
+    const expected = await asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ action: string; count: number }>(
+        `SELECT action, count(*)::int AS count FROM audit_event
+         WHERE action = ANY($1::text[]) AND occurred_at > $2::timestamptz - interval '1 day'
+           AND occurred_at <= $2::timestamptz
+         GROUP BY action`,
+        [[...UNROUTED_ACTIONS], now],
+      );
+      return Object.fromEntries(
+        UNROUTED_ACTIONS.map((a) => [a, rows.find((r) => r.action === a)?.count ?? 0]),
+      );
+    });
+    // This organisation has unrouted tasks from the tests above (round 3 and this one).
+    expect(expected["task.escalation_unrouted"]).toBeGreaterThanOrEqual(2);
+    expect(reported.get(DEMO.tenantId)).toEqual(expected);
+    expect(lines).toContainEqual({
+      event: UNROUTED_DAILY_EVENT,
+      tenantId: DEMO.tenantId,
+      counts: expected,
+    });
+    // One line per organisation, opaque ids and counts only.
+    expect(lines.filter((l) => l.tenantId === DEMO.tenantId)).toHaveLength(1);
+    expect(Object.keys(lines[0] ?? {}).sort()).toEqual(["counts", "event", "tenantId"]);
   });
 });

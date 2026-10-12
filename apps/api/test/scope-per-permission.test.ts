@@ -507,12 +507,14 @@ describe("hazard HZ-011 data scope per permission, review round 1 (ADR-0071)", (
       // Nothing reaches the person without break-glass, so no tab offers a form (round 3, C3-M1).
       expect(((await read.json()) as { access?: unknown }).access).toEqual({
         reaching: [],
+        mfaRequired: false,
         recordCare: false,
         editCarePlan: false,
         readOnlyReason: "break_glass",
       });
       const own = await asStaff(staff.bea, `/v1/people/${HOUSE_PERSON}`);
       expect(((await own.json()) as { access?: unknown }).access).toEqual({
+        mfaRequired: false,
         reaching: expect.arrayContaining([
           "care.assessment.write",
           "care.note.write",
@@ -992,5 +994,89 @@ describe("hazard HZ-011 hazard HZ-073 data scope per permission, review round 3 
       raw: { bytes: PDF, contentType: "application/pdf" },
     });
     expect(version.status).toBe(404);
+  });
+});
+
+describe("hazard HZ-011 hazard HZ-073 data scope per permission, review round 4 (ADR-0071)", () => {
+  // Max Many is a care worker at Harbour House assigned to more people than the token names;
+  // Harbour Wynd is an invented home with no Registered Manager, and its resident Wil Example.
+  const MAX = "0194d000-0000-7000-8000-0000000003c6";
+  const WYND = "0194d000-0000-7000-8000-0000000001d6";
+  const WIL = "0194d000-0000-7000-8600-0000000001d6";
+  let max = "";
+
+  beforeAll(async () => {
+    max = await member(MAX, "Max Many", "max.many@example.invalid");
+    await asOwner(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, valid_from)
+       SELECT $1, id, $2, now() - interval '30 days' FROM role WHERE key = 'care_worker'`,
+      [MAX, DEMO.locationId],
+    );
+    // 101 invented residents at Harbour House, each assigned to Max.
+    await asOwner(
+      `WITH made AS (
+         INSERT INTO person (location_id, status, given_name, family_name)
+         SELECT $2, 'active', 'Many', 'Example ' || n FROM generate_series(1, 101) AS n
+         RETURNING id)
+       INSERT INTO person_assignment (tenant_user_id, person_id, valid_from)
+       SELECT $1, id, now() - interval '1 day' FROM made`,
+      [MAX, DEMO.locationId],
+    );
+    await asOwner("INSERT INTO location (id, name) VALUES ($1, 'Harbour Wynd')", [WYND]);
+    await asOwner(
+      `INSERT INTO person (id, location_id, status, given_name, family_name, nhs_number)
+       VALUES ($1, $2, 'active', 'Wil', 'Example', '9990000158')`,
+      [WIL, WYND],
+    );
+  }, 120_000);
+
+  it("names no one in the token above 100 assigned people, so the phone falls back to the location rule (low)", async () => {
+    const response = await h.request("/v1/sync/token", {
+      token: max,
+      tenant: DEMO.tenantId,
+      method: "POST",
+    });
+    expect(response.status).toBe(200);
+    const { token } = (await response.json()) as SyncToken;
+    const claims = (await jwtVerify(token, h.handle.signer.verificationKey)).payload;
+    expect(claims).toMatchObject({ entries_write_assigned: true, entries_write_location_ids: [] });
+    expect(claims).not.toHaveProperty("entries_write_person_ids");
+  });
+
+  it("audits a break-glass alert no one active could be sent, and still opens the record (low)", async () => {
+    // No Registered Manager reaches Harbour Wynd, and the quality lead is suspended.
+    await asOwner("UPDATE tenant_user SET status = 'suspended' WHERE id = $1", [
+      LODGE.qualityLeadId,
+    ]);
+    try {
+      const opened = await h.request("/v1/people/break-glass", {
+        token: h.tokens.manager,
+        tenant: DEMO.tenantId,
+        method: "POST",
+        body: { personId: WIL, justification: "Covering an emergency at Harbour Wynd tonight" },
+      });
+      expect(opened.status).toBe(201);
+      const { id } = (await opened.json()) as { id: string };
+      const audited = await asOwner(
+        `SELECT reason, scope FROM audit_event
+         WHERE action = 'people.break_glass_alert.unrouted' AND resource_id = $1`,
+        [id],
+      );
+      expect(audited).toEqual([
+        {
+          reason: "no_recipient",
+          scope: { personId: WIL, locationId: WYND, reasonCode: "no_recipient" },
+        },
+      ]);
+      const alerts = await asOwner(
+        "SELECT 1 FROM notification WHERE kind = 'people.break_glass_opened' AND source_id = $1",
+        [id],
+      );
+      expect(alerts).toEqual([]);
+    } finally {
+      await asOwner("UPDATE tenant_user SET status = 'active' WHERE id = $1", [
+        LODGE.qualityLeadId,
+      ]);
+    }
   });
 });

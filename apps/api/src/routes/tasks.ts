@@ -8,7 +8,7 @@ import {
   TaskSeriesItem,
   TaskTransitionRequest,
 } from "@harbour/contracts";
-import { type Transaction, task, taskSeries } from "@harbour/db";
+import { person, type Transaction, task, taskSeries } from "@harbour/db";
 import {
   can,
   checkTaskTransition,
@@ -238,13 +238,24 @@ export const tasksRouter = createRouter()
       const requiredPermission = body.personId ? PERSON_TASK_PERMISSION : GENERAL_TASK_PERMISSION;
       const item = await withAuditedRefusal(c, access, () =>
         withTenant(c, async (tx) => {
+          // A task about a person takes the person's home when none is given, so it is routed,
+          // listed and escalated where the person lives (ADR-0071 review round 4).
+          let locationId = body.locationId ?? null;
+          if (body.personId && !locationId) {
+            const [home] = await tx
+              .select({ locationId: person.locationId })
+              .from(person)
+              .where(eq(person.id, body.personId));
+            if (!home) throw problems.notFound();
+            locationId = home.locationId;
+          }
           await requireAssignable(
             tx,
             "platform.task.create",
             {
               assigneeTenantUserId: body.assigneeTenantUserId,
               requiredPermission,
-              locationId: body.locationId ?? null,
+              locationId,
               personId: body.personId ?? null,
             },
             now,
@@ -256,7 +267,7 @@ export const tasksRouter = createRouter()
               title: body.title,
               requiredPermission,
               personId: body.personId ?? null,
-              locationId: body.locationId ?? null,
+              locationId,
               assigneeTenantUserId: body.assigneeTenantUserId ?? null,
               dueAt: new Date(body.dueAt),
               windowStart: body.windowStart ? new Date(body.windowStart) : null,
