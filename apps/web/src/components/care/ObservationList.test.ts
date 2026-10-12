@@ -1,7 +1,9 @@
-import type { ObservationItem } from "@harbour/contracts";
+import type { EscalationPolicyRef, ObservationItem } from "@harbour/contracts";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { news2FromFlags } from "@/lib/charts";
+import { News2Result } from "./News2Result";
 import { ObservationList } from "./ObservationList";
 
 /** The words a reader hears, without markup. */
@@ -101,6 +103,7 @@ describe("ObservationList shows a food or drink entry the API kept from a device
           iddsi: { outcome: "level_not_recorded", raisesAlert: true },
           iddsiAlert: true,
           iddsiProblem: "level_not_recorded",
+          alertRoute: "nurse_in_charge",
         },
       }),
     ]);
@@ -121,13 +124,16 @@ describe("ObservationList shows a food or drink entry the API kept from a device
             iddsi: { outcome: "unsafe_mismatch", raisesAlert: true },
             iddsiAlert: true,
             iddsiProblem: "reason_missing",
+            alertRoute: "fallback",
           },
         }),
       ]),
     );
+    // Said from what happened: here no nurse in charge could open the record (#26 round 3).
     expect(text).toContain(
-      "Food more solid than prescribed was given, with no reason recorded. It may not be safe: the nurse in charge was told.",
+      "Food more solid than prescribed was given, with no reason recorded. It may not be safe. No nurse in charge who could open this record was on duty, so the alert went to a manager or another member of staff who can.",
     );
+    expect(text).not.toContain("The nurse in charge was told");
     expect(text).not.toContain("Reason given");
   });
 
@@ -141,13 +147,15 @@ describe("ObservationList shows a food or drink entry the API kept from a device
             iddsi: { outcome: "unsafe_mismatch", raisesAlert: true },
             iddsiAlert: true,
             iddsiProblem: "reason_missing",
+            alertRoute: "no_one",
           },
         }),
       ]),
     );
     expect(text).toContain(
-      "A thinner drink than prescribed was given, with no reason recorded. It may not be safe: the nurse in charge was told.",
+      "A thinner drink than prescribed was given, with no reason recorded. It may not be safe. No one who can open this record could be told. Tell the nurse in charge or a manager now.",
     );
+    expect(text).not.toContain("The nurse in charge was told");
   });
 
   it("hazard HZ-016 says when the prescribed level could not be read, never nothing (#26 review round 2, C1)", () => {
@@ -162,8 +170,9 @@ describe("ObservationList shows a food or drink entry the API kept from a device
         },
       }),
     ]);
+    // Saved before the route was kept: it says to check, never that someone was told.
     expect(words(html)).toContain(
-      "The prescribed IDDSI level could not be read, so this entry was not checked against it. The nurse in charge was told.",
+      "The prescribed IDDSI level could not be read, so this entry was not checked against it. Check that the nurse in charge knows.",
     );
     expect(html).toContain('data-iddsi-problem="prescribed_unreadable"');
   });
@@ -254,5 +263,56 @@ describe("ObservationList shows the escalation policy and the deletion flag (#26
       ]),
     );
     expect(text).toContain("Sent after its device deleted it: check for a duplicate");
+  });
+
+  it("hazard HZ-014 says who a NEWS2 entry's urgent alert reached (#26 review round 3)", () => {
+    const entry = vitals(null);
+    const html = render([{ ...entry, flags: { ...entry.flags, alertRoute: "nurse_in_charge" } }]);
+    expect(words(html)).toContain("The nurse in charge was told.");
+    expect(html).toContain('data-alert-route="nurse_in_charge"');
+  });
+});
+
+describe("the NEWS2 result shown after saving (#26 review round 3, item 3)", () => {
+  const news2 = news2FromFlags({
+    news2: {
+      toolVersion: "RCP NEWS2 2017",
+      score: 6,
+      band: "medium",
+      clinicalRisk: "Medium",
+      response: "Key threshold for urgent response",
+      monitoring: "Minimum 1 hourly",
+      workings: [],
+    },
+  });
+  const result = (escalationPolicy?: EscalationPolicyRef | null) =>
+    renderToStaticMarkup(
+      createElement(News2Result, {
+        news2: news2 as NonNullable<typeof news2>,
+        headingLevel: 4,
+        ...(escalationPolicy !== undefined ? { escalationPolicy } : {}),
+      }),
+    );
+
+  it("hazard HZ-012 shows the policy the save returned beside the response", () => {
+    const html = result({
+      status: "configured",
+      toolKey: "news2",
+      band: "medium",
+      linkId: "0193a000-0000-7000-8000-00000000e001",
+      title: "Deterioration and escalation policy",
+      reference: "CP-07",
+      documentId: null,
+      matchedOn: "tool",
+      scope: "organisation",
+    });
+    expect(words(html)).toContain(
+      "Your organisation's escalation policy: Deterioration and escalation policy (CP-07)",
+    );
+  });
+
+  it("hazard HZ-014 says none is configured when the save returned none", () => {
+    expect(result(null)).toContain('data-escalation-policy="not_configured"');
+    expect(result()).not.toContain("data-escalation-policy");
   });
 });

@@ -395,6 +395,11 @@ test("hazard HZ-014 vital signs show the NEWS2 result and the RCP response the A
   await expect(result.getByText("Response: Key threshold for urgent response")).toBeVisible();
   await expect(result.getByText("Monitoring: Minimum 1 hourly")).toBeVisible();
   await expect(result.getByRole("table", { name: "How the result was worked out" })).toBeVisible();
+  // The result shown and focused after saving names the organisation's policy too, as the saved
+  // entry does (HZ-012; #26 review round 3).
+  await expect(result).toContainText(
+    "Your organisation's escalation policy: Deterioration and escalation policy (CP-07)",
+  );
   const entry = entries.first();
   await expect(entry).toContainText(
     "Respiration rate 22, SpO2 95% on air, systolic 105 mmHg, pulse 95, alert, temperature 38.2 °C",
@@ -406,6 +411,8 @@ test("hazard HZ-014 vital signs show the NEWS2 result and the RCP response the A
   await expect(entry).toContainText(
     "Your organisation's escalation policy: Deterioration and escalation policy (CP-07)",
   );
+  // The entry says who its urgent alert actually reached (#26 review round 3).
+  await expect(entry).toContainText("The nurse in charge was told.");
   await entry.getByText("How the score was worked out").click();
   await expect(entry.getByRole("table", { name: "How the result was worked out" })).toBeVisible();
   await expectAccessible(page, "NEWS2 result");

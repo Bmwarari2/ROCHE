@@ -88,6 +88,11 @@ export function problemMessage(error: unknown, t: Translator): Problem {
       return { code, message: detail || t("care.errors.featureDisabled") };
     case "version_conflict":
       return { code, message: t("care.errors.conflict") };
+    // A save sent again with its id kept, after the first reached Harbour, but with other details
+    // (HZ-029, HZ-015; #26 review round 3): what was saved stands, so the person reloads, checks
+    // it and enters the change again, never told someone else changed the record.
+    case "already_saved_differently":
+      return { code, message: t("care.errors.alreadySavedDifferently") };
     case "missing_permission":
     case "mfa_enrolment_required":
       return { code, message: t("errors.forbidden") };

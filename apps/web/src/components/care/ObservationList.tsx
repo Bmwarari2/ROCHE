@@ -3,6 +3,7 @@ import { StatusChip } from "@harbour/ui";
 import { Activity, History, TriangleAlert } from "lucide-react";
 import { entryAuthor } from "@/lib/care-record";
 import {
+  alertRouteMessage,
   iddsiOutcome,
   iddsiProblem,
   iddsiProblemMessage,
@@ -42,6 +43,8 @@ export function ObservationList({
         const iddsi = iddsiOutcome(item.flags);
         const problem = iddsiProblem(item.flags);
         const problemMessage = iddsiProblemMessage(item);
+        // Who the entry's urgent alert reached, as the API kept it (#26 review round 3).
+        const alertMessage = alertRouteMessage(item.flags);
         const summary = parts.join(" · ");
         return (
           <li
@@ -98,6 +101,11 @@ export function ObservationList({
                     <Workings workings={news2.workings} />
                   </details>
                 ) : null}
+                {alertMessage ? (
+                  <p className="m-0" data-alert-route={String(item.flags.alertRoute ?? "unknown")}>
+                    {t(alertMessage)}
+                  </p>
+                ) : null}
                 <EscalationPolicyLine policy={item.escalationPolicy} />
               </div>
             ) : null}
@@ -120,7 +128,10 @@ export function ObservationList({
                   aria-hidden="true"
                   className="mt-0.5 shrink-0"
                 />
-                {t(problemMessage)}
+                <span>
+                  {t(problemMessage)}
+                  {alertMessage ? ` ${t(alertMessage)}` : null}
+                </span>
               </p>
             ) : null}
             {(iddsi === "mismatch" || iddsi === "unsafe_mismatch") && problem === null ? (
@@ -131,6 +142,14 @@ export function ObservationList({
                       ? item.values.overrideReason
                       : t("common.notRecorded"),
                 })}
+              </p>
+            ) : null}
+            {item.chart !== "vitals" && !(problem && problemMessage) && alertMessage ? (
+              <p
+                className="m-0 text-body-dense"
+                data-alert-route={String(item.flags.alertRoute ?? "unknown")}
+              >
+                {t(alertMessage)}
               </p>
             ) : null}
             {item.correctionReason ? (

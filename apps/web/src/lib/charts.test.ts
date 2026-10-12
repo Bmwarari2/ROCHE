@@ -1,6 +1,7 @@
 import { createTranslator } from "@harbour/i18n";
 import { describe, expect, it } from "vitest";
 import {
+  alertRouteMessage,
   fluidDayView,
   iddsiOutcome,
   iddsiProblem,
@@ -101,6 +102,8 @@ describe("fluid balance day", () => {
     flaggedEntries: 0,
     flaggedIntakeMl: 0,
     flaggedOutputMl: 0,
+    refusedEntries: 0,
+    refusedOfferedMl: 0,
   };
 
   it("shows the intake against the target and the shortfall the API worked out", () => {
@@ -123,6 +126,17 @@ describe("fluid balance day", () => {
       "Includes 2 entries that a device recorded as deleted (300 ml in, 0 ml out): check for duplicates.",
     );
     expect(view.valueText).toBe("900 ml of a 1,500 ml target");
+  });
+
+  it("says beside the totals what was offered and refused, never as drunk (#26 review round 3)", () => {
+    expect(fluidDayView(day, t).refusedText).toBeNull();
+    const view = fluidDayView({ ...day, refusedEntries: 2, refusedOfferedMl: 450 }, t);
+    expect(view.refusedText).toBe(
+      "2 drinks offered and refused (450 ml), not counted in the intake.",
+    );
+    // The intake and the shortfall are the API's, which never count a refused drink.
+    expect(view.valueText).toBe("900 ml of a 1,500 ml target");
+    expect(view.statusText).toBe("600 ml below the target so far");
   });
 
   it("says when the target is reached and when there is no target", () => {
@@ -161,6 +175,13 @@ describe("chart entries in words", () => {
         t,
       ),
     ).toEqual(["Lunch: half eaten", "Level 5 Minced and moist (orange)", "Refused"]);
+    // A refused drink's amount is what was offered (#26 review round 3).
+    expect(
+      observationSummary(
+        { chart: "fluid_intake", values: { ml: 200, drink: "Tea", refused: true }, flags: {} },
+        t,
+      ),
+    ).toEqual(["200 ml offered", "Tea", "Refused"]);
   });
 
   it.each([
@@ -224,4 +245,30 @@ describe("chart entries in words", () => {
   ])("hazard HZ-016 says every IDDSI problem of a kept entry: %s", (_name, chart, flags, key) => {
     expect(iddsiProblemMessage({ chart, flags })).toBe(key);
   });
+
+  it.each<[string, Record<string, unknown>, string | null]>([
+    ["the nurse in charge", { alertRoute: "nurse_in_charge" }, "The nurse in charge was told."],
+    [
+      "the fallback",
+      { iddsiAlert: true, alertRoute: "fallback" },
+      "No nurse in charge who could open this record was on duty, so the alert went to a manager or another member of staff who can.",
+    ],
+    [
+      "no one",
+      { iddsiAlert: true, alertRoute: "no_one" },
+      "No one who can open this record could be told. Tell the nurse in charge or a manager now.",
+    ],
+    [
+      "an alert saved before the route was kept",
+      { iddsiAlert: true },
+      "Check that the nurse in charge knows.",
+    ],
+    ["no alert", { iddsiAlert: false }, null],
+  ])(
+    "hazard HZ-014 hazard HZ-016 says who an alert actually reached: %s (#26 review round 3)",
+    (_name, flags, words) => {
+      const key = alertRouteMessage(flags);
+      expect(key === null ? null : t(key)).toBe(words);
+    },
+  );
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import type { PersonCareProfile } from "@harbour/contracts";
+import type { EscalationPolicyRef, PersonCareProfile } from "@harbour/contracts";
 import { Button, Checkbox, RadioGroup, SelectField, TextField } from "@harbour/ui";
 import { Lock, TriangleAlert } from "lucide-react";
 import { type FormEvent, useRef, useState, useTransition } from "react";
@@ -116,6 +116,8 @@ export function ChartEntryForm({
 }) {
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const [news2, setNews2] = useState<News2Flags | null>(null);
+  // The organisation's escalation policy the save returned, shown with the result (#26 round 3).
+  const [policy, setPolicy] = useState<EscalationPolicyRef | null>(null);
   const [round, setRound] = useState(0);
   const [noMovement, setNoMovement] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -151,6 +153,7 @@ export function ChartEntryForm({
       });
       setResult(outcome);
       setNews2(outcome.ok ? news2FromFlags(outcome.data.flags) : null);
+      setPolicy(outcome.ok ? outcome.data.escalationPolicy : null);
       if (outcome.ok) {
         setRound((n) => n + 1);
         setNoMovement(false);
@@ -433,7 +436,9 @@ export function ChartEntryForm({
         fieldIds={ids}
         {...(chart === "vitals" ? { focusOnSuccess: news2Ref } : {})}
       />
-      {news2 && result?.ok ? <News2Result news2={news2} headingLevel={4} ref={news2Ref} /> : null}
+      {news2 && result?.ok ? (
+        <News2Result news2={news2} escalationPolicy={policy} headingLevel={4} ref={news2Ref} />
+      ) : null}
     </div>
   );
 }

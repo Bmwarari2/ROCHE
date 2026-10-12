@@ -103,6 +103,8 @@ describe("lists of entries", () => {
       { ml: 200, drink: "Tea", iddsiLevel: "2", refused: false },
       "200 ml, Tea, Level 2 Mildly thick (pink)",
     ],
+    // A refused drink's amount is what was offered, never what was drunk (#26 review round 3).
+    ["fluid_intake", { ml: 150, drink: "Tea", refused: true }, "150 ml offered, Tea, Refused"],
     ["fluid_output", { ml: 350, kind: "urine" }, "350 ml, Urine"],
     [
       "food",

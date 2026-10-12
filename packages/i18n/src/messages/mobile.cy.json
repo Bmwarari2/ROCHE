@@ -213,6 +213,7 @@
   "mobile.upload.incomplete": "The entry is missing the person, the organisation or the time.",
   "mobile.upload.unreadable": "The entry could not be read on this device.",
   "mobile.summary.ml": "{ml} ml",
+  "mobile.summary.mlOffered": "{ml} ml offered",
   "mobile.summary.kg": "{kg} kg",
   "mobile.summary.refused": "Refused",
   "mobile.summary.declined": "Declined",

@@ -172,6 +172,9 @@ async function ChartsTab({
                     {fluidView.flaggedText}
                   </span>
                 ) : null}
+                {fluidView.refusedText ? (
+                  <span data-fluid-refused="">{fluidView.refusedText}</span>
+                ) : null}
               </span>
             }
           />

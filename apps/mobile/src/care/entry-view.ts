@@ -74,7 +74,10 @@ export function observationSummary(
   switch (chart) {
     case "fluid_intake":
       parts.push(
-        t("mobile.summary.ml", { ml: Number(v.ml ?? 0) }),
+        // A refused drink's amount is what was offered (#26 review round 3).
+        t(v.refused === true ? "mobile.summary.mlOffered" : "mobile.summary.ml", {
+          ml: Number(v.ml ?? 0),
+        }),
         typeof v.drink === "string" ? v.drink : null,
         iddsi("drink", v.iddsiLevel),
         v.refused === true ? t("mobile.summary.refused") : null,

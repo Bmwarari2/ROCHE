@@ -229,6 +229,9 @@ async function PersonOverviewTab({ params }: { readonly params: Params }) {
                       {fluidView.flaggedText}
                     </span>
                   ) : null}
+                  {fluidView.refusedText ? (
+                    <span data-fluid-refused="">{fluidView.refusedText}</span>
+                  ) : null}
                 </span>
               }
             />

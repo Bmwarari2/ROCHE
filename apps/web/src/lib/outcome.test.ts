@@ -33,12 +33,27 @@ describe("problemMessage", () => {
 
   it.each([
     ["version_conflict", "care.errors.conflict"],
+    ["already_saved_differently", "care.errors.alreadySavedDifferently"],
     ["missing_permission", "errors.forbidden"],
     ["mfa_enrolment_required", "errors.forbidden"],
     ["step_up_required", "errors.stepUpRequired"],
     ["not_found", "errors.notFound"],
   ] as const)("maps %s to plain words", (code, key) => {
     expect(problemMessage({ code, detail: "ignored" }, t)).toEqual({ code, message: t(key) });
+  });
+
+  it("hazard HZ-029 says a save sent again with other details was not changed, never that someone else changed it", () => {
+    const { message } = problemMessage(
+      {
+        code: "already_saved_differently",
+        detail: "This was already saved with different details: reload before changing it.",
+      },
+      t,
+    );
+    expect(message).toBe(
+      "This was already saved with different details, so your change was not saved. Reload the page, check what was saved, and enter your change again if it is still needed.",
+    );
+    expect(message).not.toContain("Someone else");
   });
 
   it("says the answers are kept when the API cannot be reached", () => {
