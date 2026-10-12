@@ -297,9 +297,10 @@ describe("hazard HZ-040 an entry a device reported deleted, uploaded later (roun
   });
 
   it("stays fast with many deletion records in the tenant (round 5, S-M2)", async () => {
-    // Three thousand deletion records of 20 entry ids each, as a busy tenant might build up.
-    await asDemoTenant((c) =>
-      c.query(
+    // Three thousand deletion records of 20 entry ids each, as a busy tenant might build up, in
+    // the audit trail and in their lists (device_discard_entry, the go-live blocker's index).
+    await asDemoTenant(async (c) => {
+      await c.query(
         `INSERT INTO audit_event (tenant_id, action, resource_type, resource_id, scope)
          SELECT $1, CASE WHEN n % 2 = 0 THEN 'sync.entries.discard_requested' ELSE 'sync.entries.discarded' END,
                 'device_discard', gen_random_uuid()::text,
@@ -307,8 +308,15 @@ describe("hazard HZ-040 an entry a device reported deleted, uploaded later (roun
                   (SELECT jsonb_agg(gen_random_uuid()) FROM generate_series(1, 20 + n % 2)))
          FROM generate_series(1, 3000) AS n`,
         [DEMO.tenantId, DEMO.users.nurse.id],
-      ),
-    );
+      );
+      await c.query(
+        `INSERT INTO device_discard_entry (discard_id, stage, entry_id, owner_tenant_user_id)
+         SELECT r.id, CASE WHEN r.n % 2 = 0 THEN 'requested' ELSE 'deleted' END, gen_random_uuid(), $1
+         FROM (SELECT gen_random_uuid() AS id, n FROM generate_series(1, 3000) AS n) r,
+              generate_series(1, 20)`,
+        [DEMO.users.nurse.id],
+      );
+    });
     const entryId = newId();
     const record = await deleted([entryId]);
     const started = performance.now();

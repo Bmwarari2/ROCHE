@@ -6,7 +6,7 @@ import {
   SyncUpload,
   SyncUploadResult,
 } from "@harbour/contracts";
-import { auditEvent, location, roleAssignment, tenantUser } from "@harbour/db";
+import { auditEvent, deviceDiscardEntry, location, roleAssignment, tenantUser } from "@harbour/db";
 import { hasClockDrift } from "@harbour/domain";
 import {
   isValidWindowDays,
@@ -330,6 +330,21 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             },
             requestId: c.get("requestId"),
           });
+          // The entry ids this stage lists, one row each, so an upload finds its deletion by an
+          // index (care.md section 6, Device integrity part 3; the HZ-040 go-live blocker).
+          if (body.entryIds.length > 0) {
+            await tx
+              .insert(deviceDiscardEntry)
+              .values(
+                [...new Set(body.entryIds.map((id) => id.toLowerCase()))].map((entryId) => ({
+                  discardId: body.id,
+                  stage: body.stage,
+                  entryId,
+                  ownerTenantUserId: body.ownerTenantUserId,
+                })),
+              )
+              .onConflictDoNothing();
+          }
           // Part of the database left on the device after its entries became unreadable is a
           // security event of its own (clinical review round 5, C-M1).
           if (body.stage === "deleted" && body.leftover && body.leftover.length > 0) {

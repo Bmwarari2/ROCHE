@@ -74,3 +74,39 @@ export const deviceBinding = pgTable(
     ),
   ],
 );
+
+/** The stages of a device's deletion of unsent entries (`SYNC_DISCARD_STAGES` in contracts). */
+export const DEVICE_DISCARD_STAGES = ["requested", "deleted", "failed"] as const;
+
+/**
+ * The entry ids each stage of a deletion record lists (part 3; the HZ-040 go-live blocker): one
+ * append-only row per stage and entry, written with the stage's audit event, so "did this entry's
+ * owner's device record deleting it?" is one indexed read instead of a scan of the tenant's
+ * deletion events. `discard_id` is the deletion record's id (the `device_discard` audit resource).
+ */
+export const deviceDiscardEntry = pgTable(
+  "device_discard_entry",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    discardId: uuid("discard_id").notNull(),
+    /** `DEVICE_DISCARD_STAGES`. */
+    stage: text("stage").notNull(),
+    entryId: uuid("entry_id").notNull(),
+    /** Whose entries the deletion said they were (tenant_user), when the device knew. */
+    ownerTenantUserId: uuid("owner_tenant_user_id"),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+    ...createdColumns(),
+  },
+  (t) => [
+    unique("device_discard_entry_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("device_discard_entry_stage_key").on(t.tenantId, t.discardId, t.stage, t.entryId),
+    foreignKey({
+      name: "device_discard_entry_owner_fk",
+      columns: [t.tenantId, t.ownerTenantUserId],
+      foreignColumns: [tenantUser.tenantId, tenantUser.id],
+    }),
+    index("device_discard_entry_entry_idx").on(t.tenantId, t.entryId, t.ownerTenantUserId),
+    check("device_discard_entry_stage", sql`stage IN (${sqlList(DEVICE_DISCARD_STAGES)})`),
+  ],
+);

@@ -1328,6 +1328,42 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       created_by: "exported",
     },
   },
+  "public.device_discard_entry": {
+    context: "care",
+    description:
+      "The entry ids each stage of a device's deletion of unsent entries listed, with the deletion record and whose entries they were (append-only; care.md section 6).",
+    treatment: "tenant_rows",
+    retention: "audit_event",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      discard_id: {
+        description:
+          "The deletion record (the audit trail's device_discard resource id, sync.entries.* events).",
+      },
+      stage: {
+        description: "The stage of the deletion that listed the entry.",
+        codes: {
+          requested: "Recorded before anything was deleted.",
+          deleted: "The device checked the entries could no longer be read.",
+          failed:
+            "The deletion did not finish; the entries stayed on the device, never to be sent.",
+        },
+      },
+      entry_id: {
+        description:
+          "The id of a care entry the deletion listed (care_note, observation, body_map_mark, activity_record or visit_log id).",
+      },
+      owner_tenant_user_id: {
+        description:
+          "Whose entries the deletion said they were (tenant_user.id); empty if unknown.",
+      },
+      recorded_at: { description: "When the server recorded the stage (instant, UTC)." },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
   "public.document": {
     context: "platform",
     description:

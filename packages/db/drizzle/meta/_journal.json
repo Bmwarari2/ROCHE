@@ -225,6 +225,20 @@
       "when": 1791783137674,
       "tag": "0031_device_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1791783939670,
+      "tag": "0032_device_discard_entry",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1791783941403,
+      "tag": "0033_device_discard_entry_security",
+      "breakpoints": true
     }
   ]
 }

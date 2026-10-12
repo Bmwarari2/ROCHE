@@ -296,3 +296,112 @@ describe("existing tenants' role copies gain the device permissions (migration 0
     ]);
   });
 });
+
+describe("hazard HZ-040 hazard HZ-011 deletion lists (part 3)", () => {
+  const DISCARD_CARER = "0199d000-0000-4000-8000-0000000000f1";
+  const DISCARD_MANAGER = "0199d000-0000-4000-8000-0000000000f2";
+  const ENTRY_1 = "0199d000-0000-7000-8000-0000000000a1";
+  const ENTRY_2 = "0199d000-0000-7000-8000-0000000000a2";
+  const listed = (c: pg.PoolClient) =>
+    c
+      .query<{ discard_id: string; entry_id: string }>(
+        "SELECT discard_id, entry_id FROM device_discard_entry ORDER BY discard_id, entry_id",
+      )
+      .then((r) => r.rows.map((row) => `${row.discard_id}:${row.entry_id}`));
+
+  beforeAll(async () => {
+    // The carer records their own deletion; the manager records one of their own.
+    await asCarer((c) =>
+      c.query(
+        `INSERT INTO device_discard_entry (discard_id, stage, entry_id, owner_tenant_user_id)
+         VALUES ($1, 'deleted', $2, $3)`,
+        [DISCARD_CARER, ENTRY_1, a.carer],
+      ),
+    );
+    await asNorthManager((c) =>
+      c.query(
+        `INSERT INTO device_discard_entry (discard_id, stage, entry_id, owner_tenant_user_id)
+         VALUES ($1, 'deleted', $2, $3)`,
+        [DISCARD_MANAGER, ENTRY_2, a.manager],
+      ),
+    );
+  });
+
+  it("shows a member only their own deletions' entries, and a manager the organisation's", async () => {
+    expect(await asCarer(listed)).toEqual([`${DISCARD_CARER}:${ENTRY_1}`]);
+    expect(await asNorthManager(listed)).toEqual(
+      [`${DISCARD_CARER}:${ENTRY_1}`, `${DISCARD_MANAGER}:${ENTRY_2}`].sort(),
+    );
+    expect(await asOtherTenant(listed)).toEqual([]);
+  });
+
+  it("refuses a member listing a deletion of someone else's entries", async () => {
+    await expect(
+      asCarer((c) =>
+        c.query(
+          `INSERT INTO device_discard_entry (discard_id, stage, entry_id, owner_tenant_user_id)
+           VALUES ($1, 'deleted', $2, $3)`,
+          [DISCARD_MANAGER, ENTRY_1, a.manager],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it("keeps the lists append-only and their stages to the list", async () => {
+    await expect(
+      asOwner(TENANT_A, (c) => c.query("UPDATE device_discard_entry SET stage = 'failed'")),
+    ).rejects.toThrow(/append-only/);
+    await expect(asSystem((c) => c.query("DELETE FROM device_discard_entry"))).rejects.toThrow(
+      /permission denied|append-only/,
+    );
+    await expect(
+      asSystem((c) =>
+        c.query(
+          `INSERT INTO device_discard_entry (discard_id, stage, entry_id) VALUES ($1, 'gone', $2)`,
+          [DISCARD_CARER, ENTRY_2],
+        ),
+      ),
+    ).rejects.toThrow(/device_discard_entry_stage/);
+  });
+
+  it("lists every entry id of the deletion records before migration 0033, by stage (backfill)", async () => {
+    const OLD = "0199d000-0000-4000-8000-0000000000f9";
+    const ENTRY_OLD = "0199d000-0000-7000-8000-0000000000a9";
+    await asOwner(TENANT_A, (c) =>
+      c.query(
+        `INSERT INTO audit_event (tenant_id, action, resource_type, resource_id, scope, occurred_at) VALUES
+           ($1, 'sync.entries.discard_requested', 'device_discard', $2,
+            jsonb_build_object('ownerTenantUserId', $3::text, 'entryIds', jsonb_build_array($4::text, 'not-an-id')), '2026-10-01T08:00:00Z'),
+           ($1, 'sync.entries.discarded', 'device_discard', $2,
+            jsonb_build_object('ownerTenantUserId', $3::text, 'entryIds', jsonb_build_array($4::text)), '2026-10-01T08:05:00Z'),
+           ($1, 'sync.entries.discarded', 'device_discard', 'not-a-record',
+            jsonb_build_object('ownerTenantUserId', $3::text, 'entryIds', jsonb_build_array($4::text)), '2026-10-01T08:06:00Z')`,
+        [TENANT_A, OLD, a.carer, ENTRY_OLD],
+      ),
+    );
+    const section = { begin: "-- backfill: begin", end: "-- backfill: end" };
+    await rerun("0033_device_discard_entry_security.sql", section);
+    await rerun("0033_device_discard_entry_security.sql", section);
+    const rows = await asOwner(TENANT_A, (c) =>
+      c.query<{ stage: string; entry_id: string; owner: string; recorded_at: Date }>(
+        `SELECT stage, entry_id, owner_tenant_user_id AS owner, recorded_at
+         FROM device_discard_entry WHERE discard_id = $1 ORDER BY recorded_at`,
+        [OLD],
+      ),
+    );
+    expect(rows.rows).toEqual([
+      {
+        stage: "requested",
+        entry_id: ENTRY_OLD,
+        owner: a.carer,
+        recorded_at: new Date("2026-10-01T08:00:00Z"),
+      },
+      {
+        stage: "deleted",
+        entry_id: ENTRY_OLD,
+        owner: a.carer,
+        recorded_at: new Date("2026-10-01T08:05:00Z"),
+      },
+    ]);
+  });
+});

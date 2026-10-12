@@ -188,18 +188,26 @@ const newId = () => {
 };
 const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
 
-const noteFrom = (who: Who, device: string | undefined, extra: Record<string, string> = {}) =>
-  call(who, `/v1/people/${resident(1)}/notes`, {
+/** A note about the carer's first resident, from a device when one is named. */
+const noteFrom = (
+  who: Who,
+  device: string | undefined,
+  extra: Record<string, string> = {},
+  id: string = newId(),
+  person = 1,
+) =>
+  call(who, `/v1/people/${resident(person)}/notes`, {
     method: "POST",
     ...(device ? { device } : {}),
     headers: extra,
     body: {
-      id: newId(),
+      id,
       category: "personal_care",
       body: "Assisted with a wash; skin intact.",
       occurredAt: minutesAgo(5),
     },
   });
+const noteWithId = (who: Who, id: string) => noteFrom(who, undefined, {}, id);
 
 /** Moves a member's session sign-in back an hour, so a step-up permission needs a new sign-in. */
 async function staleSignIn(who: Who, fn: () => Promise<void>) {
@@ -331,5 +339,108 @@ describe("part 2: revocation", () => {
     expect((await noteFrom("carer", undefined)).status).toBe(201);
     // The server still hears what the revoked device holds.
     expect((await report("carer", { held: 1 }, device)).status).toBe(204);
+  });
+});
+
+const discard = (
+  who: Who,
+  body: { id: string; stage: string; entryIds: string[]; owner: string },
+  device?: string,
+) =>
+  call(who, "/v1/sync/discards", {
+    method: "POST",
+    ...(device ? { device } : {}),
+    body: {
+      id: body.id,
+      kind: "held_deleted",
+      stage: body.stage,
+      reasonCode: "recorded_elsewhere",
+      ownerTenantUserId: body.owner,
+      deletedByTenantUserId: body.owner,
+      entryIds: body.entryIds,
+      personIds: [resident(1)],
+      count: body.entryIds.length,
+      discardedAt: new Date().toISOString(),
+    },
+  });
+
+describe("part 3: deletion lists", () => {
+  const flagged = (entryId: string) =>
+    asTenant<{ scope: Record<string, unknown> }>(
+      "SELECT scope FROM audit_event WHERE action = 'sync.entry.after_discard' AND resource_id = $1",
+      [entryId],
+    );
+
+  it("hazard HZ-040 lists each stage's entry ids with the deletion record", async () => {
+    const id = crypto.randomUUID();
+    const entries = [newId(), newId()];
+    for (const stage of ["requested", "deleted"]) {
+      expect(
+        (await discard("carer", { id, stage, entryIds: entries, owner: DEMO.users.carer.id }))
+          .status,
+      ).toBe(200);
+    }
+    const rows = await asTenant<{ stage: string; entry_id: string; owner: string }>(
+      "SELECT stage, entry_id, owner_tenant_user_id AS owner FROM device_discard_entry WHERE discard_id = $1 ORDER BY stage, entry_id",
+      [id],
+    );
+    expect(rows).toEqual(
+      ["deleted", "requested"].flatMap((stage) =>
+        [...entries].sort().map((entry_id) => ({ stage, entry_id, owner: DEMO.users.carer.id })),
+      ),
+    );
+    // A replayed stage lists nothing twice.
+    await discard("carer", { id, stage: "deleted", entryIds: entries, owner: DEMO.users.carer.id });
+    expect(
+      await asTenant("SELECT 1 FROM device_discard_entry WHERE discard_id = $1", [id]),
+    ).toHaveLength(4);
+  });
+
+  it("hazard HZ-040 finds an uploaded entry's deletion in device_discard_entry, never by reading the audit trail", async () => {
+    // A deletion in the audit trail with no list (as if written before the table) flags nothing.
+    const unlisted = newId();
+    await asTenant(
+      `INSERT INTO audit_event (tenant_id, action, resource_type, resource_id, scope)
+       VALUES ($1, 'sync.entries.discarded', 'device_discard', $2,
+               jsonb_build_object('ownerTenantUserId', $3::text, 'entryIds', jsonb_build_array($4::text)))`,
+      [DEMO.tenantId, crypto.randomUUID(), DEMO.users.carer.id, unlisted],
+    );
+    expect((await noteWithId("carer", unlisted)).status).toBe(201);
+    expect(await flagged(unlisted)).toEqual([]);
+    // Listed by a recorded deletion: kept and flagged, naming the record.
+    const listedEntry = newId();
+    const id = crypto.randomUUID();
+    for (const stage of ["requested", "deleted"]) {
+      await discard("carer", { id, stage, entryIds: [listedEntry], owner: DEMO.users.carer.id });
+    }
+    expect((await noteWithId("carer", listedEntry)).status).toBe(201);
+    expect((await flagged(listedEntry)).map((r) => r.scope.discardId)).toEqual([id]);
+  });
+
+  it("hazard HZ-040 does not flag an entry whose deletion failed, nor someone else's deletion", async () => {
+    const failedEntry = newId();
+    const failed = crypto.randomUUID();
+    for (const stage of ["requested", "deleted", "failed"]) {
+      await discard("carer", {
+        id: failed,
+        stage,
+        entryIds: [failedEntry],
+        owner: DEMO.users.carer.id,
+      });
+    }
+    expect((await noteWithId("carer", failedEntry)).status).toBe(201);
+    expect(await flagged(failedEntry)).toEqual([]);
+    const theirs = newId();
+    const record = crypto.randomUUID();
+    for (const stage of ["requested", "deleted"]) {
+      await discard("manager", {
+        id: record,
+        stage,
+        entryIds: [theirs],
+        owner: DEMO.users.manager.id,
+      });
+    }
+    expect((await noteWithId("carer", theirs)).status).toBe(201);
+    expect(await flagged(theirs)).toEqual([]);
   });
 });

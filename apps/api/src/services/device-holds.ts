@@ -47,6 +47,7 @@ import {
   auditEvent,
   bodyMapMark,
   careNote,
+  deviceDiscardEntry,
   location,
   notification,
   observation,
@@ -57,7 +58,8 @@ import {
   visitLog,
   withRequestContext,
 } from "@harbour/db";
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, lte, notExists, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { auditInTx } from "../http/audit";
 import type { TenantAccess } from "../http/context";
 import { bindDevice, boundToDevice, deviceFirstSeen } from "./devices";
@@ -1156,34 +1158,42 @@ export async function closeDeviceHoldOnDeletion(
  * The deletion record that says the uploader's own device deleted this entry: the earliest recorded
  * as "deleted" and not later as failed (security reviews round 5, S-M2 and L1, and round 6, N1).
  * Only deletions whose owner is the uploader count, so another member of staff cannot mark
- * someone's entries; the audit trail's resource index narrows the read to the tenant's deletion
- * records. Null when there is none.
+ * someone's entries. One indexed read of `device_discard_entry` (care.md section 6, Device
+ * integrity part 3; the HZ-040 go-live blocker), never a scan of the tenant's deletion records.
+ * Null when there is none.
  */
 export async function reportedDeletedBy(
   tx: Transaction,
   entryId: string,
   uploaderTenantUserId: string,
 ): Promise<string | null> {
-  const rows = await tx
-    .select({ action: auditEvent.action, resourceId: auditEvent.resourceId })
-    .from(auditEvent)
+  const failed = alias(deviceDiscardEntry, "failed");
+  const [row] = await tx
+    .select({ discardId: deviceDiscardEntry.discardId })
+    .from(deviceDiscardEntry)
     .where(
       and(
-        eq(auditEvent.resourceType, "device_discard"),
-        isNotNull(auditEvent.resourceId),
-        inArray(auditEvent.action, [DISCARD_ACTIONS.deleted, DISCARD_ACTIONS.failed]),
-        sql`${auditEvent.scope} ->> 'ownerTenantUserId' = ${uploaderTenantUserId}`,
-        sql`${auditEvent.scope} -> 'entryIds' ? ${entryId}`,
+        eq(deviceDiscardEntry.entryId, entryId.toLowerCase()),
+        eq(deviceDiscardEntry.ownerTenantUserId, uploaderTenantUserId),
+        eq(deviceDiscardEntry.stage, "deleted"),
+        notExists(
+          tx
+            .select({ id: failed.id })
+            .from(failed)
+            .where(
+              and(
+                eq(failed.tenantId, deviceDiscardEntry.tenantId),
+                eq(failed.discardId, deviceDiscardEntry.discardId),
+                eq(failed.entryId, deviceDiscardEntry.entryId),
+                eq(failed.stage, "failed"),
+              ),
+            ),
+        ),
       ),
     )
-    .orderBy(asc(auditEvent.seq));
-  const failed = new Set(
-    rows.filter((r) => r.action === DISCARD_ACTIONS.failed).map((r) => r.resourceId),
-  );
-  return (
-    rows.find((r) => r.action === DISCARD_ACTIONS.deleted && !failed.has(r.resourceId))
-      ?.resourceId ?? null
-  );
+    .orderBy(asc(deviceDiscardEntry.recordedAt), asc(deviceDiscardEntry.id))
+    .limit(1);
+  return row?.discardId ?? null;
 }
 
 const FLAGGED_ENTRY_TITLES: Record<string, string> = {
