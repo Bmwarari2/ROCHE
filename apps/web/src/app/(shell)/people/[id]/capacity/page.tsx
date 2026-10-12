@@ -6,6 +6,7 @@ import { RecordFrame } from "@/components/care/RecordFrame";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { can, tabHref } from "@/lib/care-record";
 import { t } from "@/lib/i18n";
+import { renewedIds } from "@/lib/mca";
 import { personNames } from "@/lib/people";
 import { getPerson, readOrFail } from "@/lib/person-record";
 import { recordMetadata } from "@/lib/record-metadata";
@@ -33,26 +34,33 @@ async function CapacityTab({ params }: { readonly params: Params }) {
   const api = await tenantApi();
   const path = tabHref(id, "capacity");
   const query = { params: { path: { id } } };
-  const [consents, dols] = await Promise.all([
+  const [consents, dols, capacity] = await Promise.all([
     api.GET("/v1/people/{id}/consents", query).then((r) => readOrFail(r, path)),
     api.GET("/v1/people/{id}/dols", query).then((r) => readOrFail(r, path)),
+    // Read to show the date and review date of the capacity finding for each decision.
+    api.GET("/v1/people/{id}/capacity-assessments", query).then((r) => readOrFail(r, path)),
   ]);
-  if (!consents || !dols) return <NoAccess />;
+  if (!consents || !dols || !capacity) return <NoAccess />;
+  const name = personNames(person).preferred;
+  const renewed = renewedIds(dols.items);
 
   return (
     <>
       <div className="flex flex-col gap-1">
         <h2 className="m-0 text-eyebrow">{t("care.mca.title")}</h2>
-        <p className="m-0 max-w-prose text-text-secondary">
-          {t("care.mca.description", { name: personNames(person).preferred })}
-        </p>
+        <p className="m-0 max-w-prose text-text-secondary">{t("care.mca.description", { name })}</p>
       </div>
       <Card as="section" title={t("care.mca.section", { section: "decisions" })} headingLevel={3}>
         <div className="flex flex-col gap-3">
           <p className="m-0 max-w-prose text-body-dense text-text-secondary">
             {t("care.mca.decisionsHint")}
           </p>
-          <ConsentDecisions decisions={consents.decisions} />
+          <ConsentDecisions
+            decisions={consents.decisions}
+            records={consents.items}
+            assessments={capacity.items}
+            personName={name}
+          />
         </div>
       </Card>
       <section aria-labelledby="mca-dols" className="flex flex-col gap-3">
@@ -62,7 +70,9 @@ async function CapacityTab({ params }: { readonly params: Params }) {
         {dols.items.length === 0 ? (
           <p className="m-0 text-text-secondary">{t("care.mca.dols.empty")}</p>
         ) : (
-          dols.items.map((item) => <DolsCard key={item.id} item={item} personId={id} />)
+          dols.items.map((item) => (
+            <DolsCard key={item.id} item={item} renewed={renewed.has(item.id)} personId={id} />
+          ))
         )}
       </section>
     </>
