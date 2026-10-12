@@ -362,6 +362,29 @@ describe("hazard HZ-011 hazard HZ-073 every write form is offered only where the
     });
   });
 
+  it("says a second way to sign in is needed when that is why a write does not reach (review round 4)", () => {
+    const withoutMfa = {
+      reaching: [],
+      mfaRequired: true,
+      recordCare: false,
+      editCarePlan: false,
+      readOnlyReason: "scope",
+    } as const;
+    expect(writeAccess({ access: withoutMfa }, ["care.note.write"], "care.note.write")).toEqual({
+      canWrite: false,
+      readOnlyNotice: "care.readOnly.mfa",
+    });
+    expect(t("care.readOnly.mfa")).toContain("to record in this record");
+    // Break-glass is said first: the record is for reading only whatever the sign-in.
+    expect(
+      writeAccess(
+        { access: { ...withoutMfa, readOnlyReason: "break_glass" } },
+        ["care.note.write"],
+        "care.note.write",
+      ).readOnlyNotice,
+    ).toBe("care.readOnly.breakGlass");
+  });
+
   it("leaves the form when the API does not say (the API still refuses what it would not take)", () => {
     expect(writeAccess({ access: undefined }, ["care.plan.write"], "care.plan.write")).toEqual({
       canWrite: true,

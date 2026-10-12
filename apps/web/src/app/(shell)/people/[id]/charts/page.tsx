@@ -17,6 +17,7 @@ import {
   recordCareAccess,
   tabHref,
   windowStart,
+  writeAccess,
 } from "@/lib/care-record";
 import { CHARTS, type ChartKind, fluidDayView, isChart } from "@/lib/charts";
 import { formatDate } from "@/lib/format";
@@ -112,6 +113,10 @@ async function ChartsTab({
   // The form only where the viewer's care.note.write reaches the person (review round 2, C2-M2).
   const { canRecord: canWrite, readOnlyNotice } = recordCareAccess(person, me.permissions);
   const canSetUp = mayEditCarePlan(person, me.permissions) && profile !== null;
+  // Chart settings hidden from someone who holds care.plan.write but not care.note.write still
+  // say why (review round 4); someone who may record sees no line about the settings.
+  const settings = writeAccess(person, me.permissions, "care.plan.write");
+  const chartsNotice = canWrite ? null : (readOnlyNotice ?? settings.readOnlyNotice);
 
   return (
     <>
@@ -202,7 +207,7 @@ async function ChartsTab({
         }))}
       />
 
-      {!canWrite && readOnlyNotice ? <ReadOnlyNotice text={t(readOnlyNotice)} /> : null}
+      {chartsNotice ? <ReadOnlyNotice text={t(chartsNotice)} /> : null}
       {canWrite ? (
         <Card as="section" title={t("care.charts.record.title", { chart })} headingLevel={3}>
           <ChartEntryForm

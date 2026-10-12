@@ -50,13 +50,17 @@ export function can(permissions: readonly string[], permission: string): boolean
 /** What the API says the viewer may record about one person (`PersonSummary.access`). */
 export interface PersonAccess {
   readonly reaching: readonly string[];
+  readonly mfaRequired?: boolean | undefined;
   readonly recordCare: boolean;
   readonly editCarePlan: boolean;
   readonly readOnlyReason: "break_glass" | "scope" | null;
 }
 
 /** The line that says why a form is not offered on a record open for reading only. */
-export type ReadOnlyNoticeKey = "care.readOnly.breakGlass" | "care.readOnly.scope";
+export type ReadOnlyNoticeKey =
+  | "care.readOnly.breakGlass"
+  | "care.readOnly.scope"
+  | "care.readOnly.mfa";
 
 /**
  * Whether the viewer may use one write permission on this person's record, and the line that
@@ -78,10 +82,14 @@ export function writeAccess(
   }
   return {
     canWrite: false,
+    // The cause, in order: a record open only by break-glass; a session without the two-step
+    // sign-in care records need (review round 4); roles that reach the person for reading only.
     readOnlyNotice:
       person.access.readOnlyReason === "break_glass"
         ? "care.readOnly.breakGlass"
-        : "care.readOnly.scope",
+        : person.access.mfaRequired
+          ? "care.readOnly.mfa"
+          : "care.readOnly.scope",
   };
 }
 

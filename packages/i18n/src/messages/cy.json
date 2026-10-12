@@ -953,5 +953,6 @@
   "care.taskDetails.round.medicines": "Medicines round",
   "care.taskDetails.notListedBefore": "Rounds before {date} are not all listed: check the record.",
   "care.readOnly.breakGlass": "You opened this record for reading only. To record something in it, tell the person in charge of this shift or your manager, or record it on paper and enter it when you have access.",
-  "care.readOnly.scope": "You can read this record but cannot record in it. If something needs recording, tell the person in charge of this shift or your manager."
+  "care.readOnly.scope": "You can read this record but cannot record in it. If something needs recording, tell the person in charge of this shift or your manager.",
+  "care.readOnly.mfa": "Set up a second way to sign in (an authenticator app or a passkey) to record in this record."
 }

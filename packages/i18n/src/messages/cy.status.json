@@ -954,6 +954,7 @@
     "care.taskDetails.round.medicines",
     "care.taskDetails.notListedBefore",
     "care.readOnly.breakGlass",
-    "care.readOnly.scope"
+    "care.readOnly.scope",
+    "care.readOnly.mfa"
   ]
 }
