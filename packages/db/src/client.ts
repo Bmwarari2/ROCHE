@@ -12,14 +12,19 @@ export type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
  * `withRequestContext`, which sets these as transaction-local settings read by row-level security.
  * - `tenantId`: the tenant the request is for (required).
  * - `userId`: the acting tenant_user id, or null for system jobs.
- * - `scope`: 'tenant' (all people), 'locations' (people at `locationIds`), 'assigned' (assigned
- *   people and open break-glass records only) or 'none'.
+ * - `scope`: 'tenant' (all people), 'locations' (people at `locationIds`), 'assigned' (people the
+ *   user is assigned to) or 'none'.
+ * - `includesAssigned`: a 'locations' scope also reaches the people the user is assigned to
+ *   (always so for 'assigned'); `includesBreakGlass`: the scope also reaches the people the user
+ *   opened by break-glass. Both default to false, which fails closed (ADR-0071 review round 1).
  */
 export interface RequestContext {
   readonly tenantId: string;
   readonly userId: string | null;
   readonly scope: "tenant" | "locations" | "assigned" | "none";
   readonly locationIds: readonly string[];
+  readonly includesAssigned?: boolean;
+  readonly includesBreakGlass?: boolean;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -81,7 +86,9 @@ export async function applyRequestContext(tx: Transaction | Database, ctx: Reque
       set_config('app.tenant_id', ${ctx.tenantId}, true),
       set_config('app.user_id', ${ctx.userId ?? ""}, true),
       set_config('app.scope', ${ctx.scope}, true),
-      set_config('app.location_ids', ${ctx.locationIds.join(",")}, true)
+      set_config('app.location_ids', ${ctx.locationIds.join(",")}, true),
+      set_config('app.scope_assigned', ${ctx.includesAssigned === true ? "true" : ""}, true),
+      set_config('app.scope_break_glass', ${ctx.includesBreakGlass === true ? "true" : ""}, true)
   `);
 }
 

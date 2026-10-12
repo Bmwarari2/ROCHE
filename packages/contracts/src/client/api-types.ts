@@ -5317,7 +5317,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Audit trail for the organisation, with hash-chain verification */
+    /**
+     * Audit trail for the organisation, with hash-chain verification
+     * @description Whoever holds platform.audit.read across the organisation sees every event, with its reason. Someone who holds it at some locations only sees their own events and events about the people at those locations (resource type person), never a reason; every other event is withheld until audit events carry their location.
+     */
     get: {
       parameters: {
         query?: {
@@ -6292,7 +6295,7 @@ export interface paths {
     put?: never;
     /**
      * Sign a document with a typed name
-     * @description Binds the signature to the SHA-256 of the version the signer read; a changed document cannot be signed without being read again.
+     * @description Binds the signature to the SHA-256 of the version the signer read; a changed document cannot be signed without being read again. A document about a person needs its category's update permission where it reaches the person (people.person.update for photos and documents, care.note.write for care attachments); a record opened by break-glass cannot be signed.
      */
     post: {
       parameters: {
@@ -12664,7 +12667,7 @@ export interface paths {
     put?: never;
     /**
      * A short-lived token for the PowerSync service, scoped to tenant and assignments
-     * @description Claims: sub, tenant_id, location_ids, people_location_ids and offline_days (the offline window from the rate table, never from the device). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.
+     * @description Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids and entries_location_ids with people_assigned, care_assigned and entries_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read and care.note.read), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), and offline_days (the offline window from the rate table, never from the device). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.
      */
     post: {
       parameters: {
@@ -14135,6 +14138,13 @@ export interface components {
       /** Format: date-time */
       statusChangedAt: string;
       version: number;
+      access?: {
+        reaching: string[];
+        recordCare: boolean;
+        editCarePlan: boolean;
+        /** @enum {string|null} */
+        readOnlyReason: "break_glass" | "scope" | null;
+      };
     };
     /**
      * @description The person lifecycle (people.md rule 1)

@@ -1,7 +1,14 @@
 import { BREAK_GLASS_REASON_CODES, type BreakGlassReasonCode } from "../people/break-glass-report";
 import { PERSON_STATUSES, type PersonStatus } from "../people/lifecycle";
 import { validateNhsNumber } from "../people/nhs-number";
-import { authorise, can, type EffectiveAccess } from "./access";
+import {
+  authorise,
+  can,
+  type EffectiveAccess,
+  type PermissionScope,
+  scopeFor,
+  widestScope,
+} from "./access";
 import type { DocumentCategoryKey } from "./documents";
 import { type Permission, touchesCareRecords } from "./permissions";
 import type { PlatformRates } from "./rates";
@@ -15,7 +22,8 @@ import type { PlatformRates } from "./rates";
  *   NHS number, which must pass its check digit and is matched exactly, never by prefix.
  * - `buildSearchPlan` decides which kinds of record the user may search and the scope they are
  *   searched in, from the user's permissions and attribute scope (locations, teams, assigned
- *   people, the time window and agency access ending at shift end plus a rate-table period).
+ *   people, the time window and agency access ending at shift end plus a rate-table period). Each
+ *   kind of record is searched in the scope of the permission it rests on (ADR-0071).
  * - `buildBreakGlassSearchPlan` is the separate path for finding a person outside scope: it needs
  *   break-glass permission, an MFA sign-in within the step-up window, a reason code and a typed
  *   reason; it matches whole name words only, withholds location and room, is rate-limited and
@@ -205,6 +213,11 @@ export type SearchPersonScope =
       readonly locationIds: readonly string[];
       /** Team narrowing arrives with rotas (Phase 2); null means no team restriction. */
       readonly teamIds: readonly string[] | null;
+      /**
+       * The people assigned to the user count too, only when a role scoped to assigned people
+       * carries the permission (review round 1, S-M1).
+       */
+      readonly includesAssigned: boolean;
     }
   | { readonly kind: "assigned" };
 
@@ -228,6 +241,13 @@ export interface SearchPlanEntity {
   readonly documentCategories?: readonly DocumentCategoryKey[];
   /** For people: the fields matched. */
   readonly matchFields?: readonly PersonMatchField[];
+  /**
+   * For people and notes: whom they are searched among, the scope of `permission` alone
+   * (ADR-0071), so a role that reaches further for something else never widens it.
+   */
+  readonly personScope?: SearchPersonScope;
+  /** For documents about people: whom each category is searched among, by its own permission. */
+  readonly categoryScopes?: Readonly<Partial<Record<DocumentCategoryKey, SearchPersonScope>>>;
 }
 
 export type SearchOmissionReason = "not_permitted" | "no_scope" | "mfa_required" | "not_applicable";
@@ -243,6 +263,10 @@ export interface SearchPlan {
     readonly type: SearchEntityType;
     readonly reason: SearchOmissionReason;
   }[];
+  /**
+   * Whom the search runs over: every kind's own scope together. Each result is then held to the
+   * scope of its own kind (`SearchPlanEntity.personScope`, `categoryScopes`).
+   */
   readonly personScope: SearchPersonScope | null;
   readonly staffScope: SearchStaffScope | null;
   readonly personStatuses: readonly PersonStatus[];
@@ -400,26 +424,41 @@ function accessValidUntil(
   return new Date(Math.min(...ends.map((d) => d.getTime())));
 }
 
-function personScopeFor(access: EffectiveAccess, teamIds: readonly string[] | null) {
-  switch (access.scope) {
+function toPersonScope(
+  { scope, locationIds, includesAssigned }: PermissionScope,
+  teamIds: readonly string[] | null,
+): SearchPersonScope | null {
+  switch (scope) {
     case "tenant":
-      return { kind: "tenant" } as const;
+      return { kind: "tenant" };
     case "locations":
-      return { kind: "locations", locationIds: access.locationIds, teamIds } as const;
+      return { kind: "locations", locationIds, teamIds, includesAssigned };
     case "assigned":
-      return { kind: "assigned" } as const;
+      return { kind: "assigned" };
     case "none":
       return null;
   }
 }
 
+/** Whom records resting on one permission are searched among (ADR-0071). */
+function personScopeFor(
+  access: EffectiveAccess,
+  permission: Permission,
+  teamIds: readonly string[] | null,
+): SearchPersonScope | null {
+  return toPersonScope(scopeFor(access, permission), teamIds);
+}
+
 /**
  * Colleagues are searched tenant-wide by tenant-scoped roles and by HR roles (no person scope,
- * tenant-wide workforce duties), and at their own locations by location-scoped roles.
+ * tenant-wide workforce duties), and at their own locations by location-scoped roles: the scope of
+ * the permissions that let the user find colleagues, never of anything else they hold (ADR-0071).
  */
 function staffScopeFor(access: EffectiveAccess): SearchStaffScope | null {
-  if (access.scope === "tenant") return { kind: "tenant" };
-  if (access.scope === "locations") return { kind: "locations", locationIds: access.locationIds };
+  const held = STAFF_SEARCH_PERMISSIONS.filter((p) => can(access, p));
+  const { scope, locationIds } = widestScope(held.map((p) => scopeFor(access, p)));
+  if (scope === "tenant") return { kind: "tenant" };
+  if (scope === "locations") return { kind: "locations", locationIds };
   if (TENANT_WIDE_STAFF_PERMISSIONS.some((p) => can(access, p))) return { kind: "tenant" };
   return null;
 }
@@ -449,7 +488,7 @@ function decideEntity(
   query: NormalisedSearchQuery,
 ): EntityDecision {
   const { access } = actor;
-  const personScope = personScopeFor(access, actor.teamIds ?? null);
+  const teamIds = actor.teamIds ?? null;
   const withMfa = (entity: SearchPlanEntity): EntityDecision =>
     entity.careRecord && !actor.mfaEnrolled ? { omitted: "mfa_required" } : { entity };
 
@@ -460,8 +499,9 @@ function decideEntity(
       const full = can(access, "people.person.read");
       const names = can(access, "people.demographics.read");
       if (!full && !(names && query.kind === "text")) return { omitted: "not_permitted" };
-      if (!personScope) return { omitted: "no_scope" };
       const permission: Permission = full ? "people.person.read" : "people.demographics.read";
+      const personScope = personScopeFor(access, permission, teamIds);
+      if (!personScope) return { omitted: "no_scope" };
       return withMfa({
         type,
         permission,
@@ -469,6 +509,7 @@ function decideEntity(
         personScoped: true,
         careRecord: touchesCareRecords(permission),
         matchFields: query.kind === "nhs_number" ? ["nhs_number"] : ["names", "room_label"],
+        personScope,
       });
     }
     case "staff": {
@@ -484,19 +525,25 @@ function decideEntity(
       });
     }
     case "document": {
+      const scoped = (c: (typeof SEARCHABLE_DOCUMENT_CATEGORIES)[number]) =>
+        can(access, c.permission) &&
+        (!c.personScoped || personScopeFor(access, c.permission, teamIds) !== null);
       const allowed = SEARCHABLE_DOCUMENT_CATEGORIES.filter(
-        (c) =>
-          can(access, c.permission) &&
-          (!c.personScoped || personScope !== null) &&
-          (!touchesCareRecords(c.permission) || actor.mfaEnrolled),
+        (c) => scoped(c) && (!touchesCareRecords(c.permission) || actor.mfaEnrolled),
       );
       if (allowed.length === 0) {
         const permitted = SEARCHABLE_DOCUMENT_CATEGORIES.some((c) => can(access, c.permission));
+        const inScope = SEARCHABLE_DOCUMENT_CATEGORIES.some(scoped);
         return {
-          omitted: permitted ? (personScope ? "mfa_required" : "no_scope") : "not_permitted",
+          omitted: permitted ? (inScope ? "mfa_required" : "no_scope") : "not_permitted",
         };
       }
       const first = allowed[0] as (typeof allowed)[number];
+      const categoryScopes = Object.fromEntries(
+        allowed
+          .filter((c) => c.personScoped)
+          .map((c) => [c.category, personScopeFor(access, c.permission, teamIds)]),
+      ) as Partial<Record<DocumentCategoryKey, SearchPersonScope>>;
       return {
         entity: {
           type,
@@ -505,11 +552,13 @@ function decideEntity(
           personScoped: allowed.some((c) => c.personScoped),
           careRecord: allowed.some((c) => touchesCareRecords(c.permission)),
           documentCategories: allowed.map((c) => c.category),
+          categoryScopes,
         },
       };
     }
     case "note": {
       if (!can(access, "care.note.read")) return { omitted: "not_permitted" };
+      const personScope = personScopeFor(access, "care.note.read", teamIds);
       if (!personScope) return { omitted: "no_scope" };
       return withMfa({
         type,
@@ -517,6 +566,7 @@ function decideEntity(
         fields: ["person", "excerpt", "occurred_at", "author"],
         personScoped: true,
         careRecord: true,
+        personScope,
       });
     }
   }
@@ -573,7 +623,10 @@ export function buildSearchPlan(
       entities,
       omitted,
       personScope: entities.some((e) => e.personScoped)
-        ? personScopeFor(access, actor.teamIds ?? null)
+        ? toPersonScope(
+            widestScope(personScopedPermissions(entities).map((p) => scopeFor(access, p))),
+            actor.teamIds ?? null,
+          )
         : null,
       staffScope: entities.some((e) => e.type === "staff") ? staffScopeFor(access) : null,
       personStatuses: includeArchived ? PERSON_STATUSES : SEARCH_OPEN_PERSON_STATUSES,
@@ -583,6 +636,17 @@ export function buildSearchPlan(
       breakGlass: null,
     },
   };
+}
+
+/** The permissions the person-scoped kinds of record in a plan rest on. */
+function personScopedPermissions(entities: readonly SearchPlanEntity[]): Permission[] {
+  return entities.flatMap((e) => {
+    if (!e.personScoped) return [];
+    if (e.type !== "document") return [e.permission];
+    return SEARCHABLE_DOCUMENT_CATEGORIES.filter(
+      (c) => c.personScoped && (e.documentCategories ?? []).includes(c.category),
+    ).map((c) => c.permission);
+  });
 }
 
 function isBreakGlassReasonCode(value: string): value is BreakGlassReasonCode {
@@ -733,13 +797,14 @@ export interface SearchResultPage {
 }
 
 function personInScope(scope: SearchPersonScope, hit: SearchHit): boolean {
-  if (hit.assignedToActor) return true;
   switch (scope.kind) {
     case "tenant":
       return true;
     case "assigned":
-      return false;
+      return hit.assignedToActor;
     case "locations":
+      // Assigned people count only for a permission a role scoped to them carries (S-M1).
+      if (hit.assignedToActor && scope.includesAssigned) return true;
       if (hit.personLocationId === null || !scope.locationIds.includes(hit.personLocationId)) {
         return false;
       }
@@ -760,18 +825,22 @@ function visible(plan: SearchPlan, hit: SearchHit): boolean {
   const entity = plan.entities.find((e) => e.type === hit.entityType);
   if (!entity) return false;
   if (hit.entityType === "staff") return staffInScope(plan.staffScope, hit);
+  // Each result is held to the scope of the permission its kind rests on (ADR-0071); a
+  // break-glass plan has one scope for its one kind.
+  let scope = entity.personScope ?? (plan.kind === "break_glass" ? plan.personScope : null);
   if (hit.entityType === "document") {
     const category = hit.documentCategory ?? null;
     const rule = SEARCHABLE_DOCUMENT_CATEGORIES.find((c) => c.category === category);
     if (!rule || !(entity.documentCategories ?? []).includes(rule.category)) return false;
     if (!rule.personScoped) return hit.personId === null;
+    scope = entity.categoryScopes?.[rule.category] ?? null;
   }
   if (hit.entityType === "note" && hit.superseded === true) return false;
   // Break-glass search matches whole words only: a prefix match is never shown.
   if (plan.matching === "whole_word" && hit.matchQuality !== "exact") return false;
-  if (hit.personId === null || hit.personStatus === null || plan.personScope === null) return false;
+  if (hit.personId === null || hit.personStatus === null || scope === null) return false;
   if (!plan.personStatuses.includes(hit.personStatus)) return false;
-  return personInScope(plan.personScope, hit);
+  return personInScope(scope, hit);
 }
 
 const ENTITY_ORDER: Readonly<Record<SearchEntityType, number>> = {

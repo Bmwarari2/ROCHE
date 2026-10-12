@@ -24,21 +24,32 @@ import {
   checkSignature,
   type DocumentCategoryKey,
   isUnderLegalHold,
+  narrowestScope,
   type Permission,
   type RetentionRule,
   retentionDecision,
+  scopeFor,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, desc, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
-import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
+import {
+  type AppEnv,
+  inScopeOf,
+  refusalOf,
+  requirePermission,
+  type TenantAccess,
+  useScopeOf,
+  withTenant,
+} from "../http/context";
 import { problems } from "../http/problem";
 import { publish } from "../outbox";
 import {
   activeHolds,
   careEndedOn,
   contentHeaders,
+  destroyingOnFailure,
   imagePrintableOf,
   readDocumentContent,
   storeDocument,
@@ -90,9 +101,64 @@ const fileResponse = (description: string) => ({
 
 const DocumentId = z.object({ id: z.uuid() });
 
-async function requireRead(c: Context<AppEnv>, personId: string | null): Promise<TenantAccess> {
-  return personId ? requirePermission(c, "people.person.read") : c.get("access");
+/** A document about a person is found with the permission the person's record is opened with. */
+const RECORD_READ: Permission = "people.person.read";
+
+/**
+ * The permission each category of document about a person is read with, as search reads them
+ * (`SEARCHABLE_DOCUMENT_CATEGORIES`; ADR-0071 review round 1, S-M2): a care attachment is part of
+ * the care record. An organisation's document (policies, procedures, the statement of purpose)
+ * is about no one and is read by any member of the organisation, as before: staff must be able to
+ * open the escalation and other policies they follow (HZ-014).
+ */
+export const DOCUMENT_READ_PERMISSION: Record<DocumentCategoryKey, Permission | null> = {
+  person_photo: "people.person.read",
+  person_document: "people.person.read",
+  care_attachment: "care.note.read",
+  organisation_document: null,
+};
+
+/**
+ * The only records an organisation's document may be attached to (review round 3, an allow-list
+ * in place of round 2's block list): it is read by every member, so it is about the organisation
+ * or nothing, never a person's record. Anything else is refused.
+ */
+const ORGANISATION_SUBJECT_TYPES: ReadonlySet<string> = new Set([
+  "location",
+  "escalation_policy",
+  "statement_of_purpose_version",
+  "letter_template_version",
+]);
+
+/**
+ * The permission signing a document about a person needs, by category (review round 2, S2-M1): a
+ * signature is a write, so it needs the category's update permission where it reaches the person,
+ * never only a read permission (which a break-glass record can open).
+ */
+const SIGN_PERMISSION: Record<DocumentCategoryKey, Permission | null> = {
+  person_photo: "people.person.update",
+  person_document: "people.person.update",
+  care_attachment: "care.note.write",
+  organisation_document: null,
+};
+
+/** An organisation's document: no person, and its category says so. Anything else about no one is not served. */
+function organisationDocument(row: { personId: string | null; category: string }): boolean {
+  return row.personId === null && row.category === "organisation_document";
 }
+
+/**
+ * Whether a document row is served at all: an organisation's document, or one about a person. A
+ * document of a person's category that names no person is not found (review rounds 2 and 3).
+ */
+function servable(row: { personId: string | null; category: string }): boolean {
+  return organisationDocument(row) || row.personId !== null;
+}
+
+/** The categories of document about a person, each with the permission it is read with. */
+const PERSON_CATEGORIES = (
+  Object.entries(DOCUMENT_READ_PERMISSION) as [DocumentCategoryKey, Permission | null][]
+).filter((entry): entry is [DocumentCategoryKey, Permission] => entry[1] !== null);
 
 async function findDocument(tx: Transaction, id: string) {
   const [row] = await tx
@@ -102,11 +168,38 @@ async function findDocument(tx: Transaction, id: string) {
   return row;
 }
 
-/** Reads a document's metadata row with the caller's scope, then checks the read permission. */
+/**
+ * Requires what reading a document about a person needs: people.person.read, and its category's
+ * read permission (`DOCUMENT_READ_PERMISSION`), the request then running in the narrowest of their
+ * scopes (ADR-0071 review round 1, S-M2). An organisation's document needs nothing.
+ */
+async function requireRead(
+  c: Context<AppEnv>,
+  row: { readonly personId: string | null; readonly category: string },
+): Promise<TenantAccess> {
+  if (organisationDocument(row)) return c.get("access");
+  if (!servable(row)) throw problems.notFound();
+  const permission = DOCUMENT_READ_PERMISSION[row.category as DocumentCategoryKey] ?? RECORD_READ;
+  const access = await requirePermission(c, RECORD_READ);
+  return permission === RECORD_READ ? access : requirePermission(c, permission);
+}
+
+/**
+ * Reads a document's metadata row as a reader of the person's record would find it (an
+ * organisation's document needs no permission; ADR-0071), requires its category's read
+ * permission, then reads it again in the narrowed scope, so the category's permission must reach
+ * the person too (review round 1, S-M2): one held only at another home finds nothing.
+ */
 async function documentForRead(c: Context<AppEnv>, id: string) {
+  useScopeOf(c, RECORD_READ);
+  const found = await withTenant(c, (tx) => findDocument(tx, id));
+  if (!found) throw problems.notFound();
+  // A document about no one is served only as an organisation's document (review round 2).
+  if (organisationDocument(found)) return found;
+  if (!servable(found)) throw problems.notFound();
+  await requireRead(c, found);
   const row = await withTenant(c, (tx) => findDocument(tx, id));
   if (!row) throw problems.notFound();
-  await requireRead(c, row.personId);
   return row;
 }
 
@@ -142,39 +235,53 @@ export const documentsRouter = createRouter()
     async (c) => {
       const q = c.req.valid("query");
       const access = await requirePermission(c, UPLOAD_PERMISSION[q.category]);
+      // A subject is named by its type and id together (review round 3).
+      if (q.subjectId && !q.subjectType) {
+        throw problems.invalid("Say what kind of record the document is attached to.");
+      }
+      if (
+        q.category === "organisation_document" &&
+        (q.personId || (q.subjectType && !ORGANISATION_SUBJECT_TYPES.has(q.subjectType)))
+      ) {
+        throw problems.invalid(
+          "An organisation's document cannot be attached to a person's record.",
+        );
+      }
       const bytes = await body(c);
       // Decided before the transaction opens: decoding an image never holds a connection (S2).
       const imagePrintable = imagePrintableOf(bytes);
-      const { storage, scanner } = c.get("services");
-      const item = await withTenant(c, async (tx) => {
-        const row = await storeDocument(tx, { storage, scanner }, access.tenantId, {
-          bytes,
-          imagePrintable,
-          declaredType: c.req.header("content-type") ?? null,
-          category: q.category,
-          title: q.title,
-          fileName: q.fileName,
-          personId: q.personId,
-          subjectType: q.subjectType,
-          subjectId: q.subjectId,
-        }).catch(rethrowReference);
-        await auditInTx(tx, access, {
-          action: "platform.document.upload",
-          resourceType: "document",
-          resourceId: row.id,
-          after: { sha256: row.sha256, category: row.category },
-          requestId: c.get("requestId"),
-        });
-        await publish(tx, {
-          context: "platform",
-          aggregateType: "document",
-          aggregateId: row.id,
-          type: "platform.document.stored",
-          payload: { category: row.category, status: row.status },
-        });
-        const [view] = await toDocumentItems(tx, [row]);
-        return view;
-      });
+      const { scanner } = c.get("services");
+      const item = await destroyingOnFailure(c.get("services").storage, (storage) =>
+        withTenant(c, async (tx) => {
+          const row = await storeDocument(tx, { storage, scanner }, access.tenantId, {
+            bytes,
+            imagePrintable,
+            declaredType: c.req.header("content-type") ?? null,
+            category: q.category,
+            title: q.title,
+            fileName: q.fileName,
+            personId: q.personId,
+            subjectType: q.subjectType,
+            subjectId: q.subjectId,
+          }).catch(rethrowReference);
+          await auditInTx(tx, access, {
+            action: "platform.document.upload",
+            resourceType: "document",
+            resourceId: row.id,
+            after: { sha256: row.sha256, category: row.category },
+            requestId: c.get("requestId"),
+          });
+          await publish(tx, {
+            context: "platform",
+            aggregateType: "document",
+            aggregateId: row.id,
+            type: "platform.document.stored",
+            payload: { category: row.category, status: row.status },
+          });
+          const [view] = await toDocumentItems(tx, [row]);
+          return view;
+        }),
+      );
       return c.json(item, 201);
     },
   )
@@ -203,23 +310,45 @@ export const documentsRouter = createRouter()
     }),
     async (c) => {
       const q = c.req.valid("query");
-      const access = await requireRead(c, q.personId ?? null);
-      const items = await withTenant(c, async (tx) => {
-        const rows = await tx
-          .select()
-          .from(document)
-          .where(
-            and(
-              isNull(document.deletedAt),
-              ne(document.status, "destroyed"),
-              q.personId ? eq(document.personId, q.personId) : isNull(document.personId),
-              q.subjectType ? eq(document.subjectType, q.subjectType) : undefined,
-              q.subjectId ? eq(document.subjectId, q.subjectId) : undefined,
-              q.category ? eq(document.category, q.category) : undefined,
-            ),
+      const personId = q.personId ?? null;
+      // About a person: only the categories whose read permission the session may use, each
+      // read in that permission's own scope (ADR-0071 review round 1, S-M2); people.person.read
+      // is needed to list any of them. An organisation's documents need nothing.
+      const offered = personId
+        ? PERSON_CATEGORIES.filter(
+            ([category, permission]) =>
+              (!q.category || q.category === category) &&
+              refusalOf(c.get("access"), RECORD_READ) === null &&
+              refusalOf(c.get("access"), permission) === null,
           )
-          .orderBy(desc(document.createdAt))
-          .limit(500);
+        : [];
+      const access = personId ? await requirePermission(c, RECORD_READ) : c.get("access");
+      const filters = (category: DocumentCategoryKey | undefined) =>
+        and(
+          isNull(document.deletedAt),
+          ne(document.status, "destroyed"),
+          personId
+            ? eq(document.personId, personId)
+            : and(isNull(document.personId), eq(document.category, "organisation_document")),
+          q.subjectType ? eq(document.subjectType, q.subjectType) : undefined,
+          q.subjectId ? eq(document.subjectId, q.subjectId) : undefined,
+          category ? eq(document.category, category) : undefined,
+        );
+      const items = await withTenant(c, async (tx) => {
+        const query = (category: DocumentCategoryKey | undefined) =>
+          tx.select().from(document).where(filters(category)).orderBy(desc(document.createdAt));
+        // One category at a time: each sets the transaction's scope while it reads.
+        const perCategory: (typeof document.$inferSelect)[] = [];
+        for (const [category, permission] of personId ? offered : []) {
+          const scope = narrowestScope([
+            scopeFor(access.effective, RECORD_READ),
+            scopeFor(access.effective, permission),
+          ]);
+          perCategory.push(...(await inScopeOf(tx, scope, () => query(category).limit(500))));
+        }
+        const rows = personId
+          ? perCategory.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 500)
+          : await query(q.category).limit(500);
         await auditInTx(tx, access, {
           action: "platform.document.list",
           resourceType: "document",
@@ -296,40 +425,51 @@ export const documentsRouter = createRouter()
     }),
     async (c) => {
       const { id } = c.req.valid("param");
-      const previous = await withTenant(c, (tx) => findDocument(tx, id));
-      if (!previous || previous.status === "destroyed") throw problems.notFound();
+      // Found as a reader would find it; the new version then needs its category's permission,
+      // and the document must be found again where that permission reaches before anything is
+      // stored (ADR-0071 review round 1, L4).
+      useScopeOf(c, RECORD_READ);
+      const found = await withTenant(c, (tx) => findDocument(tx, id));
+      // A document of a person's category that names no person is not found (review round 3).
+      if (!found || found.status === "destroyed" || !servable(found)) throw problems.notFound();
       const access = await requirePermission(
         c,
-        UPLOAD_PERMISSION[previous.category as DocumentCategoryKey],
+        UPLOAD_PERMISSION[found.category as DocumentCategoryKey],
       );
+      const previous = await withTenant(c, (tx) => findDocument(tx, id));
+      if (!previous || previous.status === "destroyed" || !servable(previous)) {
+        throw problems.notFound();
+      }
       const bytes = await body(c);
       // Decided before the transaction opens: decoding an image never holds a connection (S2).
       const imagePrintable = imagePrintableOf(bytes);
-      const { storage, scanner } = c.get("services");
-      const item = await withTenant(c, async (tx) => {
-        const row = await storeDocument(tx, { storage, scanner }, access.tenantId, {
-          bytes,
-          imagePrintable,
-          declaredType: c.req.header("content-type") ?? null,
-          category: previous.category as DocumentCategoryKey,
-          title: previous.title,
-          fileName: previous.fileName,
-          personId: previous.personId,
-          subjectType: previous.subjectType,
-          subjectId: previous.subjectId,
-          previous,
-        });
-        await auditInTx(tx, access, {
-          action: "platform.document.version",
-          resourceType: "document",
-          resourceId: row.id,
-          before: { sha256: previous.sha256 },
-          after: { sha256: row.sha256 },
-          requestId: c.get("requestId"),
-        });
-        const [view] = await toDocumentItems(tx, [row]);
-        return view;
-      });
+      const { scanner } = c.get("services");
+      const item = await destroyingOnFailure(c.get("services").storage, (storage) =>
+        withTenant(c, async (tx) => {
+          const row = await storeDocument(tx, { storage, scanner }, access.tenantId, {
+            bytes,
+            imagePrintable,
+            declaredType: c.req.header("content-type") ?? null,
+            category: previous.category as DocumentCategoryKey,
+            title: previous.title,
+            fileName: previous.fileName,
+            personId: previous.personId,
+            subjectType: previous.subjectType,
+            subjectId: previous.subjectId,
+            previous,
+          });
+          await auditInTx(tx, access, {
+            action: "platform.document.version",
+            resourceType: "document",
+            resourceId: row.id,
+            before: { sha256: previous.sha256 },
+            after: { sha256: row.sha256 },
+            requestId: c.get("requestId"),
+          });
+          const [view] = await toDocumentItems(tx, [row]);
+          return view;
+        }),
+      );
       return c.json(item, 201);
     },
   )
@@ -340,7 +480,7 @@ export const documentsRouter = createRouter()
       tags: ["platform"],
       summary: "Sign a document with a typed name",
       description:
-        "Binds the signature to the SHA-256 of the version the signer read; a changed document cannot be signed without being read again.",
+        "Binds the signature to the SHA-256 of the version the signer read; a changed document cannot be signed without being read again. A document about a person needs its category's update permission where it reaches the person (people.person.update for photos and documents, care.note.write for care attachments); a record opened by break-glass cannot be signed.",
       security,
       request: {
         params: DocumentId,
@@ -351,8 +491,20 @@ export const documentsRouter = createRouter()
     async (c) => {
       const { id } = c.req.valid("param");
       const req = c.req.valid("json");
-      const row = await documentForRead(c, id);
-      if (row.status !== "available") throw problems.notFound();
+      const read = await documentForRead(c, id);
+      if (read.status !== "available") throw problems.notFound();
+      // Signing a document about a person is a write: its category's update permission must reach
+      // the person, found again in that narrowed scope; a break-glass record never opens it
+      // (review round 2, S2-M1). An organisation's document is signed by any member, as before.
+      const sign = SIGN_PERMISSION[read.category as DocumentCategoryKey] ?? null;
+      let row = read;
+      if (read.personId !== null) {
+        if (sign === null) throw problems.notFound();
+        await requirePermission(c, sign);
+        const again = await withTenant(c, (tx) => findDocument(tx, id));
+        if (again?.status !== "available") throw problems.notFound();
+        row = again;
+      }
       const access = c.get("access");
       const check = checkSignature({
         typedName: req.typedName,
@@ -404,36 +556,38 @@ export const documentsRouter = createRouter()
       const bytes = await body(c);
       // Decided before the transaction opens: decoding an image never holds a connection (S2).
       const imagePrintable = imagePrintableOf(bytes);
-      const { storage, scanner } = c.get("services");
-      const item = await withTenant(c, async (tx) => {
-        const [target] = await tx
-          .select({ id: person.id })
-          .from(person)
-          .where(eq(person.id, personId));
-        if (!target) throw problems.notFound();
-        const row = await storeDocument(tx, { storage, scanner }, access.tenantId, {
-          bytes,
-          imagePrintable,
-          declaredType: c.req.header("content-type") ?? null,
-          category: "person_photo",
-          title: "Photo for identification",
-          personId,
-          subjectType: "person",
-          subjectId: personId,
-        });
-        if (row.status === "available") {
-          await tx.update(person).set({ photoDocumentId: row.id }).where(eq(person.id, personId));
-        }
-        await auditInTx(tx, access, {
-          action: "people.person.photo",
-          resourceType: "person",
-          resourceId: personId,
-          after: { documentId: row.id, status: row.status },
-          requestId: c.get("requestId"),
-        });
-        const [view] = await toDocumentItems(tx, [row]);
-        return view;
-      });
+      const { scanner } = c.get("services");
+      const item = await destroyingOnFailure(c.get("services").storage, (storage) =>
+        withTenant(c, async (tx) => {
+          const [target] = await tx
+            .select({ id: person.id })
+            .from(person)
+            .where(eq(person.id, personId));
+          if (!target) throw problems.notFound();
+          const row = await storeDocument(tx, { storage, scanner }, access.tenantId, {
+            bytes,
+            imagePrintable,
+            declaredType: c.req.header("content-type") ?? null,
+            category: "person_photo",
+            title: "Photo for identification",
+            personId,
+            subjectType: "person",
+            subjectId: personId,
+          });
+          if (row.status === "available") {
+            await tx.update(person).set({ photoDocumentId: row.id }).where(eq(person.id, personId));
+          }
+          await auditInTx(tx, access, {
+            action: "people.person.photo",
+            resourceType: "person",
+            resourceId: personId,
+            after: { documentId: row.id, status: row.status },
+            requestId: c.get("requestId"),
+          });
+          const [view] = await toDocumentItems(tx, [row]);
+          return view;
+        }),
+      );
       return c.json(item, 201);
     },
   )

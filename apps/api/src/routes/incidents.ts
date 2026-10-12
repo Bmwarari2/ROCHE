@@ -75,6 +75,8 @@ import {
   classifierView,
   incidentDetail,
   incidentSummaries,
+  managesAt,
+  managesIncident,
   mayChange,
   readIncident,
 } from "./safety-shared";
@@ -117,12 +119,14 @@ const onForeignKey = (what: string) => (error: unknown) => {
   throw error;
 };
 
-/** Answers must be valid, and a reporter may answer only the point-of-care questions. */
+/**
+ * Answers must be valid, and a reporter may answer only the point-of-care questions; the others
+ * need `safety.incident.manage` where the incident is (`manages`, ADR-0071).
+ */
 function checkAnswers(
-  access: TenantAccess,
+  manages: boolean,
   answers: readonly { key: ClassifierQuestionKey; value: unknown }[],
 ) {
-  const manages = access.effective.permissions.has("safety.incident.manage");
   for (const answer of answers) {
     if (!manages && !POINT_OF_CARE_QUESTIONS.includes(answer.key)) throw problems.forbidden();
     const problem = classifierAnswerProblem(
@@ -203,7 +207,7 @@ async function loadForChange(c: Context<AppEnv>, tx: Transaction, incidentId: st
   const access = c.get("access");
   const found = await readIncident(tx, incidentId);
   requireMfaForPeople(access, found.row.personIds.length);
-  if (!mayChange(access, found.row)) throw problems.forbidden();
+  if (!(await mayChange(tx, access, found.row))) throw problems.forbidden();
   if (found.restricted) {
     throw problems.forbidden();
   }
@@ -327,7 +331,7 @@ export const incidentsRouter = createRouter()
       const body = c.req.valid("json");
       const now = new Date();
       requireMfaForPeople(access, body.people.filter((p) => p.kind === "service_user").length);
-      checkAnswers(access, body.answers);
+      checkAnswers(managesAt(access, body.locationId), body.answers);
       const detail = await withLateEntryReview(
         c,
         { kind: "incident", clientId: body.id, occurredAt: body.occurredAt },
@@ -847,7 +851,7 @@ export const incidentsRouter = createRouter()
       const access = await requirePermission(c, "safety.incident.report");
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
-      checkAnswers(access, body.answers);
+      checkAnswers(await withTenant(c, (tx) => managesIncident(tx, access, id)), body.answers);
       const now = new Date();
       const state = await withTenant(c, async (tx) => {
         const { row } = await loadForChange(c, tx, id);

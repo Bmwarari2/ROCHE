@@ -42,6 +42,7 @@ import { problems } from "../http/problem";
 import {
   bindingOf,
   boundToDevice,
+  ENTRY_PERMISSION,
   inSystemView,
   offlineWindowDaysOf,
   personReachedBy,
@@ -276,7 +277,7 @@ export async function planHandedOverEntry(
       const windowDays = await offlineWindowDaysOf(tx, access.tenantId);
       const since = new Date(at.getTime() - windowDays * DAY_MS);
       const until = new Date(at.getTime() + toleranceMs);
-      if (!(await personReachedBy(tx, owner, entry.personId, since, until))) {
+      if (!(await personReachedBy(tx, owner, entry.personId, since, until, ENTRY_PERMISSION))) {
         return "This person was not in that member of staff's care when the entry was made.";
       }
     }

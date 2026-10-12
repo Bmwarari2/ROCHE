@@ -46,6 +46,7 @@ import {
   type SessionCheck,
   TENANT_HEADER,
 } from "./session-signals";
+import { type WriteScope, writeScopeFromToken } from "./write-scope";
 
 export type UploadOp = "PUT" | "PATCH" | "DELETE";
 
@@ -246,6 +247,11 @@ export interface HarbourConnectorOptions {
    * only then (security review round 7, M1).
    */
   readonly getDeviceId?: () => Promise<string | null>;
+  /**
+   * Called with where the phone may record, read from each new sync token (review round 2,
+   * C2-M3), so the person screen offers recording only where the server would take it.
+   */
+  readonly onWriteScope?: (scope: WriteScope | null) => void;
   readonly backoff?: BackoffPolicy;
   readonly sleep?: (ms: number) => Promise<void>;
   readonly random?: () => number;
@@ -375,7 +381,9 @@ export class HarbourConnector implements PowerSyncBackendConnector {
       // PowerSync retries the connection itself; the banner shows the failure meanwhile.
       throw new HttpError(response.status, "Could not obtain sync credentials");
     }
-    return parseSyncCredentials(await response.json());
+    const credentials = parseSyncCredentials(await response.json());
+    this.options.onWriteScope?.(writeScopeFromToken(credentials.token));
+    return credentials;
   }
 
   async uploadData(database: UploadSource): Promise<void> {

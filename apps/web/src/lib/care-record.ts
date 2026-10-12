@@ -47,6 +47,84 @@ export function can(permissions: readonly string[], permission: string): boolean
   return permissions.includes(permission);
 }
 
+/** What the API says the viewer may record about one person (`PersonSummary.access`). */
+export interface PersonAccess {
+  readonly reaching: readonly string[];
+  readonly recordCare: boolean;
+  readonly editCarePlan: boolean;
+  readonly readOnlyReason: "break_glass" | "scope" | null;
+}
+
+/** The line that says why a form is not offered on a record open for reading only. */
+export type ReadOnlyNoticeKey = "care.readOnly.breakGlass" | "care.readOnly.scope";
+
+/**
+ * Whether the viewer may use one write permission on this person's record, and the line that
+ * says why not when the record is open to them for reading only (ADR-0071 review rounds 2 and 3,
+ * C2-M2 and C3-M1): they must hold the permission, and the API must list it among the
+ * permissions reaching the person without break-glass (`access.reaching`). Every write form on
+ * the record asks this. A record opened by break-glass is for reading only. Someone who never
+ * holds the permission sees no form and no line, as before; an API that does not say leaves the
+ * form as before (the API refuses anything it would not take).
+ */
+export function writeAccess(
+  person: { readonly access?: PersonAccess | undefined },
+  permissions: readonly string[],
+  permission: string,
+): { readonly canWrite: boolean; readonly readOnlyNotice: ReadOnlyNoticeKey | null } {
+  if (!can(permissions, permission)) return { canWrite: false, readOnlyNotice: null };
+  if (person.access === undefined || person.access.reaching.includes(permission)) {
+    return { canWrite: true, readOnlyNotice: null };
+  }
+  return {
+    canWrite: false,
+    readOnlyNotice:
+      person.access.readOnlyReason === "break_glass"
+        ? "care.readOnly.breakGlass"
+        : "care.readOnly.scope",
+  };
+}
+
+/**
+ * Whether the viewer may change this person's care plan settings (chart settings, the care
+ * profile): `writeAccess` for care.plan.write (review round 2).
+ */
+export function mayEditCarePlan(
+  person: { readonly access?: PersonAccess | undefined },
+  permissions: readonly string[],
+): boolean {
+  return writeAccess(person, permissions, "care.plan.write").canWrite;
+}
+
+/**
+ * Whether the viewer may record care (notes, charts, body map marks, activities and visits)
+ * about this person: `writeAccess` for care.note.write (review round 2, C2-M2).
+ */
+export function recordCareAccess(
+  person: { readonly access?: PersonAccess | undefined },
+  permissions: readonly string[],
+): { readonly canRecord: boolean; readonly readOnlyNotice: ReadOnlyNoticeKey | null } {
+  const { canWrite, readOnlyNotice } = writeAccess(person, permissions, "care.note.write");
+  return { canRecord: canWrite, readOnlyNotice };
+}
+
+/**
+ * The line above the charts tab's forms (ADR-0071 review rounds 4 and 5): none when the viewer
+ * may record entries. When the chart settings stay open to them, a line about entries only, never
+ * one saying the record cannot be changed above a form they can use; otherwise why nothing can be
+ * recorded here, including why the chart settings are hidden from a holder of care.plan.write.
+ */
+export function chartsNotice(
+  person: { readonly access?: PersonAccess | undefined },
+  permissions: readonly string[],
+): ReadOnlyNoticeKey | "care.readOnly.chartEntries" | null {
+  const entries = writeAccess(person, permissions, "care.note.write");
+  if (entries.canWrite) return null;
+  const settings = writeAccess(person, permissions, "care.plan.write");
+  if (settings.canWrite) return entries.readOnlyNotice ? "care.readOnly.chartEntries" : null;
+  return entries.readOnlyNotice ?? settings.readOnlyNotice;
+}
+
 /** The address of a tab: the overview is the person's own page. */
 export function tabHref(personId: string, tab: RecordTab): string {
   return tab === "overview" ? `/people/${personId}` : `/people/${personId}/${tab}`;

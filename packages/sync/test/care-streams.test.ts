@@ -238,11 +238,24 @@ const source: SourceRows = merge(
   ...people.map(careRows),
 );
 
+/** A care worker's token by default: no location in full, assigned people for every family. */
 const claims = (overrides: Partial<SyncTokenClaims>): Partial<SyncTokenClaims> => ({
   location_ids: [],
   people_location_ids: [],
+  care_location_ids: [],
+  entries_location_ids: [],
+  people_assigned: true,
+  care_assigned: true,
+  entries_assigned: true,
   offline_days: WINDOW_DAYS,
   ...overrides,
+});
+
+/** Every family in full at these locations (a manager whose three reads reach them). */
+const everyFamilyAt = (locationIds: string[]): Partial<SyncTokenClaims> => ({
+  people_location_ids: locationIds,
+  care_location_ids: locationIds,
+  entries_location_ids: locationIds,
 });
 
 /** Every care row id on the device, across all twelve tables. */
@@ -315,7 +328,7 @@ describe("hazard HZ-011 care record streams (location scope)", () => {
     const device = await syncFor(
       hydrated,
       source,
-      claims({ sub: "manager-a", tenant_id: A, people_location_ids: ["loc-a-north"] }),
+      claims({ sub: "manager-a", tenant_id: A, ...everyFamilyAt(["loc-a-north"]) }),
     );
     expect(peopleOnDevice(device)).toEqual(["ada", "ben", "hal"]);
   });
@@ -324,7 +337,7 @@ describe("hazard HZ-011 care record streams (location scope)", () => {
     const device = await syncFor(
       hydrated,
       source,
-      claims({ sub: "manager-a", tenant_id: A, people_location_ids: ["loc-a-north"] }),
+      claims({ sub: "manager-a", tenant_id: A, ...everyFamilyAt(["loc-a-north"]) }),
     );
     const gone = careIds(device).filter((id) =>
       ["-eve", "-fay", "-gus"].some((p) => id.includes(p)),
@@ -340,7 +353,7 @@ describe("hazard HZ-011 care record streams (tenant isolation)", () => {
     const device = await syncFor(
       hydrated,
       source,
-      claims({ sub: "manager-a", tenant_id: A, people_location_ids: ["loc-b-river"] }),
+      claims({ sub: "manager-a", tenant_id: A, ...everyFamilyAt(["loc-b-river"]) }),
     );
     expect(careIds(device)).toEqual([]);
   });
@@ -416,6 +429,7 @@ describe("offline window (ADR-0011)", () => {
       tenant_id: A,
       location_ids: [],
       people_location_ids: [],
+      care_assigned: true,
     });
     expect(ids(noWindow, "risk_assessment")).toEqual(["risk-active-ada"]);
   });
@@ -453,5 +467,71 @@ describe("what reaches the device", () => {
     const row = device.tables.observation?.get("observation-ada-recent");
     expect(row?.chart_values).toBe('{"chart":"fluid_intake","ml":200}');
     expect(row).not.toHaveProperty("values");
+  });
+});
+
+describe("hazard HZ-011 each family of streams follows its own read permission (ADR-0071 review round 1)", () => {
+  const PEOPLE_TABLES = ["person", "allergy"];
+  const REFERENCE_TABLES = CARE_TABLES.filter(
+    (t) => !(OFFLINE_WINDOW_TABLES as readonly string[]).includes(t),
+  );
+
+  it("syncs the person, the care reference and the recent entries each where its own claim says (C-M1)", async () => {
+    // people.person.read and care.note.read reach North; care.plan.read reaches nowhere in full.
+    const device = await syncFor(
+      hydrated,
+      source,
+      claims({
+        sub: "manager-a",
+        tenant_id: A,
+        people_location_ids: ["loc-a-north"],
+        entries_location_ids: ["loc-a-north"],
+        people_assigned: false,
+        care_assigned: false,
+        entries_assigned: false,
+      }),
+    );
+    expect(ids(device, "person").length).toBeGreaterThan(0);
+    for (const table of REFERENCE_TABLES) expect(ids(device, table), table).toEqual([]);
+    for (const table of OFFLINE_WINDOW_TABLES) {
+      expect(ids(device, table).length, table).toBeGreaterThan(0);
+    }
+  });
+
+  it("syncs the people a care worker is assigned to only for the families whose permission reaches them (S-M1)", async () => {
+    const peopleOnly = await syncFor(
+      hydrated,
+      source,
+      claims({ sub: "carer-a", tenant_id: A, care_assigned: false, entries_assigned: false }),
+    );
+    expect(ids(peopleOnly, "person")).toEqual(["ada"]);
+    expect(careIds(peopleOnly)).toEqual([]);
+
+    const none = await syncFor(
+      hydrated,
+      source,
+      claims({
+        sub: "carer-a",
+        tenant_id: A,
+        people_assigned: false,
+        care_assigned: false,
+        entries_assigned: false,
+      }),
+    );
+    for (const table of [...PEOPLE_TABLES, ...CARE_TABLES]) {
+      expect(ids(none, table), table).toEqual([]);
+    }
+  });
+
+  it("syncs no assigned people when the token does not say so (fails closed)", async () => {
+    const device = await syncFor(hydrated, source, {
+      sub: "carer-a",
+      tenant_id: A,
+      location_ids: [],
+      offline_days: WINDOW_DAYS,
+    });
+    for (const table of [...PEOPLE_TABLES, ...CARE_TABLES]) {
+      expect(ids(device, table), table).toEqual([]);
+    }
   });
 });

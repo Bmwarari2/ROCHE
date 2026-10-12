@@ -27,6 +27,7 @@
  */
 import type { RefusedEntryItem, SyncRefusedEntry } from "@harbour/contracts";
 import {
+  auditEvent,
   notification,
   person,
   refusedEntry,
@@ -34,14 +35,21 @@ import {
   task,
   withRequestContext,
 } from "@harbour/db";
-import { and, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
+import type { Permission } from "@harbour/domain";
+import { and, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { auditInTx } from "../http/audit";
 import type { TenantAccess } from "../http/context";
 import { problems } from "../http/problem";
 import type { PerUserQuota } from "../http/quota";
-import { appendTaskDetail, nurseInCharge } from "./care";
-import { fallbackRecipients, REFUSED_REVIEW_TASK_KIND } from "./device-holds";
-import { inSystemView, memberLocations, offlineWindowDaysOf, personReachedBy } from "./devices";
+import { appendTaskDetail, nurseInChargeSeeing } from "./care";
+import { fallbackRecipients, permissionHolders, REFUSED_REVIEW_TASK_KIND } from "./device-holds";
+import {
+  ENTRY_PERMISSION,
+  inSystemView,
+  memberLocations,
+  offlineWindowDaysOf,
+  personReachedBy,
+} from "./devices";
 import { type HandedOverAdmission, recordHandedOverEntry } from "./held-handover";
 import type { StaffLookup } from "./staff";
 
@@ -54,8 +62,12 @@ export const REFUSED_COPY_ACTION = "sync.refused_entry.copied";
 export const REFUSED_READ_ACTION = "care.refused_entry.read";
 
 const OPEN = ["open", "in_progress"];
-/** Who may act on a review: the nurse in charge, or the fallback when there is none. */
-const REVIEW_PERMISSION = "care.plan.write";
+/** Who may act on a review: the clinical lead or another holder of the care plan. */
+const REVIEW_PERMISSION: Permission = "care.plan.write";
+/** What the nurse in charge told of an urgent review must be able to read: the person and the copy. */
+const READ_COPY_PERMISSIONS: readonly Permission[] = ["people.person.read", "care.note.read"];
+/** The audit action of an urgent review no one could be told about (C2-M1). */
+export const REFUSED_REVIEW_UNROUTED_ACTION = "care.refused_entry.unrouted";
 
 /** Copies about nobody known wait on their author's task at a location. */
 const AUTHOR_SOURCE = "tenant_user";
@@ -156,10 +168,21 @@ async function reviewTask(
 }
 
 /**
- * Tells the nurse in charge at the review's location that it has become urgent (#25 review round
- * 2, M3): an observation a device could not save may belong in the day's totals, and a mark that
- * may be harm must not wait (#26 review round 2, C4); with none at the location, the
- * escalation's fallback (round 3, low). The notice names no one; the link opens the tasks.
+ * Tells the home's staff that a review has become urgent (#25 review round 2, M3): an observation
+ * a device could not save may belong in the day's totals, and a mark that may be harm must not
+ * wait (#26 review round 2, C4). Told (ADR-0071 review rounds 2 and 3, C2-M1):
+ * - the nurse in charge at the review's location (`nurseInChargeSeeing`, the one definition used
+ *   for result alerts and review notices: the clinical leads and team leaders whose roles reach
+ *   the home, at every home, with no rota checked), for awareness and to read the copy: for a
+ *   review about a person, those whose `people.person.read` and `care.note.read` reach the
+ *   person; a team leader without `care.plan.write` is told too;
+ * - and the holders of `care.plan.write` who can see the person, to act on it: those who hold it
+ *   at the location itself when there are any, and only otherwise those who hold it across the
+ *   organisation, so an owner or organisation-wide manager is not told about every home (HZ-008).
+ * With none of them, the escalation's fallback (round 3, low; a manager who can see the person,
+ * else one who reaches the location). With no one at all, nothing is sent and the gap is audited
+ * as the system (`care.refused_entry.unrouted`), like an urgent result alert no one could be told
+ * about. The notice names no one; the link opens the tasks.
  */
 async function noticeUrgentReview(
   tx: Transaction,
@@ -170,9 +193,48 @@ async function noticeUrgentReview(
     readonly now: Date;
   },
 ): Promise<void> {
-  const nurses = await nurseInCharge(tx, input.locationId);
+  const onSite = new Set([
+    ...(await nurseInChargeSeeing(
+      tx,
+      { locationId: input.locationId, personId: input.personId },
+      input.now,
+      READ_COPY_PERMISSIONS,
+    )),
+    ...(await permissionHolders(
+      tx,
+      REVIEW_PERMISSION,
+      input.locationId,
+      input.now,
+      input.personId,
+      { preferAtLocation: true },
+    )),
+  ]);
   const recipients =
-    nurses.length > 0 ? nurses : await fallbackRecipients(tx, REVIEW_PERMISSION, input.now);
+    onSite.size > 0
+      ? [...onSite]
+      : await fallbackRecipients(
+          tx,
+          REVIEW_PERMISSION,
+          input.now,
+          input.personId,
+          input.locationId,
+        );
+  if (recipients.length === 0) {
+    await tx.insert(auditEvent).values({
+      tenantId: sql`app.current_tenant_id()`,
+      action: REFUSED_REVIEW_UNROUTED_ACTION,
+      outcome: "error",
+      resourceType: "task",
+      resourceId: input.taskId,
+      reason: "refused_entry_urgent",
+      scope: {
+        personId: input.personId,
+        locationId: input.locationId,
+        reasonCode: "refused_entry_urgent",
+      },
+    });
+    return;
+  }
   for (const recipient of recipients) {
     await tx
       .insert(notification)
@@ -244,7 +306,7 @@ export async function copyRefusedEntry(
     const reached = await inSystemView(db, access, async (tx) => {
       const days = await offlineWindowDaysOf(tx, access.tenantId);
       const since = new Date(input.now.getTime() - days * DAY_MS);
-      return personReachedBy(tx, input.author, personId, since, input.now);
+      return personReachedBy(tx, input.author, personId, since, input.now, ENTRY_PERMISSION);
     });
     if (!reached) {
       throw problems.invalid("This copy names someone the entry's author has not cared for here.");

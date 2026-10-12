@@ -8,13 +8,14 @@ import {
   TaskSeriesItem,
   TaskTransitionRequest,
 } from "@harbour/contracts";
-import { type Transaction, task, taskSeries } from "@harbour/db";
+import { person, type Transaction, task, taskSeries } from "@harbour/db";
 import {
   can,
   checkTaskTransition,
   isPermission,
   PLAN_ACTION_SOURCE_TYPE,
   RecurrenceError,
+  scopeFor,
   type TaskStatus,
   TERMINAL_TASK_STATUSES,
   validateRecurrence,
@@ -23,7 +24,14 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, eq, gte, inArray, isNull, lt } from "drizzle-orm";
 import type { Context } from "hono";
 import { AuditedRefusal, auditInTx, withAuditedRefusal, writeAudit } from "../http/audit";
-import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
+import {
+  type AppEnv,
+  inScopeOf,
+  requirePermission,
+  type TenantAccess,
+  useScopeOf,
+  withTenant,
+} from "../http/context";
 import { problems } from "../http/problem";
 import { publish } from "../outbox";
 import {
@@ -31,7 +39,7 @@ import {
   escalationMinutes,
   GENERAL_TASK_PERMISSION,
   materialiseSeries,
-  mayBeAssigned,
+  mayBeGiven,
   taskStaff,
   toTaskItem,
 } from "../services/tasks";
@@ -45,22 +53,31 @@ import {
 } from "./openapi";
 
 /**
- * Tasks (section 9.1). Anyone in the tenant sees the tasks row-level security lets them see; tasks
- * about people need MFA like any care record. A task can be completed by anyone holding the
- * permission the task names, or by its assignee while they could still be given it; managers
- * create, assign and schedule tasks.
+ * Tasks (section 9.1). Anyone in the tenant sees the tasks row-level security lets them see, in the
+ * scope of the permission a person's record is opened with (`people.person.read`, ADR-0071): a
+ * task about a person when they may open that person's record, one about nobody when it is theirs
+ * or at a location that permission reaches. Tasks about people need MFA like any care record. A
+ * task can be completed by anyone holding the permission the task names where the task is, or by
+ * its assignee while they could still be given it; managers create, assign and schedule tasks.
  */
 
 const PERSON_TASK_PERMISSION = "care.note.write";
+/** The scope tasks are listed and found in (`SCOPE_WITHOUT_PERMISSION`, ADR-0071). */
+const TASK_READ_SCOPE = "people.person.read";
 const DAY_MS = 86_400_000;
 
 /** Why someone may not be given a task. */
 const ASSIGNEE_REFUSED =
-  "That person cannot be given this task: they do not hold its permission at this location.";
+  "That person cannot be given this task: they do not hold its permission at this location, or cannot see the person it is about.";
+
+/** Why a task about a person cannot be placed at another location (review round 5). */
+const LOCATION_NOT_HOME =
+  "A task about a person is placed where they live. Leave the location out, or choose their home.";
 
 /**
  * Whether the caller may move a task (no step-up: completing is not submitting): anyone holding
- * the permission it names, or its assignee while they could still be given it (S1 follow-on;
+ * the permission it names where the task is (the roles and grants carrying it reach the task's
+ * person or location, ADR-0071), or its assignee while they could still be given it (S1 follow-on;
  * `assigneeMayComplete`). Returns why not, for the audit, or null.
  */
 async function completionRefusal(
@@ -69,8 +86,12 @@ async function completionRefusal(
   row: typeof task.$inferSelect,
   now: Date,
 ): Promise<string | null> {
-  if (isPermission(row.requiredPermission) && can(access.effective, row.requiredPermission)) {
-    return null;
+  const permission = row.requiredPermission;
+  if (isPermission(permission) && can(access.effective, permission)) {
+    const here = await inScopeOf(tx, scopeFor(access.effective, permission), () =>
+      findTask(tx, row.id),
+    );
+    if (here) return null;
   }
   if (await assigneeMayComplete(tx, access.tenantUserId, row, now)) return null;
   return row.assigneeTenantUserId === access.tenantUserId
@@ -80,8 +101,9 @@ async function completionRefusal(
 
 /**
  * A task about a person names a permission, so its assignee must hold it at the task's location
- * when it is created, as when it is assigned (S1); a general task goes to anyone. Refused and
- * audited (after the transaction) otherwise.
+ * when it is created, as when it is assigned (S1), and must be able to see the person with
+ * `people.person.read` and that permission (`mayBeGiven`; ADR-0071 review round 1, C-M4); a
+ * general task goes to anyone. Refused and audited (after the transaction) otherwise.
  */
 async function requireAssignable(
   tx: Transaction,
@@ -90,12 +112,13 @@ async function requireAssignable(
     readonly assigneeTenantUserId: string | null | undefined;
     readonly requiredPermission: string;
     readonly locationId: string | null;
+    readonly personId: string | null;
   },
   now: Date,
 ): Promise<void> {
   const assignee = row.assigneeTenantUserId;
   if (!assignee || row.requiredPermission === GENERAL_TASK_PERMISSION) return;
-  if (await mayBeAssigned(tx, assignee, row, now)) return;
+  if (await mayBeGiven(tx, assignee, row, now)) return;
   throw new AuditedRefusal(problems.invalid(ASSIGNEE_REFUSED), {
     action,
     outcome: "denied",
@@ -148,7 +171,7 @@ export const tasksRouter = createRouter()
       responses: { 200: jsonBody(TaskList, "Tasks"), ...errorResponses },
     }),
     async (c) => {
-      const access = c.get("access");
+      const access = useScopeOf(c, TASK_READ_SCOPE);
       const q = c.req.valid("query");
       const now = new Date();
       if (q.personId) requireMfaFor(access, q.personId);
@@ -219,13 +242,29 @@ export const tasksRouter = createRouter()
       const requiredPermission = body.personId ? PERSON_TASK_PERMISSION : GENERAL_TASK_PERMISSION;
       const item = await withAuditedRefusal(c, access, () =>
         withTenant(c, async (tx) => {
+          // A task about a person takes the person's home when none is given, so it is routed,
+          // listed and escalated where the person lives (ADR-0071 review round 4); a location
+          // given with a person must be that home (review round 5).
+          let locationId = body.locationId ?? null;
+          if (body.personId) {
+            const [home] = await tx
+              .select({ locationId: person.locationId })
+              .from(person)
+              .where(eq(person.id, body.personId));
+            if (!home) throw problems.notFound();
+            if (locationId && locationId !== home.locationId) {
+              throw problems.invalid(LOCATION_NOT_HOME);
+            }
+            locationId = home.locationId;
+          }
           await requireAssignable(
             tx,
             "platform.task.create",
             {
               assigneeTenantUserId: body.assigneeTenantUserId,
               requiredPermission,
-              locationId: body.locationId ?? null,
+              locationId,
+              personId: body.personId ?? null,
             },
             now,
           );
@@ -236,7 +275,7 @@ export const tasksRouter = createRouter()
               title: body.title,
               requiredPermission,
               personId: body.personId ?? null,
-              locationId: body.locationId ?? null,
+              locationId,
               assigneeTenantUserId: body.assigneeTenantUserId ?? null,
               dueAt: new Date(body.dueAt),
               windowStart: body.windowStart ? new Date(body.windowStart) : null,
@@ -315,12 +354,14 @@ export const tasksRouter = createRouter()
         }
         // Being the assignee lets someone complete the task, so a task that needs a permission
         // (a clinical check, a medicines round) goes only to someone who holds it at the task's
-        // location, whoever assigns it (themselves included; S1). A general task, which names
-        // only the task-management permission, is allocated to anyone: that is what it is for.
+        // location, whoever assigns it (themselves included; S1), and a task about a person only
+        // to someone who can see the person with people.person.read and that permission
+        // (ADR-0071 review round 1, C-M4). A general task, which names only the task-management
+        // permission, is allocated to anyone: that is what it is for.
         if (
           body.assigneeTenantUserId &&
           row.requiredPermission !== GENERAL_TASK_PERMISSION &&
-          !(await mayBeAssigned(tx, body.assigneeTenantUserId, row, now))
+          !(await mayBeGiven(tx, body.assigneeTenantUserId, row, now))
         ) {
           return null;
         }
@@ -398,6 +439,7 @@ export const tasksRouter = createRouter()
               assigneeTenantUserId: body.assigneeTenantUserId,
               requiredPermission,
               locationId: body.locationId ?? null,
+              personId: body.personId ?? null,
             },
             now,
           );
@@ -531,7 +573,7 @@ function rethrowReference(error: unknown): never {
 }
 
 async function transition(c: Context<AppEnv>, id: string, body: TaskTransitionRequest) {
-  const access = c.get("access");
+  const access = useScopeOf(c, TASK_READ_SCOPE);
   const now = new Date();
   const item = await withAuditedRefusal(c, access, () =>
     withTenant(c, async (tx) => {

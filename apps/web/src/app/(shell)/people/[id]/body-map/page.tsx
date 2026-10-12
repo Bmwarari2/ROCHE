@@ -4,9 +4,10 @@ import type { Metadata } from "next";
 import { BodyMapRecorder } from "@/components/care/BodyMapRecorder";
 import { EntryBadges } from "@/components/care/EntryBadges";
 import { NoAccess } from "@/components/care/NoAccess";
+import { ReadOnlyNotice } from "@/components/care/ReadOnlyNotice";
 import { RecordFrame } from "@/components/care/RecordFrame";
 import { getShellContext, tenantApi } from "@/lib/api";
-import { can, tabHref } from "@/lib/care-record";
+import { can, recordCareAccess, tabHref } from "@/lib/care-record";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
@@ -47,6 +48,8 @@ async function BodyMapTab({ params }: { readonly params: Params }) {
   );
   if (!list) return <NoAccess />;
   const names = personNames(person);
+  // The recorder only where the viewer's care.note.write reaches the person (review round 2, C2-M2).
+  const { canRecord, readOnlyNotice } = recordCareAccess(person, me.permissions);
   const drawn = (view: "front" | "back") =>
     list.items
       .filter((mark) => mark.view === view)
@@ -60,10 +63,12 @@ async function BodyMapTab({ params }: { readonly params: Params }) {
           {t("care.bodyMap.description", { name: names.preferred })}
         </p>
       </div>
-      {can(me.permissions, "care.note.write") ? (
+      {canRecord ? (
         <Card as="section" title={t("care.bodyMap.form.title")} headingLevel={3}>
           <BodyMapRecorder personId={id} marks={{ front: drawn("front"), back: drawn("back") }} />
         </Card>
+      ) : readOnlyNotice ? (
+        <ReadOnlyNotice text={t(readOnlyNotice)} />
       ) : null}
       <section aria-labelledby="current-marks" className="flex flex-col gap-3">
         <h3 id="current-marks" className="m-0 text-body font-semibold">

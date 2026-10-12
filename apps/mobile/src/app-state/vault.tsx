@@ -113,6 +113,7 @@ import {
 } from "../sync/held-limit";
 import { resolveOfflineWindow } from "../sync/offline-window";
 import { flushRefusedCopies } from "../sync/refused-copies";
+import { setWriteScope } from "../sync/write-scope-store";
 import {
   HandOverNotAllowedError,
   type HandOverResult,
@@ -690,6 +691,8 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
           onRefused: () => {
             void afterSyncRef.current();
           },
+          // Where the phone may record, from each token (review round 2, C2-M3).
+          onWriteScope: setWriteScope,
         });
         connectorRef.current = connector;
         connectSync(opened, connector).catch(() => undefined);

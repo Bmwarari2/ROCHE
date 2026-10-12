@@ -6,11 +6,12 @@ import Link from "next/link";
 import { AdvanceCareForm } from "@/components/care/AdvanceCareForm";
 import { ArrivalNotice } from "@/components/care/ArrivalNotice";
 import { NoAccess } from "@/components/care/NoAccess";
+import { ReadOnlyNotice } from "@/components/care/ReadOnlyNotice";
 import { RecordFrame } from "@/components/care/RecordFrame";
 import { ResuscitationStatus } from "@/components/care/ResuscitationStatus";
 import { WithdrawAdvanceCare } from "@/components/care/WithdrawAdvanceCare";
 import { getShellContext, tenantApi } from "@/lib/api";
-import { can, tabHref } from "@/lib/care-record";
+import { can, tabHref, writeAccess } from "@/lib/care-record";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
@@ -129,7 +130,8 @@ async function AdvanceCareTab({
   );
   if (!list) return <NoAccess />;
   const names = personNames(person);
-  const canWrite = can(me.permissions, "care.respect.record");
+  // Record or withdraw only where care.respect.record reaches the person (review round 3).
+  const { canWrite, readOnlyNotice } = writeAccess(person, me.permissions, "care.respect.record");
   const inForce = list.items.filter((item) => item.status === "active");
   const earlier = list.items.filter((item) => item.status !== "active");
 
@@ -151,6 +153,8 @@ async function AdvanceCareTab({
         <Card as="section" title={t("care.advance.form.title")} headingLevel={3}>
           <AdvanceCareForm personId={id} today={ukToday()} />
         </Card>
+      ) : readOnlyNotice ? (
+        <ReadOnlyNotice text={t(readOnlyNotice)} />
       ) : null}
       <section aria-labelledby="advance-in-force" className="flex flex-col gap-3">
         <h3 id="advance-in-force" className="m-0 text-body font-semibold">

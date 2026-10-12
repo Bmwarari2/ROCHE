@@ -206,6 +206,35 @@ describe("fetchCredentials", () => {
     expect(new Headers(calls[0]?.init?.headers).has(DEVICE_HEADER)).toBe(false);
   });
 
+  it("hazard HZ-073 passes on where the phone may record, read from each new token (review round 2, C2-M3)", async () => {
+    const claims = {
+      people_location_ids: ["loc-north"],
+      entries_write_location_ids: [],
+      entries_write_assigned: false,
+    };
+    const jwt = [
+      Buffer.from("{}").toString("base64url"),
+      Buffer.from(JSON.stringify(claims)).toString("base64url"),
+      "signature",
+    ].join(".");
+    const { fetch } = fakeFetch([
+      json({ token: jwt, endpoint: "https://sync.example.invalid", expiresAt: null }),
+    ]);
+    const scopes: unknown[] = [];
+    const reading = new HarbourConnector({
+      apiUrl: API,
+      fetch,
+      getToken: async () => "tok",
+      getTenantId: () => TENANT,
+      onSessionRevoked: () => undefined,
+      onWriteScope: (scope) => scopes.push(scope),
+    });
+    await reading.fetchCredentials();
+    expect(scopes).toEqual([
+      { locationIds: [], assigned: false, personIds: null, peopleLocationIds: ["loc-north"] },
+    ]);
+  });
+
   it("hazard HZ-040 names the device when it asks for credentials, so the server knows who has used it (security review round 7, M1)", async () => {
     const credentials = {
       token: "jwt",

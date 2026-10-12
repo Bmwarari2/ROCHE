@@ -30,8 +30,27 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   travels in `x-harbour-tenant`.
 - Roles: per-tenant copies of the 21 built-in roles in `packages/domain/src/platform/roles.ts`;
   permission matrix: [permissions.md](permissions.md) (generated).
-- Effective access: `resolveAccess` unions active role assignments and time-boxed grants; the widest
-  scope wins (`tenant` > `locations` > `assigned` > `none`). Staff and portal sessions never mix
+- Effective access: `resolveAccess` unions the permissions of active role assignments and
+  time-boxed grants, and gives each permission its own scope (`scopeFor`,
+  [ADR-0071](../decisions/0071-data-scope-is-per-permission.md)): the union of the roles that carry
+  it (`tenant` > `locations` > `assigned` > `none`) and the grants that carry it (at the grant's
+  location, or the whole organisation when marked `organisation_wide`), never the scope of another
+  role. A location role assigned with no location reaches the whole organisation only when marked
+  `organisation_wide` (a trigger refuses it otherwise), and a grant has a location or the mark (a
+  check). The people a user is assigned to count for a permission only when a role scoped to
+  assigned people carries it (`includesAssigned`), and the people they opened by break-glass only
+  for the read permissions break-glass opens (`includesBreakGlass`, `BREAK_GLASS_PERMISSIONS`:
+  `people.person.read`, `care.plan.read`, `care.note.read`; H-168); row-level security reads both
+  from `app.scope_assigned` and `app.scope_break_glass` (ADR-0071 review round 1). A request
+  starts with scope `none`; `requirePermission` narrows its row-level security context to the
+  permission's scope (the narrowest of several, `narrowestScope`), `requireAnyPermission` to the
+  union of the alternatives the session may use, and only the routes in
+  `SCOPE_WITHOUT_PERMISSION` (the task list and task moves, document lookups) run in a
+  permission's scope without requiring it; a static test checks every other route asks for a scope
+  before opening a transaction. A document about a person is read with its category's permission
+  (`care_attachment` `care.note.read`, the others `people.person.read`); an organisation's document
+  by any member. `GET /v1/me` reports `scope` as that of
+  `people.person.read`. Staff and portal sessions never mix
   (ADR-0061): a staff session (the default) skips portal roles and drops portal-only permissions
   (`PORTAL_ONLY_PERMISSIONS`) from grants; a portal session (`resolveAccess(..., "portal")`, for
   family members and later the person's own portal) takes portal roles only, with no grants and
@@ -44,7 +63,10 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   minutes.
 - Break-glass: `POST /v1/people/break-glass` with a justification of at least 20 characters and an
   optional `reasonCode`; access lapses after 60 minutes; the Registered Manager for the location and
-  quality leads are notified; the reason is audited. Weekly break-glass report: the aggregation by
+  quality leads are notified; the reason is audited. It opens the record for reading only
+  (`people.person.read`, `care.plan.read`, `care.note.read`), never a write, a discharge or death,
+  money, ReSPECT or an admission, and never syncs; a record the read scope does not open rolls the
+  break-glass record back. Weekly break-glass report: the aggregation by
   user, person and reason with repeated-use flags is `breakGlassWeeklyReport`
   (`packages/domain/src/people/break-glass-report.ts`, [people.md](people.md) rule 14). Built in
   slice 8: a daily worker job stores the report for the UK week before once per location
@@ -94,7 +116,10 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   and quarantine decisions; operator requests and tenant decisions.
 - `record_version`: every update of a mutable aggregate stores the previous row; `GET
   /v1/people/{id}/history`.
-- `GET /v1/audit` (platform.audit.read) lists events with chain verification.
+- `GET /v1/audit` (platform.audit.read) lists events with chain verification: whole, with reasons,
+  only for holders across the organisation; held at some locations, the member's own events and
+  events about people that permission reaches, never a reason (ADR-0071 review round 1; a
+  `location_id` on audit events is a STATUS follow-up).
 - Later: signed PDF export of a record's history for inspectors and coroners (Phase 1); pgAudit is
   configured at the database level in RDS (infra).
 
@@ -129,14 +154,17 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
 - Tasks (`task`): kind (`module.what`), generic title, optional person and location, assignee,
   due time and window, priority, status, the reason for a skip or cancellation, evidence (the note,
   observation or document that shows it was done), escalation state. A task about a person follows
-  the person's scope; other tasks are visible to tenant-wide roles, the assignee and staff at the
-  location (`app.task_visible`).
+  the person's scope (in the task list and task moves, the scope of `people.person.read`,
+  ADR-0071; completing one needs its permission where the task is, or being its assignee); other
+  tasks are visible to tenant-wide roles, the assignee and staff at the location
+  (`app.task_visible`).
 - Recurring tasks (`task_series`): daily, weekly or monthly at UK local times, or every N hours of
   elapsed time (`packages/domain/src/platform/tasks.ts`). The worker materialises the next 48 hours
   every 15 minutes, idempotently; a worker outage never backfills more than an hour.
 - Rules: skip and cancel need a reason; tasks that ask for evidence cannot be completed without it;
   finished tasks never change; two devices cannot overwrite each other (version check). Anyone
-  holding the permission the task names completes it, and so does its assignee while they could
+  holding the permission the task names where the task is (ADR-0071) completes it, and so does its
+  assignee while they could
   still be given it; managers with `platform.task.manage` create, assign and schedule. Because the
   assignee may complete it, a task that names a permission other than `platform.task.manage` (a
   clinical check, a medicines round) is given, on creation, on scheduling or by assignment, only
@@ -146,9 +174,22 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   a grant that ended before the device uploaded still counts and a revoked one never does (H-138). An investigation action is the exception: its owner completes it
   without the permission; so is a Care mode sync task the escalation gives to a Registered Manager
   elsewhere when no one at its location can act (H-142). Every refusal is audited (HZ-004, HZ-005).
+  A one-off task about a person is placed at the person's home: given no location it takes it, and
+  given another it is refused (422; ADR-0071 review rounds 4 and 5).
 - Overdue: once a task's window closes it is overdue; after `task.overdue_escalation_minutes` (rate
-  table) the worker notifies the assignee and the clinical leads and team leaders at the location
-  (the Registered Manager when there are none), once (HZ-008).
+  table) the worker notifies the assignee and, once, the first of these with anyone other than the
+  assignee, each active and able to see the person: the clinical leads and team leaders at the
+  location, a Registered Manager whose role reaches it, the holders of `care.plan.write` (HZ-008;
+  ADR-0071 review rounds 3 and 4). A task about a person takes the person's home when it has
+  none. With no one other than the assignee, the assignee is still reminded, the task is not
+  marked escalated, `task.escalation_unrouted` is audited at most once a day per reason, and an
+  hourly run tries again, taking every such task, oldest first, in pages (review round 5). A Care
+  mode sync task follows the same rule: its own assignee is never counted as told
+  (`sync.escalation_unrouted`, `assignee_only`). Each run goes on to the next organisation when
+  one organisation's part fails (`platform.job.tenant_failed`). Once a day the worker logs
+  `escalation.unrouted.daily` per organisation with any unrouted safety work in the last 25 hours,
+  and a CloudWatch alarm defined in Terraform fires on it for the operator, as another does on any
+  failed worker job (`worker.job.failed`), once applied (H-171; [on-call](../runbooks/on-call.md)).
 - Workflows (`workflow_instance`, append-only `workflow_transition`): each module declares its
   states, transitions (permission, reason, step-up, separation of duties) and SLAs in code with
   `defineWorkflow`; `startWorkflow` and `moveWorkflow` (`apps/api/src/services/workflow.ts`) check
@@ -256,7 +297,14 @@ last year the calendar covers, no holiday is skipped, so a deadline can only fal
 ## Offline sync
 
 - Streams: `packages/sync/src/streams/sync-config.yaml`; claims: `sub`, `tenant_id`,
-  `location_ids`, `people_location_ids`, `offline_days`; 15-minute ES256 tokens from `POST
+  `location_ids`, `people_location_ids`, `care_location_ids` and `entries_location_ids` with
+  `people_assigned`, `care_assigned` and `entries_assigned` (each family of streams where its own
+  read permissions reach: `people.person.read` with `care.plan.read`, `care.plan.read`,
+  `care.note.read`; ADR-0071 review rounds 1 and 2), `entries_write_location_ids` and
+  `entries_write_assigned` (where the phone may record, `care.note.write`; no stream reads them)
+  with `entries_write_person_ids` (the people the user is assigned to, when recording reaches
+  them, up to 100; review round 3), `offline_days`; `location_ids` is where the member's roles in force work (`workLocationIds`,
+  the same list as the location switcher in `/v1/me`); 15-minute ES256 tokens from `POST
   /v1/sync/token`, JWKS at `GET /v1/sync/jwks`. The token route binds the device to the member
   (`device_binding`) and refuses a revoked device (403 `device_revoked`). Uploads (`POST
   /v1/sync/upload`) reject every table until modules add writable tables; care entries go to their

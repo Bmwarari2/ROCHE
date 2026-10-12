@@ -411,8 +411,9 @@ describe("hazard HZ-012 hazard HZ-040 who holds a permission is read only from r
             ],
           );
           await c.query(
-            `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, valid_from, valid_to, deleted_at)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
+            `INSERT INTO role_assignment
+               (tenant_user_id, role_id, location_id, valid_from, valid_to, deleted_at, organisation_wide)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
             [
               user,
               roleId,
@@ -420,13 +421,14 @@ describe("hazard HZ-012 hazard HZ-040 who holds a permission is read only from r
               holding.validFrom ?? at(-1),
               holding.validTo ?? null,
               holding.deleted ? at(-1) : null,
+              place === null,
             ],
           );
         } else {
           await c.query(
             `INSERT INTO access_grant (tenant_user_id, permissions, location_id, valid_from, valid_to,
-             reason, granted_by, revoked_at, deleted_at)
-           VALUES ($1, $2, $3, $4, $5, 'Acting up', $6, $7, $8)`,
+             reason, granted_by, revoked_at, deleted_at, organisation_wide)
+           VALUES ($1, $2, $3, $4, $5, 'Acting up', $6, $7, $8, $9)`,
             [
               user,
               [PERMISSION],
@@ -436,6 +438,7 @@ describe("hazard HZ-012 hazard HZ-040 who holds a permission is read only from r
               a.manager,
               holding.revoked ? at(-1) : null,
               holding.deleted ? at(-1) : null,
+              place === null,
             ],
           );
         }

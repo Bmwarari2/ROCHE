@@ -2,11 +2,12 @@ import { Button, Card, SelectField } from "@harbour/ui";
 import type { Metadata } from "next";
 import { ArrivalNotice } from "@/components/care/ArrivalNotice";
 import { NoAccess } from "@/components/care/NoAccess";
+import { ReadOnlyNotice } from "@/components/care/ReadOnlyNotice";
 import { RecordFrame } from "@/components/care/RecordFrame";
 import { RiskCard } from "@/components/care/RiskCard";
 import { RiskForm } from "@/components/care/RiskForm";
 import { getShellContext, tenantApi } from "@/lib/api";
-import { can, tabHref } from "@/lib/care-record";
+import { can, tabHref, writeAccess } from "@/lib/care-record";
 import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
 import { getPerson, readOrFail } from "@/lib/person-record";
@@ -53,7 +54,8 @@ async function RiskAssessmentsTab({
   const query = await searchParams;
   const names = personNames(person);
   const today = ukToday();
-  const canWrite = can(me.permissions, "care.plan.write");
+  // Add, review or close a risk only where care.plan.write reaches the person (round 3).
+  const { canWrite, readOnlyNotice } = writeAccess(person, me.permissions, "care.plan.write");
   const templateFor = (key: string) => templates.items.find((template) => template.key === key);
   const reviewing = list.items.find(
     (item) => item.id === first(query.review) && item.status === "active",
@@ -75,6 +77,7 @@ async function RiskAssessmentsTab({
       {first(query.saved) ? <ArrivalNotice>{t("care.risk.form.saved")}</ArrivalNotice> : null}
       {first(query.closed) ? <ArrivalNotice>{t("care.risk.close.arrived")}</ArrivalNotice> : null}
 
+      {readOnlyNotice ? <ReadOnlyNotice text={t(readOnlyNotice)} /> : null}
       {canWrite && !formTemplate ? (
         <Card as="section" title={t("care.risk.add")} headingLevel={3}>
           <form method="get" action={path} className="flex flex-wrap items-end gap-3">

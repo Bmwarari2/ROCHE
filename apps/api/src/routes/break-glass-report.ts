@@ -4,7 +4,13 @@ import {
   ReviewBreakGlassReport,
 } from "@harbour/contracts";
 import { breakGlassWeeklyReport } from "@harbour/db";
-import { breakGlassReportWeek, previousBreakGlassReportWeek, ukDayBounds } from "@harbour/domain";
+import {
+  breakGlassReportWeek,
+  type Permission,
+  previousBreakGlassReportWeek,
+  scopeFor,
+  ukDayBounds,
+} from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, eq, isNull } from "drizzle-orm";
 import { requirePermission, withTenant } from "../http/context";
@@ -44,6 +50,9 @@ function reportOut(row: ReportRow): BreakGlassWeeklyReportOut {
   };
 }
 
+/** Reading and reviewing the reports: the audit reader's permission, where it reaches. */
+const PERMISSION: Permission = "platform.audit.read";
+
 export const breakGlassReportRouter = createRouter()
   .openapi(
     createRoute({
@@ -58,14 +67,15 @@ export const breakGlassReportRouter = createRouter()
       responses: { 200: jsonBody(BreakGlassWeeklyReportList, "Reports"), ...errorResponses },
     }),
     async (c) => {
-      const access = await requirePermission(c, "platform.audit.read");
+      const access = await requirePermission(c, PERMISSION);
       const { week: day } = c.req.valid("query");
       const week = day
         ? breakGlassReportWeek(ukDayBounds(day).startsAt)
         : previousBreakGlassReportWeek(new Date());
       const items = await withTenant(c, async (tx) => {
-        // Row-level security limits the rows; the API checks the locations again (ADR-0002).
-        const { scope, locationIds } = access.context;
+        // Row-level security limits the rows; the API checks the locations again (ADR-0002), where
+        // the roles and grants carrying the permission reach (ADR-0071).
+        const { scope, locationIds } = scopeFor(access.effective, PERMISSION);
         const rows = (
           await tx
             .select()
@@ -110,7 +120,7 @@ export const breakGlassReportRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, "platform.audit.read");
+      const access = await requirePermission(c, PERMISSION);
       const { reportId } = c.req.valid("param");
       const body = c.req.valid("json");
       const now = new Date();
@@ -125,7 +135,7 @@ export const breakGlassReportRouter = createRouter()
             ),
           );
         if (!original) throw problems.notFound();
-        const { scope, locationIds } = access.context;
+        const { scope, locationIds } = scopeFor(access.effective, PERMISSION);
         if (scope !== "tenant" && !locationIds.includes(original.locationId)) {
           throw problems.notFound();
         }

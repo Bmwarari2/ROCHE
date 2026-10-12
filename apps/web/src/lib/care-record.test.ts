@@ -3,16 +3,20 @@ import { createTranslator } from "@harbour/i18n";
 import { describe, expect, it } from "vitest";
 import {
   can,
+  chartsNotice,
   entryAuthor,
   entryChains,
   iddsiLabel,
   longerWindow,
+  mayEditCarePlan,
   RECORD_TABS,
   readingWindow,
+  recordCareAccess,
   resuscitationSummary,
   tabHref,
   visibleTabs,
   windowStart,
+  writeAccess,
 } from "./care-record";
 import { profileOf, readCareProfile, readPersonSummary, readResuscitation } from "./record-data";
 
@@ -276,5 +280,166 @@ describe("iddsiLabel (hazard HZ-016)", () => {
     ["food", null, "No level prescribed"],
   ] as const)("hazard HZ-016 %s level %s shows number, name and colour", (kind, level, label) => {
     expect(iddsiLabel(kind, level, t)).toBe(label);
+  });
+});
+
+describe("hazard HZ-011 hazard HZ-073 every write form is offered only where the API says it reaches (ADR-0071 review rounds 2 and 3, C2-M2 and C3-M1)", () => {
+  const t = createTranslator("en-GB");
+  const reachingAll = [
+    "care.assessment.write",
+    "care.note.write",
+    "care.plan.write",
+    "care.respect.record",
+    "people.person.read",
+  ];
+  const own = {
+    reaching: reachingAll,
+    recordCare: true,
+    editCarePlan: true,
+    readOnlyReason: null,
+  } as const;
+  const breakGlass = {
+    reaching: [],
+    recordCare: false,
+    editCarePlan: false,
+    readOnlyReason: "break_glass",
+  } as const;
+  const readingOnly = {
+    reaching: ["people.person.read"],
+    recordCare: false,
+    editCarePlan: false,
+    readOnlyReason: "scope",
+  } as const;
+  // One write permission per tab of the record: notes, charts, body map, activities and visits;
+  // assessments (NEWS2 is a chart, MUST and the others are run here); the care plan, risks and
+  // chart settings; ReSPECT and advance care records.
+  const writes = [
+    "care.note.write",
+    "care.assessment.write",
+    "care.plan.write",
+    "care.respect.record",
+  ] as const;
+
+  it.each(writes)("offers %s where it reaches the person", (permission) => {
+    expect(writeAccess({ access: own }, [permission], permission)).toEqual({
+      canWrite: true,
+      readOnlyNotice: null,
+    });
+  });
+
+  it.each(writes)("offers no %s on a record opened by break-glass, and says why", (permission) => {
+    expect(writeAccess({ access: breakGlass }, [permission], permission)).toEqual({
+      canWrite: false,
+      readOnlyNotice: "care.readOnly.breakGlass",
+    });
+  });
+
+  it.each(writes)("offers no %s where the roles reach for reading only", (permission) => {
+    expect(writeAccess({ access: readingOnly }, [permission], permission)).toEqual({
+      canWrite: false,
+      readOnlyNotice: "care.readOnly.scope",
+    });
+  });
+
+  it.each(writes)("shows neither form nor line to someone who never holds %s", (permission) => {
+    expect(writeAccess({ access: own }, ["care.plan.read"], permission)).toEqual({
+      canWrite: false,
+      readOnlyNotice: null,
+    });
+  });
+
+  it("offers one write and not another where only one reaches", () => {
+    const notesOnly = {
+      reaching: ["care.note.write", "people.person.read"],
+      recordCare: true,
+      editCarePlan: false,
+      readOnlyReason: null,
+    } as const;
+    const held = ["care.note.write", "care.plan.write"];
+    expect(writeAccess({ access: notesOnly }, held, "care.note.write").canWrite).toBe(true);
+    expect(writeAccess({ access: notesOnly }, held, "care.plan.write")).toEqual({
+      canWrite: false,
+      readOnlyNotice: "care.readOnly.scope",
+    });
+  });
+
+  it("leaves the form when the API does not say (the API still refuses what it would not take)", () => {
+    expect(writeAccess({ access: undefined }, ["care.plan.write"], "care.plan.write")).toEqual({
+      canWrite: true,
+      readOnlyNotice: null,
+    });
+  });
+
+  it("answers recording and chart settings from the same rule", () => {
+    expect(recordCareAccess({ access: breakGlass }, ["care.note.write"])).toEqual({
+      canRecord: false,
+      readOnlyNotice: "care.readOnly.breakGlass",
+    });
+    expect(recordCareAccess({ access: own }, ["care.note.write"])).toEqual({
+      canRecord: true,
+      readOnlyNotice: null,
+    });
+    expect(mayEditCarePlan({ access: own }, ["care.plan.write"])).toBe(true);
+    expect(mayEditCarePlan({ access: breakGlass }, ["care.plan.write"])).toBe(false);
+    expect(mayEditCarePlan({ access: own }, ["care.plan.read"])).toBe(false);
+  });
+
+  it("never says the record cannot be recorded in above chart settings the viewer can change (review round 5)", () => {
+    const planOnly = {
+      reaching: ["care.plan.write", "people.person.read"],
+      recordCare: false,
+      editCarePlan: true,
+      readOnlyReason: "scope",
+    } as const;
+    const held = ["care.note.write", "care.plan.write"];
+    // The settings form stays: the line is about entries only.
+    expect(mayEditCarePlan({ access: planOnly }, held)).toBe(true);
+    expect(chartsNotice({ access: planOnly }, held)).toBe("care.readOnly.chartEntries");
+    expect(t("care.readOnly.chartEntries")).toContain("cannot record entries");
+    expect(t("care.readOnly.chartEntries")).not.toContain("cannot record in it");
+    // Neither reaches: the line says the record is for reading (the settings are hidden too).
+    expect(chartsNotice({ access: readingOnly }, held)).toBe("care.readOnly.scope");
+    // Settings only held, and not reaching: why they are hidden (review round 4).
+    expect(chartsNotice({ access: readingOnly }, ["care.plan.write"])).toBe("care.readOnly.scope");
+    // Settings only held, and reaching: no line above a form they can use.
+    expect(chartsNotice({ access: planOnly }, ["care.plan.write"])).toBeNull();
+    expect(chartsNotice({ access: breakGlass }, held)).toBe("care.readOnly.breakGlass");
+    expect(chartsNotice({ access: own }, held)).toBeNull();
+  });
+
+  it("says in words that a break-glass record is for reading only, in English and Welsh", () => {
+    expect(t("care.readOnly.breakGlass")).toContain("for reading only");
+    expect(t("care.readOnly.breakGlass")).toContain("the person in charge of this shift");
+    expect(t("care.readOnly.scope")).toContain("cannot record in it");
+    expect(createTranslator("cy")("care.readOnly.breakGlass")).not.toBe("");
+    expect(t("people.breakGlass.body")).toContain("The record opens for reading only");
+  });
+
+  it("reads the access the API sends with a person", () => {
+    const person = readPersonSummary({
+      id: "0194d000-0000-7000-8600-000000000150",
+      locationId: "0194d000-0000-7000-8000-000000000150",
+      status: "active",
+      givenName: "Una",
+      familyName: "Example",
+      preferredName: null,
+      dateOfBirth: null,
+      nhsNumber: "9990001502",
+      roomLabel: null,
+      photoUrl: null,
+      allergyStatus: "unknown",
+      allergies: [],
+      communicationNeeds: [],
+      communicationNeedsStatus: "not_recorded",
+      communicationNeedsConfirmedBy: null,
+      communicationNeedsConfirmedAt: null,
+      iddsiFoodLevel: "not_recorded",
+      iddsiDrinkLevel: "not_recorded",
+      statusChangedAt: "2026-09-01T10:00:00.000Z",
+      resuscitation: { status: "not_recorded" },
+      version: 1,
+      access: breakGlass,
+    });
+    expect(person?.access).toEqual(breakGlass);
   });
 });

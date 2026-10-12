@@ -19,7 +19,7 @@ cp .env.example .env            # optional: every value has the same local defau
 pnpm db:bootstrap               # roles (harbour_owner, harbour_app, ...) and the harbour database
 pnpm db:migrate                 # schema, row-level security, triggers, PowerSync publication
 pnpm db:seed                    # statutory figures, retention schedule, demo tenant
-HARBOUR_DEMO_MFA=off pnpm --filter @harbour/api seed:users   # demo sign-ins (local only)
+HARBOUR_SEED_DEMO_USERS=1 HARBOUR_DEMO_MFA=off pnpm --filter @harbour/api seed:users   # demo sign-ins (local only; refuses to run without the opt-in)
 pnpm --filter @harbour/api dev  # API on http://localhost:4000
 pnpm --filter @harbour/web dev  # web on http://localhost:3000
 ```

@@ -21,6 +21,7 @@ import {
   checkHandoverNote,
   type HandoverItem,
   handoverOpen,
+  scopeFor,
   shiftAt,
   viewerAcknowledgement,
 } from "@harbour/domain";
@@ -67,7 +68,7 @@ import { personSummaries } from "./people";
  * staff's own scope. Every read and write is audited by record id.
  */
 
-const PERMISSION = "care.handover.manage";
+const PERMISSION = "care.handover.manage" as const;
 const DAY_MS = 86_400_000;
 const LocationParam = z.object({ id: z.uuid() });
 const HandoverParams = LocationParam.extend({ handoverId: z.uuid() });
@@ -84,12 +85,15 @@ const systemFor = (access: TenantAccess) => ({
 });
 
 /**
- * Whether the reader sees a location's handovers whole: a tenant-wide role, or a role at that
- * location (the database's `app.handover_whole`). Everyone else sees them limited to their people.
+ * Whether the reader sees a location's handovers whole: the roles and grants carrying the handover
+ * permission reach the whole organisation, or that location (the database's `app.handover_whole`,
+ * under the request's scope for that permission, ADR-0071). Everyone else sees them limited to
+ * their people.
  */
-const seesWhole = (access: TenantAccess, locationId: string) =>
-  access.context.scope === "tenant" ||
-  (access.context.scope === "locations" && access.context.locationIds.includes(locationId));
+const seesWhole = (access: TenantAccess, locationId: string) => {
+  const { scope, locationIds } = scopeFor(access.effective, PERMISSION);
+  return scope === "tenant" || (scope === "locations" && locationIds.includes(locationId));
+};
 
 /**
  * What the reader acknowledges: a token over the handover and the keys of the items they can see,

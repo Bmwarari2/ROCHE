@@ -745,7 +745,21 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
 
 - **Streams** (`packages/sync/src/streams/sync-config.yaml`). The twelve care tables sync in the two
   scopes the people streams use: people assigned to the user (`person_assignment`, not ended) and,
-  for managers and nurses, everyone receiving care at the token's `people_location_ids`: every
+  for managers and nurses, everyone receiving care at the token's location claims. Each family
+  follows its own read permissions (ADR-0071 review rounds 1 and 2): the person and allergies
+  `people.person.read` with `care.plan.read`, where both reach, so the phone never shows a
+  resuscitation decision or IDDSI level as not recorded when the care reference is merely absent
+  (`people_location_ids`, `people_assigned`), the care reference and plan details
+  `care.plan.read` (`care_location_ids`, `care_assigned`) and recent entries `care.note.read`
+  (`entries_location_ids`, `entries_assigned`); assigned people sync for a family only when a role
+  scoped to them carries its permissions, and break-glass never syncs. The token also says where
+  the phone may record (`entries_write_location_ids`, `entries_write_assigned`: `care.note.write`;
+  with `entries_write_person_ids`, the people the user is assigned to, up to 100; read by no
+  stream): the person screen offers notes, charts and the body map only there, deciding per person
+  for the clients assigned to a coordinator who is also a carer, and otherwise says "You can read
+  this record but cannot record in it. If something needs recording, tell the person in charge of
+  this shift or your manager." Before its first token the phone offers recording only to a user
+  whose permissions include `care.note.write` (review rounds 2 and 3, C2-M3 and C3-M2). Every
   location-scope stream (people, allergies and the care record) carries only people who are active,
   on leave or in hospital, so an enquiry, or a person discharged, deceased or archived, leaves
   managers' devices with their care record (security reviews S8 and round 3 L1). The tenant, the people and the offline window
@@ -1054,7 +1068,8 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
      audited (`sync.device.refused_revoked`) at most once an hour per device; a hand-over of
      entries recorded before the revocation (part 6), a device report and a deletion record are
      still taken from it, so the server keeps hearing what it holds and what it deleted. The token keeps its claims (`sub`, `tenant_id`, `location_ids`,
-     `people_location_ids` and `offline_days`, already minted from the rate table); revocation is
+     the per-family location and assigned claims and `offline_days`, already minted from the rate
+     table); revocation is
      a check at issue, not a claim, so a revoked device never gets another token and the one it
      has lasts at most 15 minutes. The device reacts as to a remote wipe: with nothing unsent it
      deletes its database and key and says the device was withdrawn; with entries unsent it holds
@@ -1105,7 +1120,15 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
      when any copy is an observation or a body-map mark that may be harm (a pressure ulcer of
      category 2 or worse, or with no category or one that cannot be read, a bruise, skin tear,
      laceration, burn or wound; #26 review rounds 2 and 3),
-     when the nurse in charge is told), whose details list each
+     when the home's staff are told: the nurse in charge, as one definition serves result
+     alerts, review notices and these reviews (`nurseInCharge`: the clinical leads and team
+     leaders whose roles reach the home, at every home, with no rota checked, else its Registered
+     Manager), whose `people.person.read` and `care.note.read` reach the person, so a team leader
+     is told whether or not the home has a nurse; and the holders of `care.plan.write` who can see
+     the person, to act (those who hold it at the home itself, and only with none of them those
+     across the organisation, HZ-008). Only active staff are told. With neither, the fallback;
+     with no one at all, `care.refused_entry.unrouted` is audited as the system (ADR-0071 review
+     rounds 2 and 3, C2-M1)), whose details list each
      copy by kind, entry id, copy id, refusal code, time, device and author, never content;
      overdue, it escalates like the sync tasks, with the fallback when no one at its location can
      act (M3; H-157). Each author's copies count against 200 a day, after the replay check and the

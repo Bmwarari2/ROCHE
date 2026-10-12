@@ -37,6 +37,13 @@ Scope decides whom a role may act on, enforced again by Postgres row-level secur
 `tenant` everyone, `location` people at the assigned locations, `assigned` and `self` assigned
 people only (plus break-glass), `none` no person records.
 
+Scope is per permission (ADR-0071): a permission reaches only the people the roles that carry it
+reach, plus where a grant carrying it is given (its location, or the whole organisation without
+one), never the scope of another role the user also holds. A request runs under the scope of the
+permission it requires, or the narrowest of several; a request that requires none sees no one. A
+care worker at one home who is also a finance viewer across the organisation writes care notes at
+that home only.
+
 ## Permissions by role
 
 | Permission | Step-up | Care record | owner | group_executive | registered_manager | deputy_manager | clinical_lead | team_leader | care_worker | care_coordinator | activities | catering | housekeeping | maintenance | administrator | finance | hr | quality_lead | external_professional | family_representative | person_receiving_care | agency_worker | inspector |

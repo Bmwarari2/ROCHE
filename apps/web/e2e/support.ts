@@ -9,6 +9,12 @@ import { expect, type Page } from "@playwright/test";
 export const PASSWORD = process.env.HARBOUR_DEMO_PASSWORD ?? "correct horse battery staple";
 export const WCAG_AA = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
+/**
+ * A resident of Harbour Mews, a second home nobody at Harbour House can see (apps/api/scripts/
+ * seed-users.ts): opened by break-glass in the journeys.
+ */
+export const MEWS_PERSON = "0194d000-0000-7000-8600-000000000150";
+
 /** The demo residents' ids from packages/db/src/seed/demo.ts. */
 export function demoPerson(n: number): string {
   return `0194d000-0000-7000-8600-${n.toString(16).padStart(12, "0")}`;

@@ -4,8 +4,6 @@ import {
   escalationChain,
   notification,
   notificationDelivery,
-  role,
-  roleAssignment,
   type Transaction,
   taskSeries,
   tenantUser,
@@ -17,10 +15,14 @@ import {
   type EscalationStep,
   nextEscalationAt,
 } from "@harbour/domain";
-import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type pg from "pg";
 import type { Logger } from "../logger";
-import { generateBreakGlassReports } from "../services/break-glass-report";
+import {
+  BREAK_GLASS_ALERT_UNROUTED_ACTION,
+  generateBreakGlassReports,
+} from "../services/break-glass-report";
+import { CARE_ALERT_UNROUTED_ACTION } from "../services/care";
 import { raiseOverdueCareReviews } from "../services/care-planning";
 import {
   draftDeathNotifications,
@@ -30,8 +32,21 @@ import { sweepHandovers } from "../services/handover";
 import { raiseDolsReminders } from "../services/mca";
 import { raisePeopleReviews } from "../services/people";
 import { generatePlanTasks } from "../services/plan-tasks";
-import { detectLocationOutbreaks, escalateOverdueNotifications } from "../services/safety";
-import { escalateOverdueTasks, materialiseSeries } from "../services/tasks";
+import { REFUSED_REVIEW_UNROUTED_ACTION } from "../services/refused-entries";
+import { roleHolders, toldOf } from "../services/role-holders";
+import {
+  detectLocationOutbreaks,
+  escalateOverdueNotifications,
+  NOTIFICATION_UNROUTED_ACTION,
+} from "../services/safety";
+import {
+  ESCALATION_UNROUTED_ACTION,
+  type EscalationRun,
+  escalateOverdueTasks,
+  materialiseSeries,
+  TASK_ESCALATION_UNROUTED_ACTION,
+} from "../services/tasks";
+import { errorCode, WORKER_JOB_FAILED_EVENT } from "./run-job";
 
 /**
  * Background tasks run by pg-boss (section 6). Cross-tenant scanning uses the harbour_worker role,
@@ -108,9 +123,41 @@ export async function relayOutbox(
   }
 }
 
+/** An escalation step that could be sent to no one (ADR-0071 review round 3, C3-M4). */
+export const ESCALATION_STEP_UNROUTED_ACTION = "platform.escalation.unrouted";
+
+/**
+ * Who a chain step is sent to (ADR-0071 review rounds 2 and 3, C3-M4): its named member while
+ * active, and the holders of its role, in force and active, whose role reaches the notification's
+ * location (anywhere for one with none). With none of them, a Registered Manager whose role
+ * reaches the location (there, or across the organisation), else the owner. Empty when there is
+ * no one at all.
+ */
+export async function chainStepRecipients(
+  tx: Transaction,
+  step: EscalationStep,
+  locationId: string | null,
+  now: Date,
+): Promise<string[]> {
+  const recipients = new Set<string>();
+  if (step.targetTenantUserId) {
+    for (const id of await toldOf(tx, [step.targetTenantUserId])) recipients.add(id);
+  }
+  const places = locationId ? [locationId] : null;
+  if (step.targetRoleKey) {
+    for (const h of await roleHolders(tx, [step.targetRoleKey], places, now)) recipients.add(h);
+  }
+  if (recipients.size > 0) return [...recipients];
+  const managers = await roleHolders(tx, ["registered_manager"], places, now);
+  if (managers.length > 0) return managers;
+  return roleHolders(tx, ["owner"], places, now);
+}
+
 /**
  * Fires due escalation steps: an unacknowledged notification is re-sent to the next people in its
- * chain (for example on-call after 10 minutes), until someone acknowledges it.
+ * chain (for example on-call after 10 minutes), until someone acknowledges it. A step that can be
+ * sent to no one, even through its fallback (`chainStepRecipients`), is audited as unrouted with
+ * a coded reason (`no_recipient`), never passed over silently; the later steps still fire.
  */
 export async function runEscalations(deps: TaskDeps, now = new Date()): Promise<number> {
   const due = await deps.workerPool.query<{ id: string; tenant_id: string }>(
@@ -140,15 +187,24 @@ export async function runEscalations(deps: TaskDeps, now = new Date()): Promise<
         };
         const toFire = dueEscalationSteps(steps, state, now);
         for (const { index, step } of toFire) {
-          const recipients = new Set<string>();
-          if (step.targetTenantUserId) recipients.add(step.targetTenantUserId);
-          if (step.targetRoleKey) {
-            const holders = await tx
-              .selectDistinct({ id: roleAssignment.tenantUserId })
-              .from(roleAssignment)
-              .innerJoin(role, eq(role.id, roleAssignment.roleId))
-              .where(and(eq(role.key, step.targetRoleKey), isNull(roleAssignment.deletedAt)));
-            for (const h of holders) recipients.add(h.id);
+          const recipients = await chainStepRecipients(tx, step, n.locationId, now);
+          if (recipients.length === 0) {
+            await tx.insert(auditEvent).values({
+              tenantId: row.tenant_id,
+              action: ESCALATION_STEP_UNROUTED_ACTION,
+              outcome: "error",
+              resourceType: "notification",
+              resourceId: n.id,
+              reason: "no_recipient",
+              scope: {
+                reasonCode: "no_recipient",
+                chainId: chain.id,
+                step: index,
+                ...(step.targetRoleKey ? { roleKey: step.targetRoleKey } : {}),
+                locationId: n.locationId,
+              },
+            });
+            continue;
           }
           for (const recipient of recipients) {
             await tx
@@ -210,7 +266,7 @@ export async function endExpiredAssignments(deps: TaskDeps): Promise<number> {
 
 async function activeTenants(deps: TaskDeps): Promise<string[]> {
   const { rows } = await deps.workerPool.query<{ id: string }>(
-    "SELECT id FROM tenant WHERE status IN ('onboarding', 'active')",
+    "SELECT id FROM tenant WHERE status IN ('onboarding', 'active') ORDER BY id",
   );
   return rows.map((r) => r.id);
 }
@@ -244,18 +300,88 @@ export async function materialiseTaskSeries(deps: TaskDeps, now = new Date()): P
   return created;
 }
 
-/** Escalates overdue tasks once each to the people on shift (hazard HZ-008). */
-export async function escalateTasks(deps: TaskDeps, now = new Date()): Promise<number> {
-  let escalated = 0;
-  for (const tenantId of await activeTenants(deps)) {
-    escalated += await withRequestContext(
-      deps.appDb,
-      { tenantId, userId: null, scope: "tenant", locationIds: [] },
-      (tx) => escalateOverdueTasks(tx, tenantId, now),
-    );
-  }
-  if (escalated > 0) deps.logger.info({ escalated }, "overdue tasks escalated");
+/**
+ * Escalates overdue tasks once each to the people on shift (hazard HZ-008). The `due` run (every
+ * minute) takes tasks not found unrouted in the last day; the `retry` run (hourly) tries again
+ * those that were, so the audit is written at most once a day while routing is retried every hour
+ * (ADR-0071 review round 4, C4-M1).
+ */
+export async function escalateTasks(
+  deps: TaskDeps,
+  now = new Date(),
+  run: EscalationRun = "due",
+): Promise<number> {
+  // One organisation's failure never stops the others' (`eachTenant`; review round 5, C5-M2).
+  const escalated = await eachTenant(
+    deps,
+    run === "due" ? "task-escalations" : "task-escalation-retries",
+    (tx, tenantId) => escalateOverdueTasks(tx, tenantId, now, run),
+  );
+  if (escalated > 0) deps.logger.info({ escalated, run }, "overdue tasks escalated");
   return escalated;
+}
+
+/** The hourly retry of overdue tasks no one other than their assignee could be told about. */
+export function retryUnroutedTasks(deps: TaskDeps, now = new Date()): Promise<number> {
+  return escalateTasks(deps, now, "retry");
+}
+
+/**
+ * The audit actions that mean no one could be told about safety work (ADR-0071 review rounds 2 to
+ * 4): an overdue task, a sync task, an escalation chain step, an urgent refused-entry review, an
+ * urgent result alert and a break-glass alert.
+ */
+export const UNROUTED_ACTIONS = [
+  TASK_ESCALATION_UNROUTED_ACTION,
+  ESCALATION_UNROUTED_ACTION,
+  ESCALATION_STEP_UNROUTED_ACTION,
+  REFUSED_REVIEW_UNROUTED_ACTION,
+  CARE_ALERT_UNROUTED_ACTION,
+  BREAK_GLASS_ALERT_UNROUTED_ACTION,
+  NOTIFICATION_UNROUTED_ACTION,
+] as const;
+
+/** The structured log line the operator alarms on (docs/runbooks/on-call.md). */
+export const UNROUTED_DAILY_EVENT = "escalation.unrouted.daily";
+
+/** How far back the daily signal counts: a day and an hour, so nothing falls between two runs. */
+export const UNROUTED_REPORT_WINDOW_MS = 25 * 3_600_000;
+
+/**
+ * The operator's daily signal (ADR-0071 review round 4, C4-M1): for each organisation with any
+ * unrouted audit event in the last day, one structured log line, `escalation.unrouted.daily`, with
+ * the opaque tenant id and the count per action (`UNROUTED_ACTIONS`). No personal data and no free
+ * text. Returns the counts it logged, by tenant. The window is 25 hours, so an event at the edge
+ * of a day is never missed between two runs (review round 5); one organisation's failure never
+ * stops the others' (`eachTenant`, C5-M2).
+ */
+export async function reportUnroutedDaily(
+  deps: TaskDeps,
+  now = new Date(),
+): Promise<Map<string, Record<string, number>>> {
+  const since = new Date(now.getTime() - UNROUTED_REPORT_WINDOW_MS);
+  const reported = new Map<string, Record<string, number>>();
+  await eachTenant(deps, "unrouted-daily-report", async (tx, tenantId) => {
+    const rows = await tx
+      .select({ action: auditEvent.action, count: sql<number>`count(*)::int` })
+      .from(auditEvent)
+      .where(
+        and(
+          inArray(auditEvent.action, [...UNROUTED_ACTIONS]),
+          gt(auditEvent.occurredAt, since),
+          lte(auditEvent.occurredAt, now),
+        ),
+      )
+      .groupBy(auditEvent.action);
+    if (rows.length === 0) return 0;
+    const counts = Object.fromEntries(
+      UNROUTED_ACTIONS.map((action) => [action, rows.find((r) => r.action === action)?.count ?? 0]),
+    );
+    reported.set(tenantId, counts);
+    deps.logger.warn({ event: UNROUTED_DAILY_EVENT, tenantId, counts }, UNROUTED_DAILY_EVENT);
+    return 1;
+  });
+  return reported;
 }
 
 /**
@@ -282,7 +408,8 @@ export const TENANT_SWEEP_FAILED_ACTION = "platform.job.tenant_failed";
  * Runs a per-tenant sweep as the application role in each active tenant's context. One
  * organisation's failure never stops the others' (a handover or an alert missed everywhere because
  * of one tenant's data; HZ-018): its transaction rolls back, the failure is logged by opaque ids
- * and error code only, and audited as the system in a transaction of its own, so it is seen.
+ * and error code only (`worker.job.failed`, which the operator's alarm counts), and audited as the
+ * system in a transaction of its own, so it is seen.
  */
 export async function eachTenant(
   deps: TaskDeps,
@@ -295,13 +422,13 @@ export async function eachTenant(
     try {
       total += await withRequestContext(deps.appDb, context, (tx) => fn(tx, tenantId));
     } catch (error) {
-      const code =
-        typeof error === "object" && error !== null && "code" in error
-          ? String((error as { code: unknown }).code)
-          : error instanceof Error
-            ? error.name
-            : "unknown";
-      deps.logger.error({ tenantId, job, code }, "tenant sweep failed");
+      // The database code, also when the query builder wraps the driver's error (review round 5).
+      const code = errorCode(error) ?? (error instanceof Error ? error.name : "unknown");
+      // The operator's failed-job alarm counts it (`worker.job.failed`; review round 5, C5-M1).
+      deps.logger.error(
+        { event: WORKER_JOB_FAILED_EVENT, queue: job, tenantId, code },
+        WORKER_JOB_FAILED_EVENT,
+      );
       try {
         await withRequestContext(deps.appDb, context, (tx) =>
           tx.insert(auditEvent).values({

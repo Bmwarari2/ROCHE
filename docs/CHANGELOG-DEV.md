@@ -802,3 +802,265 @@ through `scripts/ci-local.sh`.
 **Tests**: `packages/domain` 4,018, `packages/db` 381, `packages/contracts` 34, `apps/api` 616,
 `packages/sync` 59, `apps/mobile` 871, `apps/web` 338, `packages/i18n` 48, all passing locally
 through `scripts/ci-local.sh`.
+
+## 2026-10-12: Data scope is per permission (security fix, ADR-0071)
+
+**What changed**
+
+- The defect: `resolveAccess` took the widest data scope across every role, whatever each role
+  carried, and the API set that one scope as every request's row-level security context. A care
+  worker at one home who also held an organisation-wide finance role read and wrote care records
+  at every home; a grant's permissions applied wherever the user's roles reached, not where the
+  grant was given.
+- Domain: `EffectiveAccess` carries a scope per permission (`scopes`, read with `scopeFor`): the
+  union of the active, non-mixed roles carrying it and the grants carrying it (a grant at its
+  location, or the whole organisation without one). The merged `scope` and `locationIds` are
+  removed. `narrowestScope` (several permissions at once) and `widestScope` (alternatives) are pure
+  functions with table-driven tests. Search holds each kind of record and each document category
+  to its own permission's scope.
+- API: a request starts with scope `none`; `requirePermission` narrows it to the permission's
+  scope, intersected with any required before; `requireAnyPermission` to the union of the
+  alternatives the session may use. `SCOPE_WITHOUT_PERMISSION` is the explicit allow-list of routes
+  every member uses that borrow `people.person.read`'s scope (the task list, task moves and
+  document lookups), enforced at run time.
+- Readers of the merged scope now name their permission: device lists and revocation, the sync
+  token's `people_location_ids` (the narrowest of the three reads the location streams serve),
+  handover whole views and staff views, urgent alert recipients, the weekly break-glass report,
+  `/v1/me`'s `scope`, audit defaults, per-user limits and `personReachedBy` (`care.note.write`,
+  by role or by a grant that was never revoked).
+  A second permission on one record counts only where it reaches it: task completion, status
+  changes, return checks, the task an entry completes, incident changes and manager answers.
+- Database: no migration; every policy reads the narrowed `app.scope`. `app.holds_permission_at`
+  was already per permission; the handover and device policies judge the reader by the request's
+  scope and the staff shown by their own assignments, so none needed a change.
+- Docs: ADR-0071, the ADR-0002 cross-reference, the permission matrix (generator text), platform.md
+  PLAT-004 and tasks, the security checklist (V8), records of processing (A4 and the sync row),
+  HZ-011 (cause, controls and tests), the sync stream claim notes, and a changeset release note.
+
+**Route audit**: 186 handlers. 165 call `requirePermission` (directly or through a helper) before
+`withTenant`, but three of those helpers read first: the document lookups (`GET
+/v1/documents/{id}`, `/content`, `POST /v1/documents/{id}/signatures`) find the row and then
+require `people.person.read` for a person's document. Of the 21 others, `POST
+/v1/documents/{id}/versions` reads the row before requiring its category's permission, and `GET
+/v1/tasks` and `POST /v1/tasks/{id}/transition` require nothing. These six relied on the old
+merged scope and are the allow-list. `/v1/me`, notifications, form templates, rates, sync uploads
+and device reports require nothing and run with scope `none` (own rows, reference data, or the
+system's view where they write); the tenantless routes (memberships, sessions, JWKS, health) and
+the operator console never reach `withTenant`.
+
+**Human actions logged**: none. After merge, the release note asks Registered Managers to check
+role bundles.
+
+**Tests**: `packages/domain` 4,055, `packages/db` 384, `packages/contracts` 34, `apps/api` 628,
+`packages/sync` 59, `apps/mobile` 871, `apps/web` 338, `packages/ui` 342, `packages/ui-native`
+141, all passing locally (`pnpm turbo run test --force --concurrency=2`) and through
+`scripts/ci-local.sh`.
+
+## 2026-10-12: Data scope per permission, review round 1 (ADR-0071)
+
+The security review found three Mediums and the clinical safety review four (no Highs), with
+twelve lows. All are fixed on `fix/platform-scope-per-permission` as fast-forwards.
+
+- Assigned and break-glass people (S-M1): `PermissionScope` gains `includesAssigned` (a role
+  scoped to assigned people carries the permission) and `includesBreakGlass` (only
+  `BREAK_GLASS_PERMISSIONS`: `people.person.read`, `care.plan.read`, `care.note.read`; H-168).
+  `narrowestScope` ANDs them, `widestScope` ORs them. The request context, `inScopeOf` and
+  `staffViews` set `app.scope_assigned` and `app.scope_break_glass`; migration 0049 makes
+  `app.person_in_scope` honour them. Search, `permissionsReaching`, `personReachedBy` and the sync
+  token follow. A break-glass record the read scope does not open is rolled back (L6).
+- Places (L1, L2, L8): `organisation_wide` on `access_grant` and `role_assignment` (migration 0048
+  marks existing rows); a check and a trigger refuse an unmarked grant or location role with no
+  location; `app.holds_permission_at`, the domain, `holdsPermissionAt`, `permissionHolders`,
+  `submitHolders` and `personReachedBy` honour the mark; one loader (`services/access-rows.ts`)
+  reads roles and grants for the API. Restrictive policies limit giving grants and assigning people
+  to where the member holds `platform.grant.manage` or `people.assignment.manage`.
+- Sync (C-M1, L3): per-family claims (`people_*`, `care_*`, `entries_*` location ids and assigned
+  flags); the deletion route decides on the manager check before its transaction.
+- Documents (S-M2, L4, L5): category read permissions, per-category list scopes, a new version
+  found again where the upload permission reaches before storing, bytes stored after the insert
+  and destroyed on failure, HEAD judged as GET. Organisation documents stay readable by every
+  member (policies staff follow), a deliberate departure from search's mapping.
+- Audit trail (S-M3): whole only across the organisation; otherwise own events and events about
+  reached people, without reasons. STATUS follow-up: `location_id` on audit events.
+- Tasks (C-M3, C-M4, L10): `mayBeGiven` (people.person.read and the task permission must reach
+  the person) on create and assign; escalation holders and fallback filtered by the person; a
+  refused entry's urgent review told only to in-charge staff who hold its permission; holders must
+  reach the task's place with `people.person.read`. New hazard HZ-073 (H-169) with a table-driven
+  check of the routing role keys; HZ-014's control text updated.
+- Domain checks (L7, L9): `usablePermissions` (MFA met; step-up kept so the domain can ask for a
+  fresh sign-in) feeds `permissionsReaching` and the workflow, exit and admission guards, which
+  now see only permissions reaching the person.
+- Allow-list (L12): `route-gates.test.ts` scans the route sources for a scope gate before the
+  database, with ten listed exemptions and its limits stated; `useScopeOf` refuses unlisted routes.
+- Docs (C-M2, L11): the release note rewritten with its clinical safety changes, the
+  pre-deployment access report (`docs/runbooks/data-scope-per-permission-access-report.sql`, read
+  only), the DCB0160 deployer control, ADR-0071 review round 1, HZ-011 rows, `staffCanSee`'s
+  docstring, specs and registers.
+
+**Human actions logged**: H-168 (what break-glass opens, CSO and DPO), H-169 (HZ-073 rating, CSO).
+
+**Tests**: `packages/domain` 4,069, `packages/db` 390, `packages/contracts` 34, `apps/api` 675,
+`packages/sync` 62, `apps/mobile` 871, `apps/web` 338, `packages/ui` 342, `packages/ui-native`
+141, all passing locally (`pnpm turbo run test --force --concurrency=2`, 0 cached) and through
+`scripts/ci-local.sh`.
+
+## 2026-10-12: Data scope per permission, review round 2 (ADR-0071)
+
+No Highs. The clinical safety review found three new Mediums and one older one, the security
+review two, with thirteen lows. All are fixed on `fix/platform-scope-per-permission` as
+fast-forwards; three items are STATUS follow-ups.
+
+- The nurse in charge (C2-M1): one definition (`nurseInCharge`, clinical leads and team leaders
+  whose roles in force reach the home, else the Registered Manager) for urgent result alerts,
+  care plan and risk review notices and refused-entry reviews, filtered only by what the recipient
+  can see (`nurseInChargeSeeing`). An urgent refused-entry review tells the nurse in charge whose
+  `people.person.read` and `care.note.read` reach the person and the `care.plan.write` holders
+  who can see them, else the fallback, else audits `care.refused_entry.unrouted`. A home with
+  team leaders and no clinical lead tells its team leader; the HZ-008 test asserts exactly who
+  was told.
+- Read only where the API refuses (C2-M2, C2-M3): `GET /v1/people/{id}` returns `access`
+  (`recordCare`, `editCarePlan`, `readOnlyReason`); the notes, charts and body map pages, and the
+  chart settings, offer their forms only when it allows and otherwise say why, in English and
+  Welsh; the break-glass sheet says the record opens for reading only. The sync token carries
+  `entries_write_location_ids` and `entries_write_assigned`; the phone keeps them
+  (`harbour.write-scope.v1`) and offers recording only there. A Playwright journey opens a record
+  by break-glass at a second demo home (Harbour Mews, web journeys only) and finds no form.
+- Who is told by role (C2-M4, lows): `roleHolders` and `roleInForce` (assignment in force, role
+  not archived, member invited or active, no location reaching everywhere only when scoped to the
+  organisation or marked) for the overdue escalation, escalation chains, Registered Manager
+  lookups, break-glass alert and weekly report recipients, the fallbacks and device-hold carriers;
+  a fallback about no one prefers whoever reaches the location; `personReachedBy` checks the
+  assignment and role windows together; a new round keeps its series' assignee only while they may
+  be given it; `workLocationIds` gives `/v1/me` and the token the same work locations.
+- Documents (S2-M1, low): signing a person's document needs the category's write permission
+  reaching the person without break-glass; an organisation's document refuses a person and a
+  person's subject type, and a person-category document with no person is not found.
+- Grants with no location (S2-M2): migration 0048 stops, naming the count, while any is live. The
+  access report lists narrows and widens for the record on screen and the three sync families,
+  counts assigned people instead of naming them, and reads a tenant role assigned at a location
+  as that location, as before.
+- Other lows: the people sync family needs `care.plan.read` too; a refused break-glass attempt is
+  audited after the rollback; `planTaskLink` and the return check honour step-up through the
+  session's freshness; `assignment_change` has a `USING` expression; HZ-073 proposed at Major /
+  Low / 3 with its own DCB0160 row, linked from HZ-011; the release note and runbook say how to
+  check every device has synced.
+- Follow-ups in STATUS: bounding grant and role assignment writes by the granter's own
+  permissions; `withTenantWideScope` restoring the scope in a `finally`; recording a failed
+  storage destroy for the retention sweep.
+
+**Tests**: `packages/domain` 4,069, `packages/db` 393, `packages/contracts` 34, `packages/i18n` 48,
+`apps/api` 684, `packages/sync` 62, `apps/mobile` 882, `apps/web` 349, `packages/ui` 342,
+`packages/ui-native` 141, all passing locally (`pnpm turbo run test --force --concurrency=2` on
+`118a916`, 0 cached) and through `scripts/ci-local.sh`.
+
+## 2026-10-12: Data scope per permission, review round 3 (ADR-0071)
+
+Security found no high or medium; clinical safety found four mediums. All are fixed on
+`fix/platform-scope-per-permission` as fast-forwards, with the clinical and security lows.
+
+- Every tab (C3-M1): `access.reaching` lists the permissions reaching the person without
+  break-glass; `writeAccess` gates every write form on the record (notes, charts, body map,
+  activities and visits, assessments, care plan and drafts, risk assessments, ReSPECT and advance
+  care), each showing the read-only line instead, now worded for every service ("tell the person
+  in charge of this shift or your manager", "record in it"). The Playwright break-glass journey
+  visits every tab with axe.
+- The phone per person (C3-M2): the sync token names the people the user is assigned to
+  (`entries_write_person_ids`, up to 100), so a coordinator who is also a carer records about
+  their clients; before the first token, recording is offered only with `care.note.write`; a held
+  session clears the write scope.
+- Escalations (C3-M3, C3-M4): an overdue task goes to first responders, then a Registered Manager
+  reaching the home (there or across the organisation), then care plan holders who can see the
+  person; with no one it is audited (`task.escalation_unrouted`), not marked escalated, and tried
+  again after an hour. A chain step with no holder falls back to a Registered Manager reaching
+  the home, else the owner; with no one it is audited (`platform.escalation.unrouted`). Only
+  active staff are told (`TOLD`); invited stays eligible for access and assignment.
+- Lows: urgent refused-entry notices prefer care plan holders at the home over those across the
+  organisation; the refused-entry unrouted audit is tested; docs say team leaders are told at
+  every home and no rota is checked; HZ-073 titles match and H-169 says both levels are 3; the
+  device check gives its cut-off in Europe/London and lists staff whose phone was never seen;
+  documents take an allow-list of organisation subject types and refuse a subject id without a
+  type; the new-version route does not find a person-category document with no person;
+  `roleInForce` and `accessRowsOf` check deleted roles and members, staff status and the
+  organisation on every join; `workLocationIds` skips portal and mixed roles; a refused
+  break-glass audit that fails is logged and still answers 404; `seed-users` needs
+  `HARBOUR_SEED_DEMO_USERS=1`; the runbook covers environments that ran round 1's 0048 and never
+  reactivating an organisation-wide grant without a decision.
+
+**Tests**: `packages/domain` 4,069, `packages/db` 393, `packages/contracts` 34, `packages/i18n` 48,
+`apps/api` 694, `packages/sync` 62, `apps/mobile` 886, `apps/web` 359, `packages/ui` 342,
+`packages/ui-native` 141, all passing locally (`pnpm turbo run test --force --concurrency=2` on
+`5f09cb1`, 0 cached) and through `scripts/ci-local.sh`.
+
+## 2026-10-12: Data scope per permission, review round 4 (ADR-0071)
+
+Security found no high or medium; clinical safety found one medium (C4-M1), fixed with the lows on
+`fix/platform-scope-per-permission` as fast-forwards.
+
+- Escalation needs someone other than the assignee (C4-M1): each tier leaves the assignee out;
+  with no one else the assignee is reminded, the task stays at level 0 and
+  `task.escalation_unrouted` (`assignee_only`, `no_one_sees_person`, `no_one_reaches_location`)
+  is audited at most once a day, while a new hourly run (`task-escalation-retries`) retries the
+  routing. A daily job (`unrouted-daily-report`) logs one `escalation.unrouted.daily` line per
+  organisation with counts per unrouted audit action; the on-call runbook alarms on it. H-170
+  asks the CSO whether the organisation needs an in-product signal too.
+- Lows: a task about a person with no location takes the person's home (escalation and
+  `POST /v1/tasks`); a break-glass alert no one active receives is audited and counted;
+  `submitHolders` tells only active staff; above 100 assigned people the phone falls back to the
+  location rule; a write scope the phone cannot keep is logged and fails closed; a tab says when
+  two-step sign-in is the reason (`access.mfaRequired`), and the charts tab says why chart
+  settings are hidden; the device check counts grant-only staff and ignores deleted, portal and
+  mixed roles; a one-off check lists organisation documents outside the subject allow-list.
+- Follow-ups in STATUS: future-dated assignments and the write claim; Playwright coverage of the
+  draft plan page and the review, close, withdraw and correct controls.
+- The round view tests in `rounds-and-handover.test.ts` create tasks due 5 to 15 minutes ahead,
+  so between 19:45 and 20:00 London time (the default night shift starts at 20:00) they fall in
+  the next shift and three tests fail; a run outside that window passes. Not changed here.
+
+**Tests**: `packages/domain` 4,069, `packages/db` 393, `packages/contracts` 34, `packages/i18n` 48,
+`apps/api` 700, `packages/sync` 62, `apps/mobile` 890, `apps/web` 360, `packages/ui` 342,
+`packages/ui-native` 141, all passing locally (`pnpm turbo run test --force --concurrency=2` on
+`6517b9d`, 0 cached) and through `scripts/ci-local.sh`.
+
+## 2026-10-12: Data scope per permission, review round 5 (ADR-0071)
+
+Security found no high or medium; clinical safety found three mediums (C5-M1 to C5-M3), fixed
+with the lows on `fix/platform-scope-per-permission` as fast-forwards.
+
+- The operator's alarms are infrastructure (C5-M1): `infra/modules/observability` has CloudWatch
+  Logs metric filters on the worker's log group, `{ $.event = "escalation.unrouted.daily" }` (any
+  line in a day) and `{ $.event = "worker.job.failed" }` (one or more in 15 minutes), each with an
+  alarm to the alerts topic. Every worker job runs through `runJob`, which logs
+  `worker.job.failed` (queue, error kind, database code) and throws on. The stack test asserts
+  both alarms' wiring. Applying the Terraform is H-171.
+- Every organisation is escalated when one fails (C5-M2): the minute run, the hourly retry and the
+  daily report run through `eachTenant`; a test injects a failure in one organisation and sees the
+  next escalate, with `platform.job.tenant_failed` audited. The daily report counts 25 hours.
+- An overdue statutory notification no active member of staff can submit is audited
+  (`safety.notification.unrouted`, `no_active_submitter`) at most once a day and counted (C5-M3).
+- Lows: `access.mfaRequired` and its web line removed; the phone records about no one while its
+  write scope is unknown and says to sync again, and keystore failures fail closed; a sync task's
+  own assignee and a break-glass opener are not counted as told (`assignee_only`, `opener_only`);
+  the unrouted audit is deduplicated by reason; the hourly retry takes every unrouted task in
+  pages; a task about a person placed away from their home is refused (422); the charts tab's line
+  is about entries above settings the viewer can change; HZ-073's verification table names the
+  new tests.
+- Follow-ups in STATUS: a per-recipient summary for overdue tasks; paging overdue statutory
+  notifications; `materialiseTaskSeries` and `raiseCareReviews` through `eachTenant`.
+- Terraform (the workflow's static job, run locally with Terraform 1.16.5 and TFLint 0.64.0): fmt,
+  init and validate for dev, staging and prod, `terraform test` (7 runs) and TFLint for each
+  environment pass. Trivy's configuration scan was not run locally.
+
+**Tests**: `packages/domain` 4,069, `packages/db` 393, `packages/contracts` 34, `packages/i18n` 48,
+`apps/api` 710, `packages/sync` 62, `apps/mobile` 891, `apps/web` 360, `packages/ui` 342,
+`packages/ui-native` 141, all passing locally (`pnpm turbo run test --force` on `7077687`, 0
+cached) and through `scripts/ci-local.sh`.
+
+## 2026-10-12: Data scope per permission, review round 5 check (ADR-0071)
+
+A short combined security and clinical check of the round 5 diff (`8346d20..67c3fdc`) found no
+high. Clinical safety found one new medium: the unrouted alarm summed over a day, so with the
+report running daily an organisation unrouted for weeks could hold the alarm in ALARM and hide
+another organisation's first line (CloudWatch notifies only on a change of state). The alarm now
+sums over an hour, so it clears within the hour after each daily run and every run with a line
+notifies again; the stack test and the on-call runbook say so. The lows are STATUS follow-ups.
+Hosted CI (now running, the repository being public) was green on `67c3fdc`.

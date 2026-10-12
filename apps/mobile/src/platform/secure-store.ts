@@ -43,6 +43,8 @@ export const SESSION_TOKEN_ITEM = "harbour.session-token.v1";
 export const ME_ITEM = "harbour.me.v1";
 export const MODE_ITEM = "harbour.mode.v1";
 export const PREFERENCES_ITEM = "harbour.preferences.v1";
+/** Where this phone may record, from the last sync token (review round 2, C2-M3). */
+export const WRITE_SCOPE_ITEM = "harbour.write-scope.v1";
 /** Marker that the database holds unsent entries for a session that ended (HZ-006). */
 export const HELD_WORK_ITEM = "harbour.held-work.v1";
 

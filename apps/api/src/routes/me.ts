@@ -1,10 +1,11 @@
 import { Me, Membership } from "@harbour/contracts";
-import { featureFlag, location, roleAssignment, tenant } from "@harbour/db";
-import { evaluateFlag, FLAGS, type FlagKey } from "@harbour/domain";
+import { featureFlag, location, tenant } from "@harbour/db";
+import { evaluateFlag, FLAGS, type FlagKey, scopeFor } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, eq, isNull } from "drizzle-orm";
+import { eq, isNull } from "drizzle-orm";
 import { membershipsFor, withTenant } from "../http/context";
 import { problems } from "../http/problem";
+import { accessRowsOfMember, workLocationIds } from "../services/access-rows";
 import { createRouter, errorResponses, jsonBody, security } from "./openapi";
 
 export const membershipsRouter = createRouter().openapi(
@@ -49,20 +50,17 @@ export const meRouter = createRouter().openapi(
         .from(location)
         .where(isNull(location.deletedAt))
         .orderBy(location.name);
-      const assignmentLocations = await tx
-        .select({ locationId: roleAssignment.locationId })
-        .from(roleAssignment)
-        .where(
-          and(
-            eq(roleAssignment.tenantUserId, access.tenantUserId),
-            isNull(roleAssignment.deletedAt),
-          ),
-        );
-      const tenantWide =
-        access.effective.scope === "tenant" ||
-        assignmentLocations.some((a) => a.locationId === null);
-      const allowed = new Set(assignmentLocations.map((a) => a.locationId));
-      const locations = allLocations.filter((l) => tenantWide || allowed.has(l.id));
+      // Where the member works: their roles in force now, at a location, or across the
+      // organisation for a role scoped to it or marked organisation-wide (`workLocationIds`, the
+      // same list as the sync token's; ADR-0071 review round 2).
+      const working = new Set(
+        workLocationIds(
+          await accessRowsOfMember(tx, access.tenantUserId),
+          allLocations.map((l) => l.id),
+          new Date(),
+        ),
+      );
+      const locations = allLocations.filter((l) => working.has(l.id));
       const flagRows = await tx
         .select({
           flagKey: featureFlag.flagKey,
@@ -100,7 +98,8 @@ export const meRouter = createRouter().openapi(
         })),
         permissions: [...access.effective.permissions].sort(),
         roleKeys: [...access.effective.roleKeys],
-        scope: access.effective.scope,
+        // Whose records the user may open (ADR-0071): each permission has its own scope.
+        scope: scopeFor(access.effective, "people.person.read").scope,
         flags,
       };
     });

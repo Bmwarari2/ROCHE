@@ -25,7 +25,13 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { and, desc, eq, inArray, isNull, like } from "drizzle-orm";
 import type { Context } from "hono";
 import { AuditedRefusal, withAuditedRefusal } from "../http/audit";
-import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
+import {
+  type AppEnv,
+  permissionsReaching,
+  requirePermission,
+  type TenantAccess,
+  withTenant,
+} from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { requireWithinLimit } from "../http/rate-limit";
 import { publish } from "../outbox";
@@ -157,17 +163,22 @@ const MOVEMENT_RETURN_CHECKS = new Set(["belongings_returned"]);
 
 /**
  * Why the caller may not record a return check, or null when they may: they hold its task's
- * permission, or are its assignee while they could still be given it (S1 follow-on;
- * `assigneeMayComplete`).
+ * permission where it reaches the person (ADR-0071), or are its assignee while they could still be
+ * given it (S1 follow-on; `assigneeMayComplete`).
  */
 async function returnCheckRefusal(
   tx: Transaction,
   access: TenantAccess,
+  personId: string,
   transferId: string,
   checkKey: string,
   now: Date,
 ): Promise<string | null> {
-  const held: ReadonlySet<string> = new Set(access.effective.permissions);
+  // Not given the session's freshness: a permission needing a fresh sign-in counts only while
+  // it is fresh (review round 2).
+  const held: ReadonlySet<string> = await permissionsReaching(tx, access, personId, {
+    freshOnly: true,
+  });
   if (MOVEMENT_RETURN_CHECKS.has(checkKey) && held.has("people.movement.record")) return null;
   const [carried] = await tx
     .select({
@@ -776,7 +787,7 @@ export const peopleTransfersRouter = createRouter()
           // Each check is done only by someone who may complete its task (a clinical check needs
           // care.plan.write, or being its assignee); checking belongings back in stays with
           // whoever records movements (HZ-005, HZ-015, HZ-016).
-          const refused = await returnCheckRefusal(tx, access, transferId, checkKey, now);
+          const refused = await returnCheckRefusal(tx, access, id, transferId, checkKey, now);
           if (refused) {
             throw new AuditedRefusal(problems.forbidden(), {
               action: "people.hospital_transfer.return_check",

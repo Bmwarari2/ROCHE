@@ -29,6 +29,8 @@ import {
   personAllergiesParams,
 } from "../../../../people/queries";
 import { useRecordScreenProtection } from "../../../../security/use-record-protection";
+import { mayRecordFor } from "../../../../sync/write-scope";
+import { useWriteScope } from "../../../../sync/write-scope-store";
 
 /**
  * A person's record in Care mode: the point-of-care header (HZ-001), what to record (note,
@@ -44,6 +46,15 @@ export default function PersonScreen() {
   const id = typeof personId === "string" ? personId : "";
   const tenantId = useTenantId();
   const { person } = useCarePerson(id);
+  // Recording is offered only where the user's care.note.write reaches the person, as the sync
+  // token says, per person for those assigned to them; the API decides either way (review rounds
+  // 2 and 3, C2-M3 and C3-M2). With no scope known (one that could not be kept or read), nothing
+  // is offered and the screen says how to fix it (review round 5). A demo build never syncs, has
+  // no token and keeps everything on the phone: it records about anyone it shows, as before.
+  const writeScope = useWriteScope();
+  const mayRecord = person
+    ? appEnv.demoMode || mayRecordFor({ id, locationId: person.locationId }, writeScope)
+    : false;
 
   const params = useMemo(() => [tenantId, id], [tenantId, id]);
   const allergyParams = useMemo(() => personAllergiesParams(tenantId, id), [tenantId, id]);
@@ -83,7 +94,7 @@ export default function PersonScreen() {
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <View style={{ paddingHorizontal: theme.space[2] }}>
-            <EntryRow item={item} onCorrect={correct} />
+            <EntryRow item={item} onCorrect={mayRecord ? correct : undefined} />
           </View>
         )}
         initialNumToRender={10}
@@ -95,22 +106,32 @@ export default function PersonScreen() {
             {person ? (
               <>
                 <Card title={t("mobile.person.actions")}>
-                  <Button
-                    label={t("mobile.person.writeNote")}
-                    onPress={() => go("note")}
-                    testID="action-note"
-                  />
-                  <Button
-                    label={t("mobile.person.recordChart")}
-                    onPress={() => go("chart")}
-                    testID="action-chart"
-                  />
-                  <Button
-                    label={t("mobile.person.bodyMap")}
-                    variant="secondary"
-                    onPress={() => go("body-map")}
-                    testID="action-body-map"
-                  />
+                  {mayRecord ? (
+                    <>
+                      <Button
+                        label={t("mobile.person.writeNote")}
+                        onPress={() => go("note")}
+                        testID="action-note"
+                      />
+                      <Button
+                        label={t("mobile.person.recordChart")}
+                        onPress={() => go("chart")}
+                        testID="action-chart"
+                      />
+                      <Button
+                        label={t("mobile.person.bodyMap")}
+                        variant="secondary"
+                        onPress={() => go("body-map")}
+                        testID="action-body-map"
+                      />
+                    </>
+                  ) : (
+                    <Text tone="secondary" testID="person-read-only">
+                      {writeScope === null
+                        ? t("mobile.person.writeScopeUnavailable")
+                        : t("mobile.person.readOnly")}
+                    </Text>
+                  )}
                   <Button
                     label={t("mobile.person.carePlan")}
                     variant="secondary"

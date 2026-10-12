@@ -29,7 +29,7 @@ import {
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { AuditedRefusal, withAuditedRefusal } from "../http/audit";
-import { requirePermission, withTenant } from "../http/context";
+import { permissionsReaching, requirePermission, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { draftedKinds, notificationsForExit } from "../services/death-notifications";
 import {
@@ -61,6 +61,7 @@ import {
   refusal,
   requireAnyPermission,
 } from "./people-shared";
+import { stepUpFresh } from "./workflow-shared";
 
 /**
  * Discharge, transfer and death workflows (people.md rules 11 and 12): the checklist with its
@@ -356,7 +357,7 @@ export const peopleExitRouter = createRouter()
         requireWrite(p, "care_plan");
         const exitId = await planExit(
           tx,
-          actorOf(c),
+          await actorOf(c, tx, p.id),
           p,
           body.kind,
           body.details ?? DEFAULT_DETAILS,
@@ -575,9 +576,10 @@ export const peopleExitRouter = createRouter()
             {
               to: body.to as never,
               actorTenantUserId: access.tenantUserId,
-              permissions: new Set(access.effective.permissions),
+              // Only the permissions reaching this person (ADR-0071 review round 1, L9).
+              permissions: new Set(await permissionsReaching(tx, access, id)),
               reason: body.reason ?? null,
-              stepUpFresh: actorOf(c).stepUpFresh,
+              stepUpFresh: stepUpFresh(c),
             },
             now,
           );

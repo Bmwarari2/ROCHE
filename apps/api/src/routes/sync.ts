@@ -12,21 +12,28 @@ import {
   deviceDiscardRecord,
   discardReason,
   location,
-  roleAssignment,
+  personAssignment,
   tenantUser,
 } from "@harbour/db";
-import { hasClockDrift } from "@harbour/domain";
+import {
+  type EffectiveAccess,
+  hasClockDrift,
+  narrowestScope,
+  type Permission,
+  scopeFor,
+} from "@harbour/domain";
 import {
   isValidWindowDays,
   OFFLINE_WINDOW_RATE_KEY,
   offlineWindowDays,
 } from "@harbour/sync/streams";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { auditInTx } from "../http/audit";
 import { requirePermission, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { PerUserQuota } from "../http/quota";
+import { accessRowsOfMember, workLocationIds } from "../services/access-rows";
 import {
   closeDeviceHoldOnDeletion,
   DISCARD_ACTIONS,
@@ -60,6 +67,56 @@ const DISCARD_IDS_PER_DAY = 2_000;
 const REPORTS_PER_HOUR = 120;
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
+
+/**
+ * The permissions each family of sync streams follows (packages/sync/src/streams/
+ * sync-config.yaml): the person and their allergies, the care reference (profile, active plan,
+ * risk assessments, tool results, advance care records) with the active plan's details, and the
+ * recent notes, charts, marks, activities and visits. Each family syncs where its own permissions
+ * reach, from the roles and grants carrying them (ADR-0071 review round 1, C-M1). A person syncs
+ * only where their care reference syncs too, so the phone never shows a resuscitation decision
+ * or IDDSI level as "not recorded" when it is merely absent from the device (review round 2).
+ * `entries_write` is not a stream: it tells the phone where it may record (care.note.write), so it
+ * never offers to record what the server would refuse (review round 2, C2-M3).
+ */
+export const SYNCED_READS = {
+  people: ["people.person.read", "care.plan.read"],
+  care: ["care.plan.read"],
+  entries: ["care.note.read"],
+  entries_write: ["care.note.write"],
+} as const satisfies Record<string, readonly Permission[]>;
+
+type SyncFamily = keyof typeof SYNCED_READS;
+
+/**
+ * At most this many assigned people are named in the token's `entries_write_person_ids`, so the
+ * token stays small; beyond it the claim is left out and the phone lets the server decide (review
+ * round 3, C3-M2). A care worker is assigned to a handful of people.
+ */
+export const MAX_WRITE_PERSON_IDS = 100;
+
+/**
+ * Where one family syncs for a member: the locations whose people it carries in full, and whether
+ * the people the member is assigned to sync for it (only when a role scoped to assigned people
+ * carries every one of its permissions; S-M1), each the narrowest of its permissions' scopes. A
+ * break-glass record never syncs.
+ */
+export function familyReach(
+  effective: EffectiveAccess,
+  family: SyncFamily,
+  allLocationIds: readonly string[],
+): { readonly locationIds: string[]; readonly assigned: boolean } {
+  const scope = narrowestScope(SYNCED_READS[family].map((p) => scopeFor(effective, p)));
+  return {
+    locationIds:
+      scope.scope === "tenant"
+        ? [...allLocationIds]
+        : scope.scope === "locations"
+          ? [...scope.locationIds]
+          : [],
+    assigned: scope.scope !== "none" && scope.includesAssigned,
+  };
+}
 
 /** Deletions that remove a device's whole hold (or its unsent work at sign-out). */
 const WHOLE_HOLD_KINDS: ReadonlySet<string> = new Set(["held_deleted", "signed_out_with_unsent"]);
@@ -103,7 +160,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         tags: ["sync"],
         summary: "A short-lived token for the PowerSync service, scoped to tenant and assignments",
         description:
-          "Claims: sub, tenant_id, location_ids, people_location_ids and offline_days (the offline window from the rate table, never from the device). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.",
+          "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids and entries_location_ids with people_assigned, care_assigned and entries_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read and care.note.read), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), and offline_days (the offline window from the rate table, never from the device). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.",
         security,
         responses: { 200: jsonBody(SyncToken, "Token"), ...errorResponses },
       }),
@@ -117,25 +174,20 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             .select({ id: location.id })
             .from(location)
             .where(isNull(location.deletedAt));
-          const assignments = await tx
-            .select({ locationId: roleAssignment.locationId })
-            .from(roleAssignment)
-            .where(
-              and(
-                eq(roleAssignment.tenantUserId, access.tenantUserId),
-                isNull(roleAssignment.deletedAt),
-              ),
-            );
+          // Where the member works (`workLocationIds`: their roles in force now; ADR-0071 review
+          // round 2), the same list as the location switcher in /v1/me.
           const allIds = locations.map((l) => l.id);
-          const workIds = assignments.some((a) => a.locationId === null)
-            ? allIds
-            : allIds.filter((id) => assignments.some((a) => a.locationId === id));
-          const peopleLocationIds =
-            access.effective.scope === "tenant"
-              ? allIds
-              : access.effective.scope === "locations"
-                ? [...access.effective.locationIds]
-                : [];
+          const workIds = workLocationIds(
+            await accessRowsOfMember(tx, access.tenantUserId),
+            allIds,
+            new Date(),
+          );
+          // Each family of streams syncs where its own read permission reaches, never where
+          // another role reaches further (ADR-0071 review round 1, C-M1 and S-M1).
+          const people = familyReach(access.effective, "people", allIds);
+          const care = familyReach(access.effective, "care", allIds);
+          const entries = familyReach(access.effective, "entries", allIds);
+          const recording = familyReach(access.effective, "entries_write", allIds);
           // The offline window comes from the rate table here, never from the device (care.md
           // section 6): the streams read it from this claim and ignore connection parameters.
           const rated = await rateNumber(tx, access.tenantId, OFFLINE_WINDOW_RATE_KEY).catch(
@@ -155,17 +207,52 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             // The device the token is for, when it says; the binding itself is `device_binding`.
             ...(access.deviceId ? { resourceType: "device", resourceId: access.deviceId } : {}),
             scope: {
-              scope: access.effective.scope,
-              peopleLocations: peopleLocationIds.length,
+              peopleLocations: people.locationIds.length,
+              careLocations: care.locationIds.length,
+              entriesLocations: entries.locationIds.length,
+              peopleAssigned: people.assigned,
+              careAssigned: care.assigned,
+              entriesAssigned: entries.assigned,
               offlineWindowDays: windowDays,
             },
             requestId: c.get("requestId"),
           });
+          // The people the member is assigned to now (their own rows), named only when a role
+          // scoped to assigned people carries care.note.write, so the phone decides per person
+          // (review round 3, C3-M2); left out beyond MAX_WRITE_PERSON_IDS.
+          const now = new Date();
+          const assignedNow = recording.assigned
+            ? await tx
+                .selectDistinct({ personId: personAssignment.personId })
+                .from(personAssignment)
+                .where(
+                  and(
+                    eq(personAssignment.tenantUserId, access.tenantUserId),
+                    isNull(personAssignment.deletedAt),
+                    lte(personAssignment.validFrom, now),
+                    or(isNull(personAssignment.validTo), gt(personAssignment.validTo, now)),
+                  ),
+                )
+                .orderBy(personAssignment.personId)
+                .limit(MAX_WRITE_PERSON_IDS + 1)
+            : [];
+          const writePersonIds =
+            recording.assigned && assignedNow.length <= MAX_WRITE_PERSON_IDS
+              ? assignedNow.map((a) => a.personId)
+              : null;
           return {
             sub: access.tenantUserId,
             tenant_id: access.tenantId,
             location_ids: workIds,
-            people_location_ids: peopleLocationIds,
+            people_location_ids: people.locationIds,
+            care_location_ids: care.locationIds,
+            entries_location_ids: entries.locationIds,
+            people_assigned: people.assigned,
+            care_assigned: care.assigned,
+            entries_assigned: entries.assigned,
+            entries_write_location_ids: recording.locationIds,
+            entries_write_assigned: recording.assigned,
+            ...(writePersonIds ? { entries_write_person_ids: writePersonIds } : {}),
             offline_days: offlineDays,
           };
         });
@@ -237,7 +324,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         responses: { 200: jsonBody(SyncDiscardResult, "Recorded"), ...errorResponses },
       }),
       async (c) => {
-        const access = await requirePermission(c, "care.note.write");
+        let access = await requirePermission(c, "care.note.write");
         await withTenant(c, (tx) => discardQuota.take(tx, access.tenantUserId));
         const body = c.req.valid("json");
         // Who deleted, as the device recorded it; unknown stays unknown in the record (security
@@ -247,12 +334,39 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         // Anyone's but the caller's own entries, deleted by the caller, need a manager: an unknown
         // owner, another member of staff's entries, or a deletion the device says someone else made
         // (security review round 4, M1). Registered Managers, deputies and nurses hold it.
+        let asManager = false;
         if (
           !body.ownerTenantUserId ||
           body.ownerTenantUserId !== access.tenantUserId ||
           deleter !== access.tenantUserId
         ) {
-          await requirePermission(c, DISCARD_OTHERS_PERMISSION);
+          access = await requirePermission(c, DISCARD_OTHERS_PERMISSION);
+          asManager = true;
+        }
+        const owner = body.ownerTenantUserId?.toLowerCase() ?? null;
+        // A later stage from someone other than the first stage's sender or the owner needs a
+        // manager too. Decided before the deletion's transaction opens, so that transaction runs
+        // in the narrowed scope from its start and its audit carries it (ADR-0071 review round 1,
+        // L3); a first stage that appears in between is refused as a conflict below.
+        const needsManager = (first: { senderTenantUserId: string | null } | undefined) =>
+          first !== undefined &&
+          first.senderTenantUserId !== access.tenantUserId &&
+          owner !== access.tenantUserId;
+        if (!asManager) {
+          const [first] = await withTenant(c, (tx) =>
+            withTenantWideScope(tx, () =>
+              tx
+                .select({ senderTenantUserId: deviceDiscardRecord.senderTenantUserId })
+                .from(deviceDiscardRecord)
+                .where(eq(deviceDiscardRecord.discardId, body.id))
+                .orderBy(asc(deviceDiscardRecord.recordedAt), asc(deviceDiscardRecord.id))
+                .limit(1),
+            ),
+          );
+          if (needsManager(first)) {
+            access = await requirePermission(c, DISCARD_OTHERS_PERMISSION);
+            asManager = true;
+          }
         }
         const action = DISCARD_ACTIONS[body.stage];
         // The code the record carries: one the organisation added, or one of the five.
@@ -298,7 +412,6 @@ export function createSyncRouter(signer: SyncTokenSigner) {
               .where(eq(deviceDiscardRecord.discardId, body.id))
               .orderBy(asc(deviceDiscardRecord.recordedAt), asc(deviceDiscardRecord.id)),
           );
-          const owner = body.ownerTenantUserId?.toLowerCase() ?? null;
           // A later stage belongs to the deletion it continues (security review round 5, S-L1):
           // the same kind and owner, from the same sender, the owner, or a manager.
           const [earliest] = recorded;
@@ -306,11 +419,11 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             if (earliest.kind !== body.kind || earliest.ownerTenantUserId !== owner) {
               throw problems.invalid("This deletion was recorded for other entries.");
             }
-            if (
-              earliest.senderTenantUserId !== access.tenantUserId &&
-              owner !== access.tenantUserId
-            ) {
-              await requirePermission(c, DISCARD_OTHERS_PERMISSION);
+            // A first stage recorded since the check above: the device sends again.
+            if (needsManager(earliest) && !asManager) {
+              throw problems.conflict(
+                "Another stage of this deletion arrived first; send it again.",
+              );
             }
           }
           if (recorded.some((r) => r.stage === body.stage)) return { replay: true };

@@ -952,13 +952,15 @@ describe("hazard HZ-014 hazard HZ-016 an urgent alert's fallback order, and the 
    * One organisation per case: the person lives at "home"; "elsewhere" is another home. A team
    * leader is the nurse in charge (`nurseInCharge`); `blind` gives their role a scope of assigned
    * people only, so they cannot open the person's record. "holder" is a role carrying
-   * care.plan.write at the home.
+   * care.plan.write at the home. `alsoFinanceViewer` adds an organisation-wide role carrying only
+   * finance.reporting.read, which never lets anyone open a record (ADR-0071).
    */
   type Member = {
     readonly name: string;
     readonly role: "team_leader" | "registered_manager" | "holder";
     readonly at: "home" | "elsewhere" | "organisation";
     readonly blind?: boolean;
+    readonly alsoFinanceViewer?: boolean;
     readonly status?: "active" | "suspended" | "left";
     readonly validFrom?: string;
     readonly validTo?: string;
@@ -1063,6 +1065,15 @@ describe("hazard HZ-014 hazard HZ-016 an urgent alert's fallback order, and the 
       route: "no_one",
       told: [],
     },
+    {
+      name: "(g) hazard HZ-011 a role elsewhere in the organisation that cannot open records never lets a nurse in charge see the person (ADR-0071)",
+      members: [
+        { ...blindNurse, alsoFinanceViewer: true },
+        { name: "holder", role: "holder", at: "home" },
+      ],
+      route: "fallback",
+      told: ["holder"],
+    },
   ];
 
   let pool: pg.Pool;
@@ -1084,6 +1095,7 @@ describe("hazard HZ-014 hazard HZ-016 an urgent alert's fallback order, and the 
       team_leader: id("8004", 1),
       registered_manager: id("8004", 2),
       holder: id("8004", 3),
+      finance_viewer: id("8004", 4),
     };
     // A blind nurse in charge is a team leader whose role sees assigned people only (none here).
     const nurseScope = members.some((m) => m.blind) ? "assigned" : "location";
@@ -1111,10 +1123,17 @@ describe("hazard HZ-014 hazard HZ-016 an urgent alert's fallback order, and the 
       );
       await client.query(
         `INSERT INTO role (id, key, name, scope_kind, permissions) VALUES
-             ($1, 'team_leader', 'Team leader', $4, '{care.note.read,care.note.write}'),
+             ($1, 'team_leader', 'Team leader', $4, '{people.person.read,care.note.read,care.note.write}'),
              ($2, 'registered_manager', 'Registered Manager', 'location', '{people.person.read,care.plan.write}'),
-             ($3, 'care_coordinator', 'Care coordinator', 'location', '{people.person.read,care.plan.write}')`,
-        [roles.team_leader, roles.registered_manager, roles.holder, nurseScope],
+             ($3, 'care_coordinator', 'Care coordinator', 'location', '{people.person.read,care.plan.write}'),
+             ($5, 'finance_viewer', 'Finance viewer', 'tenant', '{finance.reporting.read}')`,
+        [
+          roles.team_leader,
+          roles.registered_manager,
+          roles.holder,
+          nurseScope,
+          roles.finance_viewer,
+        ],
       );
       for (const [i, member] of members.entries()) {
         await client.query(
@@ -1128,16 +1147,24 @@ describe("hazard HZ-014 hazard HZ-016 an urgent alert's fallback order, and the 
         );
         const roleId = roles[member.role];
         await client.query(
-          `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, valid_from, valid_to)
-             VALUES ($1, $2, $3, $4, $5)`,
+          `INSERT INTO role_assignment
+             (tenant_user_id, role_id, location_id, valid_from, valid_to, organisation_wide)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
           [
             memberId(i),
             roleId,
             member.at === "organisation" ? null : member.at === "home" ? home : elsewhere,
             member.validFrom ?? hoursFromNow(-24),
             member.validTo ?? null,
+            member.at === "organisation",
           ],
         );
+        if (member.alsoFinanceViewer) {
+          await client.query(
+            "INSERT INTO role_assignment (tenant_user_id, role_id, valid_from) VALUES ($1, $2, $3)",
+            [memberId(i), roles.finance_viewer, hoursFromNow(-24)],
+          );
+        }
       }
       await client.query("COMMIT");
     } finally {
@@ -1506,8 +1533,9 @@ describe("hazard HZ-012 hazard HZ-040 escalation links and coded reasons follow 
     const ids = await asDemoTenant((c) =>
       c
         .query<{ id: string }>(
-          `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, reason)
-           SELECT $1, id, CASE WHEN key = ANY($3) THEN $2::uuid END, 'Test'
+          `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, reason,
+             organisation_wide)
+           SELECT $1, id, CASE WHEN key = ANY($3) THEN $2::uuid END, 'Test', NOT (key = ANY($3))
            FROM role WHERE key = ANY($4) AND tenant_id = $5
            RETURNING id`,
           [DEMO.users.manager.id, LODGE.locationId, atLodge, roles, DEMO.tenantId],

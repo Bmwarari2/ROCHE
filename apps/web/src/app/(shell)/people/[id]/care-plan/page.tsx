@@ -7,11 +7,12 @@ import { CarePlanView } from "@/components/care/CarePlanView";
 import { NoAccess } from "@/components/care/NoAccess";
 import { Notice } from "@/components/care/Notice";
 import { PlanStatus } from "@/components/care/PlanStatus";
+import { ReadOnlyNotice } from "@/components/care/ReadOnlyNotice";
 import { RecordFrame } from "@/components/care/RecordFrame";
 import { StartDraftButton } from "@/components/care/StartDraftButton";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { planVersions } from "@/lib/care-plan";
-import { can, tabHref } from "@/lib/care-record";
+import { can, tabHref, writeAccess } from "@/lib/care-record";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
@@ -60,7 +61,8 @@ async function CarePlanTab({
       )
     : null;
   const names = personNames(person);
-  const canWrite = can(me.permissions, "care.plan.write");
+  // Start or revise a plan only where care.plan.write reaches the person (review round 3).
+  const { canWrite, readOnlyNotice } = writeAccess(person, me.permissions, "care.plan.write");
   const published = (await searchParams).published === "1";
 
   return (
@@ -96,6 +98,8 @@ async function CarePlanTab({
           personId={id}
           label={active ? t("care.plan.revise") : t("care.plan.start")}
         />
+      ) : readOnlyNotice ? (
+        <ReadOnlyNotice text={t(readOnlyNotice)} />
       ) : null}
 
       <section aria-labelledby="plan-in-use" className="flex flex-col gap-4">

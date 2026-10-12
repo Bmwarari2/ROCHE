@@ -10,14 +10,17 @@ import { incident, incidentPerson, statutoryNotification, type Transaction } fro
 import {
   CLASSIFIER_QUESTIONS,
   type ClassifierQuestionKey,
+  can,
   NOTIFICATION_KINDS,
   type NotificationStatus,
   notificationClockState,
+  type Permission,
   type StatutoryNotificationKind,
+  scopeFor,
 } from "@harbour/domain";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
-import type { TenantAccess } from "../http/context";
-import { problems } from "../http/problem";
+import { inScopeOf, type TenantAccess } from "../http/context";
+import { HttpProblem, problems } from "../http/problem";
 import { iso } from "./care-shared";
 
 /**
@@ -273,10 +276,40 @@ export async function incidentSummaries(
   );
 }
 
-/** Whether the reader may change the incident (they raised it, or they manage incidents). */
-export function mayChange(access: TenantAccess, row: IncidentRow): boolean {
-  return (
-    row.raisedBy === access.tenantUserId ||
-    access.effective.permissions.has("safety.incident.manage")
-  );
+const MANAGE: Permission = "safety.incident.manage";
+
+/**
+ * Whether the reader manages incidents where this one is: they hold `safety.incident.manage` and
+ * its scope shows the incident whole, every one of its people (ADR-0071; ADR-0033). Holding it at
+ * another home never counts.
+ */
+export async function managesIncident(
+  tx: Transaction,
+  access: TenantAccess,
+  incidentId: string,
+): Promise<boolean> {
+  if (!can(access.effective, MANAGE)) return false;
+  return inScopeOf(tx, scopeFor(access.effective, MANAGE), async () => {
+    try {
+      return !(await readIncident(tx, incidentId)).restricted;
+    } catch (error) {
+      if (error instanceof HttpProblem && error.status === 404) return false;
+      throw error;
+    }
+  });
+}
+
+/** Whether the reader manages incidents at a location (a new incident there, ADR-0071). */
+export function managesAt(access: TenantAccess, locationId: string): boolean {
+  const { scope, locationIds } = scopeFor(access.effective, MANAGE);
+  return scope === "tenant" || (scope === "locations" && locationIds.includes(locationId));
+}
+
+/** Whether the reader may change the incident (they raised it, or they manage incidents there). */
+export async function mayChange(
+  tx: Transaction,
+  access: TenantAccess,
+  row: IncidentRow,
+): Promise<boolean> {
+  return row.raisedBy === access.tenantUserId || managesIncident(tx, access, row.id);
 }

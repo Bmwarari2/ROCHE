@@ -4,8 +4,6 @@ import {
   location,
   notification,
   person,
-  role,
-  roleAssignment,
   type Transaction,
 } from "@harbour/db";
 import {
@@ -20,6 +18,7 @@ import { and, eq, gte, isNull, lt } from "drizzle-orm";
 import { publish } from "../outbox";
 import { registeredManagersAt } from "./people";
 import { rateNumber } from "./rates";
+import { roleHolders } from "./role-holders";
 import { toJson } from "./safety";
 
 /**
@@ -30,22 +29,19 @@ import { toJson } from "./safety";
  * alone, so the job can run every day and catch up after a missed Monday.
  */
 
+/**
+ * A break-glass alert no one active could be sent (ADR-0071 review round 4): audited as the
+ * system with a coded reason, and counted in the operator's daily unrouted signal.
+ */
+export const BREAK_GLASS_ALERT_UNROUTED_ACTION = "people.break_glass_alert.unrouted";
+
 /** The data protection lead: holders of the quality and compliance lead role (human action H-80). */
 export const DATA_PROTECTION_LEAD_ROLES = ["quality_lead"] as const;
 
-async function dataProtectionLeads(tx: Transaction): Promise<string[]> {
-  const rows = await tx
-    .selectDistinct({ id: roleAssignment.tenantUserId })
-    .from(roleAssignment)
-    .innerJoin(role, eq(role.id, roleAssignment.roleId))
-    .where(
-      and(
-        eq(role.key, DATA_PROTECTION_LEAD_ROLES[0]),
-        isNull(roleAssignment.deletedAt),
-        isNull(role.archivedAt),
-      ),
-    );
-  return rows.map((r) => r.id);
+async function dataProtectionLeads(tx: Transaction, now: Date): Promise<string[]> {
+  // A role in force, on the staff, anywhere (ADR-0071 review round 2), as for the alert when a
+  // record is opened by break-glass.
+  return roleHolders(tx, DATA_PROTECTION_LEAD_ROLES, null, now);
 }
 
 export async function eventsInWeek(
@@ -81,7 +77,7 @@ export async function generateBreakGlassReports(
     .select({ id: location.id })
     .from(location)
     .where(isNull(location.deletedAt));
-  const leads = await dataProtectionLeads(tx);
+  const leads = await dataProtectionLeads(tx, now);
   let stored = 0;
   for (const { id: locationId } of locations) {
     const report = aggregate(
@@ -103,7 +99,7 @@ export async function generateBreakGlassReports(
       .returning({ id: breakGlassWeeklyReport.id });
     if (!inserted) continue;
     stored++;
-    const recipients = new Set([...(await registeredManagersAt(tx, locationId)), ...leads]);
+    const recipients = new Set([...(await registeredManagersAt(tx, locationId, now)), ...leads]);
     for (const recipient of recipients) {
       await tx
         .insert(notification)

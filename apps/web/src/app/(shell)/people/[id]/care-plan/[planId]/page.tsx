@@ -8,11 +8,12 @@ import { NoAccess } from "@/components/care/NoAccess";
 import { Notice } from "@/components/care/Notice";
 import { PlanStatus } from "@/components/care/PlanStatus";
 import { PublishPlan } from "@/components/care/PublishPlan";
+import { ReadOnlyNotice } from "@/components/care/ReadOnlyNotice";
 import { RecordFrame } from "@/components/care/RecordFrame";
 import { SectionEditor } from "@/components/care/SectionEditor";
 import { getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { PCSP_DOMAINS, planVersions } from "@/lib/care-plan";
-import { can, tabHref } from "@/lib/care-record";
+import { can, tabHref, writeAccess } from "@/lib/care-record";
 import { isUuid } from "@/lib/context-cookies";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -53,7 +54,8 @@ async function CarePlanVersionTab({ params }: { readonly params: Params }) {
   );
   const active = list ? planVersions(list.items).active : null;
   const names = personNames(person);
-  const canWrite = can(me.permissions, "care.plan.write");
+  // Edit or publish a draft only where care.plan.write reaches the person (review round 3).
+  const { canWrite, readOnlyNotice } = writeAccess(person, me.permissions, "care.plan.write");
 
   const inUseLink =
     active && active.id !== plan.id ? (
@@ -92,6 +94,9 @@ async function CarePlanVersionTab({ params }: { readonly params: Params }) {
         </Notice>
       ) : null}
 
+      {plan.status === "draft" && readOnlyNotice ? (
+        <ReadOnlyNotice text={t(readOnlyNotice)} />
+      ) : null}
       {plan.status === "draft" && canWrite ? (
         <section aria-labelledby="edit-draft" className="flex flex-col gap-4">
           <div className="flex flex-wrap items-start justify-between gap-4">

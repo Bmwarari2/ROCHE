@@ -67,6 +67,25 @@ export const PersonSummary = z
     /** When the current status began (for a discharge or death, when the person left or died). */
     statusChangedAt: isoDateTime,
     version: z.number().int(),
+    /**
+     * What the caller may do about this person, on `GET /v1/people/{id}` only (ADR-0071 review
+     * rounds 2 and 3, C2-M2 and C3-M1): `reaching`, every permission the caller may use now whose
+     * scope reaches the person without break-glass, sorted, so each tab of the record offers a
+     * form only where its write permission is listed; `recordCare` when care.note.write is among
+     * them (notes, charts, body map marks, activities and visits), `editCarePlan` when
+     * care.plan.write is (chart settings and the care profile); and why a write the caller holds
+     * may not be listed: `break_glass` when the record is open to them only by break-glass,
+     * `scope` when their roles reach the person for reading only, null when they may record care.
+     * There is no two-step sign-in reason: a session without it cannot read the person at all.
+     */
+    access: z
+      .object({
+        reaching: z.array(z.string()),
+        recordCare: z.boolean(),
+        editCarePlan: z.boolean(),
+        readOnlyReason: z.enum(["break_glass", "scope"]).nullable(),
+      })
+      .optional(),
   })
   .meta({ id: "PersonSummary" });
 export type PersonSummary = z.infer<typeof PersonSummary>;

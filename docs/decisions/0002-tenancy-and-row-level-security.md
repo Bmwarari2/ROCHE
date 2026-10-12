@@ -46,7 +46,9 @@ Chosen option 4, implemented in `packages/db/drizzle/0000_foundation.sql` and `0
 
 The API runs every database access inside `withRequestContext` (`packages/db/src/client.ts`), which
 sets transaction-local settings: `app.tenant_id`, `app.user_id` (tenant user), `app.scope`
-(`tenant`, `locations`, `assigned`, `none`) and `app.location_ids`. Helper functions in the `app`
+(`tenant`, `locations`, `assigned`, `none`) and `app.location_ids`. Since
+[ADR-0071](0071-data-scope-is-per-permission.md) the scope is that of the permission the request
+uses (the narrowest of several), never the widest of the user's roles. Helper functions in the `app`
 schema read them, treating empty values as NULL; a malformed UUID raises an error. Settings vanish at
 commit, so a pooled connection never carries one request's tenant into the next (tested).
 
@@ -141,4 +143,6 @@ widening these policies.
 ## More information
 
 - Postgres row security: https://www.postgresql.org/docs/current/ddl-rowsecurity.html
+- [ADR-0071](0071-data-scope-is-per-permission.md): data scope is per permission; the request
+  context carries the scope of the permission the request uses.
 - Hazard HZ-011 in [the hazard log](../clinical-safety/hazard-log.md).

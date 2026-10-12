@@ -17,8 +17,6 @@ import {
   propertyItem,
   rateTable,
   reviewRecord,
-  role,
-  roleAssignment,
   room,
   sharingDecision,
   type Transaction,
@@ -87,6 +85,7 @@ import {
 } from "./care";
 import { bringPlanReviewForward } from "./care-planning";
 import { bankHolidays, rateNumber } from "./rates";
+import { roleHolders } from "./role-holders";
 import { withTenantWideScope } from "./safety";
 import { materialiseSeries, seriesRoundTimes } from "./tasks";
 import { moveWorkflow, startWorkflow, WorkflowMoveRefused } from "./workflow";
@@ -1851,21 +1850,14 @@ export const PEOPLE_REVIEW_TASKS = {
 } as const;
 
 /** Registered Managers at a location (tenant-wide ones too); the owner when there is none. */
-export async function registeredManagersAt(tx: Transaction, locationId: string): Promise<string[]> {
-  const holders = (keys: readonly string[]) =>
-    tx
-      .selectDistinct({ id: roleAssignment.tenantUserId })
-      .from(roleAssignment)
-      .innerJoin(role, eq(role.id, roleAssignment.roleId))
-      .where(
-        and(
-          inArray(role.key, [...keys]),
-          isNull(roleAssignment.deletedAt),
-          or(isNull(roleAssignment.locationId), eq(roleAssignment.locationId, locationId)),
-        ),
-      );
-  const managers = await holders(["registered_manager"]);
-  return (managers.length > 0 ? managers : await holders(["owner"])).map((m) => m.id);
+export async function registeredManagersAt(
+  tx: Transaction,
+  locationId: string,
+  now: Date = new Date(),
+): Promise<string[]> {
+  // A role in force, on the staff, reaching the location (ADR-0071 review round 2).
+  const managers = await roleHolders(tx, ["registered_manager"], [locationId], now);
+  return managers.length > 0 ? managers : roleHolders(tx, ["owner"], [locationId], now);
 }
 
 /**

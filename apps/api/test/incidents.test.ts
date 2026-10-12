@@ -12,7 +12,7 @@ import type {
   TaskList,
 } from "@harbour/contracts";
 import { ClassifierQuestionKey, IncidentType, StatutoryNotificationKind } from "@harbour/contracts";
-import { createDatabase, createPool } from "@harbour/db";
+import { createDatabase, createPool, withRequestContext } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
 import {
   CLASSIFIER_QUESTION_KEYS,
@@ -26,10 +26,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   detectOutbreaks,
   escalateStatutoryNotifications,
+  reportUnroutedDaily,
   runEscalations,
   type TaskDeps,
+  UNROUTED_ACTIONS,
 } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
+import { submitHolders } from "../src/services/safety";
 import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 
 /**
@@ -753,12 +756,17 @@ describe("statutory notifications: clocks, step-up and escalation", () => {
       status: "not_required",
       notRequiredReason: reason,
     });
-    const audit = await json<AuditList>(
-      await as("manager", `/v1/audit?resourceType=statutory_notification&resourceId=${police?.id}`),
-    );
-    expect(audit.items.find((a) => a.action === "safety.notification.not_required")?.reason).toBe(
-      reason,
-    );
+    const trail = (user: "manager" | "quality") =>
+      as(user, `/v1/audit?resourceType=statutory_notification&resourceId=${police?.id}`).then((r) =>
+        json<AuditList>(r),
+      );
+    // The reason is audited; only the organisation's view of the trail shows it (ADR-0071 review
+    // round 1, S-M3): the manager, who holds platform.audit.read at one home, sees their own event
+    // without it.
+    const notRequired = (list: AuditList) =>
+      list.items.find((a) => a.action === "safety.notification.not_required");
+    expect(notRequired(await trail("quality"))?.reason).toBe(reason);
+    expect(notRequired(await trail("manager"))).toMatchObject({ reason: null });
   });
 });
 
@@ -948,5 +956,92 @@ describe("audit", () => {
     expect(text).not.toContain("Eve Example");
     expect(text).not.toContain("Found on the floor");
     expect(audit.chainIntact).toBe(true);
+  });
+});
+
+describe("hazard HZ-013 hazard HZ-073 an overdue statutory notification no active member of staff can submit (ADR-0071 review round 5, C5-M3)", () => {
+  // An invented home, Harbour Quay, whose only Registered Manager, Uma, has been invited but has
+  // not signed in; the owner, who holds the permission across the organisation, is suspended.
+  const UMA = "0194d000-0000-7000-8000-0000000003fb";
+  const QUAY = "0194d000-0000-7000-8000-0000000001f7";
+  const context = {
+    tenantId: DEMO.tenantId,
+    userId: null,
+    scope: "tenant" as const,
+    locationIds: [],
+  };
+  const holdersAtQuay = () =>
+    withRequestContext(deps.appDb, context, (tx) => submitHolders(tx, QUAY, new Date()));
+  const setStatus = (id: string, status: string) =>
+    asDemoTenant((c) => c.query("UPDATE tenant_user SET status = $2 WHERE id = $1", [id, status]));
+
+  it("tells only active staff, audits the gap once a day with a coded reason, and counts it in the daily signal", async () => {
+    const notificationId = await asDemoTenant(async (c) => {
+      await c.query("INSERT INTO location (id, name) VALUES ($1, 'Harbour Quay')", [QUAY]);
+      await c.query(
+        `INSERT INTO tenant_user (id, display_name, email, status)
+         VALUES ($1, 'Uma Quay', 'uma.quay@example.invalid', 'invited')`,
+        [UMA],
+      );
+      await c.query(
+        `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, valid_from)
+         SELECT $1, id, $2, now() - interval '30 days' FROM role WHERE key = 'registered_manager'`,
+        [UMA, QUAY],
+      );
+      const { rows } = await c.query<{ id: string }>(
+        `INSERT INTO statutory_notification (location_id, source_key, kind, status, due_at,
+           retention_class)
+         VALUES ($1, 'test:quay-service-disruption', 'cqc_reg18_service_disruption', 'draft',
+                 now() - interval '1 hour', 'serious_incident')
+         RETURNING id`,
+        [QUAY],
+      );
+      return rows[0]?.id ?? "";
+    });
+    const state = () =>
+      asDemoTenant(async (c) => {
+        const told = await c.query<{ recipient: string }>(
+          `SELECT recipient_tenant_user_id AS recipient FROM notification
+           WHERE source_type = 'statutory_notification' AND source_id = $1`,
+          [notificationId],
+        );
+        const audited = await c.query<{ reason: string; scope: Record<string, unknown> }>(
+          `SELECT reason, scope FROM audit_event
+           WHERE action = 'safety.notification.unrouted' AND resource_id = $1`,
+          [notificationId],
+        );
+        return { told: told.rows.map((r) => r.recipient), audited: audited.rows };
+      });
+
+    await setStatus(DEMO.users.owner.id, "suspended");
+    try {
+      // Uma holds the permission at the home but is only invited: she is not told.
+      expect(await holdersAtQuay()).toEqual([]);
+      await escalateStatutoryNotifications(deps);
+      await escalateStatutoryNotifications(deps, new Date(Date.now() + HOUR));
+      const unrouted = await state();
+      expect(unrouted.told).toEqual([]);
+      // Audited once in the day, as the system, with a coded reason and opaque ids only.
+      expect(unrouted.audited).toEqual([
+        {
+          reason: "no_active_submitter",
+          scope: expect.objectContaining({ locationId: QUAY, reasonCode: "no_active_submitter" }),
+        },
+      ]);
+      expect(UNROUTED_ACTIONS).toContain("safety.notification.unrouted");
+      const reported = await reportUnroutedDaily(deps);
+      expect(reported.get(DEMO.tenantId)?.["safety.notification.unrouted"]).toBeGreaterThanOrEqual(
+        1,
+      );
+      // Uma signs in: she alone is told, and the gap is not audited again.
+      await setStatus(UMA, "active");
+      expect(await holdersAtQuay()).toEqual([UMA]);
+      await escalateStatutoryNotifications(deps);
+      const routed = await state();
+      expect(routed.told).toEqual([UMA]);
+      expect(routed.audited).toHaveLength(1);
+    } finally {
+      await setStatus(DEMO.users.owner.id, "active");
+    }
   });
 });

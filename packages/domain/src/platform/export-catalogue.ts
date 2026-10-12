@@ -293,6 +293,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       tenant_user_id: "exported",
       permissions: { description: "Permissions granted (module.resource.action)." },
       location_id: "exported",
+      organisation_wide: { description: "Whether the grant reaches the whole organisation." },
       valid_from: "exported",
       valid_to: "exported",
       reason: { description: "Why the grant was given." },
@@ -3365,6 +3366,9 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       tenant_user_id: "exported",
       role_id: "exported",
       location_id: "exported",
+      organisation_wide: {
+        description: "Whether a location role is held across the whole organisation.",
+      },
       valid_from: "exported",
       valid_to: "exported",
       reason: { description: "Why the role was assigned." },

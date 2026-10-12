@@ -6,10 +6,19 @@ import { ChartEntryForm } from "@/components/care/ChartEntryForm";
 import { ChartSettingsForm } from "@/components/care/ChartSettingsForm";
 import { NoAccess } from "@/components/care/NoAccess";
 import { ObservationList } from "@/components/care/ObservationList";
+import { ReadOnlyNotice } from "@/components/care/ReadOnlyNotice";
 import { RecordFrame } from "@/components/care/RecordFrame";
 import { WindowNote } from "@/components/care/WindowNote";
 import { getShellContext, tenantApi } from "@/lib/api";
-import { can, readingWindow, tabHref, windowStart } from "@/lib/care-record";
+import {
+  can,
+  chartsNotice,
+  mayEditCarePlan,
+  readingWindow,
+  recordCareAccess,
+  tabHref,
+  windowStart,
+} from "@/lib/care-record";
 import { CHARTS, type ChartKind, fluidDayView, isChart } from "@/lib/charts";
 import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -101,8 +110,12 @@ async function ChartsTab({
   const names = personNames(person);
   const fluidView = fluidDayView(fluid, t);
   const dateLabel = formatDate(fluid.date) ?? fluid.date;
-  const canWrite = can(me.permissions, "care.note.write");
-  const canSetUp = can(me.permissions, "care.plan.write") && profile !== null;
+  // The form only where the viewer's care.note.write reaches the person (review round 2, C2-M2).
+  const { canRecord: canWrite } = recordCareAccess(person, me.permissions);
+  const canSetUp = mayEditCarePlan(person, me.permissions) && profile !== null;
+  // Why entries cannot be recorded, scoped to entries above chart settings the viewer can still
+  // change, and why the settings are hidden when they cannot (review rounds 4 and 5).
+  const notice = chartsNotice(person, me.permissions);
 
   return (
     <>
@@ -193,6 +206,7 @@ async function ChartsTab({
         }))}
       />
 
+      {notice ? <ReadOnlyNotice text={t(notice)} /> : null}
       {canWrite ? (
         <Card as="section" title={t("care.charts.record.title", { chart })} headingLevel={3}>
           <ChartEntryForm

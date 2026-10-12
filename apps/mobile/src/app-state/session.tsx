@@ -30,6 +30,7 @@ import {
 import { DB_ID_ITEM } from "../security/db-key";
 import { flushPendingReport } from "../sync/device-report";
 import { CARE_ACCESS_PERMISSION } from "../sync/session-signals";
+import { clearWriteScope } from "../sync/write-scope-store";
 import { admitSignIn, type HeldWork, loadHeldMarker, serialiseHeldWork } from "./held-work";
 import { type AppMode, parseAppMode } from "./preferences-model";
 
@@ -196,6 +197,7 @@ export function SessionProvider({ children }: { readonly children: ReactNode }) 
       deletePlain(SESSION_TOKEN_ITEM),
       deletePlain(ME_ITEM),
       deletePlain(MODE_ITEM),
+      clearWriteScope(),
     ]);
     setToken(null);
     setMe(null);
@@ -206,8 +208,10 @@ export function SessionProvider({ children }: { readonly children: ReactNode }) 
 
   const holdSession = useCallback(async (next: HeldWork, message?: string) => {
     await writePlain(HELD_WORK_ITEM, serialiseHeldWork(next));
-    // The mode is kept so the owner goes straight back to Care mode after signing in again.
-    await Promise.all([deletePlain(SESSION_TOKEN_ITEM), deletePlain(ME_ITEM)]);
+    // The mode is kept so the owner goes straight back to Care mode after signing in again; where
+    // the ended session might record is not, so the next person never inherits it (review
+    // round 3).
+    await Promise.all([deletePlain(SESSION_TOKEN_ITEM), deletePlain(ME_ITEM), clearWriteScope()]);
     setHeld(next);
     setToken(null);
     setMe(null);

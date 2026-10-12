@@ -3,11 +3,19 @@ import type { Metadata } from "next";
 import { ActivityForm } from "@/components/care/ActivityForm";
 import { EntryBadges } from "@/components/care/EntryBadges";
 import { NoAccess } from "@/components/care/NoAccess";
+import { ReadOnlyNotice } from "@/components/care/ReadOnlyNotice";
 import { RecordFrame } from "@/components/care/RecordFrame";
 import { VisitForm } from "@/components/care/VisitForm";
 import { WindowNote } from "@/components/care/WindowNote";
 import { getShellContext, tenantApi } from "@/lib/api";
-import { can, entryAuthor, readingWindow, tabHref, windowStart } from "@/lib/care-record";
+import {
+  can,
+  entryAuthor,
+  readingWindow,
+  tabHref,
+  windowStart,
+  writeAccess,
+} from "@/lib/care-record";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
@@ -53,7 +61,8 @@ async function ActivitiesTab({
   ]);
   if (!activities || !visits) return <NoAccess />;
   const names = personNames(person);
-  const canWrite = can(me.permissions, "care.note.write");
+  // The forms only where the viewer's care.note.write reaches the person (review round 3, C3-M1).
+  const { canWrite, readOnlyNotice } = writeAccess(person, me.permissions, "care.note.write");
   const by = (recordedBy: string | null) =>
     t("care.entry.recordedBy", { who: entryAuthor(recordedBy, me.tenantUserId) });
 
@@ -66,6 +75,7 @@ async function ActivitiesTab({
         </p>
       </div>
       <WindowNote days={days} href={path} />
+      {readOnlyNotice ? <ReadOnlyNotice text={t(readOnlyNotice)} /> : null}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <section aria-labelledby="activities-list" className="flex min-w-0 flex-col gap-3">
           <h3 id="activities-list" className="m-0 text-intro font-semibold">

@@ -1,5 +1,5 @@
-# Alarms for the load balancer, ECS services and RDS, all sent to one KMS-encrypted SNS
-# topic. Alarm names and descriptions never include personal data.
+# Alarms for the load balancer, ECS services, RDS and the worker's own log lines, all sent to
+# one KMS-encrypted SNS topic. Alarm names and descriptions never include personal data.
 
 data "aws_caller_identity" "current" {}
 
@@ -265,3 +265,77 @@ resource "aws_cloudwatch_metric_alarm" "rds_replica_lag" {
   alarm_actions       = local.actions
   ok_actions          = local.actions
 }
+
+# ---------------------------------------------------------------------------------------------
+# Worker log lines (structured JSON from pino; ADR-0071 review round 5, C5-M1)
+# ---------------------------------------------------------------------------------------------
+
+locals {
+  worker_metric_namespace = "Harbour/${var.name_prefix}/worker"
+}
+
+# Once a day the worker writes one `escalation.unrouted.daily` line per organisation where safety
+# work reached no one who could act (an overdue task, an escalation chain step, an urgent review
+# or alert, a break-glass alert). Any such line alarms (docs/runbooks/on-call.md). The period is an
+# hour, not a day, so the alarm returns to OK within the hour after each daily run and every run
+# with a line notifies again: an organisation that stays unrouted for weeks never holds the alarm
+# in ALARM and hides another organisation's first line (review round 5 check, HZ-073).
+resource "aws_cloudwatch_log_metric_filter" "escalation_unrouted_daily" {
+  name           = "${var.name_prefix}-escalation-unrouted-daily"
+  log_group_name = var.worker_log_group_name
+  pattern        = "{ $.event = \"escalation.unrouted.daily\" }"
+
+  metric_transformation {
+    name      = "EscalationUnroutedDaily"
+    namespace = local.worker_metric_namespace
+    value     = "1"
+    unit      = "Count"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "escalation_unrouted_daily" {
+  alarm_name          = "${var.name_prefix}-escalation-unrouted"
+  alarm_description   = "Safety work in at least one organisation reached no one who could act (escalation.unrouted.daily). Tell the organisation the same working day: docs/runbooks/on-call.md."
+  namespace           = local.worker_metric_namespace
+  metric_name         = aws_cloudwatch_log_metric_filter.escalation_unrouted_daily.metric_transformation[0].name
+  statistic           = "Sum"
+  period              = 3600
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.actions
+  ok_actions          = local.actions
+}
+
+# Every worker job that throws writes one `worker.job.failed` line (the queue's name and the
+# error's kind only); pg-boss then retries it. Reminders, escalations and notification clocks may
+# be late while it fails (HZ-003, HZ-008, HZ-013).
+resource "aws_cloudwatch_log_metric_filter" "worker_job_failed" {
+  name           = "${var.name_prefix}-worker-job-failed"
+  log_group_name = var.worker_log_group_name
+  pattern        = "{ $.event = \"worker.job.failed\" }"
+
+  metric_transformation {
+    name      = "WorkerJobFailed"
+    namespace = local.worker_metric_namespace
+    value     = "1"
+    unit      = "Count"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "worker_job_failed" {
+  alarm_name          = "${var.name_prefix}-worker-job-failed"
+  alarm_description   = "A worker job failed (worker.job.failed): reminders, escalations or notification clocks may be late. See docs/runbooks/on-call.md."
+  namespace           = local.worker_metric_namespace
+  metric_name         = aws_cloudwatch_log_metric_filter.worker_job_failed.metric_transformation[0].name
+  statistic           = "Sum"
+  period              = var.worker_job_failure_period_seconds
+  evaluation_periods  = 1
+  threshold           = var.worker_job_failure_threshold
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.actions
+  ok_actions          = local.actions
+}
+
