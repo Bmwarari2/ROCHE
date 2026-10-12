@@ -1020,3 +1020,37 @@ Security found no high or medium; clinical safety found one medium (C4-M1), fixe
 `apps/api` 700, `packages/sync` 62, `apps/mobile` 890, `apps/web` 360, `packages/ui` 342,
 `packages/ui-native` 141, all passing locally (`pnpm turbo run test --force --concurrency=2` on
 `6517b9d`, 0 cached) and through `scripts/ci-local.sh`.
+
+## 2026-10-12: Data scope per permission, review round 5 (ADR-0071)
+
+Security found no high or medium; clinical safety found three mediums (C5-M1 to C5-M3), fixed
+with the lows on `fix/platform-scope-per-permission` as fast-forwards.
+
+- The operator's alarms are infrastructure (C5-M1): `infra/modules/observability` has CloudWatch
+  Logs metric filters on the worker's log group, `{ $.event = "escalation.unrouted.daily" }` (any
+  line in a day) and `{ $.event = "worker.job.failed" }` (one or more in 15 minutes), each with an
+  alarm to the alerts topic. Every worker job runs through `runJob`, which logs
+  `worker.job.failed` (queue, error kind, database code) and throws on. The stack test asserts
+  both alarms' wiring. Applying the Terraform is H-171.
+- Every organisation is escalated when one fails (C5-M2): the minute run, the hourly retry and the
+  daily report run through `eachTenant`; a test injects a failure in one organisation and sees the
+  next escalate, with `platform.job.tenant_failed` audited. The daily report counts 25 hours.
+- An overdue statutory notification no active member of staff can submit is audited
+  (`safety.notification.unrouted`, `no_active_submitter`) at most once a day and counted (C5-M3).
+- Lows: `access.mfaRequired` and its web line removed; the phone records about no one while its
+  write scope is unknown and says to sync again, and keystore failures fail closed; a sync task's
+  own assignee and a break-glass opener are not counted as told (`assignee_only`, `opener_only`);
+  the unrouted audit is deduplicated by reason; the hourly retry takes every unrouted task in
+  pages; a task about a person placed away from their home is refused (422); the charts tab's line
+  is about entries above settings the viewer can change; HZ-073's verification table names the
+  new tests.
+- Follow-ups in STATUS: a per-recipient summary for overdue tasks; paging overdue statutory
+  notifications; `materialiseTaskSeries` and `raiseCareReviews` through `eachTenant`.
+- Terraform (the workflow's static job, run locally with Terraform 1.16.5 and TFLint 0.64.0): fmt,
+  init and validate for dev, staging and prod, `terraform test` (7 runs) and TFLint for each
+  environment pass. Trivy's configuration scan was not run locally.
+
+**Tests**: `packages/domain` 4,069, `packages/db` 393, `packages/contracts` 34, `packages/i18n` 48,
+`apps/api` 710, `packages/sync` 62, `apps/mobile` 891, `apps/web` 360, `packages/ui` 342,
+`packages/ui-native` 141, all passing locally (`pnpm turbo run test --force` on `7077687`, 0
+cached) and through `scripts/ci-local.sh`.
