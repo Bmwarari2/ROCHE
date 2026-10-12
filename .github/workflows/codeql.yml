@@ -1,8 +1,11 @@
 name: codeql
 
-# Pull requests that change code, plus a weekly run over main (which also covers each merge).
+# Pull requests that change code, each merge to main (the baseline pull request alerts compare
+# against) and a weekly run over main.
 on:
   pull_request:
+  push:
+    branches: [main]
   schedule:
     - cron: "17 4 * * 1"
   workflow_dispatch:
@@ -48,9 +51,10 @@ jobs:
         if: steps.code.outputs.changed == 'true'
         with:
           category: "/language:javascript-typescript"
-          # Code scanning is not enabled on the repository yet (human action H-17), so results
-          # stay here: gate on high and critical findings and keep the SARIF as an artifact.
-          upload: never
+          # Results go to the Security tab as code-scanning alerts (H-17; the repository is public).
+          # A pull request from a fork or from Dependabot gets a read-only token, so its results
+          # stay in the artifact; the gate below runs either way.
+          upload: ${{ (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')) && 'always' || 'never' }}
           output: codeql-results
       - name: High and critical security findings fail the build
         if: steps.code.outputs.changed == 'true'
