@@ -69,7 +69,14 @@ export type IddsiComparison =
   | { readonly outcome: "no_prescribed_level" }
   | { readonly outcome: "match" }
   | { readonly outcome: "unsafe_mismatch"; readonly needsReason: true; readonly raisesAlert: true }
-  | { readonly outcome: "mismatch"; readonly needsReason: true; readonly raisesAlert: false };
+  | { readonly outcome: "mismatch"; readonly needsReason: true; readonly raisesAlert: false }
+  /**
+   * No level was recorded (a drink saved without its texture). Unsafe when a level is prescribed,
+   * because nobody can tell what texture was given (HZ-016).
+   */
+  | { readonly outcome: "level_not_recorded"; readonly raisesAlert: boolean }
+  /** The person's prescribed level is not an IDDSI level, so nothing can be compared with it. */
+  | { readonly outcome: "prescribed_unreadable"; readonly raisesAlert: true };
 
 /**
  * Compares a recorded level with the prescribed one. Food recorded at a higher (more solid) level,
@@ -92,12 +99,33 @@ export function compareIddsiLevels(
     : { outcome: "mismatch", needsReason: true, raisesAlert: false };
 }
 
+/**
+ * What happens to an entry the rules would refuse (HZ-016; clinical review C3 of #15):
+ * - `refuse`: the person recording it is there to put it right, as on the web form, which asks for
+ *   the level and any reason before it saves; the entry is refused with the reason.
+ * - `keep`: the entry was recorded on a device (offline, or waiting in its upload queue) and says
+ *   what was given; refusing it would take it off the chart and out of the day's fluid total. It
+ *   is kept with what is wrong flagged, and an unsafe one alerts the nurse in charge, so the record
+ *   of what was given is never lost. A level that is not an IDDSI level at all is refused either
+ *   way: it is not a record of a texture.
+ */
+export type IddsiProblemHandling = "refuse" | "keep";
+
+/** What was wrong with an entry kept under `keep`. */
+export type IddsiProblem = "level_not_recorded" | "reason_missing" | "prescribed_unreadable";
+
 export interface IddsiEntry {
   readonly kind: IddsiKind;
   readonly prescribed: string | null;
-  readonly recorded: string;
+  /**
+   * The level given. Null when none was recorded: a drink may be saved without a level only while
+   * no drink level is prescribed; food always needs one (care.md rule 6).
+   */
+  readonly recorded: string | null;
   /** The override reason staff typed; required for any mismatch. */
   readonly reason?: string | null;
+  /** Defaults to `refuse`. */
+  readonly onProblem?: IddsiProblemHandling;
 }
 
 export type IddsiEntryCheck =
@@ -105,13 +133,19 @@ export type IddsiEntryCheck =
       readonly ok: true;
       readonly comparison: IddsiComparison;
       readonly alertNurseInCharge: boolean;
+      /** Null when the entry is as the rules want it; otherwise what was wrong with it (`keep`). */
+      readonly problem: IddsiProblem | null;
     }
   | { readonly ok: false; readonly comparison: IddsiComparison | null; readonly message: string };
 
-/** Decides whether a food or drink chart entry can be saved (HZ-016). */
+/**
+ * Decides whether a food or drink chart entry can be saved, and what it raises (HZ-016): a level
+ * other than the prescribed one needs a reason, an unsafe one alerts the nurse in charge, and a
+ * drink needs its level whenever a drink level is prescribed.
+ */
 export function checkIddsiEntry(entry: IddsiEntry): IddsiEntryCheck {
-  const recorded = iddsiLevel(entry.kind, entry.recorded);
-  if (!recorded) {
+  const keep = entry.onProblem === "keep";
+  if (entry.recorded !== null && !iddsiLevel(entry.kind, entry.recorded)) {
     return {
       ok: false,
       comparison: null,
@@ -119,26 +153,73 @@ export function checkIddsiEntry(entry: IddsiEntry): IddsiEntryCheck {
     };
   }
   if (entry.prescribed !== null && !iddsiLevel(entry.kind, entry.prescribed)) {
-    return {
-      ok: false,
-      comparison: null,
-      message: `The prescribed ${entry.kind} level is not an IDDSI level. Ask the nurse in charge to correct it.`,
-    };
+    return keep
+      ? {
+          ok: true,
+          comparison: { outcome: "prescribed_unreadable", raisesAlert: true },
+          alertNurseInCharge: true,
+          problem: "prescribed_unreadable",
+        }
+      : {
+          ok: false,
+          comparison: null,
+          message: `The prescribed ${entry.kind} level is not an IDDSI level. Ask the nurse in charge to correct it.`,
+        };
   }
+  if (entry.recorded === null) return unrecordedLevel(entry.kind, entry.prescribed, keep);
   const comparison = compareIddsiLevels(entry.kind, entry.prescribed, entry.recorded);
   if (comparison.outcome === "match" || comparison.outcome === "no_prescribed_level") {
-    return { ok: true, comparison, alertNurseInCharge: false };
+    return { ok: true, comparison, alertNurseInCharge: false, problem: null };
   }
+  const unsafe = comparison.outcome === "unsafe_mismatch";
   if (!entry.reason?.trim()) {
+    if (keep) {
+      return { ok: true, comparison, alertNurseInCharge: unsafe, problem: "reason_missing" };
+    }
     const prescribed = describeIddsiLevel(entry.kind, entry.prescribed as string);
     return {
       ok: false,
       comparison,
-      message:
-        comparison.outcome === "unsafe_mismatch"
-          ? `This is not the prescribed ${entry.kind} level (${prescribed}) and may not be safe. Give an override reason.`
-          : `This is not the prescribed ${entry.kind} level (${prescribed}). Give a reason.`,
+      message: unsafe
+        ? `This is not the prescribed ${entry.kind} level (${prescribed}) and may not be safe. Give an override reason.`
+        : `This is not the prescribed ${entry.kind} level (${prescribed}). Give a reason.`,
     };
   }
-  return { ok: true, comparison, alertNurseInCharge: comparison.raisesAlert };
+  return { ok: true, comparison, alertNurseInCharge: unsafe, problem: null };
+}
+
+/**
+ * An entry with no level: a drink is as the chart allows while no drink level is prescribed; with
+ * one prescribed nobody can tell what texture was given, which is unsafe. Food always needs one.
+ */
+function unrecordedLevel(
+  kind: IddsiKind,
+  prescribed: string | null,
+  keep: boolean,
+): IddsiEntryCheck {
+  if (prescribed === null && kind === "drink") {
+    return {
+      ok: true,
+      comparison: { outcome: "no_prescribed_level" },
+      alertNurseInCharge: false,
+      problem: null,
+    };
+  }
+  const comparison = { outcome: "level_not_recorded", raisesAlert: prescribed !== null } as const;
+  if (keep) {
+    return {
+      ok: true,
+      comparison,
+      alertNurseInCharge: comparison.raisesAlert,
+      problem: "level_not_recorded",
+    };
+  }
+  return {
+    ok: false,
+    comparison,
+    message:
+      prescribed === null
+        ? `Choose the IDDSI ${kind} level given.`
+        : `${describeIddsiLevel(kind, prescribed)} is prescribed. Choose the IDDSI ${kind} level given.`,
+  };
 }
