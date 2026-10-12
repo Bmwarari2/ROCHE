@@ -56,6 +56,19 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   `POST /v1/me/sessions/{id}/revoke` and `POST /v1/me/sessions/revoke-others` sign devices out.
   Identity-level, so no organisation header. Session tokens reach only the mobile app (`Origin:
   harbour://`); browsers rely on the httpOnly cookie ([ADR-0030](../decisions/0030-web-session-and-browser-security.md)).
+- Care mode devices ([care.md](care.md) section 6, Device integrity): `device_binding` records
+  which member of staff has used which device (the PowerSync client id), first and last seen,
+  written by the sync token and device report routes in the system's view. `GET /v1/devices`
+  (`platform.device.read`) lists them; `POST /v1/devices/{deviceId}/revoke`
+  (`platform.device.revoke`, step-up) revokes a lost or withdrawn device with a coded reason,
+  audited. Owner, Registered Manager and deputy hold both; a location role sees and revokes only
+  devices used by staff working at its locations. A revoked device is refused with 403
+  `device_revoked` on the sync token and uploads, and wipes, keeping unsent entries under the hold
+  rules. Revoking a device does not end the member's sessions elsewhere (identity-level; the
+  admin session revoke is a Phase 0 follow-up).
+- Per-user limits (`PerUserQuota`, `RateLimiter` in `apps/api/src/http`) keep their recent hits in
+  Postgres (`request_quota`: one row per member and limit, updated under a row lock), so a limit
+  holds across API instances. A refusal is 429 with Retry-After.
 - Web: sign-in (password then TOTP, or a passkey), TOTP and passkey set-up and the device list are
   in `apps/web` (`/sign-in`, `/settings/security`).
 - Later: invitations and enrolment by email (Phase 1), admin revoke and idle timeouts per role
@@ -228,9 +241,11 @@ last year the calendar covers, no holiday is skipped, so a deadline can only fal
 ## Offline sync
 
 - Streams: `packages/sync/src/streams/sync-config.yaml`; claims: `sub`, `tenant_id`,
-  `location_ids`, `people_location_ids`; 15-minute ES256 tokens from `POST /v1/sync/token`, JWKS
-  at `GET /v1/sync/jwks`. Uploads (`POST /v1/sync/upload`) reject every table until modules add
-  writable tables (Phase 1).
+  `location_ids`, `people_location_ids`, `offline_days`; 15-minute ES256 tokens from `POST
+  /v1/sync/token`, JWKS at `GET /v1/sync/jwks`. The token route binds the device to the member
+  (`device_binding`) and refuses a revoked device (403 `device_revoked`). Uploads (`POST
+  /v1/sync/upload`) reject every table until modules add writable tables; care entries go to their
+  own routes ([care.md](care.md) section 6).
 
 ## Search, export, onboarding and DPIA (PLAT-013, PLAT-015, PLAT-018, PLAT-023)
 
@@ -248,4 +263,6 @@ Generated: [permissions.md](permissions.md).
 
 Audit events, record versions and break-glass records keep the `audit_event` class (see
 [retention.md](retention.md)); deliveries and inbound data are operational and follow the class of
-the record they relate to (retention engine, Phase 1).
+the record they relate to (retention engine, Phase 1). `device_binding` keeps the `audit_event`
+class; `request_quota` is operational (a row holds at most a day's hits and is overwritten in
+place).
