@@ -7,9 +7,28 @@ describe("schema bridge", () => {
     expect(AppSchema.toJSON()).toEqual(SharedSchema.toJSON());
   });
 
-  it("keeps sync_meta local-only and the synced tables synced", () => {
+  it("keeps bookkeeping and upload problems local-only and the synced tables synced", () => {
     const tables = Object.fromEntries(AppSchema.tables.map((t) => [t.name, t.localOnly]));
-    expect(tables).toEqual({ person: false, allergy: false, location: false, sync_meta: true });
+    expect(tables).toEqual({
+      person: false,
+      allergy: false,
+      location: false,
+      sync_meta: true,
+      person_care_profile: false,
+      care_plan: false,
+      care_plan_section: false,
+      care_plan_action: false,
+      risk_assessment: false,
+      assessment: false,
+      advance_care_record: false,
+      care_note: false,
+      observation: false,
+      body_map_mark: false,
+      activity_record: false,
+      visit_log: false,
+      upload_issue: true,
+      held_entry: true,
+    });
   });
 
   it("makes every table local-only for the demo database", () => {

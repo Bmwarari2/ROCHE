@@ -3583,17 +3583,20 @@ describe("slice 8 review, round 4: rounds, assignments, exits and return checks"
         headers: { "x-harbour-device": device },
         body: { category: "other", body: "A note.", occurredAt: ago(MIN) },
       });
-    const opaque = await json<CareNoteItem>(await send("tablet-7"));
+    // The device id is the PowerSync client id, a UUID (kept in lower case); nothing else is kept.
+    const opaque = await json<CareNoteItem>(await send("0193A000-0000-7000-8000-00000000D007"));
+    const token = await json<CareNoteItem>(await send("tablet-7"));
     const prose = await json<CareNoteItem>(await send("Ada Example's phone <script>"));
     const devices = await asDemoTenant((c) =>
       c.query<{ id: string; device_id: string | null }>(
         "SELECT id, device_id FROM care_note WHERE id = ANY ($1)",
-        [[opaque.id, prose.id]],
+        [[opaque.id, token.id, prose.id]],
       ),
     );
     expect(new Map(devices.rows.map((r) => [r.id, r.device_id]))).toEqual(
       new Map([
-        [opaque.id, "tablet-7"],
+        [opaque.id, "0193a000-0000-7000-8000-00000000d007"],
+        [token.id, null],
         [prose.id, null],
       ]),
     );

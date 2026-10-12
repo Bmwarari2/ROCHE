@@ -274,6 +274,23 @@ variable "waf_rate_limit_per_5_minutes" {
   default     = 5000
 }
 
+variable "waf_managed_rule_group_versions" {
+  description = "Static versions for the AWS managed rule groups in both web ACLs, by group name (for example AWSManagedRulesCommonRuleSet = \"Version_1.15\"). Required in prod for every group whose rules block with the edge_blocked body, so a new AWS default version cannot change what blocks without a review (security review round 5, S-L5). The values are read from the account with aws wafv2 list-available-managed-rule-group-versions (human action H-140)."
+  type        = map(string)
+  default     = {}
+}
+
+variable "waf_managed_rule_groups_unversioned" {
+  description = "AWS managed rule groups that block but cannot take a static version, by group name, each with the reason (for example, AWS publishes no versions for it). They are left out of the prod pin check, and nothing else is. Used only when the account shows the group has no versions (human action H-140)."
+  type        = map(string)
+  default     = {}
+
+  validation {
+    condition     = alltrue([for reason in values(var.waf_managed_rule_groups_unversioned) : length(trimspace(reason)) >= 10])
+    error_message = "Give each unversioned rule group a reason of at least 10 characters."
+  }
+}
+
 variable "alb_deletion_protection" {
   description = "Deletion protection on the load balancer."
   type        = bool

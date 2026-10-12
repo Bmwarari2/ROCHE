@@ -1,11 +1,15 @@
 name: codeql
 
+# Pull requests that change code, plus a weekly run over main (which also covers each merge).
 on:
   pull_request:
-  push:
-    branches: [main]
   schedule:
     - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -20,11 +24,28 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: code
+        name: Skip a change to documentation only
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          # The check still reports, so it can stay a required status check.
+          if [ -n "$BASE" ] && git cat-file -e "$BASE^{commit}" 2>/dev/null \
+            && ! git diff --name-only "$BASE" HEAD | grep -qvE '^(docs/|.*\.md$)'; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Documentation only: no code to analyse."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: github/codeql-action/init@v3
+        if: steps.code.outputs.changed == 'true'
         with:
           languages: javascript-typescript
           queries: security-and-quality
       - uses: github/codeql-action/analyze@v3
+        if: steps.code.outputs.changed == 'true'
         with:
           category: "/language:javascript-typescript"
           # Code scanning is not enabled on the repository yet (human action H-17), so results
@@ -32,9 +53,10 @@ jobs:
           upload: never
           output: codeql-results
       - name: High and critical security findings fail the build
+        if: steps.code.outputs.changed == 'true'
         run: node scripts/check-sarif.mjs codeql-results
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && steps.code.outputs.changed == 'true'
         with:
           name: codeql-sarif
           path: codeql-results

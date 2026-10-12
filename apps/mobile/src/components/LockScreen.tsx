@@ -1,10 +1,11 @@
 import { Button, Text, useTheme } from "@harbour/ui-native";
 import LockKeyhole from "lucide-react-native/icons/lock-keyhole";
 import { useEffect, useRef } from "react";
-import { Alert, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSession } from "../app-state/session";
 import { useVault } from "../app-state/vault";
+import { SignOutControl } from "./SignOutControl";
 
 /**
  * Covers the whole app while it is locked (cold start and idle auto-lock). The first unlock after
@@ -23,23 +24,6 @@ export function LockScreen() {
     prompted.current = true;
     void vault.unlock();
   }, [vault.unlock]);
-
-  const confirmSignOut = () => {
-    Alert.alert(
-      "Sign out and remove data?",
-      "This removes all care records stored on this device. You will need to sign in again, online, to use Harbour.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Sign out",
-          style: "destructive",
-          onPress: () => {
-            void vault.signOutAndWipe();
-          },
-        },
-      ],
-    );
-  };
 
   return (
     <View
@@ -79,14 +63,7 @@ export function LockScreen() {
             fullWidth
             testID="unlock-button"
           />
-          <Button
-            label="Sign out"
-            variant="secondary"
-            onPress={confirmSignOut}
-            accessibilityHint="Removes all care records stored on this device"
-            fullWidth
-            testID="lock-sign-out"
-          />
+          <SignOutControl variant="secondary" testID="lock-sign-out" />
         </View>
       </SafeAreaView>
     </View>

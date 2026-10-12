@@ -17,6 +17,8 @@
     "e2e": "maestro test .maestro"
   },
   "dependencies": {
+    "@harbour/domain": "workspace:*",
+    "@harbour/i18n": "workspace:*",
     "@harbour/sync": "workspace:*",
     "@harbour/ui-native": "workspace:*",
     "@op-engineering/op-sqlite": "~18.2.5",
@@ -32,6 +34,7 @@
     "expo-linking": "~57.0.12",
     "expo-local-authentication": "~57.0.3",
     "expo-network": "~57.0.2",
+    "expo-notifications": "~57.0.22",
     "expo-router": "~57.0.25",
     "expo-screen-capture": "~57.0.4",
     "expo-secure-store": "~57.0.4",
@@ -48,8 +51,10 @@
   },
   "devDependencies": {
     "@harbour/config": "workspace:*",
+    "@harbour/contracts": "workspace:*",
     "@react-native/metro-config": "0.86.3",
     "@types/react": "~19.2.18",
+    "react-test-renderer": "19.2.3",
     "typescript": "~6.0.3",
     "vitest": "^4.1.11"
   },

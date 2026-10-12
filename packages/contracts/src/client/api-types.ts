@@ -11672,6 +11672,144 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/sync/discards": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record that a device deleted entries that never reached the server
+     * @description Writes an append-only audit event for one stage of a deletion (requested, deleted or failed): who deleted them, whose they were, the coded reason, how many and from which device (HZ-040). Anyone but the caller's own entries, deleted by the caller, needs a manager's permission. Each stage of an id is recorded once, and later stages must match the first (kind and owner) and come from its sender, the owner or a manager. Each person starts at most 20 deletion records a day. A deletion recorded as deleted closes the hold tasks of the device it names (or the sender's) when the sender owns the hold, raised its task or can act on it there, and listed entries already on the server are counted on one review task for the record.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SyncDiscard"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SyncDiscardResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/sync/device-report": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * A device's unsent work: counts and the oldest age, no personal data
+     * @description Writes an audit event with the device's queued, refused, held and blocked counts and the age of the oldest, so the server knows what a lost or wiped device held (HZ-006). Any member of the organisation may report (with MFA when their roles call for it), so a device whose Care mode access was withdrawn can still report its hold. A named owner counts only when they already have an event from the device (a sync token issued to it or a report sent from it); otherwise the claim is recorded and changes nothing. Times later than the server's are taken as the server's, and a hold's start is never earlier than the device's last report for it said, nor than the server first heard from the device. While anything waits, the device has a task for the Registered Manager at each location of its sync scope where the hold's owner or the reporter works, due when its hold escalates and never moved later; one closed in the last day is reopened, its escalation reset at most once a day. A report with nothing waiting closes them when it comes from the hold's owner, from whoever raised them or from a manager at one of their locations. Each reporter raises tasks for a few devices a day; past that, their holds join one task for that reporter, due at the earliest of them.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SyncDeviceReport"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/integrations": {
     parameters: {
       query?: never;
@@ -16548,6 +16686,56 @@ export interface components {
       };
       /** Format: date-time */
       deviceSentAt?: string;
+    };
+    SyncDiscardResult: {
+      /** Format: uuid */
+      id: string;
+      recorded: boolean;
+      replay: boolean;
+    };
+    /** @description A device deleted, or is about to delete, entries that never reached the server; recorded as an audit event */
+    SyncDiscard: {
+      /** Format: uuid */
+      id: string;
+      /** @enum {string} */
+      kind: "held_deleted" | "signed_out_with_unsent" | "refused_removed";
+      /** @enum {string} */
+      stage: "requested" | "deleted" | "failed";
+      /** @enum {string} */
+      reasonCode:
+        | "recorded_elsewhere"
+        | "entered_in_error"
+        | "staff_left"
+        | "nurse_in_charge_informed"
+        | "other";
+      /** Format: uuid */
+      ownerTenantUserId: string | null;
+      /** Format: uuid */
+      deletedByTenantUserId?: string | null;
+      entryIds: string[];
+      personIds: string[];
+      count: number | null;
+      /** Format: date-time */
+      discardedAt: string;
+      leftover?: ("file" | "key")[];
+      /** @enum {string} */
+      idsMissing?: "key_absent" | "key_invalid";
+      /** Format: uuid */
+      deviceId?: string;
+    };
+    SyncDeviceReport: {
+      unsent: number;
+      refused: number;
+      held: number;
+      blocked: number;
+      oldestAgeSeconds: number | null;
+      /** Format: date-time */
+      heldSince?: string | null;
+      /** Format: date-time */
+      reportedAt: string;
+      /** Format: uuid */
+      ownerTenantUserId?: string | null;
+      locationIds?: string[];
     };
     IntegrationConnection: {
       port: string;

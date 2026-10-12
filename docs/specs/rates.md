@@ -233,6 +233,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | childrens.reg44.visit_interval_months | 1 | months | 2000-01-01 | - | england | master prompt 19 Phase 7 (Reg 44 monthly visits) | master-prompt |
 | childrens.reg45.review_interval_months | 6 | months | 2000-01-01 | - | england | master prompt 19 Phase 7 (Reg 45 six-monthly reviews) | master-prompt |
 | mobile.offline_window_days | 7 | days | 2000-01-01 | - | all | master prompt 22, ADR-0011; tenant default | master-prompt |
+| mobile.held_entries_max_days | 7 | days | 2000-01-01 | - | all | Security review S2 of Care mode (care.md section 6); tenant default | to-verify |
 | mobile.auto_lock_seconds.personal | 120 | seconds | 2000-01-01 | - | all | master prompt 5.3, 17.2 | master-prompt |
 | mobile.auto_lock_seconds.shared | 30 | seconds | 2000-01-01 | - | all | master prompt 17.2, ADR-0011; tenant default | master-prompt |
 | mobile.auto_lock_seconds.shared_max | 120 | seconds | 2000-01-01 | - | all | master prompt 17.2 (configurable from 30 seconds to 2 minutes) | master-prompt |
@@ -312,6 +313,25 @@ literals, and tests assert against the table, not a literal (section 7, section 
   property and keys after a discharge, transfer or death. No statute sets one; the default mirrors
   the CMA deposit-return period (`cma.deposit_return_days`) so the two clocks agree. Tenant default
   (H-58); the escalation goes to the Registered Manager, it is not a legal deadline.
+- `mobile.held_entries_max_days` (7): how long a device holds entries that had not uploaded when the
+  session ended, encrypted and with nothing else from the care record, for their owner to sign in
+  again and send them, before the hold escalates to a manager (HZ-006, HZ-040; [care.md](care.md)
+  section 6). The device shows a final warning naming the count during the last day, then says a
+  manager must resolve the entries, with a local notification at each step. The server uses the
+  same figure: the Registered Manager's task for a held device falls due at the hold's start plus
+  this many days, and the task engine escalates it when overdue (clinical review round 4, H2).
+  Nothing is deleted when it runs out (security review round 3, M3): the entries stay until their owner sends them or the
+  owner or a manager deletes them with a recorded reason. One day until the device has read the
+  figure; the seed refuses a value outside 1 to 31 days. No statute sets it: it balances losing
+  care records against keeping personal data on a device whose session has ended. The default
+  matches the offline window. Tenant default, to be confirmed by the DPO with the CSO, with whether
+  clinical entries may ever be deleted automatically (H-124).
+- `sync.clock_drift_flag_minutes` (5) is also the tolerance for a typed event time on the phone: a
+  time later than the device clock by more than this is refused and never moved to an earlier day
+  (HZ-010, clinical review round 3 H1). The device reads and caches it, and allows no tolerance
+  until it has read the figure. `mobile.offline_window_days` is refused at seeding outside 1 to 31
+  days, and the token route uses a one-day window with an alert when it meets a bad value
+  (security review round 3, L3).
 - `downtime_pack.valid_hours` (36), `downtime.back_entry_due_hours` (24) and
   `downtime.duplicate_match_minutes` (10): policy defaults for the downtime pack
   ([operations.md](operations.md) rules 2, 10 and 14). A pack is in date for this many hours from

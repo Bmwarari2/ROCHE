@@ -36,10 +36,15 @@ export interface DeviceDataset {
   readonly tables: Record<string, Map<string, SqliteJsonRow>>;
 }
 
+/**
+ * `connection` is what the device sends as connection parameters (`connect({ params })`); the
+ * device controls it, so tests pass hostile values to prove it cannot widen the token's scope.
+ */
 export async function syncFor(
   hydrated: HydratedSyncConfig,
   source: SourceRows,
   claims: Partial<SyncTokenClaims>,
+  connection: Record<string, unknown> = {},
 ): Promise<DeviceDataset> {
   // Replication: assign every row to buckets and build the parameter lookup index.
   const bucketRows = new Map<string, { table: string; id: string; data: SqliteJsonRow }[]>();
@@ -58,7 +63,7 @@ export async function syncFor(
   // Connection: resolve the buckets this token may read.
   const request = new RequestParameters(
     { userIdJson: claims.sub ?? null, parsedPayload: { ...claims } },
-    {},
+    { ...connection },
   );
   const { querier, errors } = hydrated.getBucketParameterQuerier({
     globalParameters: request,

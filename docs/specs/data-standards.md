@@ -1,6 +1,6 @@
 # Data standards mapping
 
-**Status**: Phase 0 initial mapping (platform and people), extended in Phase 1 slice 4b (care planning). **Owner**: whoever changes a mapped field
+**Status**: Phase 0 initial mapping (platform and people), extended in Phase 1 slice 4b (care planning) and slice 10 (device copies). **Owner**: whoever changes a mapped field
 updates this file in the same PR (master prompt section 20, item 7).
 
 This document is the **contract for import and export**. The migration import wizard (PLAT-014) accepts
@@ -566,6 +566,90 @@ listed) and `entries` (entry kind, client id, device id, user id and times; opaq
 never clinical text). Field-level
 detail is in `packages/db/src/schema/`; purposes and lawful bases are in
 [records of processing](../compliance/records-of-processing.md).
+
+## Device copies (offline sync, not part of the export)
+
+The mobile app keeps a subset of the care tables on the device (Phase 1 slice 10, [care.md](care.md)
+section 6). Device columns use the database column names, so this mapping applies unchanged, with
+these differences, defined in `packages/sync/src/client/schema.ts`:
+
+- `observation.values` is `chart_values` on the device, because `values` is a reserved word in SQLite.
+- `body_map_mark.drawn_side` exists only on the device: the side where the mark was drawn, sent with
+  the upload as `drawnSide` so the API repeats the HZ-019 check. The database keeps `side` only.
+- `upload_issue` exists only on the device: an entry the API refused, with its content, until
+  someone removes it with a recorded reason (the content never ages out, because the server keeps
+  no copy). It is never uploaded or exported; its removal is recorded through
+  `POST /v1/sync/discards`.
+- `held_entry` exists only on the device: entries that had not uploaded when the session ended,
+  each with its table, operation and columns as JSON (`payload`) and its place in the queue, kept
+  until the owner signs in again and they go back into their tables, or the owner or a manager
+  deletes them with a recorded reason (nothing is deleted automatically; at
+  `mobile.held_entries_max_days` the hold escalates to a manager). `sync_meta` keeps the database's
+  owner (`tenant_user` id, sign-in id, tenant and name, as JSON) under the id `meta:owner`, the
+  cached rate figures (offline window, hold limit, clock tolerance), and the person's own words for
+  removing a refused entry under `discard-note:<tombstone id>` (JSON: the coded reason, the words,
+  the entry id and the time), which never leave the device (security review round 4, M3).
+  Retention class for these words (security review round 5, S-L4): kept only until the server has
+  every stage of the deletion they explain (its tombstone has left the keystore), then deleted at
+  the next sync; never kept longer than the device itself, which wipes them with everything else.
+  They are not part of the care record and are never shown. An entry left by a deletion that did
+  not finish moves to `upload_issue` with the code `held_discard_failed` and is never uploaded; the
+  device reports how many as `blocked`.
+- The held marker in the device keystore (outside the database) holds the owner's ids and name, the
+  count, when the hold started, when it escalates, the last server time, and `uploadBlocked` when a
+  deletion of the entries did not finish.
+- Tombstones of deleted unsent entries are kept in the device keystore, outside the database, as
+  JSON with no free text: an id, the kind (`held_deleted`, `signed_out_with_unsent`,
+  `refused_removed`), a coded reason (`recorded_elsewhere`, `entered_in_error`, `staff_left`,
+  `nurse_in_charge_informed`, `other`), the stage reached (`requested`, `deleted`, `failed`) and
+  the stages not yet acknowledged, the tenant, owner and deleter `tenant_user` ids, up to 20 entry
+  ids and 10 person ids, the count, the time, why there are no ids (`idsMissing`: `key_absent`
+  or `key_invalid`), what a deletion left behind (`leftover`: `file`, `key`) and the opaque id
+  of the device the entries were held on (`deviceId`, sent with every stage and recorded in the
+  audit scope as `heldOnDeviceId`). Each stage is
+  sent to `POST /v1/sync/discards` (contract `SyncDiscard`, which refuses unknown keys: the coded
+  reason and no words; up to 500 entry ids when sent at once, the 20 kept when sent later, never
+  more than the count) and the tombstone is deleted once the server has every stage of a finished
+  deletion. The
+  audit events (`sync.entries.discard_requested`, `sync.entries.discarded`,
+  `sync.entries.discard_failed`, resource type `device_discard`, the failure naming the request it
+  supersedes; `deletedByTenantUserId` null when the device did not know) keep the coded reason only
+  (security review round 4, M3; clinical review round 4, H1). A leftover file or key is a separate
+  security event (`sync.device.residue`, scope `leftover`). An entry uploaded later whose id its
+  owner's device recorded as deleted gets a `sync.entry.after_discard` audit event; an entry a
+  deletion lists that had already reached the server gets `sync.entry.before_discard` once the
+  deletion is recorded as done (scope: the deletion record's id and the task's id). Each deletion
+  record has one review task per kind and location (`sync.entry_reported_deleted`,
+  `sync.entry_deleted_after_upload`; source `device_discard`, the record's id; no person id), whose
+  title carries the count, and whose audit events (`sync.entry_flag.raised`, `sync.entry_flag.added`,
+  resource `task`) carry the count, the owner's `tenant_user` id and up to 20 opaque entry ids;
+  a cap is `sync.entry_flag.capped` (resource `device_discard`, scope `mergedInto`: the owner's
+  oldest open task at the location, whose `added` event then carries `merged`). A hold's device
+  report (unsent, refused, held and blocked counts, the oldest age, when the hold started, the
+  owner's `tenant_user` id and up to 50 location ids, contract `SyncDeviceReport`, which refuses
+  unknown keys) may wait in the keystore the same way, with the id of the device that held the
+  entries; the server records it as `sync.device.report` (resource `device`, the device id; scope
+  adds the waiting count, when the waiting began, `startFloor` (`earlier_report`, `first_seen` or
+  null), `ownerBound`, and `claimedOwnerTenantUserId` when the named owner has no earlier event
+  from the device). `sync.token.issue` names the device as its resource when the request carries
+  its id. While held, unsent or blocked entries wait, the server keeps a task per location
+  (`sync.device_hold`, source `device_hold`, the device id) for a Registered Manager, or one per
+  Registered Manager when no location is known, written as the reporter, with its raise, reopen,
+  moves, reset, merge and close audited (`sync.device_hold.raised`, `.reopened`, `.moved`, `.reset`,
+  `.merged`, `.closed`, `.close_refused`, `.capped`; the raise and reopen name the hold's owner and
+  any unbound claim, and the reopen whether it reset the escalation; opaque ids only). Holds past a
+  reporter's daily cap are on one task per reporter (source `device_hold_capped`, its source id
+  the reporter's `tenant_user` id). An overdue sync task no one could be told about is audited as
+  `sync.escalation_unrouted` (resource `task`, no actor) at most once a day. When a cap merges a
+  task into another, the location's Registered Managers also get an in-app notification
+  (`sync.reporter_capped`, source the member's `tenant_user` id, no names) at most once a day per
+  member and source, audited as `sync.capped_notice.sent` (resource `tenant_user`). The keystore
+  also keeps the device's opaque id (the PowerSync client id), and the hold's marker and the
+  database's owner record keep the owner's location ids.
+
+Timestamps arrive on the device as ISO 8601 in UTC with microseconds (`2026-10-11T09:30:00.000000Z`);
+booleans as `1` and `0`; JSON and array columns as JSON text. Entries written on the device carry a
+UUIDv7 made there, which the API keeps as the record's `id`.
 
 ## Open items to verify
 

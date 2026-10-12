@@ -1,5 +1,5 @@
 import { StyleSheet, View } from "react-native";
-import { communicationFlagLabel, describeAllergyFlag } from "../logic/person";
+import { communicationFlagLabel, describeAllergyFlag, type HeaderFlag } from "../logic/person";
 import { useTheme } from "../theme/ThemeProvider";
 import { iconByName, MessageSquareText } from "./icons";
 import { FlagChip } from "./StatusChip";
@@ -15,6 +15,8 @@ export interface PersonFlagsProps {
    * record screens pass "record" so every allergy state is always shown (HZ-007).
    */
   readonly context?: "list" | "record";
+  /** Further flags after allergies and communication needs, such as the resuscitation status. */
+  readonly additionalFlags?: readonly HeaderFlag[];
   readonly testID?: string;
 }
 
@@ -24,12 +26,13 @@ export function PersonFlags({
   allergyCount,
   communicationNeedsCount,
   context = "record",
+  additionalFlags = [],
   testID = "person-flags",
 }: PersonFlagsProps) {
   const theme = useTheme();
   const allergy = describeAllergyFlag(allergyStatus, allergyCount);
   const showAllergy = context === "record" || allergy.showInLists;
-  if (!showAllergy && communicationNeedsCount <= 0) return null;
+  if (!showAllergy && communicationNeedsCount <= 0 && additionalFlags.length === 0) return null;
 
   return (
     <View testID={testID} style={[styles.row, { gap: theme.space[1] }]}>
@@ -50,6 +53,16 @@ export function PersonFlags({
           testID={`${testID}-communication`}
         />
       ) : null}
+      {additionalFlags.map((flag) => (
+        <FlagChip
+          key={flag.key}
+          tone={flag.tone}
+          icon={iconByName(flag.icon)}
+          label={flag.label}
+          accessibilityLabel={flag.accessibilityLabel}
+          testID={`${testID}-${flag.key}`}
+        />
+      ))}
     </View>
   );
 }

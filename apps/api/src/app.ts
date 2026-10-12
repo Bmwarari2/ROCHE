@@ -8,6 +8,7 @@ import { withoutSessionTokens } from "./auth/token-exposure";
 import type { Config } from "./config";
 import { type AppEnv, type Services, sessionMiddleware, tenantMiddleware } from "./http/context";
 import { HttpProblem, problemResponse, problems } from "./http/problem";
+import { QuotaExceeded } from "./http/quota";
 import { RateLimiter } from "./http/rate-limit";
 import { createDocumentServices } from "./integrations/documents";
 import { idleErrorLogger, type Logger } from "./logger";
@@ -44,6 +45,8 @@ import { SyncTokenSigner } from "./sync/token";
 
 /** Largest upload accepted at the edge of the API; each category has its own lower limit. */
 const MAX_UPLOAD_BYTES = 26 * 1024 * 1024;
+/** Largest body any /v1/sync route accepts (security review round 4, M4). */
+export const SYNC_MAX_BODY_BYTES = 64 * 1024;
 
 /** Routes that need a session but not yet a chosen tenant, or no session at all. */
 const TENANTLESS = new Set(["/v1/memberships", "/v1/sync/jwks"]);
@@ -129,6 +132,16 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       }),
     );
   }
+  // Sync bodies are small JSON (a token request, a batch of changes, a deletion record, a device
+  // report): anything larger is refused before it is read (security review round 4, M4).
+  app.use(
+    "/v1/sync/*",
+    bodyLimit({
+      maxSize: SYNC_MAX_BODY_BYTES,
+      onError: (c) =>
+        problemResponse(c, new HttpProblem(413, "too_large", "The request is too large.")),
+    }),
+  );
   app.use("/v1/*", sessionMiddleware);
   app.use("/operator/*", async (c, next) => {
     await next();
@@ -194,7 +207,13 @@ export function createApp(config: Config, logger: Logger): AppHandle {
 
   app.notFound((c) => problemResponse(c, problems.notFound(), c.get("requestId")));
   app.onError((error, c) => {
-    if (error instanceof HttpProblem) return problemResponse(c, error, c.get("requestId"));
+    if (error instanceof HttpProblem) {
+      const response = problemResponse(c, error, c.get("requestId"));
+      if (error instanceof QuotaExceeded) {
+        response.headers.set("retry-after", String(error.retryAfterSeconds));
+      }
+      return response;
+    }
     // Opaque identifiers only: the error message may contain data, so log its name and stack.
     logger.error(
       { requestId: c.get("requestId"), err: { name: error.name, stack: error.stack } },

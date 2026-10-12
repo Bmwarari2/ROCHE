@@ -5,7 +5,11 @@ import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { escalateTasks, materialiseTaskSeries, type TaskDeps } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
+<<<<<<< HEAD
 import { createHarness, type Harness, LODGE } from "./support/harness";
+=======
+import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
+>>>>>>> origin/main
 
 let h: Harness;
 let appPool: pg.Pool;
@@ -355,5 +359,242 @@ describe("hazard HZ-008 overdue tasks escalate once", () => {
 
     const reread = await json<TaskList>(await as("manager", `/v1/tasks?personId=${resident(2)}`));
     expect(reread.items.find((x) => x.id === t.id)?.escalated).toBe(true);
+  });
+});
+
+describe("hazard HZ-008 a sync task escalates only to people who can act on it (round 5, C-H1)", () => {
+  it("tells holders of the task's permission at its location, not team leaders", async () => {
+    const teamLeader = "0194d000-0000-7000-8000-0000000003f1";
+    const overdueAt = new Date(Date.now() - 3 * HOUR);
+    const [held, ordinary] = await asDemoTenant(async (c) => {
+      await c.query(
+        "INSERT INTO tenant_user (id, display_name, email, status) VALUES ($1, 'Tia Lead', 'tia@example.invalid', 'active')",
+        [teamLeader],
+      );
+      await c.query(
+        `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, reason)
+         SELECT $1, id, $2, 'Test' FROM role WHERE key = 'team_leader' AND tenant_id = $3`,
+        [teamLeader, DEMO.locationId, DEMO.tenantId],
+      );
+      const insert = (kind: string, permission: string) =>
+        c.query<{ id: string }>(
+          `INSERT INTO task (location_id, kind, title, required_permission, assignee_role_key, due_at)
+           VALUES ($1, $2, 'Check', $3, 'registered_manager', $4) RETURNING id`,
+          [DEMO.locationId, kind, permission, overdueAt],
+        );
+      return [
+        (await insert("sync.device_hold", "safety.incident.manage")).rows[0]?.id,
+        (await insert("platform.adhoc", "platform.task.complete")).rows[0]?.id,
+      ];
+    });
+    await escalateTasks(deps, new Date());
+    const recipients = (taskId: string | undefined) =>
+      asDemoTenant(async (c) =>
+        (
+          await c.query<{ recipient_tenant_user_id: string }>(
+            "SELECT recipient_tenant_user_id FROM notification WHERE source_type = 'task' AND source_id = $1",
+            [taskId],
+          )
+        ).rows.map((r) => r.recipient_tenant_user_id),
+      );
+    const toHold = await recipients(held);
+    // The Registered Manager and the nurse at the location, and the owner across the organisation.
+    expect(toHold).toEqual(
+      expect.arrayContaining([DEMO.users.manager.id, DEMO.users.nurse.id, DEMO.users.owner.id]),
+    );
+    expect(toHold).not.toContain(teamLeader);
+    expect(toHold).not.toContain(DEMO.users.carer.id);
+    // Other tasks are unchanged: the first responders at the location, team leaders included.
+    expect(await recipients(ordinary)).toContain(teamLeader);
+  });
+
+  it("does not tell a holder of the permission at another location (round 6)", async () => {
+    const lodgeLead = "0194d000-0000-7000-8000-0000000003f3";
+    const overdueAt = new Date(Date.now() - 3 * HOUR);
+    const [home, there] = await asDemoTenant(async (c) => {
+      await c.query(
+        "INSERT INTO tenant_user (id, display_name, email, status) VALUES ($1, 'Lou Lodge', 'lou@example.invalid', 'active')",
+        [lodgeLead],
+      );
+      await c.query(
+        `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, reason)
+         SELECT $1, id, $2, 'Test' FROM role WHERE key = 'clinical_lead' AND tenant_id = $3`,
+        [lodgeLead, LODGE.locationId, DEMO.tenantId],
+      );
+      const insert = (locationId: string) =>
+        c.query<{ id: string }>(
+          `INSERT INTO task (location_id, kind, title, required_permission, assignee_role_key, due_at)
+           VALUES ($1, 'sync.device_hold', 'Check', 'safety.incident.manage', 'registered_manager', $2)
+           RETURNING id`,
+          [locationId, overdueAt],
+        );
+      return [
+        (await insert(DEMO.locationId)).rows[0]?.id,
+        (await insert(LODGE.locationId)).rows[0]?.id,
+      ];
+    });
+    await escalateTasks(deps, new Date());
+    const recipients = (taskId: string | undefined) =>
+      asDemoTenant(async (c) =>
+        (
+          await c.query<{ recipient_tenant_user_id: string }>(
+            "SELECT recipient_tenant_user_id FROM notification WHERE source_type = 'task' AND source_id = $1",
+            [taskId],
+          )
+        ).rows.map((r) => r.recipient_tenant_user_id),
+      );
+    expect(await recipients(home)).toContain(DEMO.users.manager.id);
+    expect(await recipients(home)).not.toContain(lodgeLead);
+    expect(await recipients(there)).toContain(lodgeLead);
+    expect(await recipients(there)).not.toContain(DEMO.users.manager.id);
+  });
+
+  it("signals again once a device's task is reset after a refused close (round 6, M1)", async () => {
+    const overdueAt = new Date(Date.now() - 3 * HOUR);
+    const held = await asDemoTenant(
+      async (c) =>
+        (
+          await c.query<{ id: string }>(
+            `INSERT INTO task (location_id, kind, title, required_permission, assignee_role_key, due_at)
+             VALUES ($1, 'sync.device_hold', 'Check', 'safety.incident.manage', 'registered_manager', $2)
+             RETURNING id`,
+            [DEMO.locationId, overdueAt],
+          )
+        ).rows[0]?.id,
+    );
+    const toManager = () =>
+      asDemoTenant(
+        async (c) =>
+          (
+            await c.query(
+              "SELECT 1 FROM notification WHERE source_type = 'task' AND source_id = $1 AND recipient_tenant_user_id = $2",
+              [held, DEMO.users.manager.id],
+            )
+          ).rowCount,
+      );
+    await escalateTasks(deps, new Date());
+    expect(await toManager()).toBe(1);
+    // Escalated once only.
+    await escalateTasks(deps, new Date());
+    expect(await toManager()).toBe(1);
+    // A new hold after a refused close resets the escalation (`device-holds.ts`): it signals again.
+    await asDemoTenant((c) =>
+      c.query("UPDATE task SET escalation_level = 0, escalated_at = NULL WHERE id = $1", [held]),
+    );
+    await escalateTasks(deps, new Date());
+    expect(await toManager()).toBe(2);
+  });
+});
+
+describe("hazard HZ-040 a sync task whose location has no one who can act on it (round 7, M5)", () => {
+  /** Runs as the owner inside the other organisation, which has no holder of the permission. */
+  async function asOther<T>(fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {
+    const client = await h.db.pool("harbour_owner").connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+        [OTHER.tenantId],
+      );
+      const result = await fn(client);
+      await client.query("COMMIT");
+      return result;
+    } finally {
+      client.release();
+    }
+  }
+  const vacant = "0194e000-0000-7000-8000-000000000102";
+  const overdueHold = () =>
+    asOther(
+      async (c) =>
+        (
+          await c.query<{ id: string }>(
+            `INSERT INTO task (location_id, kind, title, required_permission, assignee_role_key, due_at)
+             VALUES ($1, 'sync.device_hold', 'Check', 'safety.incident.manage', 'registered_manager', $2)
+             RETURNING id`,
+            [vacant, new Date(Date.now() - 3 * HOUR)],
+          )
+        ).rows[0]?.id,
+    );
+  const state = (taskId: string | undefined) =>
+    asOther(async (c) => {
+      const row = await c.query<{ escalation_level: number }>(
+        "SELECT escalation_level FROM task WHERE id = $1",
+        [taskId],
+      );
+      const told = await c.query<{ recipient_tenant_user_id: string }>(
+        "SELECT recipient_tenant_user_id FROM notification WHERE source_type = 'task' AND source_id = $1",
+        [taskId],
+      );
+      const unrouted = await c.query(
+        "SELECT 1 FROM audit_event WHERE action = 'sync.escalation_unrouted' AND resource_id = $1",
+        [taskId],
+      );
+      return {
+        level: row.rows[0]?.escalation_level,
+        told: told.rows.map((r) => r.recipient_tenant_user_id),
+        unrouted: unrouted.rowCount,
+      };
+    });
+
+  it("assigns the task to the longest-serving Registered Manager elsewhere when the post at its location is vacant, who can then see and complete it (round 8, M1)", async () => {
+    await asOther((c) =>
+      c.query("INSERT INTO location (id, name) VALUES ($1, 'Vacant House')", [vacant]),
+    );
+    const held = await overdueHold();
+    await escalateTasks(deps, new Date());
+    // No one at the house holds safety.incident.manage, and no one across the organisation does:
+    // the Registered Manager at the other home is told, and the task is now theirs.
+    expect(await state(held)).toEqual({ level: 1, told: [OTHER.managerId], unrouted: 0 });
+    const [assigned] = await asOther(
+      async (c) =>
+        (
+          await c.query<{ assignee: string | null }>(
+            "SELECT assignee_tenant_user_id AS assignee FROM task WHERE id = $1",
+            [held],
+          )
+        ).rows,
+    );
+    expect(assigned?.assignee).toBe(OTHER.managerId);
+    // Their role covers their own home only, yet as the assignee they can list and complete it.
+    const other = (path: string, init: { method?: string; body?: unknown } = {}) =>
+      h.request(path, { token: h.tokens.rae, tenant: OTHER.tenantId, ...init });
+    const from = new Date(Date.now() - 24 * HOUR).toISOString();
+    const to = new Date(Date.now() + 24 * HOUR).toISOString();
+    const list = await json<TaskList>(
+      await other(`/v1/tasks?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+    );
+    const item = list.items.find((t) => t.id === held);
+    expect(item).toBeDefined();
+    const done = await other(`/v1/tasks/${held}/transition`, {
+      method: "POST",
+      body: { to: "done", version: item?.version },
+    });
+    expect(done.status).toBe(200);
+  });
+
+  it("never marks a task escalated when no one at all can be told, audits the gap once a day, and leaves it out of the next day's batches (security review round 7, L3)", async () => {
+    const ended = await asOther(async (c) =>
+      (
+        await c.query<{ id: string }>(
+          "UPDATE role_assignment SET deleted_at = now() WHERE deleted_at IS NULL RETURNING id",
+        )
+      ).rows.map((r) => r.id),
+    );
+    let held: string | undefined;
+    try {
+      held = await overdueHold();
+      await escalateTasks(deps, new Date());
+      await escalateTasks(deps, new Date());
+      expect(await state(held)).toEqual({ level: 0, told: [], unrouted: 1 });
+    } finally {
+      await asOther((c) =>
+        c.query("UPDATE role_assignment SET deleted_at = NULL WHERE id = ANY($1::uuid[])", [ended]),
+      );
+    }
+    // A manager is back, but the task waits out the day before it is tried again, so tasks no one
+    // can be told about never fill the batch.
+    await escalateTasks(deps, new Date());
+    expect(await state(held)).toEqual({ level: 0, told: [], unrouted: 1 });
   });
 });

@@ -206,6 +206,138 @@ export const SyncUploadResult = z
   .meta({ id: "SyncUploadResult" });
 export type SyncUploadResult = z.infer<typeof SyncUploadResult>;
 
+/** What a device deleted that never reached the server (HZ-006, HZ-040). */
+export const SYNC_DISCARD_KINDS = [
+  "held_deleted",
+  "signed_out_with_unsent",
+  "refused_removed",
+] as const;
+
+/**
+ * Why: a coded reason. The person's own words never reach the server's audit trail, which is
+ * hash-chained and kept for years (security review round 4, M3); they stay on the device.
+ */
+export const SYNC_DISCARD_REASON_CODES = [
+  "recorded_elsewhere",
+  "entered_in_error",
+  "staff_left",
+  "nurse_in_charge_informed",
+  "other",
+] as const;
+
+/**
+ * Where a deletion stands (clinical review round 4, H1): `requested` is recorded before anything is
+ * deleted; `deleted` only once the device has checked the entries are gone; `failed` when they
+ * survived, superseding the request.
+ */
+export const SYNC_DISCARD_STAGES = ["requested", "deleted", "failed"] as const;
+
+/** Most entry ids one record carries; a larger hold sends a sample and its count. */
+export const SYNC_DISCARD_MAX_ENTRY_IDS = 500;
+
+/**
+ * What of the database a deletion recorded as `deleted` left on the device, though its entries can
+ * no longer be read (clinical review round 5, C-M1): recorded as a separate security event.
+ */
+export const SYNC_DISCARD_LEFTOVERS = ["file", "key"] as const;
+
+/**
+ * Why a deletion lists no entry ids (clinical review round 5, C-M2): the device had no key for the
+ * database (`key_absent`), or the key it had was not a valid one (`key_invalid`), so nothing on it
+ * could be read. A deletion is otherwise refused when its ids cannot be read.
+ */
+export const SYNC_DISCARD_IDS_MISSING = ["key_absent", "key_invalid"] as const;
+
+export const SyncDiscard = z
+  .object({
+    /** The device's tombstone id: each stage of the same deletion is recorded once. */
+    id: uuid,
+    kind: z.enum(SYNC_DISCARD_KINDS),
+    stage: z.enum(SYNC_DISCARD_STAGES),
+    reasonCode: z.enum(SYNC_DISCARD_REASON_CODES),
+    /** Who wrote the entries (tenant_user id), when the device knows. */
+    ownerTenantUserId: uuid.nullable(),
+    /**
+     * Who deleted them (tenant_user id), as the device recorded it at the time: the owner, a
+     * manager, or the person signing out. Anyone but the caller needs a manager's permission.
+     */
+    deletedByTenantUserId: uuid.nullable().optional(),
+    /** Ids of the entries, or a sample of them for a large hold (never more than `count`). */
+    entryIds: z.array(uuid).max(SYNC_DISCARD_MAX_ENTRY_IDS),
+    personIds: z.array(uuid).max(200),
+    /** How many entries were deleted; null when the device could not count them. */
+    count: z.number().int().min(0).max(100_000).nullable(),
+    discardedAt: isoDateTime,
+    /** On `deleted`: what was left on the device though the entries can no longer be read. */
+    leftover: z.array(z.enum(SYNC_DISCARD_LEFTOVERS)).max(2).optional(),
+    /** Why there are no entry ids, when there are none. */
+    idsMissing: z.enum(SYNC_DISCARD_IDS_MISSING).optional(),
+    /**
+     * The device the entries were held on (its PowerSync client id when the deletion began), so a
+     * stage sent later from the device's next database still closes that device's hold task.
+     */
+    deviceId: uuid.optional(),
+  })
+  // Unknown keys are refused, not dropped (security review round 5, S-L6).
+  .strict()
+  .refine((d) => d.count === null || d.entryIds.length <= d.count, {
+    message: "There are more entry ids than entries.",
+    path: ["entryIds"],
+  })
+  .meta({
+    id: "SyncDiscard",
+    description:
+      "A device deleted, or is about to delete, entries that never reached the server; recorded as an audit event",
+  });
+export type SyncDiscard = z.infer<typeof SyncDiscard>;
+
+export const SyncDiscardResult = z
+  .object({ id: uuid, recorded: z.boolean(), replay: z.boolean() })
+  .meta({ id: "SyncDiscardResult" });
+export type SyncDiscardResult = z.infer<typeof SyncDiscardResult>;
+
+/** Locations a device report may name. */
+export const SYNC_DEVICE_REPORT_MAX_LOCATIONS = 50;
+
+/** A device's unsent work, without personal data (HZ-006: queue depth seen by the server). */
+export const SyncDeviceReport = z
+  .object({
+    /** Entries waiting in the upload queue. */
+    unsent: z.number().int().min(0).max(1_000_000),
+    /** Entries the server refused, kept on the device. */
+    refused: z.number().int().min(0).max(1_000_000),
+    /** Entries held after a session ended. */
+    held: z.number().int().min(0).max(1_000_000),
+    /**
+     * Entries left by a deletion that did not finish, which are never sent and wait for a person
+     * to check them (clinical review round 5, C-M3).
+     */
+    blocked: z.number().int().min(0).max(1_000_000),
+    /** Age of the oldest unsent, refused or held entry in seconds; null when there is none. */
+    oldestAgeSeconds: z
+      .number()
+      .int()
+      .min(0)
+      .max(10 * 365 * 24 * 3600)
+      .nullable(),
+    /** When the current hold started, if entries are held; the manager's task falls due from it. */
+    heldSince: isoDateTime.nullable().optional(),
+    reportedAt: isoDateTime,
+    /**
+     * Whose entries these are (tenant_user id), when the device knows: the hold's owner, who may
+     * close the task, even when the next person to sign in sends the report for them.
+     */
+    ownerTenantUserId: uuid.nullable().optional(),
+    /**
+     * The locations of the device's sync scope (opaque ids). The server keeps those where the
+     * owner or the reporter works or last worked, and raises the task at each.
+     */
+    locationIds: z.array(uuid).max(SYNC_DEVICE_REPORT_MAX_LOCATIONS).optional(),
+  })
+  .strict()
+  .meta({ id: "SyncDeviceReport" });
+export type SyncDeviceReport = z.infer<typeof SyncDeviceReport>;
+
 export const AuditEntry = z
   .object({
     id: uuid,

@@ -64,7 +64,11 @@ import {
   REVIEW_TASKS,
   toRecordState,
 } from "../services/care-planning";
+<<<<<<< HEAD
 import { loadPerson, requireWrite } from "../services/people";
+=======
+import { flagIfReportedDeleted } from "../services/device-holds";
+>>>>>>> origin/main
 import {
   applyLink,
   entryOut,
@@ -256,6 +260,7 @@ export const careRecordsRouter = createRouter()
               const [replayed] = await tx
                 .select()
                 .from(assessment)
+<<<<<<< HEAD
                 .where(eq(assessment.id, body.id));
               if (replayed) {
                 if (replayed.personId !== personId)
@@ -350,6 +355,39 @@ export const careRecordsRouter = createRouter()
                     .from(assessment)
                     .where(eq(assessment.id, body.id ?? ""))
                 )[0],
+=======
+                .where(eq(assessment.id, body.id ?? ""))
+            )[0],
+          personId,
+        );
+        if (inserted) {
+          // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
+          await flagIfReportedDeleted(tx, access, {
+            resourceType: "assessment",
+            id: row.id,
+            locationId: person.locationId,
+            requestId: c.get("requestId"),
+          });
+          await completeAnsweredTask(tx, access, {
+            taskId: body.taskId,
+            personId,
+            evidenceType: "assessment",
+            evidenceId: row.id,
+            now,
+          });
+          // The new result answers the scheduled repeat of the same tool.
+          await completeOpenTasks(tx, {
+            personId,
+            kind: `care.rescreen.${result.toolKey}`,
+            evidenceType: "assessment",
+            evidenceId: row.id,
+            actorTenantUserId: access.tenantUserId,
+            now,
+          });
+          await raiseCareTriggers(
+            tx,
+            {
+>>>>>>> origin/main
               personId,
             );
             if (inserted) {
@@ -523,6 +561,7 @@ export const careRecordsRouter = createRouter()
               const [replayed] = await tx
                 .select()
                 .from(activityRecord)
+<<<<<<< HEAD
                 .where(eq(activityRecord.id, body.id));
               if (replayed) {
                 if (replayed.personId !== personId)
@@ -609,6 +648,36 @@ export const careRecordsRouter = createRouter()
             return activityItem(row, new Set());
           }),
       );
+=======
+                .where(eq(activityRecord.id, body.id ?? ""))
+            )[0],
+          personId,
+        );
+        if (inserted) {
+          // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
+          await flagIfReportedDeleted(tx, access, {
+            resourceType: "activity_record",
+            id: row.id,
+            locationId: person.locationId,
+            requestId: c.get("requestId"),
+          });
+          await completeAnsweredTask(tx, access, {
+            taskId: body.taskId,
+            personId,
+            evidenceType: "activity_record",
+            evidenceId: row.id,
+            now,
+          });
+          await audit(c, tx, access, {
+            action: body.supersedesId ? "care.activity.correct" : "care.activity.create",
+            resourceType: "activity_record",
+            resourceId: row.id,
+            reason: body.correctionReason,
+          });
+        }
+        return activityItem(row, new Set());
+      });
+>>>>>>> origin/main
       return c.json(item, 201);
     },
   )
@@ -736,6 +805,7 @@ export const careRecordsRouter = createRouter()
               const [original] = await tx
                 .select({ personId: visitLog.personId })
                 .from(visitLog)
+<<<<<<< HEAD
                 .where(eq(visitLog.id, body.supersedesId));
               if (original?.personId !== personId) {
                 throw problems.invalid("The entry being corrected was not found.");
@@ -802,6 +872,37 @@ export const careRecordsRouter = createRouter()
             return visitItem(row, new Set());
           }),
       );
+=======
+                .where(eq(visitLog.id, body.id ?? ""))
+            )[0],
+          personId,
+        );
+        if (inserted) {
+          // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
+          await flagIfReportedDeleted(tx, access, {
+            resourceType: "visit_log",
+            id: row.id,
+            locationId: person.locationId,
+            requestId: c.get("requestId"),
+          });
+          await completeAnsweredTask(tx, access, {
+            taskId: body.taskId,
+            personId,
+            evidenceType: "visit_log",
+            evidenceId: row.id,
+            now,
+          });
+          await audit(c, tx, access, {
+            action: body.supersedesId ? "care.visit.correct" : "care.visit.create",
+            resourceType: "visit_log",
+            resourceId: row.id,
+            reason: body.correctionReason,
+            scope: { kind: row.kind, restrictionsApplied: row.restrictionsApplied },
+          });
+        }
+        return visitItem(row, new Set());
+      });
+>>>>>>> origin/main
       return c.json(item, 201);
     },
   )

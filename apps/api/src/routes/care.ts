@@ -51,7 +51,11 @@ import {
   raiseCareTriggers,
 } from "../services/care";
 import { latestMustBand } from "../services/care-planning";
+<<<<<<< HEAD
 import { loadPerson, type PersonRecord, requireWrite } from "../services/people";
+=======
+import { flagIfReportedDeleted } from "../services/device-holds";
+>>>>>>> origin/main
 import {
   applyLink,
   entryOut,
@@ -162,6 +166,7 @@ export const careRouter = createRouter()
       const body = c.req.valid("json");
       requireCorrection(body);
       const now = new Date();
+<<<<<<< HEAD
       const item = await withLateEntryReview(
         c,
         { kind: "care_note", clientId: body.id, occurredAt: body.occurredAt },
@@ -250,6 +255,77 @@ export const careRouter = createRouter()
             return noteItem(row, new Set());
           }),
       );
+=======
+      const item = await withTenant(c, async (tx) => {
+        const { person, rates } = await writeContext(c, personId, tx, false);
+        const times = entryTimes(body, c.req.header(SENT_AT_HEADER), now, rates);
+        await checkSuperseded(tx, careNote, body.supersedesId, personId);
+        const [inserted] = await tx
+          .insert(careNote)
+          .values({
+            ...(body.id ? { id: body.id } : {}),
+            personId,
+            locationId: person.locationId,
+            category: body.category,
+            body: body.body,
+            tags: body.tags,
+            attachmentDocumentIds: body.attachmentDocumentIds,
+            occurredAt: times.occurredAt,
+            deviceTime: times.deviceTime,
+            deviceId: access.deviceId,
+            lateEntry: times.lateEntry,
+            clockDrift: times.clockDrift,
+            supersedesId: body.supersedesId ?? null,
+            correctionReason: body.correctionReason ?? null,
+          })
+          .onConflictDoNothing()
+          .returning();
+        const row =
+          inserted ??
+          (
+            await tx
+              .select()
+              .from(careNote)
+              .where(eq(careNote.id, body.id ?? ""))
+          )[0];
+        if (!row || row.personId !== personId) throw problems.invalid("That id is already used.");
+        if (inserted) {
+          // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
+          await flagIfReportedDeleted(tx, access, {
+            resourceType: "care_note",
+            id: row.id,
+            locationId: person.locationId,
+            requestId: c.get("requestId"),
+          });
+          if (body.taskId) {
+            await completeTaskWithEvidence(tx, {
+              taskId: body.taskId,
+              personId,
+              actorTenantUserId: access.tenantUserId,
+              actorPermissions: permissionsOf(access),
+              evidenceType: "care_note",
+              evidenceId: row.id,
+              now,
+            });
+          }
+          await auditInTx(tx, access, {
+            action: body.supersedesId ? "care.note.correct" : "care.note.create",
+            resourceType: "care_note",
+            resourceId: row.id,
+            reason: body.correctionReason,
+            requestId: c.get("requestId"),
+          });
+          await publish(tx, {
+            context: "care",
+            aggregateType: "person",
+            aggregateId: personId,
+            type: "care.note.recorded",
+            payload: { noteId: row.id, lateEntry: row.lateEntry },
+          });
+        }
+        return noteItem(row, new Set());
+      });
+>>>>>>> origin/main
       return c.json(item, 201);
     },
   )
@@ -337,6 +413,7 @@ export const careRouter = createRouter()
       const body = c.req.valid("json");
       requireCorrection(body);
       const now = new Date();
+<<<<<<< HEAD
       const item = await withLateEntryReview(
         c,
         { kind: "observation", clientId: body.id, occurredAt: body.occurredAt },
@@ -371,6 +448,86 @@ export const careRouter = createRouter()
               .insert(observation)
               .values({
                 ...(body.id ? { id: body.id } : {}),
+=======
+      const item = await withTenant(c, async (tx) => {
+        const { person, rates } = await writeContext(c, personId, tx, true);
+        const times = entryTimes(body, c.req.header(SENT_AT_HEADER), now, rates);
+        await checkSuperseded(tx, observation, body.supersedesId, personId);
+        const profile = await careProfile(tx, personId);
+        const { flags, triggers } = chartRules(body.values, profile, times.occurredAt);
+        const [inserted] = await tx
+          .insert(observation)
+          .values({
+            ...(body.id ? { id: body.id } : {}),
+            personId,
+            locationId: person.locationId,
+            chart: body.values.chart,
+            values: body.values,
+            flags,
+            occurredAt: times.occurredAt,
+            deviceTime: times.deviceTime,
+            deviceId: access.deviceId,
+            lateEntry: times.lateEntry,
+            clockDrift: times.clockDrift,
+            supersedesId: body.supersedesId ?? null,
+            correctionReason: body.correctionReason ?? null,
+          })
+          .onConflictDoNothing()
+          .returning();
+        const row =
+          inserted ??
+          (
+            await tx
+              .select()
+              .from(observation)
+              .where(eq(observation.id, body.id ?? ""))
+          )[0];
+        if (!row || row.personId !== personId) throw problems.invalid("That id is already used.");
+        if (inserted) {
+          // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
+          await flagIfReportedDeleted(tx, access, {
+            resourceType: "observation",
+            id: row.id,
+            locationId: person.locationId,
+            requestId: c.get("requestId"),
+          });
+          await raiseCareTriggers(
+            tx,
+            {
+              personId,
+              locationId: person.locationId,
+              sourceType: "observation",
+              sourceId: row.id,
+            },
+            triggers,
+            now,
+          );
+          if (body.taskId) {
+            await completeTaskWithEvidence(tx, {
+              taskId: body.taskId,
+              personId,
+              actorTenantUserId: access.tenantUserId,
+              actorPermissions: permissionsOf(access),
+              evidenceType: "observation",
+              evidenceId: row.id,
+              now,
+            });
+          }
+          if (body.values.chart === "weight" && !body.supersedesId) {
+            // The weight answers the scheduled check and sets the next one: weekly while the
+            // latest MUST result is medium or high, otherwise monthly (care.md rule 6).
+            await completeOpenTasks(tx, {
+              personId,
+              kind: "care.weight_check",
+              evidenceType: "observation",
+              evidenceId: row.id,
+              actorTenantUserId: access.tenantUserId,
+              now,
+            });
+            await raiseCareTriggers(
+              tx,
+              {
+>>>>>>> origin/main
                 personId,
                 locationId: person.locationId,
                 chart: body.values.chart,
@@ -640,6 +797,7 @@ export const careRouter = createRouter()
       });
       if (!check.ok) throw problems.invalid(check.issues.map((i) => i.message).join(" "));
       const now = new Date();
+<<<<<<< HEAD
       const item = await withLateEntryReview(
         c,
         { kind: "body_map_mark", clientId: body.id, occurredAt: body.occurredAt },
@@ -765,6 +923,95 @@ export const careRouter = createRouter()
             return markItem(row, new Set());
           }),
       );
+=======
+      const item = await withTenant(c, async (tx) => {
+        const { person, rates } = await writeContext(c, personId, tx, true);
+        const times = entryTimes(body, c.req.header(SENT_AT_HEADER), now, rates);
+        await checkSuperseded(tx, bodyMapMark, body.supersedesId, personId);
+        await checkMarkIncident(tx, body.incidentId, personId);
+        const [inserted] = await tx
+          .insert(bodyMapMark)
+          .values({
+            ...(body.id ? { id: body.id } : {}),
+            personId,
+            locationId: person.locationId,
+            view: body.view,
+            region: body.region,
+            side: body.side,
+            markType: body.markType,
+            pressureCategory: body.pressureCategory ?? null,
+            deviceRelated: body.deviceRelated ?? null,
+            bruiseExplained: body.bruiseExplained ?? null,
+            lengthMm: body.lengthMm?.toString() ?? null,
+            widthMm: body.widthMm?.toString() ?? null,
+            depthMm: body.depthMm?.toString() ?? null,
+            description: body.description ?? null,
+            photoDocumentId: body.photoDocumentId ?? null,
+            incidentId: body.incidentId ?? null,
+            status: body.status,
+            occurredAt: times.occurredAt,
+            deviceTime: times.deviceTime,
+            deviceId: access.deviceId,
+            lateEntry: times.lateEntry,
+            clockDrift: times.clockDrift,
+            supersedesId: body.supersedesId ?? null,
+            correctionReason: body.correctionReason ?? null,
+          })
+          .onConflictDoNothing()
+          .returning()
+          .catch((error: unknown) => {
+            const code =
+              (error as { code?: string }).code ??
+              (error as { cause?: { code?: string } }).cause?.code;
+            if (code === "23503") throw problems.invalid("The photo was not found.");
+            throw error;
+          });
+        const row =
+          inserted ??
+          (
+            await tx
+              .select()
+              .from(bodyMapMark)
+              .where(eq(bodyMapMark.id, body.id ?? ""))
+          )[0];
+        if (!row || row.personId !== personId) throw problems.invalid("That id is already used.");
+        if (inserted && body.status === "present") {
+          await raiseCareTriggers(
+            tx,
+            {
+              personId,
+              locationId: person.locationId,
+              sourceType: "body_map_mark",
+              sourceId: row.id,
+            },
+            markTriggers({
+              markType: body.markType as BodyMarkType,
+              pressureUlcerCategory: (body.pressureCategory ??
+                null) as PressureUlcerCategory | null,
+              bruiseExplained: body.bruiseExplained ?? null,
+            }),
+            now,
+          );
+        }
+        if (inserted) {
+          // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
+          await flagIfReportedDeleted(tx, access, {
+            resourceType: "body_map_mark",
+            id: row.id,
+            locationId: person.locationId,
+            requestId: c.get("requestId"),
+          });
+          await auditInTx(tx, access, {
+            action: body.supersedesId ? "care.body_map.correct" : "care.body_map.create",
+            resourceType: "body_map_mark",
+            resourceId: row.id,
+            reason: body.correctionReason,
+            requestId: c.get("requestId"),
+          });
+        }
+        return markItem(row, new Set());
+      });
+>>>>>>> origin/main
       return c.json(item, 201);
     },
   )

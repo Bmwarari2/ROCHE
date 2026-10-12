@@ -13,6 +13,8 @@ export interface SyncBannerProps {
   /** Data older than this carries a "may be out of date" warning (HZ-002). */
   readonly staleAfterMs: number;
   readonly queuedChanges?: number;
+  /** Entries the server refused: shown on every screen, never "Up to date" (HZ-006, C1). */
+  readonly refusedEntries?: number | null;
   /** Shown as a "Retry" action when the state is failed (HZ-006). */
   readonly onRetry?: () => void;
   /** Fixes the clock, for previews and tests. Otherwise the banner refreshes every 30 seconds. */
@@ -44,6 +46,7 @@ export function SyncBanner({
   lastSyncedAt,
   staleAfterMs,
   queuedChanges = 0,
+  refusedEntries = 0,
   onRetry,
   now: fixedNow,
   testID = "sync-banner",
@@ -51,7 +54,14 @@ export function SyncBanner({
   const theme = useTheme();
   const haptics = useHaptics();
   const now = useNow(fixedNow);
-  const content = describeSyncBanner({ state, lastSyncedAt, now, staleAfterMs, queuedChanges });
+  const content = describeSyncBanner({
+    state,
+    lastSyncedAt,
+    now,
+    staleAfterMs,
+    queuedChanges,
+    refusedEntries,
+  });
 
   // Warnings and failures are filled so they cannot be missed; calm states sit on the card colour.
   const filled = content.tone === "warning" || content.tone === "danger";
