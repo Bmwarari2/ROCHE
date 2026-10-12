@@ -174,15 +174,22 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   a grant that ended before the device uploaded still counts and a revoked one never does (H-138). An investigation action is the exception: its owner completes it
   without the permission; so is a Care mode sync task the escalation gives to a Registered Manager
   elsewhere when no one at its location can act (H-142). Every refusal is audited (HZ-004, HZ-005).
+  A one-off task about a person is placed at the person's home: given no location it takes it, and
+  given another it is refused (422; ADR-0071 review rounds 4 and 5).
 - Overdue: once a task's window closes it is overdue; after `task.overdue_escalation_minutes` (rate
   table) the worker notifies the assignee and, once, the first of these with anyone other than the
   assignee, each active and able to see the person: the clinical leads and team leaders at the
   location, a Registered Manager whose role reaches it, the holders of `care.plan.write` (HZ-008;
   ADR-0071 review rounds 3 and 4). A task about a person takes the person's home when it has
   none. With no one other than the assignee, the assignee is still reminded, the task is not
-  marked escalated, `task.escalation_unrouted` is audited at most once a day, and an hourly run
-  tries again. Once a day the worker logs `escalation.unrouted.daily` per organisation with any
-  unrouted safety work, for the operator ([on-call](../runbooks/on-call.md)).
+  marked escalated, `task.escalation_unrouted` is audited at most once a day per reason, and an
+  hourly run tries again, taking every such task, oldest first, in pages (review round 5). A Care
+  mode sync task follows the same rule: its own assignee is never counted as told
+  (`sync.escalation_unrouted`, `assignee_only`). Each run goes on to the next organisation when
+  one organisation's part fails (`platform.job.tenant_failed`). Once a day the worker logs
+  `escalation.unrouted.daily` per organisation with any unrouted safety work in the last 25 hours,
+  and a CloudWatch alarm defined in Terraform fires on it for the operator, as another does on any
+  failed worker job (`worker.job.failed`), once applied (H-171; [on-call](../runbooks/on-call.md)).
 - Workflows (`workflow_instance`, append-only `workflow_transition`): each module declares its
   states, transitions (permission, reason, step-up, separation of duties) and SLAs in code with
   `defineWorkflow`; `startWorkflow` and `moveWorkflow` (`apps/api/src/services/workflow.ts`) check

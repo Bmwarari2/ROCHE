@@ -430,6 +430,59 @@ the person's home, the daily line); `scope-per-permission.test.ts` (round 4: ove
 break-glass alert); `write-scope.test.ts` and `write-scope-store.test.ts`; `care-record.test.ts`
 (the MFA line).
 
+### Review round 5 (security and clinical safety reviews of #27)
+
+Security found nothing high or medium. Clinical safety found three mediums and confirmed the
+rest of round 4.
+
+**The operator's alarms are infrastructure (C5-M1).** The runbook, HZ-073 and H-170 said to alarm
+on `escalation.unrouted.daily`, but `infra/modules/observability` had only load balancer, ECS and
+RDS alarms. It now has two CloudWatch Logs metric filters on the worker's log group, matching the
+structured JSON `event` field, each with an alarm sent to the existing KMS-encrypted alerts topic:
+`{ $.event = "escalation.unrouted.daily" }` (any line in a day) and
+`{ $.event = "worker.job.failed" }` (one or more in 15 minutes, both variables). Every worker job
+runs through `runJob`, which writes one `worker.job.failed` line when it throws (the queue's
+name, the error's kind and its database code, never a message) and throws on so pg-boss retries
+it; one organisation's failed part of a sweep writes the same line with its tenant id. The stack
+test asserts each filter's pattern, log group, metric and thresholds. The alarms are live once
+the Terraform is applied (H-171).
+
+**Every organisation is escalated when one fails (C5-M2).** The every-minute escalation run, the
+hourly retry and the daily report looped over organisations directly, so one organisation's error
+stopped every organisation after it. All three now run through `eachTenant`: the failing
+organisation's transaction rolls back, the failure is audited as `platform.job.tenant_failed`
+(with the database code, also when the query builder wraps the driver's error) and the loop goes
+on. The daily report counts the last 25 hours, so an event at the edge of a day is not missed.
+
+**An overdue notification no one can submit is seen (C5-M3).** Since round 4 `submitHolders`
+tells only active staff, so an overdue statutory notification whose only holders are invited or
+suspended was skipped with no alert, no chain, no audit and no count. It is now audited as
+`safety.notification.unrouted` (`no_active_submitter`) at most once a day per notification and
+counted in the daily signal; every run still tries again.
+
+**Lows.** `access.mfaRequired` is removed (with its web line, `care.readOnly.mfa`): the person
+route already refuses a session without two-step sign-in, so it could never be true. The phone
+records about no one while no write scope is known (none kept, or one that could not be kept,
+removed or read), instead of round 3's rule from the user's permissions before the first token,
+and says "This phone could not save what you may record. Sync again to fix this."; a stored scope
+it cannot remove is overwritten with one naming none, and every keystore failure is logged and
+never thrown. A sync task's own assignee and the person who opened a record by break-glass are
+never counted as told (`sync.escalation_unrouted` `assignee_only`, `people.break_glass_alert.unrouted`
+`opener_only`); a sync task with an assignee is never moved to a fallback, who would already hold
+their own task for the device. The unrouted audit is deduplicated by task, action and reason. The
+hourly retry takes every unrouted task, oldest first, in pages of 500, so newer tasks never wait a
+day; capping notifications per recipient per run with one summary ("N overdue tasks need you") is
+a STATUS follow-up. `POST /v1/tasks` refuses a task about a person at a location other than their
+home (422). The charts tab says entries cannot be recorded (`care.readOnly.chartEntries`) above
+chart settings the viewer can still change.
+
+Confirmation for round 5: `tasks.test.ts` (`escalation reaches every organisation and every
+unrouted task`: an injected failure in one organisation while the next escalates, the sync
+assignee, the paged retry and changed reason, the 422); `incidents.test.ts` (the unrouted
+notification and `submitHolders` telling only active staff); `scope-per-permission.test.ts` (the
+break-glass opener); `run-job.test.ts`; `write-scope.test.ts` and `write-scope-store.test.ts`;
+`care-record.test.ts` (`chartsNotice`); `infra/modules/harbour_stack/tests/plan.tftest.hcl`.
+
 ## Pros and cons of the options
 
 ### One merged scope, with per-permission checks where they matter

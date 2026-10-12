@@ -49,6 +49,14 @@ only when they link spec, code, tests and user documentation; no user guides exi
    one `escalation.unrouted.daily` line per organisation for the operator to alarm on (H-170 asks
    the CSO whether the organisation needs an in-product signal); a break-glass alert no one
    receives is audited; a task about a person with no location takes the person's.
+   Review round 5: the operator's two alarms (`escalation.unrouted.daily`, and
+   `worker.job.failed` for any failed worker job) are CloudWatch metric filters and alarms in
+   `infra/modules/observability`, live once applied (H-171); the minute escalation run, the hourly
+   retry and the daily report go on to the next organisation when one fails; an overdue statutory
+   notification no active member of staff can submit is audited and counted; a sync task's own
+   assignee and a break-glass opener are never counted as told; the hourly retry takes every
+   unrouted task; the phone records about no one while its write scope is unknown, and says why;
+   `access.mfaRequired` is removed.
    Before deploying to a live tenant: sync every device (checked on Today, in the device list and
    with the device check), run the pre-deployment access report
    ([runbook](../runbooks/data-scope-per-permission-access-report.md)), end or place any grant
@@ -77,6 +85,15 @@ only when they link spec, code, tests and user documentation; no user guides exi
    - (found in review round 4) the round view tests in `apps/api/test/rounds-and-handover.test.ts`
      create tasks due 5 to 15 minutes ahead and fail between 19:45 and 20:00 London time, when
      those fall in the next shift; pin the clock or the shift pattern in those tests.
+   - (review round 5) cap overdue task notifications per recipient per run and send one summary
+     ("N overdue tasks need you") instead, so a home with many unrouted tasks does not flood the
+     person who returns; needs a notification kind, its copy in English and Welsh, and a test.
+   - (review round 5) `escalateOverdueNotifications` reads 500 overdue drafts a run, and a draft no
+     active member of staff can submit stays in that set; page through them as the task retry now
+     does, so such drafts cannot crowd out others.
+   - (review round 5) `materialiseTaskSeries` and `raiseCareReviews` still loop over organisations
+     directly; put them through `eachTenant` like the other sweeps, so one organisation's failure
+     cannot stop the rest.
 3. The screens the care API follow-ups (#26) wait on (slice 9 and slice 10 part 2): the
    escalation policy link on the phone, staff names on the web and phone (H-73); the settings for
    escalation policies and coded reasons; the phone offering the organisation's coded reasons (H-164);
@@ -120,7 +137,7 @@ only when they link spec, code, tests and user documentation; no user guides exi
 
 ## Human actions outstanding
 
-All of [human-actions.md](human-actions.md) is open (H-01 to H-170). The project owner has
+All of [human-actions.md](human-actions.md) is open (H-01 to H-171). The project owner has
 scheduled the accounts (H-01, H-02, H-04, H-10, H-11) and the named roles (H-20 Clinical Safety
 Officer, H-30 data protection lead, H-31 ICO registration) for after the build, and is choosing
 the UK SMS provider (H-09, which also settles H-105). Until then the build continues against the

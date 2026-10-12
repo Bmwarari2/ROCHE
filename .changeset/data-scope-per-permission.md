@@ -20,9 +20,9 @@ offers a form on such a record, and each says "You opened this record for readin
 record something in it, tell the person in charge of this shift or your manager, or record it on
 paper and enter it when you have access."; the break-glass sheet says so before it opens, and a
 person's document cannot be signed through it. Where your roles let you read a record but not
-write to one part of it, that tab says so instead of offering a form the server would refuse; where
-the reason is that you have not set up a second way to sign in, it says that instead. The
-audit trail is shown whole only to those who hold it across the organisation.
+write to one part of it, that tab says so instead of offering a form the server would refuse; on
+the charts tab, where you can still change the chart settings, it says only that you cannot
+record entries. The audit trail is shown whole only to those who hold it across the organisation.
 
 Clinical safety changes
 
@@ -42,9 +42,9 @@ Clinical safety changes
   works as a care worker records about the clients assigned to them, as before: the sync token
   names those clients (up to 100; above that the phone records only about people at homes that
   sync just for them). Add care note permissions to the coordinator's role if they need more.
-- Before a phone has had its first sync token after this update, it offers recording only if the
-  user's permissions include recording care notes. The server refuses anything it would not
-  take; it keeps a copy of a refused entry only about someone the author could record about, so
+- Until a phone has had its first sync token after this update, or when it could not save what
+  its user may record, it offers recording about no one and says "This phone could not save what
+  you may record. Sync again to fix this." The server refuses anything it would not take; it keeps a copy of a refused entry only about someone the author could record about, so
   an entry about anyone else stays on the phone among the entries needing attention until someone
   removes it with a reason.
 - A person syncs to a phone only where the care reference does too, so the phone never shows a
@@ -60,9 +60,15 @@ Clinical safety changes
   is not marked escalated, the gap is audited (once a day while it lasts) and it is tried again
   every hour. A task about a person takes the person's home when none is given. A step of an
   escalation chain no one holds goes to a Registered Manager reaching the home, else the owner,
-  and one that can reach no one is audited; so is a break-glass alert no one active can receive.
+  and one that can reach no one is audited; so is a break-glass alert no one active other than
+  the person who opened the record can receive, and an overdue statutory notification no active
+  member of staff can submit. A device's sync task is escalated only when someone other than its
+  assignee is told. A task about a person can be placed only at the person's home.
 - Each day, the operator receives one signal per organisation where safety work reached no one
   who could act, and tells the organisation's Registered Manager or owner the same working day.
+  The signal, and another for any failed background job, are CloudWatch alarms defined with the
+  infrastructure, live once it is applied (H-171). One organisation's failed background job no
+  longer stops the escalations of the organisations after it.
 - Only staff who have signed in (active) are told about anything: someone invited who has never
   signed in, suspended or who has left is never the one told, so the next in line is.
 - Administrators, and any role that cannot open people's records, see in the task list only the
