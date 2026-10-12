@@ -1064,3 +1064,18 @@ another organisation's first line (CloudWatch notifies only on a change of state
 sums over an hour, so it clears within the hour after each daily run and every run with a line
 notifies again; the stack test and the on-call runbook say so. The lows are STATUS follow-ups.
 Hosted CI (now running, the repository being public) was green on `67c3fdc`.
+
+## 2026-10-12: Hosted CI back, data scope per permission merged, sweep and test fixes
+
+- The repository is public, so hosted CI runs again. Its first runs on `main` (`a375cf4`) were
+  green on every job (lint, types, API contract, builds, gitleaks, Trivy, Syft, audit, unit, domain
+  and RLS isolation tests, Playwright and axe, container image builds, CodeQL). Dependabot's
+  commits are no longer held to the Harbour commit scopes (#29).
+- Data scope per permission (#27, ADR-0071) merged after the round 5 check (see the entry above).
+- `materialiseTaskSeries` and `raiseCareReviews` run through `eachTenant`, so one organisation's
+  failure no longer stops the others' rounds or review tasks.
+- The round view tests read an explicit window of an hour either side of now, so they no longer
+  fail between 19:45 and 20:00 London time, when tasks due a few minutes ahead fall in the next
+  shift.
+- esbuild in `apps/api` is on 0.28 (STATUS dependencies item).
+
