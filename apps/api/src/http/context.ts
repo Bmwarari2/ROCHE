@@ -524,16 +524,23 @@ export function usablePermissions(
  * (`usablePermissions`; review round 1, L7) whose roles and grants reach the person (ADR-0071),
  * as row-level security judges it in the caller's transaction. For the domain's own checks on
  * that record (a status change, a workflow move, a task an entry completes, a return check),
- * which would otherwise count a permission the user holds only somewhere else.
+ * which would otherwise count a permission the user holds only somewhere else. A check that is
+ * not given the session's freshness passes `{ freshOnly: true }`, which also drops a permission
+ * whose fresh sign-in has lapsed (review round 2).
  */
 export async function permissionsReaching(
   tx: Transaction,
   access: TenantAccess,
   personId: string,
+  options: { readonly freshOnly?: boolean } = {},
 ): Promise<ReadonlySet<Permission>> {
   const reached = new Set<Permission>();
   const verdicts = new Map<string, boolean>();
-  for (const permission of usablePermissions(access)) {
+  const now = new Date();
+  const usable = [...usablePermissions(access, now)].filter(
+    (p) => !options.freshOnly || refusalOf(access, p, now) === null,
+  );
+  for (const permission of usable) {
     const scope = scopeFor(access.effective, permission);
     const key = [
       scope.scope,

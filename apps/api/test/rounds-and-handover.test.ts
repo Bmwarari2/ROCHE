@@ -1025,8 +1025,10 @@ describe("the shift handover (care.md rule 8, COMMS-006)", () => {
     expect(audited).toHaveLength(1);
   });
 
-  it("hazard HZ-018 with no nurse in charge at a location, alerts the longest-serving Registered Manager, else audits that nobody could be told", async () => {
-    // Nobody at Harbour Lodge is a nurse in charge: the Registered Manager of Harbour House is.
+  it("hazard HZ-018 with no nurse in charge at a location, alerts the longest-serving manager or holder who reaches it, else audits that nobody could be told", async () => {
+    // Nobody at Harbour Lodge is a nurse in charge, and its handover is not visible to the
+    // Registered Manager of Harbour House: the owner, whose care.handover.manage and
+    // people.person.read reach the Lodge, is told (ADR-0071 review round 2).
     const lodge = await query<{ recipient_tenant_user_id: string }>(
       `SELECT n.recipient_tenant_user_id FROM notification n JOIN handover h ON h.id::text = n.source_id
        WHERE n.kind = 'care.handover.unacknowledged' AND h.location_id = $1`,
@@ -1034,7 +1036,7 @@ describe("the shift handover (care.md rule 8, COMMS-006)", () => {
     );
     expect(lodge.length).toBeGreaterThan(0);
     expect(new Set(lodge.map((n) => n.recipient_tenant_user_id))).toEqual(
-      new Set([DEMO.users.manager.id]),
+      new Set([DEMO.users.owner.id]),
     );
     // In the other organisation, a new location and no Registered Manager or holder anywhere.
     const hillside = "0194e000-0000-7000-8000-000000000102";

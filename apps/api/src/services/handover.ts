@@ -680,7 +680,7 @@ async function alertUnacknowledged(
     const recipients =
       nurses.length > 0
         ? nurses
-        : (await fallbackRecipients(tx, HANDOVER_PERMISSION, now)).slice(0, 1);
+        : (await fallbackRecipients(tx, HANDOVER_PERMISSION, now, null, locationId)).slice(0, 1);
     if (recipients.length === 0) {
       const [recorded] = await tx
         .select({ id: auditEvent.id })

@@ -617,3 +617,55 @@ describe("hazard HZ-040 a sync task whose location has no one who can act on it 
     expect(await state(held)).toEqual({ level: 0, told: [], unrouted: 1 });
   });
 });
+
+describe("hazard HZ-008 hazard HZ-073 an overdue task is never told only to someone who has left (ADR-0071 review round 2, C2-M4)", () => {
+  // An invented home, Harbour Cottage, with one resident, Ivy Example; Tom, a team leader whose
+  // role there ended yesterday, and Rae, its Registered Manager.
+  const TOM = "0194d000-0000-7000-8000-0000000003c1";
+  const RAE = "0194d000-0000-7000-8000-0000000003c2";
+  const COTTAGE = "0194d000-0000-7000-8000-0000000001c1";
+  const IVY = "0194d000-0000-7000-8600-0000000001c1";
+
+  it("skips a team leader whose role has ended and tells the Registered Manager", async () => {
+    const taskId = await asDemoTenant(async (c) => {
+      await c.query("INSERT INTO location (id, name) VALUES ($1, 'Harbour Cottage')", [COTTAGE]);
+      await c.query(
+        `INSERT INTO person (id, location_id, status, given_name, family_name, nhs_number)
+         VALUES ($1, $2, 'active', 'Ivy', 'Example', '9990000107')`,
+        [IVY, COTTAGE],
+      );
+      await c.query(
+        `INSERT INTO tenant_user (id, display_name, email, status) VALUES
+           ($1, 'Tom Leftsoon', 'tom.leftsoon@example.invalid', 'active'),
+           ($2, 'Rae Lodge', 'rae.lodge@example.invalid', 'active')`,
+        [TOM, RAE],
+      );
+      await c.query(
+        `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, valid_from, valid_to)
+         SELECT $1::uuid, id, $3::uuid, now() - interval '30 days', now() - interval '1 day'
+           FROM role WHERE key = 'team_leader'
+         UNION ALL
+         SELECT $2::uuid, id, $3::uuid, now() - interval '30 days', NULL
+           FROM role WHERE key = 'registered_manager'`,
+        [TOM, RAE, COTTAGE],
+      );
+      const { rows } = await c.query<{ id: string }>(
+        `INSERT INTO task (person_id, location_id, kind, title, required_permission, due_at, priority)
+         VALUES ($1, $2, 'platform.manual', 'Repeat the observations', 'care.note.write',
+                 now() - interval '3 hours', 'urgent')
+         RETURNING id`,
+        [IVY, COTTAGE],
+      );
+      return rows[0]?.id ?? "";
+    });
+    expect(await escalateTasks(deps, new Date())).toBeGreaterThanOrEqual(1);
+    const told = await asDemoTenant(async (c) => {
+      const result = await c.query<{ recipient_tenant_user_id: string }>(
+        "SELECT recipient_tenant_user_id FROM notification WHERE source_type = 'task' AND source_id = $1",
+        [taskId],
+      );
+      return result.rows.map((r) => r.recipient_tenant_user_id);
+    });
+    expect(told).toEqual([RAE]);
+  });
+});

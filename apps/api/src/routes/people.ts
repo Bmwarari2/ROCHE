@@ -13,19 +13,25 @@ import {
   person,
   personCareProfile,
   recordVersion,
-  role,
-  roleAssignment,
   type Transaction,
 } from "@harbour/db";
 import { scopeFor } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, eq, inArray, isNull, or } from "drizzle-orm";
-import { auditInTx } from "../http/audit";
-import { inScopeOf, requirePermission, withTenant } from "../http/context";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import type { Context } from "hono";
+import { auditInTx, writeAudit } from "../http/audit";
+import {
+  type AppEnv,
+  inScopeOf,
+  requirePermission,
+  type TenantAccess,
+  withTenant,
+} from "../http/context";
 import { problems } from "../http/problem";
 import { publish } from "../outbox";
 import { resuscitationFor } from "../services/care-planning";
 import { contentHeaders, readDocumentContent } from "../services/documents";
+import { roleHolders } from "../services/role-holders";
 import { staffNames } from "../services/staff";
 import { createRouter, errorResponses, jsonBody, notFoundResponse, security } from "./openapi";
 
@@ -43,6 +49,27 @@ const NOT_RECORDED: PersonSummary["resuscitation"] = {
 
 /** Break-glass access lasts long enough to deal with the situation, then lapses (section 4). */
 const BREAK_GLASS_MINUTES = 60;
+
+/**
+ * Audits a break-glass attempt that opened nothing, after its transaction has rolled back, in a
+ * transaction of its own (ADR-0071 review round 2): a coded reason and the person's opaque id, never
+ * the justification's words.
+ */
+async function auditRefusedBreakGlass(
+  c: Context<AppEnv>,
+  access: TenantAccess,
+  personId: string,
+  reason: "person_not_found" | "outside_read_scope",
+): Promise<void> {
+  await writeAudit(c.get("services").appPool, access, {
+    action: "people.person.break_glass",
+    outcome: "denied",
+    resourceType: "person",
+    resourceId: personId,
+    reason,
+    requestId: c.get("requestId"),
+  });
+}
 
 const PersonId = z.object({ id: z.uuid() });
 
@@ -303,6 +330,9 @@ export const peopleRouter = createRouter()
       const access = await requirePermission(c, "people.person.break_glass");
       const { personId, justification, reasonCode } = c.req.valid("json");
       const expiresAt = new Date(Date.now() + BREAK_GLASS_MINUTES * 60_000);
+      // Why an attempt opened nothing; the transaction rolls back, and the refusal is audited after
+      // it, in a transaction of its own, so it leaves a record (ADR-0071 review round 2).
+      let refused: "person_not_found" | "outside_read_scope" | null = null;
       const result = await withTenant(c, async (tx) => {
         const opened = await tx
           .insert(breakGlassEvent)
@@ -321,7 +351,10 @@ export const peopleRouter = createRouter()
             throw error;
           });
         // The failed insert aborted the transaction; nothing more may run in it.
-        if (!opened) return null;
+        if (!opened) {
+          refused = "person_not_found";
+          return null;
+        }
         // The record as the break-glass opens it: under the scope of people.person.read, which
         // counts break-glass people (ADR-0071 review round 1, S-M1). A person it does not open
         // rolls the event back (thrown, not returned), so no break-glass record is ever kept
@@ -329,30 +362,21 @@ export const peopleRouter = createRouter()
         const [target] = await inScopeOf(tx, scopeFor(access.effective, "people.person.read"), () =>
           tx.select({ locationId: person.locationId }).from(person).where(eq(person.id, personId)),
         );
-        if (!target) throw problems.notFound();
+        if (!target) {
+          refused = "outside_read_scope";
+          throw problems.notFound();
+        }
 
-        const recipients = await tx
-          .selectDistinct({ tenantUserId: roleAssignment.tenantUserId })
-          .from(roleAssignment)
-          .innerJoin(role, eq(role.id, roleAssignment.roleId))
-          .where(
-            and(
-              isNull(roleAssignment.deletedAt),
-              or(
-                and(
-                  eq(role.key, "registered_manager"),
-                  or(
-                    isNull(roleAssignment.locationId),
-                    eq(roleAssignment.locationId, target.locationId),
-                  ),
-                ),
-                eq(role.key, "quality_lead"),
-              ),
-            ),
-          );
-        for (const r of recipients) {
+        // The Registered Managers whose role reaches the person's home and the quality leads, each
+        // with a role in force and on the staff (ADR-0071 review round 2).
+        const now = new Date();
+        const recipients = new Set([
+          ...(await roleHolders(tx, ["registered_manager"], [target.locationId], now)),
+          ...(await roleHolders(tx, ["quality_lead"], null, now)),
+        ]);
+        for (const recipient of recipients) {
           await tx.insert(notification).values({
-            recipientTenantUserId: r.tenantUserId,
+            recipientTenantUserId: recipient,
             kind: "people.break_glass_opened",
             severity: "warning",
             title: "A record was opened with break-glass access",
@@ -379,8 +403,14 @@ export const peopleRouter = createRouter()
           payload: { breakGlassId: opened.id, tenantUserId: access.tenantUserId },
         });
         return { id: opened.id, expiresAt: expiresAt.toISOString() };
+      }).catch(async (error: unknown) => {
+        if (refused) await auditRefusedBreakGlass(c, access, personId, refused);
+        throw error;
       });
-      if (!result) throw problems.notFound();
+      if (!result) {
+        if (refused) await auditRefusedBreakGlass(c, access, personId, refused);
+        throw problems.notFound();
+      }
       return c.json(result, 201);
     },
   );

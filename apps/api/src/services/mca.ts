@@ -5,8 +5,6 @@ import {
   featureFlag,
   notification,
   person,
-  role,
-  roleAssignment,
   type Transaction,
   task,
 } from "@harbour/db";
@@ -22,8 +20,9 @@ import {
   type RepresentativeAuthority,
   ukIsoDate,
 } from "@harbour/domain";
-import { and, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { publish } from "../outbox";
+import { roleHolders } from "./role-holders";
 import { dolsRates, toDolsView } from "./safety";
 
 /**
@@ -130,20 +129,10 @@ export async function flagRows(tx: Transaction): Promise<FlagRow[]> {
 
 /** Registered Managers at a location (tenant-wide ones too); the owner when there is none. */
 async function registeredManagers(tx: Transaction, locationId: string): Promise<string[]> {
-  const holders = (keys: readonly string[]) =>
-    tx
-      .selectDistinct({ id: roleAssignment.tenantUserId })
-      .from(roleAssignment)
-      .innerJoin(role, eq(role.id, roleAssignment.roleId))
-      .where(
-        and(
-          inArray(role.key, [...keys]),
-          isNull(roleAssignment.deletedAt),
-          or(isNull(roleAssignment.locationId), eq(roleAssignment.locationId, locationId)),
-        ),
-      );
-  const managers = await holders(["registered_manager"]);
-  return (managers.length > 0 ? managers : await holders(["owner"])).map((m) => m.id);
+  // A role in force, on the staff, reaching the location (ADR-0071 review round 2).
+  const now = new Date();
+  const managers = await roleHolders(tx, ["registered_manager"], [locationId], now);
+  return managers.length > 0 ? managers : roleHolders(tx, ["owner"], [locationId], now);
 }
 
 export const DOLS_EXPIRY_TASK = "care.dols_expiry";

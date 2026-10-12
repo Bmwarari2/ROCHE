@@ -34,7 +34,7 @@ import {
   ukIsoDate,
 } from "@harbour/domain";
 import { and, desc, eq, inArray, isNull, lt } from "drizzle-orm";
-import { nurseInCharge } from "./care";
+import { nurseInChargeSeeing } from "./care";
 import { bankHolidays } from "./rates";
 
 /**
@@ -294,7 +294,14 @@ export async function raiseReviewTask(
       priority: "routine",
     })
     .returning({ id: task.id });
-  for (const recipient of await nurseInCharge(tx, target.locationId)) {
+  // The nurse in charge who can see the person the review is about (ADR-0071 review round 2,
+  // C2-M1): told for awareness; the task itself is for the clinical lead.
+  const told = await nurseInChargeSeeing(
+    tx,
+    { locationId: target.locationId, personId: target.personId },
+    now,
+  );
+  for (const recipient of told) {
     await tx
       .insert(notification)
       .values({

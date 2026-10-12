@@ -27,6 +27,9 @@ import {
   isPermission,
   nextWeightDueOn,
   type Permission,
+  placesCover,
+  placesHoldingPermission,
+  requiresStepUp,
   resolveCareRates,
   type TaskLinkOutcome,
   type TaskLinkReview,
@@ -36,6 +39,8 @@ import {
 } from "@harbour/domain";
 import { and, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { HttpProblem, problems } from "../http/problem";
+import { accessRowsOf } from "./access-rows";
+import { roleHolders } from "./role-holders";
 import { withTenantWideScope } from "./safety";
 import { staffViews } from "./staff-views";
 import { anyoneMayBeGiven, mayBeAssigned, OVERDUE_FIRST_RESPONDERS } from "./tasks";
@@ -185,32 +190,60 @@ const TASK_PERMISSIONS: Record<CareTaskKind, string> = {
   safeguarding_decision_guide: "safety.safeguarding.manage",
 };
 
-/** The nurse or senior on shift at a location; the Registered Manager when nobody holds those roles. */
-export async function nurseInCharge(tx: Transaction, locationId: string): Promise<string[]> {
-  // Only an assignment in force now counts, held by someone still on the staff: an ended or future
-  // assignment, or a suspended or departed member of staff, is never told (HZ-008).
-  const inForce = and(
-    isNull(roleAssignment.deletedAt),
-    isNull(role.archivedAt),
-    lte(roleAssignment.validFrom, sql`now()`),
-    or(isNull(roleAssignment.validTo), gt(roleAssignment.validTo, sql`now()`)),
-    inArray(tenantUser.status, ["invited", "active"]),
-    or(isNull(roleAssignment.locationId), eq(roleAssignment.locationId, locationId)),
-  );
-  const holders = await tx
-    .selectDistinct({ id: roleAssignment.tenantUserId })
-    .from(roleAssignment)
-    .innerJoin(role, eq(role.id, roleAssignment.roleId))
-    .innerJoin(tenantUser, eq(tenantUser.id, roleAssignment.tenantUserId))
-    .where(and(inArray(role.key, [...OVERDUE_FIRST_RESPONDERS]), inForce));
-  if (holders.length > 0) return holders.map((h) => h.id);
-  const managers = await tx
-    .selectDistinct({ id: roleAssignment.tenantUserId })
-    .from(roleAssignment)
-    .innerJoin(role, eq(role.id, roleAssignment.roleId))
-    .innerJoin(tenantUser, eq(tenantUser.id, roleAssignment.tenantUserId))
-    .where(and(eq(role.key, "registered_manager"), inForce));
-  return managers.map((m) => m.id);
+/**
+ * The nurse in charge at a location: the nurse or senior on shift (`OVERDUE_FIRST_RESPONDERS`
+ * whose role reaches the location), else its Registered Manager; only a role in force, held by
+ * someone on the staff (`roleHolders`; HZ-008). The one definition used for urgent result alerts
+ * (HZ-014, HZ-016), care plan and risk review notices and refused-entry reviews (ADR-0071 review
+ * round 2, C2-M1); each then keeps only those who can see what they are told about
+ * (`nurseInChargeSeeing`).
+ */
+export async function nurseInCharge(
+  tx: Transaction,
+  locationId: string,
+  now: Date = new Date(),
+): Promise<string[]> {
+  const holders = await roleHolders(tx, OVERDUE_FIRST_RESPONDERS, [locationId], now);
+  if (holders.length > 0) return holders;
+  return roleHolders(tx, ["registered_manager"], [locationId], now);
+}
+
+/**
+ * The nurse in charge at the location (`nurseInCharge`) who can see what they are told about: about
+ * a person, each of `reads` reaches the person under the member's own scope for it (`staffViews`);
+ * about no one, `people.person.read` reaches the location. Filtered only by what the recipient can
+ * see, never by a permission to act they do not need to be aware, so a senior carer in charge is
+ * told at a home with no nurse (ADR-0071 review round 2, C2-M1; HZ-014, HZ-073).
+ */
+export async function nurseInChargeSeeing(
+  tx: Transaction,
+  target: { readonly locationId: string; readonly personId: string | null },
+  now: Date,
+  reads: readonly Permission[] = [RECORD_READ_PERMISSION],
+): Promise<string[]> {
+  const nurses = await nurseInCharge(tx, target.locationId, now);
+  if (nurses.length === 0) return [];
+  const personId = target.personId;
+  if (personId === null) {
+    const rows = await accessRowsOf(tx, nurses);
+    return nurses.filter((id) => {
+      const mine = rows.get(id);
+      return (
+        mine !== undefined &&
+        placesCover(
+          placesHoldingPermission(mine.assignments, mine.grants, RECORD_READ_PERMISSION, now),
+          target.locationId,
+        )
+      );
+    });
+  }
+  let seeing = nurses;
+  for (const permission of reads) {
+    if (seeing.length === 0) break;
+    const views = await staffViews(tx, seeing, [personId], now, permission);
+    seeing = seeing.filter((id) => views.get(id)?.people.has(personId) === true);
+  }
+  return seeing;
 }
 
 /** Who acts on a care result alert when the fallback is used: holders of the care plan. */
@@ -251,12 +284,8 @@ export async function urgentAlertRecipients(
   target: { readonly personId: string; readonly locationId: string },
   now: Date,
 ): Promise<AlertRecipients> {
-  const nurses = await nurseInCharge(tx, target.locationId);
-  if (nurses.length > 0) {
-    const views = await staffViews(tx, nurses, [target.personId], now, RECORD_READ_PERMISSION);
-    const seeing = nurses.filter((id) => views.get(id)?.people.has(target.personId));
-    if (seeing.length > 0) return { route: "nurse_in_charge", recipients: seeing };
-  }
+  const seeing = await nurseInChargeSeeing(tx, target, now, [RECORD_READ_PERMISSION]);
+  if (seeing.length > 0) return { route: "nurse_in_charge", recipients: seeing };
   const recipients = await alertFallback(tx, target.personId, now);
   return recipients.length > 0
     ? { route: "fallback", recipients }
@@ -598,6 +627,12 @@ export async function planTaskLink(
     actorPermissions: ReadonlySet<string>;
     /** When the care was recorded (bounded by the clock-drift limit; never after the upload). */
     occurredAt: Date;
+    /**
+     * Whether the session's sign-in is fresh, for a task whose permission needs a fresh sign-in
+     * (review round 2): held when the care was recorded counts for it only when fresh. True for a
+     * handed-over entry, whose author is not this session.
+     */
+    stepUpFresh: boolean;
   },
 ): Promise<PlannedTaskLink> {
   const [row] = await tx
@@ -613,7 +648,11 @@ export async function planTaskLink(
   // that ended before the task existed (HZ-004, HZ-006; H-138). Holding it now also counts, and an
   // owner's investigation action is completed by its owner (S1 follow-on; HZ-005).
   const at = entryPermissionTime(input.occurredAt, row.createdAt, new Date());
-  const heldWhenRecorded = await mayBeAssigned(tx, input.actorTenantUserId, row, at);
+  const stepUpMet =
+    !isPermission(row.requiredPermission) ||
+    !requiresStepUp(row.requiredPermission) ||
+    input.stepUpFresh;
+  const heldWhenRecorded = stepUpMet && (await mayBeAssigned(tx, input.actorTenantUserId, row, at));
   const holdsNow =
     isPermission(row.requiredPermission) && input.actorPermissions.has(row.requiredPermission);
   const asOwner = row.assigneeTenantUserId === input.actorTenantUserId && anyoneMayBeGiven(row);

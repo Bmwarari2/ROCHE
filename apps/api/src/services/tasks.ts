@@ -1,14 +1,5 @@
 import type { Recurrence, TaskItem } from "@harbour/contracts";
-import {
-  auditEvent,
-  notification,
-  person,
-  role,
-  roleAssignment,
-  type Transaction,
-  task,
-  taskSeries,
-} from "@harbour/db";
+import { auditEvent, notification, person, type Transaction, task, taskSeries } from "@harbour/db";
 import {
   isPermission,
   occurrences,
@@ -20,7 +11,7 @@ import {
   type TaskStatus,
   taskTimeState,
 } from "@harbour/domain";
-import { and, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm";
 import { accessRowsOfMember } from "./access-rows";
 import {
   fallbackRecipients,
@@ -28,6 +19,7 @@ import {
   permissionHolders,
 } from "./device-holds";
 import { rateNumber } from "./rates";
+import { roleHolders } from "./role-holders";
 import { type StaffLookup, staffNames } from "./staff";
 import { membersSeeingPerson } from "./staff-views";
 
@@ -155,6 +147,14 @@ export async function materialiseSeries(
         : now;
   const to = new Date(now.getTime() + MATERIALISE_AHEAD_HOURS * 3_600_000);
   if (from.getTime() >= to.getTime()) return 0;
+  // A new round goes to the series' assignee only while they could still be given it (their role
+  // or grant in force, and for a round about a person, able to see the person); otherwise it is
+  // left for its role to pick up (ADR-0071 review round 2).
+  const assignee =
+    series.assigneeTenantUserId !== null &&
+    (anyoneMayBeGiven(series) || (await mayBeGiven(tx, series.assigneeTenantUserId, series, now)))
+      ? series.assigneeTenantUserId
+      : null;
   let created = 0;
   for (const { dueAt, windowStart, windowEnd } of seriesRoundTimes(series, from, to)) {
     const inserted = await tx
@@ -168,7 +168,7 @@ export async function materialiseSeries(
         requiredPermission: series.requiredPermission,
         sourceType: series.sourceType,
         sourceId: series.sourceId,
-        assigneeTenantUserId: series.assigneeTenantUserId,
+        assigneeTenantUserId: assignee,
         assigneeRoleKey: series.assigneeRoleKey,
         dueAt,
         windowStart,
@@ -269,20 +269,11 @@ export async function escalateOverdueTasks(
     const recipients = new Set<string>();
     let assignTo: string | null = null;
     if (t.assigneeTenantUserId) recipients.add(t.assigneeTenantUserId);
+    // Role holders in force now and on the staff, where their role reaches the task's location: a
+    // team leader who has left, or whose role has ended, is never the only one told, so the
+    // Registered Manager fallback runs (ADR-0071 review round 2, C2-M4).
     const atLocation = (keys: readonly string[]) =>
-      tx
-        .selectDistinct({ id: roleAssignment.tenantUserId })
-        .from(roleAssignment)
-        .innerJoin(role, eq(role.id, roleAssignment.roleId))
-        .where(
-          and(
-            inArray(role.key, [...keys]),
-            isNull(roleAssignment.deletedAt),
-            t.locationId
-              ? or(isNull(roleAssignment.locationId), eq(roleAssignment.locationId, t.locationId))
-              : undefined,
-          ),
-        );
+      roleHolders(tx, keys, t.locationId ? [t.locationId] : null, now);
     if (PERMISSION_ESCALATED_TASK_KINDS.includes(t.kind)) {
       if (t.locationId || !t.assigneeTenantUserId) {
         const holders = await permissionHolders(
@@ -300,7 +291,13 @@ export async function escalateOverdueTasks(
       // and round 8 M1). For a task about a person, the first of them who can open the person:
       // being its assignee does not show a person task (ADR-0071 review round 1, C-M4).
       if (recipients.size === 0) {
-        const [fallback] = await fallbackRecipients(tx, t.requiredPermission, now, t.personId);
+        const [fallback] = await fallbackRecipients(
+          tx,
+          t.requiredPermission,
+          now,
+          t.personId,
+          t.locationId,
+        );
         if (!fallback) {
           // Never marked escalated with no one told: it stays due, and the gap is audited daily.
           await recordUnrouted(tx, t, now);
@@ -312,7 +309,7 @@ export async function escalateOverdueTasks(
     } else {
       let responders = await atLocation(OVERDUE_FIRST_RESPONDERS);
       if (responders.length === 0) responders = await atLocation(["registered_manager"]);
-      for (const r of responders) recipients.add(r.id);
+      for (const r of responders) recipients.add(r);
     }
     // A device's task whose escalation was reset (a new hold after a refused close, or a reopen, at
     // most once a day; clinical reviews rounds 6 and 7) signals again: its key carries its version.

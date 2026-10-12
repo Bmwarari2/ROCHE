@@ -59,6 +59,7 @@ import {
   roleAssignment,
   type Transaction,
   task,
+  tenantUser,
   visitLog,
   withRequestContext,
 } from "@harbour/db";
@@ -75,8 +76,11 @@ import type { TenantAccess } from "../http/context";
 import { accessRowsOf, accessRowsOfMember } from "./access-rows";
 import { bindDevice, boundToDevice, deviceFirstSeen, deviceRevoked } from "./devices";
 import { rateNumber } from "./rates";
+import { ON_STAFF, roleHolders, roleInForce } from "./role-holders";
 import { withTenantWideScope } from "./safety";
 import { membersSeeingPerson, RECORD_READ_PERMISSION } from "./staff-views";
+
+const REGISTERED_MANAGER = "registered_manager";
 
 /** Who resolves held entries and is told when a deleted entry arrives: Registered Manager, deputy and nurse. */
 export const DISCARD_OTHERS_PERMISSION = "safety.incident.manage" as const;
@@ -242,61 +246,35 @@ const systemFor = (access: TenantAccess) => ({
   locationIds: [] as string[],
 });
 
-/** Live role assignments now: not deleted, started, and not expired. */
-const liveAssignment = (now: Date) =>
-  and(
-    isNull(roleAssignment.deletedAt),
-    lte(roleAssignment.validFrom, now),
-    or(isNull(roleAssignment.validTo), gt(roleAssignment.validTo, now)),
-  );
-
 /**
- * Registered Managers by tenant_user id: those at any of `locationIds` (or across the
- * organisation), or every one when no location is given.
+ * Registered Managers by tenant_user id, with a role in force and on the staff (`roleHolders`):
+ * those whose role reaches any of `locationIds` (assigned there, or marked organisation-wide), or
+ * every one when no location is given; longest-serving first.
  */
 export async function registeredManagers(
   tx: Transaction,
   now: Date,
   locationIds: readonly string[] = [],
 ): Promise<string[]> {
-  const rows = await tx
-    .selectDistinct({ id: roleAssignment.tenantUserId })
-    .from(roleAssignment)
-    .innerJoin(role, eq(role.id, roleAssignment.roleId))
-    .where(
-      and(
-        eq(role.key, "registered_manager"),
-        liveAssignment(now),
-        locationIds.length > 0
-          ? or(
-              isNull(roleAssignment.locationId),
-              inArray(roleAssignment.locationId, [...locationIds]),
-            )
-          : undefined,
-      ),
-    );
-  return rows.map((r) => r.id).sort();
+  return roleHolders(tx, [REGISTERED_MANAGER], locationIds.length > 0 ? locationIds : null, now);
 }
 
 /**
- * Members with a live role assignment or grant carrying `permission`, wherever it is held: the
- * candidates the holder checks below narrow by place (`placesHoldingPermission`).
+ * Members on the staff with a role assignment in force (`roleInForce`), or a live grant, carrying
+ * `permission`, wherever it is held: the candidates the holder checks below narrow by place
+ * (`placesHoldingPermission`).
  */
 async function carriers(tx: Transaction, permission: string, now: Date): Promise<string[]> {
   const roles = await tx
     .selectDistinct({ id: roleAssignment.tenantUserId })
     .from(roleAssignment)
     .innerJoin(role, eq(role.id, roleAssignment.roleId))
-    .where(
-      and(
-        sql`${permission} = ANY(${role.permissions})`,
-        isNull(role.archivedAt),
-        liveAssignment(now),
-      ),
-    );
+    .innerJoin(tenantUser, eq(tenantUser.id, roleAssignment.tenantUserId))
+    .where(and(sql`${permission} = ANY(${role.permissions})`, roleInForce(now)));
   const grants = await tx
     .selectDistinct({ id: accessGrant.tenantUserId })
     .from(accessGrant)
+    .innerJoin(tenantUser, eq(tenantUser.id, accessGrant.tenantUserId))
     .where(
       and(
         sql`${permission} = ANY(${accessGrant.permissions})`,
@@ -304,6 +282,7 @@ async function carriers(tx: Transaction, permission: string, now: Date): Promise
         isNull(accessGrant.revokedAt),
         lte(accessGrant.validFrom, now),
         gt(accessGrant.validTo, now),
+        inArray(tenantUser.status, [...ON_STAFF]),
       ),
     );
   return [...new Set([...roles, ...grants].map((r) => r.id))].sort();
@@ -338,12 +317,16 @@ export async function permissionHolders(
 }
 
 /**
- * Who takes a sync task when no one at its location can act on it (clinical reviews round 7 M5 and
- * round 8 M1): the Registered Managers anywhere in the organisation, else the holders of
- * `permission` anywhere, longest-serving first (the earliest start of a live assignment, then the
- * id), so the first is chosen the same way every time. For a task about a person, only those who
- * can open the person (`people.person.read` reaches them, and for a holder `permission` too): a
- * manager at another home who cannot see the person is skipped (ADR-0071 review round 1, C-M4).
+ * Who takes work when no one at its location can act on it (clinical reviews round 7 M5 and round
+ * 8 M1): a Registered Manager, else a holder of `permission`, on the staff with a role in force,
+ * longest-serving first (the earliest start of an assignment in force, then the id), so the first
+ * is chosen the same way every time.
+ * - About a person: only those who can open the person (`people.person.read` reaches them, and
+ *   for a holder `permission` too); a manager at another home who cannot see the person is
+ *   skipped (ADR-0071 review round 1, C-M4).
+ * - About no one, at a location: first the managers (else holders) whose `people.person.read`
+ *   and `permission` reach the location, so they see the work in its place (review round 2);
+ *   only with none of them, those anywhere, who see a task given to them as its assignee.
  * Empty when there is no one.
  */
 export async function fallbackRecipients(
@@ -351,40 +334,39 @@ export async function fallbackRecipients(
   permission: string,
   now: Date,
   personId: string | null = null,
+  locationId: string | null = null,
 ): Promise<string[]> {
-  const since = sql`min(${roleAssignment.validFrom})`;
-  const managers = await tx
+  const managers = await roleHolders(tx, [REGISTERED_MANAGER], null, now);
+  const holderRows = await tx
     .select({ id: roleAssignment.tenantUserId })
     .from(roleAssignment)
     .innerJoin(role, eq(role.id, roleAssignment.roleId))
-    .where(and(eq(role.key, "registered_manager"), liveAssignment(now)))
+    .innerJoin(tenantUser, eq(tenantUser.id, roleAssignment.tenantUserId))
+    .where(and(sql`${permission} = ANY(${role.permissions})`, roleInForce(now)))
     .groupBy(roleAssignment.tenantUserId)
-    .orderBy(since, roleAssignment.tenantUserId);
-  const seeing = async (ids: string[], p: Permission) =>
-    personId === null ? ids : membersSeeingPerson(tx, ids, personId, p, now);
-  const managersSeeing = await seeing(
-    managers.map((r) => r.id),
-    RECORD_READ_PERMISSION,
-  );
-  if (managersSeeing.length > 0) return managersSeeing;
-  const holders = await tx
-    .select({ id: roleAssignment.tenantUserId })
-    .from(roleAssignment)
-    .innerJoin(role, eq(role.id, roleAssignment.roleId))
-    .where(
-      and(
-        sql`${permission} = ANY(${role.permissions})`,
-        isNull(role.archivedAt),
-        liveAssignment(now),
-      ),
-    )
-    .groupBy(roleAssignment.tenantUserId)
-    .orderBy(since, roleAssignment.tenantUserId);
-  if (personId !== null && !isPermission(permission)) return [];
-  return seeing(
-    holders.map((r) => r.id),
-    isPermission(permission) ? permission : RECORD_READ_PERMISSION,
-  );
+    .orderBy(sql`min(${roleAssignment.validFrom})`, roleAssignment.tenantUserId);
+  const holders = holderRows.map((r) => r.id);
+  if (personId !== null) {
+    const seeing = await membersSeeingPerson(tx, managers, personId, RECORD_READ_PERMISSION, now);
+    if (seeing.length > 0) return seeing;
+    if (!isPermission(permission)) return [];
+    return membersSeeingPerson(tx, holders, personId, permission, now);
+  }
+  if (locationId !== null && isPermission(permission)) {
+    const rows = await accessRowsOf(tx, [...managers, ...holders]);
+    const reaching = (ids: readonly string[]) =>
+      ids.filter((id) => {
+        const mine = rows.get(id);
+        if (!mine) return false;
+        const at = (p: Permission) =>
+          placesCover(placesHoldingPermission(mine.assignments, mine.grants, p, now), locationId);
+        return at(permission) && at(RECORD_READ_PERMISSION);
+      });
+    for (const tier of [reaching(managers), reaching(holders)]) {
+      if (tier.length > 0) return tier;
+    }
+  }
+  return managers.length > 0 ? managers : holders;
 }
 
 /**

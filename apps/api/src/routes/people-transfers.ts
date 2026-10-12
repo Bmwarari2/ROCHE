@@ -174,7 +174,11 @@ async function returnCheckRefusal(
   checkKey: string,
   now: Date,
 ): Promise<string | null> {
-  const held: ReadonlySet<string> = await permissionsReaching(tx, access, personId);
+  // Not given the session's freshness: a permission needing a fresh sign-in counts only while
+  // it is fresh (review round 2).
+  const held: ReadonlySet<string> = await permissionsReaching(tx, access, personId, {
+    freshOnly: true,
+  });
   if (MOVEMENT_RETURN_CHECKS.has(checkKey) && held.has("people.movement.record")) return null;
   const [carried] = await tx
     .select({

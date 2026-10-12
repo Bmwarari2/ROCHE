@@ -96,6 +96,12 @@ describe("escalation chains", () => {
   it("re-sends an unacknowledged alarm to the next role, then stops when acknowledged", async () => {
     const created = new Date("2026-10-11T08:00:00Z");
     await asTenant(appPool, async (c) => {
+      // The Registered Manager has been in post since before the alarm: only a role in force when
+      // a step fires is told (ADR-0071 review round 2).
+      await c.query(
+        "UPDATE role_assignment SET valid_from = '2026-01-01T00:00:00Z' WHERE tenant_user_id = $1",
+        [DEMO.users.manager.id],
+      );
       const chain = await c.query<{ id: string }>(
         `INSERT INTO escalation_chain (key, name, steps) VALUES ('missed_visit', 'Missed visit',
            '[{"afterMinutes":10,"targetRoleKey":"registered_manager","channels":["push"]},

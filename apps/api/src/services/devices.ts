@@ -187,7 +187,8 @@ export async function offlineWindowDaysOf(tx: Transaction, tenantId: string): Pr
  * the organisation (at the person's location when assigned at one; L2), a location role at the
  * person's location or marked organisation-wide, or a grant for there or marked
  * organisation-wide (L1), in force then (an assignment, role or grant ended or deleted since
- * counts up to its end; a revoked grant never counts, as for completing a task). Only the roles
+ * counts up to its end; a revoked grant or an archived role never counts, and an assignment
+ * counts only while the role was in force with it; review round 2). Only the roles
  * and grants carrying the permission count, never another role's reach (ADR-0071), and a role
  * mixing portal and staff permissions gives none. A break-glass record never counts: it opens
  * reading only. For an entry the window runs back from the entry's own time, so an owner
@@ -206,24 +207,28 @@ export async function personReachedBy(
     SELECT EXISTS (
       SELECT 1 FROM public.person p
       WHERE p.id = ${personId} AND (
-        (EXISTS (
+        EXISTS (
+          -- The assignment and a role scoped to assigned people carrying the permission were in
+          -- force together at some time in the window (review round 2).
           SELECT 1 FROM public.person_assignment pa
-          WHERE pa.person_id = p.id AND pa.tenant_user_id = ${tenantUserId}
-            AND pa.valid_from <= ${until}
-            AND coalesce(least(pa.valid_to, pa.deleted_at), 'infinity'::timestamptz) >= ${since})
-          AND EXISTS (
-          SELECT 1 FROM public.role_assignment ra
+          JOIN public.role_assignment ra
+            ON ra.tenant_user_id = pa.tenant_user_id AND ra.tenant_id = pa.tenant_id
           JOIN public.role r ON r.id = ra.role_id AND r.tenant_id = ra.tenant_id
-          WHERE ra.tenant_user_id = ${tenantUserId}
-            AND ra.valid_from <= ${until}
-            AND coalesce(least(ra.valid_to, ra.deleted_at), 'infinity'::timestamptz) >= ${since}
+          WHERE pa.person_id = p.id AND pa.tenant_user_id = ${tenantUserId}
+            AND r.archived_at IS NULL
             AND ${permission} = ANY (r.permissions)
             AND NOT (r.permissions && ${PORTAL_ONLY_ARRAY})
-            AND r.scope_kind IN ('assigned', 'self')))
+            AND r.scope_kind IN ('assigned', 'self')
+            AND greatest(pa.valid_from, ra.valid_from, ${since}::timestamptz)
+              <= least(
+                coalesce(least(pa.valid_to, pa.deleted_at), 'infinity'::timestamptz),
+                coalesce(least(ra.valid_to, ra.deleted_at), 'infinity'::timestamptz),
+                ${until}::timestamptz))
         OR EXISTS (
           SELECT 1 FROM public.role_assignment ra
           JOIN public.role r ON r.id = ra.role_id AND r.tenant_id = ra.tenant_id
           WHERE ra.tenant_user_id = ${tenantUserId}
+            AND r.archived_at IS NULL
             AND ra.valid_from <= ${until}
             AND coalesce(least(ra.valid_to, ra.deleted_at), 'infinity'::timestamptz) >= ${since}
             AND ${permission} = ANY (r.permissions)

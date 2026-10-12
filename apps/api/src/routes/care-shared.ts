@@ -306,8 +306,13 @@ export async function planLink(
     actorTenantUserId: author,
     actorPermissions: handedOver
       ? new Set<string>()
-      : await permissionsReaching(tx, access, personId),
+      : // The task link is not given the session's freshness: a permission needing a fresh
+        // sign-in counts only while it is fresh (review round 2).
+        await permissionsReaching(tx, access, personId, { freshOnly: true }),
     occurredAt,
+    stepUpFresh:
+      handedOver ||
+      Date.now() - access.session.sessionCreatedAt.getTime() <= access.stepUpWindowSeconds * 1000,
   });
 }
 

@@ -4,8 +4,6 @@ import {
   escalationChain,
   notification,
   notificationDelivery,
-  role,
-  roleAssignment,
   type Transaction,
   taskSeries,
   tenantUser,
@@ -30,6 +28,7 @@ import { sweepHandovers } from "../services/handover";
 import { raiseDolsReminders } from "../services/mca";
 import { raisePeopleReviews } from "../services/people";
 import { generatePlanTasks } from "../services/plan-tasks";
+import { roleHolders } from "../services/role-holders";
 import { detectLocationOutbreaks, escalateOverdueNotifications } from "../services/safety";
 import { escalateOverdueTasks, materialiseSeries } from "../services/tasks";
 
@@ -143,12 +142,15 @@ export async function runEscalations(deps: TaskDeps, now = new Date()): Promise<
           const recipients = new Set<string>();
           if (step.targetTenantUserId) recipients.add(step.targetTenantUserId);
           if (step.targetRoleKey) {
-            const holders = await tx
-              .selectDistinct({ id: roleAssignment.tenantUserId })
-              .from(roleAssignment)
-              .innerJoin(role, eq(role.id, roleAssignment.roleId))
-              .where(and(eq(role.key, step.targetRoleKey), isNull(roleAssignment.deletedAt)));
-            for (const h of holders) recipients.add(h.id);
+            // Holders in force and on the staff whose role reaches the notification's location
+            // (anywhere for one with none; ADR-0071 review round 2).
+            const holders = await roleHolders(
+              tx,
+              [step.targetRoleKey],
+              n.locationId ? [n.locationId] : null,
+              now,
+            );
+            for (const h of holders) recipients.add(h);
           }
           for (const recipient of recipients) {
             await tx
