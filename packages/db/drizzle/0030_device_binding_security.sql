@@ -12,7 +12,7 @@ CREATE POLICY tenant_isolation ON public.device_binding AS PERMISSIVE FOR ALL TO
 --> statement-breakpoint
 
 -- A member reads their own devices; tenant-wide roles read the organisation's, and a location role
--- the bindings of staff with a role assignment at one of its locations, as the API narrows them
+-- the bindings of staff with a live role assignment at one of its locations, as the API narrows them
 -- (#25 review round 2, low). Writing is the system's alone: the sync token and device report
 -- routes bind in the organisation's view, and a revocation is written there after the API has
 -- checked the manager (HZ-011).
@@ -24,7 +24,9 @@ CREATE POLICY device_binding_scope ON public.device_binding AS RESTRICTIVE FOR S
       SELECT 1 FROM public.role_assignment ra
       WHERE ra.tenant_id = device_binding.tenant_id
         AND ra.tenant_user_id = device_binding.tenant_user_id
-        AND ra.location_id = ANY (app.current_location_ids()))));
+        AND ra.location_id = ANY (app.current_location_ids())
+        AND ra.deleted_at IS NULL AND ra.valid_from <= now()
+        AND (ra.valid_to IS NULL OR ra.valid_to > now()))));
 --> statement-breakpoint
 CREATE POLICY device_binding_system_insert ON public.device_binding AS RESTRICTIVE FOR INSERT
   TO harbour_app, harbour_owner

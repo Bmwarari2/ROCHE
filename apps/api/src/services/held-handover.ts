@@ -10,15 +10,22 @@
  * and MFA), and is bound to the device too (the device sends its report as the sender first, and a
  * report binds the reporter).
  *
- * Each entry (`admitHandedOverEntry`, #25 review round 2, H1): the device has an open hold owned by
- * that person (its last report says entries wait and names them as the bound owner), and the
- * hold's entries handed over since its report (by someone other than the sender, where there is
- * one) stay within the count it reported; the entry was recorded at or after the owner first used
- * the device and, on a revoked device, at or before the revocation; the person was in the owner's
- * care (an assignment, or a tenant-wide or location role at their location) within the offline
- * window; and the hand-over id names this owner, device and sender only. Each entry is recorded in
- * `handed_over_entry` before it is written. Refusals are 422 `handover_refused`: the device stops
- * and keeps the entry held.
+ * Each entry is planned before its transaction (`planHandedOverEntry`, #25 review rounds 2 and 3):
+ * the device has an open hold owned by that person (its reports since the hold began say entries
+ * wait and name them as the bound owner). The count comes from the latest report in that hold not
+ * sent by the sender, the owner's own preferred (the sender's own reports never count, so a sender
+ * cannot report nothing and then a large count; the owner sending their own uses their own
+ * reports); with no such report the hand-over is refused, since a second holder's confirmation is
+ * a decision for the CSO and DPO (H-158). The entry's time is its device time, else its event time,
+ * with the clock-drift tolerance (`sync.clock_drift_flag_minutes`): at or after the owner first
+ * used the device, at or before the report that counted it, and, on a revoked device, at or before
+ * the revocation. The person was in the owner's care (an assignment, or a tenant-wide or location
+ * role at their location) within the offline window before the entry's own time. Each entry is
+ * then admitted in its own transaction (`recordHandedOverEntry`, the database function
+ * `app.admit_handed_over_entry`): the hand-over id names this owner, device and sender only, and
+ * the hold's entries admitted since that report stay within its count, so an entry the API then
+ * refuses uses none of it. Refusals are 422 `handover_refused`: the device keeps that entry held
+ * with the reason and carries on with the rest.
  *
  * The entry is written as the owner's (`created_by`) with the sender as `handed_over_by` ("Sent
  * by"), any task it completes is judged on the owner's permission when the care was recorded
@@ -27,7 +34,7 @@
  */
 import { HANDOVER_ID_HEADER, HANDOVER_OWNER_HEADER } from "@harbour/contracts";
 import { auditEvent, handedOverEntry, type Transaction, tenantUser } from "@harbour/db";
-import { and, count, desc, eq, gt, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
 import { type AppEnv, requirePermission, type TenantAccess } from "../http/context";
@@ -39,6 +46,8 @@ import {
   offlineWindowDaysOf,
   personReachedBy,
 } from "./devices";
+import { CLOCK_DRIFT_RATE_KEY } from "./people";
+import { rateNumber } from "./rates";
 
 /** The permission a manager needs to send another member's held entries (step-up). */
 export const HANDOVER_PERMISSION = "care.held_entry.hand_over" as const;
@@ -173,110 +182,130 @@ async function openHold(tx: Transaction, deviceId: string, owner: string): Promi
 }
 
 /**
- * Admits one entry of a hand-over before it is written (see the module comment), recording it in
- * `handed_over_entry`; a replay of an entry already admitted for the same owner passes without
- * counting again. Throws 422 `handover_refused` otherwise.
+ * The report a hand-over's count comes from (#25 review round 3, item 1): the latest in the open
+ * hold not sent by the sender, the owner's own preferred; the sender's own are skipped, never
+ * stopped at. The owner sending their own uses their own reports. Undefined when there is none.
  */
-export async function admitHandedOverEntry(
+function countBasis(
+  hold: readonly HoldReport[],
+  owner: string,
+  sender: string,
+): HoldReport | undefined {
+  const others = owner === sender ? hold : hold.filter((r) => r.reporter !== sender);
+  return others.find((r) => r.reporter === owner) ?? others[0];
+}
+
+export type HandedOverTable =
+  | "care_note"
+  | "observation"
+  | "body_map_mark"
+  | "activity_record"
+  | "visit_log";
+
+/** A handed-over entry checked against its hold, for `recordHandedOverEntry` in its transaction. */
+export interface HandedOverAdmission {
+  readonly handover: HeldHandover;
+  readonly table: HandedOverTable;
+  readonly entryId: string;
+  /** When the report that gave the count was made, and the count. */
+  readonly since: Date;
+  readonly limit: number;
+}
+
+/** The time a hand-over judges an entry by: when it was made on the device, else its event time. */
+function entryTimeOf(entry: { readonly occurredAt: string; readonly deviceTime?: string | null }) {
+  const at = new Date(entry.deviceTime ?? entry.occurredAt);
+  if (Number.isNaN(at.getTime())) throw problems.invalid("The entry's time is not a time.");
+  return at;
+}
+
+/**
+ * Checks one entry of a hand-over against the device's hold before its transaction (see the module
+ * comment), and returns what `recordHandedOverEntry` needs. An entry already admitted passes on to
+ * the admission, which takes it again for the same owner (a replay). Throws 422 `handover_refused`.
+ */
+export async function planHandedOverEntry(
   c: Context<AppEnv>,
   handover: HeldHandover,
   entry: {
-    readonly table: "care_note" | "observation" | "body_map_mark" | "activity_record" | "visit_log";
+    readonly table: HandedOverTable;
     readonly entryId: string | undefined;
-    readonly personId: string;
+    readonly personId: string | null;
     readonly occurredAt: string;
+    readonly deviceTime?: string | null | undefined;
   },
-): Promise<void> {
+): Promise<HandedOverAdmission> {
   if (!entry.entryId) {
     throw problems.invalid("A handed-over entry carries the id it was written with.");
   }
   const entryId = entry.entryId.toLowerCase();
-  const occurredAt = new Date(entry.occurredAt);
+  const at = entryTimeOf(entry);
   const access = c.get("access");
-  const now = new Date();
-  const refusal = await inSystemView(c.get("services").db, access, async (tx) => {
-    await tx.execute(
-      // One hold's entries are admitted one at a time, so racing requests cannot pass its count.
-      sqlLock(access.tenantId, handover.deviceId, handover.ownerTenantUserId),
-    );
-    // A hand-over id names one owner, device and sender (#25 review round 2, H1).
-    const [used] = await tx
-      .select({
-        owner: handedOverEntry.ownerTenantUserId,
-        deviceId: handedOverEntry.deviceId,
-        sentBy: handedOverEntry.sentBy,
-      })
-      .from(handedOverEntry)
-      .where(eq(handedOverEntry.handoverId, handover.handoverId))
-      .limit(1);
-    if (
-      used &&
-      (used.owner !== handover.ownerTenantUserId ||
-        used.deviceId !== handover.deviceId ||
-        used.sentBy !== handover.senderTenantUserId)
-    ) {
-      return "That hand-over id is already used for another member of staff, device or sender.";
-    }
+  const owner = handover.ownerTenantUserId;
+  const plan = await inSystemView(c.get("services").db, access, async (tx) => {
     const [admitted] = await tx
       .select({ owner: handedOverEntry.ownerTenantUserId })
       .from(handedOverEntry)
       .where(
         and(eq(handedOverEntry.recordTable, entry.table), eq(handedOverEntry.entryId, entryId)),
       );
-    if (admitted) {
-      return admitted.owner === handover.ownerTenantUserId
-        ? null
-        : "That entry was sent for another member of staff.";
-    }
-    const hold = await openHold(tx, handover.deviceId, handover.ownerTenantUserId);
-    const latest = hold[0];
-    if (!latest) {
+    // A replay: the admission in the entry's transaction passes it again, or refuses another owner.
+    if (admitted) return { since: new Date(0), limit: 0 };
+    const hold = await openHold(tx, handover.deviceId, owner);
+    if (hold.length === 0) {
       return "The device has not reported entries waiting for this member of staff. Send its report first.";
     }
-    // The count a hand-over may send: the hold's report from someone other than the sender where
-    // there is one, so the sender's own report cannot raise it; else the latest.
-    const basis = hold.find((r) => r.reporter !== handover.senderTenantUserId) ?? latest;
-    const [sent] = await tx
-      .select({ n: count() })
-      .from(handedOverEntry)
-      .where(
-        and(
-          eq(handedOverEntry.deviceId, handover.deviceId),
-          eq(handedOverEntry.ownerTenantUserId, handover.ownerTenantUserId),
-          gt(handedOverEntry.acceptedAt, basis.occurredAt),
-        ),
-      );
-    if ((sent?.n ?? 0) >= basis.waiting) {
-      return `All ${basis.waiting} entries the device reported waiting for this member of staff have been sent.`;
+    const basis = countBasis(hold, owner, handover.senderTenantUserId);
+    if (!basis) {
+      return "Only your own reports show entries waiting for this member of staff, so the server cannot count them. It needs a report the device sent while they or someone else was signed in.";
     }
-    const binding = await bindingOf(tx, handover.deviceId, handover.ownerTenantUserId);
-    if (!binding || occurredAt.getTime() < binding.firstSeenAt.getTime()) {
+    const toleranceMs = (await rateNumber(tx, access.tenantId, CLOCK_DRIFT_RATE_KEY)) * 60_000;
+    const binding = await bindingOf(tx, handover.deviceId, owner);
+    if (!binding || at.getTime() < binding.firstSeenAt.getTime() - toleranceMs) {
       return "This entry is timed before that member of staff first used this device.";
     }
-    if (binding.revokedAt && occurredAt.getTime() > binding.revokedAt.getTime()) {
+    if (binding.revokedAt && at.getTime() > binding.revokedAt.getTime() + toleranceMs) {
       return "This entry is timed after the device was withdrawn.";
     }
-    const windowDays = await offlineWindowDaysOf(tx, access.tenantId);
-    const since = new Date(now.getTime() - windowDays * DAY_MS);
-    if (!(await personReachedBy(tx, handover.ownerTenantUserId, entry.personId, since, now))) {
-      return "This person was not in that member of staff's care while the device was offline.";
+    if (at.getTime() > basis.occurredAt.getTime() + toleranceMs) {
+      return "This entry is timed after the device last reported it waiting.";
     }
-    await tx.insert(handedOverEntry).values({
-      handoverId: handover.handoverId,
-      deviceId: handover.deviceId,
-      ownerTenantUserId: handover.ownerTenantUserId,
-      sentBy: handover.senderTenantUserId,
-      recordTable: entry.table,
-      entryId,
-      acceptedAt: now,
-    });
-    return null;
+    if (entry.personId) {
+      // The care window runs back from the entry's own time, so an owner whose access ended since
+      // (over a weekend, or while the hold waited for days) still counts (#25 review round 3, M1).
+      const windowDays = await offlineWindowDaysOf(tx, access.tenantId);
+      const since = new Date(at.getTime() - windowDays * DAY_MS);
+      const until = new Date(at.getTime() + toleranceMs);
+      if (!(await personReachedBy(tx, owner, entry.personId, since, until))) {
+        return "This person was not in that member of staff's care when the entry was made.";
+      }
+    }
+    return { since: basis.occurredAt, limit: basis.waiting };
   });
-  if (refusal) throw problems.handoverRefused(refusal);
+  if (typeof plan === "string") throw problems.handoverRefused(plan);
+  return { handover, table: entry.table, entryId, ...plan };
 }
 
-function sqlLock(tenantId: string, deviceId: string, owner: string) {
-  return sql`SELECT pg_advisory_xact_lock(hashtext(${`${tenantId}:handover:${deviceId}:${owner}`}))`;
+/**
+ * Admits a planned entry in the transaction that writes it (#25 review round 3, low), through
+ * `app.admit_handed_over_entry`: one hand-over id at a time, then one hold at a time; the id names
+ * this owner, device and sender only; an entry already admitted for the owner passes again;
+ * otherwise the hold's entries admitted since its report stay within its count. Call in the
+ * sender's transaction (their own view or the system's acting for them), before the entry is
+ * written. Throws 422 `handover_refused`, which rolls the transaction back.
+ */
+export async function recordHandedOverEntry(
+  tx: Transaction,
+  admission: HandedOverAdmission,
+): Promise<void> {
+  const { handover } = admission;
+  const result = await tx.execute<{ reason: string | null }>(sql`
+    SELECT app.admit_handed_over_entry(
+      ${handover.handoverId}::uuid, ${handover.deviceId}::uuid, ${handover.ownerTenantUserId}::uuid,
+      ${handover.senderTenantUserId}::uuid, ${admission.table}, ${admission.entryId}::uuid,
+      ${admission.since.toISOString()}::timestamptz, ${admission.limit}::integer) AS reason`);
+  const reason = result.rows[0]?.reason;
+  if (reason) throw problems.handoverRefused(reason);
 }
 
 /** Records that an entry reached the server by a hand-over, in the entry's transaction. */

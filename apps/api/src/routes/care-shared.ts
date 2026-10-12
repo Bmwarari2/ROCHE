@@ -101,7 +101,7 @@ export interface EntryWriter {
 /**
  * The access for a care entry a device uploads (notes, observations, body-map marks, activities and
  * visits): the route's permission; a hand-over of held entries checked (part 6; each entry is then
- * admitted with `admitHandedOverEntry`); otherwise a device a manager revoked refused with 403
+ * planned with `planHandedOverEntry` and admitted in its transaction); otherwise a device a manager revoked refused with 403
  * `device_revoked`, audited (part 2). A hand-over is how a revoked device's entries leave it, so it
  * is not refused here: only entries recorded before the revocation are admitted.
  */

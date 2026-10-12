@@ -73,8 +73,13 @@ export const DeviceBindingItem = z
     revokedAt: isoDateTime.nullable(),
     revokedBy: uuid.nullable(),
     revocationReason: z.enum(DEVICE_REVOCATION_REASONS).nullable(),
-    /** Entries the device last reported waiting (held, unsent or blocked); 0 when none. */
+    /**
+     * Entries the device last reported waiting (held, unsent, blocked, or refused with no server
+     * copy); 0 when none.
+     */
     entriesWaiting: z.number().int().min(0),
+    /** When the device last reported, so an old count reads as old; null when it never has. */
+    lastReportedAt: isoDateTime.nullable(),
   })
   .meta({
     id: "DeviceBindingItem",
@@ -110,6 +115,8 @@ export const RevokeDeviceResult = z
     bindings: z.number().int().min(0),
     /** Entries the device last reported waiting; its hold's task is due at once when any are. */
     entriesWaiting: z.number().int().min(0),
+    /** When the device last reported; null when it never has. */
+    lastReportedAt: isoDateTime.nullable(),
   })
   .meta({ id: "RevokeDeviceResult" });
 export type RevokeDeviceResult = z.infer<typeof RevokeDeviceResult>;

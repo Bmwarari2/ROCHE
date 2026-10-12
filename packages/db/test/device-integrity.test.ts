@@ -823,3 +823,138 @@ describe("hazard HZ-011 hazard HZ-040 device sessions and hand-overs (#25 review
     ).rejects.toThrow(/append-only|not allowed|forbid/i);
   });
 });
+
+describe("hazard HZ-011 hazard HZ-040 live assignments, device sessions and hand-over admission (#25 review round 3)", () => {
+  const HANDOVER = "0199d000-0000-4000-8000-0000000000e5";
+  const entry = (n: number) => `0199d000-0000-7000-8000-0000000003${n.toString().padStart(2, "0")}`;
+  /** A member sending a hand-over, in their own view. */
+  const asSender = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
+    inContext(app(), ctx(TENANT_A, a.northManager, "locations", [a.locationNorth]), fn);
+  const admit = (
+    c: pg.PoolClient,
+    input: {
+      readonly entryId: string;
+      readonly since: string;
+      readonly limit: number;
+      readonly owner?: string;
+      readonly sender?: string;
+      readonly handover?: string;
+    },
+  ) =>
+    c
+      .query<{ reason: string | null }>(
+        "SELECT app.admit_handed_over_entry($1, $2, $3, $4, 'care_note', $5, $6, $7) AS reason",
+        [
+          input.handover ?? HANDOVER,
+          DEVICE,
+          input.owner ?? a.carer,
+          input.sender ?? a.northManager,
+          input.entryId,
+          input.since,
+          input.limit,
+        ],
+      )
+      .then((r) => r.rows[0]?.reason ?? null);
+  const admitted = (entryId: string) =>
+    asOwner(TENANT_A, (c) =>
+      c.query("SELECT sent_by FROM handed_over_entry WHERE entry_id = $1", [entryId]),
+    ).then((r) => r.rows);
+
+  it("lets a location role read only the devices, deletions and hand-overs of staff with a live, undeleted role assignment at its locations", async () => {
+    // The manager's role at North House ended yesterday; another there was deleted.
+    await asOwner(TENANT_A, async (c) => {
+      await c.query(
+        `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, valid_from, valid_to)
+         VALUES ($1, $2, $3, now() - interval '2 days', now() - interval '1 day')`,
+        [a.manager, a.roleCarer, a.locationNorth],
+      );
+      await c.query(
+        `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, deleted_at)
+         VALUES ($1, $2, $3, now())`,
+        [a.manager, a.roleCarer, a.locationNorth],
+      );
+    });
+    await asSystem((c) =>
+      c.query(
+        `INSERT INTO handed_over_entry (handover_id, device_id, owner_tenant_user_id, sent_by, record_table, entry_id)
+         VALUES ($1, $2, $3, $4, 'care_note', $5)`,
+        [crypto.randomUUID(), DEVICE, a.manager, a.carer, entry(1)],
+      ),
+    );
+    const owners = (table: string) => (c: pg.PoolClient) =>
+      c
+        .query<{ owner: string }>(
+          `SELECT DISTINCT ${table === "device_binding" ? "tenant_user_id" : "owner_tenant_user_id"} AS owner FROM ${table}`,
+        )
+        .then((r) => r.rows.map((row) => row.owner));
+    for (const table of ["device_binding", "device_discard_entry", "handed_over_entry"]) {
+      expect(await asNorthManager(owners(table))).not.toContain(a.manager);
+      expect(await asTenantWide(owners(table))).toContain(a.manager);
+    }
+    expect(await asNorthManager(owners("device_binding"))).toContain(a.carer);
+  });
+
+  it("shows a session to its member or a job only, never to a tenant-wide role, and binds only the member's own", async () => {
+    const sessions = (c: pg.PoolClient) =>
+      c.query("SELECT session_id FROM device_session").then((r) => r.rows.length);
+    expect(await asTenantWide(sessions)).toBe(0);
+    expect(await asCarer(sessions)).toBeGreaterThan(0);
+    expect(await asJob(sessions)).toBeGreaterThan(0);
+    // The system's view acting for the carer binds only the carer's sessions; a job binds none.
+    await expect(
+      asSystem((c) =>
+        c.query(
+          "INSERT INTO device_session (device_id, tenant_user_id, session_id) VALUES ($1, $2, 'm')",
+          [DEVICE, a.manager],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    await expect(
+      asJob((c) =>
+        c.query(
+          "INSERT INTO device_session (device_id, tenant_user_id, session_id) VALUES ($1, $2, 'j')",
+          [DEVICE, a.carer],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it("admits a handed-over entry for its sender only, within the hold's count, one owner, device and sender per id, and restores the sender's view", async () => {
+    const since = new Date().toISOString();
+    expect(await asSender((c) => admit(c, { entryId: entry(2), since, limit: 2 }))).toBeNull();
+    // The sender's own view is back once it returns.
+    expect(
+      await asSender(async (c) => {
+        await admit(c, { entryId: entry(2), since, limit: 2 });
+        return (await c.query<{ s: string }>("SELECT current_setting('app.scope') AS s")).rows[0]
+          ?.s;
+      }),
+    ).toBe("locations");
+    // A replay passes again without counting; one row per entry.
+    expect(await admitted(entry(2))).toEqual([{ sent_by: a.northManager }]);
+    expect(await asSender((c) => admit(c, { entryId: entry(3), since, limit: 2 }))).toBeNull();
+    expect(await asSender((c) => admit(c, { entryId: entry(4), since, limit: 2 }))).toMatch(
+      /All 2 entries/,
+    );
+    expect(await admitted(entry(4))).toEqual([]);
+    // The same id cannot name another owner.
+    expect(
+      await asSender((c) => admit(c, { entryId: entry(5), since, limit: 9, owner: a.manager })),
+    ).toMatch(/already used/);
+    // Only the member sending it, never in someone else's name or as a job.
+    await expect(
+      asSender((c) => admit(c, { entryId: entry(6), since, limit: 9, sender: a.manager })),
+    ).rejects.toThrow(/only for the member sending it/);
+    await expect(
+      asJob((c) => admit(c, { entryId: entry(6), since, limit: 9, sender: a.manager })),
+    ).rejects.toThrow(/only for the member sending it/);
+    // A write refused after its admission takes the admission back with it.
+    await expect(
+      asSender(async (c) => {
+        await admit(c, { entryId: entry(7), since, limit: 9, handover: crypto.randomUUID() });
+        throw new Error("the entry was refused");
+      }),
+    ).rejects.toThrow(/the entry was refused/);
+    expect(await admitted(entry(7))).toEqual([]);
+  });
+});

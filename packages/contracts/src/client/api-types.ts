@@ -12311,7 +12311,7 @@ export interface paths {
     };
     /**
      * Care mode devices staff have used, and whether each is revoked
-     * @description Lists device bindings: the device, the member of staff, when the server first and last saw them together, any revocation and the entries the device last reported waiting. A location role sees only devices used by staff whose live, or else most recent, role assignment is at one of its locations.
+     * @description Lists device bindings: the device, the member of staff, when the server first and last saw them together, any revocation, and the entries the device last reported waiting and when. A location role sees only devices used by staff whose live, or else most recent, role assignment is at one of its locations.
      */
     get: {
       parameters: {
@@ -12381,7 +12381,7 @@ export interface paths {
     put?: never;
     /**
      * Revoke a lost or withdrawn Care mode device
-     * @description Marks every binding of the device revoked with a coded reason (step-up) and ends the sessions bound to it. At its next sync token or upload the device is refused with 403 device_revoked and wipes, keeping entries not yet sent under the hold rules; a request from one of its sessions is refused whatever device it names. When the device last reported entries waiting, the revocation needs confirmEntriesWaiting (409 entries_waiting otherwise), and its hold's task falls due at once, urgent, with a notice to the manager. A device already revoked changes nothing. A device no member the caller manages has used reads as not found; a location role may not revoke a device staff it does not manage have also used.
+     * @description Marks every binding of the device revoked with a coded reason (step-up). At its next sync token or upload the device is refused with 403 device_revoked and wipes, keeping entries not yet sent under the hold rules. The sessions bound to it are not ended: every request from one is refused with 403 device_revoked whatever device it names, except its device report, which may raise or hurry the hold's task but never close it. When the device last reported entries waiting, the revocation needs confirmEntriesWaiting (409 entries_waiting otherwise), and its hold's task falls due at once, urgent, with a notice to the manager. A device already revoked changes nothing but hurries that task again. A device no member the caller manages has used reads as not found; a location role may not revoke a device staff it does not manage have also used.
      */
     post: {
       parameters: {
@@ -12471,7 +12471,7 @@ export interface paths {
     put?: never;
     /**
      * Keep the server's copy of a care entry the API refused from a device
-     * @description Stores the request a device made for an entry the API refused (checked against that entry kind's own contract), once per entry id, with the refusal (in the owner's name when a manager hands over another member's held entries, as for the entry routes), and adds it to the person's one open review task for the nurse in charge (due at once; urgent, with a notice to the nurse in charge, when an observation joins it). A copy about a person is taken only when its author cared for them within the offline window; otherwise, as for a person unknown here, it is refused the same way. Written in the organisation's view, so a copy is kept even when its author can no longer see the person; read like the care record. A revoked device's copies come only with a hand-over. Each author's copies count against 200 a day, after the replay check.
+     * @description Stores the request a device made for an entry the API refused (checked against that entry kind's own contract), once per entry id, with the refusal (in the owner's name when a manager hands over another member's held entries, as for the entry routes), and adds it to the person's one open review task for the nurse in charge (due at once; urgent, with a notice to the nurse in charge, when an observation joins it). A copy about a person is taken only when its author cared for them within the offline window; otherwise, as for a person unknown here, it is refused the same way. Written in the organisation's view, so a copy is kept even when its author can no longer see the person; read like the care record. A revoked device's copies come only with a hand-over, and a handed-over copy is checked against the device's hold like the entry it is (its owner's care judged from the entry's own time). Each author's copies count against 200 a day, after the replay check.
      */
     post: {
       parameters: {
@@ -17899,6 +17899,8 @@ export interface components {
         | "other"
         | null;
       entriesWaiting: number;
+      /** Format: date-time */
+      lastReportedAt: string | null;
     };
     RevokeDeviceResult: {
       /** Format: uuid */
@@ -17908,6 +17910,8 @@ export interface components {
       replay: boolean;
       bindings: number;
       entriesWaiting: number;
+      /** Format: date-time */
+      lastReportedAt: string | null;
     };
     RevokeDevice: {
       /** @enum {string} */

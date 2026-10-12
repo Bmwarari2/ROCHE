@@ -66,7 +66,11 @@ import {
   toRecordState,
 } from "../services/care-planning";
 import { flagIfReportedDeleted } from "../services/device-holds";
-import { admitHandedOverEntry, auditHandedOver } from "../services/held-handover";
+import {
+  auditHandedOver,
+  planHandedOverEntry,
+  recordHandedOverEntry,
+} from "../services/held-handover";
 import { loadPerson, requireWrite } from "../services/people";
 import {
   applyLink,
@@ -520,16 +524,17 @@ export const careRecordsRouter = createRouter()
       const { id: personId } = c.req.valid("param");
       const body = c.req.valid("json");
       requireCorrection(body);
-      // A handed-over entry is admitted against the device's hold before it is written (#25 review
-      // round 2, H1): its owner's time on the device, the hold's count and the owner's care.
-      if (handover) {
-        await admitHandedOverEntry(c, handover, {
-          table: "activity_record",
-          entryId: body.id,
-          personId,
-          occurredAt: body.occurredAt,
-        });
-      }
+      // A handed-over entry is checked against the device's hold before it is written (#25
+      // review rounds 2 and 3): the owner's time on the device, the hold's count and their care.
+      const admission = handover
+        ? await planHandedOverEntry(c, handover, {
+            table: "activity_record",
+            entryId: body.id,
+            personId,
+            occurredAt: body.occurredAt,
+            deviceTime: body.deviceTime,
+          })
+        : null;
       const check = checkActivity({
         format: body.format,
         groupSessionId: body.groupSessionId ?? null,
@@ -561,6 +566,8 @@ export const careRecordsRouter = createRouter()
                 return activityItem(replayed, new Set());
               }
             }
+            // Admitted in the entry's own transaction, so a refusal uses none of the count.
+            if (admission) await recordHandedOverEntry(tx, admission);
             const person = await personContext(tx, personId);
             const rates = await careRates(tx, access.tenantId, person.nation);
             const times = entryTimes(body, c.req.header(SENT_AT_HEADER), now, rates);
@@ -737,16 +744,17 @@ export const careRecordsRouter = createRouter()
       const { id: personId } = c.req.valid("param");
       const body = c.req.valid("json");
       requireCorrection(body);
-      // A handed-over entry is admitted against the device's hold before it is written (#25 review
-      // round 2, H1): its owner's time on the device, the hold's count and the owner's care.
-      if (handover) {
-        await admitHandedOverEntry(c, handover, {
-          table: "visit_log",
-          entryId: body.id,
-          personId,
-          occurredAt: body.occurredAt,
-        });
-      }
+      // A handed-over entry is checked against the device's hold before it is written (#25
+      // review rounds 2 and 3): the owner's time on the device, the hold's count and their care.
+      const admission = handover
+        ? await planHandedOverEntry(c, handover, {
+            table: "visit_log",
+            entryId: body.id,
+            personId,
+            occurredAt: body.occurredAt,
+            deviceTime: body.deviceTime,
+          })
+        : null;
       const now = new Date();
       const check = checkVisit(
         {
@@ -776,6 +784,8 @@ export const careRecordsRouter = createRouter()
                 return visitItem(replayed, new Set());
               }
             }
+            // Admitted in the entry's own transaction, so a refusal uses none of the count.
+            if (admission) await recordHandedOverEntry(tx, admission);
             const person = await personContext(tx, personId);
             const rates = await careRates(tx, access.tenantId, person.nation);
             // A visit is a care event (people.md rule 3), placed in time by when it began.

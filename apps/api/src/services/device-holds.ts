@@ -65,7 +65,6 @@ import { auditInTx } from "../http/audit";
 import type { TenantAccess } from "../http/context";
 import { bindDevice, boundToDevice, deviceFirstSeen, deviceRevoked } from "./devices";
 import { rateNumber } from "./rates";
-import { REFUSED_REVIEW_TASK_KIND } from "./refused-entries";
 import { withTenantWideScope } from "./safety";
 
 /** Who resolves held entries and is told when a deleted entry arrives: Registered Manager, deputy and nurse. */
@@ -82,6 +81,11 @@ export const DEVICE_HOLD_SOURCE = "device_hold";
 export const CAPPED_HOLDS_SOURCE = "device_hold_capped";
 export const REPORTED_DELETED_TASK_KIND = "sync.entry_reported_deleted";
 export const UPLOADED_BEFORE_DELETION_TASK_KIND = "sync.entry_deleted_after_upload";
+/**
+ * The review of copies of refused entries (`refused-entries`), defined here so that module can use
+ * this one's fallback without an import cycle (#25 review round 3, low).
+ */
+export const REFUSED_REVIEW_TASK_KIND = "care.refused_entry_review";
 /** A flagged-entry task points at the deletion record it comes from. */
 export const FLAGGED_ENTRY_SOURCE = "device_discard";
 const FLAGGED_ENTRY_TASK_KINDS = [REPORTED_DELETED_TASK_KIND, UPLOADED_BEFORE_DELETION_TASK_KIND];
@@ -210,9 +214,13 @@ export function waitingSince(
   return floor.getTime() > reportedAt.getTime() ? reportedAt : floor;
 }
 
-/** Entries the device still has to deal with: held, unsent, and left by a deletion that failed. */
+/**
+ * Entries the device still has to deal with: held, unsent, left by a deletion that failed, and
+ * refused ones the server would not keep a copy of, which only the device has (#25 review round 3,
+ * M3).
+ */
 export function waitingCount(report: SyncDeviceReport): number {
-  return report.held + report.unsent + report.blocked;
+  return report.held + report.unsent + report.blocked + (report.copiesRefused ?? 0);
 }
 
 /** The system's view of the tenant, acting for the person whose request this is. */
@@ -820,6 +828,9 @@ export async function recordDeviceHold(
     await bindDevice(tx, deviceId, reporter, receivedAt, access.session.sessionId);
 
     if (waiting === 0) {
+      // A session on a revoked device may raise or hurry its task, never close it (#25 review
+      // round 3, M2): only a hand-over or a recorded deletion drains a revoked device's hold.
+      if (access.sessionOnRevokedDevice) return "none";
       return closeIfEntitled(tx, access, deviceId, "report", receivedAt, requestId);
     }
 
@@ -1001,18 +1012,23 @@ async function makeUrgent(tx: Transaction, deviceId: string): Promise<void> {
 }
 
 /**
- * The entries each device last reported waiting (held, unsent and blocked), by device id; a device
- * that never reported is missing. Read in the system's view.
+ * The entries each device last reported waiting (`waitingCount`: held, unsent, blocked and refused
+ * with no server copy) and when, by device id; a device that never reported is missing. Read in
+ * the system's view.
  */
 export async function lastReportedWaiting(
   tx: Transaction,
   deviceIds: readonly string[],
-): Promise<Map<string, number>> {
-  const result = new Map<string, number>();
+): Promise<Map<string, { readonly waiting: number; readonly at: Date }>> {
+  const result = new Map<string, { readonly waiting: number; readonly at: Date }>();
   if (deviceIds.length === 0) return result;
-  const rows = await tx.execute<{ device_id: string; waiting: number | null }>(sql`
+  const rows = await tx.execute<{
+    device_id: string;
+    waiting: number | null;
+    at: Date | string;
+  }>(sql`
     SELECT DISTINCT ON (resource_id) resource_id AS device_id,
-      (scope ->> 'waiting')::int AS waiting
+      (scope ->> 'waiting')::int AS waiting, occurred_at AS at
     FROM public.audit_event
     WHERE resource_type = 'device' AND action = ${DEVICE_REPORT_ACTION}
       AND resource_id IN (${sql.join(
@@ -1020,7 +1036,9 @@ export async function lastReportedWaiting(
         sql`, `,
       )})
     ORDER BY resource_id, seq DESC`);
-  for (const row of rows.rows) result.set(row.device_id, Number(row.waiting ?? 0));
+  for (const row of rows.rows) {
+    result.set(row.device_id, { waiting: Number(row.waiting ?? 0), at: new Date(row.at) });
+  }
   return result;
 }
 
@@ -1077,6 +1095,8 @@ export async function hurryRevokedHold(
           : openDeviceTasks(input.deviceId),
       );
     for (const row of open) {
+      // A replayed revocation hurries again: only what is not yet due and urgent moves (round 3).
+      if (row.priority === "urgent" && row.dueAt.getTime() <= input.now.getTime()) continue;
       const due = row.dueAt.getTime() > input.now.getTime() ? input.now : row.dueAt;
       await tx.update(task).set({ dueAt: due, priority: "urgent" }).where(eq(task.id, row.id));
       await auditInTx(tx, access, {

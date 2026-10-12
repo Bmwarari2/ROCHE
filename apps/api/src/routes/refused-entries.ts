@@ -14,7 +14,7 @@ import { problems } from "../http/problem";
 import { PerUserQuota } from "../http/quota";
 import { personContext } from "../services/care";
 import { refuseRevokedDevice } from "../services/devices";
-import { heldHandoverOf } from "../services/held-handover";
+import { heldHandoverOf, planHandedOverEntry } from "../services/held-handover";
 import {
   copyRefusedEntry,
   REFUSED_READ_ACTION,
@@ -44,7 +44,7 @@ export function createRefusedEntriesRouter() {
         tags: ["sync"],
         summary: "Keep the server's copy of a care entry the API refused from a device",
         description:
-          "Stores the request a device made for an entry the API refused (checked against that entry kind's own contract), once per entry id, with the refusal (in the owner's name when a manager hands over another member's held entries, as for the entry routes), and adds it to the person's one open review task for the nurse in charge (due at once; urgent, with a notice to the nurse in charge, when an observation joins it). A copy about a person is taken only when its author cared for them within the offline window; otherwise, as for a person unknown here, it is refused the same way. Written in the organisation's view, so a copy is kept even when its author can no longer see the person; read like the care record. A revoked device's copies come only with a hand-over. Each author's copies count against 200 a day, after the replay check.",
+          "Stores the request a device made for an entry the API refused (checked against that entry kind's own contract), once per entry id, with the refusal (in the owner's name when a manager hands over another member's held entries, as for the entry routes), and adds it to the person's one open review task for the nurse in charge (due at once; urgent, with a notice to the nurse in charge, when an observation joins it). A copy about a person is taken only when its author cared for them within the offline window; otherwise, as for a person unknown here, it is refused the same way. Written in the organisation's view, so a copy is kept even when its author can no longer see the person; read like the care record. A revoked device's copies come only with a hand-over, and a handed-over copy is checked against the device's hold like the entry it is (its owner's care judged from the entry's own time). Each author's copies count against 200 a day, after the replay check.",
         security,
         request: {
           // A hand-over of held entries (care.md section 6, Device integrity part 6).
@@ -71,12 +71,23 @@ export function createRefusedEntriesRouter() {
             c.get("requestId"),
           );
         }
+        // A handed-over copy is checked against the hold like the entry it is, and admitted in
+        // the copy's transaction (#25 review round 3, low).
+        const admission = handover
+          ? await planHandedOverEntry(c, handover, {
+              table: body.table,
+              entryId: body.entryId,
+              personId: body.personId?.toLowerCase() ?? null,
+              occurredAt: body.payload.occurredAt,
+              deviceTime: body.payload.deviceTime,
+            })
+          : null;
         const result = await copyRefusedEntry(c.get("services").db, access, body, {
           author: handover?.ownerTenantUserId ?? access.tenantUserId,
           deviceId: access.deviceId,
           now: new Date(),
           requestId: c.get("requestId"),
-          handoverId: handover?.handoverId,
+          admission,
           quota: copyQuota,
         });
         return c.json({ ...result, entryId: body.entryId.toLowerCase() }, 200);

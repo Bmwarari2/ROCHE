@@ -156,9 +156,10 @@ export const REFUSED_ENTRY_TABLES = [
 
 /**
  * Each held entry a hand-over sent (part 6; security review of #25, H1): the hand-over's id, the
- * device that held the entry, its owner and who sent it, one row per entry, written before the entry
- * is, in the system's view. A hand-over id names one owner, device and sender; the entries a hold's
- * hand-overs send are counted against the waiting count the device last reported for it.
+ * device that held the entry, its owner and who sent it, one row per entry, written in the entry's
+ * own transaction by `app.admit_handed_over_entry` (#25 review round 3). A hand-over id names one
+ * owner, device and sender; the entries a hold's hand-overs send are counted against the waiting
+ * count of the report the API takes for the hold (never the sender's own).
  * Append-only.
  */
 export const handedOverEntry = pgTable(

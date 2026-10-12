@@ -13,7 +13,7 @@ CREATE POLICY tenant_isolation ON public.device_discard_entry AS PERMISSIVE FOR 
 
 -- A member reads and writes the lists of their own deletions. Tenant-wide and location roles (the
 -- managers who may record anyone's deletion, which the API checks first) write the organisation's;
--- tenant-wide roles read them all, and a location role those of owners with a role assignment at
+-- tenant-wide roles read them all, and a location role those of owners with a live role assignment at
 -- one of its locations (#25 review round 2, low).
 CREATE POLICY device_discard_entry_scope ON public.device_discard_entry AS RESTRICTIVE FOR SELECT
   TO harbour_app, harbour_owner
@@ -23,7 +23,9 @@ CREATE POLICY device_discard_entry_scope ON public.device_discard_entry AS RESTR
       SELECT 1 FROM public.role_assignment ra
       WHERE ra.tenant_id = device_discard_entry.tenant_id
         AND ra.tenant_user_id = device_discard_entry.owner_tenant_user_id
-        AND ra.location_id = ANY (app.current_location_ids()))));
+        AND ra.location_id = ANY (app.current_location_ids())
+        AND ra.deleted_at IS NULL AND ra.valid_from <= now()
+        AND (ra.valid_to IS NULL OR ra.valid_to > now()))));
 --> statement-breakpoint
 CREATE POLICY device_discard_entry_write ON public.device_discard_entry AS RESTRICTIVE FOR INSERT
   TO harbour_app, harbour_owner

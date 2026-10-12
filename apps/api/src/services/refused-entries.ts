@@ -6,7 +6,9 @@
  * - The content is the request the device made for the entry, checked against that kind's own
  *   contract (#25 review round 2, M2). A copy about a person is taken only when its author cared
  *   for them within the offline window (`personReachedBy`); otherwise, as for an id unknown here,
- *   it is refused the same way, so a copy never says whether a person exists.
+ *   it is refused the same way, so a copy never says whether a person exists. A handed-over copy is
+ *   planned against the device's hold like the entry it is (its owner's care judged from the
+ *   entry's own time) and admitted in the copy's transaction (#25 review round 3, low).
  * - The copy is written in the system's view once per entry id (a replay from the same author
  *   returns it; another author is refused), with the person's location, or with no person and the
  *   author's location when the device named no person. It is append-only and read like the care
@@ -18,7 +20,8 @@
  *   details list the copies by kind, entry id, copy id, refusal code, time, device and author,
  *   never content. A copy about nobody joins its author's one open task at that location. The
  *   open-task index keeps one task per source; overdue, the task escalates like the sync tasks,
- *   with a fallback when no one at the location can act (#25 review round 2, M3).
+ *   with a fallback when no one at the location can act (#25 review round 2, M3). With no nurse in
+ *   charge at the location, the urgent notice goes to that fallback (round 3, low).
  */
 import type { RefusedEntryItem, SyncRefusedEntry } from "@harbour/contracts";
 import {
@@ -35,17 +38,21 @@ import type { TenantAccess } from "../http/context";
 import { problems } from "../http/problem";
 import type { PerUserQuota } from "../http/quota";
 import { appendTaskDetail, nurseInCharge } from "./care";
+import { fallbackRecipients, REFUSED_REVIEW_TASK_KIND } from "./device-holds";
 import { inSystemView, memberLocations, offlineWindowDaysOf, personReachedBy } from "./devices";
+import { type HandedOverAdmission, recordHandedOverEntry } from "./held-handover";
 
 type Db = Parameters<typeof inSystemView>[0];
 
-export const REFUSED_REVIEW_TASK_KIND = "care.refused_entry_review";
+export { REFUSED_REVIEW_TASK_KIND };
 /** The audit action of a copy received. */
 export const REFUSED_COPY_ACTION = "sync.refused_entry.copied";
 /** The audit action of a copy read. */
 export const REFUSED_READ_ACTION = "care.refused_entry.read";
 
 const OPEN = ["open", "in_progress"];
+/** Who may act on a review: the nurse in charge, or the fallback when there is none. */
+const REVIEW_PERMISSION = "care.plan.write";
 
 /** Copies about nobody known wait on their author's task at a location. */
 const AUTHOR_SOURCE = "tenant_user";
@@ -94,7 +101,7 @@ async function reviewTask(
       .values({
         kind: REFUSED_REVIEW_TASK_KIND,
         title: "Review entries a device could not save",
-        requiredPermission: "care.plan.write",
+        requiredPermission: REVIEW_PERMISSION,
         personId: input.personId,
         locationId: input.locationId,
         ...source,
@@ -118,14 +125,22 @@ async function reviewTask(
 
 /**
  * Tells the nurse in charge at the review's location that it has become urgent (#25 review round
- * 2, M3): an observation a device could not save may belong in the day's totals. The notice names
- * no one; the link opens the tasks.
+ * 2, M3): an observation a device could not save may belong in the day's totals; with none, the
+ * escalation's fallback (round 3, low). The notice names no one; the link opens the tasks.
  */
 async function noticeUrgentReview(
   tx: Transaction,
-  input: { readonly taskId: string; readonly personId: string | null; readonly locationId: string },
+  input: {
+    readonly taskId: string;
+    readonly personId: string | null;
+    readonly locationId: string;
+    readonly now: Date;
+  },
 ): Promise<void> {
-  for (const recipient of await nurseInCharge(tx, input.locationId)) {
+  const nurses = await nurseInCharge(tx, input.locationId);
+  const recipients =
+    nurses.length > 0 ? nurses : await fallbackRecipients(tx, REVIEW_PERMISSION, input.now);
+  for (const recipient of recipients) {
     await tx
       .insert(notification)
       .values({
@@ -159,7 +174,8 @@ export async function copyRefusedEntry(
     readonly deviceId: string | null;
     readonly now: Date;
     readonly requestId: string | undefined;
-    readonly handoverId?: string | undefined;
+    /** A hand-over's copy, planned against the device's hold (`planHandedOverEntry`). */
+    readonly admission?: HandedOverAdmission | null;
     /** The author's daily limit on copies. */
     readonly quota: PerUserQuota;
   },
@@ -188,9 +204,10 @@ export async function copyRefusedEntry(
   const earlier = await existing();
   if (earlier) return replayOf(earlier);
   // Only about someone the author cared for here within the offline window; a person unknown here
-  // reads the same (#25 review round 2, M2).
+  // reads the same (#25 review round 2, M2). A hand-over's plan judged that from the entry's time.
   const personId = body.personId?.toLowerCase() ?? null;
-  if (personId) {
+  const handoverId = input.admission?.handover.handoverId;
+  if (personId && !input.admission) {
     const reached = await inSystemView(db, access, async (tx) => {
       const days = await offlineWindowDaysOf(tx, access.tenantId);
       const since = new Date(input.now.getTime() - days * DAY_MS);
@@ -226,6 +243,7 @@ export async function copyRefusedEntry(
       now: input.now,
     });
     const taskId = review?.id ?? null;
+    if (input.admission) await recordHandedOverEntry(tx, input.admission);
     const [created] = await tx
       .insert(refusedEntry)
       .values({
@@ -260,7 +278,12 @@ export async function copyRefusedEntry(
         },
       ]);
       if (review?.becameUrgent && locationId) {
-        await noticeUrgentReview(tx, { taskId, personId: who?.id ?? null, locationId });
+        await noticeUrgentReview(tx, {
+          taskId,
+          personId: who?.id ?? null,
+          locationId,
+          now: input.now,
+        });
       }
     }
     await auditInTx(tx, access, {
@@ -275,7 +298,7 @@ export async function copyRefusedEntry(
         httpStatus: body.httpStatus,
         authorTenantUserId: input.author,
         taskId,
-        ...(input.handoverId ? { handoverId: input.handoverId } : {}),
+        ...(handoverId ? { handoverId } : {}),
       },
       requestId: input.requestId,
     });

@@ -53,7 +53,11 @@ import {
 } from "../services/care";
 import { latestMustBand } from "../services/care-planning";
 import { flagIfReportedDeleted } from "../services/device-holds";
-import { admitHandedOverEntry, auditHandedOver } from "../services/held-handover";
+import {
+  auditHandedOver,
+  planHandedOverEntry,
+  recordHandedOverEntry,
+} from "../services/held-handover";
 import { loadPerson, type PersonRecord, requireWrite } from "../services/people";
 import {
   applyLink,
@@ -167,16 +171,17 @@ export const careRouter = createRouter()
       const { id: personId } = c.req.valid("param");
       const body = c.req.valid("json");
       requireCorrection(body);
-      // A handed-over entry is admitted against the device's hold before it is written (#25 review
-      // round 2, H1): its owner's time on the device, the hold's count and the owner's care.
-      if (handover) {
-        await admitHandedOverEntry(c, handover, {
-          table: "care_note",
-          entryId: body.id,
-          personId,
-          occurredAt: body.occurredAt,
-        });
-      }
+      // A handed-over entry is checked against the device's hold before it is written (#25
+      // review rounds 2 and 3): the owner's time on the device, the hold's count and their care.
+      const admission = handover
+        ? await planHandedOverEntry(c, handover, {
+            table: "care_note",
+            entryId: body.id,
+            personId,
+            occurredAt: body.occurredAt,
+            deviceTime: body.deviceTime,
+          })
+        : null;
       const now = new Date();
       const item = await withLateEntryReview(
         c,
@@ -193,6 +198,8 @@ export const careRouter = createRouter()
                 return noteItem(replayed, new Set());
               }
             }
+            // Admitted in the entry's own transaction, so a refusal uses none of the count.
+            if (admission) await recordHandedOverEntry(tx, admission);
             const { person, record, rates } = await writeContext(c, personId, tx);
             const times = entryTimes(body, c.req.header(SENT_AT_HEADER), now, rates);
             const recordedAfterExit = allowedAt(
@@ -378,16 +385,17 @@ export const careRouter = createRouter()
       const { id: personId } = c.req.valid("param");
       const body = c.req.valid("json");
       requireCorrection(body);
-      // A handed-over entry is admitted against the device's hold before it is written (#25 review
-      // round 2, H1): its owner's time on the device, the hold's count and the owner's care.
-      if (handover) {
-        await admitHandedOverEntry(c, handover, {
-          table: "observation",
-          entryId: body.id,
-          personId,
-          occurredAt: body.occurredAt,
-        });
-      }
+      // A handed-over entry is checked against the device's hold before it is written (#25
+      // review rounds 2 and 3): the owner's time on the device, the hold's count and their care.
+      const admission = handover
+        ? await planHandedOverEntry(c, handover, {
+            table: "observation",
+            entryId: body.id,
+            personId,
+            occurredAt: body.occurredAt,
+            deviceTime: body.deviceTime,
+          })
+        : null;
       const now = new Date();
       const item = await withLateEntryReview(
         c,
@@ -407,6 +415,8 @@ export const careRouter = createRouter()
                 return observationItem(replayed, new Set());
               }
             }
+            // Admitted in the entry's own transaction, so a refusal uses none of the count.
+            if (admission) await recordHandedOverEntry(tx, admission);
             const { person, record, rates } = await writeContext(c, personId, tx);
             const times = entryTimes(body, c.req.header(SENT_AT_HEADER), now, rates);
             const recordedAfterExit = allowedAt(
@@ -706,16 +716,17 @@ export const careRouter = createRouter()
       const { id: personId } = c.req.valid("param");
       const body = c.req.valid("json");
       requireCorrection(body);
-      // A handed-over entry is admitted against the device's hold before it is written (#25 review
-      // round 2, H1): its owner's time on the device, the hold's count and the owner's care.
-      if (handover) {
-        await admitHandedOverEntry(c, handover, {
-          table: "body_map_mark",
-          entryId: body.id,
-          personId,
-          occurredAt: body.occurredAt,
-        });
-      }
+      // A handed-over entry is checked against the device's hold before it is written (#25
+      // review rounds 2 and 3): the owner's time on the device, the hold's count and their care.
+      const admission = handover
+        ? await planHandedOverEntry(c, handover, {
+            table: "body_map_mark",
+            entryId: body.id,
+            personId,
+            occurredAt: body.occurredAt,
+            deviceTime: body.deviceTime,
+          })
+        : null;
       const check = validateMark({
         view: body.view,
         region: body.region,
@@ -751,6 +762,8 @@ export const careRouter = createRouter()
                 return markItem(replayed, new Set());
               }
             }
+            // Admitted in the entry's own transaction, so a refusal uses none of the count.
+            if (admission) await recordHandedOverEntry(tx, admission);
             const { person, record, rates } = await writeContext(c, personId, tx);
             const times = entryTimes(body, c.req.header(SENT_AT_HEADER), now, rates);
             const recordedAfterExit = allowedAt(
