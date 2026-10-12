@@ -33,13 +33,29 @@ only when they link spec, code, tests and user documentation; no user guides exi
    organisation only when marked (migrations 0048 and 0049), each family of sync streams follows
    its own read permission, documents follow their category's read permission, the audit trail is
    whole only across the organisation, person tasks go only to people who can see the person, and
-   hazard HZ-073 (H-169). Before deploying to a live tenant: sync every device, run the
-   pre-deployment access report ([runbook](../runbooks/data-scope-per-permission-access-report.md))
-   and have the Registered Manager review role bundles (release note).
-2. Follow-up from data scope per permission (S-M3): give audit events a `location_id` (from the
-   person, record or location they are about), so a reader holding `platform.audit.read` at some
-   homes sees those homes' events; until then they see only their own events and events about
-   people they reach, without reasons.
+   hazard HZ-073 (H-169). Review round 2: one definition of the nurse in charge, filtered only by
+   what the recipient can see (a team leader in charge is told of an urgent refused-entry review),
+   and an unrouted review audited; the web and the phone offer no form the API would refuse
+   (`access` on the person, `entries_write_*` on the sync token); signing a person's document
+   needs its write permission; migration 0048 stops on a live grant with no location; everyone
+   told by role holds the role now (`roleHolders`); the access report lists narrows and widens.
+   Before deploying to a live tenant: sync every device (checked on Today and in the device
+   list), run the pre-deployment access report
+   ([runbook](../runbooks/data-scope-per-permission-access-report.md)), end or place any grant
+   with no location, and have the Registered Manager review role bundles (release note).
+2. Follow-ups from data scope per permission:
+   - (S-M3) give audit events a `location_id` (from the person, record or location they are
+     about), so a reader holding `platform.audit.read` at some homes sees those homes' events;
+     until then they see only their own events and events about people they reach, without
+     reasons.
+   - (review round 2) bound grant and role assignment writes by the granter's own permissions
+     (a granter may give only permissions they hold, where they hold them), before any route
+     edits grants or role assignments.
+   - (review round 2) `withTenantWideScope` restores the request's scope in a `finally`, so an
+     error inside it cannot leave the wider scope set for the rest of the transaction.
+   - (review round 2) when `destroyingOnFailure` cannot destroy the bytes stored for a
+     transaction that then failed, record the storage key (today the failure is swallowed), so the
+     retention sweep finds and destroys them.
 3. The screens the care API follow-ups (#26) wait on (slice 9 and slice 10 part 2): the
    escalation policy link on the phone, staff names on the web and phone (H-73); the settings for
    escalation policies and coded reasons; the phone offering the organisation's coded reasons (H-164);
@@ -83,7 +99,7 @@ only when they link spec, code, tests and user documentation; no user guides exi
 
 ## Human actions outstanding
 
-All of [human-actions.md](human-actions.md) is open (H-01 to H-167). The project owner has
+All of [human-actions.md](human-actions.md) is open (H-01 to H-169). The project owner has
 scheduled the accounts (H-01, H-02, H-04, H-10, H-11) and the named roles (H-20 Clinical Safety
 Officer, H-30 data protection lead, H-31 ICO registration) for after the build, and is choosing
 the UK SMS provider (H-09, which also settles H-105). Until then the build continues against the

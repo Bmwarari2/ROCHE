@@ -160,8 +160,9 @@ trigger). Everywhere roles and grants are read (`resolveAccess`, `placesHoldingP
 `permissionsAtLocation`, `app.holds_permission_at`, `holdsPermissionAt`, `permissionHolders`,
 `submitHolders`, `personReachedBy`, the alert fallback's organisation tier), an unmarked role or
 grant with no location reaches no one, and a role scoped to the organisation assigned at a
-location reaches that location only. Every API reader of roles and grants goes through one loader
-(`services/access-rows.ts`). The application may give or change a grant only where its member
+location reaches that location only. Every API reader that decides what a member may do from their
+roles and grants goes through one loader (`services/access-rows.ts`); review round 2 names the
+readers that find who holds a role by name, and where a member works. The application may give or change a grant only where its member
 holds `platform.grant.manage` (a grant for the whole organisation only when they hold it there),
 and assign someone to a person only when the person is in their view and they hold
 `people.assignment.manage` where the person lives (L8; restrictive policies for `harbour_app`; jobs
@@ -229,6 +230,91 @@ ReSPECT and a status change at the Lodge; break-glass reading only; documents; t
 assigning and the fallback); `sync-families.test.ts` (every built-in Care mode role, per family);
 `packages/sync/test/care-streams.test.ts` (families and assigned flags); `route-gates.test.ts`;
 `routing-roles.test.ts` (HZ-073).
+
+### Review round 2 (security and clinical safety reviews of #27)
+
+No high findings. The reviews found that routing by permission had left a home run by team
+leaders with no one on site told, that the screens and the phone still offered forms the API
+refuses, and two writes the scope did not yet bound.
+
+**The nurse in charge (C2-M1).** One definition serves urgent result alerts (HZ-014, HZ-016), care
+plan and risk review notices and refused-entry reviews: `nurseInCharge`, the clinical leads and
+team leaders (the nurse or senior on shift) whose roles, in force, reach the home, else its
+Registered Manager; and `nurseInChargeSeeing` keeps only those whose read permissions reach the
+person (or, about no one, whose `people.person.read` reaches the home). It never filters by a
+permission to act that awareness does not need. A refused entry's urgent review goes to the nurse
+in charge whose `people.person.read` and `care.note.read` reach the person (to read the copy) and to
+the holders of `care.plan.write` who can see the person (to act); with neither, to the fallback;
+with no one at all, `care.refused_entry.unrouted` is audited, as `care.alert.unrouted` is. A home
+with team leaders and no clinical lead tells its team leader.
+
+**Read only where the API refuses writes (C2-M2, C2-M3).** `GET /v1/people/{id}` returns `access`:
+`recordCare` (the caller's `care.note.write` reaches the person), `editCarePlan` (their
+`care.plan.write` does) and `readOnlyReason` (`break_glass` when only break-glass opens the record,
+`scope` when their roles reach it for reading only), from `permissionsReaching`. The web shows the
+notes, charts and body map forms and the chart settings only when the matching flag is true, and
+otherwise says, in English and Welsh, "You opened this record for reading only. To record
+something, tell the nurse in charge at this home, or record it on paper and enter it when you have
+access." (or its scope variant); the break-glass sheet says the record opens for reading only. The
+sync token carries `entries_write_location_ids` and `entries_write_assigned` (where
+`care.note.write` reaches, by the same rule as the families); no stream reads them. The phone
+keeps the last token's claims and offers recording only for a person at a home in the list, or
+assigned to the user when the flag is set, and otherwise says "You can read this record but cannot
+record on it." Before the first token on a device the phone does not know, and offers recording as
+before; the server still refuses what is not allowed, and the refused entry is kept as a copy.
+
+**Signing (S2-M1).** Signing a person's document is a write: it needs the category's write
+permission (`people.person.update` for `person_photo` and `person_document`, `care.note.write`
+for `care_attachment`) reaching the person without break-glass, then the document is found again.
+An organisation's document is signed as before. An organisation's document can no longer be given
+a person or a person's subject type, and a document of a person's category with no person is not
+found.
+
+**Grants with no location (S2-M2).** Before this change such a grant applied wherever the member's
+roles reached; marking it organisation-wide widens it, and nothing can mark it narrower. Migration
+0048 therefore stops, naming the count (`check_violation`, nothing changed), while any is live (not
+deleted, not revoked, not yet ended), so someone ends each or gives it a home. The pre-deployment
+access report lists every member whose reach for the four reads (the record on screen and the
+phone's three families) narrows or widens, comparing with the old merged scope as it was: a role
+scoped to the organisation assigned at a location reached that location only.
+
+**Who is told, by role (C2-M4 and lows).** `roleHolders` (`services/role-holders.ts`) finds who
+holds a named role where it reaches, with one rule (`roleInForce`): the assignment in force, the
+role not archived, the member on the staff (invited or active), and an assignment with no location
+reaching everywhere only for a role scoped to the organisation or marked organisation-wide. The
+overdue task escalation, its escalation chains, Registered Manager lookups, the break-glass alert
+and weekly report recipients and the fallbacks use it, and the device-hold carriers and holders
+apply the same rule, so a team leader
+whose role has ended is never the one told and the Registered Manager is. A fallback about no one
+prefers a manager whose role reaches the location, then a holder of the permission who does, then
+anyone. `personReachedBy` counts an assignment only for the time both it and a role scoped to
+assigned people were in force, of a role not archived. `workLocationIds` (where a member works, for
+the location switcher in `/v1/me` and the token's `location_ids`) reads roles in force the same
+way. Readers that are not about access (the device list's and a hold task's places of work) read
+role rows with their validity windows.
+
+**Lows.** A person syncs only where `care.plan.read` also reaches, so the phone never shows a
+resuscitation decision or IDDSI level as not recorded when it is merely absent. A new round keeps
+its series' assignee only while they may still be given it, else it waits for its role. A refused
+break-glass attempt is audited after the rollback, with a coded reason. `planTaskLink` and the
+return check are given the session's freshness, so a step-up permission is honoured as the round 1
+paragraph says. The `assignment_change` policy has the same expression for `USING` as for
+`WITH CHECK`. HZ-073 has its own DCB0160 row and a proposed residual of Major / Low / 3, for the
+CSO to rate (H-169).
+
+**Not in this change** (STATUS follow-ups): bounding grant and role assignment writes by the
+granter's own permissions, before any route edits them; `withTenantWideScope` restoring the scope
+in a `finally`; recording a failed storage destroy for the retention sweep.
+
+Confirmation for round 2: `device-integrity.test.ts` (`hazard HZ-073 hazard HZ-014 tells the team
+leader in charge about an urgent review at a home with no nurse`, and who exactly is told);
+`tasks.test.ts` (`an overdue task is never told only to someone who has left`); `jobs.test.ts`;
+`scope-per-permission.test.ts` (the `access` field, signing under break-glass, organisation
+documents, the people family needing `care.plan.read`, the write claims, work locations from roles
+in force); `sync-families.test.ts`; `packages/db/test/scope.test.ts` (migration 0048 stopping on a
+live grant with no location; the `assignment_change` policy); `apps/web/src/lib/care-record.test.ts`
+and `apps/web/e2e/break-glass.spec.ts` (no form under break-glass, with axe);
+`apps/mobile/src/sync/write-scope.test.ts` and the connector test.
 
 ## Pros and cons of the options
 
