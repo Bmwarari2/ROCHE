@@ -44,6 +44,7 @@
  */
 import type { DeviceDeletionFlag, SyncDeviceReport } from "@harbour/contracts";
 import {
+  accessGrant,
   activityRecord,
   assessment,
   auditEvent,
@@ -61,13 +62,21 @@ import {
   visitLog,
   withRequestContext,
 } from "@harbour/db";
+import {
+  isPermission,
+  type Permission,
+  placesCover,
+  placesHoldingPermission,
+} from "@harbour/domain";
 import { and, asc, desc, eq, gt, inArray, isNull, lte, notExists, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { auditInTx } from "../http/audit";
 import type { TenantAccess } from "../http/context";
+import { accessRowsOf, accessRowsOfMember } from "./access-rows";
 import { bindDevice, boundToDevice, deviceFirstSeen, deviceRevoked } from "./devices";
 import { rateNumber } from "./rates";
 import { withTenantWideScope } from "./safety";
+import { membersSeeingPerson, RECORD_READ_PERMISSION } from "./staff-views";
 
 /** Who resolves held entries and is told when a deleted entry arrives: Registered Manager, deputy and nurse. */
 export const DISCARD_OTHERS_PERMISSION = "safety.incident.manage" as const;
@@ -270,16 +279,11 @@ export async function registeredManagers(
 }
 
 /**
- * Who holds `permission` at a location (or anywhere, for a task with no location), through a live
- * role assignment there or across the organisation. Used to escalate the tasks above.
+ * Members with a live role assignment or grant carrying `permission`, wherever it is held: the
+ * candidates the holder checks below narrow by place (`placesHoldingPermission`).
  */
-export async function permissionHolders(
-  tx: Transaction,
-  permission: string,
-  locationId: string | null,
-  now: Date,
-): Promise<string[]> {
-  const rows = await tx
+async function carriers(tx: Transaction, permission: string, now: Date): Promise<string[]> {
+  const roles = await tx
     .selectDistinct({ id: roleAssignment.tenantUserId })
     .from(roleAssignment)
     .innerJoin(role, eq(role.id, roleAssignment.roleId))
@@ -288,24 +292,65 @@ export async function permissionHolders(
         sql`${permission} = ANY(${role.permissions})`,
         isNull(role.archivedAt),
         liveAssignment(now),
-        locationId
-          ? or(isNull(roleAssignment.locationId), eq(roleAssignment.locationId, locationId))
-          : undefined,
       ),
     );
-  return rows.map((r) => r.id);
+  const grants = await tx
+    .selectDistinct({ id: accessGrant.tenantUserId })
+    .from(accessGrant)
+    .where(
+      and(
+        sql`${permission} = ANY(${accessGrant.permissions})`,
+        isNull(accessGrant.deletedAt),
+        isNull(accessGrant.revokedAt),
+        lte(accessGrant.validFrom, now),
+        gt(accessGrant.validTo, now),
+      ),
+    );
+  return [...new Set([...roles, ...grants].map((r) => r.id))].sort();
+}
+
+/**
+ * Who holds `permission` at a location (a task with no location: across the organisation), through
+ * a live role assignment or grant there or across the organisation (`placesHoldingPermission`: a
+ * role's scope kind, an organisation-wide mark and a role mixing portal and staff permissions
+ * count as at sign-in; ADR-0071 review round 1, L2), and who can also see a task there:
+ * `people.person.read` reaches the same place (L10). For a task about a person, only those who
+ * can see the person with both (`membersSeeingPerson`, C-M4). Used to escalate the tasks above.
+ */
+export async function permissionHolders(
+  tx: Transaction,
+  permission: string,
+  locationId: string | null,
+  now: Date,
+  personId: string | null = null,
+): Promise<string[]> {
+  if (!isPermission(permission)) return [];
+  const candidates = await carriers(tx, permission, now);
+  const rows = await accessRowsOf(tx, candidates);
+  const holders = candidates.filter((id) => {
+    const mine = rows.get(id);
+    if (!mine) return false;
+    const at = (p: Permission) =>
+      placesCover(placesHoldingPermission(mine.assignments, mine.grants, p, now), locationId);
+    return at(permission) && at(RECORD_READ_PERMISSION);
+  });
+  return personId === null ? holders : membersSeeingPerson(tx, holders, personId, permission, now);
 }
 
 /**
  * Who takes a sync task when no one at its location can act on it (clinical reviews round 7 M5 and
  * round 8 M1): the Registered Managers anywhere in the organisation, else the holders of
  * `permission` anywhere, longest-serving first (the earliest start of a live assignment, then the
- * id), so the first is chosen the same way every time. Empty when there is no one.
+ * id), so the first is chosen the same way every time. For a task about a person, only those who
+ * can open the person (`people.person.read` reaches them, and for a holder `permission` too): a
+ * manager at another home who cannot see the person is skipped (ADR-0071 review round 1, C-M4).
+ * Empty when there is no one.
  */
 export async function fallbackRecipients(
   tx: Transaction,
   permission: string,
   now: Date,
+  personId: string | null = null,
 ): Promise<string[]> {
   const since = sql`min(${roleAssignment.validFrom})`;
   const managers = await tx
@@ -315,7 +360,13 @@ export async function fallbackRecipients(
     .where(and(eq(role.key, "registered_manager"), liveAssignment(now)))
     .groupBy(roleAssignment.tenantUserId)
     .orderBy(since, roleAssignment.tenantUserId);
-  if (managers.length > 0) return managers.map((r) => r.id);
+  const seeing = async (ids: string[], p: Permission) =>
+    personId === null ? ids : membersSeeingPerson(tx, ids, personId, p, now);
+  const managersSeeing = await seeing(
+    managers.map((r) => r.id),
+    RECORD_READ_PERMISSION,
+  );
+  if (managersSeeing.length > 0) return managersSeeing;
   const holders = await tx
     .select({ id: roleAssignment.tenantUserId })
     .from(roleAssignment)
@@ -329,13 +380,20 @@ export async function fallbackRecipients(
     )
     .groupBy(roleAssignment.tenantUserId)
     .orderBy(since, roleAssignment.tenantUserId);
-  return holders.map((r) => r.id);
+  if (personId !== null && !isPermission(permission)) return [];
+  return seeing(
+    holders.map((r) => r.id),
+    isPermission(permission) ? permission : RECORD_READ_PERMISSION,
+  );
 }
 
 /**
  * True when the member holds `permission` at one of the locations, through a live role assignment
- * there or across the organisation (security review round 6: the manager check is location-aware).
- * A null location (a task with none) is matched by any live assignment holding it.
+ * or grant there or across the organisation (security review round 6: the manager check is
+ * location-aware), as `placesHoldingPermission` reads them (ADR-0071 review round 1, L2: a role
+ * scoped to assigned people or to none gives no place, a location role or grant with no location
+ * counts across the organisation only when marked so, and a role mixing portal and staff
+ * permissions gives nothing). A null location (a task with none) is matched by holding it anywhere.
  */
 export async function holdsPermissionAt(
   tx: Transaction,
@@ -344,25 +402,12 @@ export async function holdsPermissionAt(
   locationIds: ReadonlyArray<string | null>,
   now: Date,
 ): Promise<boolean> {
+  if (!isPermission(permission)) return false;
+  const rows = await accessRowsOfMember(tx, tenantUserId);
+  const places = placesHoldingPermission(rows.assignments, rows.grants, permission, now);
   const anywhere = locationIds.length === 0 || locationIds.some((l) => l === null);
-  const located = [...new Set(locationIds.filter((l): l is string => l !== null))];
-  const [row] = await tx
-    .select({ id: roleAssignment.id })
-    .from(roleAssignment)
-    .innerJoin(role, eq(role.id, roleAssignment.roleId))
-    .where(
-      and(
-        eq(roleAssignment.tenantUserId, tenantUserId),
-        sql`${permission} = ANY(${role.permissions})`,
-        isNull(role.archivedAt),
-        liveAssignment(now),
-        anywhere
-          ? undefined
-          : or(isNull(roleAssignment.locationId), inArray(roleAssignment.locationId, located)),
-      ),
-    )
-    .limit(1);
-  return row !== undefined;
+  if (anywhere) return places.organisationWide || places.locationIds.length > 0;
+  return locationIds.some((l) => placesCover(places, l));
 }
 
 /**

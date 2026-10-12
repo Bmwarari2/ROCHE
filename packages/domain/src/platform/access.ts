@@ -312,10 +312,11 @@ export function permissionsAtLocation(
   // A role or grant with no location counts here only when it reaches the whole organisation (a
   // role scoped to the organisation or to assigned people, or one marked organisation-wide).
   const roleHere = (a: RoleAssignmentInput) =>
-    a.locationId === locationId ||
-    (a.locationId === null && (a.scopeKind !== "location" || a.organisationWide));
+    a.locationId === null
+      ? a.scopeKind !== "location" || a.organisationWide
+      : a.locationId === locationId;
   const grantHere = (g: AccessGrantInput) =>
-    g.locationId === locationId || (g.locationId === null && g.organisationWide);
+    g.locationId === null ? g.organisationWide : g.locationId === locationId;
   return resolveAccess(assignments.filter(roleHere), grants.filter(grantHere), at).permissions;
 }
 

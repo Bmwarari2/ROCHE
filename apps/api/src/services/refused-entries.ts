@@ -34,6 +34,7 @@ import {
   task,
   withRequestContext,
 } from "@harbour/db";
+import type { Permission } from "@harbour/domain";
 import { and, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import { auditInTx } from "../http/audit";
 import type { TenantAccess } from "../http/context";
@@ -50,6 +51,7 @@ import {
 } from "./devices";
 import { type HandedOverAdmission, recordHandedOverEntry } from "./held-handover";
 import type { StaffLookup } from "./staff";
+import { membersSeeingPerson } from "./staff-views";
 
 type Db = Parameters<typeof inSystemView>[0];
 
@@ -61,7 +63,7 @@ export const REFUSED_READ_ACTION = "care.refused_entry.read";
 
 const OPEN = ["open", "in_progress"];
 /** Who may act on a review: the nurse in charge, or the fallback when there is none. */
-const REVIEW_PERMISSION = "care.plan.write";
+const REVIEW_PERMISSION: Permission = "care.plan.write";
 
 /** Copies about nobody known wait on their author's task at a location. */
 const AUTHOR_SOURCE = "tenant_user";
@@ -165,7 +167,9 @@ async function reviewTask(
  * Tells the nurse in charge at the review's location that it has become urgent (#25 review round
  * 2, M3): an observation a device could not save may belong in the day's totals, and a mark that
  * may be harm must not wait (#26 review round 2, C4); with none at the location, the
- * escalation's fallback (round 3, low). The notice names no one; the link opens the tasks.
+ * escalation's fallback (round 3, low). For a review about a person, only those who can open it:
+ * `people.person.read` and the review's permission reach the person (ADR-0071 review round 1,
+ * C-M4). The notice names no one; the link opens the tasks.
  */
 async function noticeUrgentReview(
   tx: Transaction,
@@ -176,9 +180,15 @@ async function noticeUrgentReview(
     readonly now: Date;
   },
 ): Promise<void> {
-  const nurses = await nurseInCharge(tx, input.locationId);
+  const inCharge = await nurseInCharge(tx, input.locationId);
+  const nurses =
+    input.personId === null
+      ? inCharge
+      : await membersSeeingPerson(tx, inCharge, input.personId, REVIEW_PERMISSION, input.now);
   const recipients =
-    nurses.length > 0 ? nurses : await fallbackRecipients(tx, REVIEW_PERMISSION, input.now);
+    nurses.length > 0
+      ? nurses
+      : await fallbackRecipients(tx, REVIEW_PERMISSION, input.now, input.personId);
   for (const recipient of recipients) {
     await tx
       .insert(notification)

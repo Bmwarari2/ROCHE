@@ -1147,14 +1147,16 @@ describe("hazard HZ-014 hazard HZ-016 an urgent alert's fallback order, and the 
         );
         const roleId = roles[member.role];
         await client.query(
-          `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, valid_from, valid_to)
-             VALUES ($1, $2, $3, $4, $5)`,
+          `INSERT INTO role_assignment
+             (tenant_user_id, role_id, location_id, valid_from, valid_to, organisation_wide)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
           [
             memberId(i),
             roleId,
             member.at === "organisation" ? null : member.at === "home" ? home : elsewhere,
             member.validFrom ?? hoursFromNow(-24),
             member.validTo ?? null,
+            member.at === "organisation",
           ],
         );
         if (member.alsoFinanceViewer) {
@@ -1531,8 +1533,9 @@ describe("hazard HZ-012 hazard HZ-040 escalation links and coded reasons follow 
     const ids = await asDemoTenant((c) =>
       c
         .query<{ id: string }>(
-          `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, reason)
-           SELECT $1, id, CASE WHEN key = ANY($3) THEN $2::uuid END, 'Test'
+          `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, reason,
+             organisation_wide)
+           SELECT $1, id, CASE WHEN key = ANY($3) THEN $2::uuid END, 'Test', NOT (key = ANY($3))
            FROM role WHERE key = ANY($4) AND tenant_id = $5
            RETURNING id`,
           [DEMO.users.manager.id, LODGE.locationId, atLodge, roles, DEMO.tenantId],

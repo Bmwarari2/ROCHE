@@ -17,10 +17,11 @@ import {
   roleAssignment,
   type Transaction,
 } from "@harbour/db";
+import { scopeFor } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, eq, inArray, isNull, or } from "drizzle-orm";
 import { auditInTx } from "../http/audit";
-import { requirePermission, withTenant } from "../http/context";
+import { inScopeOf, requirePermission, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { publish } from "../outbox";
 import { resuscitationFor } from "../services/care-planning";
@@ -321,11 +322,14 @@ export const peopleRouter = createRouter()
           });
         // The failed insert aborted the transaction; nothing more may run in it.
         if (!opened) return null;
-        const [target] = await tx
-          .select({ locationId: person.locationId })
-          .from(person)
-          .where(eq(person.id, personId));
-        if (!target) return null;
+        // The record as the break-glass opens it: under the scope of people.person.read, which
+        // counts break-glass people (ADR-0071 review round 1, S-M1). A person it does not open
+        // rolls the event back (thrown, not returned), so no break-glass record is ever kept
+        // without its audit and its alert (L6).
+        const [target] = await inScopeOf(tx, scopeFor(access.effective, "people.person.read"), () =>
+          tx.select({ locationId: person.locationId }).from(person).where(eq(person.id, personId)),
+        );
+        if (!target) throw problems.notFound();
 
         const recipients = await tx
           .selectDistinct({ tenantUserId: roleAssignment.tenantUserId })

@@ -321,13 +321,17 @@ describe("hazard HZ-011 data scope is per permission (ADR-0071)", () => {
       h.handle.services.db,
       { tenantId: DEMO.tenantId, userId: TIA, scope: "locations", locationIds: [DEMO.locationId] },
       async (tx) => {
-        const inside = await inScopeOf(tx, { scope: "tenant", locationIds: [] }, () =>
-          scopeNow(tx),
+        const inside = await inScopeOf(
+          tx,
+          { scope: "tenant", locationIds: [], includesAssigned: true, includesBreakGlass: true },
+          () => scopeNow(tx),
         );
         const after = await scopeNow(tx);
         await expect(
-          inScopeOf(tx, { scope: "tenant", locationIds: [] }, () =>
-            Promise.reject(new Error("refused")),
+          inScopeOf(
+            tx,
+            { scope: "tenant", locationIds: [], includesAssigned: true, includesBreakGlass: true },
+            () => Promise.reject(new Error("refused")),
           ),
         ).rejects.toThrow("refused");
         return { inside, after, afterRefusal: await scopeNow(tx) };

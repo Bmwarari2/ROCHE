@@ -3519,10 +3519,10 @@ describe("slice 8 review, round 4: rounds, assignments, exits and return checks"
     // The quality lead holds the care plan for a day, but does not record movements.
     const grant = await asDemoTenant(async (c) => {
       const { rows } = await c.query<{ id: string }>(
-        `INSERT INTO access_grant (tenant_user_id, permissions, location_id, valid_from, valid_to,
-           reason, granted_by)
-         VALUES ($1, '{care.plan.write}', NULL, now() - interval '1 minute', now() + interval '1 day',
-           'Covering the nurse in charge', $2) RETURNING id`,
+        `INSERT INTO access_grant (tenant_user_id, permissions, location_id, organisation_wide,
+           valid_from, valid_to, reason, granted_by)
+         VALUES ($1, '{care.plan.write}', NULL, true, now() - interval '1 minute',
+           now() + interval '1 day', 'Covering the nurse in charge', $2) RETURNING id`,
         [LODGE.qualityLeadId, DEMO.users.manager.id],
       );
       return rows[0]?.id ?? "";

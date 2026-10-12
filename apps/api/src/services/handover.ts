@@ -492,9 +492,12 @@ export async function compileOrRefresh(
 
 /**
  * Whether a member of staff can see an item of a handover at a location, as row-level security
- * decides for them (`handover_item_scope`): an item about a person when they can see that person,
- * an item about nobody only when they see the handover whole (a tenant-wide role, or a role at
- * that location; `app.handover_whole`).
+ * decides for them (`handover_item_scope`) under their scope for `care.handover.manage`, the
+ * permission a handover is read with (`staffViews`, ADR-0071): an item about a person when that
+ * scope reaches the person (their location, or the people they are assigned to only when a role
+ * scoped to assigned people carries the permission; never a break-glass record), an item about
+ * nobody only when it sees the handover whole (the scope is the organisation's, or includes that
+ * location; `app.handover_whole`). Another role's wider reach never counts.
  */
 export function staffCanSee(
   view: StaffView | undefined,

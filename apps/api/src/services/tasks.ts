@@ -1,6 +1,5 @@
 import type { Recurrence, TaskItem } from "@harbour/contracts";
 import {
-  accessGrant,
   auditEvent,
   notification,
   person,
@@ -11,20 +10,18 @@ import {
   taskSeries,
 } from "@harbour/db";
 import {
-  type AccessGrantInput,
   isPermission,
   occurrences,
   PLAN_ACTION_TASK_KIND,
   permissionsAtLocation,
   personStatusAllows,
-  type RoleAssignmentInput,
   type RoundTime,
   roundTimes,
-  type ScopeKind,
   type TaskStatus,
   taskTimeState,
 } from "@harbour/domain";
 import { and, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { accessRowsOfMember } from "./access-rows";
 import {
   fallbackRecipients,
   PERMISSION_ESCALATED_TASK_KINDS,
@@ -32,6 +29,7 @@ import {
 } from "./device-holds";
 import { rateNumber } from "./rates";
 import { type StaffLookup, staffNames } from "./staff";
+import { membersSeeingPerson } from "./staff-views";
 
 /** How far ahead recurring tasks exist as rows, so devices can sync tomorrow's round tonight. */
 export const MATERIALISE_AHEAD_HOURS = 48;
@@ -287,15 +285,22 @@ export async function escalateOverdueTasks(
         );
     if (PERMISSION_ESCALATED_TASK_KINDS.includes(t.kind)) {
       if (t.locationId || !t.assigneeTenantUserId) {
-        const holders = await permissionHolders(tx, t.requiredPermission, t.locationId, now);
+        const holders = await permissionHolders(
+          tx,
+          t.requiredPermission,
+          t.locationId,
+          now,
+          t.personId,
+        );
         for (const id of holders) recipients.add(id);
       }
       // Nobody can act at the location (a vacant post): the task is assigned to the longest-serving
       // Registered Manager anywhere in the organisation (else holder of the permission anywhere),
       // who is told and, as its assignee, can see and complete it (clinical reviews round 7 M5
-      // and round 8 M1).
+      // and round 8 M1). For a task about a person, the first of them who can open the person:
+      // being its assignee does not show a person task (ADR-0071 review round 1, C-M4).
       if (recipients.size === 0) {
-        const [fallback] = await fallbackRecipients(tx, t.requiredPermission, now);
+        const [fallback] = await fallbackRecipients(tx, t.requiredPermission, now, t.personId);
         if (!fallback) {
           // Never marked escalated with no one told: it stays due, and the gap is audited daily.
           await recordUnrouted(tx, t, now);
@@ -410,38 +415,37 @@ export async function mayBeAssigned(
   now: Date,
 ): Promise<boolean> {
   if (!isPermission(row.requiredPermission)) return false;
-  const assignments = await tx
-    .select({
-      roleKey: role.key,
-      scopeKind: role.scopeKind,
-      permissions: role.permissions,
-      locationId: roleAssignment.locationId,
-      validFrom: roleAssignment.validFrom,
-      validTo: roleAssignment.validTo,
-    })
-    .from(roleAssignment)
-    .innerJoin(role, eq(role.id, roleAssignment.roleId))
-    .where(
-      and(
-        eq(roleAssignment.tenantUserId, tenantUserId),
-        isNull(roleAssignment.deletedAt),
-        isNull(role.archivedAt),
-      ),
-    );
-  const grants = await tx
-    .select({
-      permissions: accessGrant.permissions,
-      locationId: accessGrant.locationId,
-      validFrom: accessGrant.validFrom,
-      validTo: accessGrant.validTo,
-      revokedAt: accessGrant.revokedAt,
-    })
-    .from(accessGrant)
-    .where(and(eq(accessGrant.tenantUserId, tenantUserId), isNull(accessGrant.deletedAt)));
-  return permissionsAtLocation(
-    assignments.map((a): RoleAssignmentInput => ({ ...a, scopeKind: a.scopeKind as ScopeKind })),
-    grants as AccessGrantInput[],
-    row.locationId,
+  const rows = await accessRowsOfMember(tx, tenantUserId);
+  return permissionsAtLocation(rows.assignments, rows.grants, row.locationId, now).has(
+    row.requiredPermission,
+  );
+}
+
+/**
+ * Whether a task may be given to a member of staff now: they may complete it at its location
+ * (`mayBeAssigned`), and, for a task about a person, both `people.person.read` and its
+ * permission reach that person under their own scope (`membersSeeingPerson`; ADR-0071 review
+ * round 1, C-M4). Row-level security shows a task about a person only to those who can see the
+ * person, assignee or not, so a task given to anyone else would sit where no one can see it.
+ */
+export async function mayBeGiven(
+  tx: Transaction,
+  tenantUserId: string,
+  row: {
+    readonly requiredPermission: string;
+    readonly locationId: string | null;
+    readonly personId: string | null;
+  },
+  now: Date,
+): Promise<boolean> {
+  if (!(await mayBeAssigned(tx, tenantUserId, row, now))) return false;
+  if (row.personId === null || !isPermission(row.requiredPermission)) return true;
+  const seeing = await membersSeeingPerson(
+    tx,
+    [tenantUserId],
+    row.personId,
+    row.requiredPermission,
     now,
-  ).has(row.requiredPermission);
+  );
+  return seeing.length === 1;
 }

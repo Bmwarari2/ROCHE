@@ -1,0 +1,82 @@
+import { accessGrant, role, roleAssignment, type Transaction } from "@harbour/db";
+import type { AccessGrantInput, RoleAssignmentInput, ScopeKind } from "@harbour/domain";
+import { and, eq, inArray, isNull } from "drizzle-orm";
+
+/** One member's role assignments and grants, as the domain's access functions read them. */
+export interface AccessRows {
+  readonly assignments: readonly RoleAssignmentInput[];
+  readonly grants: readonly AccessGrantInput[];
+}
+
+const NO_ROWS: AccessRows = { assignments: [], grants: [] };
+
+/**
+ * The role assignments (of roles not archived) and grants of each member, not deleted; the domain
+ * drops ended, future and revoked ones for the time it is asked about. Every reader of who holds
+ * what goes through here, so a field the domain needs (such as `organisationWide`, ADR-0071 review
+ * round 1) is never left out of one of them. Rows the caller cannot read count as nothing held.
+ */
+export async function accessRowsOf(
+  tx: Transaction,
+  tenantUserIds: readonly string[],
+): Promise<Map<string, AccessRows>> {
+  const ids = [...new Set(tenantUserIds)];
+  const result = new Map<string, AccessRows>(ids.map((id) => [id, NO_ROWS]));
+  if (ids.length === 0) return result;
+  const assignments = await tx
+    .select({
+      tenantUserId: roleAssignment.tenantUserId,
+      roleKey: role.key,
+      scopeKind: role.scopeKind,
+      permissions: role.permissions,
+      locationId: roleAssignment.locationId,
+      organisationWide: roleAssignment.organisationWide,
+      validFrom: roleAssignment.validFrom,
+      validTo: roleAssignment.validTo,
+    })
+    .from(roleAssignment)
+    .innerJoin(role, eq(role.id, roleAssignment.roleId))
+    .where(
+      and(
+        inArray(roleAssignment.tenantUserId, ids),
+        isNull(roleAssignment.deletedAt),
+        isNull(role.archivedAt),
+      ),
+    );
+  const grants = await tx
+    .select({
+      tenantUserId: accessGrant.tenantUserId,
+      permissions: accessGrant.permissions,
+      locationId: accessGrant.locationId,
+      organisationWide: accessGrant.organisationWide,
+      validFrom: accessGrant.validFrom,
+      validTo: accessGrant.validTo,
+      revokedAt: accessGrant.revokedAt,
+    })
+    .from(accessGrant)
+    .where(and(inArray(accessGrant.tenantUserId, ids), isNull(accessGrant.deletedAt)));
+  for (const id of ids) {
+    result.set(id, {
+      assignments: assignments
+        .filter((a) => a.tenantUserId === id)
+        .map(
+          ({ tenantUserId: _, ...a }): RoleAssignmentInput => ({
+            ...a,
+            scopeKind: a.scopeKind as ScopeKind,
+          }),
+        ),
+      grants: grants
+        .filter((g) => g.tenantUserId === id)
+        .map(({ tenantUserId: _, ...g }): AccessGrantInput => g),
+    });
+  }
+  return result;
+}
+
+/** One member's rows (`accessRowsOf`). */
+export async function accessRowsOfMember(
+  tx: Transaction,
+  tenantUserId: string,
+): Promise<AccessRows> {
+  return (await accessRowsOf(tx, [tenantUserId])).get(tenantUserId) ?? NO_ROWS;
+}

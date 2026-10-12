@@ -39,7 +39,7 @@ import {
   escalationMinutes,
   GENERAL_TASK_PERMISSION,
   materialiseSeries,
-  mayBeAssigned,
+  mayBeGiven,
   taskStaff,
   toTaskItem,
 } from "../services/tasks";
@@ -97,8 +97,9 @@ async function completionRefusal(
 
 /**
  * A task about a person names a permission, so its assignee must hold it at the task's location
- * when it is created, as when it is assigned (S1); a general task goes to anyone. Refused and
- * audited (after the transaction) otherwise.
+ * when it is created, as when it is assigned (S1), and must be able to see the person with
+ * `people.person.read` and that permission (`mayBeGiven`; ADR-0071 review round 1, C-M4); a
+ * general task goes to anyone. Refused and audited (after the transaction) otherwise.
  */
 async function requireAssignable(
   tx: Transaction,
@@ -107,12 +108,13 @@ async function requireAssignable(
     readonly assigneeTenantUserId: string | null | undefined;
     readonly requiredPermission: string;
     readonly locationId: string | null;
+    readonly personId: string | null;
   },
   now: Date,
 ): Promise<void> {
   const assignee = row.assigneeTenantUserId;
   if (!assignee || row.requiredPermission === GENERAL_TASK_PERMISSION) return;
-  if (await mayBeAssigned(tx, assignee, row, now)) return;
+  if (await mayBeGiven(tx, assignee, row, now)) return;
   throw new AuditedRefusal(problems.invalid(ASSIGNEE_REFUSED), {
     action,
     outcome: "denied",
@@ -243,6 +245,7 @@ export const tasksRouter = createRouter()
               assigneeTenantUserId: body.assigneeTenantUserId,
               requiredPermission,
               locationId: body.locationId ?? null,
+              personId: body.personId ?? null,
             },
             now,
           );
@@ -332,12 +335,14 @@ export const tasksRouter = createRouter()
         }
         // Being the assignee lets someone complete the task, so a task that needs a permission
         // (a clinical check, a medicines round) goes only to someone who holds it at the task's
-        // location, whoever assigns it (themselves included; S1). A general task, which names
-        // only the task-management permission, is allocated to anyone: that is what it is for.
+        // location, whoever assigns it (themselves included; S1), and a task about a person only
+        // to someone who can see the person with people.person.read and that permission
+        // (ADR-0071 review round 1, C-M4). A general task, which names only the task-management
+        // permission, is allocated to anyone: that is what it is for.
         if (
           body.assigneeTenantUserId &&
           row.requiredPermission !== GENERAL_TASK_PERMISSION &&
-          !(await mayBeAssigned(tx, body.assigneeTenantUserId, row, now))
+          !(await mayBeGiven(tx, body.assigneeTenantUserId, row, now))
         ) {
           return null;
         }
@@ -415,6 +420,7 @@ export const tasksRouter = createRouter()
               assigneeTenantUserId: body.assigneeTenantUserId,
               requiredPermission,
               locationId: body.locationId ?? null,
+              personId: body.personId ?? null,
             },
             now,
           );

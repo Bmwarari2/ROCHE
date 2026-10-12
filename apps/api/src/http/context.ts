@@ -1,19 +1,15 @@
 import { DEVICE_HEADER, HANDOVER_OWNER_HEADER, TENANT_HEADER } from "@harbour/contracts";
 import {
-  accessGrant,
   authPasskey,
   type Database,
   deviceSession,
   person,
   type RequestContext,
-  role,
-  roleAssignment,
   type Transaction,
   tenantUser,
   withRequestContext,
 } from "@harbour/db";
 import {
-  type AccessGrantInput,
   authorise,
   can,
   type DocumentStoragePort,
@@ -22,20 +18,19 @@ import {
   narrowestScope,
   type Permission,
   type PermissionScope,
-  type RoleAssignmentInput,
   resolveAccess,
-  type ScopeKind,
   scopeFor,
   touchesCareRecords,
   widestScope,
 } from "@harbour/domain";
-import { and, count, eq, isNull, sql } from "drizzle-orm";
+import { and, count, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { Context, MiddlewareHandler } from "hono";
 import type pg from "pg";
 import type { Auth } from "../auth/better-auth";
 import type { Config } from "../config";
 import type { Logger } from "../logger";
+import { accessRowsOfMember } from "../services/access-rows";
 import { bindSession, sessionOnRevokedDevice } from "../services/devices";
 import { writeAudit } from "./audit";
 import { problems } from "./problem";
@@ -96,6 +91,8 @@ export interface TenantAccess {
   /** The scopes of the permissions this request has required so far, narrowed into `context`. */
   readonly required: readonly PermissionScope[];
   readonly mfaSatisfied: boolean;
+  /** How long a sign-in counts as fresh for a step-up permission (`STEP_UP_WINDOW_SECONDS`). */
+  readonly stepUpWindowSeconds: number;
   readonly deviceId: string | null;
   readonly ip: string | null;
   /**
@@ -192,39 +189,8 @@ async function loadAccess(
       .select({ mfaRequired: tenantUser.mfaRequired, status: tenantUser.status })
       .from(tenantUser)
       .where(eq(tenantUser.id, tenantUserId));
-    const assignments = await tx
-      .select({
-        roleKey: role.key,
-        scopeKind: role.scopeKind,
-        permissions: role.permissions,
-        locationId: roleAssignment.locationId,
-        validFrom: roleAssignment.validFrom,
-        validTo: roleAssignment.validTo,
-      })
-      .from(roleAssignment)
-      .innerJoin(role, eq(role.id, roleAssignment.roleId))
-      .where(
-        and(
-          eq(roleAssignment.tenantUserId, tenantUserId),
-          isNull(roleAssignment.deletedAt),
-          isNull(role.archivedAt),
-        ),
-      );
-    const grants = await tx
-      .select({
-        permissions: accessGrant.permissions,
-        locationId: accessGrant.locationId,
-        validFrom: accessGrant.validFrom,
-        validTo: accessGrant.validTo,
-        revokedAt: accessGrant.revokedAt,
-      })
-      .from(accessGrant)
-      .where(and(eq(accessGrant.tenantUserId, tenantUserId), isNull(accessGrant.deletedAt)));
-    const effective = resolveAccess(
-      assignments.map((a): RoleAssignmentInput => ({ ...a, scopeKind: a.scopeKind as ScopeKind })),
-      grants as AccessGrantInput[],
-      now,
-    );
+    const rows = await accessRowsOfMember(tx, tenantUserId);
+    const effective = resolveAccess(rows.assignments, rows.grants, now);
     // A session bound to a device a manager has since revoked is refused whatever device it names
     // (care.md section 6, Device integrity part 2; #25 review round 2, M1).
     const onRevokedDevice = await sessionOnRevokedDevice(tx, sessionId);
@@ -338,6 +304,7 @@ export const tenantMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     },
     required: [],
     mfaSatisfied,
+    stepUpWindowSeconds: services.config.STEP_UP_WINDOW_SECONDS,
     deviceId,
     ip: clientIp(c),
     ...(onRevokedDevice ? { sessionOnRevokedDevice: true } : {}),
@@ -357,27 +324,45 @@ function narrowTo(c: Context<AppEnv>, scope: PermissionScope): TenantAccess {
   const next: TenantAccess = {
     ...access,
     required,
-    context: { ...access.context, scope: narrowed.scope, locationIds: narrowed.locationIds },
+    context: { ...access.context, ...contextOf(narrowed) },
   };
   c.set("access", next);
   return next;
 }
 
+/** The row-level security fields of a permission's scope (ADR-0071, review round 1). */
+export function contextOf(
+  scope: PermissionScope,
+): Pick<RequestContext, "scope" | "locationIds" | "includesAssigned" | "includesBreakGlass"> {
+  return {
+    scope: scope.scope,
+    locationIds: scope.locationIds,
+    includesAssigned: scope.includesAssigned,
+    includesBreakGlass: scope.includesBreakGlass,
+  };
+}
+
+type Refusal = "mfa_enrolment_required" | "missing_permission" | "step_up_required";
+
 /** Why the session may not use a permission now (MFA, held, step-up), or null when it may. */
-function refusal(
-  c: Context<AppEnv>,
+export function refusalOf(
+  access: TenantAccess,
   permission: Permission,
-): "mfa_enrolment_required" | "missing_permission" | "step_up_required" | null {
-  const access = c.get("access");
+  now: Date = new Date(),
+): Refusal | null {
   if (touchesCareRecords(permission) && !access.mfaSatisfied) return "mfa_enrolment_required";
   const decision = authorise(
     access.effective,
     permission,
     access.session.sessionCreatedAt,
-    new Date(),
-    c.get("services").config.STEP_UP_WINDOW_SECONDS,
+    now,
+    access.stepUpWindowSeconds,
   );
   return decision.allowed ? null : decision.reason;
+}
+
+function refusal(c: Context<AppEnv>, permission: Permission): Refusal | null {
+  return refusalOf(c.get("access"), permission);
 }
 
 /** Refuses the request when the session may not use the permission; refusals are audited. */
@@ -448,10 +433,12 @@ export const SCOPE_WITHOUT_PERMISSION: Readonly<Record<string, Permission>> = {
 
 /**
  * Runs the rest of the request in one permission's scope without requiring the permission, on a
- * route listed in `SCOPE_WITHOUT_PERMISSION` only (anything else is a programming error).
+ * route listed in `SCOPE_WITHOUT_PERMISSION` only (anything else is a programming error). A HEAD
+ * request is its GET route's (Hono answers HEAD with the GET handler; review round 1, L5).
  */
 export function useScopeOf(c: Context<AppEnv>, permission: Permission): TenantAccess {
-  const route = `${c.req.method} ${c.req.routePath}`;
+  const method = c.req.method === "HEAD" ? "GET" : c.req.method;
+  const route = `${method} ${c.req.routePath}`;
   if (SCOPE_WITHOUT_PERMISSION[route] !== permission) {
     throw new Error(`${route} may not run in the scope of ${permission} without requiring it`);
   }
@@ -469,17 +456,37 @@ export async function inScopeOf<T>(
   scope: PermissionScope,
   fn: () => Promise<T>,
 ): Promise<T> {
-  const saved = await tx.execute<{ scope: string | null; locations: string | null }>(
+  const saved = await tx.execute<{
+    scope: string | null;
+    locations: string | null;
+    assigned: string | null;
+    breakGlass: string | null;
+  }>(
     sql`SELECT current_setting('app.scope', true) AS scope,
-               current_setting('app.location_ids', true) AS locations`,
+               current_setting('app.location_ids', true) AS locations,
+               current_setting('app.scope_assigned', true) AS assigned,
+               current_setting('app.scope_break_glass', true) AS "breakGlass"`,
   );
   const before = saved.rows[0];
-  const set = (s: string, locations: string) =>
+  const set = (s: string, locations: string, assigned: string, breakGlass: string) =>
     tx.execute(
-      sql`SELECT set_config('app.scope', ${s}, true), set_config('app.location_ids', ${locations}, true)`,
+      sql`SELECT set_config('app.scope', ${s}, true), set_config('app.location_ids', ${locations}, true),
+                 set_config('app.scope_assigned', ${assigned}, true),
+                 set_config('app.scope_break_glass', ${breakGlass}, true)`,
     );
-  const restore = () => set(before?.scope || "none", before?.locations ?? "");
-  await set(scope.scope, scope.locationIds.join(","));
+  const restore = () =>
+    set(
+      before?.scope || "none",
+      before?.locations ?? "",
+      before?.assigned ?? "",
+      before?.breakGlass ?? "",
+    );
+  await set(
+    scope.scope,
+    scope.locationIds.join(","),
+    scope.includesAssigned ? "true" : "",
+    scope.includesBreakGlass ? "true" : "",
+  );
   let result: T;
   try {
     result = await fn();
@@ -493,7 +500,8 @@ export async function inScopeOf<T>(
 }
 
 /**
- * The permissions the user may use on one person's record: those whose roles and grants reach the
+ * The permissions the user may use on one person's record: those the session may use now (MFA and
+ * step-up, as `requirePermission` judges them; review round 1, L7) whose roles and grants reach the
  * person (ADR-0071), as row-level security judges it in the caller's transaction. For the domain's
  * own checks on that record (a status change, a task an entry completes, a return check), which
  * would otherwise count a permission the user holds only somewhere else.
@@ -505,9 +513,16 @@ export async function permissionsReaching(
 ): Promise<ReadonlySet<Permission>> {
   const reached = new Set<Permission>();
   const verdicts = new Map<string, boolean>();
+  const now = new Date();
   for (const permission of access.effective.permissions) {
+    if (refusalOf(access, permission, now) !== null) continue;
     const scope = scopeFor(access.effective, permission);
-    const key = `${scope.scope}:${scope.locationIds.join(",")}`;
+    const key = [
+      scope.scope,
+      scope.locationIds.join(","),
+      scope.includesAssigned,
+      scope.includesBreakGlass,
+    ].join(":");
     let sees = verdicts.get(key);
     if (sees === undefined) {
       sees =
