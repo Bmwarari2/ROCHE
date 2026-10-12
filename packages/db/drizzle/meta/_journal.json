@@ -204,6 +204,20 @@
       "when": 1791778043294,
       "tag": "0028_care_tasks_and_handover_security",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1791782756461,
+      "tag": "0029_device_binding",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1791782760707,
+      "tag": "0030_device_binding_security",
+      "breakpoints": true
     }
   ]
 }

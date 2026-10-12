@@ -1,7 +1,8 @@
 /**
  * What the server does with a device's reports about unsent work and with deletions of it
  * (HZ-006, HZ-008, HZ-040; clinical reviews round 4 H1 and H2, rounds 5 and 6; security reviews
- * rounds 5 and 6). Built on the existing task engine and audit trail, with no table of its own.
+ * rounds 5 and 6). Built on the task engine, the audit trail and the device integrity tables
+ * (`device_binding`, care.md section 6).
  *
  * Device-hold tasks:
  * - A device report showing held, unsent or blocked entries raises the device's task for the
@@ -15,11 +16,11 @@
  * - A report's times are never later than the server received it; a hold's start is never earlier
  *   than the device's last report for that hold said; a later report never moves the due time
  *   later.
- * - The report's named owner counts only when bound to the device: they already have an event from
- *   it (a sync token issued to it or a report sent from it). An owner who is not bound is recorded
- *   as a claim and changes nothing: the task is routed by the reporter's assignments and the claim
- *   gives no right to close it (security review round 7, M1). A hold's start is never earlier than
- *   the server first heard from the device.
+ * - The report's named owner counts only when bound to the device (`device_binding`: a sync token
+ *   issued to it or a report sent from it). An owner who is not bound is recorded as a claim and
+ *   changes nothing: the task is routed by the reporter's assignments and the claim gives no right
+ *   to close it (security review round 7, M1). A hold's start is never earlier than the server first
+ *   saw the device (its earliest binding).
  * - A report with nothing waiting, or a recorded deletion of the device's held entries, closes the
  *   task when it comes from the hold's owner, from whoever raised the task, or from someone holding
  *   `safety.incident.manage` at one of its locations. A refused close followed by a new hold resets
@@ -59,6 +60,7 @@ import {
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import { auditInTx } from "../http/audit";
 import type { TenantAccess } from "../http/context";
+import { bindDevice, boundToDevice, deviceFirstSeen } from "./devices";
 import { rateNumber } from "./rates";
 import { withTenantWideScope } from "./safety";
 
@@ -585,40 +587,6 @@ async function previousReport(
   };
 }
 
-/**
- * True when the member already has an event from this device (security review round 7, M1): a sync
- * token issued to the device in their session, or a report they sent from it. A named owner counts
- * as the hold's owner only then, as the real owner has synced from the device before its hold.
- * Read through the audit trail's resource index; every build sends the device id with both.
- */
-async function seenOnDevice(
-  tx: Transaction,
-  deviceId: string,
-  tenantUserId: string,
-): Promise<boolean> {
-  const [row] = await tx
-    .select({ id: auditEvent.id })
-    .from(auditEvent)
-    .where(
-      and(
-        deviceEvents(deviceId),
-        eq(auditEvent.actorTenantUserId, tenantUserId),
-        eq(auditEvent.deviceId, deviceId),
-      ),
-    )
-    .limit(1);
-  return row !== undefined;
-}
-
-/** When the server first heard from the device, or null when this is the first time. */
-async function firstSeen(tx: Transaction, deviceId: string): Promise<Date | null> {
-  const [row] = await tx
-    .select({ at: sql<Date | string | null>`min(${auditEvent.occurredAt})` })
-    .from(auditEvent)
-    .where(deviceEvents(deviceId));
-  return row?.at ? new Date(row.at) : null;
-}
-
 /** The later of two floors. */
 const later = (a: Date | null, b: Date | null): Date | null =>
   a && b ? (a.getTime() >= b.getTime() ? a : b) : (a ?? b);
@@ -790,8 +758,9 @@ export async function recordDeviceHold(
     if (deviceId) await lock(tx, access.tenantId, `device_hold:${deviceId}`);
     // Read before this report is recorded, so it counts for none of them.
     const previous = deviceId ? await previousReport(tx, deviceId) : null;
-    const bound = deviceId ? await seenOnDevice(tx, deviceId, claimed) : false;
-    const seen = deviceId ? await firstSeen(tx, deviceId) : null;
+    // From `device_binding`, never the audit trail (care.md section 6, Device integrity part 1).
+    const bound = deviceId ? await boundToDevice(tx, deviceId, claimed) : false;
+    const seen = deviceId ? await deviceFirstSeen(tx, deviceId) : null;
     // The hold's owner as the server takes it (security review round 7, M1): the named owner (or
     // the reporter) only when bound to the device; otherwise the owner the device last reported,
     // else the reporter. A claim that is not bound is recorded, routes nothing and closes nothing.
@@ -835,6 +804,9 @@ export async function recordDeviceHold(
       requestId,
     });
     if (!deviceId) return "none";
+    // The reporter has now sent a report from the device: bound from here on, judged after this
+    // report so it counts for none of its own decisions.
+    await bindDevice(tx, deviceId, reporter, receivedAt);
 
     if (waiting === 0) {
       return closeIfEntitled(tx, access, deviceId, "report", receivedAt, requestId);

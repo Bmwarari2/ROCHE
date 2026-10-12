@@ -1289,6 +1289,45 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       created_by: "exported",
     },
   },
+  "public.device_binding": {
+    context: "platform",
+    description:
+      "Which member of staff has used which Care mode device, when the server first and last saw them together, and whether a manager revoked the device (care.md section 6).",
+    treatment: "tenant_rows",
+    retention: "audit_event",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      device_id: {
+        description:
+          "Opaque id of the device's database (the sync client id); a new database has a new id.",
+      },
+      tenant_user_id: "exported",
+      first_seen_at: {
+        description: "When the server first saw this member on this device (instant, UTC).",
+      },
+      last_seen_at: {
+        description: "When the server last saw this member on this device (instant, UTC).",
+      },
+      revoked_at: {
+        description: "When a manager revoked the device (instant, UTC); empty while it is not.",
+      },
+      revoked_by: { description: "The manager who revoked it (tenant_user.id)." },
+      revocation_reason: {
+        description: "Why the device was revoked, as a code.",
+        codes: {
+          lost_or_stolen: "The device was lost or stolen.",
+          staff_left: "The member of staff using it has left.",
+          access_withdrawn: "The member of staff's access to Care mode was withdrawn.",
+          replaced: "The device was replaced or reset.",
+          other: "Another reason, recorded outside Harbour.",
+        },
+      },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
   "public.document": {
     context: "platform",
     description:

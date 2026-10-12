@@ -26,6 +26,7 @@ import {
   flagEntriesAlreadyUploaded,
   recordDeviceHold,
 } from "../services/device-holds";
+import { bindDevice, inSystemView } from "../services/devices";
 import { rateNumber } from "../services/rates";
 import type { SyncTokenSigner } from "../sync/token";
 
@@ -134,8 +135,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
           const offlineDays = offlineWindowDays(new Date(), windowDays);
           await auditInTx(tx, access, {
             action: "sync.token.issue",
-            // The device the token is for, when it says: the record that binds a member to the
-            // device for its hold reports (security review round 7, M1).
+            // The device the token is for, when it says; the binding itself is `device_binding`.
             ...(access.deviceId ? { resourceType: "device", resourceId: access.deviceId } : {}),
             scope: {
               scope: access.effective.scope,
@@ -152,6 +152,14 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             offline_days: offlineDays,
           };
         });
+        // The member has used this device (care.md section 6, Device integrity part 1): written in
+        // the system's view, so a hold report naming them as its owner counts.
+        const deviceId = access.deviceId;
+        if (deviceId) {
+          await inSystemView(c.get("services").db, access, (tx) =>
+            bindDevice(tx, deviceId, access.tenantUserId, new Date()),
+          );
+        }
         const { token, expiresAt } = await signer.sign(claims);
         return c.json(
           { token, endpoint: config.POWERSYNC_URL, expiresAt: expiresAt.toISOString() },
@@ -361,7 +369,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         tags: ["sync"],
         summary: "A device's unsent work: counts and the oldest age, no personal data",
         description:
-          "Writes an audit event with the device's queued, refused, held and blocked counts and the age of the oldest, so the server knows what a lost or wiped device held (HZ-006). Any member of the organisation may report (with MFA when their roles call for it), so a device whose Care mode access was withdrawn can still report its hold. A named owner counts only when they already have an event from the device (a sync token issued to it or a report sent from it); otherwise the claim is recorded and changes nothing. Times later than the server's are taken as the server's, and a hold's start is never earlier than the device's last report for it said, nor than the server first heard from the device. While anything waits, the device has a task for the Registered Manager at each location of its sync scope where the hold's owner or the reporter works, due when its hold escalates and never moved later; one closed in the last day is reopened, its escalation reset at most once a day. A report with nothing waiting closes them when it comes from the hold's owner, from whoever raised them or from a manager at one of their locations. Each reporter raises tasks for a few devices a day; past that, their holds join one task for that reporter, due at the earliest of them.",
+          "Writes an audit event with the device's queued, refused, held and blocked counts and the age of the oldest, so the server knows what a lost or wiped device held (HZ-006). Any member of the organisation may report (with MFA when their roles call for it), so a device whose Care mode access was withdrawn can still report its hold. A named owner counts only when bound to the device (a sync token issued to it or a report sent from it, kept as a device binding); otherwise the claim is recorded and changes nothing. Times later than the server's are taken as the server's, and a hold's start is never earlier than the device's last report for it said, nor than the server first saw the device. While anything waits, the device has a task for the Registered Manager at each location of its sync scope where the hold's owner or the reporter works, due when its hold escalates and never moved later; one closed in the last day is reopened, its escalation reset at most once a day. A report with nothing waiting closes them when it comes from the hold's owner, from whoever raised them or from a manager at one of their locations. Each reporter raises tasks for a few devices a day; past that, their holds join one task for that reporter, due at the earliest of them.",
         security,
         request: { body: { content: { "application/json": { schema: SyncDeviceReport } } } },
         responses: { 204: { description: "Recorded" }, ...errorResponses },

@@ -995,15 +995,16 @@ describe("offline sync", () => {
       return list.items.map((t) => t.id);
     };
     /**
-     * The member synced from the device some days ago: the sync token's audit event, whose resource
-     * is the device. It binds them to the device (security review round 7, M1) and says when the
-     * server first heard from it.
+     * The member synced from the device some days ago: the binding a sync token writes
+     * (`device_binding`). It binds them to the device (security review round 7, M1) and says when
+     * the server first saw it.
      */
     const syncedOn = (device: string, tenantUserId: string, daysAgo: number) =>
       asTenant(
         DEMO.tenantId,
-        `INSERT INTO audit_event (tenant_id, action, resource_type, resource_id, actor_tenant_user_id, device_id, occurred_at)
-         VALUES ($1, 'sync.token.issue', 'device', $2, $3, $2, now() - make_interval(days => $4))`,
+        `INSERT INTO device_binding (tenant_id, device_id, tenant_user_id, first_seen_at, last_seen_at)
+         VALUES ($1, $2, $3, now() - make_interval(days => $4), now() - make_interval(days => $4))
+         ON CONFLICT (tenant_id, device_id, tenant_user_id) DO NOTHING`,
         [DEMO.tenantId, device, tenantUserId, daysAgo],
       );
     const reportScopes = (device: string) =>

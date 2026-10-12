@@ -9,4 +9,5 @@ export * from "./people-lifecycle";
 export * from "./platform";
 export * from "./records";
 export * from "./safety";
+export * from "./sync";
 export * from "./work";
