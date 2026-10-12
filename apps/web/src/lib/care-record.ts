@@ -50,7 +50,19 @@ export function can(permissions: readonly string[], permission: string): boolean
 /** What the API says the viewer may record about one person (`PersonSummary.access`). */
 export interface PersonAccess {
   readonly recordCare: boolean;
+  readonly editCarePlan: boolean;
   readonly readOnlyReason: "break_glass" | "scope" | null;
+}
+
+/**
+ * Whether the viewer may change this person's care plan settings (chart settings, the care
+ * profile): they hold care.plan.write and the API says it reaches the person (review round 2).
+ */
+export function mayEditCarePlan(
+  person: { readonly access?: PersonAccess | undefined },
+  permissions: readonly string[],
+): boolean {
+  return can(permissions, "care.plan.write") && (person.access?.editCarePlan ?? true);
 }
 
 /**

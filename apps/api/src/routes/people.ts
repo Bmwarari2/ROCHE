@@ -222,7 +222,8 @@ export const peopleRouter = createRouter()
         });
         // What the caller may record here, so the screens offer only what the API would take
         // (ADR-0071 review round 2, C2-M2): a break-glass record opens reading only.
-        const recordCare = (await permissionsReaching(tx, access, id)).has("care.note.write");
+        const reaching = await permissionsReaching(tx, access, id);
+        const recordCare = reaching.has("care.note.write");
         const withoutBreakGlass = {
           ...scopeFor(access.effective, "people.person.read"),
           includesBreakGlass: false,
@@ -236,6 +237,7 @@ export const peopleRouter = createRouter()
           ...summary,
           access: {
             recordCare,
+            editCarePlan: reaching.has("care.plan.write"),
             readOnlyReason: recordCare ? null : own ? ("scope" as const) : ("break_glass" as const),
           },
         };

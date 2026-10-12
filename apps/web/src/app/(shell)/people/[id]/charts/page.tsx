@@ -10,7 +10,14 @@ import { ReadOnlyNotice } from "@/components/care/ReadOnlyNotice";
 import { RecordFrame } from "@/components/care/RecordFrame";
 import { WindowNote } from "@/components/care/WindowNote";
 import { getShellContext, tenantApi } from "@/lib/api";
-import { can, readingWindow, recordCareAccess, tabHref, windowStart } from "@/lib/care-record";
+import {
+  can,
+  mayEditCarePlan,
+  readingWindow,
+  recordCareAccess,
+  tabHref,
+  windowStart,
+} from "@/lib/care-record";
 import { CHARTS, type ChartKind, fluidDayView, isChart } from "@/lib/charts";
 import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -104,7 +111,7 @@ async function ChartsTab({
   const dateLabel = formatDate(fluid.date) ?? fluid.date;
   // The form only where the viewer's care.note.write reaches the person (review round 2, C2-M2).
   const { canRecord: canWrite, readOnlyNotice } = recordCareAccess(person, me.permissions);
-  const canSetUp = can(me.permissions, "care.plan.write") && profile !== null;
+  const canSetUp = mayEditCarePlan(person, me.permissions) && profile !== null;
 
   return (
     <>

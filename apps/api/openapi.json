@@ -491,6 +491,9 @@
               "recordCare": {
                 "type": "boolean"
               },
+              "editCarePlan": {
+                "type": "boolean"
+              },
               "readOnlyReason": {
                 "type": [
                   "string",
@@ -505,6 +508,7 @@
             },
             "required": [
               "recordCare",
+              "editCarePlan",
               "readOnlyReason"
             ]
           }

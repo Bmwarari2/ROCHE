@@ -7,6 +7,7 @@ import {
   entryChains,
   iddsiLabel,
   longerWindow,
+  mayEditCarePlan,
   RECORD_TABS,
   readingWindow,
   recordCareAccess,
@@ -288,28 +289,28 @@ describe("hazard HZ-011 hazard HZ-073 recording is offered only where the API sa
     [
       "the API says care.note.write reaches the person",
       writer,
-      { recordCare: true, readOnlyReason: null },
+      { recordCare: true, editCarePlan: true, readOnlyReason: null },
       true,
       null,
     ],
     [
       "the record was opened by break-glass",
       writer,
-      { recordCare: false, readOnlyReason: "break_glass" },
+      { recordCare: false, editCarePlan: false, readOnlyReason: "break_glass" },
       false,
       "care.readOnly.breakGlass",
     ],
     [
       "the roles reach the person for reading only",
       writer,
-      { recordCare: false, readOnlyReason: "scope" },
+      { recordCare: false, editCarePlan: false, readOnlyReason: "scope" },
       false,
       "care.readOnly.scope",
     ],
     [
       "the viewer never holds care.note.write",
       ["care.note.read"],
-      { recordCare: false, readOnlyReason: "scope" },
+      { recordCare: false, editCarePlan: false, readOnlyReason: "scope" },
       false,
       null,
     ],
@@ -320,6 +321,22 @@ describe("hazard HZ-011 hazard HZ-073 recording is offered only where the API sa
       readOnlyNotice: notice,
     });
   });
+
+  it.each([
+    ["the API says care.plan.write reaches the person", ["care.plan.write"], true, true],
+    ["the record was opened by break-glass", ["care.plan.write"], false, false],
+    ["the viewer never holds care.plan.write", ["care.plan.read"], true, false],
+    ["an API that does not say", ["care.plan.write"], undefined, true],
+  ] as const)(
+    "chart settings are offered only when %s",
+    (_name, permissions, editCarePlan, offered) => {
+      const access =
+        editCarePlan === undefined
+          ? undefined
+          : { recordCare: false, editCarePlan, readOnlyReason: null };
+      expect(mayEditCarePlan({ access }, permissions)).toBe(offered);
+    },
+  );
 
   it("says in words that a break-glass record is for reading only, in English and Welsh", () => {
     expect(t("care.readOnly.breakGlass")).toContain("for reading only");
@@ -350,8 +367,12 @@ describe("hazard HZ-011 hazard HZ-073 recording is offered only where the API sa
       statusChangedAt: "2026-09-01T10:00:00.000Z",
       resuscitation: { status: "not_recorded" },
       version: 1,
-      access: { recordCare: false, readOnlyReason: "break_glass" },
+      access: { recordCare: false, editCarePlan: false, readOnlyReason: "break_glass" },
     });
-    expect(person?.access).toEqual({ recordCare: false, readOnlyReason: "break_glass" });
+    expect(person?.access).toEqual({
+      recordCare: false,
+      editCarePlan: false,
+      readOnlyReason: "break_glass",
+    });
   });
 });

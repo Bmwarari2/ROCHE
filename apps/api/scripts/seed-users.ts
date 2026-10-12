@@ -63,8 +63,10 @@ try {
         [MEWS_LOCATION],
       );
       await client.query(
-        `INSERT INTO person (id, location_id, status, given_name, family_name, nhs_number)
-         VALUES ($1, $2, 'active', 'Una', 'Example', '9990001502') ON CONFLICT (id) DO NOTHING`,
+        `INSERT INTO person (id, location_id, status, given_name, family_name, nhs_number,
+                             allergy_status)
+         VALUES ($1, $2, 'active', 'Una', 'Example', '9990001502', 'no_known_allergies')
+         ON CONFLICT (id) DO NOTHING`,
         [MEWS_PERSON, MEWS_LOCATION],
       );
       await client.query("COMMIT");

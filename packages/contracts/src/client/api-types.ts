@@ -14140,6 +14140,7 @@ export interface components {
       version: number;
       access?: {
         recordCare: boolean;
+        editCarePlan: boolean;
         /** @enum {string|null} */
         readOnlyReason: "break_glass" | "scope" | null;
       };
