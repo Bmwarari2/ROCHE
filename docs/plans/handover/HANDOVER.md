@@ -45,8 +45,11 @@ with a merge commit and `expectedHeadSha`.
 3. **#34 Lane B, consent, capacity and DoLS tab part 1** (`feat/web-mca-tab`, head `4982d19`).
    Round 1 found 6 clinical and 3 accessibility mediums (list below); Lane B reports all 12 items
    fixed in `daf4fa7..4982d19` (web unit 388, i18n 48, Playwright capacity and care-record 15
-   passing locally). Next: round 2 on those fix commits (accessibility and clinical), CI green,
-   summary comment, merge.
+   passing locally). **CI red on `4982d19`**: the new `e2e/capacity.spec.ts:282` ("the tab reflows
+   at 320 px and says when nothing is recorded") finds the empty tab scrolling sideways by 11 px
+   at 320 px (WCAG 1.4.10; passed locally only on the shared database). Fix the overflowing element
+   first (trace in the job's test-results artifact), then round 2 on the fix commits
+   (accessibility and clinical), CI green, summary comment, merge.
 
 ## Pushed branches not yet PRs (open them in this order as their bases merge)
 
