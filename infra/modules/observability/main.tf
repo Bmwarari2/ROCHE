@@ -276,7 +276,10 @@ locals {
 
 # Once a day the worker writes one `escalation.unrouted.daily` line per organisation where safety
 # work reached no one who could act (an overdue task, an escalation chain step, an urgent review
-# or alert, a break-glass alert). Any such line is a day's alarm (docs/runbooks/on-call.md).
+# or alert, a break-glass alert). Any such line alarms (docs/runbooks/on-call.md). The period is an
+# hour, not a day, so the alarm returns to OK within the hour after each daily run and every run
+# with a line notifies again: an organisation that stays unrouted for weeks never holds the alarm
+# in ALARM and hides another organisation's first line (review round 5 check, HZ-073).
 resource "aws_cloudwatch_log_metric_filter" "escalation_unrouted_daily" {
   name           = "${var.name_prefix}-escalation-unrouted-daily"
   log_group_name = var.worker_log_group_name
@@ -296,7 +299,7 @@ resource "aws_cloudwatch_metric_alarm" "escalation_unrouted_daily" {
   namespace           = local.worker_metric_namespace
   metric_name         = aws_cloudwatch_log_metric_filter.escalation_unrouted_daily.metric_transformation[0].name
   statistic           = "Sum"
-  period              = 86400
+  period              = 3600
   evaluation_periods  = 1
   threshold           = 1
   comparison_operator = "GreaterThanOrEqualToThreshold"

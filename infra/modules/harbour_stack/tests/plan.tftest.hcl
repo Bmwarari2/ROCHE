@@ -86,16 +86,17 @@ run "dev_defaults" {
     error_message = "Each worker log alarm must read the worker's log group through its own metric filter."
   }
 
-  # Any unrouted line in a day alarms; one or more failed jobs in 15 minutes alarm by default.
+  # Any unrouted line alarms, over an hour so each daily run notifies again; one or more failed
+  # jobs in 15 minutes alarm by default.
   assert {
     condition = (
       module.observability.log_alarm_rules.escalation_unrouted_daily.statistic == "Sum" &&
-      module.observability.log_alarm_rules.escalation_unrouted_daily.period == 86400 &&
+      module.observability.log_alarm_rules.escalation_unrouted_daily.period == 3600 &&
       module.observability.log_alarm_rules.escalation_unrouted_daily.threshold == 1 &&
       module.observability.log_alarm_rules.escalation_unrouted_daily.comparison_operator == "GreaterThanOrEqualToThreshold" &&
       module.observability.log_alarm_rules.escalation_unrouted_daily.treat_missing_data == "notBreaching"
     )
-    error_message = "The unrouted escalation alarm must fire on any escalation.unrouted.daily line in a day."
+    error_message = "The unrouted escalation alarm must fire on any escalation.unrouted.daily line, over an hour so each daily run notifies again (HZ-073)."
   }
 
   assert {

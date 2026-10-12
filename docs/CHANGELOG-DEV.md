@@ -1054,3 +1054,13 @@ with the lows on `fix/platform-scope-per-permission` as fast-forwards.
 `apps/api` 710, `packages/sync` 62, `apps/mobile` 891, `apps/web` 360, `packages/ui` 342,
 `packages/ui-native` 141, all passing locally (`pnpm turbo run test --force` on `7077687`, 0
 cached) and through `scripts/ci-local.sh`.
+
+## 2026-10-12: Data scope per permission, review round 5 check (ADR-0071)
+
+A short combined security and clinical check of the round 5 diff (`8346d20..67c3fdc`) found no
+high. Clinical safety found one new medium: the unrouted alarm summed over a day, so with the
+report running daily an organisation unrouted for weeks could hold the alarm in ALARM and hide
+another organisation's first line (CloudWatch notifies only on a change of state). The alarm now
+sums over an hour, so it clears within the hour after each daily run and every run with a line
+notifies again; the stack test and the on-call runbook say so. The lows are STATUS follow-ups.
+Hosted CI (now running, the repository being public) was green on `67c3fdc`.

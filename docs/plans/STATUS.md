@@ -94,6 +94,28 @@ only when they link spec, code, tests and user documentation; no user guides exi
    - (review round 5) `materialiseTaskSeries` and `raiseCareReviews` still loop over organisations
      directly; put them through `eachTenant` like the other sweeps, so one organisation's failure
      cannot stop the rest.
+   - (round 5 check, security L1) when the phone's keystore can neither delete nor overwrite the
+     stored write scope, the older, wider scope survives a restart and a shared phone's next user
+     sees it until their first token (the API still refuses); tie the stored scope to the user or
+     the token's expiry and ignore it on a mismatch. Also (clinical) a first read in flight can
+     install an older stored scope after a failed save sets it to `null`.
+   - (round 5 check, security L2) the hourly retry pages through every unrouted task in one
+     transaction per organisation; cap the pages per run or commit per page, so one organisation
+     with weeks of unrouted tasks cannot delay the rest.
+   - (round 5 check, clinical) the retry's page cursor is a JavaScript `Date` (milliseconds)
+     against a `timestamptz` (microseconds); take the cursor from SQL as text, so 500 or more
+     tasks imported with the same sub-millisecond `due_at` cannot loop.
+   - (round 5 check, clinical) the phone's "Sync again to fix this" line gives an offline carer no
+     way forward: add "tell the person in charge or record on paper", and avoid showing it on a
+     cold start before the stored scope is read.
+   - (round 5 check, clinical) name a test for HZ-073's operator signal (today the alarm checks
+     sit in the stack test's `dev_defaults` run and `run-job.test.ts` names HZ-008 and HZ-013).
+   - (round 5 check, clinical, not new) `runEscalations` runs one notification at a time with no
+     per-row or per-organisation isolation, so one throwing notification blocks every
+     organisation's escalation chain steps; run it through `eachTenant` with a per-row guard.
+   - (round 5 check, clinical) the `worker-job-failed` alarm stays in ALARM while one
+     organisation's sweep keeps failing every run, hiding another's first failure; consider a
+     per-job metric dimension or a shorter period once the job counts are known (H-171).
 3. The screens the care API follow-ups (#26) wait on (slice 9 and slice 10 part 2): the
    escalation policy link on the phone, staff names on the web and phone (H-73); the settings for
    escalation policies and coded reasons; the phone offering the organisation's coded reasons (H-164);
