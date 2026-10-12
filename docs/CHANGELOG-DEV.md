@@ -772,3 +772,33 @@ and H-163 (the onboarding route not yet built) updated.
 **Tests**: `packages/domain` 4,018, `packages/db` 381, `packages/contracts` 34, `apps/api` 609,
 `packages/sync` 59, `apps/mobile` 871, `apps/web` 338, `packages/i18n` 48, all passing locally
 through `scripts/ci-local.sh`.
+
+## 2026-10-12: #26 review round 4 (care API follow-ups)
+
+**What changed**
+
+- Test names (M1; HZ-014): the refused-drink tests are named for HZ-014 (the domain cases in a
+  describe of their own, the API describe and the web test), and the hazard log cites them by
+  their exact names.
+- Alert routing tests (M2; HZ-014, HZ-016): one table-driven API test,
+  `hazard HZ-014 hazard HZ-016 an urgent alert's fallback order, and the staff it skips (#26
+  review round 4)`, runs `urgentAlertRecipients` and `raiseCareTriggers` in an organisation of
+  its own per case: a nurse in charge who can see first; an organisation-wide Registered Manager
+  before one at the home; a Registered Manager who can see before care plan holders, never one
+  who cannot; a nurse in charge who cannot see; suspended and departed staff; ended and future
+  assignments; nobody qualifying (route `no_one`, nothing counted, the coded reason audited).
+  Every case passed against the round 3 code; reordering the tiers makes case (a) fail.
+- Minor: the fallback is said by role, not rota ("The alert went to a manager or another member
+  of staff who can see this person, not to a nurse in charge here."); the hazard log cites
+  `hazard HZ-029 a save sent twice with the same client id is recorded once` exactly; the phone's
+  unsafe-level copy says "When this is sent, the nurse in charge or a manager will be told. Tell
+  them now if you can." (en-GB and cy; already listed as untranslated); the API fluid tests run
+  on a fixed day, so they pass at any hour; platform.md says lock-screen push text stays generic,
+  with no location or person name; the fallback's per-candidate reads are noted in STATUS.md
+  (item 11) for measuring against the 100 ms budget.
+
+**Human actions logged**: H-160 reworded (the fallback wording).
+
+**Tests**: `packages/domain` 4,018, `packages/db` 381, `packages/contracts` 34, `apps/api` 616,
+`packages/sync` 59, `apps/mobile` 871, `apps/web` 338, `packages/i18n` 48, all passing locally
+through `scripts/ci-local.sh`.

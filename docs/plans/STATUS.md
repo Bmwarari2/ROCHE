@@ -41,7 +41,10 @@ only when they link spec, code, tests and user documentation; no user guides exi
    naming the home, with who it reached kept on the entry and said on the web; a resent save
    with other details refused with its own code and message; the NEWS2 result after saving
    names the policy; a refused drink counted as offered, never drunk; coded reasons changed and
-   audited by id; mixed roles giving no right to change links or reasons.
+   audited by id; mixed roles giving no right to change links or reasons. Review round 4
+   answered: the refused-drink tests named for HZ-014, a table-driven test of the alert's
+   fallback order and the staff it skips, the fallback said by role rather than rota, the
+   phone's unsafe-level copy true offline, and lock-screen push text kept generic.
 2. The screens these wait on (slice 9 and slice 10 part 2): the escalation policy link on the
    phone, staff names on the web and phone (H-73); the settings for escalation
    policies and coded reasons; the phone offering the organisation's coded reasons (H-164);
@@ -75,6 +78,12 @@ only when they link spec, code, tests and user documentation; no user guides exi
     version; [vulnerability-exceptions.md](../compliance/vulnerability-exceptions.md)). Still to
     do: esbuild in `apps/api` to 0.28.1, and a tracked note for the moderate ones
     (decode-uri-component in the app waits for the next Expo SDK; the rest are build tools).
+11. Urgent alert fallback cost (#26 review round 4): when no nurse in charge can open the record,
+    `alertFallback` reads every Registered Manager's and care plan holder's view of the person in
+    one `staffViews` call, but that runs two statements per candidate (the person scope is
+    row-level security, evaluated under each member's settings) inside the entry's transaction.
+    Measure it against the 100 ms point-of-care budget on a large organisation; if it is slow,
+    evaluate the scope for all candidates at once in a database function.
 
 ## Human actions outstanding
 
@@ -95,7 +104,7 @@ mocks and contract tests (section 20 rule 2).
 | `packages/i18n` | 48 |
 | `packages/ui` | 342 (231 axe runs) |
 | `packages/ui-native` | 141 |
-| `apps/api` | 609 |
+| `apps/api` | 616 |
 | `apps/mobile` | 871 |
 | `apps/web` | 338 unit; Playwright journeys with axe (WCAG 2.2 AA) in CI |
 | `infra` | `terraform test` 3, TFLint, Trivy and Checkov clean |
