@@ -37,10 +37,10 @@ import {
   ukDayBounds,
   ukIsoDate,
 } from "@harbour/domain";
-import { and, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { HttpProblem, problems } from "../http/problem";
 import { accessRowsOf } from "./access-rows";
-import { roleHolders } from "./role-holders";
+import { roleHolders, roleInForce } from "./role-holders";
 import { withTenantWideScope } from "./safety";
 import { staffViews } from "./staff-views";
 import { anyoneMayBeGiven, mayBeAssigned, OVERDUE_FIRST_RESPONDERS } from "./tasks";
@@ -191,9 +191,9 @@ const TASK_PERMISSIONS: Record<CareTaskKind, string> = {
 };
 
 /**
- * The nurse in charge at a location: the nurse or senior on shift (`OVERDUE_FIRST_RESPONDERS`
- * whose role reaches the location), else its Registered Manager; only a role in force, held by
- * someone on the staff (`roleHolders`; HZ-008). The one definition used for urgent result alerts
+ * The nurse in charge at a location: the clinical leads and team leaders whose roles reach it
+ * (`OVERDUE_FIRST_RESPONDERS`, at every home; no rota is checked), else its Registered Manager;
+ * only a role in force, held by someone active (`roleHolders`; HZ-008). The one definition used for urgent result alerts
  * (HZ-014, HZ-016), care plan and risk review notices and refused-entry reviews (ADR-0071 review
  * round 2, C2-M1); each then keeps only those who can see what they are told about
  * (`nurseInChargeSeeing`).
@@ -212,8 +212,8 @@ export async function nurseInCharge(
  * The nurse in charge at the location (`nurseInCharge`) who can see what they are told about: about
  * a person, each of `reads` reaches the person under the member's own scope for it (`staffViews`);
  * about no one, `people.person.read` reaches the location. Filtered only by what the recipient can
- * see, never by a permission to act they do not need to be aware, so a senior carer in charge is
- * told at a home with no nurse (ADR-0071 review round 2, C2-M1; HZ-014, HZ-073).
+ * see, never by a permission to act they do not need to be aware, so a team leader is told whether
+ * or not the home has a nurse (ADR-0071 review round 2, C2-M1; HZ-014, HZ-073).
  */
 export async function nurseInChargeSeeing(
   tx: Transaction,
@@ -301,13 +301,8 @@ export async function urgentAlertRecipients(
  * Longest-serving first, then by id.
  */
 async function alertFallback(tx: Transaction, personId: string, now: Date): Promise<string[]> {
-  const live = and(
-    isNull(roleAssignment.deletedAt),
-    isNull(role.archivedAt),
-    lte(roleAssignment.validFrom, now),
-    or(isNull(roleAssignment.validTo), gt(roleAssignment.validTo, now)),
-    inArray(tenantUser.status, ["invited", "active"]),
-  );
+  // A role in force, held by someone active (`roleInForce`; ADR-0071 review round 3).
+  const live = roleInForce(now);
   const since = sql`min(${roleAssignment.validFrom})`;
   const candidates = await tx
     .select({

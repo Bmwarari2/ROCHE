@@ -28,7 +28,7 @@ import { sweepHandovers } from "../services/handover";
 import { raiseDolsReminders } from "../services/mca";
 import { raisePeopleReviews } from "../services/people";
 import { generatePlanTasks } from "../services/plan-tasks";
-import { roleHolders } from "../services/role-holders";
+import { roleHolders, toldOf } from "../services/role-holders";
 import { detectLocationOutbreaks, escalateOverdueNotifications } from "../services/safety";
 import { escalateOverdueTasks, materialiseSeries } from "../services/tasks";
 
@@ -107,9 +107,41 @@ export async function relayOutbox(
   }
 }
 
+/** An escalation step that could be sent to no one (ADR-0071 review round 3, C3-M4). */
+export const ESCALATION_STEP_UNROUTED_ACTION = "platform.escalation.unrouted";
+
+/**
+ * Who a chain step is sent to (ADR-0071 review rounds 2 and 3, C3-M4): its named member while
+ * active, and the holders of its role, in force and active, whose role reaches the notification's
+ * location (anywhere for one with none). With none of them, a Registered Manager whose role
+ * reaches the location (there, or across the organisation), else the owner. Empty when there is
+ * no one at all.
+ */
+export async function chainStepRecipients(
+  tx: Transaction,
+  step: EscalationStep,
+  locationId: string | null,
+  now: Date,
+): Promise<string[]> {
+  const recipients = new Set<string>();
+  if (step.targetTenantUserId) {
+    for (const id of await toldOf(tx, [step.targetTenantUserId])) recipients.add(id);
+  }
+  const places = locationId ? [locationId] : null;
+  if (step.targetRoleKey) {
+    for (const h of await roleHolders(tx, [step.targetRoleKey], places, now)) recipients.add(h);
+  }
+  if (recipients.size > 0) return [...recipients];
+  const managers = await roleHolders(tx, ["registered_manager"], places, now);
+  if (managers.length > 0) return managers;
+  return roleHolders(tx, ["owner"], places, now);
+}
+
 /**
  * Fires due escalation steps: an unacknowledged notification is re-sent to the next people in its
- * chain (for example on-call after 10 minutes), until someone acknowledges it.
+ * chain (for example on-call after 10 minutes), until someone acknowledges it. A step that can be
+ * sent to no one, even through its fallback (`chainStepRecipients`), is audited as unrouted with
+ * a coded reason (`no_recipient`), never passed over silently; the later steps still fire.
  */
 export async function runEscalations(deps: TaskDeps, now = new Date()): Promise<number> {
   const due = await deps.workerPool.query<{ id: string; tenant_id: string }>(
@@ -139,18 +171,24 @@ export async function runEscalations(deps: TaskDeps, now = new Date()): Promise<
         };
         const toFire = dueEscalationSteps(steps, state, now);
         for (const { index, step } of toFire) {
-          const recipients = new Set<string>();
-          if (step.targetTenantUserId) recipients.add(step.targetTenantUserId);
-          if (step.targetRoleKey) {
-            // Holders in force and on the staff whose role reaches the notification's location
-            // (anywhere for one with none; ADR-0071 review round 2).
-            const holders = await roleHolders(
-              tx,
-              [step.targetRoleKey],
-              n.locationId ? [n.locationId] : null,
-              now,
-            );
-            for (const h of holders) recipients.add(h);
+          const recipients = await chainStepRecipients(tx, step, n.locationId, now);
+          if (recipients.length === 0) {
+            await tx.insert(auditEvent).values({
+              tenantId: row.tenant_id,
+              action: ESCALATION_STEP_UNROUTED_ACTION,
+              outcome: "error",
+              resourceType: "notification",
+              resourceId: n.id,
+              reason: "no_recipient",
+              scope: {
+                reasonCode: "no_recipient",
+                chainId: chain.id,
+                step: index,
+                ...(step.targetRoleKey ? { roleKey: step.targetRoleKey } : {}),
+                locationId: n.locationId,
+              },
+            });
+            continue;
           }
           for (const recipient of recipients) {
             await tx

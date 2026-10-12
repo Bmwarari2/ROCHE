@@ -1,22 +1,54 @@
 import { role, roleAssignment, type Transaction, tenantUser } from "@harbour/db";
 import { and, eq, gt, inArray, isNull, lte, or, type SQL, sql } from "drizzle-orm";
 
-/** The staff statuses that are on the staff: invited (not yet signed in) or active. */
+/**
+ * The staff statuses that may hold access or be given work: invited (not yet signed in) or
+ * active. Never suspended or left (ADR-0071 review round 3).
+ */
 export const ON_STAFF = ["invited", "active"] as const;
 
 /**
- * A role assignment in force now, of a role not archived, held by someone still on the staff
- * (ADR-0071 review round 2): an ended or future assignment, an archived role, or a suspended or
- * departed member of staff is never told or given anything. Needs `role` and `tenant_user` joined.
+ * The staff status of anyone told about something (the nurse in charge, the fallbacks, an
+ * escalation and its chain steps): active only. An invited member who has never signed in reads
+ * nothing, so they are never the one told (ADR-0071 review round 3, C3-M3).
+ */
+export const TOLD = ["active"] as const;
+
+/**
+ * A role assignment in force now, of a role neither archived nor deleted, held by someone told
+ * about things (`TOLD`, not deleted), each row of the same organisation (ADR-0071 review rounds 2
+ * and 3): an ended or future assignment, an archived role, or an invited, suspended or departed
+ * member of staff is never told or given anything this way. Needs `role` and `tenant_user`
+ * joined by id; this adds the organisation to both joins.
  */
 export function roleInForce(now: Date): SQL {
   return and(
+    eq(role.tenantId, roleAssignment.tenantId),
+    eq(tenantUser.tenantId, roleAssignment.tenantId),
     isNull(roleAssignment.deletedAt),
     isNull(role.archivedAt),
+    isNull(role.deletedAt),
     lte(roleAssignment.validFrom, now),
     or(isNull(roleAssignment.validTo), gt(roleAssignment.validTo, now)),
-    inArray(tenantUser.status, [...ON_STAFF]),
+    inArray(tenantUser.status, [...TOLD]),
+    isNull(tenantUser.deletedAt),
   ) as SQL;
+}
+
+/** Of these members, those who may be told about something now (`TOLD`, not deleted). */
+export async function toldOf(tx: Transaction, ids: readonly string[]): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  const rows = await tx
+    .select({ id: tenantUser.id })
+    .from(tenantUser)
+    .where(
+      and(
+        inArray(tenantUser.id, [...ids]),
+        inArray(tenantUser.status, [...TOLD]),
+        isNull(tenantUser.deletedAt),
+      ),
+    );
+  return new Set(rows.map((r) => r.id));
 }
 
 /**

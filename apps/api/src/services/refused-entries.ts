@@ -168,14 +168,17 @@ async function reviewTask(
 }
 
 /**
- * Tells those on site that a review has become urgent (#25 review round 2, M3): an observation a
- * device could not save may belong in the day's totals, and a mark that may be harm must not wait
- * (#26 review round 2, C4). Told (ADR-0071 review round 2, C2-M1):
+ * Tells the home's staff that a review has become urgent (#25 review round 2, M3): an observation
+ * a device could not save may belong in the day's totals, and a mark that may be harm must not
+ * wait (#26 review round 2, C4). Told (ADR-0071 review rounds 2 and 3, C2-M1):
  * - the nurse in charge at the review's location (`nurseInChargeSeeing`, the one definition used
- *   for result alerts and review notices), for awareness and to read the copy: for a review about
- *   a person, those whose `people.person.read` and `care.note.read` reach the person; a senior
- *   carer in charge without `care.plan.write` is told too;
- * - and the holders of `care.plan.write` at the location who can see the person, to act on it.
+ *   for result alerts and review notices: the clinical leads and team leaders whose roles reach
+ *   the home, at every home, with no rota checked), for awareness and to read the copy: for a
+ *   review about a person, those whose `people.person.read` and `care.note.read` reach the
+ *   person; a team leader without `care.plan.write` is told too;
+ * - and the holders of `care.plan.write` who can see the person, to act on it: those who hold it
+ *   at the location itself when there are any, and only otherwise those who hold it across the
+ *   organisation, so an owner or organisation-wide manager is not told about every home (HZ-008).
  * With none of them, the escalation's fallback (round 3, low; a manager who can see the person,
  * else one who reaches the location). With no one at all, nothing is sent and the gap is audited
  * as the system (`care.refused_entry.unrouted`), like an urgent result alert no one could be told
@@ -203,6 +206,7 @@ async function noticeUrgentReview(
       input.locationId,
       input.now,
       input.personId,
+      { preferAtLocation: true },
     )),
   ]);
   const recipients =

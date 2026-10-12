@@ -13,6 +13,7 @@ import { jwtVerify } from "jose";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MOBILE_APP_ORIGIN } from "../src/auth/token-exposure";
 import { inScopeOf, SCOPE_WITHOUT_PERMISSION } from "../src/http/context";
+import { accessRowsOf } from "../src/services/access-rows";
 import { fallbackRecipients } from "../src/services/device-holds";
 import { ENTRY_PERMISSION, personReachedBy } from "../src/services/devices";
 import { materialiseSeries } from "../src/services/tasks";
@@ -503,13 +504,22 @@ describe("hazard HZ-011 data scope per permission, review round 1 (ADR-0071)", (
       const read = await asStaff(staff.bea, `/v1/people/${LODGE_PERSON}`);
       expect(read.status).toBe(200);
       // The record says it is open for reading only, so the screens offer no forms (round 2, C2-M2).
+      // Nothing reaches the person without break-glass, so no tab offers a form (round 3, C3-M1).
       expect(((await read.json()) as { access?: unknown }).access).toEqual({
+        reaching: [],
         recordCare: false,
         editCarePlan: false,
         readOnlyReason: "break_glass",
       });
       const own = await asStaff(staff.bea, `/v1/people/${HOUSE_PERSON}`);
       expect(((await own.json()) as { access?: unknown }).access).toEqual({
+        reaching: expect.arrayContaining([
+          "care.assessment.write",
+          "care.note.write",
+          "care.plan.write",
+          "care.respect.record",
+          "people.person.read",
+        ]),
         recordCare: true,
         editCarePlan: true,
         readOnlyReason: null,
@@ -851,5 +861,136 @@ describe("hazard HZ-011 hazard HZ-073 data scope per permission, review round 2 
       (await h.request(`/v1/documents/${id}`, { token: h.tokens.manager, tenant: DEMO.tenantId }))
         .status,
     ).toBe(404);
+  });
+});
+
+describe("hazard HZ-011 hazard HZ-073 data scope per permission, review round 3 (ADR-0071)", () => {
+  // Kit Twohats is a care coordinator at Harbour House who also works as a care worker, assigned
+  // to one resident there.
+  const KIT = "0194d000-0000-7000-8000-0000000003c5";
+  const OTHER_HOUSE_PERSON = "0194d000-0000-7000-8600-000000000005";
+  const PDF = new TextEncoder().encode("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF\n");
+  let kit = "";
+  const upload = (query: Record<string, string>) =>
+    h.request(`/v1/documents?${new URLSearchParams(query)}`, {
+      token: h.tokens.manager,
+      tenant: DEMO.tenantId,
+      method: "POST",
+      raw: { bytes: PDF, contentType: "application/pdf" },
+    });
+
+  beforeAll(async () => {
+    kit = await member(KIT, "Kit Twohats", "kit.twohats@example.invalid");
+    await asOwner(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, valid_from)
+       SELECT $1, id, $2, now() - interval '30 days' FROM role
+       WHERE key IN ('care_coordinator', 'care_worker')`,
+      [KIT, DEMO.locationId],
+    );
+    await asOwner(
+      `INSERT INTO person_assignment (tenant_user_id, person_id, valid_from)
+       VALUES ($1, $2, now() - interval '1 day')`,
+      [KIT, HOUSE_PERSON],
+    );
+  }, 120_000);
+
+  it("names the clients a coordinator who is also a carer may record about, and the server takes those entries (C3-M2)", async () => {
+    const response = await h.request("/v1/sync/token", {
+      token: kit,
+      tenant: DEMO.tenantId,
+      method: "POST",
+    });
+    expect(response.status).toBe(200);
+    const { token } = (await response.json()) as SyncToken;
+    const claims = (await jwtVerify(token, h.handle.signer.verificationKey)).payload;
+    // The home syncs in full for reading; recording reaches only the assigned client.
+    expect(claims).toMatchObject({
+      people_location_ids: [DEMO.locationId],
+      entries_write_location_ids: [],
+      entries_write_assigned: true,
+      entries_write_person_ids: [HOUSE_PERSON],
+    });
+    const note = (personId: string) =>
+      h.request(`/v1/people/${personId}/notes`, {
+        token: kit,
+        tenant: DEMO.tenantId,
+        method: "POST",
+        body: {
+          category: "personal_care",
+          body: "Helped with breakfast; ate well.",
+          occurredAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+        },
+      });
+    expect((await note(HOUSE_PERSON)).status).toBe(201);
+    expect((await note(OTHER_HOUSE_PERSON)).status).toBe(404);
+  });
+
+  it("names no one when the user records about everyone at their homes or no one", async () => {
+    const response = await as("tia", "/v1/sync/token", { method: "POST" });
+    const { token } = (await response.json()) as SyncToken;
+    const claims = (await jwtVerify(token, h.handle.signer.verificationKey)).payload;
+    expect(claims.entries_write_assigned).toBe(false);
+    expect(claims).not.toHaveProperty("entries_write_person_ids");
+  });
+
+  it("gives a member who is suspended or has left no roles or grants (low)", async () => {
+    const rows = () =>
+      withRequestContext(
+        h.handle.services.db,
+        { tenantId: DEMO.tenantId, userId: null, scope: "tenant", locationIds: [] },
+        async (tx) => (await accessRowsOf(tx, [KIT])).get(KIT),
+      );
+    expect((await rows())?.assignments.length).toBe(2);
+    for (const status of ["suspended", "left"]) {
+      await asOwner("UPDATE tenant_user SET status = $2 WHERE id = $1", [KIT, status]);
+      expect(await rows()).toEqual({ assignments: [], grants: [] });
+    }
+    await asOwner("UPDATE tenant_user SET status = 'active' WHERE id = $1", [KIT]);
+  });
+
+  it("attaches an organisation's document only to the organisation's own records, and a subject only with its type (security lows)", async () => {
+    expect(
+      (
+        await upload({
+          category: "organisation_document",
+          title: "Fire procedure",
+          subjectId: DEMO.locationId,
+        })
+      ).status,
+    ).toBe(422);
+    expect(
+      (
+        await upload({
+          category: "organisation_document",
+          title: "Fire procedure",
+          subjectType: "location",
+          subjectId: DEMO.locationId,
+        })
+      ).status,
+    ).toBe(201);
+    expect(
+      (
+        await upload({
+          category: "organisation_document",
+          title: "Note about a resident",
+          subjectType: "care_note",
+          subjectId: HOUSE_PERSON,
+        })
+      ).status,
+    ).toBe(422);
+  });
+
+  it("refuses a new version of a document of a person's category that names no person (security low)", async () => {
+    const uploaded = await upload({ category: "organisation_document", title: "Visiting times" });
+    expect(uploaded.status).toBe(201);
+    const { id } = (await uploaded.json()) as { id: string };
+    await asOwner("UPDATE document SET category = 'person_document' WHERE id = $1", [id]);
+    const version = await h.request(`/v1/documents/${id}/versions`, {
+      token: h.tokens.manager,
+      tenant: DEMO.tenantId,
+      method: "POST",
+      raw: { bytes: PDF, contentType: "application/pdf" },
+    });
+    expect(version.status).toBe(404);
   });
 });

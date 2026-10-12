@@ -2,6 +2,7 @@ import { person, type Transaction, tenantUser } from "@harbour/db";
 import { type Permission, resolveAccess, scopeFor } from "@harbour/domain";
 import { and, inArray, isNull, sql } from "drizzle-orm";
 import { accessRowsOf } from "./access-rows";
+import { ON_STAFF } from "./role-holders";
 
 /**
  * What one member of staff may see and do now with one permission: the people, where they see a
@@ -49,7 +50,8 @@ export async function staffViews(
     .where(
       and(
         inArray(tenantUser.id, [...tenantUserIds]),
-        inArray(tenantUser.status, ["invited", "active"]),
+        inArray(tenantUser.status, [...ON_STAFF]),
+        isNull(tenantUser.deletedAt),
       ),
     );
   const onStaff = new Set(current.map((u) => u.id));

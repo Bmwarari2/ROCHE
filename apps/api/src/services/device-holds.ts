@@ -76,7 +76,7 @@ import type { TenantAccess } from "../http/context";
 import { accessRowsOf, accessRowsOfMember } from "./access-rows";
 import { bindDevice, boundToDevice, deviceFirstSeen, deviceRevoked } from "./devices";
 import { rateNumber } from "./rates";
-import { ON_STAFF, roleHolders, roleInForce } from "./role-holders";
+import { roleHolders, roleInForce, TOLD } from "./role-holders";
 import { withTenantWideScope } from "./safety";
 import { membersSeeingPerson, RECORD_READ_PERMISSION } from "./staff-views";
 
@@ -274,7 +274,13 @@ async function carriers(tx: Transaction, permission: string, now: Date): Promise
   const grants = await tx
     .selectDistinct({ id: accessGrant.tenantUserId })
     .from(accessGrant)
-    .innerJoin(tenantUser, eq(tenantUser.id, accessGrant.tenantUserId))
+    .innerJoin(
+      tenantUser,
+      and(
+        eq(tenantUser.id, accessGrant.tenantUserId),
+        eq(tenantUser.tenantId, accessGrant.tenantId),
+      ),
+    )
     .where(
       and(
         sql`${permission} = ANY(${accessGrant.permissions})`,
@@ -282,7 +288,8 @@ async function carriers(tx: Transaction, permission: string, now: Date): Promise
         isNull(accessGrant.revokedAt),
         lte(accessGrant.validFrom, now),
         gt(accessGrant.validTo, now),
-        inArray(tenantUser.status, [...ON_STAFF]),
+        inArray(tenantUser.status, [...TOLD]),
+        isNull(tenantUser.deletedAt),
       ),
     );
   return [...new Set([...roles, ...grants].map((r) => r.id))].sort();
@@ -295,6 +302,10 @@ async function carriers(tx: Transaction, permission: string, now: Date): Promise
  * count as at sign-in; ADR-0071 review round 1, L2), and who can also see a task there:
  * `people.person.read` reaches the same place (L10). For a task about a person, only those who
  * can see the person with both (`membersSeeingPerson`, C-M4). Used to escalate the tasks above.
+ * With `preferAtLocation`, those who hold the permission at the location itself (a role or grant
+ * there) when there are any, and only otherwise those who hold it across the organisation, so an
+ * owner or an organisation-wide manager is not told about every home's work (HZ-008; ADR-0071
+ * review round 3).
  */
 export async function permissionHolders(
   tx: Transaction,
@@ -302,6 +313,7 @@ export async function permissionHolders(
   locationId: string | null,
   now: Date,
   personId: string | null = null,
+  options: { readonly preferAtLocation?: boolean } = {},
 ): Promise<string[]> {
   if (!isPermission(permission)) return [];
   const candidates = await carriers(tx, permission, now);
@@ -313,7 +325,21 @@ export async function permissionHolders(
       placesCover(placesHoldingPermission(mine.assignments, mine.grants, p, now), locationId);
     return at(permission) && at(RECORD_READ_PERMISSION);
   });
-  return personId === null ? holders : membersSeeingPerson(tx, holders, personId, permission, now);
+  const seeing =
+    personId === null ? holders : await membersSeeingPerson(tx, holders, personId, permission, now);
+  if (!options.preferAtLocation || locationId === null) return seeing;
+  const local = seeing.filter((id) => {
+    const mine = rows.get(id);
+    if (!mine) return false;
+    const placed = placesHoldingPermission(
+      mine.assignments.filter((a) => a.locationId !== null),
+      mine.grants.filter((g) => g.locationId !== null),
+      permission,
+      now,
+    );
+    return placed.locationIds.includes(locationId);
+  });
+  return local.length > 0 ? local : seeing;
 }
 
 /**

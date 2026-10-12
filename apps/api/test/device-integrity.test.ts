@@ -891,17 +891,18 @@ describe("part 5: copies of refused entries", () => {
     expect(reviews[0]?.priority).toBe("urgent");
     expect(reviews[0]?.details?.entries).toHaveLength(3);
     // Told once, without a name (#25 review round 2, M3): the nurse in charge, and the holders of
-    // the care plan who can see the resident (the Registered Manager and the owner); never the
-    // author (ADR-0071 review round 2, C2-M1).
+    // the care plan at the home who can see the resident (the Registered Manager); never the
+    // author (ADR-0071 review round 2, C2-M1). The owner, who holds it across the organisation, is
+    // told only where no one holds it at the home (review round 3, HZ-008).
     const told = await asTenant<{ title: string; recipient: string }>(
       `SELECT title, recipient_tenant_user_id AS recipient FROM notification
        WHERE kind = 'care.refused_entry_urgent' AND source_id = $1`,
       [reviews[0]?.id],
     );
     expect(new Set(told.map((n) => n.recipient))).toEqual(
-      new Set([DEMO.users.nurse.id, DEMO.users.manager.id, DEMO.users.owner.id]),
+      new Set([DEMO.users.nurse.id, DEMO.users.manager.id]),
     );
-    expect(told).toHaveLength(3);
+    expect(told).toHaveLength(2);
     expect(told.every((n) => !n.title.includes("Example"))).toBe(true);
   });
 
@@ -960,9 +961,80 @@ describe("part 5: copies of refused entries", () => {
        WHERE kind = 'care.refused_entry_urgent' AND source_id = $1`,
       [review?.id],
     );
-    // The team leader on site, for awareness and to read the copy, and the owner, whose care plan
-    // permission reaches the home, to act on it.
+    // The team leader, for awareness and to read the copy, and the owner, whose care plan
+    // permission reaches the home across the organisation, to act on it: no one holds it at the
+    // home itself (review round 3).
     expect(new Set(told.map((n) => n.recipient))).toEqual(new Set([lee, DEMO.users.owner.id]));
+  });
+
+  it("hazard HZ-073 audits an urgent review no one can be told about, as the system (ADR-0071 review round 2, C2-M1)", async () => {
+    // An invented home with no staff, Harbour Croft, and its resident Cleo Example, assigned to
+    // the care worker; the owner, the only one whose roles reach it, is suspended for the test.
+    const croft = "0194d000-0000-7000-8000-0000000001d2";
+    const cleo = "0194d000-0000-7000-8600-0000000001d2";
+    await asTenant("INSERT INTO location (id, name) VALUES ($1, 'Harbour Croft')", [croft]);
+    await asTenant(
+      `INSERT INTO person (id, location_id, status, given_name, family_name, nhs_number)
+       VALUES ($1, $2, 'active', 'Cleo', 'Example', '9990000123')`,
+      [cleo, croft],
+    );
+    await asTenant(
+      `INSERT INTO person_assignment (tenant_user_id, person_id, valid_from)
+       VALUES ($1, $2, now() - interval '2 days')`,
+      [DEMO.users.carer.id, cleo],
+    );
+    await asTenant("UPDATE tenant_user SET status = 'suspended' WHERE id = $1", [
+      DEMO.users.owner.id,
+    ]);
+    try {
+      const observation = newId();
+      const sent = await sendCopy("carer", {
+        ...refusal(observation, {
+          table: "observation",
+          payload: {
+            id: observation,
+            occurredAt: minutesAgo(20),
+            values: { chart: "fluid_intake", ml: 200 },
+          },
+        }),
+        personId: cleo,
+      });
+      expect(sent.status).toBe(200);
+      const [review] = await asTenant<{ id: string; priority: string }>(
+        `SELECT id, priority FROM task
+         WHERE kind = 'care.refused_entry_review' AND person_id = $1 AND status = 'open'`,
+        [cleo],
+      );
+      expect(review?.priority).toBe("urgent");
+      const told = await asTenant<{ recipient: string }>(
+        `SELECT recipient_tenant_user_id AS recipient FROM notification
+         WHERE kind = 'care.refused_entry_urgent' AND source_id = $1`,
+        [review?.id],
+      );
+      expect(told).toEqual([]);
+      const audited = await asTenant<{
+        actor: string | null;
+        outcome: string;
+        reason: string;
+        scope: Record<string, unknown>;
+      }>(
+        `SELECT actor_tenant_user_id AS actor, outcome, reason, scope FROM audit_event
+         WHERE action = 'care.refused_entry.unrouted' AND resource_id = $1`,
+        [review?.id],
+      );
+      expect(audited).toEqual([
+        {
+          actor: null,
+          outcome: "error",
+          reason: "refused_entry_urgent",
+          scope: { personId: cleo, locationId: croft, reasonCode: "refused_entry_urgent" },
+        },
+      ]);
+    } finally {
+      await asTenant("UPDATE tenant_user SET status = 'active' WHERE id = $1", [
+        DEMO.users.owner.id,
+      ]);
+    }
   });
 
   it("takes a replay as the same copy without counting it again, and refuses another member reusing its id", async () => {

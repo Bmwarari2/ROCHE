@@ -119,24 +119,15 @@ export const DOCUMENT_READ_PERMISSION: Record<DocumentCategoryKey, Permission | 
 };
 
 /**
- * Records about people that an organisation's document may never be attached to (review round 2):
- * it is read by every member, so it must never carry a person's record.
+ * The only records an organisation's document may be attached to (review round 3, an allow-list
+ * in place of round 2's block list): it is read by every member, so it is about the organisation
+ * or nothing, never a person's record. Anything else is refused.
  */
-const PERSON_SUBJECT_TYPES: ReadonlySet<string> = new Set([
-  "person",
-  "exit_record",
-  "incident",
-  "candour_record",
-  "statutory_notification",
-  "dols_legal_change_review",
-  "care_note",
-  "care_plan",
-  "assessment",
-  "observation",
-  "body_map_mark",
-  "advance_care_record",
-  "risk_assessment",
-  "refused_entry",
+const ORGANISATION_SUBJECT_TYPES: ReadonlySet<string> = new Set([
+  "location",
+  "escalation_policy",
+  "statement_of_purpose_version",
+  "letter_template_version",
 ]);
 
 /**
@@ -154,6 +145,14 @@ const SIGN_PERMISSION: Record<DocumentCategoryKey, Permission | null> = {
 /** An organisation's document: no person, and its category says so. Anything else about no one is not served. */
 function organisationDocument(row: { personId: string | null; category: string }): boolean {
   return row.personId === null && row.category === "organisation_document";
+}
+
+/**
+ * Whether a document row is served at all: an organisation's document, or one about a person. A
+ * document of a person's category that names no person is not found (review rounds 2 and 3).
+ */
+function servable(row: { personId: string | null; category: string }): boolean {
+  return organisationDocument(row) || row.personId !== null;
 }
 
 /** The categories of document about a person, each with the permission it is read with. */
@@ -179,7 +178,7 @@ async function requireRead(
   row: { readonly personId: string | null; readonly category: string },
 ): Promise<TenantAccess> {
   if (organisationDocument(row)) return c.get("access");
-  if (row.personId === null) throw problems.notFound();
+  if (!servable(row)) throw problems.notFound();
   const permission = DOCUMENT_READ_PERMISSION[row.category as DocumentCategoryKey] ?? RECORD_READ;
   const access = await requirePermission(c, RECORD_READ);
   return permission === RECORD_READ ? access : requirePermission(c, permission);
@@ -197,7 +196,7 @@ async function documentForRead(c: Context<AppEnv>, id: string) {
   if (!found) throw problems.notFound();
   // A document about no one is served only as an organisation's document (review round 2).
   if (organisationDocument(found)) return found;
-  if (found.personId === null) throw problems.notFound();
+  if (!servable(found)) throw problems.notFound();
   await requireRead(c, found);
   const row = await withTenant(c, (tx) => findDocument(tx, id));
   if (!row) throw problems.notFound();
@@ -236,9 +235,13 @@ export const documentsRouter = createRouter()
     async (c) => {
       const q = c.req.valid("query");
       const access = await requirePermission(c, UPLOAD_PERMISSION[q.category]);
+      // A subject is named by its type and id together (review round 3).
+      if (q.subjectId && !q.subjectType) {
+        throw problems.invalid("Say what kind of record the document is attached to.");
+      }
       if (
         q.category === "organisation_document" &&
-        (q.personId || (q.subjectType && PERSON_SUBJECT_TYPES.has(q.subjectType)))
+        (q.personId || (q.subjectType && !ORGANISATION_SUBJECT_TYPES.has(q.subjectType)))
       ) {
         throw problems.invalid(
           "An organisation's document cannot be attached to a person's record.",
@@ -427,13 +430,16 @@ export const documentsRouter = createRouter()
       // stored (ADR-0071 review round 1, L4).
       useScopeOf(c, RECORD_READ);
       const found = await withTenant(c, (tx) => findDocument(tx, id));
-      if (!found || found.status === "destroyed") throw problems.notFound();
+      // A document of a person's category that names no person is not found (review round 3).
+      if (!found || found.status === "destroyed" || !servable(found)) throw problems.notFound();
       const access = await requirePermission(
         c,
         UPLOAD_PERMISSION[found.category as DocumentCategoryKey],
       );
       const previous = await withTenant(c, (tx) => findDocument(tx, id));
-      if (!previous || previous.status === "destroyed") throw problems.notFound();
+      if (!previous || previous.status === "destroyed" || !servable(previous)) {
+        throw problems.notFound();
+      }
       const bytes = await body(c);
       // Decided before the transaction opens: decoding an image never holds a connection (S2).
       const imagePrintable = imagePrintableOf(bytes);

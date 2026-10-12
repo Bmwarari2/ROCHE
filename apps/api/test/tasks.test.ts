@@ -669,3 +669,129 @@ describe("hazard HZ-008 hazard HZ-073 an overdue task is never told only to some
     expect(told).toEqual([RAE]);
   });
 });
+
+describe("hazard HZ-008 hazard HZ-073 an overdue task goes down the order until someone active is told (ADR-0071 review round 3, C3-M3)", () => {
+  // An invented home, Harbour Barn, with one resident, Iris Example; Ola, a team leader there who
+  // has been invited but never signed in, and Ora, a Registered Manager across the organisation.
+  const OLA = "0194d000-0000-7000-8000-0000000003e1";
+  const ORA = "0194d000-0000-7000-8000-0000000003e2";
+  const BARN = "0194d000-0000-7000-8000-0000000001e1";
+  const IRIS = "0194d000-0000-7000-8600-0000000001e1";
+
+  const overdueTask = () =>
+    asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ id: string }>(
+        `INSERT INTO task (person_id, location_id, kind, title, required_permission, due_at, priority)
+         VALUES ($1, $2, 'platform.manual', 'Repeat the observations', 'care.note.write',
+                 now() - interval '3 hours', 'urgent')
+         RETURNING id`,
+        [IRIS, BARN],
+      );
+      return rows[0]?.id ?? "";
+    });
+  const outcome = (taskId: string) =>
+    asDemoTenant(async (c) => {
+      const told = await c.query<{ recipient_tenant_user_id: string }>(
+        "SELECT recipient_tenant_user_id FROM notification WHERE source_type = 'task' AND source_id = $1",
+        [taskId],
+      );
+      const row = await c.query<{ escalation_level: number }>(
+        "SELECT escalation_level FROM task WHERE id = $1",
+        [taskId],
+      );
+      const audited = await c.query<{ reason: string }>(
+        `SELECT reason FROM audit_event
+         WHERE action = 'task.escalation_unrouted' AND resource_id = $1`,
+        [taskId],
+      );
+      return {
+        told: told.rows.map((r) => r.recipient_tenant_user_id).sort(),
+        level: row.rows[0]?.escalation_level,
+        unrouted: audited.rows.map((r) => r.reason),
+      };
+    });
+
+  beforeAll(async () => {
+    await asDemoTenant(async (c) => {
+      await c.query("INSERT INTO location (id, name) VALUES ($1, 'Harbour Barn')", [BARN]);
+      await c.query(
+        `INSERT INTO person (id, location_id, status, given_name, family_name, nhs_number)
+         VALUES ($1, $2, 'active', 'Iris', 'Example', '9990000115')`,
+        [IRIS, BARN],
+      );
+      await c.query(
+        `INSERT INTO tenant_user (id, display_name, email, status) VALUES
+           ($1, 'Ola Invited', 'ola.invited@example.invalid', 'invited'),
+           ($2, 'Ora Overall', 'ora.overall@example.invalid', 'active')`,
+        [OLA, ORA],
+      );
+      await c.query(
+        `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, organisation_wide,
+           valid_from)
+         SELECT $1, id, NULL, true, now() - interval '30 days' FROM role
+         WHERE key = 'registered_manager'`,
+        [ORA],
+      );
+    });
+  });
+
+  it("tells a Registered Manager across the organisation when no one at the home leads or manages", async () => {
+    const taskId = await overdueTask();
+    await escalateTasks(deps, new Date());
+    expect(await outcome(taskId)).toEqual({ told: [ORA], level: 1, unrouted: [] });
+  });
+
+  it("never counts a team leader who has been invited but never signed in", async () => {
+    await asDemoTenant((c) =>
+      c.query(
+        `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, valid_from)
+         SELECT $1, id, $2, now() - interval '30 days' FROM role WHERE key = 'team_leader'`,
+        [OLA, BARN],
+      ),
+    );
+    const skipped = await overdueTask();
+    await escalateTasks(deps, new Date());
+    expect(await outcome(skipped)).toEqual({ told: [ORA], level: 1, unrouted: [] });
+    // Once Ola has signed in, the team leader is told first.
+    await asDemoTenant((c) =>
+      c.query("UPDATE tenant_user SET status = 'active' WHERE id = $1", [OLA]),
+    );
+    const first = await overdueTask();
+    await escalateTasks(deps, new Date());
+    expect(await outcome(first)).toEqual({ told: [OLA], level: 1, unrouted: [] });
+  });
+
+  it("with no one at all, audits the gap with a coded reason and leaves the task to be tried again", async () => {
+    // Ola has left, Ora's role has ended and the owner is suspended: no one active can see Iris.
+    await asDemoTenant(async (c) => {
+      await c.query("UPDATE tenant_user SET status = 'left' WHERE id = $1", [OLA]);
+      await c.query(
+        "UPDATE role_assignment SET valid_to = now() - interval '1 minute' WHERE tenant_user_id = $1",
+        [ORA],
+      );
+      await c.query("UPDATE tenant_user SET status = 'suspended' WHERE id = $1", [
+        DEMO.users.owner.id,
+      ]);
+    });
+    try {
+      const taskId = await overdueTask();
+      await escalateTasks(deps, new Date());
+      expect(await outcome(taskId)).toEqual({
+        told: [],
+        level: 0,
+        unrouted: ["no_one_sees_person"],
+      });
+      // Within the hour it is not tried again, so it never crowds the batch.
+      await escalateTasks(deps, new Date());
+      expect(await outcome(taskId)).toEqual({
+        told: [],
+        level: 0,
+        unrouted: ["no_one_sees_person"],
+      });
+    } finally {
+      await asDemoTenant((c) =>
+        c.query("UPDATE tenant_user SET status = 'active' WHERE id = $1", [DEMO.users.owner.id]),
+      );
+    }
+  });
+});

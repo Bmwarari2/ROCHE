@@ -1,6 +1,12 @@
-import { accessGrant, role, roleAssignment, type Transaction } from "@harbour/db";
-import type { AccessGrantInput, RoleAssignmentInput, ScopeKind } from "@harbour/domain";
+import { accessGrant, role, roleAssignment, type Transaction, tenantUser } from "@harbour/db";
+import {
+  type AccessGrantInput,
+  type RoleAssignmentInput,
+  rolePermissionMix,
+  type ScopeKind,
+} from "@harbour/domain";
 import { and, eq, inArray, isNull } from "drizzle-orm";
+import { ON_STAFF } from "./role-holders";
 
 /** One member's role assignments and grants, as the domain's access functions read them. */
 export interface AccessRows {
@@ -11,10 +17,12 @@ export interface AccessRows {
 const NO_ROWS: AccessRows = { assignments: [], grants: [] };
 
 /**
- * The role assignments (of roles not archived) and grants of each member, not deleted; the domain
- * drops ended, future and revoked ones for the time it is asked about. Every reader of who holds
- * what goes through here, so a field the domain needs (such as `organisationWide`, ADR-0071 review
- * round 1) is never left out of one of them. Rows the caller cannot read count as nothing held.
+ * The role assignments (of roles neither archived nor deleted) and grants of each member, not
+ * deleted; the domain drops ended, future and revoked ones for the time it is asked about. A
+ * member who is suspended, has left or is deleted holds nothing (`ON_STAFF`; ADR-0071 review
+ * round 3). Every reader of who holds what goes through here, so a field the domain needs (such
+ * as `organisationWide`, ADR-0071 review round 1) is never left out of one of them. Rows the
+ * caller cannot read count as nothing held.
  */
 export async function accessRowsOf(
   tx: Transaction,
@@ -35,12 +43,25 @@ export async function accessRowsOf(
       validTo: roleAssignment.validTo,
     })
     .from(roleAssignment)
-    .innerJoin(role, eq(role.id, roleAssignment.roleId))
+    .innerJoin(
+      role,
+      and(eq(role.id, roleAssignment.roleId), eq(role.tenantId, roleAssignment.tenantId)),
+    )
+    .innerJoin(
+      tenantUser,
+      and(
+        eq(tenantUser.id, roleAssignment.tenantUserId),
+        eq(tenantUser.tenantId, roleAssignment.tenantId),
+      ),
+    )
     .where(
       and(
         inArray(roleAssignment.tenantUserId, ids),
         isNull(roleAssignment.deletedAt),
         isNull(role.archivedAt),
+        isNull(role.deletedAt),
+        inArray(tenantUser.status, [...ON_STAFF]),
+        isNull(tenantUser.deletedAt),
       ),
     );
   const grants = await tx
@@ -54,7 +75,21 @@ export async function accessRowsOf(
       revokedAt: accessGrant.revokedAt,
     })
     .from(accessGrant)
-    .where(and(inArray(accessGrant.tenantUserId, ids), isNull(accessGrant.deletedAt)));
+    .innerJoin(
+      tenantUser,
+      and(
+        eq(tenantUser.id, accessGrant.tenantUserId),
+        eq(tenantUser.tenantId, accessGrant.tenantId),
+      ),
+    )
+    .where(
+      and(
+        inArray(accessGrant.tenantUserId, ids),
+        isNull(accessGrant.deletedAt),
+        inArray(tenantUser.status, [...ON_STAFF]),
+        isNull(tenantUser.deletedAt),
+      ),
+    );
   for (const id of ids) {
     result.set(id, {
       assignments: assignments
@@ -77,7 +112,8 @@ export async function accessRowsOf(
  * Where a member works (the location switcher and the sync token's `location_ids`): their role
  * assignments in force at `now`, at a location, or across the organisation for a role scoped to it
  * or marked organisation-wide (ADR-0071 review round 2); a role scoped to assigned people names
- * its location only. Never a reach for data: each permission's scope decides that.
+ * its location only. A role mixing portal and staff permissions, or a portal role, names none, as
+ * at sign-in (review round 3). Never a reach for data: each permission's scope decides that.
  */
 export function workLocationIds(
   rows: AccessRows,
@@ -85,7 +121,10 @@ export function workLocationIds(
   now: Date,
 ): string[] {
   const inForce = rows.assignments.filter(
-    (a) => a.validFrom <= now && (a.validTo === null || a.validTo > now),
+    (a) =>
+      a.validFrom <= now &&
+      (a.validTo === null || a.validTo > now) &&
+      rolePermissionMix(a.permissions) === "staff",
   );
   if (
     inForce.some((a) => a.locationId === null && (a.scopeKind === "tenant" || a.organisationWide))
