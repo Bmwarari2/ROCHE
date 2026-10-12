@@ -70,6 +70,10 @@ const DAY_MS = 86_400_000;
 const ASSIGNEE_REFUSED =
   "That person cannot be given this task: they do not hold its permission at this location, or cannot see the person it is about.";
 
+/** Why a task about a person cannot be placed at another location (review round 5). */
+const LOCATION_NOT_HOME =
+  "A task about a person is placed where they live. Leave the location out, or choose their home.";
+
 /**
  * Whether the caller may move a task (no step-up: completing is not submitting): anyone holding
  * the permission it names where the task is (the roles and grants carrying it reach the task's
@@ -239,14 +243,18 @@ export const tasksRouter = createRouter()
       const item = await withAuditedRefusal(c, access, () =>
         withTenant(c, async (tx) => {
           // A task about a person takes the person's home when none is given, so it is routed,
-          // listed and escalated where the person lives (ADR-0071 review round 4).
+          // listed and escalated where the person lives (ADR-0071 review round 4); a location
+          // given with a person must be that home (review round 5).
           let locationId = body.locationId ?? null;
-          if (body.personId && !locationId) {
+          if (body.personId) {
             const [home] = await tx
               .select({ locationId: person.locationId })
               .from(person)
               .where(eq(person.id, body.personId));
             if (!home) throw problems.notFound();
+            if (locationId && locationId !== home.locationId) {
+              throw problems.invalid(LOCATION_NOT_HOME);
+            }
             locationId = home.locationId;
           }
           await requireAssignable(

@@ -1,5 +1,5 @@
 import type { ProblemDetails, TaskItem, TaskList, TaskSeriesItem } from "@harbour/contracts";
-import { createDatabase, createPool } from "@harbour/db";
+import { createDatabase, createPool, withRequestContext } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -13,6 +13,7 @@ import {
   UNROUTED_DAILY_EVENT,
 } from "../src/jobs/tasks";
 import { createLogger, type Logger } from "../src/logger";
+import { escalateOverdueTasks } from "../src/services/tasks";
 import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 
 let h: Harness;
@@ -936,7 +937,7 @@ describe("hazard HZ-008 hazard HZ-073 escalation means someone other than the as
     const expected = await asDemoTenant(async (c) => {
       const { rows } = await c.query<{ action: string; count: number }>(
         `SELECT action, count(*)::int AS count FROM audit_event
-         WHERE action = ANY($1::text[]) AND occurred_at > $2::timestamptz - interval '1 day'
+         WHERE action = ANY($1::text[]) AND occurred_at > $2::timestamptz - interval '25 hours'
            AND occurred_at <= $2::timestamptz
          GROUP BY action`,
         [[...UNROUTED_ACTIONS], now],
@@ -956,5 +957,257 @@ describe("hazard HZ-008 hazard HZ-073 escalation means someone other than the as
     // One line per organisation, opaque ids and counts only.
     expect(lines.filter((l) => l.tenantId === DEMO.tenantId)).toHaveLength(1);
     expect(Object.keys(lines[0] ?? {}).sort()).toEqual(["counts", "event", "tenantId"]);
+  });
+});
+
+describe("hazard HZ-008 hazard HZ-018 hazard HZ-073 escalation reaches every organisation and every unrouted task (ADR-0071 review round 5)", () => {
+  // An invented home, Harbour Croft, with one resident, Cai Example; Oona, a care worker there
+  // assigned to Cai. No one else works there; the owner is suspended where a test needs that.
+  const OONA = "0194d000-0000-7000-8000-0000000003f9";
+  const CROFT = "0194d000-0000-7000-8000-0000000001f5";
+  const CAI = "0194d000-0000-7000-8600-0000000001f5";
+  const MINUTE = 60_000;
+  const demoContext = {
+    tenantId: DEMO.tenantId,
+    userId: null,
+    scope: "tenant" as const,
+    locationIds: [],
+  };
+
+  /** Runs as the owner inside the other organisation. */
+  async function asOther<T>(fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {
+    const client = await h.db.pool("harbour_owner").connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+        [OTHER.tenantId],
+      );
+      const result = await fn(client);
+      await client.query("COMMIT");
+      return result;
+    } finally {
+      client.release();
+    }
+  }
+  const setStatus = (id: string, status: string) =>
+    asDemoTenant((c) => c.query("UPDATE tenant_user SET status = $2 WHERE id = $1", [id, status]));
+  const levels = (ids: readonly string[]) =>
+    asDemoTenant(async (c) =>
+      (
+        await c.query<{ escalation_level: number }>(
+          "SELECT escalation_level FROM task WHERE id = ANY($1::uuid[])",
+          [ids],
+        )
+      ).rows.map((r) => r.escalation_level),
+    );
+  const reasons = (taskId: string) =>
+    asDemoTenant(async (c) =>
+      (
+        await c.query<{ reason: string }>(
+          `SELECT reason FROM audit_event
+           WHERE action = 'task.escalation_unrouted' AND resource_id = $1 ORDER BY seq`,
+          [taskId],
+        )
+      ).rows.map((r) => r.reason),
+    );
+
+  beforeAll(async () => {
+    await asDemoTenant(async (c) => {
+      await c.query("INSERT INTO location (id, name) VALUES ($1, 'Harbour Croft')", [CROFT]);
+      await c.query(
+        `INSERT INTO person (id, location_id, status, given_name, family_name)
+         VALUES ($1, $2, 'active', 'Cai', 'Example')`,
+        [CAI, CROFT],
+      );
+      await c.query(
+        `INSERT INTO tenant_user (id, display_name, email, status)
+         VALUES ($1, 'Oona Carer', 'oona.carer@example.invalid', 'active')`,
+        [OONA],
+      );
+      await c.query(
+        `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, valid_from)
+         SELECT $1, id, $2, now() - interval '30 days' FROM role WHERE key = 'care_worker'`,
+        [OONA, CROFT],
+      );
+      await c.query(
+        `INSERT INTO person_assignment (tenant_user_id, person_id, valid_from)
+         VALUES ($1, $2, now() - interval '30 days')`,
+        [OONA, CAI],
+      );
+    });
+  });
+
+  it("goes on to the next organisation when one organisation's run fails, and audits the failure (C5-M2)", async () => {
+    // Every alert in the demo organisation fails to be written, as a fault in its data would.
+    const owner = h.db.pool("harbour_owner");
+    await owner.query(
+      `CREATE FUNCTION test_fail_demo_alerts() RETURNS trigger LANGUAGE plpgsql AS $$
+       BEGIN
+         IF NEW.tenant_id = '${DEMO.tenantId}'::uuid THEN RAISE EXCEPTION 'injected failure'; END IF;
+         RETURN NEW;
+       END $$`,
+    );
+    await owner.query(
+      `CREATE TRIGGER test_fail_demo_alerts BEFORE INSERT ON notification
+       FOR EACH ROW EXECUTE FUNCTION test_fail_demo_alerts()`,
+    );
+    const insertTask = (c: pg.PoolClient, locationId: string) =>
+      c
+        .query<{ id: string }>(
+          `INSERT INTO task (location_id, kind, title, required_permission, due_at)
+           VALUES ($1, 'platform.adhoc', 'Fire door check', 'platform.task.complete',
+                   now() - interval '3 hours')
+           RETURNING id`,
+          [locationId],
+        )
+        .then((r) => r.rows[0]?.id ?? "");
+    let inDemo = "";
+    let inOther = "";
+    try {
+      inDemo = await asDemoTenant((c) => insertTask(c, DEMO.locationId));
+      inOther = await asOther((c) => insertTask(c, OTHER.locationId));
+      // The demo organisation comes first (by id): its failure must not stop the other's.
+      expect(DEMO.tenantId < OTHER.tenantId).toBe(true);
+      await escalateTasks(deps, new Date());
+    } finally {
+      await owner.query("DROP TRIGGER test_fail_demo_alerts ON notification");
+      await owner.query("DROP FUNCTION test_fail_demo_alerts()");
+    }
+    // The other organisation's task escalated to its Registered Manager.
+    const other = await asOther(async (c) => {
+      const row = await c.query<{ escalation_level: number }>(
+        "SELECT escalation_level FROM task WHERE id = $1",
+        [inOther],
+      );
+      const told = await c.query<{ recipient_tenant_user_id: string }>(
+        "SELECT recipient_tenant_user_id FROM notification WHERE source_type = 'task' AND source_id = $1",
+        [inOther],
+      );
+      return {
+        level: row.rows[0]?.escalation_level,
+        told: told.rows.map((r) => r.recipient_tenant_user_id),
+      };
+    });
+    expect(other).toEqual({ level: 1, told: [OTHER.managerId] });
+    // The demo organisation's run rolled back and is audited, by job and code only.
+    expect(await levels([inDemo])).toEqual([0]);
+    const failed = await asDemoTenant(
+      async (c) =>
+        (
+          await c.query<{ scope: unknown }>(
+            "SELECT scope FROM audit_event WHERE action = 'platform.job.tenant_failed'",
+          )
+        ).rows,
+    );
+    expect(failed).toContainEqual({ scope: { job: "task-escalations", code: "P0001" } });
+    // The next run, with the fault gone, escalates it.
+    await escalateTasks(deps, new Date());
+    expect(await levels([inDemo])).toEqual([1]);
+  });
+
+  it("does not count a sync task's own assignee as told: with no one else, they are told, it stays due and the gap is audited (low)", async () => {
+    // A device's task with no location, given to the other organisation's only Registered
+    // Manager; no one there holds safety.incident.manage across the organisation.
+    const held = await asOther(
+      async (c) =>
+        (
+          await c.query<{ id: string }>(
+            `INSERT INTO task (kind, title, required_permission, assignee_tenant_user_id,
+               assignee_role_key, due_at)
+             VALUES ('sync.device_hold', 'Check', 'safety.incident.manage', $1,
+                     'registered_manager', now() - interval '3 hours')
+             RETURNING id`,
+            [OTHER.managerId],
+          )
+        ).rows[0]?.id ?? "",
+    );
+    await escalateTasks(deps, new Date());
+    await escalateTasks(deps, new Date(Date.now() + MINUTE));
+    const state = await asOther(async (c) => {
+      const row = await c.query<{ escalation_level: number; assignee: string }>(
+        "SELECT escalation_level, assignee_tenant_user_id AS assignee FROM task WHERE id = $1",
+        [held],
+      );
+      const told = await c.query<{ recipient_tenant_user_id: string }>(
+        "SELECT recipient_tenant_user_id FROM notification WHERE source_type = 'task' AND source_id = $1",
+        [held],
+      );
+      const audited = await c.query<{ reason: string }>(
+        "SELECT reason FROM audit_event WHERE action = 'sync.escalation_unrouted' AND resource_id = $1",
+        [held],
+      );
+      return {
+        level: row.rows[0]?.escalation_level,
+        assignee: row.rows[0]?.assignee,
+        told: told.rows.map((r) => r.recipient_tenant_user_id),
+        unrouted: audited.rows.map((r) => r.reason),
+      };
+    });
+    expect(state).toEqual({
+      level: 0,
+      assignee: OTHER.managerId,
+      told: [OTHER.managerId],
+      unrouted: ["assignee_only"],
+    });
+  });
+
+  it("retries every unrouted task each hour, however many, and audits a changed reason once (low)", async () => {
+    const start = Date.now();
+    const retry = (minutes: number) =>
+      withRequestContext(deps.appDb, demoContext, (tx) =>
+        // Two to a page, so five tasks take three pages.
+        escalateOverdueTasks(tx, DEMO.tenantId, new Date(start + minutes * MINUTE), "retry", 2),
+      );
+    await setStatus(DEMO.users.owner.id, "suspended");
+    let ids: string[] = [];
+    try {
+      ids = await asDemoTenant(async (c) =>
+        (
+          await c.query<{ id: string }>(
+            `INSERT INTO task (person_id, location_id, kind, title, required_permission, due_at,
+               assignee_tenant_user_id)
+             SELECT $1, $2, 'platform.manual', 'Reposition', 'care.note.write',
+                    now() - interval '3 hours' - make_interval(mins => n), $3
+             FROM generate_series(1, 5) AS n
+             RETURNING id`,
+            [CAI, CROFT, OONA],
+          )
+        ).rows.map((r) => r.id),
+      );
+      await escalateTasks(deps, new Date(start));
+      for (const id of ids) expect(await reasons(id)).toEqual(["assignee_only"]);
+      // Oona leaves: on the hourly retry, which takes every page, each reason changes and is
+      // audited again; the next retry within the day writes nothing more.
+      await setStatus(OONA, "suspended");
+      await retry(60);
+      await retry(120);
+      for (const id of ids) {
+        expect(await reasons(id)).toEqual(["assignee_only", "no_one_sees_person"]);
+      }
+      expect(await levels(ids)).toEqual([0, 0, 0, 0, 0]);
+    } finally {
+      await setStatus(OONA, "active");
+      await setStatus(DEMO.users.owner.id, "active");
+    }
+    // Someone who can act is back: the next retry escalates all five, not only the first page.
+    await retry(180);
+    expect(await levels(ids)).toEqual([1, 1, 1, 1, 1]);
+  });
+
+  it("refuses a task about a person placed at a home other than theirs (low)", async () => {
+    const body = {
+      title: "Check skin on heels",
+      personId: resident(1),
+      dueAt: new Date(Date.now() + HOUR).toISOString(),
+    };
+    const refused = await as("manager", "/v1/tasks", {
+      method: "POST",
+      body: { ...body, locationId: LODGE.locationId },
+    });
+    expect(refused.status).toBe(422);
+    expect((await json<ProblemDetails>(refused)).detail).toContain("placed where they live");
+    const placed = await createTask({ ...body, locationId: DEMO.locationId });
+    expect(placed.locationId).toBe(DEMO.locationId);
   });
 });

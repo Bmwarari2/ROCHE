@@ -255,7 +255,6 @@ export const peopleRouter = createRouter()
           ...summary,
           access: {
             reaching: [...reaching].sort(),
-            mfaRequired: !access.mfaSatisfied,
             recordCare,
             editCarePlan: reaching.has("care.plan.write"),
             readOnlyReason: recordCare ? null : own ? ("scope" as const) : ("break_glass" as const),
@@ -409,23 +408,27 @@ export const peopleRouter = createRouter()
         }
 
         // The Registered Managers whose role reaches the person's home and the quality leads, each
-        // with a role in force and on the staff (ADR-0071 review round 2).
+        // with a role in force and on the staff (ADR-0071 review round 2), other than the person
+        // who opened it: being told of one's own break-glass is not an alert (review round 5).
         const now = new Date();
-        const recipients = new Set([
+        const reached = new Set([
           ...(await roleHolders(tx, ["registered_manager"], [target.locationId], now)),
           ...(await roleHolders(tx, ["quality_lead"], null, now)),
         ]);
-        if (recipients.size === 0) {
-          // No Registered Manager reaching the home and no quality lead is active: the record
-          // still opens, and the gap is audited as the system (review round 4).
+        const recipients = [...reached].filter((id) => id !== access.tenantUserId);
+        if (recipients.length === 0) {
+          // No one else is an active Registered Manager reaching the home or quality lead: the
+          // record still opens, and the gap is audited as the system (review rounds 4 and 5),
+          // coded `opener_only` when the opener alone holds those roles.
+          const reasonCode = reached.size > 0 ? "opener_only" : "no_recipient";
           await tx.insert(auditEvent).values({
             tenantId: sql`app.current_tenant_id()`,
             action: BREAK_GLASS_ALERT_UNROUTED_ACTION,
             outcome: "error",
             resourceType: "break_glass_event",
             resourceId: opened.id,
-            reason: "no_recipient",
-            scope: { personId, locationId: target.locationId, reasonCode: "no_recipient" },
+            reason: reasonCode,
+            scope: { personId, locationId: target.locationId, reasonCode },
           });
         }
         for (const recipient of recipients) {
