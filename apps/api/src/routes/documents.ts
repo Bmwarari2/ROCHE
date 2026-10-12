@@ -118,6 +118,44 @@ export const DOCUMENT_READ_PERMISSION: Record<DocumentCategoryKey, Permission | 
   organisation_document: null,
 };
 
+/**
+ * Records about people that an organisation's document may never be attached to (review round 2):
+ * it is read by every member, so it must never carry a person's record.
+ */
+const PERSON_SUBJECT_TYPES: ReadonlySet<string> = new Set([
+  "person",
+  "exit_record",
+  "incident",
+  "candour_record",
+  "statutory_notification",
+  "dols_legal_change_review",
+  "care_note",
+  "care_plan",
+  "assessment",
+  "observation",
+  "body_map_mark",
+  "advance_care_record",
+  "risk_assessment",
+  "refused_entry",
+]);
+
+/**
+ * The permission signing a document about a person needs, by category (review round 2, S2-M1): a
+ * signature is a write, so it needs the category's update permission where it reaches the person,
+ * never only a read permission (which a break-glass record can open).
+ */
+const SIGN_PERMISSION: Record<DocumentCategoryKey, Permission | null> = {
+  person_photo: "people.person.update",
+  person_document: "people.person.update",
+  care_attachment: "care.note.write",
+  organisation_document: null,
+};
+
+/** An organisation's document: no person, and its category says so. Anything else about no one is not served. */
+function organisationDocument(row: { personId: string | null; category: string }): boolean {
+  return row.personId === null && row.category === "organisation_document";
+}
+
 /** The categories of document about a person, each with the permission it is read with. */
 const PERSON_CATEGORIES = (
   Object.entries(DOCUMENT_READ_PERMISSION) as [DocumentCategoryKey, Permission | null][]
@@ -140,7 +178,8 @@ async function requireRead(
   c: Context<AppEnv>,
   row: { readonly personId: string | null; readonly category: string },
 ): Promise<TenantAccess> {
-  if (row.personId === null) return c.get("access");
+  if (organisationDocument(row)) return c.get("access");
+  if (row.personId === null) throw problems.notFound();
   const permission = DOCUMENT_READ_PERMISSION[row.category as DocumentCategoryKey] ?? RECORD_READ;
   const access = await requirePermission(c, RECORD_READ);
   return permission === RECORD_READ ? access : requirePermission(c, permission);
@@ -156,7 +195,9 @@ async function documentForRead(c: Context<AppEnv>, id: string) {
   useScopeOf(c, RECORD_READ);
   const found = await withTenant(c, (tx) => findDocument(tx, id));
   if (!found) throw problems.notFound();
-  if (found.personId === null) return found;
+  // A document about no one is served only as an organisation's document (review round 2).
+  if (organisationDocument(found)) return found;
+  if (found.personId === null) throw problems.notFound();
   await requireRead(c, found);
   const row = await withTenant(c, (tx) => findDocument(tx, id));
   if (!row) throw problems.notFound();
@@ -195,6 +236,14 @@ export const documentsRouter = createRouter()
     async (c) => {
       const q = c.req.valid("query");
       const access = await requirePermission(c, UPLOAD_PERMISSION[q.category]);
+      if (
+        q.category === "organisation_document" &&
+        (q.personId || (q.subjectType && PERSON_SUBJECT_TYPES.has(q.subjectType)))
+      ) {
+        throw problems.invalid(
+          "An organisation's document cannot be attached to a person's record.",
+        );
+      }
       const bytes = await body(c);
       // Decided before the transaction opens: decoding an image never holds a connection (S2).
       const imagePrintable = imagePrintableOf(bytes);
@@ -275,7 +324,9 @@ export const documentsRouter = createRouter()
         and(
           isNull(document.deletedAt),
           ne(document.status, "destroyed"),
-          personId ? eq(document.personId, personId) : isNull(document.personId),
+          personId
+            ? eq(document.personId, personId)
+            : and(isNull(document.personId), eq(document.category, "organisation_document")),
           q.subjectType ? eq(document.subjectType, q.subjectType) : undefined,
           q.subjectId ? eq(document.subjectId, q.subjectId) : undefined,
           category ? eq(document.category, category) : undefined,
@@ -423,7 +474,7 @@ export const documentsRouter = createRouter()
       tags: ["platform"],
       summary: "Sign a document with a typed name",
       description:
-        "Binds the signature to the SHA-256 of the version the signer read; a changed document cannot be signed without being read again.",
+        "Binds the signature to the SHA-256 of the version the signer read; a changed document cannot be signed without being read again. A document about a person needs its category's update permission where it reaches the person (people.person.update for photos and documents, care.note.write for care attachments); a record opened by break-glass cannot be signed.",
       security,
       request: {
         params: DocumentId,
@@ -434,8 +485,20 @@ export const documentsRouter = createRouter()
     async (c) => {
       const { id } = c.req.valid("param");
       const req = c.req.valid("json");
-      const row = await documentForRead(c, id);
-      if (row.status !== "available") throw problems.notFound();
+      const read = await documentForRead(c, id);
+      if (read.status !== "available") throw problems.notFound();
+      // Signing a document about a person is a write: its category's update permission must reach
+      // the person, found again in that narrowed scope; a break-glass record never opens it
+      // (review round 2, S2-M1). An organisation's document is signed by any member, as before.
+      const sign = SIGN_PERMISSION[read.category as DocumentCategoryKey] ?? null;
+      let row = read;
+      if (read.personId !== null) {
+        if (sign === null) throw problems.notFound();
+        await requirePermission(c, sign);
+        const again = await withTenant(c, (tx) => findDocument(tx, id));
+        if (again?.status !== "available") throw problems.notFound();
+        row = again;
+      }
       const access = c.get("access");
       const check = checkSignature({
         typedName: req.typedName,

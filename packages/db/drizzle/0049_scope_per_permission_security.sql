@@ -121,7 +121,8 @@ CREATE POLICY access_grant_change ON public.access_grant AS RESTRICTIVE FOR UPDA
 
 -- L8: the application assigns someone to a person only when the person is in the writer's view
 -- and the writer holds people.assignment.manage where the person lives; a job with no member (the
--- worker ending expired assignments) keeps the organisation's view. These add to assignment_scope.
+-- worker ending expired assignments) keeps the organisation's view. These add to assignment_scope;
+-- a change is checked on the row as it was (USING) and as it becomes (WITH CHECK).
 CREATE POLICY assignment_write ON public.person_assignment AS RESTRICTIVE FOR INSERT TO harbour_app
   WITH CHECK (
     (app.current_user_id() IS NULL AND app.current_scope() = 'tenant')
@@ -129,6 +130,10 @@ CREATE POLICY assignment_write ON public.person_assignment AS RESTRICTIVE FOR IN
       (SELECT p.location_id FROM public.person p WHERE p.id = person_id))));
 --> statement-breakpoint
 CREATE POLICY assignment_change ON public.person_assignment AS RESTRICTIVE FOR UPDATE TO harbour_app
+  USING (
+    (app.current_user_id() IS NULL AND app.current_scope() = 'tenant')
+    OR (app.person_visible(person_id) AND app.holds_permission_at('people.assignment.manage',
+      (SELECT p.location_id FROM public.person p WHERE p.id = person_id))))
   WITH CHECK (
     (app.current_user_id() IS NULL AND app.current_scope() = 'tenant')
     OR (app.person_visible(person_id) AND app.holds_permission_at('people.assignment.manage',

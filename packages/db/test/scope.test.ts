@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
   type AccessGrantInput,
   type Permission,
@@ -414,5 +416,69 @@ describe("hazard HZ-011 assigned and break-glass people count only when the scop
   it("lets the application assign someone only where the member holds people.assignment.manage (L8)", async () => {
     await expect(assign(ids.a.personCara)).rejects.toThrow(/row-level security/);
     await expect(assign(ids.a.personBen)).resolves.toBeDefined();
+  });
+});
+
+describe("hazard HZ-011 migration 0048 refuses to widen a live grant with no location (ADR-0071 review round 2, S2-M2)", () => {
+  /** The guard at the start of migration 0048, run on its own. */
+  const guard = (() => {
+    const text = readFileSync(
+      fileURLToPath(new URL("../drizzle/0048_scope_per_permission_places.sql", import.meta.url)),
+      "utf8",
+    );
+    const start = text.indexOf("DO $$\nDECLARE live_grants integer;");
+    const end = text.indexOf("$$;", start + 5) + 3;
+    return text.slice(start, end);
+  })();
+
+  const runGuard = () =>
+    inContext(db.pool("harbour_owner"), ctx(TENANT_A, null, "tenant"), (c) => c.query(guard));
+
+  it("passes with no live grant lacking a location", async () => {
+    await expect(runGuard()).resolves.toBeDefined();
+  });
+
+  it("stops, naming how many, when a live grant has no location", async () => {
+    const id = "0193a000-0000-7000-8000-0000000006c1";
+    await inContext(db.pool("harbour_owner"), ctx(TENANT_A, null, "tenant"), (c) =>
+      c.query(
+        `INSERT INTO access_grant (id, tenant_user_id, permissions, organisation_wide, valid_from,
+                                   valid_to, reason, granted_by)
+         VALUES ($1, $2, '{people.person.read}', true, now() - interval '1 day',
+                 now() + interval '1 day', 'Cover', $3)`,
+        [id, ids.a.carer, ids.a.manager],
+      ),
+    );
+    try {
+      await expect(runGuard()).rejects.toThrow(/1 live access grant\(s\) have no location/);
+    } finally {
+      await inContext(db.pool("harbour_owner"), ctx(TENANT_A, null, "tenant"), (c) =>
+        c.query("UPDATE access_grant SET revoked_at = now() WHERE id = $1", [id]),
+      );
+    }
+    await expect(runGuard()).resolves.toBeDefined();
+  });
+});
+
+describe("hazard HZ-011 an assignment is changed only where the member manages assignments (ADR-0071 review round 2)", () => {
+  it("leaves an assignment at another home untouched, and ends one at the member's own", async () => {
+    await inContext(db.pool("harbour_owner"), ctx(TENANT_A, null, "tenant"), (c) =>
+      c.query(
+        `INSERT INTO person_assignment (tenant_user_id, person_id) VALUES ($1, $2), ($1, $3)`,
+        [ids.a.northManager, ids.a.personCara, ids.a.personBen],
+      ),
+    );
+    // The location lead role (people.assignment.manage at North House) is held by the North
+    // manager from the round 1 block above.
+    const end = (personId: string) =>
+      inContext(app(), ctx(TENANT_A, ids.a.northManager, "tenant"), (c) =>
+        c.query(
+          `UPDATE person_assignment SET valid_to = now()
+           WHERE person_id = $1 AND tenant_user_id = $2 AND valid_to IS NULL`,
+          [personId, ids.a.northManager],
+        ),
+      );
+    expect((await end(ids.a.personCara)).rowCount).toBe(0);
+    expect((await end(ids.a.personBen)).rowCount).toBe(1);
   });
 });

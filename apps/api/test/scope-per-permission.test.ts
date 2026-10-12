@@ -483,6 +483,29 @@ describe("hazard HZ-011 data scope per permission, review round 1 (ADR-0071)", (
         },
       });
       expect(write.status).toBe(404);
+      // Signing a document about the person is a write too (review round 2, S2-M1): the letter
+      // opens for reading, but cannot be signed under break-glass.
+      const uploaded = await h.request(
+        `/v1/documents?${new URLSearchParams({
+          category: "person_document",
+          title: "Hospital letter",
+          personId: LODGE_PERSON,
+        })}`,
+        {
+          token: tokenOf("owner"),
+          tenant: DEMO.tenantId,
+          method: "POST",
+          raw: { bytes: PDF, contentType: "application/pdf" },
+        },
+      );
+      expect(uploaded.status).toBe(201);
+      const letter = (await uploaded.json()) as { id: string; sha256: string };
+      expect((await asStaff(staff.bea, `/v1/documents/${letter.id}`)).status).toBe(200);
+      const signed = await asStaff(staff.bea, `/v1/documents/${letter.id}/signatures`, {
+        method: "POST",
+        body: { typedName: "Bea Backup", signerCapacity: "staff", sha256Seen: letter.sha256 },
+      });
+      expect(signed.status).toBe(404);
     });
   });
 
@@ -540,6 +563,24 @@ describe("hazard HZ-011 data scope per permission, review round 1 (ADR-0071)", (
     it("answers HEAD on an allow-listed route as its GET route (L5)", async () => {
       const head = await asStaff(staff.cora, `/v1/documents/${letter}/content`, { method: "HEAD" });
       expect(head.status).toBe(200);
+    });
+
+    it("never attaches an organisation's document to a person's record (review round 2)", async () => {
+      const response = await h.request(
+        `/v1/documents?${new URLSearchParams({
+          category: "organisation_document",
+          title: "Policy about a resident",
+          subjectType: "person",
+          subjectId: HOUSE_PERSON,
+        })}`,
+        {
+          token: tokenOf("manager"),
+          tenant: DEMO.tenantId,
+          method: "POST",
+          raw: { bytes: PDF, contentType: "application/pdf" },
+        },
+      );
+      expect(response.status).toBe(422);
     });
   });
 
