@@ -273,29 +273,23 @@ async function activeTenants(deps: TaskDeps): Promise<string[]> {
 
 /** Creates the next 48 hours of every active recurring task (idempotent; see services/tasks.ts). */
 export async function materialiseTaskSeries(deps: TaskDeps, now = new Date()): Promise<number> {
-  let created = 0;
-  for (const tenantId of await activeTenants(deps)) {
-    created += await withRequestContext(
-      deps.appDb,
-      { tenantId, userId: null, scope: "tenant", locationIds: [] },
-      async (tx) => {
-        const horizon = new Date(now.getTime() + 36 * 3_600_000);
-        const due = await tx
-          .select()
-          .from(taskSeries)
-          .where(
-            and(
-              eq(taskSeries.active, true),
-              isNull(taskSeries.deletedAt),
-              or(isNull(taskSeries.materialisedUntil), lt(taskSeries.materialisedUntil, horizon)),
-            ),
-          );
-        let n = 0;
-        for (const series of due) n += await materialiseSeries(tx, series, now);
-        return n;
-      },
-    );
-  }
+  // One organisation's failure never stops the others' rounds being created (`eachTenant`).
+  const created = await eachTenant(deps, "task-series-materialise", async (tx) => {
+    const horizon = new Date(now.getTime() + 36 * 3_600_000);
+    const due = await tx
+      .select()
+      .from(taskSeries)
+      .where(
+        and(
+          eq(taskSeries.active, true),
+          isNull(taskSeries.deletedAt),
+          or(isNull(taskSeries.materialisedUntil), lt(taskSeries.materialisedUntil, horizon)),
+        ),
+      );
+    let n = 0;
+    for (const series of due) n += await materialiseSeries(tx, series, now);
+    return n;
+  });
   if (created > 0) deps.logger.info({ created }, "recurring tasks materialised");
   return created;
 }
@@ -389,14 +383,10 @@ export async function reportUnroutedDaily(
  * assessment review and advance care record review (care.md rule 1, HZ-015), and none twice.
  */
 export async function raiseCareReviews(deps: TaskDeps, now = new Date()): Promise<number> {
-  let raised = 0;
-  for (const tenantId of await activeTenants(deps)) {
-    raised += await withRequestContext(
-      deps.appDb,
-      { tenantId, userId: null, scope: "tenant", locationIds: [] },
-      (tx) => raiseOverdueCareReviews(tx, tenantId, now),
-    );
-  }
+  // One organisation's failure never stops the others' reviews being raised (`eachTenant`).
+  const raised = await eachTenant(deps, "care-reviews", (tx, tenantId) =>
+    raiseOverdueCareReviews(tx, tenantId, now),
+  );
   if (raised > 0) deps.logger.info({ raised }, "care review tasks raised");
   return raised;
 }
