@@ -4,6 +4,7 @@ import {
   type CrudEntryLike,
   classifyUploadError,
   DEVICE_HEADER,
+  DeviceRevokedError,
   HarbourConnector,
   parseSyncCredentials,
   readProblem,
@@ -95,7 +96,7 @@ function connector(
   fetch: FetchLike,
   overrides: { token?: string | null; now?: () => Date; tenantId?: string | null } = {},
 ) {
-  const revoked = { count: 0 };
+  const revoked = { count: 0, device: 0 };
   const sleeps: number[] = [];
   const instance = new HarbourConnector({
     apiUrl: API,
@@ -104,6 +105,9 @@ function connector(
     getTenantId: () => (overrides.tenantId === undefined ? TENANT : overrides.tenantId),
     onSessionRevoked: () => {
       revoked.count += 1;
+    },
+    onDeviceRevoked: () => {
+      revoked.device += 1;
     },
     backoff: { baseDelayMs: 100, maxDelayMs: 1000, maxAttempts: 3 },
     random: () => 0.5,
@@ -729,5 +733,75 @@ describe("classifyUploadError", () => {
     expect(classifyUploadError(new TypeError("Network request failed"))).toEqual({ retry: true });
     expect(classifyUploadError(new UploadRejectedError(422))).toEqual({ retry: false });
     expect(classifyUploadError(new SessionRevokedError())).toEqual({ retry: false });
+  });
+});
+
+describe("hazard HZ-040 a device a manager revoked (care.md section 6, Device integrity part 2)", () => {
+  const revokedProblem = () =>
+    problem(403, "device_revoked", "This device has been withdrawn from Harbour by a manager.");
+
+  it("reads device_revoked on the sync token as a revocation, never as an ended session or withdrawn access", async () => {
+    const { fetch, calls } = fakeFetch([revokedProblem()]);
+    const { instance, revoked } = connector(fetch);
+    expect(await instance.fetchCredentials()).toBeNull();
+    expect(revoked).toEqual({ count: 0, device: 1 });
+    // Decided by the API: no need to ask GET /v1/me.
+    expect(calls).toHaveLength(1);
+  });
+
+  it("keeps a care entry queued, never parked as refused, when the API says the device is revoked", async () => {
+    const { fetch, calls } = fakeFetch([revokedProblem()]);
+    const { instance, revoked } = connector(fetch);
+    const queue = fakeQueue([note()]);
+    await expect(instance.uploadData(queue.source)).rejects.toBeInstanceOf(DeviceRevokedError);
+    expect(queue.issues()).toEqual([]);
+    expect(queue.state.completed).toBe(0);
+    expect(revoked).toEqual({ count: 0, device: 1 });
+    // Not retried: the device is told once.
+    expect(calls).toHaveLength(1);
+  });
+
+  it("reads device_revoked on a batch upload as a revocation", async () => {
+    const { fetch } = fakeFetch([revokedProblem()]);
+    const { instance, revoked } = connector(fetch);
+    const queue = fakeQueue([other]);
+    await expect(instance.uploadData(queue.source)).rejects.toBeInstanceOf(DeviceRevokedError);
+    expect(queue.issues()).toEqual([]);
+    expect(revoked.device).toBe(1);
+  });
+
+  it("is an ended session for callers that know only that, so nothing is retried", () => {
+    expect(new DeviceRevokedError()).toBeInstanceOf(SessionRevokedError);
+    expect(classifyUploadError(new DeviceRevokedError())).toEqual({ retry: false });
+  });
+});
+
+describe("hazard HZ-006 a refused entry's copy goes to the server at once (Device integrity part 5)", () => {
+  it("says when it has moved an entry to needs attention, and not otherwise", async () => {
+    const refusedSignals = { count: 0 };
+    const make = (fetch: FetchLike) =>
+      new HarbourConnector({
+        apiUrl: API,
+        fetch,
+        getToken: async () => "tok",
+        getTenantId: () => TENANT,
+        onSessionRevoked: () => undefined,
+        onRefused: () => {
+          refusedSignals.count += 1;
+        },
+        backoff: { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 1 },
+        random: () => 0.5,
+        sleep: async () => undefined,
+        now: () => new Date("2026-10-11T15:00:00.000Z"),
+      });
+    const refused = fakeQueue([note()]);
+    await make(
+      fakeFetch([problem(422, "care_event_after_exit", "Not saved", "The person had left.")]).fetch,
+    ).uploadData(refused.source);
+    expect(refused.issues()).toHaveLength(1);
+    expect(refusedSignals.count).toBe(1);
+    const saved = fakeQueue([note()]);
+    await make(fakeFetch([json({ id: "x" }, 201)]).fetch).uploadData(saved.source);
+    expect(refusedSignals.count).toBe(1);
   });
 });

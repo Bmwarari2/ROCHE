@@ -569,6 +569,29 @@ describe("hazard HZ-040 a sync task whose location has no one who can act on it 
     expect(done.status).toBe(200);
   });
 
+  it("hazard HZ-008 gives a refused-entry review the same fallback when no one at its location can review it (#25 review round 2, M3)", async () => {
+    const empty = "0194e000-0000-7000-8000-000000000103";
+    await asOther((c) =>
+      c.query("INSERT INTO location (id, name) VALUES ($1, 'Empty House')", [empty]),
+    );
+    const review = await asOther(
+      async (c) =>
+        (
+          await c.query<{ id: string }>(
+            `INSERT INTO task (location_id, kind, title, required_permission, assignee_role_key, due_at, priority)
+             VALUES ($1, 'care.refused_entry_review', 'Review entries a device could not save',
+                     'care.plan.write', 'clinical_lead', $2, 'urgent')
+             RETURNING id`,
+            [empty, new Date(Date.now() - 3 * HOUR)],
+          )
+        ).rows[0]?.id,
+    );
+    await escalateTasks(deps, new Date());
+    // Nobody at the house holds care.plan.write: the longest-serving Registered Manager elsewhere is
+    // told, and the review is now theirs, rather than it escalating to no one.
+    expect(await state(review)).toEqual({ level: 1, told: [OTHER.managerId], unrouted: 0 });
+  });
+
   it("never marks a task escalated when no one at all can be told, audits the gap once a day, and leaves it out of the next day's batches (security review round 7, L3)", async () => {
     const ended = await asOther(async (c) =>
       (

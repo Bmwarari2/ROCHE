@@ -6,7 +6,7 @@ import {
   SyncUpload,
   SyncUploadResult,
 } from "@harbour/contracts";
-import { auditEvent, location, roleAssignment, tenantUser } from "@harbour/db";
+import { auditEvent, deviceDiscardEntry, location, roleAssignment, tenantUser } from "@harbour/db";
 import { hasClockDrift } from "@harbour/domain";
 import {
   isValidWindowDays,
@@ -26,6 +26,7 @@ import {
   flagEntriesAlreadyUploaded,
   recordDeviceHold,
 } from "../services/device-holds";
+import { bindDevice, inSystemView, refuseRevokedDevice } from "../services/devices";
 import { rateNumber } from "../services/rates";
 import type { SyncTokenSigner } from "../sync/token";
 
@@ -65,10 +66,14 @@ import { createRouter, errorResponses, jsonBody, security } from "./openapi";
 const WRITABLE_TABLES = new Set<string>();
 
 export function createSyncRouter(signer: SyncTokenSigner) {
-  const discardQuota = new PerUserQuota(DISCARDS_PER_HOUR, HOUR_MS);
-  const discardRecordsQuota = new PerUserQuota(DISCARD_RECORDS_PER_DAY, DAY_MS);
-  const discardIdsQuota = new PerUserQuota(DISCARD_IDS_PER_DAY, DAY_MS);
-  const reportQuota = new PerUserQuota(REPORTS_PER_HOUR, HOUR_MS);
+  const discardQuota = new PerUserQuota("sync.discards", DISCARDS_PER_HOUR, HOUR_MS);
+  const discardRecordsQuota = new PerUserQuota(
+    "sync.discard_records",
+    DISCARD_RECORDS_PER_DAY,
+    DAY_MS,
+  );
+  const discardIdsQuota = new PerUserQuota("sync.discard_ids", DISCARD_IDS_PER_DAY, DAY_MS);
+  const reportQuota = new PerUserQuota("sync.reports", REPORTS_PER_HOUR, HOUR_MS);
   return createRouter()
     .openapi(
       createRoute({
@@ -88,12 +93,16 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         path: "/v1/sync/token",
         tags: ["sync"],
         summary: "A short-lived token for the PowerSync service, scoped to tenant and assignments",
+        description:
+          "Claims: sub, tenant_id, location_ids, people_location_ids and offline_days (the offline window from the rate table, never from the device). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.",
         security,
         responses: { 200: jsonBody(SyncToken, "Token"), ...errorResponses },
       }),
       async (c) => {
         const access = await requirePermission(c, "people.person.read");
         const { config } = c.get("services");
+        // A revoked device never gets another token (care.md section 6, Device integrity part 2).
+        await refuseRevokedDevice(c.get("services"), access, "sync.token", c.get("requestId"));
         const claims = await withTenant(c, async (tx) => {
           const locations = await tx
             .select({ id: location.id })
@@ -134,8 +143,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
           const offlineDays = offlineWindowDays(new Date(), windowDays);
           await auditInTx(tx, access, {
             action: "sync.token.issue",
-            // The device the token is for, when it says: the record that binds a member to the
-            // device for its hold reports (security review round 7, M1).
+            // The device the token is for, when it says; the binding itself is `device_binding`.
             ...(access.deviceId ? { resourceType: "device", resourceId: access.deviceId } : {}),
             scope: {
               scope: access.effective.scope,
@@ -152,6 +160,14 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             offline_days: offlineDays,
           };
         });
+        // The member has used this device (care.md section 6, Device integrity part 1): written in
+        // the system's view, so a hold report naming them as its owner counts.
+        const deviceId = access.deviceId;
+        if (deviceId) {
+          await inSystemView(c.get("services").db, access, (tx) =>
+            bindDevice(tx, deviceId, access.tenantUserId, new Date(), access.session.sessionId),
+          );
+        }
         const { token, expiresAt } = await signer.sign(claims);
         return c.json(
           { token, endpoint: config.POWERSYNC_URL, expiresAt: expiresAt.toISOString() },
@@ -174,6 +190,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
       }),
       async (c) => {
         const access = c.get("access");
+        await refuseRevokedDevice(c.get("services"), access, "sync.upload", c.get("requestId"));
         const { operations } = c.req.valid("json");
         const receivedAt = new Date();
         const drift = operations.some(
@@ -212,7 +229,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
       }),
       async (c) => {
         const access = await requirePermission(c, "care.note.write");
-        discardQuota.take(access.tenantUserId);
+        await withTenant(c, (tx) => discardQuota.take(tx, access.tenantUserId));
         const body = c.req.valid("json");
         // Who deleted, as the device recorded it; unknown stays unknown in the record (security
         // review round 5, S-L2). For the permission decision only, an unknown deleter is the caller.
@@ -285,9 +302,9 @@ export function createSyncRouter(signer: SyncTokenSigner) {
           // A new deletion counts against the sender's day: one record, and its entry ids (S-M2;
           // security review round 6, M2 remainder).
           if (!earliest) {
-            discardRecordsQuota.check(access.tenantUserId);
-            discardIdsQuota.take(access.tenantUserId, body.entryIds.length);
-            discardRecordsQuota.take(access.tenantUserId);
+            await discardRecordsQuota.check(tx, access.tenantUserId);
+            await discardIdsQuota.take(tx, access.tenantUserId, body.entryIds.length);
+            await discardRecordsQuota.take(tx, access.tenantUserId);
           }
           // A failure supersedes the request it follows (clinical review round 4, H1).
           const requested = recorded.find((r) => r.action === DISCARD_ACTIONS.requested);
@@ -317,6 +334,21 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             },
             requestId: c.get("requestId"),
           });
+          // The entry ids this stage lists, one row each, so an upload finds its deletion by an
+          // index (care.md section 6, Device integrity part 3; the HZ-040 go-live blocker).
+          if (body.entryIds.length > 0) {
+            await tx
+              .insert(deviceDiscardEntry)
+              .values(
+                [...new Set(body.entryIds.map((id) => id.toLowerCase()))].map((entryId) => ({
+                  discardId: body.id,
+                  stage: body.stage,
+                  entryId,
+                  ownerTenantUserId: body.ownerTenantUserId,
+                })),
+              )
+              .onConflictDoNothing();
+          }
           // Part of the database left on the device after its entries became unreadable is a
           // security event of its own (clinical review round 5, C-M1).
           if (body.stage === "deleted" && body.leftover && body.leftover.length > 0) {
@@ -361,7 +393,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         tags: ["sync"],
         summary: "A device's unsent work: counts and the oldest age, no personal data",
         description:
-          "Writes an audit event with the device's queued, refused, held and blocked counts and the age of the oldest, so the server knows what a lost or wiped device held (HZ-006). Any member of the organisation may report (with MFA when their roles call for it), so a device whose Care mode access was withdrawn can still report its hold. A named owner counts only when they already have an event from the device (a sync token issued to it or a report sent from it); otherwise the claim is recorded and changes nothing. Times later than the server's are taken as the server's, and a hold's start is never earlier than the device's last report for it said, nor than the server first heard from the device. While anything waits, the device has a task for the Registered Manager at each location of its sync scope where the hold's owner or the reporter works, due when its hold escalates and never moved later; one closed in the last day is reopened, its escalation reset at most once a day. A report with nothing waiting closes them when it comes from the hold's owner, from whoever raised them or from a manager at one of their locations. Each reporter raises tasks for a few devices a day; past that, their holds join one task for that reporter, due at the earliest of them.",
+          "Writes an audit event with the device's queued, refused, held and blocked counts and the age of the oldest, so the server knows what a lost or wiped device held (HZ-006). Any member of the organisation may report (with MFA when their roles call for it), so a device whose Care mode access was withdrawn can still report its hold. A named owner counts only when bound to the device (a sync token issued to it or a report sent from it, kept as a device binding); otherwise the claim is recorded and changes nothing. Times later than the server's are taken as the server's, and a hold's start is never earlier than the device's last report for it said, nor than the server first saw the device. While anything waits, the device has a task for the Registered Manager at each location of its sync scope where the hold's owner or the reporter works, due when its hold escalates and never moved later; one closed in the last day is reopened, its escalation reset at most once a day. A report with nothing waiting closes them when it comes from the hold's owner, from whoever raised them or from a manager at one of their locations. Each reporter raises tasks for a few devices a day; past that, their holds join one task for that reporter, due at the earliest of them.",
         security,
         request: { body: { content: { "application/json": { schema: SyncDeviceReport } } } },
         responses: { 204: { description: "Recorded" }, ...errorResponses },
@@ -377,7 +409,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         // care routes.
         const access = c.get("access");
         if (!access.mfaSatisfied) throw problems.mfaRequired();
-        reportQuota.take(access.tenantUserId);
+        await withTenant(c, (tx) => reportQuota.take(tx, access.tenantUserId));
         const report = c.req.valid("json");
         const receivedAt = new Date();
         // The hold's owner must be staff of this organisation (row-level security keeps the lookup

@@ -25,6 +25,13 @@ export const SESSION_PROBLEM_CODES: ReadonlySet<string> = new Set([
 export const EDGE_BLOCKED_CODE = "edge_blocked";
 
 /**
+ * The code the API sends with a 403 when a manager has revoked this device (care.md section 6,
+ * Device integrity part 2; `DEVICE_REVOKED_CODE` in `@harbour/contracts`): not an expired session
+ * and not the session codes. The device wipes, keeping unsent entries under the hold rules.
+ */
+export const DEVICE_REVOKED_CODE = "device_revoked";
+
+/**
  * The permission Care mode needs, the one `POST /v1/sync/token` asks for: without it the device
  * cannot sync, so `GET /v1/me` answering without it means the access has been withdrawn.
  */
@@ -66,14 +73,16 @@ export function isSessionProblem(code: string | null): boolean {
 }
 
 /**
- * session: the session has ended. api: the API refused on purpose (access withdrawn on the token,
- * or this entry refused). unexplained: no API decision is visible (no body, HTML, the edge), so
- * `GET /v1/me` decides.
+ * session: the session has ended. revoked: a manager revoked this device, wherever it is asked
+ * (the token, a batch or a single entry). api: the API refused on purpose (access withdrawn on the
+ * token, or this entry refused). unexplained: no API decision is visible (no body, HTML, the edge),
+ * so `GET /v1/me` decides.
  */
-export type ForbiddenKind = "session" | "api" | "unexplained";
+export type ForbiddenKind = "session" | "revoked" | "api" | "unexplained";
 
 export function classifyForbidden(code: string | null): ForbiddenKind {
   if (code === null || code === EDGE_BLOCKED_CODE) return "unexplained";
+  if (code === DEVICE_REVOKED_CODE) return "revoked";
   return isSessionProblem(code) ? "session" : "api";
 }
 

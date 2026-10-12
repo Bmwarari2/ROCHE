@@ -41,6 +41,18 @@ export const problems = {
   featureDisabled: (detail?: string) =>
     new HttpProblem(403, "feature_disabled", "This is switched off for your organisation.", detail),
   notFound: () => new HttpProblem(404, "not_found", "We could not find that."),
+  /**
+   * The device was revoked by a manager (care.md section 6, Device integrity part 2): distinct from
+   * an expired session (401) and from the session codes, so the device wipes, keeping unsent
+   * entries under the hold rules.
+   */
+  deviceRevoked: () =>
+    new HttpProblem(
+      403,
+      "device_revoked",
+      "This device has been withdrawn from Harbour by a manager.",
+      "Care records leave the device. Entries not yet sent stay on it, protected, until they are handed over or deleted.",
+    ),
   conflict: (detail?: string) =>
     new HttpProblem(
       409,
@@ -50,6 +62,25 @@ export const problems = {
     ),
   invalid: (detail?: string) =>
     new HttpProblem(422, "invalid", "Some details need checking.", detail),
+  /**
+   * A hand-over of held entries the server will not take as sent (care.md section 6, Device
+   * integrity part 6): the device stops and keeps the entry held, never parking it as refused.
+   */
+  handoverRefused: (detail: string) =>
+    new HttpProblem(
+      422,
+      "handover_refused",
+      "This entry cannot be sent for that member of staff from this device.",
+      detail,
+    ),
+  /** A revocation asked for without confirming the entries the device last reported waiting. */
+  entriesWaiting: (count: number) =>
+    new HttpProblem(
+      409,
+      "entries_waiting",
+      "This device last reported entries that have not reached Harbour.",
+      `${count} ${count === 1 ? "entry is" : "entries are"} waiting on it. Confirm to withdraw it anyway: they stay on the device until handed over or deleted, and its task is due at once.`,
+    ),
 };
 
 export function problemResponse(c: Context, problem: HttpProblem, requestId?: string) {

@@ -3,9 +3,11 @@ import type { CareTrigger, PersonRecordKind } from "@harbour/domain";
 import { z } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
-import { type AppEnv, type TenantAccess, withTenant } from "../http/context";
+import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { applyTaskLink, type PlannedTaskLink, planTaskLink } from "../services/care";
+import { refuseRevokedDevice } from "../services/devices";
+import { type HeldHandover, handedOverByOf, heldHandoverOf } from "../services/held-handover";
 import { CareEventAfterExit, loadPerson, raiseLateEntryReview } from "../services/people";
 
 /**
@@ -49,6 +51,8 @@ export function entryOut(
     supersedesId: string | null;
     correctionReason: string | null;
     createdBy: string | null;
+    /** Only the five tables a device writes have it. */
+    handedOverBy?: string | null;
   },
   superseded: ReadonlySet<string>,
 ) {
@@ -68,6 +72,7 @@ export function entryOut(
     correctionReason: row.correctionReason,
     superseded: superseded.has(row.id),
     recordedBy: row.createdBy,
+    handedOverBy: row.handedOverBy ?? null,
   };
 }
 
@@ -80,6 +85,41 @@ export function requireCorrection(body: { supersedesId?: string; correctionReaso
   if (body.supersedesId && !body.correctionReason) {
     throw problems.invalid("Say why the entry is being corrected.");
   }
+}
+
+/** Who writes a care entry a device uploads, and for whom. */
+export interface EntryWriter {
+  readonly access: TenantAccess;
+  /** Who wrote the entry: the caller, or the owner of handed-over entries (`created_by`). */
+  readonly author: string;
+  /** The hand-over the entry arrives by, when it does (care.md section 6, Device integrity). */
+  readonly handover: HeldHandover | null;
+  /** Who sent the entry for its author ("Sent by", `handed_over_by`): a manager's hand-over. */
+  readonly handedOverBy: string | null;
+}
+
+/**
+ * The access for a care entry a device uploads (notes, observations, body-map marks, activities and
+ * visits): the route's permission; a hand-over of held entries checked (part 6; each entry is then
+ * planned with `planHandedOverEntry` and admitted in its transaction); otherwise a device a manager revoked refused with 403
+ * `device_revoked`, audited (part 2). A hand-over is how a revoked device's entries leave it, so it
+ * is not refused here: only entries recorded before the revocation are admitted.
+ */
+export async function entryWriteAccess(
+  c: Context<AppEnv>,
+  kind: "care_note" | "observation" | "body_map_mark" | "activity_record" | "visit_log",
+): Promise<EntryWriter> {
+  const access = await requirePermission(c, "care.note.write");
+  const handover = await heldHandoverOf(c, access);
+  if (!handover) {
+    await refuseRevokedDevice(c.get("services"), access, `care.${kind}`, c.get("requestId"));
+  }
+  return {
+    access,
+    author: handover?.ownerTenantUserId ?? access.tenantUserId,
+    handover,
+    handedOverBy: handedOverByOf(handover),
+  };
 }
 
 export function permissionsOf(access: TenantAccess): ReadonlySet<string> {
@@ -96,13 +136,17 @@ export async function planLink(
   taskId: string | undefined,
   personId: string,
   occurredAt: Date,
+  author: string = access.tenantUserId,
 ): Promise<PlannedTaskLink | null> {
   if (!taskId) return null;
+  // A handed-over entry is judged on its author's permission when the care was recorded, never on
+  // the manager's who sent it (care.md section 6, Device integrity part 6).
+  const handedOver = author !== access.tenantUserId;
   return planTaskLink(tx, {
     taskId,
     personId,
-    actorTenantUserId: access.tenantUserId,
-    actorPermissions: permissionsOf(access),
+    actorTenantUserId: author,
+    actorPermissions: handedOver ? new Set<string>() : permissionsOf(access),
     occurredAt,
   });
 }
@@ -173,6 +217,8 @@ export interface RefusedEntry {
   readonly clientId?: string | null | undefined;
   /** When the entry says the event happened. */
   readonly occurredAt?: string | null | undefined;
+  /** Who wrote it, when not the caller (a handed-over entry's owner). */
+  readonly recordedBy?: string | undefined;
 }
 
 /**
@@ -198,7 +244,7 @@ export async function withLateEntryReview<T>(
           clientId: entry.clientId ?? null,
           occurredAt: entry.occurredAt ?? null,
           deviceId: access.deviceId,
-          recordedBy: access.tenantUserId,
+          recordedBy: entry.recordedBy ?? access.tenantUserId,
         });
         await auditInTx(tx, access, {
           action: "care.entry.after_exit",

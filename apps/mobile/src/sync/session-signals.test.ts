@@ -1,8 +1,10 @@
+import { DEVICE_REVOKED_CODE as CONTRACT_DEVICE_REVOKED_CODE } from "@harbour/contracts";
 import { describe, expect, it } from "vitest";
 import {
   CARE_ACCESS_PERMISSION,
   checkSession,
   classifyForbidden,
+  DEVICE_REVOKED_CODE,
   readProblemBody,
   TENANT_HEADER,
 } from "./session-signals";
@@ -36,8 +38,13 @@ describe("classifyForbidden (security review round 4, H1)", () => {
     ["a_code_this_build_does_not_know", "api"],
     ["edge_blocked", "unexplained"],
     [null, "unexplained"],
+    ["device_revoked", "revoked"],
   ] as const)("reads a 403 with code %s as %s", (code, kind) => {
     expect(classifyForbidden(code)).toBe(kind);
+  });
+
+  it("hazard HZ-040 knows the API's code for a revoked device", () => {
+    expect(DEVICE_REVOKED_CODE).toBe(CONTRACT_DEVICE_REVOKED_CODE);
   });
 });
 

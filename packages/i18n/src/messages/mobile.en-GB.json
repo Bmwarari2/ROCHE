@@ -313,5 +313,22 @@
   "mobile.vault.restoreBlockedFailed": "Entries left by a deletion that did not finish could not be moved to the entries that need attention. They are still on this device and will never be sent. Harbour will not connect until they have moved. Close Harbour, open it again and unlock to try again. If this keeps happening, tell the nurse in charge.",
   "mobile.held.keyNotRead": "The entries could not be unlocked to record which ones are deleted, so nothing has been deleted. Try again, and confirm with your face, fingerprint or passcode when asked.",
   "mobile.discard.blockFailed": "This device could not mark the entries as never to be sent, so nothing has been deleted. Try again, or restart the device and try again.",
-  "mobile.sync.issuesUnknown": "Entries the server refused could not be counted and need attention. Harbour tries again each time it unlocks."
+  "mobile.sync.issuesUnknown": "Entries the server refused could not be counted and need attention. Harbour tries again each time it unlocks.",
+  "mobile.held.revoked": "A manager withdrew this device from Harbour, so the care records on it have been removed. These entries had not reached Harbour and are kept, encrypted. The member of staff who wrote them, or a manager, can sign in here to send them, or a manager can delete them with a reason.",
+  "mobile.held.revokedSignIn": "A manager withdrew this device from Harbour, so Care mode cannot be used on it. The entries waiting here can still be sent from this screen, or deleted with a reason. That sign-in has been ended.",
+  "mobile.vault.deviceRevoked": "A manager withdrew this device from Harbour, so the care records stored on it have been removed. Use another device, or ask your manager.",
+  "mobile.held.handOverStart": "{count, plural, one {Send # entry for them} other {Send # entries for them}}",
+  "mobile.held.handOverStartUnknown": "Send the unsent entries for them",
+  "mobile.held.handOverSignInTitle": "Sign in to send unsent entries",
+  "mobile.held.handOverSignInBody": "A manager can sign in on this device to send another member of staff's entries to Harbour in their name, and is recorded as having sent them. On a device a manager withdrew, the member of staff who wrote them can send them here too. The sign-in is used only for this and ends straight after.",
+  "mobile.held.handOverSignIn": "Sign in and send",
+  "mobile.held.handOverNotAllowed": "Only a manager, or on a withdrawn device the member of staff who wrote them, can send these entries. That sign-in has been ended.",
+  "mobile.held.handOverUnknownOwner": "This device cannot tell whose these entries are, so they cannot be sent in anyone's name. A manager can delete them with a reason. That sign-in has been ended.",
+  "mobile.held.handOverBlocked": "These entries are left from a deletion that did not finish, so they will not be sent. A manager can delete them with a reason. That sign-in has been ended.",
+  "mobile.held.handOverDone": "{count, plural, one {# entry was sent to Harbour.} other {# entries were sent to Harbour.}} Nothing is left on this device.",
+  "mobile.held.handOverPartial": "{sent, plural, one {# entry was sent.} other {# entries were sent.}} {remaining, plural, one {# entry is still on this device, protected.} other {# entries are still on this device, protected.}} Nobody can open them here. A manager can send them again from this screen when the device is online, or delete them with a reason. Tell the Registered Manager.",
+  "mobile.held.handOverNotTaken": "{sent, plural, =0 {Nothing was sent.} one {# entry was sent.} other {# entries were sent.}} {notTaken, plural, one {Harbour did not take # entry: {reason}} other {Harbour did not take # entries. The first reason: {reason}}} They are still on this device, protected, with anything else not sent. Tell the Registered Manager.",
+  "mobile.issues.copySent": "Harbour has a copy for the nurse in charge to review.",
+  "mobile.issues.copyRefused": "Harbour could not keep a copy: only this device has this entry. Tell the nurse in charge.",
+  "mobile.held.handOverUncounted": "{sent, plural, =0 {Nothing was sent.} one {# entry was sent.} other {# entries were sent.}} This device could not count what is left, so it keeps everything, protected. Try again, or tell the Registered Manager."
 }

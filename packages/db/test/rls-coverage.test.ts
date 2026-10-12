@@ -29,6 +29,10 @@ const APPEND_ONLY_TABLES = [
   "handover_item",
   "handover_note",
   "handover_acknowledgement",
+  "device_discard_entry",
+  "refused_entry",
+  "device_session",
+  "handed_over_entry",
 ];
 /** Audit and history rows may be written before a tenant is chosen. */
 const NULLABLE_TENANT_TABLES = ["audit_event", "record_version"];

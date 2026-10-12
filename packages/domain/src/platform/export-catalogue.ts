@@ -115,6 +115,7 @@ export const CLINICAL_EXPORT_TABLES: readonly string[] = [
   "public.handover_item",
   "public.handover_note",
   "public.handover_acknowledgement",
+  "public.refused_entry",
 ];
 
 interface ConventionalDoc {
@@ -320,6 +321,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       device_time: "exported",
       device_offset_minutes: "exported",
       created_by: "exported",
+      handed_over_by: {
+        description:
+          "Sent by: the manager who handed this entry over from a device for its author (created_by), when one did (tenant_user.id; care.md section 6, Device integrity part 6). Empty when its author sent it.",
+      },
       device_id: "exported",
       late_entry: "exported",
       clock_drift: "exported",
@@ -674,6 +679,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       device_time: "exported",
       device_offset_minutes: "exported",
       created_by: "exported",
+      handed_over_by: {
+        description:
+          "Sent by: the manager who handed this entry over from a device for its author (created_by), when one did (tenant_user.id; care.md section 6, Device integrity part 6). Empty when its author sent it.",
+      },
       device_id: "exported",
       late_entry: "exported",
       clock_drift: "exported",
@@ -915,6 +924,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       device_time: "exported",
       device_offset_minutes: "exported",
       created_by: "exported",
+      handed_over_by: {
+        description:
+          "Sent by: the manager who handed this entry over from a device for its author (created_by), when one did (tenant_user.id; care.md section 6, Device integrity part 6). Empty when its author sent it.",
+      },
       device_id: "exported",
       late_entry: "exported",
       clock_drift: "exported",
@@ -1285,6 +1298,92 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       reason: { description: "Why they were destroyed." },
       method: { description: "How: key destruction, row purge, object version deletion." },
       executed_at: "exported",
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.device_binding": {
+    context: "platform",
+    description:
+      "Which member of staff has used which Care mode device, when the server first and last saw them together, and whether a manager revoked the device (care.md section 6).",
+    treatment: "tenant_rows",
+    retention: "audit_event",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      device_id: {
+        description:
+          "Opaque id of the device's database (the sync client id); a new database has a new id.",
+      },
+      tenant_user_id: "exported",
+      first_seen_at: {
+        description: "When the server first saw this member on this device (instant, UTC).",
+      },
+      last_seen_at: {
+        description: "When the server last saw this member on this device (instant, UTC).",
+      },
+      revoked_at: {
+        description: "When a manager revoked the device (instant, UTC); empty while it is not.",
+      },
+      revoked_by: { description: "The manager who revoked it (tenant_user.id)." },
+      revocation_reason: {
+        description: "Why the device was revoked, as a code.",
+        codes: {
+          lost_or_stolen: "The device was lost or stolen.",
+          staff_left: "The member of staff using it has left.",
+          access_withdrawn: "The member of staff's access to Care mode was withdrawn.",
+          replaced: "The device was replaced or reset.",
+          other: "Another reason, recorded outside Harbour.",
+        },
+      },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.device_session": {
+    context: "platform",
+    description:
+      "The Harbour sign-in sessions bound to each Care mode device, so a revocation ends them (care.md section 6, Device integrity part 2).",
+    treatment: "not_exported",
+    retention: "audit_event",
+    personal: true,
+    reasonNotExported:
+      "Security records of sign-in sessions: the session ids are Harbour's own credentials' identifiers and mean nothing outside it; which member used which device is exported in device_binding.",
+    columns: {},
+  },
+  "public.device_discard_entry": {
+    context: "care",
+    description:
+      "The entry ids each stage of a device's deletion of unsent entries listed, with the deletion record and whose entries they were (append-only; care.md section 6).",
+    treatment: "tenant_rows",
+    retention: "audit_event",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      discard_id: {
+        description:
+          "The deletion record (the audit trail's device_discard resource id, sync.entries.* events).",
+      },
+      stage: {
+        description: "The stage of the deletion that listed the entry.",
+        codes: {
+          requested: "Recorded before anything was deleted.",
+          deleted: "The device checked the entries could no longer be read.",
+          failed:
+            "The deletion did not finish; the entries stayed on the device, never to be sent.",
+        },
+      },
+      entry_id: {
+        description:
+          "The id of a care entry the deletion listed (care_note, observation, body_map_mark, activity_record or visit_log id).",
+      },
+      owner_tenant_user_id: {
+        description:
+          "Whose entries the deletion said they were (tenant_user.id); empty if unknown.",
+      },
+      recorded_at: { description: "When the server recorded the stage (instant, UTC)." },
       created_at: "exported",
       created_by: "exported",
     },
@@ -1767,6 +1866,40 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       updated_by: "exported",
       version: "exported",
       deleted_at: "exported",
+    },
+  },
+  "public.handed_over_entry": {
+    context: "care",
+    description:
+      "Each held entry a manager (or its owner, from a revoked device) sent from a Care mode device in its owner's name: the hand-over, the device, the owner and the sender (append-only; care.md section 6, Device integrity part 6).",
+    treatment: "tenant_rows",
+    retention: "audit_event",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      handover_id: {
+        description: "The hand-over the entry was sent in (one owner, device and sender).",
+      },
+      device_id: { description: "Opaque id of the device that held the entry." },
+      owner_tenant_user_id: { description: "Whose entry it is (tenant_user.id): its author." },
+      sent_by: { description: "Who sent it (tenant_user.id)." },
+      record_table: {
+        description: "The table the entry is in.",
+        codes: {
+          care_note: "A daily note.",
+          observation: "A chart observation.",
+          body_map_mark: "A body-map mark.",
+          activity_record: "An activity record.",
+          visit_log: "A visit.",
+        },
+      },
+      entry_id: { description: "The entry's id in that table." },
+      accepted_at: {
+        description: "When the server accepted the entry for sending (instant, UTC).",
+      },
+      created_at: "exported",
+      created_by: "exported",
     },
   },
   "public.handover": {
@@ -2349,6 +2482,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       device_time: "exported",
       device_offset_minutes: "exported",
       created_by: "exported",
+      handed_over_by: {
+        description:
+          "Sent by: the manager who handed this entry over from a device for its author (created_by), when one did (tenant_user.id; care.md section 6, Device integrity part 6). Empty when its author sent it.",
+      },
       device_id: "exported",
       late_entry: "exported",
       clock_drift: "exported",
@@ -2805,6 +2942,80 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       changed_by: "exported",
       data: { description: "The record as it was before the change, JSON." },
     },
+  },
+  "public.refused_entry": {
+    context: "care",
+    description:
+      "The server's copy of a care entry the API refused from a device, kept so a refused entry is never only on one phone, with the review task it joined (append-only; care.md section 6).",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      entry_id: {
+        description:
+          "The entry's own id, made on the device; the same id the entry would have had in its table.",
+      },
+      record_table: {
+        description: "The table the entry was meant for.",
+        codes: {
+          care_note: "A daily note (care_note).",
+          observation: "A chart entry (observation).",
+          body_map_mark: "A body-map mark (body_map_mark).",
+          activity_record: "An activity record (activity_record).",
+          visit_log: "A visit (visit_log).",
+        },
+      },
+      person_id: {
+        description:
+          "The person receiving care the entry is about (person.id); empty when the device named no person known here.",
+      },
+      location_id: {
+        description:
+          "The person's location when the copy arrived, or the author's when no person was known (location.id).",
+      },
+      payload: {
+        description:
+          "The entry's columns as the device held them, JSON with snake_case keys as in the entry's own table; not validated, so read it as the device's record, not the care record.",
+      },
+      http_status: {
+        description:
+          "The HTTP status of the refusal; empty when the device refused it before sending.",
+        unit: "HTTP status code",
+      },
+      refusal_code: {
+        description: "The API's code for the refusal (for example care_event_after_exit, invalid).",
+      },
+      refusal_message: {
+        description: "The API's reason for the refusal, in English, as the device showed it.",
+      },
+      refused_at: {
+        description:
+          "When the device recorded the refusal (instant, UTC), never later than the copy arrived.",
+      },
+      author_tenant_user_id: {
+        description: "The member of staff who wrote the entry (tenant_user.id).",
+      },
+      device_id: { description: "Opaque id of the device that held the entry." },
+      review_task_id: { description: "The review task the copy joined (task.id)." },
+      created_at: "exported",
+      created_by: {
+        description:
+          "Who sent the copy (tenant_user.id): the author, or a manager handing over their entries.",
+      },
+    },
+  },
+  "public.request_quota": {
+    context: "platform",
+    description:
+      "Each member of staff's recent requests against the API's per-user limits, shared by every API instance.",
+    treatment: "not_exported",
+    retention: "operational",
+    personal: true,
+    reasonNotExported:
+      "Operational rate-limit counters: a row holds at most one window's request times and is overwritten in place, so it records nothing about care or the organisation.",
+    columns: {},
   },
   "public.retention_class": {
     context: "platform",
@@ -3472,6 +3683,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       device_time: "exported",
       device_offset_minutes: "exported",
       created_by: "exported",
+      handed_over_by: {
+        description:
+          "Sent by: the manager who handed this entry over from a device for its author (created_by), when one did (tenant_user.id; care.md section 6, Device integrity part 6). Empty when its author sent it.",
+      },
       device_id: "exported",
       late_entry: "exported",
       clock_drift: "exported",

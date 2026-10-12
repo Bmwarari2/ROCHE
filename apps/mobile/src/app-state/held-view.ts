@@ -19,6 +19,8 @@ export interface HeldView {
   readonly urgent: boolean;
   readonly discardLabel: string;
   readonly confirmTitle: string;
+  /** Sending the entries for their owner (care.md section 6, Device integrity part 6). */
+  readonly handOverLabel: string;
 }
 
 export function heldView(held: HeldWork, now: Date): HeldView {
@@ -47,8 +49,13 @@ export function heldView(held: HeldWork, now: Date): HeldView {
     title:
       entries === null ? t("mobile.held.titleUnknown") : t("mobile.held.title", { count: entries }),
     owner: held.tenantId !== "" ? t("mobile.held.owner", who) : t("mobile.held.ownerUnknown"),
-    // A deletion that did not finish: these are never sent (clinical review round 4, H1).
-    body: held.uploadBlocked ? t("mobile.held.blocked") : t("mobile.held.body"),
+    // A deletion that did not finish: these are never sent (clinical review round 4, H1). A device
+    // a manager revoked: sent only by the hand-over (care.md section 6, Device integrity).
+    body: held.uploadBlocked
+      ? t("mobile.held.blocked")
+      : held.revoked
+        ? t("mobile.held.revoked")
+        : t("mobile.held.body"),
     time,
     urgent: state !== "open",
     discardLabel:
@@ -59,5 +66,9 @@ export function heldView(held: HeldWork, now: Date): HeldView {
       entries === null
         ? t("mobile.held.discardTitleUnknown")
         : t("mobile.held.discardTitle", { count: entries }),
+    handOverLabel:
+      entries === null
+        ? t("mobile.held.handOverStartUnknown")
+        : t("mobile.held.handOverStart", { count: entries }),
   };
 }

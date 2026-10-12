@@ -69,6 +69,8 @@ const registeredManager: Permission[] = ALL_PERMISSIONS.filter(
   "platform.onboarding.read",
   "platform.dpia.read",
   "platform.dpia.prepare",
+  "platform.device.read",
+  "platform.device.revoke",
 ]);
 
 export const BUILTIN_ROLES: readonly BuiltinRole[] = [
@@ -145,6 +147,8 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "medicines.cd.witness",
       "medicines.stock.manage",
       "safety.incident.manage",
+      // Who deletes held entries may also send them (care.md section 6, Device integrity part 6).
+      "care.held_entry.hand_over",
       "workforce.competence.observe",
       "platform.task.manage",
       "people.movement.record",

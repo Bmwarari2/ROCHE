@@ -154,8 +154,37 @@ describe("hazard HZ-006 refused entries stay readable", () => {
       reason: "Reason: This person's record is closed; only post-event notes can be added.",
       content: "What was recorded: Invented note",
       when: "11/10/2026 at 10:00",
+      copy: null,
     });
   });
+
+  it.each([
+    ["copied", "Harbour has a copy for the nurse in charge to review."],
+    [
+      "refused",
+      "Harbour could not keep a copy: only this device has this entry. Tell the nurse in charge.",
+    ],
+    [null, null],
+  ] as const)(
+    "hazard HZ-006 says in words whether Harbour has a copy (%s; #25 review round 2, low)",
+    (state, words) => {
+      const row: UploadIssueRow = {
+        id: "n8",
+        person_id: "p1",
+        record_table: "care_note",
+        http_status: 422,
+        code: "invalid",
+        message: null,
+        payload: "{}",
+        rejected_at: null,
+        server_copy: state,
+        preferred_name: null,
+        given_name: "Beatrice",
+        family_name: "Sample",
+      };
+      expect(issueItem(row).copy).toBe(words);
+    },
+  );
 
   it("still reads when the person is no longer on the device", () => {
     const item = issueItem({

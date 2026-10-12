@@ -7,6 +7,7 @@ import {
   CreateCareNote,
   CreateObservation,
   FluidDay,
+  HandoverHeaders,
   ObservationItem,
   ObservationList,
   PersonCareProfile,
@@ -52,10 +53,16 @@ import {
 } from "../services/care";
 import { latestMustBand } from "../services/care-planning";
 import { flagIfReportedDeleted } from "../services/device-holds";
+import {
+  auditHandedOver,
+  planHandedOverEntry,
+  recordHandedOverEntry,
+} from "../services/held-handover";
 import { loadPerson, type PersonRecord, requireWrite } from "../services/people";
 import {
   applyLink,
   entryOut,
+  entryWriteAccess,
   eventKind,
   PersonParam,
   planLink,
@@ -149,6 +156,8 @@ export const careRouter = createRouter()
       security,
       request: {
         params: PersonParam,
+        // A hand-over of held entries (care.md section 6, Device integrity part 6).
+        headers: HandoverHeaders,
         body: { content: { "application/json": { schema: CreateCareNote } } },
       },
       responses: {
@@ -158,14 +167,25 @@ export const careRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, "care.note.write");
+      const { access, author, handover, handedOverBy } = await entryWriteAccess(c, "care_note");
       const { id: personId } = c.req.valid("param");
       const body = c.req.valid("json");
       requireCorrection(body);
+      // A handed-over entry is checked against the device's hold before it is written (#25
+      // review rounds 2 and 3): the owner's time on the device, the hold's count and their care.
+      const admission = handover
+        ? await planHandedOverEntry(c, handover, {
+            table: "care_note",
+            entryId: body.id,
+            personId,
+            occurredAt: body.occurredAt,
+            deviceTime: body.deviceTime,
+          })
+        : null;
       const now = new Date();
       const item = await withLateEntryReview(
         c,
-        { kind: "care_note", clientId: body.id, occurredAt: body.occurredAt },
+        { kind: "care_note", clientId: body.id, occurredAt: body.occurredAt, recordedBy: author },
         () =>
           withTenant(c, async (tx) => {
             // A replayed upload (the same device id) returns the stored entry before anything is
@@ -178,6 +198,8 @@ export const careRouter = createRouter()
                 return noteItem(replayed, new Set());
               }
             }
+            // Admitted in the entry's own transaction, so a refusal uses none of the count.
+            if (admission) await recordHandedOverEntry(tx, admission);
             const { person, record, rates } = await writeContext(c, personId, tx);
             const times = entryTimes(body, c.req.header(SENT_AT_HEADER), now, rates);
             const recordedAfterExit = allowedAt(
@@ -187,11 +209,22 @@ export const careRouter = createRouter()
               rates.clockDriftMinutes,
             );
             await checkSuperseded(tx, careNote, body.supersedesId, personId);
-            const link = await planLink(tx, access, body.taskId, personId, times.occurredAt);
+            const link = await planLink(
+              tx,
+              access,
+              body.taskId,
+              personId,
+              times.occurredAt,
+              author,
+            );
             const [inserted] = await tx
               .insert(careNote)
               .values({
                 ...(body.id ? { id: body.id } : {}),
+                // The entry's author: the owner of a handed-over entry, and who sent it for them
+                // (Device integrity part 6).
+                createdBy: author,
+                handedOverBy,
                 personId,
                 locationId: person.locationId,
                 category: body.category,
@@ -224,6 +257,7 @@ export const careRouter = createRouter()
             if (inserted) {
               // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
               await flagIfReportedDeleted(tx, access, {
+                uploader: author,
                 resourceType: "care_note",
                 id: row.id,
                 locationId: person.locationId,
@@ -235,7 +269,7 @@ export const careRouter = createRouter()
                   evidenceId: row.id,
                   personId,
                   locationId: person.locationId,
-                  actorTenantUserId: access.tenantUserId,
+                  actorTenantUserId: author,
                   deviceId: access.deviceId,
                   now,
                 });
@@ -245,6 +279,11 @@ export const careRouter = createRouter()
                 resourceType: "care_note",
                 resourceId: row.id,
                 reason: body.correctionReason,
+                requestId: c.get("requestId"),
+              });
+              await auditHandedOver(tx, access, handover, {
+                resourceType: "care_note",
+                id: row.id,
                 requestId: c.get("requestId"),
               });
               await publish(tx, {
@@ -331,6 +370,8 @@ export const careRouter = createRouter()
       security,
       request: {
         params: PersonParam,
+        // A hand-over of held entries (care.md section 6, Device integrity part 6).
+        headers: HandoverHeaders,
         body: { content: { "application/json": { schema: CreateObservation } } },
       },
       responses: {
@@ -340,14 +381,25 @@ export const careRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, "care.note.write");
+      const { access, author, handover, handedOverBy } = await entryWriteAccess(c, "observation");
       const { id: personId } = c.req.valid("param");
       const body = c.req.valid("json");
       requireCorrection(body);
+      // A handed-over entry is checked against the device's hold before it is written (#25
+      // review rounds 2 and 3): the owner's time on the device, the hold's count and their care.
+      const admission = handover
+        ? await planHandedOverEntry(c, handover, {
+            table: "observation",
+            entryId: body.id,
+            personId,
+            occurredAt: body.occurredAt,
+            deviceTime: body.deviceTime,
+          })
+        : null;
       const now = new Date();
       const item = await withLateEntryReview(
         c,
-        { kind: "observation", clientId: body.id, occurredAt: body.occurredAt },
+        { kind: "observation", clientId: body.id, occurredAt: body.occurredAt, recordedBy: author },
         () =>
           withTenant(c, async (tx) => {
             // A replayed upload (the same device id) returns the stored entry before anything is
@@ -363,6 +415,8 @@ export const careRouter = createRouter()
                 return observationItem(replayed, new Set());
               }
             }
+            // Admitted in the entry's own transaction, so a refusal uses none of the count.
+            if (admission) await recordHandedOverEntry(tx, admission);
             const { person, record, rates } = await writeContext(c, personId, tx);
             const times = entryTimes(body, c.req.header(SENT_AT_HEADER), now, rates);
             const recordedAfterExit = allowedAt(
@@ -374,11 +428,22 @@ export const careRouter = createRouter()
             await checkSuperseded(tx, observation, body.supersedesId, personId);
             const profile = await careProfile(tx, personId);
             const { flags, triggers } = chartRules(body.values, profile, times.occurredAt);
-            const link = await planLink(tx, access, body.taskId, personId, times.occurredAt);
+            const link = await planLink(
+              tx,
+              access,
+              body.taskId,
+              personId,
+              times.occurredAt,
+              author,
+            );
             const [inserted] = await tx
               .insert(observation)
               .values({
                 ...(body.id ? { id: body.id } : {}),
+                // The entry's author: the owner of a handed-over entry, and who sent it for them
+                // (Device integrity part 6).
+                createdBy: author,
+                handedOverBy,
                 personId,
                 locationId: person.locationId,
                 chart: body.values.chart,
@@ -410,6 +475,7 @@ export const careRouter = createRouter()
             if (inserted) {
               // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
               await flagIfReportedDeleted(tx, access, {
+                uploader: author,
                 resourceType: "observation",
                 id: row.id,
                 locationId: person.locationId,
@@ -434,7 +500,7 @@ export const careRouter = createRouter()
                   evidenceId: row.id,
                   personId,
                   locationId: person.locationId,
-                  actorTenantUserId: access.tenantUserId,
+                  actorTenantUserId: author,
                   deviceId: access.deviceId,
                   now,
                 });
@@ -447,7 +513,7 @@ export const careRouter = createRouter()
                   kind: "care.weight_check",
                   evidenceType: "observation",
                   evidenceId: row.id,
-                  actorTenantUserId: access.tenantUserId,
+                  actorTenantUserId: author,
                   now,
                 });
                 await raiseCareTriggers(
@@ -473,6 +539,11 @@ export const careRouter = createRouter()
                 resourceType: "observation",
                 resourceId: row.id,
                 reason: body.correctionReason,
+                requestId: c.get("requestId"),
+              });
+              await auditHandedOver(tx, access, handover, {
+                resourceType: "observation",
+                id: row.id,
                 requestId: c.get("requestId"),
               });
               await publish(tx, {
@@ -630,6 +701,8 @@ export const careRouter = createRouter()
       security,
       request: {
         params: PersonParam,
+        // A hand-over of held entries (care.md section 6, Device integrity part 6).
+        headers: HandoverHeaders,
         body: { content: { "application/json": { schema: CreateBodyMapMark } } },
       },
       responses: {
@@ -639,10 +712,21 @@ export const careRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, "care.note.write");
+      const { access, author, handover, handedOverBy } = await entryWriteAccess(c, "body_map_mark");
       const { id: personId } = c.req.valid("param");
       const body = c.req.valid("json");
       requireCorrection(body);
+      // A handed-over entry is checked against the device's hold before it is written (#25
+      // review rounds 2 and 3): the owner's time on the device, the hold's count and their care.
+      const admission = handover
+        ? await planHandedOverEntry(c, handover, {
+            table: "body_map_mark",
+            entryId: body.id,
+            personId,
+            occurredAt: body.occurredAt,
+            deviceTime: body.deviceTime,
+          })
+        : null;
       const check = validateMark({
         view: body.view,
         region: body.region,
@@ -657,7 +741,12 @@ export const careRouter = createRouter()
       const now = new Date();
       const item = await withLateEntryReview(
         c,
-        { kind: "body_map_mark", clientId: body.id, occurredAt: body.occurredAt },
+        {
+          kind: "body_map_mark",
+          clientId: body.id,
+          occurredAt: body.occurredAt,
+          recordedBy: author,
+        },
         () =>
           withTenant(c, async (tx) => {
             // A replayed upload (the same device id) returns the stored entry before anything is
@@ -673,6 +762,8 @@ export const careRouter = createRouter()
                 return markItem(replayed, new Set());
               }
             }
+            // Admitted in the entry's own transaction, so a refusal uses none of the count.
+            if (admission) await recordHandedOverEntry(tx, admission);
             const { person, record, rates } = await writeContext(c, personId, tx);
             const times = entryTimes(body, c.req.header(SENT_AT_HEADER), now, rates);
             const recordedAfterExit = allowedAt(
@@ -683,11 +774,22 @@ export const careRouter = createRouter()
             );
             await checkSuperseded(tx, bodyMapMark, body.supersedesId, personId);
             await checkMarkIncident(tx, body.incidentId, personId);
-            const link = await planLink(tx, access, body.taskId, personId, times.occurredAt);
+            const link = await planLink(
+              tx,
+              access,
+              body.taskId,
+              personId,
+              times.occurredAt,
+              author,
+            );
             const [inserted] = await tx
               .insert(bodyMapMark)
               .values({
                 ...(body.id ? { id: body.id } : {}),
+                // The entry's author: the owner of a handed-over entry, and who sent it for them
+                // (Device integrity part 6).
+                createdBy: author,
+                handedOverBy,
                 personId,
                 locationId: person.locationId,
                 view: body.view,
@@ -760,6 +862,7 @@ export const careRouter = createRouter()
             if (inserted) {
               // An entry a device reported deleted is kept but flagged for the manager (round 4, H1).
               await flagIfReportedDeleted(tx, access, {
+                uploader: author,
                 resourceType: "body_map_mark",
                 id: row.id,
                 locationId: person.locationId,
@@ -771,7 +874,7 @@ export const careRouter = createRouter()
                   evidenceId: row.id,
                   personId,
                   locationId: person.locationId,
-                  actorTenantUserId: access.tenantUserId,
+                  actorTenantUserId: author,
                   deviceId: access.deviceId,
                   now,
                 });
@@ -781,6 +884,11 @@ export const careRouter = createRouter()
                 resourceType: "body_map_mark",
                 resourceId: row.id,
                 reason: body.correctionReason,
+                requestId: c.get("requestId"),
+              });
+              await auditHandedOver(tx, access, handover, {
+                resourceType: "body_map_mark",
+                id: row.id,
                 requestId: c.get("requestId"),
               });
             }

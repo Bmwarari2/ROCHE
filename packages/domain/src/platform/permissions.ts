@@ -83,6 +83,15 @@ export const PERMISSIONS = {
     description: "Approve or decline Thapsus support access to the organisation's data",
     stepUp: true,
   },
+  "platform.device.read": {
+    description: "See which Care mode devices staff have used, and whether a device is revoked",
+  },
+  "platform.device.revoke": {
+    // A revoked device wipes at its next contact, keeping only unsent entries under the hold rules
+    // (care.md section 6, Device integrity part 2).
+    description: "Revoke a lost or withdrawn Care mode device, so it wipes at its next contact",
+    stepUp: true,
+  },
   // people
   "people.person.read": { description: "Read person records in scope", careRecord: true },
   "people.person.create": { description: "Create person records", careRecord: true },
@@ -120,6 +129,14 @@ export const PERMISSIONS = {
   "care.assessment.write": { description: "Complete validated assessments", careRecord: true },
   "care.handover.manage": {
     description: "Read, compile, annotate and acknowledge shift handovers",
+    careRecord: true,
+  },
+  "care.held_entry.hand_over": {
+    // care.md section 6, Device integrity part 6: entries are written as their owner's, and the
+    // manager is recorded (HZ-040).
+    description:
+      "Send another member of staff's unsent entries held on a device to Harbour, on their behalf",
+    stepUp: true,
     careRecord: true,
   },
   "care.capacity.write": {

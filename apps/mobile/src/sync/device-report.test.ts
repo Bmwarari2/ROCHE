@@ -154,6 +154,27 @@ describe("hazard HZ-006 the device tells the server what it has not sent (queue 
     expect(await buildDeviceReport(source, NOW)).toMatchObject({ refused: 3, blocked: 2 });
   });
 
+  it("hazard HZ-006 counts refused entries Harbour could not keep a copy of, so a manager knows only this device has them (#25 review round 2, low)", async () => {
+    const db = await openLocalDatabase();
+    for (const [id, copy] of [
+      ["c1", "copied"],
+      ["c2", "refused"],
+      ["c3", null],
+    ]) {
+      db.prepare(
+        "INSERT INTO upload_issue (id, tenant_id, person_id, record_table, code, message, payload, rejected_at, server_copy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      ).run(id, DEMO_TENANT_ID, BEA, "care_note", "invalid", "x", "{}", NOW.toISOString(), copy);
+    }
+    const source: ReportDb = {
+      getUploadQueueStats: async () => ({ count: 0 }),
+      getOptional: async <T>(sql: string) => (all<T>(db, sql, [])[0] ?? null) as T | null,
+      getCrudBatch: async () => null,
+    };
+    const built = await buildDeviceReport(source, NOW);
+    expect(built).toMatchObject({ refused: 3, copiesRefused: 1 });
+    expect(SyncDeviceReport.safeParse(built).success).toBe(true);
+  });
+
   it("hazard HZ-040 still reports a hold whose entries could not be counted (round 5, C-M4)", () => {
     const fallback = fallbackHoldReport(null, NOW);
     expect(fallback).toMatchObject({ held: 1, unsent: 0, blocked: 0, oldestAgeSeconds: null });

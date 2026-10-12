@@ -282,6 +282,12 @@ export const SyncDeviceReport = z
      * owner or the reporter works or last worked, and raises the task at each.
      */
     locationIds: z.array(uuid).max(SYNC_DEVICE_REPORT_MAX_LOCATIONS).optional(),
+    /**
+     * Refused entries whose content the server would not keep a copy of (a refusal other than a
+     * wait, or content a copy cannot carry), so a manager knows they exist only on this device
+     * (care.md section 6, Device integrity part 5).
+     */
+    copiesRefused: z.number().int().min(0).max(1_000_000).optional(),
   })
   .strict()
   .meta({ id: "SyncDeviceReport" });
@@ -373,6 +379,7 @@ export const DEVICE_HEADER = "x-harbour-device";
 
 export * from "./care";
 export * from "./care-planning";
+export * from "./devices";
 export * from "./handover";
 export * from "./mca";
 export * from "./people";

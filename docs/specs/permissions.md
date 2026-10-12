@@ -62,6 +62,8 @@ people only (plus break-glass), `none` no person records.
 | `platform.document.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  | yes |  |  | yes |  |  |  |  |  |
 | `platform.retention.manage` | yes |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
 | `platform.support.approve` | yes |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| `platform.device.read` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| `platform.device.revoke` | yes |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `people.person.read` |  | yes | yes | yes | yes | yes | yes | yes | yes | yes |  |  |  |  |  |  |  | yes | yes |  |  | yes |  |
 | `people.person.create` |  | yes | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `people.person.update` |  | yes | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
@@ -79,6 +81,7 @@ people only (plus break-glass), `none` no person records.
 | `care.note.read` |  | yes | yes | yes | yes | yes | yes | yes | yes |  |  |  |  |  |  |  |  | yes | yes |  |  | yes |  |
 | `care.assessment.write` |  | yes | yes |  | yes | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |
 | `care.handover.manage` |  | yes | yes |  | yes | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |
+| `care.held_entry.hand_over` | yes | yes | yes |  | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `care.capacity.write` |  | yes | yes |  | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `care.dols.manage` |  | yes | yes |  | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `care.respect.record` |  | yes | yes |  | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |

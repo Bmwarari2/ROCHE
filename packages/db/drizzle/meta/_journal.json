@@ -204,6 +204,104 @@
       "when": 1791778043294,
       "tag": "0028_care_tasks_and_handover_security",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1791782756461,
+      "tag": "0029_device_binding",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1791782760707,
+      "tag": "0030_device_binding_security",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1791783137674,
+      "tag": "0031_device_permissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1791783939670,
+      "tag": "0032_device_discard_entry",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1791783941403,
+      "tag": "0033_device_discard_entry_security",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1791784268458,
+      "tag": "0034_sync_task_dedupe",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1791784308165,
+      "tag": "0035_sync_task_open_key",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1791784681456,
+      "tag": "0036_refused_entry",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1791784683626,
+      "tag": "0037_refused_entry_security",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1791785331401,
+      "tag": "0038_handover_permission",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1791786061349,
+      "tag": "0039_request_quota",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1791786063646,
+      "tag": "0040_request_quota_security",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1791788876602,
+      "tag": "0041_handover_and_device_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1791788882229,
+      "tag": "0042_handover_and_device_sessions_security",
+      "breakpoints": true
     }
   ]
 }

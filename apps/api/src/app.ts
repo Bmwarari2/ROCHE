@@ -16,6 +16,7 @@ import { breakGlassReportRouter } from "./routes/break-glass-report";
 import { careRouter } from "./routes/care";
 import { carePlansRouter } from "./routes/care-plans";
 import { careRecordsRouter } from "./routes/care-records";
+import { devicesRouter } from "./routes/devices";
 import { documentsRouter } from "./routes/documents";
 import { handoversRouter } from "./routes/handovers";
 import { incidentsRouter } from "./routes/incidents";
@@ -38,6 +39,7 @@ import {
   notificationsRouter,
   ratesRouter,
 } from "./routes/platform";
+import { createRefusedEntriesRouter } from "./routes/refused-entries";
 import { roundsRouter } from "./routes/rounds";
 import { sessionsRouter } from "./routes/sessions";
 import { statutoryNotificationsRouter } from "./routes/statutory-notifications";
@@ -83,8 +85,16 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     operatorPool,
     auth: createAuth(config, authPool),
     ...createDocumentServices(config),
-    transferPackLimiter: new RateLimiter(config.TRANSFER_PACK_REQUESTS_PER_MINUTE, 60_000),
-    handoverCompileLimiter: new RateLimiter(config.HANDOVER_COMPILE_REQUESTS_PER_MINUTE, 60_000),
+    transferPackLimiter: new RateLimiter(
+      "transfer_pack",
+      config.TRANSFER_PACK_REQUESTS_PER_MINUTE,
+      60_000,
+    ),
+    handoverCompileLimiter: new RateLimiter(
+      "handover_compile",
+      config.HANDOVER_COMPILE_REQUESTS_PER_MINUTE,
+      60_000,
+    ),
   };
   const signer = new SyncTokenSigner(config.SYNC_SIGNING_KEY_ID, config.SYNC_SIGNING_KEY_PEM);
 
@@ -184,6 +194,8 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", statutoryNotificationsRouter);
   app.route("/", ratesRouter);
   app.route("/", createSyncRouter(signer));
+  app.route("/", devicesRouter);
+  app.route("/", createRefusedEntriesRouter());
   app.route("/", integrationsRouter);
   app.route("/", supportAccessRouter);
   app.route("/", operatorRouter);

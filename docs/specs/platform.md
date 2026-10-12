@@ -40,7 +40,8 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   The API passes `"portal"` from the family portal step onwards.
 - MFA: required for every permission that touches care records (`mfa_enrolment_required` otherwise).
 - Step-up: controlled drugs, residents' money approval, data export, break-glass, statutory
-  notifications and support-access approval need a sign-in within 10 minutes.
+  notifications, support-access approval and revoking a Care mode device need a sign-in within 10
+  minutes.
 - Break-glass: `POST /v1/people/break-glass` with a justification of at least 20 characters and an
   optional `reasonCode`; access lapses after 60 minutes; the Registered Manager for the location and
   quality leads are notified; the reason is audited. Weekly break-glass report: the aggregation by
@@ -56,6 +57,29 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   `POST /v1/me/sessions/{id}/revoke` and `POST /v1/me/sessions/revoke-others` sign devices out.
   Identity-level, so no organisation header. Session tokens reach only the mobile app (`Origin:
   harbour://`); browsers rely on the httpOnly cookie ([ADR-0030](../decisions/0030-web-session-and-browser-security.md)).
+- Care mode devices ([care.md](care.md) section 6, Device integrity): `device_binding` records
+  which member of staff has used which device (the PowerSync client id), first and last seen,
+  written by the sync token and device report routes in the system's view, with the session that
+  did so (`device_session`); any other request naming the device binds the session too
+  (#25 review round 3, M2). `GET /v1/devices` (`platform.device.read`) lists them with the
+  entries each last reported waiting and when (`lastReportedAt`); `POST /v1/devices/{deviceId}/revoke`
+  (`platform.device.revoke`, step-up) revokes a lost or withdrawn device with a coded reason,
+  audited, once the manager has confirmed any entries it reported waiting. Owner, Registered
+  Manager and deputy hold both; a location role sees only devices used by staff working at its
+  locations, and revokes one only when every member bound to it is such staff. The revocation
+  does not end the sessions bound to the device (a device given a 401 could not tell it was
+  revoked); the tenant middleware refuses every request from one with 403 `device_revoked`,
+  whatever device it names, except its device report, which may raise or hurry the hold's task
+  but never close it (#25 review rounds 2 and 3, M1 and M2). Mobile sessions live at the deploy
+  that brings this in are ended then, so every live session is bound. A new
+  sign-in naming a revoked device is refused with 403 `device_revoked` on the sync token and
+  uploads, and the device wipes, keeping unsent entries under the hold rules. The member's
+  sessions on other devices are not ended (identity-level; the admin session revoke is a Phase 0
+  follow-up).
+- Per-user limits (`PerUserQuota`, `RateLimiter` in `apps/api/src/http`) keep their recent hits in
+  Postgres (`request_quota`: one row per member and limit, updated under a row lock), so a limit
+  holds across API instances. A row is read and written only in a view acting as its member (a
+  hand-over's copies count against their owner). A refusal is 429 with Retry-After.
 - Web: sign-in (password then TOTP, or a passkey), TOTP and passkey set-up and the device list are
   in `apps/web` (`/sign-in`, `/settings/security`).
 - Later: invitations and enrolment by email (Phase 1), admin revoke and idle timeouts per role
@@ -228,9 +252,11 @@ last year the calendar covers, no holiday is skipped, so a deadline can only fal
 ## Offline sync
 
 - Streams: `packages/sync/src/streams/sync-config.yaml`; claims: `sub`, `tenant_id`,
-  `location_ids`, `people_location_ids`; 15-minute ES256 tokens from `POST /v1/sync/token`, JWKS
-  at `GET /v1/sync/jwks`. Uploads (`POST /v1/sync/upload`) reject every table until modules add
-  writable tables (Phase 1).
+  `location_ids`, `people_location_ids`, `offline_days`; 15-minute ES256 tokens from `POST
+  /v1/sync/token`, JWKS at `GET /v1/sync/jwks`. The token route binds the device to the member
+  (`device_binding`) and refuses a revoked device (403 `device_revoked`). Uploads (`POST
+  /v1/sync/upload`) reject every table until modules add writable tables; care entries go to their
+  own routes ([care.md](care.md) section 6).
 
 ## Search, export, onboarding and DPIA (PLAT-013, PLAT-015, PLAT-018, PLAT-023)
 
@@ -248,4 +274,6 @@ Generated: [permissions.md](permissions.md).
 
 Audit events, record versions and break-glass records keep the `audit_event` class (see
 [retention.md](retention.md)); deliveries and inbound data are operational and follow the class of
-the record they relate to (retention engine, Phase 1).
+the record they relate to (retention engine, Phase 1). `device_binding`, `device_session` and
+`handed_over_entry` keep the `audit_event` class; `request_quota` is operational (a row holds at most a day's hits and is overwritten in
+place).

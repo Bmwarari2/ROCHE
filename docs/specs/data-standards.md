@@ -469,6 +469,7 @@ assurance pack.
 | `sharing_decision` capacity | Mental Capacity Act 2005 s.1(2) (presumption of capacity) | `presumed`, `assessed_has_capacity`, `assessed_lacks_capacity` | Links the capacity assessment where one exists. |
 | `about_me_share_link.token_hash` | Harbour | Lower-case hex SHA-256 of the link token (64 characters) | The token itself is shown once and never stored; expiry no later than the sharing decision's end. |
 | `recorded_after_exit` on `care_note`, `observation`, `body_map_mark`, `assessment`, `activity_record` and `visit_log` | Harbour | `true` or `false` | Phase 1. True when an entry about an event at or before a discharge, death or move to hospital, or within the clock tolerance after it (`sync.clock_drift_flag_minutes`), is accepted after it (people.md rule 3, HZ-006); shown with the late-entry flag. |
+| `handed_over_by` on `care_note`, `observation`, `body_map_mark`, `activity_record` and `visit_log` | Harbour | UUIDv7 (`tenant_user.id`) or null | Phase 1 (migration 0041). "Sent by": the manager who handed the entry over from a device for its author (`created_by`), when one did (care.md section 6, Device integrity part 6); null when its author sent it. Returned as `handedOverBy` with every entry item. |
 | `task_id`, `task_outcome` on `care_note`, `observation`, `body_map_mark`, `assessment`, `activity_record` and `visit_log` | Harbour (`TASK_LINK_OUTCOMES`) | UUIDv7; `completed`, `task_cancelled`, `task_already_closed`, `not_linked`, `medicines_conflict` (migration 0026) | Phase 1 (migration 0023). The task the entry named and what the entry did to it (care.md rule 13, HZ-004, HZ-006): set together or not at all (check `<table>_task_outcome`). `task_already_closed` and `not_linked` are listed for review by the nurse in charge; `medicines_conflict` (a medicines task the entry could not complete) for an urgent conflict review. |
 | `break_glass_event.reason_code` | Harbour | `emergency_care`, `covering_another_area`, `safeguarding`, `incident_or_complaint`, `request_from_professional`, `other` | Phase 1; the typed justification is kept as well. |
 
@@ -568,8 +569,23 @@ map to no national data standard: `audit_event` (hash-chained), `record_version`
 `break_glass_event`, `person_assignment`, `role`, `role_assignment`, `access_grant`, and from
 Phase 1 `break_glass_weekly_report`, `about_me_share_link`, `welcome_checklist_template`,
 `tenant_export`, `dpia`, `sub_processor_response`, `tenant_setting_decision`, `retention_decision`,
-`family_notification`, `visit_booking_setting` and `family_portal_user` (the global
-`sub_processor_notice` table is Thapsus's and is not exported). Every exported table is described in
+`family_notification`, `visit_booking_setting` and `family_portal_user`, and from the device
+integrity work ([care.md](care.md) section 6) `device_binding` (which member of staff used which
+device, by its opaque id, when the server first and last saw them together, and a revocation with
+who made it and a coded reason: `lost_or_stolen`, `staff_left`, `access_withdrawn`, `replaced`,
+`other`), `device_discard_entry` (the entry ids each stage of a deletion of unsent entries listed:
+`requested`, `deleted`, `failed`, with the deletion record and whose entries they were) and
+`refused_entry` (the server's copy of a care entry the API refused: its table, the request the
+device made for the entry as JSON, in that kind's own contract shape (`CreateCareNote`,
+`CreateObservation`, `CreateBodyMapMark`, `CreateActivityRecord`, `CreateVisit`), the refusal's
+HTTP status, code and reason, when it was refused, the device and its author; exported with the
+care record) and `handed_over_entry` (each entry a hand-over sent: the hand-over id, the device
+that held it, its owner, who sent it, the table and entry id and when it was accepted).
+`request_quota` (the recent request times of each member under each per-user limit) is
+operational and not exported, and `device_session` (the sign-in session ids bound to each device,
+so the API refuses them once the device is revoked; read by their member and by jobs, never by a
+tenant-wide role) is a security record and not exported (the global
+`sub_processor_notice` table is Thapsus's and is not exported either). Every exported table is described in
 `EXPORT_TABLES` (`packages/domain/src/platform/export.ts`), which a test keeps in step with the
 schema. The task engine's `task` and `task_series` are exported the same way; from migration 0023
 they carry `cancel_code` and `inactive_code` (`paused_while_away`, `ended_at_exit`,
@@ -584,7 +600,11 @@ upload). `task.details` is JSON a review task carries:
 and never dropped, then the rest newest first), `missedTasksOmitted` (how many more were not
 listed), `missedTasksNotListedBefore` (an ISO date, UK time: rounds due before it are not all
 listed) and `entries` (entry kind, client id, device id, user id and times; opaque ids only,
-never clinical text). Field-level
+never clinical text). A flagged-entry task (`sync.entry_reported_deleted`,
+`sync.entry_deleted_after_upload`) adds `ownerTenantUserId` and `entryCount` (its entries up to
+50, the rest counted), and a refused-entry review (`care.refused_entry_review`) lists each copy
+with `refusedEntryId` and `refusalCode` beside the entry's kind and ids, never its content.
+Field-level
 detail is in `packages/db/src/schema/`; purposes and lawful bases are in
 [records of processing](../compliance/records-of-processing.md).
 
@@ -598,12 +618,26 @@ these differences, defined in `packages/sync/src/client/schema.ts`:
 - `body_map_mark.drawn_side` exists only on the device: the side where the mark was drawn, sent with
   the upload as `drawnSide` so the API repeats the HZ-019 check. The database keeps `side` only.
 - `upload_issue` exists only on the device: an entry the API refused, with its content, until
-  someone removes it with a recorded reason (the content never ages out, because the server keeps
-  no copy). It is never uploaded or exported; its removal is recorded through
-  `POST /v1/sync/discards`.
+  someone removes it with a recorded reason (the content never ages out). The device also sends
+  the content to the server, which keeps a copy (`refused_entry`; contract `SyncRefusedEntry`,
+  which refuses unknown keys: the entry id, table, person id, the request the device made for
+  the entry in that kind's contract shape, the refusal's status, code and reason and when it was
+  refused); `server_copy` is `copied` once the server confirms it, `refused` when the entry cannot
+  become a valid request or the server will not keep it (counted in the device report as
+  `copiesRefused` and said on the needs-attention list), or `not_copied` for entries never sent;
+  an unconfirmed copy is sent again after each sync. The row itself is never
+  uploaded or exported; its removal is recorded through `POST /v1/sync/discards`.
 - `held_entry` exists only on the device: entries that had not uploaded when the session ended,
   each with its table, operation and columns as JSON (`payload`) and its place in the queue, kept
-  until the owner signs in again and they go back into their tables, or the owner or a manager
+  until the owner signs in again and they go back into their tables, a manager (or, on a
+  revoked device, the owner) hands them over (the device's report sent first from that sign-in,
+  then each entry in the owner's name, with `x-harbour-handover-owner` and `x-harbour-handover`,
+  recorded in `handed_over_entry`, kept on the entry as `handed_over_by` and audited as
+  `sync.entry.handed_over`: the sender as actor, the owner, the device and the hand-over id; a
+  refusal is 422 `handover_refused`, on which or a 404 the entry stays held with the server's
+  reason in `handover_refusal`, a plain-English sentence with no personal data, and the rest are
+  sent; any 403 stops the hand-over), or the
+  owner or a manager
   deletes them with a recorded reason (nothing is deleted automatically; at
   `mobile.held_entries_max_days` the hold escalates to a manager). `sync_meta` keeps the database's
   owner (`tenant_user` id, sign-in id, tenant and name, as JSON) under the id `meta:owner`, the
@@ -617,8 +651,8 @@ these differences, defined in `packages/sync/src/client/schema.ts`:
   not finish moves to `upload_issue` with the code `held_discard_failed` and is never uploaded; the
   device reports how many as `blocked`.
 - The held marker in the device keystore (outside the database) holds the owner's ids and name, the
-  count, when the hold started, when it escalates, the last server time, and `uploadBlocked` when a
-  deletion of the entries did not finish.
+  count, when the hold started, when it escalates, the last server time, `uploadBlocked` when a
+  deletion of the entries did not finish, and `revoked` when a manager revoked the device.
 - Tombstones of deleted unsent entries are kept in the device keystore, outside the database, as
   JSON with no free text: an id, the kind (`held_deleted`, `signed_out_with_unsent`,
   `refused_removed`), a coded reason (`recorded_elsewhere`, `entered_in_error`, `staff_left`,
@@ -635,15 +669,17 @@ these differences, defined in `packages/sync/src/client/schema.ts`:
   audit events (`sync.entries.discard_requested`, `sync.entries.discarded`,
   `sync.entries.discard_failed`, resource type `device_discard`, the failure naming the request it
   supersedes; `deletedByTenantUserId` null when the device did not know) keep the coded reason only
-  (security review round 4, M3; clinical review round 4, H1). A leftover file or key is a separate
+  (security review round 4, M3; clinical review round 4, H1); each stage also lists its entry
+  ids in `device_discard_entry`, which the flag below reads. A leftover file or key is a separate
   security event (`sync.device.residue`, scope `leftover`). An entry uploaded later whose id its
   owner's device recorded as deleted gets a `sync.entry.after_discard` audit event; an entry a
   deletion lists that had already reached the server gets `sync.entry.before_discard` once the
   deletion is recorded as done (scope: the deletion record's id and the task's id). Each deletion
   record has one review task per kind and location (`sync.entry_reported_deleted`,
   `sync.entry_deleted_after_upload`; source `device_discard`, the record's id; no person id), whose
-  title carries the count, and whose audit events (`sync.entry_flag.raised`, `sync.entry_flag.added`,
-  resource `task`) carry the count, the owner's `tenant_user` id and up to 20 opaque entry ids;
+  title carries the count, whose details carry the owner, the count and the entries, and whose
+  audit events (`sync.entry_flag.raised`, `sync.entry_flag.added`, resource `task`) carry the
+  deletion record, the owner's `tenant_user` id, the count and how many were added;
   a cap is `sync.entry_flag.capped` (resource `device_discard`, scope `mergedInto`: the owner's
   oldest open task at the location, whose `added` event then carries `merged`). A hold's device
   report (unsent, refused, held and blocked counts, the oldest age, when the hold started, the
@@ -651,9 +687,17 @@ these differences, defined in `packages/sync/src/client/schema.ts`:
   unknown keys) may wait in the keystore the same way, with the id of the device that held the
   entries; the server records it as `sync.device.report` (resource `device`, the device id; scope
   adds the waiting count, when the waiting began, `startFloor` (`earlier_report`, `first_seen` or
-  null), `ownerBound`, and `claimedOwnerTenantUserId` when the named owner has no earlier event
-  from the device). `sync.token.issue` names the device as its resource when the request carries
-  its id. While held, unsent or blocked entries wait, the server keeps a task per location
+  null), `ownerBound`, and `claimedOwnerTenantUserId` when the named owner has no `device_binding`
+  row for the device). `sync.token.issue` names the device as its resource when the request
+  carries its id, and the token and each report bind the member to the device (`device_binding`).
+  A revoked device is refused with 403 `device_revoked`, audited as `sync.device.refused_revoked`
+  (resource `device`, scope: the route) at most once an hour per device; a revocation is
+  `platform.device.revoked` (resource `device`, scope: the reason code, how many bindings, the
+  members' `tenant_user` ids and how many sessions it ended). When the device last reported
+  entries waiting, the revocation needs `confirmEntriesWaiting` (409 `entries_waiting`), its
+  hold's tasks are moved due at once (`sync.device_hold.moved`, scope `because: revoked`) and
+  urgent, and the manager is told (`sync.revoked_device_waiting`, the device's opaque id only).
+  The device report may carry `copiesRefused` (recorded in its audit scope). While held, unsent or blocked entries wait, the server keeps a task per location
   (`sync.device_hold`, source `device_hold`, the device id) for a Registered Manager, or one per
   Registered Manager when no location is known, written as the reporter, with its raise, reopen,
   moves, reset, merge and close audited (`sync.device_hold.raised`, `.reopened`, `.moved`, `.reset`,

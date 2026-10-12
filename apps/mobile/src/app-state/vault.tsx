@@ -112,6 +112,14 @@ import {
   resolveHeldMaxDays,
 } from "../sync/held-limit";
 import { resolveOfflineWindow } from "../sync/offline-window";
+import { flushRefusedCopies } from "../sync/refused-copies";
+import {
+  HandOverNotAllowedError,
+  type HandOverResult,
+  handOverHeldWork,
+  handOverMessage,
+  handOverRefusal,
+} from "./handover";
 import {
   admitToDatabase,
   canDiscardHeld,
@@ -131,6 +139,7 @@ import {
   handleSessionEnded,
   heldEntriesInTenant,
   holdUnsentWork,
+  KeyNotReadError,
   locationIdsOf,
   RestoreFailedError,
   readHeldIds,
@@ -202,6 +211,15 @@ interface VaultValue {
    * The signer's session is ended afterwards.
    */
   discardHeld(choice: DiscardReason, signerToken: string): Promise<void>;
+  /**
+   * Hands over held entries from the sign-in screen (care.md section 6, Device integrity part 6):
+   * `signerToken` is a session just signed in for the purpose, by a manager (or, on a revoked
+   * device, the owner). Device authentication opens the held database; each entry goes to Harbour
+   * in its owner's name. When everything is on the server the device is wiped; otherwise the hold
+   * stays with its count brought up to date. The signer's session is ended afterwards. Returns what
+   * to tell the person.
+   */
+  handOverHeld(signerToken: string): Promise<string>;
   /** Removes one refused entry: device authentication, a coded reason, on record first (C1). */
   removeRefused(id: string, choice: DiscardReason): Promise<void>;
   dismissResetNotice(): void;
@@ -384,7 +402,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
   const wipingRef = useRef(false);
   const busyRef = useRef(false);
   const signOutAndWipeRef = useRef<(notice?: string) => Promise<void>>(async () => undefined);
-  const sessionEndedRef = useRef<() => Promise<void>>(async () => undefined);
+  const sessionEndedRef = useRef<(revoked?: boolean) => Promise<void>>(async () => undefined);
   const afterSyncRef = useRef<() => Promise<void>>(async () => undefined);
   const meRef = useRef<Me | null>(session.me);
   meRef.current = session.me;
@@ -433,6 +451,8 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
     afterSyncBusyRef.current = true;
     try {
       await flushTombstones(tombstoneStore, options, skippedRef.current.ids).catch(() => undefined);
+      // Refused entries' content goes to the server until it has a copy of each (HZ-006).
+      await flushRefusedCopies(current, options).catch(() => 0);
       // Words kept for a removed entry go once the server has the whole deletion (S-L4).
       await forgetDiscardNotes(current as unknown as HoldDb, tombstoneStore).catch(() => undefined);
       await flushPendingReport(tombstoneStore, options).catch(() => undefined);
@@ -616,6 +636,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
           afterReset,
           now,
           uploadBlocked,
+          revoked: heldRef.current?.revoked === true,
           cachedHeldMaxDays: () => readCachedHeldMaxDays(opened),
           reset: async () => {
             await closeAndDeleteRef.current(true);
@@ -659,6 +680,15 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
           getDeviceId: () => opened.getClientId(),
           onSessionRevoked: () => {
             void sessionEndedRef.current();
+          },
+          // A manager revoked this device: a remote wipe, keeping unsent entries under the hold
+          // rules, marked revoked (care.md section 6, Device integrity part 2).
+          onDeviceRevoked: () => {
+            void sessionEndedRef.current(true);
+          },
+          // A refused entry's content goes to the server's copy at once (Device integrity part 5).
+          onRefused: () => {
+            void afterSyncRef.current();
           },
         });
         connectorRef.current = connector;
@@ -773,62 +803,70 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
   const holdingRef = useRef(false);
 
   /**
-   * The API says the session has ended. With nothing unsent the device is wiped as before; with
-   * entries waiting, uploads stop and the encrypted database is kept for its owner (HZ-006). The
+   * The API says the session has ended, or that a manager revoked this device. With nothing unsent
+   * the device is wiped as before; with entries waiting, uploads stop and the encrypted database is
+   * kept for its owner (HZ-006), marked revoked when it was, so nobody resumes syncing on it. The
    * hold's report and notifications start here.
    */
-  const sessionEnded = useCallback(async () => {
-    if (wipingRef.current || holdingRef.current) return;
-    holdingRef.current = true;
-    try {
-      const current = dbRef.current;
-      const token = tokenRef.current;
-      const now = new Date();
-      const days =
-        heldMaxDaysRef.current ??
-        (current ? await readCachedHeldMaxDays(current) : null) ??
-        HELD_FAIL_SAFE_DAYS;
-      await handleSessionEnded({
-        countPending: async () => (current ? countPendingWork(current) : null),
-        owner: meRef.current,
-        now,
-        expiresAt: heldDeadline(now, days),
-        lastServerTime: current?.currentStatus.lastSyncedAt ?? null,
-        // The session is ended on the server too: access withdrawn leaves it alive otherwise
-        // (security review round 5, S-L3).
-        wipe: () => signOutAndWipe(REMOTE_WIPE_NOTICE, true),
-        hold: async (held: HeldWork) => {
-          idle.stop();
-          setStatus("locked");
-          // Only the unsent work stays (S2). If the copy fails, the whole database stays
-          // encrypted rather than losing entries.
-          let report: SyncDeviceReport | null = null;
-          if (current) {
-            await holdUnsentWork(current as unknown as HoldDb, now).catch(() => 0);
-            report = await buildDeviceReport(current as unknown as ReportDb, now).catch(() => null);
-          }
-          await closeKeepingData();
-          clearPhotoCache();
-          setOfflineWindowDays(null);
-          windowValidUntilRef.current = null;
-          setRestoreProblemText(null);
-          setError(null);
-          await session.holdSession(held);
-          void scheduleHeldNotifications(planHeldNotifications(held, now));
-          // The server hears of the hold at once when it can, and again while the app runs; then
-          // the ended session is ended on the server too (security review round 5, S-L3).
-          const sent = await reportHold(held, report, token);
-          if (token && !sent && held.tenantId) {
-            holdReportRef.current = { token, held, until: Date.now() + HOLD_REPORT_RETRY_MS };
-          } else if (token) {
-            revokeSession(token);
-          }
-        },
-      });
-    } finally {
-      holdingRef.current = false;
-    }
-  }, [closeKeepingData, idle, session.holdSession, signOutAndWipe]);
+  const sessionEnded = useCallback(
+    async (revoked = false) => {
+      if (wipingRef.current || holdingRef.current) return;
+      holdingRef.current = true;
+      try {
+        const current = dbRef.current;
+        const token = tokenRef.current;
+        const now = new Date();
+        const days =
+          heldMaxDaysRef.current ??
+          (current ? await readCachedHeldMaxDays(current) : null) ??
+          HELD_FAIL_SAFE_DAYS;
+        await handleSessionEnded({
+          countPending: async () => (current ? countPendingWork(current) : null),
+          owner: meRef.current,
+          now,
+          expiresAt: heldDeadline(now, days),
+          lastServerTime: current?.currentStatus.lastSyncedAt ?? null,
+          // The session is ended on the server too: access withdrawn leaves it alive otherwise
+          // (security review round 5, S-L3).
+          wipe: () =>
+            signOutAndWipe(revoked ? t("mobile.vault.deviceRevoked") : REMOTE_WIPE_NOTICE, true),
+          revoked,
+          hold: async (held: HeldWork) => {
+            idle.stop();
+            setStatus("locked");
+            // Only the unsent work stays (S2). If the copy fails, the whole database stays
+            // encrypted rather than losing entries.
+            let report: SyncDeviceReport | null = null;
+            if (current) {
+              await holdUnsentWork(current as unknown as HoldDb, now).catch(() => 0);
+              report = await buildDeviceReport(current as unknown as ReportDb, now).catch(
+                () => null,
+              );
+            }
+            await closeKeepingData();
+            clearPhotoCache();
+            setOfflineWindowDays(null);
+            windowValidUntilRef.current = null;
+            setRestoreProblemText(null);
+            setError(null);
+            await session.holdSession(held, revoked ? t("mobile.held.revoked") : undefined);
+            void scheduleHeldNotifications(planHeldNotifications(held, now));
+            // The server hears of the hold at once when it can, and again while the app runs; then
+            // the ended session is ended on the server too (security review round 5, S-L3).
+            const sent = await reportHold(held, report, token);
+            if (token && !sent && held.tenantId) {
+              holdReportRef.current = { token, held, until: Date.now() + HOLD_REPORT_RETRY_MS };
+            } else if (token) {
+              revokeSession(token);
+            }
+          },
+        });
+      } finally {
+        holdingRef.current = false;
+      }
+    },
+    [closeKeepingData, idle, session.holdSession, signOutAndWipe],
+  );
   sessionEndedRef.current = sessionEnded;
 
   const countUnsent = useCallback(async (): Promise<number | null> => {
@@ -1027,6 +1065,101 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
     [closeKeepingData, session.held, session.blockHeld, session.clearHeld, session.clearSession],
   );
 
+  const handOverHeld = useCallback(
+    async (signerToken: string): Promise<string> => {
+      const held = session.held;
+      try {
+        if (!held) return "";
+        const signer = await authClient.getMe(signerToken);
+        const refusal = handOverRefusal(held, signer);
+        if (refusal) throw new HandOverNotAllowedError(refusal);
+        const deviceId = await readPlain(DEVICE_ID_ITEM);
+        if (!isOpaqueId(deviceId)) throw new HandOverNotAllowedError("unknown_owner");
+        // Reading the key shows the face or fingerprint prompt: the device authentication.
+        let key: DatabaseKey | null;
+        try {
+          key = await readDatabaseKey(secretStore, keyOptions);
+        } catch {
+          throw new KeyNotReadError();
+        }
+        if (!key) throw new KeyNotReadError();
+        if (key.protection === "passcode") await confirmIdentity();
+        await closeKeepingData();
+        const filename = databaseFilename(key.id, appEnv.demoMode);
+        const opened = await openDatabase({
+          filename,
+          encryptionKey: key.sqlcipherKey,
+          demo: appEnv.demoMode,
+        });
+        const options = {
+          ...(await apiFor(signerToken, held.tenantId)),
+          deviceId: deviceId.toLowerCase(),
+        };
+        let result: HandOverResult;
+        try {
+          // The hold's own report goes first, so the server sees what was held and for how long.
+          await flushPendingReport(tombstoneStore, options).catch(() => undefined);
+          result = await handOverHeldWork({
+            held,
+            db: opened as unknown as HoldDb,
+            api: options,
+            handoverId: Crypto.randomUUID(),
+            now: () => new Date(),
+            // A hold whose copy failed left entries in the upload queue: held and counted first,
+            // never lost with the database (#25 review round 3, M4).
+            holdQueue: () => holdUnsentWork(opened as unknown as HoldDb, new Date()),
+            queueCount: async () => (await opened.getUploadQueueStats()).count,
+            // From the signer's session, naming the owner: the server binds the signer to the
+            // device and counts the hand-over against this hold (#25 review round 2, H1).
+            sendReport: async () =>
+              sendDeviceReport(
+                options,
+                withOwner(
+                  await buildDeviceReport(opened as unknown as ReportDb, new Date()),
+                  held.tenantUserId,
+                  held.locationIds ?? [],
+                ),
+              ),
+          });
+          // What is left, from the device that held it: nothing waiting closes its task.
+          const report = await buildDeviceReport(opened as unknown as ReportDb, new Date()).catch(
+            () => null,
+          );
+          if (report) {
+            await sendDeviceReport(
+              options,
+              withOwner(report, held.tenantUserId, held.locationIds ?? []),
+            ).catch(() => false);
+          }
+        } finally {
+          await opened.close().catch(() => undefined);
+        }
+        const message = handOverMessage(result);
+        if (result.remaining === 0) {
+          // Everything was sent and nothing waits under needs attention or in the upload queue: the
+          // hold is over. A refused entry keeps the database even with its copy on the server (#25
+          // review round 2, H2), until a screen shows the copies and the CSO closes H-134. A count
+          // that could not be read keeps it too (round 3, M4).
+          deleteDatabaseFile(filename);
+          await destroyDatabaseKey(secretStore, keyOptions);
+          await tombstoneStore.remove(PENDING_REPORT_ITEM).catch(() => undefined);
+          void cancelHeldNotifications();
+          clearPhotoCache();
+          setError(null);
+          await session.clearHeld();
+          await session.clearSession(message);
+        } else {
+          await session.blockHeld({ ...held, entries: result.remaining });
+        }
+        return message;
+      } finally {
+        // The signer signed in only to send; that session ends here.
+        void authClient.signOut(signerToken).catch(() => undefined);
+      }
+    },
+    [closeKeepingData, session.held, session.blockHeld, session.clearHeld, session.clearSession],
+  );
+
   const removeRefused = useCallback(
     async (id: string, choice: DiscardReason) => {
       const reasonCode = requireReason(choice, true);
@@ -1174,6 +1307,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       countUnsent,
       signOutDiscarding,
       discardHeld,
+      handOverHeld,
       removeRefused,
       dismissResetNotice,
     }),
@@ -1197,6 +1331,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       countUnsent,
       signOutDiscarding,
       discardHeld,
+      handOverHeld,
       removeRefused,
       dismissResetNotice,
     ],

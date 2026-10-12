@@ -6788,7 +6788,12 @@ export interface paths {
     post: {
       parameters: {
         query?: never;
-        header?: never;
+        header?: {
+          /** @description A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner. */
+          "x-harbour-handover-owner"?: string;
+          /** @description A hand-over of held entries: its id, made on the device, one owner per id. */
+          "x-harbour-handover"?: string;
+        };
         path: {
           id: string;
         };
@@ -6938,7 +6943,12 @@ export interface paths {
     post: {
       parameters: {
         query?: never;
-        header?: never;
+        header?: {
+          /** @description A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner. */
+          "x-harbour-handover-owner"?: string;
+          /** @description A hand-over of held entries: its id, made on the device, one owner per id. */
+          "x-harbour-handover"?: string;
+        };
         path: {
           id: string;
         };
@@ -7152,7 +7162,12 @@ export interface paths {
     post: {
       parameters: {
         query?: never;
-        header?: never;
+        header?: {
+          /** @description A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner. */
+          "x-harbour-handover-owner"?: string;
+          /** @description A hand-over of held entries: its id, made on the device, one owner per id. */
+          "x-harbour-handover"?: string;
+        };
         path: {
           id: string;
         };
@@ -8710,7 +8725,12 @@ export interface paths {
     post: {
       parameters: {
         query?: never;
-        header?: never;
+        header?: {
+          /** @description A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner. */
+          "x-harbour-handover-owner"?: string;
+          /** @description A hand-over of held entries: its id, made on the device, one owner per id. */
+          "x-harbour-handover"?: string;
+        };
         path: {
           id: string;
         };
@@ -8852,7 +8872,12 @@ export interface paths {
     post: {
       parameters: {
         query?: never;
-        header?: never;
+        header?: {
+          /** @description A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner. */
+          "x-harbour-handover-owner"?: string;
+          /** @description A hand-over of held entries: its id, made on the device, one owner per id. */
+          "x-harbour-handover"?: string;
+        };
         path: {
           id: string;
         };
@@ -12015,7 +12040,10 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** A short-lived token for the PowerSync service, scoped to tenant and assignments */
+    /**
+     * A short-lived token for the PowerSync service, scoped to tenant and assignments
+     * @description Claims: sub, tenant_id, location_ids, people_location_ids and offline_days (the offline window from the rate table, never from the device). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.
+     */
     post: {
       parameters: {
         query?: never;
@@ -12217,7 +12245,7 @@ export interface paths {
     put?: never;
     /**
      * A device's unsent work: counts and the oldest age, no personal data
-     * @description Writes an audit event with the device's queued, refused, held and blocked counts and the age of the oldest, so the server knows what a lost or wiped device held (HZ-006). Any member of the organisation may report (with MFA when their roles call for it), so a device whose Care mode access was withdrawn can still report its hold. A named owner counts only when they already have an event from the device (a sync token issued to it or a report sent from it); otherwise the claim is recorded and changes nothing. Times later than the server's are taken as the server's, and a hold's start is never earlier than the device's last report for it said, nor than the server first heard from the device. While anything waits, the device has a task for the Registered Manager at each location of its sync scope where the hold's owner or the reporter works, due when its hold escalates and never moved later; one closed in the last day is reopened, its escalation reset at most once a day. A report with nothing waiting closes them when it comes from the hold's owner, from whoever raised them or from a manager at one of their locations. Each reporter raises tasks for a few devices a day; past that, their holds join one task for that reporter, due at the earliest of them.
+     * @description Writes an audit event with the device's queued, refused, held and blocked counts and the age of the oldest, so the server knows what a lost or wiped device held (HZ-006). Any member of the organisation may report (with MFA when their roles call for it), so a device whose Care mode access was withdrawn can still report its hold. A named owner counts only when bound to the device (a sync token issued to it or a report sent from it, kept as a device binding); otherwise the claim is recorded and changes nothing. Times later than the server's are taken as the server's, and a hold's start is never earlier than the device's last report for it said, nor than the server first saw the device. While anything waits, the device has a task for the Registered Manager at each location of its sync scope where the hold's owner or the reporter works, due when its hold escalates and never moved later; one closed in the last day is reopened, its escalation reset at most once a day. A report with nothing waiting closes them when it comes from the hold's owner, from whoever raised them or from a manager at one of their locations. Each reporter raises tasks for a few devices a day; past that, their holds join one task for that reporter, due at the earliest of them.
      */
     post: {
       parameters: {
@@ -12268,6 +12296,393 @@ export interface paths {
         };
       };
     };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/devices": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Care mode devices staff have used, and whether each is revoked
+     * @description Lists device bindings: the device, the member of staff, when the server first and last saw them together, any revocation, and the entries the device last reported waiting and when. A location role sees only devices used by staff whose live, or else most recent, role assignment is at one of its locations.
+     */
+    get: {
+      parameters: {
+        query?: {
+          tenantUserId?: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Devices */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DeviceBindingList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/devices/{deviceId}/revoke": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Revoke a lost or withdrawn Care mode device
+     * @description Marks every binding of the device revoked with a coded reason (step-up). At its next sync token or upload the device is refused with 403 device_revoked and wipes, keeping entries not yet sent under the hold rules. The sessions bound to it are not ended: every request from one is refused with 403 device_revoked whatever device it names, except its device report, which may raise or hurry the hold's task but never close it. When the device last reported entries waiting, the revocation needs confirmEntriesWaiting (409 entries_waiting otherwise), and its hold's task falls due at once, urgent, with a notice to the manager. A device already revoked changes nothing but hurries that task again. A device no member the caller manages has used reads as not found; a location role may not revoke a device staff it does not manage have also used.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          deviceId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RevokeDevice"];
+        };
+      };
+      responses: {
+        /** @description Revoked (or already revoked) */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RevokeDeviceResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/sync/refused-entries": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Keep the server's copy of a care entry the API refused from a device
+     * @description Stores the request a device made for an entry the API refused (checked against that entry kind's own contract), once per entry id, with the refusal (in the owner's name when a manager hands over another member's held entries, as for the entry routes), and adds it to the person's one open review task for the nurse in charge (due at once; urgent, with a notice to the nurse in charge, when an observation joins it). A copy about a person is taken only when its author cared for them within the offline window; otherwise, as for a person unknown here, it is refused the same way. Written in the organisation's view, so a copy is kept even when its author can no longer see the person; read like the care record. A revoked device's copies come only with a hand-over, and a handed-over copy is checked against the device's hold like the entry it is (its owner's care judged from the entry's own time). Each author's copies count against 200 a day, after the replay check.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: {
+          /** @description A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner. */
+          "x-harbour-handover-owner"?: string;
+          /** @description A hand-over of held entries: its id, made on the device, one owner per id. */
+          "x-harbour-handover"?: string;
+        };
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SyncRefusedEntry"];
+        };
+      };
+      responses: {
+        /** @description Kept (or kept before) */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SyncRefusedEntryResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/refused-entries": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Copies of entries about the person a device could not save, newest first
+     * @description Pages of at most `limit` copies (50 by default); pass `nextBefore` as `before` for the next.
+     */
+    get: {
+      parameters: {
+        query?: {
+          before?: string;
+          limit?: number;
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Copies */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RefusedEntryList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/refused-entries/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The server's copy of one entry a device could not save */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The copy */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RefusedEntryItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -14572,6 +14987,9 @@ export interface components {
         recordedBy?: string | null;
         /** Format: date-time */
         at?: string | null;
+        /** Format: uuid */
+        refusedEntryId?: string | null;
+        refusalCode?: string | null;
       }[];
       missedTasks?: {
         /** Format: uuid */
@@ -14582,6 +15000,9 @@ export interface components {
         reopened: boolean;
       }[];
       entriesOmitted?: number;
+      /** Format: uuid */
+      ownerTenantUserId?: string;
+      entryCount?: number;
       missedTasksOmitted?: number;
       /** Format: date */
       missedTasksNotListedBefore?: string;
@@ -14835,6 +15256,8 @@ export interface components {
       superseded: boolean;
       /** Format: uuid */
       recordedBy: string | null;
+      /** Format: uuid */
+      handedOverBy: string | null;
       category: components["schemas"]["CareNoteCategory"];
       body: string;
       tags: string[];
@@ -14904,6 +15327,8 @@ export interface components {
       superseded: boolean;
       /** Format: uuid */
       recordedBy: string | null;
+      /** Format: uuid */
+      handedOverBy: string | null;
       chart: string;
       values: {
         [key: string]: unknown;
@@ -15041,6 +15466,8 @@ export interface components {
       superseded: boolean;
       /** Format: uuid */
       recordedBy: string | null;
+      /** Format: uuid */
+      handedOverBy: string | null;
       /** @enum {string} */
       view: "front" | "back";
       region: string;
@@ -15530,6 +15957,8 @@ export interface components {
       superseded: boolean;
       /** Format: uuid */
       recordedBy: string | null;
+      /** Format: uuid */
+      handedOverBy: string | null;
       toolKey: components["schemas"]["AssessmentToolKey"];
       toolVersion: string;
       answers: {
@@ -15804,6 +16233,8 @@ export interface components {
       superseded: boolean;
       /** Format: uuid */
       recordedBy: string | null;
+      /** Format: uuid */
+      handedOverBy: string | null;
       activity: string;
       /** @enum {string} */
       format: "group" | "one_to_one";
@@ -15880,6 +16311,8 @@ export interface components {
       superseded: boolean;
       /** Format: uuid */
       recordedBy: string | null;
+      /** Format: uuid */
+      handedOverBy: string | null;
       kind: components["schemas"]["VisitKind"];
       /** Format: uuid */
       contactId: string | null;
@@ -17437,6 +17870,280 @@ export interface components {
       /** Format: uuid */
       ownerTenantUserId?: string | null;
       locationIds?: string[];
+      copiesRefused?: number;
+    };
+    DeviceBindingList: {
+      items: components["schemas"]["DeviceBindingItem"][];
+    };
+    /** @description A member of staff's use of a Care mode device, and whether it is revoked */
+    DeviceBindingItem: {
+      /** Format: uuid */
+      deviceId: string;
+      /** Format: uuid */
+      tenantUserId: string;
+      memberName: string;
+      /** Format: date-time */
+      firstSeenAt: string;
+      /** Format: date-time */
+      lastSeenAt: string;
+      /** Format: date-time */
+      revokedAt: string | null;
+      /** Format: uuid */
+      revokedBy: string | null;
+      /** @enum {string|null} */
+      revocationReason:
+        | "lost_or_stolen"
+        | "staff_left"
+        | "access_withdrawn"
+        | "replaced"
+        | "other"
+        | null;
+      entriesWaiting: number;
+      /** Format: date-time */
+      lastReportedAt: string | null;
+    };
+    RevokeDeviceResult: {
+      /** Format: uuid */
+      deviceId: string;
+      /** Format: date-time */
+      revokedAt: string;
+      replay: boolean;
+      bindings: number;
+      entriesWaiting: number;
+      /** Format: date-time */
+      lastReportedAt: string | null;
+    };
+    RevokeDevice: {
+      /** @enum {string} */
+      reasonCode: "lost_or_stolen" | "staff_left" | "access_withdrawn" | "replaced" | "other";
+      confirmEntriesWaiting?: boolean;
+    };
+    SyncRefusedEntryResult: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      entryId: string;
+      /** Format: uuid */
+      taskId: string | null;
+      replay: boolean;
+    };
+    SyncRefusedEntry:
+      | {
+          /** Format: uuid */
+          entryId: string;
+          /** Format: uuid */
+          personId: string | null;
+          httpStatus: number | null;
+          code: string;
+          message: string | null;
+          /** Format: date-time */
+          refusedAt: string;
+          /** @enum {string} */
+          table: "care_note";
+          payload: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: date-time */
+            occurredAt: string;
+            /** Format: date-time */
+            deviceTime?: string;
+            /** Format: uuid */
+            supersedesId?: string;
+            correctionReason?: string;
+            /** Format: uuid */
+            taskId?: string;
+            category: components["schemas"]["CareNoteCategory"];
+            body: string;
+            /** @default [] */
+            tags: string[];
+            /** @default [] */
+            attachmentDocumentIds: string[];
+          };
+        }
+      | {
+          /** Format: uuid */
+          entryId: string;
+          /** Format: uuid */
+          personId: string | null;
+          httpStatus: number | null;
+          code: string;
+          message: string | null;
+          /** Format: date-time */
+          refusedAt: string;
+          /** @enum {string} */
+          table: "observation";
+          payload: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: date-time */
+            occurredAt: string;
+            /** Format: date-time */
+            deviceTime?: string;
+            /** Format: uuid */
+            supersedesId?: string;
+            correctionReason?: string;
+            /** Format: uuid */
+            taskId?: string;
+            values: components["schemas"]["ObservationValues"];
+          };
+        }
+      | {
+          /** Format: uuid */
+          entryId: string;
+          /** Format: uuid */
+          personId: string | null;
+          httpStatus: number | null;
+          code: string;
+          message: string | null;
+          /** Format: date-time */
+          refusedAt: string;
+          /** @enum {string} */
+          table: "body_map_mark";
+          payload: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: date-time */
+            occurredAt: string;
+            /** Format: date-time */
+            deviceTime?: string;
+            /** Format: uuid */
+            supersedesId?: string;
+            correctionReason?: string;
+            /** Format: uuid */
+            taskId?: string;
+            /** @enum {string} */
+            view: "front" | "back";
+            region: string;
+            /** @enum {string} */
+            drawnSide: "left" | "right" | "midline";
+            /** @enum {string} */
+            side: "left" | "right" | "midline";
+            markType: components["schemas"]["BodyMarkType"];
+            pressureCategory?: components["schemas"]["PressureUlcerCategory"];
+            deviceRelated?: boolean;
+            bruiseExplained?: boolean;
+            lengthMm?: number;
+            widthMm?: number;
+            depthMm?: number;
+            description?: string;
+            /** Format: uuid */
+            photoDocumentId?: string;
+            /**
+             * @default present
+             * @enum {string}
+             */
+            status: "present" | "healed";
+            /** Format: uuid */
+            incidentId?: string;
+          };
+        }
+      | {
+          /** Format: uuid */
+          entryId: string;
+          /** Format: uuid */
+          personId: string | null;
+          httpStatus: number | null;
+          code: string;
+          message: string | null;
+          /** Format: date-time */
+          refusedAt: string;
+          /** @enum {string} */
+          table: "activity_record";
+          payload: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: date-time */
+            occurredAt: string;
+            /** Format: date-time */
+            deviceTime?: string;
+            /** Format: uuid */
+            supersedesId?: string;
+            correctionReason?: string;
+            /** Format: uuid */
+            taskId?: string;
+            activity: string;
+            /** @enum {string} */
+            format: "group" | "one_to_one";
+            /** Format: uuid */
+            groupSessionId?: string;
+            attendance: components["schemas"]["ActivityAttendance"];
+            engagement?: components["schemas"]["ActivityEngagement"];
+            durationMinutes?: number;
+            notes?: string;
+          };
+        }
+      | {
+          /** Format: uuid */
+          entryId: string;
+          /** Format: uuid */
+          personId: string | null;
+          httpStatus: number | null;
+          code: string;
+          message: string | null;
+          /** Format: date-time */
+          refusedAt: string;
+          /** @enum {string} */
+          table: "visit_log";
+          payload: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: date-time */
+            occurredAt: string;
+            /** Format: date-time */
+            deviceTime?: string;
+            /** Format: uuid */
+            supersedesId?: string;
+            correctionReason?: string;
+            /** Format: uuid */
+            taskId?: string;
+            kind: components["schemas"]["VisitKind"];
+            /** Format: uuid */
+            contactId?: string;
+            visitorName?: string;
+            visitorRelationship?: string;
+            /** Format: date-time */
+            endedAt?: string;
+            /** @default false */
+            restrictionsApplied: boolean;
+            restrictionReason?: string;
+            notes?: string;
+          };
+        };
+    RefusedEntryList: {
+      items: components["schemas"]["RefusedEntryItem"][];
+      /** Format: uuid */
+      nextBefore: string | null;
+    };
+    /** @description The server's copy of an entry a device could not save */
+    RefusedEntryItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      entryId: string;
+      /** @enum {string} */
+      table: "care_note" | "observation" | "body_map_mark" | "activity_record" | "visit_log";
+      /** Format: uuid */
+      personId: string | null;
+      /** Format: uuid */
+      locationId: string | null;
+      payload: {
+        [key: string]: unknown;
+      };
+      httpStatus: number | null;
+      code: string;
+      message: string | null;
+      /** Format: date-time */
+      refusedAt: string;
+      /** Format: date-time */
+      receivedAt: string;
+      /** Format: uuid */
+      authorTenantUserId: string;
+      /** Format: uuid */
+      sentByTenantUserId: string | null;
+      /** Format: uuid */
+      deviceId: string | null;
+      /** Format: uuid */
+      reviewTaskId: string | null;
     };
     IntegrationConnection: {
       port: string;

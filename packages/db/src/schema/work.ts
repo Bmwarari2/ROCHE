@@ -195,6 +195,21 @@ export const task = pgTable(
     uniqueIndex("task_series_due_key")
       .on(t.tenantId, t.seriesId, t.dueAt)
       .where(sql`series_id IS NOT NULL`),
+    // One open task per kind, source, location and assignee for the tasks Care mode sync raises
+    // (device holds, flagged entries) and the refused-entry review, so racing requests never raise
+    // two whatever the advisory locks do (care.md section 6, Device integrity part 4; HZ-008).
+    uniqueIndex("task_sync_open_source_key")
+      .on(
+        t.tenantId,
+        t.kind,
+        t.sourceType,
+        t.sourceId,
+        sql`coalesce(location_id, '00000000-0000-0000-0000-000000000000'::uuid)`,
+        sql`coalesce(assignee_tenant_user_id, '00000000-0000-0000-0000-000000000000'::uuid)`,
+      )
+      .where(
+        sql`status IN ('open', 'in_progress') AND deleted_at IS NULL AND kind IN ('sync.device_hold', 'sync.entry_reported_deleted', 'sync.entry_deleted_after_upload', 'care.refused_entry_review')`,
+      ),
     index("task_due_idx").on(t.tenantId, t.status, t.dueAt),
     index("task_person_idx").on(t.tenantId, t.personId, t.dueAt),
     index("task_assignee_idx").on(t.tenantId, t.assigneeTenantUserId, t.status),

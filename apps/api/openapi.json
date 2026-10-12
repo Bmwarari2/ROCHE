@@ -5773,6 +5773,19 @@
                     "null"
                   ],
                   "format": "date-time"
+                },
+                "refusedEntryId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "refusalCode": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               },
               "required": [
@@ -5810,6 +5823,14 @@
           },
           "entriesOmitted": {
             "type": "integer"
+          },
+          "ownerTenantUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entryCount": {
+            "type": "integer",
+            "minimum": 0
           },
           "missedTasksOmitted": {
             "type": "integer"
@@ -6713,6 +6734,13 @@
             ],
             "format": "uuid"
           },
+          "handedOverBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
           "category": {
             "$ref": "#/components/schemas/CareNoteCategory"
           },
@@ -6749,6 +6777,7 @@
           "correctionReason",
           "superseded",
           "recordedBy",
+          "handedOverBy",
           "category",
           "body",
           "tags",
@@ -6926,6 +6955,13 @@
             ],
             "format": "uuid"
           },
+          "handedOverBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
           "chart": {
             "type": "string"
           },
@@ -6954,6 +6990,7 @@
           "correctionReason",
           "superseded",
           "recordedBy",
+          "handedOverBy",
           "chart",
           "values",
           "flags"
@@ -7415,6 +7452,13 @@
             ],
             "format": "uuid"
           },
+          "handedOverBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
           "view": {
             "type": "string",
             "enum": [
@@ -7501,6 +7545,7 @@
           "correctionReason",
           "superseded",
           "recordedBy",
+          "handedOverBy",
           "view",
           "region",
           "side",
@@ -9238,6 +9283,13 @@
             ],
             "format": "uuid"
           },
+          "handedOverBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
           "toolKey": {
             "$ref": "#/components/schemas/AssessmentToolKey"
           },
@@ -9301,6 +9353,7 @@
           "correctionReason",
           "superseded",
           "recordedBy",
+          "handedOverBy",
           "toolKey",
           "toolVersion",
           "answers",
@@ -10149,6 +10202,13 @@
             ],
             "format": "uuid"
           },
+          "handedOverBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
           "activity": {
             "type": "string"
           },
@@ -10201,6 +10261,7 @@
           "correctionReason",
           "superseded",
           "recordedBy",
+          "handedOverBy",
           "activity",
           "format",
           "groupSessionId",
@@ -10396,6 +10457,13 @@
             ],
             "format": "uuid"
           },
+          "handedOverBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
           "kind": {
             "$ref": "#/components/schemas/VisitKind"
           },
@@ -10457,6 +10525,7 @@
           "correctionReason",
           "superseded",
           "recordedBy",
+          "handedOverBy",
           "kind",
           "contactId",
           "visitorName",
@@ -16063,6 +16132,11 @@
               "format": "uuid"
             },
             "maxItems": 50
+          },
+          "copiesRefused": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
           }
         },
         "required": [
@@ -16074,6 +16148,946 @@
           "reportedAt"
         ],
         "additionalProperties": false
+      },
+      "DeviceBindingList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeviceBindingItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "DeviceBindingItem": {
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "memberName": {
+            "type": "string"
+          },
+          "firstSeenAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revokedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "revokedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "revocationReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "lost_or_stolen",
+              "staff_left",
+              "access_withdrawn",
+              "replaced",
+              "other",
+              null
+            ]
+          },
+          "entriesWaiting": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lastReportedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "deviceId",
+          "tenantUserId",
+          "memberName",
+          "firstSeenAt",
+          "lastSeenAt",
+          "revokedAt",
+          "revokedBy",
+          "revocationReason",
+          "entriesWaiting",
+          "lastReportedAt"
+        ],
+        "description": "A member of staff's use of a Care mode device, and whether it is revoked"
+      },
+      "RevokeDeviceResult": {
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revokedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "replay": {
+            "type": "boolean"
+          },
+          "bindings": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "entriesWaiting": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lastReportedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "deviceId",
+          "revokedAt",
+          "replay",
+          "bindings",
+          "entriesWaiting",
+          "lastReportedAt"
+        ]
+      },
+      "RevokeDevice": {
+        "type": "object",
+        "properties": {
+          "reasonCode": {
+            "type": "string",
+            "enum": [
+              "lost_or_stolen",
+              "staff_left",
+              "access_withdrawn",
+              "replaced",
+              "other"
+            ]
+          },
+          "confirmEntriesWaiting": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "reasonCode"
+        ],
+        "additionalProperties": false
+      },
+      "SyncRefusedEntryResult": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "taskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "replay": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "entryId",
+          "taskId",
+          "replay"
+        ]
+      },
+      "SyncRefusedEntry": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "entryId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "personId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "httpStatus": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 100,
+                "maximum": 599
+              },
+              "code": {
+                "type": "string",
+                "pattern": "^[a-z0-9_]{1,80}$"
+              },
+              "message": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 500
+              },
+              "refusedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "table": {
+                "type": "string",
+                "enum": [
+                  "care_note"
+                ]
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "occurredAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "deviceTime": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "supersedesId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "correctionReason": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 500
+                  },
+                  "taskId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "category": {
+                    "$ref": "#/components/schemas/CareNoteCategory"
+                  },
+                  "body": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-z_]{2,40}$"
+                    },
+                    "maxItems": 10,
+                    "default": []
+                  },
+                  "attachmentDocumentIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "maxItems": 10,
+                    "default": []
+                  }
+                },
+                "required": [
+                  "occurredAt",
+                  "category",
+                  "body"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "entryId",
+              "personId",
+              "httpStatus",
+              "code",
+              "message",
+              "refusedAt",
+              "table",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "entryId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "personId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "httpStatus": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 100,
+                "maximum": 599
+              },
+              "code": {
+                "type": "string",
+                "pattern": "^[a-z0-9_]{1,80}$"
+              },
+              "message": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 500
+              },
+              "refusedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "table": {
+                "type": "string",
+                "enum": [
+                  "observation"
+                ]
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "occurredAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "deviceTime": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "supersedesId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "correctionReason": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 500
+                  },
+                  "taskId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "values": {
+                    "$ref": "#/components/schemas/ObservationValues"
+                  }
+                },
+                "required": [
+                  "occurredAt",
+                  "values"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "entryId",
+              "personId",
+              "httpStatus",
+              "code",
+              "message",
+              "refusedAt",
+              "table",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "entryId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "personId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "httpStatus": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 100,
+                "maximum": 599
+              },
+              "code": {
+                "type": "string",
+                "pattern": "^[a-z0-9_]{1,80}$"
+              },
+              "message": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 500
+              },
+              "refusedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "table": {
+                "type": "string",
+                "enum": [
+                  "body_map_mark"
+                ]
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "occurredAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "deviceTime": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "supersedesId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "correctionReason": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 500
+                  },
+                  "taskId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "view": {
+                    "type": "string",
+                    "enum": [
+                      "front",
+                      "back"
+                    ]
+                  },
+                  "region": {
+                    "type": "string",
+                    "pattern": "^[a-z_]{2,40}$"
+                  },
+                  "drawnSide": {
+                    "type": "string",
+                    "enum": [
+                      "left",
+                      "right",
+                      "midline"
+                    ]
+                  },
+                  "side": {
+                    "type": "string",
+                    "enum": [
+                      "left",
+                      "right",
+                      "midline"
+                    ]
+                  },
+                  "markType": {
+                    "$ref": "#/components/schemas/BodyMarkType"
+                  },
+                  "pressureCategory": {
+                    "$ref": "#/components/schemas/PressureUlcerCategory"
+                  },
+                  "deviceRelated": {
+                    "type": "boolean"
+                  },
+                  "bruiseExplained": {
+                    "type": "boolean"
+                  },
+                  "lengthMm": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1000
+                  },
+                  "widthMm": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1000
+                  },
+                  "depthMm": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 300
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  "photoDocumentId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "present",
+                      "healed"
+                    ],
+                    "default": "present"
+                  },
+                  "incidentId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "occurredAt",
+                  "view",
+                  "region",
+                  "drawnSide",
+                  "side",
+                  "markType"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "entryId",
+              "personId",
+              "httpStatus",
+              "code",
+              "message",
+              "refusedAt",
+              "table",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "entryId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "personId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "httpStatus": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 100,
+                "maximum": 599
+              },
+              "code": {
+                "type": "string",
+                "pattern": "^[a-z0-9_]{1,80}$"
+              },
+              "message": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 500
+              },
+              "refusedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "table": {
+                "type": "string",
+                "enum": [
+                  "activity_record"
+                ]
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "occurredAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "deviceTime": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "supersedesId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "correctionReason": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 500
+                  },
+                  "taskId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "activity": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 120
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": [
+                      "group",
+                      "one_to_one"
+                    ]
+                  },
+                  "groupSessionId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "attendance": {
+                    "$ref": "#/components/schemas/ActivityAttendance"
+                  },
+                  "engagement": {
+                    "$ref": "#/components/schemas/ActivityEngagement"
+                  },
+                  "durationMinutes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 720
+                  },
+                  "notes": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "occurredAt",
+                  "activity",
+                  "format",
+                  "attendance"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "entryId",
+              "personId",
+              "httpStatus",
+              "code",
+              "message",
+              "refusedAt",
+              "table",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "entryId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "personId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "httpStatus": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 100,
+                "maximum": 599
+              },
+              "code": {
+                "type": "string",
+                "pattern": "^[a-z0-9_]{1,80}$"
+              },
+              "message": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 500
+              },
+              "refusedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "table": {
+                "type": "string",
+                "enum": [
+                  "visit_log"
+                ]
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "occurredAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "deviceTime": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "supersedesId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "correctionReason": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 500
+                  },
+                  "taskId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "kind": {
+                    "$ref": "#/components/schemas/VisitKind"
+                  },
+                  "contactId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "visitorName": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "visitorRelationship": {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "endedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "restrictionsApplied": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "restrictionReason": {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  "notes": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "occurredAt",
+                  "kind"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "entryId",
+              "personId",
+              "httpStatus",
+              "code",
+              "message",
+              "refusedAt",
+              "table",
+              "payload"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "RefusedEntryList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RefusedEntryItem"
+            }
+          },
+          "nextBefore": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "items",
+          "nextBefore"
+        ]
+      },
+      "RefusedEntryItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "table": {
+            "type": "string",
+            "enum": [
+              "care_note",
+              "observation",
+              "body_map_mark",
+              "activity_record",
+              "visit_log"
+            ]
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "payload": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "httpStatus": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "refusedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "authorTenantUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sentByTenantUserId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "deviceId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "reviewTaskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "id",
+          "entryId",
+          "table",
+          "personId",
+          "locationId",
+          "payload",
+          "httpStatus",
+          "code",
+          "message",
+          "refusedAt",
+          "receivedAt",
+          "authorTenantUserId",
+          "sentByTenantUserId",
+          "deviceId",
+          "reviewTaskId"
+        ],
+        "description": "The server's copy of an entry a device could not save"
       },
       "IntegrationConnection": {
         "type": "object",
@@ -24222,6 +25236,28 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner."
+            },
+            "required": false,
+            "description": "A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner.",
+            "name": "x-harbour-handover-owner",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "A hand-over of held entries: its id, made on the device, one owner per id."
+            },
+            "required": false,
+            "description": "A hand-over of held entries: its id, made on the device, one owner per id.",
+            "name": "x-harbour-handover",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -24424,6 +25460,28 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner."
+            },
+            "required": false,
+            "description": "A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner.",
+            "name": "x-harbour-handover-owner",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "A hand-over of held entries: its id, made on the device, one owner per id."
+            },
+            "required": false,
+            "description": "A hand-over of held entries: its id, made on the device, one owner per id.",
+            "name": "x-harbour-handover",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -24712,6 +25770,28 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner."
+            },
+            "required": false,
+            "description": "A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner.",
+            "name": "x-harbour-handover-owner",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "A hand-over of held entries: its id, made on the device, one owner per id."
+            },
+            "required": false,
+            "description": "A hand-over of held entries: its id, made on the device, one owner per id.",
+            "name": "x-harbour-handover",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -26629,6 +27709,28 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner."
+            },
+            "required": false,
+            "description": "A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner.",
+            "name": "x-harbour-handover-owner",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "A hand-over of held entries: its id, made on the device, one owner per id."
+            },
+            "required": false,
+            "description": "A hand-over of held entries: its id, made on the device, one owner per id.",
+            "name": "x-harbour-handover",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -26813,6 +27915,28 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner."
+            },
+            "required": false,
+            "description": "A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner.",
+            "name": "x-harbour-handover-owner",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "A hand-over of held entries: its id, made on the device, one owner per id."
+            },
+            "required": false,
+            "description": "A hand-over of held entries: its id, made on the device, one owner per id.",
+            "name": "x-harbour-handover",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -30659,6 +31783,7 @@
           "sync"
         ],
         "summary": "A short-lived token for the PowerSync service, scoped to tenant and assignments",
+        "description": "Claims: sub, tenant_id, location_ids, people_location_ids and offline_days (the offline window from the rate table, never from the device). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.",
         "security": [
           {
             "bearerAuth": []
@@ -30852,7 +31977,7 @@
           "sync"
         ],
         "summary": "A device's unsent work: counts and the oldest age, no personal data",
-        "description": "Writes an audit event with the device's queued, refused, held and blocked counts and the age of the oldest, so the server knows what a lost or wiped device held (HZ-006). Any member of the organisation may report (with MFA when their roles call for it), so a device whose Care mode access was withdrawn can still report its hold. A named owner counts only when they already have an event from the device (a sync token issued to it or a report sent from it); otherwise the claim is recorded and changes nothing. Times later than the server's are taken as the server's, and a hold's start is never earlier than the device's last report for it said, nor than the server first heard from the device. While anything waits, the device has a task for the Registered Manager at each location of its sync scope where the hold's owner or the reporter works, due when its hold escalates and never moved later; one closed in the last day is reopened, its escalation reset at most once a day. A report with nothing waiting closes them when it comes from the hold's owner, from whoever raised them or from a manager at one of their locations. Each reporter raises tasks for a few devices a day; past that, their holds join one task for that reporter, due at the earliest of them.",
+        "description": "Writes an audit event with the device's queued, refused, held and blocked counts and the age of the oldest, so the server knows what a lost or wiped device held (HZ-006). Any member of the organisation may report (with MFA when their roles call for it), so a device whose Care mode access was withdrawn can still report its hold. A named owner counts only when bound to the device (a sync token issued to it or a report sent from it, kept as a device binding); otherwise the claim is recorded and changes nothing. Times later than the server's are taken as the server's, and a hold's start is never earlier than the device's last report for it said, nor than the server first saw the device. While anything waits, the device has a task for the Registered Manager at each location of its sync scope where the hold's owner or the reporter works, due when its hold escalates and never moved later; one closed in the last day is reopened, its escalation reset at most once a day. A report with nothing waiting closes them when it comes from the hold's owner, from whoever raised them or from a manager at one of their locations. Each reporter raises tasks for a few devices a day; past that, their holds join one task for that reporter, due at the earliest of them.",
         "security": [
           {
             "bearerAuth": []
@@ -30886,6 +32011,446 @@
           },
           "403": {
             "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/devices": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Care mode devices staff have used, and whether each is revoked",
+        "description": "Lists device bindings: the device, the member of staff, when the server first and last saw them together, any revocation, and the entries the device last reported waiting and when. A location role sees only devices used by staff whose live, or else most recent, role assignment is at one of its locations.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "tenantUserId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Devices",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceBindingList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/devices/{deviceId}/revoke": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Revoke a lost or withdrawn Care mode device",
+        "description": "Marks every binding of the device revoked with a coded reason (step-up). At its next sync token or upload the device is refused with 403 device_revoked and wipes, keeping entries not yet sent under the hold rules. The sessions bound to it are not ended: every request from one is refused with 403 device_revoked whatever device it names, except its device report, which may raise or hurry the hold's task but never close it. When the device last reported entries waiting, the revocation needs confirmEntriesWaiting (409 entries_waiting otherwise), and its hold's task falls due at once, urgent, with a notice to the manager. A device already revoked changes nothing but hurries that task again. A device no member the caller manages has used reads as not found; a location role may not revoke a device staff it does not manage have also used.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "deviceId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeDevice"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Revoked (or already revoked)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevokeDeviceResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sync/refused-entries": {
+      "post": {
+        "tags": [
+          "sync"
+        ],
+        "summary": "Keep the server's copy of a care entry the API refused from a device",
+        "description": "Stores the request a device made for an entry the API refused (checked against that entry kind's own contract), once per entry id, with the refusal (in the owner's name when a manager hands over another member's held entries, as for the entry routes), and adds it to the person's one open review task for the nurse in charge (due at once; urgent, with a notice to the nurse in charge, when an observation joins it). A copy about a person is taken only when its author cared for them within the offline window; otherwise, as for a person unknown here, it is refused the same way. Written in the organisation's view, so a copy is kept even when its author can no longer see the person; read like the care record. A revoked device's copies come only with a hand-over, and a handed-over copy is checked against the device's hold like the entry it is (its owner's care judged from the entry's own time). Each author's copies count against 200 a day, after the replay check.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner."
+            },
+            "required": false,
+            "description": "A hand-over of held entries: whose entries they are (tenant_user id). Needs care.held_entry.hand_over (step-up) unless the caller is the owner.",
+            "name": "x-harbour-handover-owner",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "A hand-over of held entries: its id, made on the device, one owner per id."
+            },
+            "required": false,
+            "description": "A hand-over of held entries: its id, made on the device, one owner per id.",
+            "name": "x-harbour-handover",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncRefusedEntry"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Kept (or kept before)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncRefusedEntryResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/refused-entries": {
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "Copies of entries about the person a device could not save, newest first",
+        "description": "Pages of at most `limit` copies (50 by default); pass `nextBefore` as `before` for the next.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "before",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Copies",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefusedEntryList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/refused-entries/{id}": {
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "The server's copy of one entry a device could not save",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The copy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefusedEntryItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
             "content": {
               "application/problem+json": {
                 "schema": {

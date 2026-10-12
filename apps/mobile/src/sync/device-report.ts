@@ -85,7 +85,7 @@ export function oldestAgeSeconds(
 
 /** Counts the unsent work and finds the oldest: the first queued entry, refusal or hold. */
 export async function buildDeviceReport(db: ReportDb, now: Date): Promise<SyncDeviceReport> {
-  const [stats, refused, held, blocked, first] = await Promise.all([
+  const [stats, refused, held, blocked, first, copiesRefused] = await Promise.all([
     db.getUploadQueueStats(),
     db.getOptional<{ count: number; oldest: string | null }>(
       "SELECT COUNT(*) AS count, MIN(rejected_at) AS oldest FROM upload_issue",
@@ -99,6 +99,13 @@ export async function buildDeviceReport(db: ReportDb, now: Date): Promise<SyncDe
       "SELECT COUNT(*) AS count FROM upload_issue WHERE code = 'held_discard_failed'",
     ),
     db.getCrudBatch(1),
+    // Refused entries the server would not keep a copy of: only this device has them (#25 review
+    // round 2, low).
+    db
+      .getOptional<{ count: number }>(
+        "SELECT COUNT(*) AS count FROM upload_issue WHERE server_copy = 'refused'",
+      )
+      .catch(() => null),
   ]);
   const queuedAt = first?.crud[0]?.opData?.device_time;
   const heldCount = Number(held?.count ?? 0);
@@ -114,6 +121,9 @@ export async function buildDeviceReport(db: ReportDb, now: Date): Promise<SyncDe
     ),
     heldSince: heldAt === null ? null : new Date(heldAt).toISOString(),
     reportedAt: now.toISOString(),
+    ...(Number(copiesRefused?.count ?? 0) > 0
+      ? { copiesRefused: Number(copiesRefused?.count ?? 0) }
+      : {}),
   };
 }
 

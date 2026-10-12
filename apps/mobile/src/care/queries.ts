@@ -219,7 +219,7 @@ export interface AssessmentRow {
  * tenant (an entry that lost its tenant) is listed too, so it can never sit unseen (S7).
  */
 export const UPLOAD_ISSUES_SQL = `SELECT i.id, i.person_id, i.record_table, i.http_status, i.code,
-  i.message, i.payload, i.rejected_at, p.preferred_name, p.given_name, p.family_name
+  i.message, i.payload, i.rejected_at, i.server_copy, p.preferred_name, p.given_name, p.family_name
 FROM upload_issue i
 LEFT JOIN person p ON p.id = i.person_id AND p.tenant_id = i.tenant_id
 WHERE (i.tenant_id = ? OR i.tenant_id IS NULL)
@@ -234,6 +234,8 @@ export interface UploadIssueRow {
   readonly message: string | null;
   readonly payload: string | null;
   readonly rejected_at: string | null;
+  /** Where the server's copy stands: `copied`, `refused` (only this device has it) or none yet. */
+  readonly server_copy?: string | null;
   readonly preferred_name: string | null;
   readonly given_name: string | null;
   readonly family_name: string | null;

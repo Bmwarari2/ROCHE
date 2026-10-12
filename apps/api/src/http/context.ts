@@ -1,8 +1,9 @@
-import { DEVICE_HEADER, TENANT_HEADER } from "@harbour/contracts";
+import { DEVICE_HEADER, HANDOVER_OWNER_HEADER, TENANT_HEADER } from "@harbour/contracts";
 import {
   accessGrant,
   authPasskey,
   type Database,
+  deviceSession,
   type RequestContext,
   role,
   roleAssignment,
@@ -29,6 +30,7 @@ import type pg from "pg";
 import type { Auth } from "../auth/better-auth";
 import type { Config } from "../config";
 import type { Logger } from "../logger";
+import { bindSession, sessionOnRevokedDevice } from "../services/devices";
 import { writeAudit } from "./audit";
 import { problems } from "./problem";
 import type { RateLimiter } from "./rate-limit";
@@ -83,6 +85,11 @@ export interface TenantAccess {
   readonly mfaSatisfied: boolean;
   readonly deviceId: string | null;
   readonly ip: string | null;
+  /**
+   * True when the session is bound to a device a manager has revoked: only its device report gets
+   * this far, and it may raise or hurry a task but never close one (#25 review round 3, M2).
+   */
+  readonly sessionOnRevokedDevice?: boolean;
 }
 
 /** A Thapsus operator, set only on /operator routes. */
@@ -152,7 +159,14 @@ async function hasPasskey(authPool: pg.Pool, authUserId: string): Promise<boolea
   return (row?.n ?? 0) > 0;
 }
 
-async function loadAccess(db: Database, tenantId: string, tenantUserId: string, now: Date) {
+async function loadAccess(
+  db: Database,
+  tenantId: string,
+  tenantUserId: string,
+  sessionId: string,
+  deviceId: string | null,
+  now: Date,
+) {
   // Context with scope 'none': enough to read the user's own role rows, nothing about people.
   const context: RequestContext = {
     tenantId,
@@ -198,8 +212,37 @@ async function loadAccess(db: Database, tenantId: string, tenantUserId: string, 
       grants as AccessGrantInput[],
       now,
     );
-    return { effective, mfaRequired: user?.mfaRequired ?? true };
+    // A session bound to a device a manager has since revoked is refused whatever device it names
+    // (care.md section 6, Device integrity part 2; #25 review round 2, M1).
+    const onRevokedDevice = await sessionOnRevokedDevice(tx, sessionId);
+    const [bound] = deviceId
+      ? await tx
+          .select({ id: deviceSession.id })
+          .from(deviceSession)
+          .where(and(eq(deviceSession.sessionId, sessionId), eq(deviceSession.deviceId, deviceId)))
+          .limit(1)
+      : [];
+    return {
+      effective,
+      mfaRequired: user?.mfaRequired ?? true,
+      onRevokedDevice,
+      sessionBound: bound !== undefined,
+    };
   });
+}
+
+/** A device's report of its unsent work: the one request a session on a revoked device may make. */
+const DEVICE_REPORT_PATH = "/v1/sync/device-report";
+
+/**
+ * Whether the middleware binds the session to the device the request names (#25 review round 3,
+ * M2): every request but the device's report, which binds its reporter itself and is judged before
+ * that (security review round 7, M1), and a hand-over, whose sender is bound by the report the
+ * device sends from their sign-in first (#25 review round 2, H1).
+ */
+function bindsSession(c: Context): boolean {
+  if (c.req.method === "POST" && c.req.path === DEVICE_REPORT_PATH) return false;
+  return c.req.header(HANDOVER_OWNER_HEADER) === undefined;
 }
 
 /**
@@ -233,12 +276,35 @@ export const tenantMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   }
 
   const now = new Date();
-  const { effective, mfaRequired } = await loadAccess(
+  const deviceId = deviceIdOf(c.req.header(DEVICE_HEADER));
+  const { effective, mfaRequired, onRevokedDevice, sessionBound } = await loadAccess(
     services.db,
     membership.tenantId,
     membership.tenantUserId,
+    session.sessionId,
+    deviceId,
     now,
   );
+  // A session bound to a device a manager has revoked is refused whatever it names (#25 review
+  // rounds 2 and 3, M1 and M2), except its device's report, so the server still hears what the
+  // device holds. Its sessions are never ended: a device given a 401 could not tell it was revoked.
+  if (onRevokedDevice && !(c.req.method === "POST" && c.req.path === DEVICE_REPORT_PATH)) {
+    throw problems.deviceRevoked();
+  }
+  // Any request naming a device binds the session to it, so a revocation covers a session that
+  // never asked for a sync token (M2). Written once per session and device; nothing on a revoked one.
+  if (deviceId && !sessionBound && !onRevokedDevice && bindsSession(c)) {
+    await withRequestContext(
+      services.db,
+      {
+        tenantId: membership.tenantId,
+        userId: membership.tenantUserId,
+        scope: "tenant",
+        locationIds: [],
+      },
+      (tx) => bindSession(tx, deviceId, membership.tenantUserId, session.sessionId, now),
+    );
+  }
   const mfaSatisfied =
     !mfaRequired ||
     session.twoFactorEnabled ||
@@ -257,8 +323,9 @@ export const tenantMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
       locationIds: effective.locationIds,
     },
     mfaSatisfied,
-    deviceId: deviceIdOf(c.req.header(DEVICE_HEADER)),
+    deviceId,
     ip: clientIp(c),
+    ...(onRevokedDevice ? { sessionOnRevokedDevice: true } : {}),
   });
   await next();
 };
