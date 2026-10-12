@@ -206,6 +206,16 @@ describe("hazard HZ-040 an entry a device reported deleted, uploaded later (roun
       );
       return { audit: audit.rowCount, tasks: tasks.rows };
     });
+  const taskDetails = (taskId: string | undefined) =>
+    asDemoTenant(
+      async (c) =>
+        (
+          await c.query<{ details: Record<string, unknown> }>(
+            "SELECT details FROM task WHERE id = $1",
+            [taskId],
+          )
+        ).rows[0]?.details ?? {},
+    );
   const taskAudit = (taskId: string | undefined) =>
     asDemoTenant(async (c) =>
       (
@@ -267,15 +277,18 @@ describe("hazard HZ-040 an entry a device reported deleted, uploaded later (roun
     expect(tasks[0]?.title).toBe(
       "Check entries uploaded after their device reported deleting them: 3",
     );
-    // Its audit events carry the count and the opaque entry ids.
+    // Its audit events carry the count; the task's details carry the owner, the count and the
+    // opaque entry ids (care.md section 6, Device integrity part 4).
     expect(await taskAudit(tasks[0]?.id)).toEqual([
-      [
-        "sync.entry_flag.raised",
-        expect.objectContaining({ discardId: record, count: 1, entryIds: [entryIds[0]] }),
-      ],
-      ["sync.entry_flag.added", expect.objectContaining({ count: 2, entryIds: [entryIds[1]] })],
-      ["sync.entry_flag.added", expect.objectContaining({ count: 3, entryIds: [entryIds[2]] })],
+      ["sync.entry_flag.raised", expect.objectContaining({ discardId: record, count: 1 })],
+      ["sync.entry_flag.added", expect.objectContaining({ count: 2, added: 1 })],
+      ["sync.entry_flag.added", expect.objectContaining({ count: 3, added: 1 })],
     ]);
+    const details = await taskDetails(tasks[0]?.id);
+    expect(details).toMatchObject({ ownerTenantUserId: DEMO.users.carer.id, entryCount: 3 });
+    expect((details.entries as { entryId: string; kind: string }[]).map((e) => e)).toEqual(
+      entryIds.map((entryId) => expect.objectContaining({ kind: "care_note", entryId })),
+    );
     for (const id of entryIds) expect((await flags(id, record)).audit).toBe(1);
   });
 
@@ -388,20 +401,17 @@ describe("hazard HZ-040 an entry a device reported deleted, uploaded later (roun
         ).rows,
     );
     expect(raised.map((r) => r.source_id)).toEqual(records.slice(0, 5));
-    // The two past the cap are counted on the oldest task, and their ids listed there.
+    // The two past the cap are counted on the oldest task, and their ids listed in its details.
     expect(raised[0]?.title).toBe("Check entries a device deleted after they reached Harbour: 3");
     expect(
       (await taskAudit(raised[0]?.id)).filter(([action]) => action === "sync.entry_flag.added"),
     ).toEqual([
-      [
-        "sync.entry_flag.added",
-        expect.objectContaining({ discardId: records[5], merged: true, entryIds: [entries[5]] }),
-      ],
-      [
-        "sync.entry_flag.added",
-        expect.objectContaining({ discardId: records[6], merged: true, entryIds: [entries[6]] }),
-      ],
+      ["sync.entry_flag.added", expect.objectContaining({ discardId: records[5], merged: true })],
+      ["sync.entry_flag.added", expect.objectContaining({ discardId: records[6], merged: true })],
     ]);
+    expect(
+      ((await taskDetails(raised[0]?.id)).entries as { entryId: string }[]).map((e) => e.entryId),
+    ).toEqual([entries[0], entries[5], entries[6]]);
     const capped = await asDemoTenant(
       async (c) =>
         (

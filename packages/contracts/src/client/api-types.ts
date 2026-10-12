@@ -14734,6 +14734,9 @@ export interface components {
         reopened: boolean;
       }[];
       entriesOmitted?: number;
+      /** Format: uuid */
+      ownerTenantUserId?: string;
+      entryCount?: number;
       missedTasksOmitted?: number;
       /** Format: date */
       missedTasksNotListedBefore?: string;

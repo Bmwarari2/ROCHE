@@ -405,3 +405,128 @@ describe("hazard HZ-040 hazard HZ-011 deletion lists (part 3)", () => {
     ]);
   });
 });
+
+describe("hazard HZ-008 one open sync task per source (part 4)", () => {
+  const HOLD_DEVICE = "0199d000-0000-4000-8000-0000000000c1";
+  const RECORD = "0199d000-0000-4000-8000-0000000000c2";
+  const insertTask = (
+    c: pg.PoolClient,
+    fields: { kind: string; sourceType: string; sourceId: string; location: string | null },
+  ) =>
+    c.query(
+      `INSERT INTO task (kind, title, required_permission, source_type, source_id, location_id, due_at)
+       VALUES ($1, 'A sync task', 'safety.incident.manage', $2, $3, $4, now()) RETURNING id`,
+      [fields.kind, fields.sourceType, fields.sourceId, fields.location],
+    );
+  const hold = { kind: "sync.device_hold", sourceType: "device_hold", sourceId: HOLD_DEVICE };
+
+  it("refuses a second open task for the same device and location, and allows one after the first closes", async () => {
+    const first = await asSystem((c) => insertTask(c, { ...hold, location: a.locationNorth }));
+    await expect(
+      asSystem((c) => insertTask(c, { ...hold, location: a.locationNorth })),
+    ).rejects.toThrow(/task_sync_open_source_key/);
+    // Another location, or no location, is another task (each location's managers have their own).
+    await asSystem((c) => insertTask(c, { ...hold, location: a.locationSouth }));
+    await asSystem((c) => insertTask(c, { ...hold, location: null }));
+    await expect(asSystem((c) => insertTask(c, { ...hold, location: null }))).rejects.toThrow(
+      /task_sync_open_source_key/,
+    );
+    await asSystem((c) =>
+      c.query("UPDATE task SET status = 'done' WHERE id = $1", [first.rows[0]?.id]),
+    );
+    await asSystem((c) => insertTask(c, { ...hold, location: a.locationNorth }));
+  });
+
+  it("refuses a second open flagged-entry task for the same deletion record and location", async () => {
+    const flagged = {
+      kind: "sync.entry_reported_deleted",
+      sourceType: "device_discard",
+      sourceId: RECORD,
+    };
+    await asSystem((c) => insertTask(c, { ...flagged, location: a.locationNorth }));
+    await expect(
+      asSystem((c) => insertTask(c, { ...flagged, location: a.locationNorth })),
+    ).rejects.toThrow(/task_sync_open_source_key/);
+    // Other kinds of task are not limited.
+    await asSystem((c) =>
+      insertTask(c, {
+        kind: "platform.manual",
+        sourceType: "device_discard",
+        sourceId: RECORD,
+        location: a.locationNorth,
+      }),
+    );
+    await asSystem((c) =>
+      insertTask(c, {
+        kind: "platform.manual",
+        sourceType: "device_discard",
+        sourceId: RECORD,
+        location: a.locationNorth,
+      }),
+    );
+  });
+
+  it("closes duplicates an earlier race left, keeping the oldest, and gives flagged tasks their owner and count (migration 0034)", async () => {
+    const DUP = "0199d000-0000-4000-8000-0000000000c3";
+    const FLAG = "0199d000-0000-4000-8000-0000000000c4";
+    const ids = await inContext(
+      db.pool("harbour_owner"),
+      ctx(TENANT_A, null, "tenant"),
+      async (c) => {
+        // As before 0035: no index.
+        await c.query("DROP INDEX task_sync_open_source_key");
+        const made: string[] = [];
+        for (let i = 0; i < 3; i += 1) {
+          const row = await c.query<{ id: string }>(
+            `INSERT INTO task (kind, title, required_permission, source_type, source_id, location_id, due_at, created_at)
+           VALUES ('sync.device_hold', 'Unsent care entries are waiting on a device', 'safety.incident.manage',
+                   'device_hold', $1, $2, now(), now() + make_interval(secs => $3)) RETURNING id`,
+            [DUP, a.locationNorth, i],
+          );
+          made.push(row.rows[0]?.id ?? "");
+        }
+        const flagged = await c.query<{ id: string }>(
+          `INSERT INTO task (kind, title, required_permission, source_type, source_id, location_id, due_at)
+         VALUES ('sync.entry_reported_deleted', 'Check entries: 2', 'safety.incident.manage',
+                 'device_discard', $1, $2, now()) RETURNING id`,
+          [FLAG, a.locationNorth],
+        );
+        const flagId = flagged.rows[0]?.id ?? "";
+        await c.query(
+          `INSERT INTO audit_event (tenant_id, action, resource_type, resource_id, scope) VALUES
+           ($1, 'sync.entry_flag.raised', 'task', $2, jsonb_build_object('ownerTenantUserId', $3::text, 'count', 1)),
+           ($1, 'sync.entry_flag.added', 'task', $2, jsonb_build_object('count', 2))`,
+          [TENANT_A, flagId, a.carer],
+        );
+        return { made, flagId };
+      },
+    );
+    await rerun("0034_sync_task_dedupe.sql");
+    await rerun("0034_sync_task_dedupe.sql");
+    await rerun("0035_sync_task_open_key.sql");
+    const rows = await asOwner(TENANT_A, (c) =>
+      c.query<{ id: string; status: string; status_reason: string | null }>(
+        "SELECT id, status, status_reason FROM task WHERE source_id = $1 ORDER BY created_at",
+        [DUP],
+      ),
+    );
+    expect(rows.rows.map((r) => [r.id, r.status])).toEqual([
+      [ids.made[0], "open"],
+      [ids.made[1], "cancelled"],
+      [ids.made[2], "cancelled"],
+    ]);
+    expect(rows.rows[1]?.status_reason).toMatch(/duplicate/);
+    const audit = await asOwner(TENANT_A, (c) =>
+      c.query<{ resource_id: string; kept: string }>(
+        "SELECT resource_id, scope ->> 'keptTaskId' AS kept FROM audit_event WHERE action = 'platform.task.duplicate_closed' ORDER BY resource_id",
+      ),
+    );
+    expect(audit.rows).toEqual(
+      [ids.made[1], ids.made[2]].sort().map((id) => ({ resource_id: id, kept: ids.made[0] })),
+    );
+    const details = await asOwner(TENANT_A, (c) =>
+      c.query<{ details: unknown }>("SELECT details FROM task WHERE id = $1", [ids.flagId]),
+    );
+    expect(details.rows[0]?.details).toEqual({ ownerTenantUserId: a.carer, entryCount: 2 });
+  });
+});

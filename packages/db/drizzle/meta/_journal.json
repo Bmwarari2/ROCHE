@@ -239,6 +239,20 @@
       "when": 1791783941403,
       "tag": "0033_device_discard_entry_security",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1791784268458,
+      "tag": "0034_sync_task_dedupe",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1791784308165,
+      "tag": "0035_sync_task_open_key",
+      "breakpoints": true
     }
   ]
 }

@@ -59,6 +59,13 @@ export const TaskDetails = z
       .optional(),
     /** Entries beyond the 50 listed. */
     entriesOmitted: z.number().int().optional(),
+    /**
+     * A flagged-entry task (entries uploaded after their device reported deleting them, or listed
+     * by a deletion after they reached Harbour): whose entries they are, and how many in all
+     * (care.md section 6, Device integrity part 4).
+     */
+    ownerTenantUserId: uuid.optional(),
+    entryCount: z.number().int().min(0).optional(),
     /** Missed rounds beyond the 50 listed (never a medicines round: those are all listed). */
     missedTasksOmitted: z.number().int().optional(),
     /**

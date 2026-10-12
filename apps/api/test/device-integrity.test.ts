@@ -444,3 +444,55 @@ describe("part 3: deletion lists", () => {
     expect(await flagged(theirs)).toEqual([]);
   });
 });
+
+/** The tasks a member can read through the API, from a day ago to a month ahead. */
+const tasksVisibleTo = async (who: Who) => {
+  const from = new Date(Date.now() - DAY).toISOString();
+  const to = new Date(Date.now() + 29 * DAY).toISOString();
+  return (
+    await json<{ items: { id: string; kind: string; details: Record<string, unknown> | null }[] }>(
+      await call(who, `/v1/tasks?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+    )
+  ).items;
+};
+
+describe("part 4: one open sync task per source", () => {
+  it("hazard HZ-008 raises one device task per location however many reports race", async () => {
+    const device = "0199d000-0000-4000-8000-0000000b0401";
+    // The manager has raised no device task today, so no daily cap merges this one.
+    await syncToken("manager", device);
+    const responses = await Promise.all(
+      Array.from({ length: 6 }, () => report("manager", { held: 2 }, device)),
+    );
+    expect(responses.map((r) => r.status)).toEqual(Array(6).fill(204));
+    const open = await asTenant<{ location_id: string }>(
+      "SELECT location_id FROM task WHERE source_type = 'device_hold' AND source_id = $1 AND status = 'open'",
+      [device],
+    );
+    expect(open).toEqual([{ location_id: DEMO.locationId }]);
+    const raised = await asTenant(
+      "SELECT 1 FROM audit_event WHERE action = 'sync.device_hold.raised' AND scope ->> 'deviceId' = $1",
+      [device],
+    );
+    expect(raised).toHaveLength(1);
+  });
+
+  it("hazard HZ-040 gives a flagged task its owner, count and entries in its details, returned by the task route", async () => {
+    const entries = [newId(), newId()];
+    const id = crypto.randomUUID();
+    for (const stage of ["requested", "deleted"]) {
+      await discard("carer", { id, stage, entryIds: entries, owner: DEMO.users.carer.id });
+    }
+    for (const entry of entries) expect((await noteWithId("carer", entry)).status).toBe(201);
+    const task = (await tasksVisibleTo("manager")).find(
+      (t) => t.kind === "sync.entry_reported_deleted" && t.details?.entryCount === 2,
+    );
+    expect(task?.details).toEqual({
+      ownerTenantUserId: DEMO.users.carer.id,
+      entryCount: 2,
+      entries: entries.map((entryId) => ({ kind: "care_note", entryId, at: expect.any(String) })),
+    });
+    // The care worker who uploaded them cannot see the review.
+    expect((await tasksVisibleTo("carer")).map((t) => t.id)).not.toContain(task?.id);
+  });
+});

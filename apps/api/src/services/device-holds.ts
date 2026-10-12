@@ -35,11 +35,12 @@
  * Flagged-entry tasks (one per deletion record and location, never one per entry):
  * - An entry uploaded after its own owner's device recorded deleting it ("deleted", not failed), and
  *   an entry a deletion lists that had already reached the server, are each audited and counted on
- *   one review task for the deletion record at the entry's location, carrying the count and up to 20
- *   opaque entry ids in its audit events. An entry already flagged is not flagged again under a new
- *   record. Each owner has at most 5 such tasks open at a location; past that, the entries join the
- *   oldest of them. The task is due at once when any entry is an observation (a chart), otherwise
- *   within a day (clinical review round 7, M3).
+ *   one review task for the deletion record at the entry's location, carrying its owner, the count
+ *   and up to 50 entries by kind and opaque id in `task.details` (care.md section 6, Device
+ *   integrity part 4). An entry already flagged is not flagged again under a new record. Each owner
+ *   has at most 5 such tasks open at a location; past that, the entries join the oldest of them.
+ *   The task is due at once when any entry is an observation (a chart), otherwise within a day
+ *   (clinical review round 7, M3). A partial unique index keeps one open task per source.
  */
 import type { SyncDeviceReport } from "@harbour/contracts";
 import {
@@ -100,8 +101,11 @@ export const DEVICE_HOLD_TASKS_PER_REPORTER = 3;
 export const DEVICE_HOLD_REOPEN_HOURS = 24;
 /** A refused close resets a task's escalation at most once in this many hours. */
 const DEVICE_HOLD_RESET_HOURS = 24;
-/** Opaque entry ids a flagged-entry task's audit events list; its count covers the rest. */
-export const FLAGGED_ENTRY_IDS_PER_TASK = 20;
+/**
+ * Entries a flagged-entry task lists in its details (kind and opaque id); its count covers the rest
+ * (care.md section 6, Device integrity part 4).
+ */
+export const FLAGGED_ENTRY_IDS_PER_TASK = 50;
 /** Flagged-entry tasks an owner's deletions may have open at a location; more join the oldest. */
 export const FLAGGED_ENTRY_TASKS_PER_OWNER = 5;
 /** A flagged entry with no observation among it is checked within the day (HZ-008; H-148). */
@@ -947,7 +951,10 @@ export async function recordDeviceHold(
           dueAt,
           priority: "routine",
         })
+        // One open task per device, location and assignee (part 4): a racing raise adds nothing.
+        .onConflictDoNothing()
         .returning({ id: task.id });
+      if (!created) continue;
       await auditInTx(tx, access, {
         action: DEVICE_HOLD_ACTIONS.raised,
         resourceType: "task",
@@ -1028,6 +1035,7 @@ async function mergeCappedHold(
         dueAt: input.dueAt,
         priority: "routine",
       })
+      .onConflictDoNothing()
       .returning({ id: task.id });
     if (!created) continue;
     ids.push(created.id);
@@ -1226,7 +1234,7 @@ export function flaggedDue(entries: readonly FlaggedEntry[], now: Date): Date {
 const atLocation = (locationId: string | null) =>
   locationId ? eq(task.locationId, locationId) : isNull(task.locationId);
 
-/** This owner's open flagged-entry tasks at a location, oldest first (ids only). */
+/** This owner's open flagged-entry tasks at a location, oldest first, read from their details. */
 async function openFlaggedTasksOf(
   tx: Transaction,
   owner: string,
@@ -1242,19 +1250,44 @@ async function openFlaggedTasksOf(
         atLocation(locationId),
         inArray(task.status, OPEN_STATUSES),
         isNull(task.deletedAt),
-        sql`EXISTS (
-          SELECT 1 FROM audit_event a
-          WHERE a.tenant_id = ${task.tenantId} AND a.resource_type = 'task'
-            AND a.resource_id = ${task.id}::text AND a.action = ${ENTRY_FLAG_ACTIONS.raised}
-            AND a.scope ->> 'ownerTenantUserId' = ${owner})`,
+        sql`${task.details} ->> 'ownerTenantUserId' = ${owner}`,
       ),
     )
     .orderBy(asc(task.createdAt));
 }
 
 /**
- * Adds entries to an open flagged-entry task: its count grows, up to 20 more ids are listed in its
- * audit event, and its due time comes forward when the new entries call for it.
+ * A flagged-entry task's details (care.md section 6, Device integrity part 4): whose deleted
+ * entries they are, how many, and up to `FLAGGED_ENTRY_IDS_PER_TASK` of them by kind and opaque id,
+ * the rest counted (`TaskDetails` in packages/contracts). Never clinical text.
+ */
+export function flaggedDetails(
+  before: unknown,
+  owner: string,
+  entries: readonly FlaggedEntry[],
+  now: Date,
+): Record<string, unknown> {
+  const was = (before ?? {}) as Record<string, unknown>;
+  const listed = Array.isArray(was.entries) ? (was.entries as unknown[]) : [];
+  const room = Math.max(0, FLAGGED_ENTRY_IDS_PER_TASK - listed.length);
+  const added = entries
+    .slice(0, room)
+    .map((e) => ({ kind: e.resourceType, entryId: e.id, at: now.toISOString() }));
+  const omitted =
+    (typeof was.entriesOmitted === "number" ? was.entriesOmitted : 0) +
+    (entries.length - added.length);
+  return {
+    ...was,
+    ownerTenantUserId: typeof was.ownerTenantUserId === "string" ? was.ownerTenantUserId : owner,
+    entryCount: (typeof was.entryCount === "number" ? was.entryCount : 0) + entries.length,
+    entries: [...listed, ...added],
+    ...(omitted > 0 ? { entriesOmitted: omitted } : {}),
+  };
+}
+
+/**
+ * Adds entries to an open flagged-entry task: its count and list grow in its details, and its due
+ * time comes forward when the new entries call for it. The audit event says how many were added.
  */
 async function addToFlaggedTask(
   tx: Transaction,
@@ -1262,28 +1295,32 @@ async function addToFlaggedTask(
   target: TaskRow,
   input: {
     readonly discardId: string;
+    readonly ownerTenantUserId: string;
     readonly entries: readonly FlaggedEntry[];
     readonly merged: boolean;
     readonly now: Date;
     readonly requestId: string | undefined;
   },
 ): Promise<void> {
-  const last = await latestTaskEvent(
-    tx,
-    [target.id],
-    [ENTRY_FLAG_ACTIONS.raised, ENTRY_FLAG_ACTIONS.added],
+  const [locked] = await tx
+    .select({ details: task.details, dueAt: task.dueAt })
+    .from(task)
+    .where(eq(task.id, target.id))
+    .for("update");
+  const details = flaggedDetails(
+    locked?.details ?? target.details,
+    input.ownerTenantUserId,
+    input.entries,
+    input.now,
   );
-  const count = (scopeNumber(last?.scope, "count") ?? 0) + input.entries.length;
-  const listedBefore = scopeNumber(last?.scope, "listed") ?? 0;
-  const entryIds = input.entries
-    .slice(0, Math.max(0, FLAGGED_ENTRY_IDS_PER_TASK - listedBefore))
-    .map((e) => e.id);
+  const count = details.entryCount as number;
   const due = flaggedDue(input.entries, input.now);
-  const sooner = due.getTime() < target.dueAt.getTime();
+  const sooner = due.getTime() < (locked?.dueAt ?? target.dueAt).getTime();
   await tx
     .update(task)
     .set({
       title: flaggedTitle(target.kind, count),
+      details,
       ...(sooner ? { dueAt: due, windowEnd: due } : {}),
     })
     .where(eq(task.id, target.id));
@@ -1294,8 +1331,7 @@ async function addToFlaggedTask(
     scope: {
       discardId: input.discardId,
       count,
-      listed: listedBefore + entryIds.length,
-      entryIds,
+      added: input.entries.length,
       ...(input.merged ? { merged: true } : {}),
       ...(sooner ? { dueAt: due.toISOString() } : {}),
     },
@@ -1346,13 +1382,17 @@ async function raiseFlaggedTaskAt(
       ),
     )
     .limit(1);
-  const add = { discardId: input.discardId, entries: input.entries, now: input.now };
+  const add = {
+    discardId: input.discardId,
+    ownerTenantUserId: input.ownerTenantUserId,
+    entries: input.entries,
+    now: input.now,
+  };
   if (open) {
     await addToFlaggedTask(tx, access, open, { ...add, merged: false, requestId: input.requestId });
     return { outcome: "added", taskId: open.id };
   }
 
-  const entryIds = input.entries.slice(0, FLAGGED_ENTRY_IDS_PER_TASK).map((e) => e.id);
   const owners = await openFlaggedTasksOf(tx, input.ownerTenantUserId, input.locationId);
   const oldest = owners[0];
   if (oldest && owners.length >= FLAGGED_ENTRY_TASKS_PER_OWNER) {
@@ -1372,7 +1412,6 @@ async function raiseFlaggedTaskAt(
         locationId: input.locationId,
         open: owners.length,
         count: input.entries.length,
-        entryIds,
         mergedInto: oldest.id,
       },
       requestId: input.requestId,
@@ -1387,7 +1426,8 @@ async function raiseFlaggedTaskAt(
     return { outcome: "merged", taskId: oldest.id };
   }
 
-  // Overdue, it escalates once to the holders of its permission at its location (HZ-008).
+  // Overdue, it escalates once to the holders of its permission at its location (HZ-008). The
+  // open-task index takes a racing second raise as the first one's task (part 4).
   const due = flaggedDue(input.entries, input.now);
   const [created] = await tx
     .insert(task)
@@ -1403,9 +1443,33 @@ async function raiseFlaggedTaskAt(
       windowStart: input.now,
       windowEnd: due,
       priority: "routine",
+      details: flaggedDetails(null, input.ownerTenantUserId, input.entries, input.now),
     })
+    .onConflictDoNothing()
     .returning({ id: task.id });
-  if (!created) throw new Error("The flagged-entry task was not created.");
+  if (!created) {
+    const [raced] = await tx
+      .select()
+      .from(task)
+      .where(
+        and(
+          eq(task.kind, input.kind),
+          eq(task.sourceType, FLAGGED_ENTRY_SOURCE),
+          eq(task.sourceId, input.discardId),
+          atLocation(input.locationId),
+          inArray(task.status, OPEN_STATUSES),
+          isNull(task.deletedAt),
+        ),
+      )
+      .limit(1);
+    if (!raced) throw new Error("The flagged-entry task was not created.");
+    await addToFlaggedTask(tx, access, raced, {
+      ...add,
+      merged: false,
+      requestId: input.requestId,
+    });
+    return { outcome: "added", taskId: raced.id };
+  }
   await auditInTx(tx, access, {
     action: ENTRY_FLAG_ACTIONS.raised,
     resourceType: "task",
@@ -1414,8 +1478,6 @@ async function raiseFlaggedTaskAt(
       discardId: input.discardId,
       ownerTenantUserId: input.ownerTenantUserId,
       count: input.entries.length,
-      listed: entryIds.length,
-      entryIds,
       locationId: input.locationId,
       dueAt: due.toISOString(),
     },

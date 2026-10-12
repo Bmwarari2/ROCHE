@@ -5811,6 +5811,14 @@
           "entriesOmitted": {
             "type": "integer"
           },
+          "ownerTenantUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entryCount": {
+            "type": "integer",
+            "minimum": 0
+          },
           "missedTasksOmitted": {
             "type": "integer"
           },
