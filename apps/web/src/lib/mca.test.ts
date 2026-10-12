@@ -1,9 +1,27 @@
-import { ConsentDecisionKind, DolsStatus } from "@harbour/contracts";
+import { BestInterestsItemKey, ConsentDecisionKind, DolsStatus } from "@harbour/contracts";
+import { BEST_INTERESTS_CHECKLIST, FUNCTIONAL_ELEMENT_WORDING } from "@harbour/domain";
 import { createTranslator } from "@harbour/i18n";
 import { describe, expect, it } from "vitest";
-import { consentChip, dolsChip, dolsClock, dolsCqcLine, dolsReminders } from "./mca";
+import {
+  BEST_INTERESTS_ITEMS,
+  capacityChip,
+  checklistAnswered,
+  consentChip,
+  consentGivenBy,
+  consentRecordChip,
+  consentRecordState,
+  dolsChip,
+  dolsClock,
+  dolsCqcLine,
+  dolsReminders,
+  FUNCTIONAL_ELEMENTS,
+  reviewOverdue,
+  staffName,
+} from "./mca";
 
 const t = createTranslator("en-GB");
+const RECORD = "0194d000-0000-7000-8600-0000000000c1";
+const OTHER = "0194d000-0000-7000-8600-0000000000c2";
 
 describe("consent by decision (care.md rule 9)", () => {
   it("names every decision the API lists", () => {
@@ -121,5 +139,109 @@ describe("DoLS register (care.md rule 11)", () => {
       "CQC notification needed but not drafted. Tell the Registered Manager.",
     );
     expect(dolsCqcLine(cqc({ required: false, reason: "Not yet." }), t)).toBe("Not yet.");
+  });
+});
+
+describe("consent records (care.md rule 9)", () => {
+  const decisions = [
+    { decision: "bed_rails" as const, status: "valid" as const, recordId: RECORD },
+    { decision: "photos" as const, status: "none" as const, recordId: RECORD },
+  ];
+  const record = (over: Partial<Parameters<typeof consentRecordState>[0]>) => ({
+    id: RECORD,
+    decision: "bed_rails" as const,
+    withdrawnAt: null,
+    expiresAt: null,
+    ...over,
+  });
+  const now = new Date("2026-10-12T09:00:00Z");
+
+  it.each([
+    ["the record deciding a valid consent", record({}), "in_force", "In force"],
+    [
+      "a record a later one replaced",
+      record({ id: OTHER }),
+      "replaced",
+      "Replaced by a later record",
+    ],
+    [
+      "a withdrawn record",
+      record({ withdrawnAt: "2026-10-01T09:00:00Z" }),
+      "withdrawn",
+      "Withdrawn",
+    ],
+    [
+      "an expired deciding record",
+      record({ decision: "photos", expiresAt: "2026-10-01T09:00:00Z" }),
+      "expired",
+      "Expired",
+    ],
+    [
+      "a deciding record that is not valid",
+      record({ decision: "photos" }),
+      "not_valid",
+      "Not valid",
+    ],
+  ] as const)("hazard HZ-026 says where %s stands", (_name, item, state, label) => {
+    const found = consentRecordState(item, decisions, now);
+    expect(found).toBe(state);
+    expect(consentRecordChip(found, t).label).toBe(label);
+  });
+
+  it("names the representative with their authority, or the person", () => {
+    const representative = {
+      kind: "lpa_health_welfare" as const,
+      name: "Sam Example",
+      excludedDecisions: [],
+      deputyDecisions: [],
+    };
+    expect(consentGivenBy({ givenBy: "representative", representative }, "Else", t)).toBe(
+      "Sam Example (health and welfare attorney)",
+    );
+    expect(consentGivenBy({ givenBy: "person", representative: null }, "Else", t)).toBe("Else");
+  });
+
+  it("names staff with their job title when there is one", () => {
+    const staff = { id: RECORD, displayName: "Nell Nurse", jobTitle: "Clinical lead" };
+    expect(staffName(staff, t)).toBe("Nell Nurse, Clinical lead");
+    expect(staffName({ ...staff, jobTitle: null }, t)).toBe("Nell Nurse");
+  });
+});
+
+describe("capacity and best interests (care.md rules 9 and 10)", () => {
+  it("keeps the functional test and the section 4 checklist in the domain's order", () => {
+    expect([...FUNCTIONAL_ELEMENTS]).toEqual(Object.keys(FUNCTIONAL_ELEMENT_WORDING));
+    expect([...BEST_INTERESTS_ITEMS]).toEqual(BEST_INTERESTS_CHECKLIST.map((item) => item.key));
+    expect([...BEST_INTERESTS_ITEMS].sort()).toEqual([...BestInterestsItemKey.options].sort());
+    const items = BEST_INTERESTS_ITEMS.map((item) => t("care.mca.bi.item", { item }));
+    expect(new Set(items).size).toBe(BEST_INTERESTS_ITEMS.length);
+  });
+
+  it("hazard HZ-026 shows the outcome in words, as a finding rather than an alarm", () => {
+    expect(capacityChip("lacks_capacity", t)).toMatchObject({
+      status: "info",
+      label: "Lacks capacity for this decision",
+    });
+    expect(capacityChip("has_capacity", t)).toMatchObject({
+      status: "neutral",
+      label: "Has capacity for this decision",
+    });
+  });
+
+  it("compares review dates as UK dates", () => {
+    expect(reviewOverdue("2026-10-11", "2026-10-12")).toBe(true);
+    expect(reviewOverdue("2026-10-12", "2026-10-12")).toBe(false);
+    expect(reviewOverdue(null, "2026-10-12")).toBe(false);
+  });
+
+  it("counts the checklist items answered", () => {
+    expect(
+      checklistAnswered({
+        checklist: {
+          relevant_circumstances: { answer: "considered", note: "Asked about home." },
+          life_sustaining_treatment: { answer: "not_applicable", reason: "Not treatment." },
+        },
+      }),
+    ).toBe(2);
   });
 });

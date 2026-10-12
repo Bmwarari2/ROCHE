@@ -1,4 +1,11 @@
-import type { ConsentDecisionStatus, DolsItem } from "@harbour/contracts";
+import type {
+  BestInterestsItem,
+  ConsentDecisionStatus,
+  ConsentItem,
+  CreateCapacityAssessment,
+  DolsItem,
+  StaffName,
+} from "@harbour/contracts";
 import type { Translator } from "@harbour/i18n";
 import { formatDateTime } from "./format";
 
@@ -15,10 +22,20 @@ export type McaIcon =
   | "circle-alert"
   | "circle-minus"
   | "ban"
-  | "clock";
+  | "clock"
+  | "history"
+  | "user-check"
+  | "user-x";
 
 export interface McaChip {
-  readonly status: "overdue" | "due" | "done" | "notApplicable" | "notRecorded" | "info";
+  readonly status:
+    | "overdue"
+    | "due"
+    | "done"
+    | "notApplicable"
+    | "notRecorded"
+    | "info"
+    | "neutral";
   readonly icon: McaIcon;
   readonly label: string;
 }
@@ -44,6 +61,108 @@ export function consentChip(
   return nothing
     ? { status: "notRecorded", icon: "circle-help", label: label("none") }
     : { status: "overdue", icon: "circle-alert", label: label("invalid") };
+}
+
+export type ConsentRecordState =
+  | "in_force"
+  | "refused"
+  | "not_valid"
+  | "withdrawn"
+  | "expired"
+  | "replaced";
+
+/**
+ * Where one consent record stands: the record that decides its decision now (the latest), or
+ * replaced by a later one. A withdrawal or an expiry says so; the deciding record's validity is
+ * the API's.
+ */
+export function consentRecordState(
+  item: Pick<ConsentItem, "id" | "decision" | "withdrawnAt" | "expiresAt">,
+  decisions: readonly Pick<ConsentDecisionStatus, "decision" | "status" | "recordId">[],
+  now: Date = new Date(),
+): ConsentRecordState {
+  if (item.withdrawnAt) return "withdrawn";
+  const deciding = decisions.find((d) => d.decision === item.decision);
+  if (deciding?.recordId !== item.id) return "replaced";
+  if (deciding.status === "valid") return "in_force";
+  if (deciding.status === "refused") return "refused";
+  return item.expiresAt && Date.parse(item.expiresAt) <= now.getTime() ? "expired" : "not_valid";
+}
+
+const RECORD_CHIPS: Record<ConsentRecordState, Omit<McaChip, "label">> = {
+  in_force: { status: "done", icon: "circle-check" },
+  refused: { status: "info", icon: "ban" },
+  not_valid: { status: "overdue", icon: "circle-alert" },
+  withdrawn: { status: "notApplicable", icon: "circle-minus" },
+  expired: { status: "notApplicable", icon: "clock" },
+  replaced: { status: "notApplicable", icon: "history" },
+};
+
+export function consentRecordChip(state: ConsentRecordState, t: Translator): McaChip {
+  return { ...RECORD_CHIPS[state], label: t("care.mca.consent.record", { state }) };
+}
+
+/** Who gave or refused consent: the person, or the representative with their authority. */
+export function consentGivenBy(
+  item: Pick<ConsentItem, "givenBy" | "representative">,
+  personName: string,
+  t: Translator,
+): string {
+  if (item.givenBy === "person") return personName;
+  return t("care.mca.consent.representative", {
+    name: item.representative?.name ?? t("common.notRecorded"),
+    kind: item.representative?.kind ?? "other",
+  });
+}
+
+/** "Nell Nurse, Clinical lead", or the name alone. */
+export function staffName(staff: StaffName, t: Translator): string {
+  return staff.jobTitle
+    ? t("care.mca.nameAndRole", { name: staff.displayName, role: staff.jobTitle })
+    : staff.displayName;
+}
+
+// ------------------------------------------------------------------------------------------------
+// Capacity and best interests (rules 9 and 10)
+// ------------------------------------------------------------------------------------------------
+
+/** The four abilities of the functional test (Mental Capacity Act 2005 s.3(1)), in its order. */
+export const FUNCTIONAL_ELEMENTS = [
+  "understand",
+  "retain",
+  "useOrWeigh",
+  "communicate",
+] as const satisfies readonly (keyof CreateCapacityAssessment["stage2"])[];
+
+/** The section 4 checklist items, in the order the API's checklist takes them. */
+export const BEST_INTERESTS_ITEMS = [
+  "no_unjustified_assumptions",
+  "relevant_circumstances",
+  "regaining_capacity",
+  "participation",
+  "life_sustaining_treatment",
+  "wishes_and_feelings",
+  "beliefs_and_values",
+  "other_factors",
+  "views_of_others",
+  "less_restrictive_option",
+] as const satisfies readonly (keyof BestInterestsItem["checklist"])[];
+
+/** The outcome of a capacity assessment as the two-stage test found it: a finding, not an alarm. */
+export function capacityChip(outcome: "has_capacity" | "lacks_capacity", t: Translator): McaChip {
+  return outcome === "has_capacity"
+    ? { status: "neutral", icon: "user-check", label: t("care.mca.capacity.outcome", { outcome }) }
+    : { status: "info", icon: "user-x", label: t("care.mca.capacity.outcome", { outcome }) };
+}
+
+/** A review date that has passed (compared as UK dates). */
+export function reviewOverdue(reviewOn: string | null, today: string): boolean {
+  return reviewOn !== null && reviewOn < today;
+}
+
+/** How many of the section 4 checklist items were answered. */
+export function checklistAnswered(item: Pick<BestInterestsItem, "checklist">): number {
+  return BEST_INTERESTS_ITEMS.filter((key) => item.checklist[key] !== undefined).length;
 }
 
 // ------------------------------------------------------------------------------------------------
