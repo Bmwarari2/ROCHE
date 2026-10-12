@@ -656,3 +656,26 @@ describe("existing tenants' role copies gain the hand-over permission (migration
     ]);
   });
 });
+
+describe("hazard HZ-011 shared request limits (part 7)", () => {
+  const hit = (c: pg.PoolClient, user: string) =>
+    c.query(
+      `INSERT INTO request_quota (quota, tenant_user_id, hits) VALUES ('sync.reports', $1, '[{"at": 1, "amount": 1}]')`,
+      [user],
+    );
+  const owners = (c: pg.PoolClient) =>
+    c
+      .query<{ tenant_user_id: string }>("SELECT tenant_user_id FROM request_quota ORDER BY 1")
+      .then((r) => r.rows.map((row) => row.tenant_user_id));
+
+  it("counts a member's own requests in their own view, and nobody else's", async () => {
+    await asCarer((c) => hit(c, a.carer));
+    await expect(asCarer((c) => hit(c, a.manager))).rejects.toThrow(/row-level security/);
+    await asSystem((c) => hit(c, a.northManager));
+    expect(await asCarer(owners)).toEqual([a.carer]);
+    expect(await asSystem(owners)).toEqual([a.carer, a.northManager].sort());
+    expect(await asOtherTenant(owners)).toEqual([]);
+    // One row per member and limit.
+    await expect(asCarer((c) => hit(c, a.carer))).rejects.toThrow(/request_quota_key/);
+  });
+});

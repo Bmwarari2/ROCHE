@@ -1028,8 +1028,8 @@ through recorded sharing decisions ([people.md](people.md)).
   care entries, a hand-over still taken; part 3: the flag from `device_discard_entry`; part 4: one
   task per source under racing raises, details on flagged tasks; part 5: the copy, its review task,
   its scope, replays and limits; part 6: the hand-over rules; part 7: quotas shared by two app
-  instances); `apps/api/test/quota.test.ts` (the sliding window); `apps/mobile/src/sync/connector.test.ts`
-  (a `device_revoked` refusal), `app-state/held-work.test.ts` (wiping or holding a revoked device,
+  instances); `apps/api/test/rate-limit.test.ts` (the sliding window);
+  `apps/mobile/src/sync/connector.test.ts` (a `device_revoked` refusal), `app-state/held-work.test.ts` (wiping or holding a revoked device,
   a revoked hold refusing the owner's resume), `app-state/handover.test.ts` (the hand-over) and
   `sync/refused-copies.test.ts` (sending each refusal's copy, and again until the server has it).
 

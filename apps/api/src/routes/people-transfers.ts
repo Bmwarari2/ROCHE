@@ -239,7 +239,8 @@ async function itemsToSend(tx: Transaction, personId: string, ids: readonly stri
 /** Limits the caller, then decides an older photo's printability before any transaction (S2). */
 async function beforePack(c: Context<AppEnv>, access: TenantAccess, personId: string) {
   // The pack routes build a snapshot and may print a photo: a per-user limit (S2).
-  requireWithinLimit(c.get("services").transferPackLimiter, `${access.tenantUserId}:transfer-pack`);
+  const { db, transferPackLimiter } = c.get("services");
+  await requireWithinLimit(db, access, transferPackLimiter);
   await decidePhotoPrintable((fn) => withTenant(c, fn), c.get("services").storage, personId);
 }
 
@@ -530,10 +531,7 @@ export const peopleTransfersRouter = createRouter()
       const access = await requirePermission(c, "people.movement.record");
       const { id, transferId } = c.req.valid("param");
       const { storage } = c.get("services");
-      requireWithinLimit(
-        c.get("services").transferPackLimiter,
-        `${access.tenantUserId}:transfer-pack`,
-      );
+      await requireWithinLimit(c.get("services").db, access, c.get("services").transferPackLimiter);
       // Everything from the database in one short transaction; the photo is read and decoded and
       // the PDF drawn after it ends, so no connection is held while the CPU works (S2).
       const read = await withTenant(c, async (tx) => {

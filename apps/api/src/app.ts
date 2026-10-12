@@ -85,8 +85,16 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     operatorPool,
     auth: createAuth(config, authPool),
     ...createDocumentServices(config),
-    transferPackLimiter: new RateLimiter(config.TRANSFER_PACK_REQUESTS_PER_MINUTE, 60_000),
-    handoverCompileLimiter: new RateLimiter(config.HANDOVER_COMPILE_REQUESTS_PER_MINUTE, 60_000),
+    transferPackLimiter: new RateLimiter(
+      "transfer_pack",
+      config.TRANSFER_PACK_REQUESTS_PER_MINUTE,
+      60_000,
+    ),
+    handoverCompileLimiter: new RateLimiter(
+      "handover_compile",
+      config.HANDOVER_COMPILE_REQUESTS_PER_MINUTE,
+      60_000,
+    ),
   };
   const signer = new SyncTokenSigner(config.SYNC_SIGNING_KEY_ID, config.SYNC_SIGNING_KEY_PEM);
 

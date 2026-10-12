@@ -3,10 +3,13 @@ import {
   DEVICE_HEADER,
   HANDOVER_ID_HEADER,
   HANDOVER_OWNER_HEADER,
+  TENANT_HEADER,
 } from "@harbour/contracts";
 import { DEVICE_REVOCATION_REASONS as TABLE_REASONS } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createApp } from "../src/app";
+import { createLogger } from "../src/logger";
 import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 
 /**
@@ -885,4 +888,50 @@ describe("part 6: hand-over of held entries", () => {
     ]);
     expect(own?.status).toBe("done");
   });
+});
+
+describe("part 7: shared per-user quotas", () => {
+  it("hazard HZ-023 counts a member's requests across every API instance, in request_quota", async () => {
+    // A second instance over the same database, as a second container behind the load balancer.
+    const second = createApp(h.handle.services.config, createLogger("silent"));
+    try {
+      const device = "0199d000-0000-4000-8000-0000000b0701";
+      const viaSecond = () =>
+        second.app.request("/v1/sync/device-report", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${h.tokens.quality}`,
+            [TENANT_HEADER]: DEMO.tenantId,
+            [DEVICE_HEADER]: device,
+          },
+          body: JSON.stringify({
+            unsent: 0,
+            refused: 0,
+            held: 0,
+            blocked: 0,
+            oldestAgeSeconds: null,
+            reportedAt: new Date().toISOString(),
+          }),
+        });
+      // 120 reports an hour (REPORTS_PER_HOUR), half through each instance.
+      for (let i = 0; i < 60; i += 1) {
+        expect((await report("quality", {}, device)).status).toBe(204);
+        expect((await viaSecond()).status).toBe(204);
+      }
+      for (const refused of [await report("quality", {}, device), await viaSecond()]) {
+        expect(refused.status).toBe(429);
+        expect(Number(refused.headers.get("retry-after"))).toBeGreaterThan(0);
+      }
+      const rows = await asTenant<{ quota: string; hits: unknown[] }>(
+        "SELECT quota, hits FROM request_quota WHERE tenant_user_id = $1",
+        [LODGE.qualityLeadId],
+      );
+      expect(rows.map((r) => [r.quota, r.hits.length])).toEqual([["sync.reports", 120]]);
+      // Someone else's limit is their own.
+      expect((await report("manager", {}, device)).status).toBe(204);
+    } finally {
+      await second.close();
+    }
+  }, 60_000);
 });

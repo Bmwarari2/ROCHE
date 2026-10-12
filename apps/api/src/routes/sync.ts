@@ -66,10 +66,14 @@ import { createRouter, errorResponses, jsonBody, security } from "./openapi";
 const WRITABLE_TABLES = new Set<string>();
 
 export function createSyncRouter(signer: SyncTokenSigner) {
-  const discardQuota = new PerUserQuota(DISCARDS_PER_HOUR, HOUR_MS);
-  const discardRecordsQuota = new PerUserQuota(DISCARD_RECORDS_PER_DAY, DAY_MS);
-  const discardIdsQuota = new PerUserQuota(DISCARD_IDS_PER_DAY, DAY_MS);
-  const reportQuota = new PerUserQuota(REPORTS_PER_HOUR, HOUR_MS);
+  const discardQuota = new PerUserQuota("sync.discards", DISCARDS_PER_HOUR, HOUR_MS);
+  const discardRecordsQuota = new PerUserQuota(
+    "sync.discard_records",
+    DISCARD_RECORDS_PER_DAY,
+    DAY_MS,
+  );
+  const discardIdsQuota = new PerUserQuota("sync.discard_ids", DISCARD_IDS_PER_DAY, DAY_MS);
+  const reportQuota = new PerUserQuota("sync.reports", REPORTS_PER_HOUR, HOUR_MS);
   return createRouter()
     .openapi(
       createRoute({
@@ -225,7 +229,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
       }),
       async (c) => {
         const access = await requirePermission(c, "care.note.write");
-        discardQuota.take(access.tenantUserId);
+        await withTenant(c, (tx) => discardQuota.take(tx, access.tenantUserId));
         const body = c.req.valid("json");
         // Who deleted, as the device recorded it; unknown stays unknown in the record (security
         // review round 5, S-L2). For the permission decision only, an unknown deleter is the caller.
@@ -298,9 +302,9 @@ export function createSyncRouter(signer: SyncTokenSigner) {
           // A new deletion counts against the sender's day: one record, and its entry ids (S-M2;
           // security review round 6, M2 remainder).
           if (!earliest) {
-            discardRecordsQuota.check(access.tenantUserId);
-            discardIdsQuota.take(access.tenantUserId, body.entryIds.length);
-            discardRecordsQuota.take(access.tenantUserId);
+            await discardRecordsQuota.check(tx, access.tenantUserId);
+            await discardIdsQuota.take(tx, access.tenantUserId, body.entryIds.length);
+            await discardRecordsQuota.take(tx, access.tenantUserId);
           }
           // A failure supersedes the request it follows (clinical review round 4, H1).
           const requested = recorded.find((r) => r.action === DISCARD_ACTIONS.requested);
@@ -405,7 +409,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         // care routes.
         const access = c.get("access");
         if (!access.mfaSatisfied) throw problems.mfaRequired();
-        reportQuota.take(access.tenantUserId);
+        await withTenant(c, (tx) => reportQuota.take(tx, access.tenantUserId));
         const report = c.req.valid("json");
         const receivedAt = new Date();
         // The hold's owner must be staff of this organisation (row-level security keeps the lookup

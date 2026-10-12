@@ -369,9 +369,10 @@ export const handoversRouter = createRouter()
     }),
     async (c) => {
       const access = await requirePermission(c, PERMISSION);
-      requireWithinLimit(
+      await requireWithinLimit(
+        c.get("services").db,
+        access,
         c.get("services").handoverCompileLimiter,
-        `${access.tenantUserId}:handover-compile`,
       );
       const { id: locationId } = c.req.valid("param");
       const body = c.req.valid("json");

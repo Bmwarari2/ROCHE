@@ -601,3 +601,31 @@ export const recordVersion = pgTable(
   },
   (t) => [index("record_version_record_idx").on(t.tenantId, t.tableName, t.recordId)],
 );
+
+/**
+ * Per-user request limits shared by every API instance (care.md section 6, Device integrity part
+ * 7; platform.md): one row per member and limit, holding the recent hits (`[{ at, amount }]`, epoch
+ * milliseconds) inside the limit's window, read and rewritten under a row lock. Operational: a row
+ * holds at most a window's hits and is overwritten in place, never exported.
+ */
+export const requestQuota = pgTable(
+  "request_quota",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    /** The limit's name, for example `sync.reports` or `transfer_pack`. */
+    quota: text("quota").notNull(),
+    tenantUserId: uuid("tenant_user_id").notNull(),
+    hits: jsonb("hits").notNull().default(sql`'[]'::jsonb`),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("request_quota_key").on(t.tenantId, t.quota, t.tenantUserId),
+    foreignKey({
+      name: "request_quota_user_fk",
+      columns: [t.tenantId, t.tenantUserId],
+      foreignColumns: [tenantUser.tenantId, tenantUser.id],
+    }),
+    check("request_quota_hits", sql`jsonb_typeof(hits) = 'array'`),
+  ],
+);

@@ -2945,6 +2945,17 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
     },
   },
+  "public.request_quota": {
+    context: "platform",
+    description:
+      "Each member of staff's recent requests against the API's per-user limits, shared by every API instance.",
+    treatment: "not_exported",
+    retention: "operational",
+    personal: true,
+    reasonNotExported:
+      "Operational rate-limit counters: a row holds at most one window's request times and is overwritten in place, so it records nothing about care or the organisation.",
+    columns: {},
+  },
   "public.retention_class": {
     context: "platform",
     description: "The organisation's retention overrides (the defaults are in retention.md).",

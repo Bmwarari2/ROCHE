@@ -33,7 +33,7 @@ const COPIES_PER_DAY = 200;
 const DAY_MS = 86_400_000;
 
 export function createRefusedEntriesRouter() {
-  const copyQuota = new PerUserQuota(COPIES_PER_DAY, DAY_MS);
+  const copyQuota = new PerUserQuota("sync.refused_copies", COPIES_PER_DAY, DAY_MS);
   return createRouter()
     .openapi(
       createRoute({
@@ -56,7 +56,7 @@ export function createRefusedEntriesRouter() {
         // A manager handing over another member's held entries sends their refusals' copies too,
         // in the owner's name (care.md section 6, Device integrity part 6).
         const handover = await heldHandoverOf(c, access);
-        copyQuota.take(access.tenantUserId);
+        await withTenant(c, (tx) => copyQuota.take(tx, access.tenantUserId));
         const result = await copyRefusedEntry(c.get("services").db, access, body, {
           author: handover?.ownerTenantUserId ?? access.tenantUserId,
           deviceId: access.deviceId,
