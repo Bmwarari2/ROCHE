@@ -1153,16 +1153,21 @@ Stacked on #32. Migration 0053 (numbered after Lane C's 0052):
 
 ## 2026-10-13: Slice 11 part 3a, downtime pack API (OPS-028)
 
-Stacked on part 2. The downtime pack through the API (operations.md sections 5, 12 and 13):
+Stacked on part 2. `GET` and `POST /v1/locations/{id}/downtime-pack` (JSON or PDF;
+operations.md section 13): the latest pack the reader can open, built again on the spot when it no
+longer serves the people receiving care there, with the freshness header worked out now on every
+printed page; the PDF is never stored. The pack PDF writer gains a header on every page, page
+breaks and a footer naming whose page it is (HZ-001); shared allergy, communication and rate
+helpers; unconfirmed MAR and PEEP places print as not set.
 
-- `GET` and `POST /v1/locations/{id}/downtime-pack` (JSON or PDF): the latest pack the reader can
-  open, built again on the spot when it no longer serves the people receiving care there, with the
-  freshness header worked out now on every printed page; the PDF is never stored.
-- The nightly job (hourly catch-up, once per location and UK night) and a system rebuild after
-  people lifecycle events (`server_rebuild`, migration 0054).
-- `PUT /v1/locations/{id}/downtime-places`: where the paper MAR and PEEPs are kept, confirmed by a
-  holder of `platform.location.manage`; unconfirmed places print as not set and raise a task.
-- The pack PDF writer gains a header on every page, page breaks and a footer naming whose page it
-  is (HZ-001); shared allergy, communication and rate helpers.
+**Tests**: `apps/api` 5 new in `downtime.test.ts`; HZ-021's planned API test now passes.
 
-**Tests**: `apps/api` 7 new in `downtime.test.ts`; HZ-021's planned API tests now pass.
+## 2026-10-13: Slice 11 part 3b, nightly packs, rebuilds and places (OPS-028)
+
+Stacked on part 3a (operations.md section 13): the nightly job (hourly catch-up, once per location
+and UK night, each location in its own savepoint); a system rebuild after people lifecycle events
+(`server_rebuild`, migration 0054) at both the old and the new location; `PUT
+/v1/locations/{id}/downtime-places`, confirmed by a holder of `platform.location.manage`, with the
+task the nightly job keeps open while the places are unconfirmed.
+
+**Tests**: `apps/api` 2 more in `downtime.test.ts` and the places route in a third.
