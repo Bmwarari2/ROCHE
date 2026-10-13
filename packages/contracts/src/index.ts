@@ -67,6 +67,37 @@ export const DeviceSessionList = z
   .meta({ id: "DeviceSessionList" });
 export type DeviceSessionList = z.infer<typeof DeviceSessionList>;
 
+/** Why a manager signed a member of staff out of every device: a code, never words. */
+export const MEMBER_SIGN_OUT_REASONS = [
+  "lost_or_stolen_device",
+  "staff_left",
+  "suspended",
+  "suspected_misuse",
+  "other",
+] as const;
+
+export const RevokeMemberSessions = z
+  .object({
+    reasonCode: z.enum(MEMBER_SIGN_OUT_REASONS),
+    /**
+     * True once the manager has been told how many entries the member's devices last reported
+     * waiting: they stay on each device, protected, until the member signs in again to send them.
+     */
+    confirmEntriesWaiting: z.boolean().optional(),
+  })
+  .meta({ id: "RevokeMemberSessions" });
+export type RevokeMemberSessions = z.infer<typeof RevokeMemberSessions>;
+
+export const RevokeMemberSessionsResult = z
+  .object({
+    /** Sessions ended, on every device and in every organisation the person belongs to. */
+    revoked: z.number().int().min(0),
+    /** Entries the member's devices last reported waiting (0 when none). */
+    entriesWaiting: z.number().int().min(0),
+  })
+  .meta({ id: "RevokeMemberSessionsResult" });
+export type RevokeMemberSessionsResult = z.infer<typeof RevokeMemberSessionsResult>;
+
 export const LocationSummary = z
   .object({
     id: uuid,

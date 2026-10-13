@@ -84,7 +84,8 @@ async function ownerTx(pool: pg.Pool, tenantId: string, ...statements: Statement
   }
 }
 
-export async function createHarness(): Promise<Harness> {
+/** `env`: extra configuration for this harness's app (for example a setting that is off by default). */
+export async function createHarness(env: Record<string, string> = {}): Promise<Harness> {
   const db = await createTestDatabase();
   const owner = db.pool("harbour_owner");
   const specs = fileURLToPath(new URL("../../../../docs/specs/", import.meta.url));
@@ -158,6 +159,7 @@ export async function createHarness(): Promise<Harness> {
     LOCAL_DOCUMENTS_DIR: mkdtempSync(join(tmpdir(), "harbour-documents-")),
     TRANSFER_PACK_REQUESTS_PER_MINUTE: "1000",
     HANDOVER_COMPILE_REQUESTS_PER_MINUTE: "1000",
+    ...env,
   });
   const handle = createApp(config, createLogger("silent"));
 

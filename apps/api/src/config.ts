@@ -63,6 +63,12 @@ const Env = z.object({
   FLAGSMITH_ENVIRONMENT_KEY: z.string().optional(),
   FLAGSMITH_TIMEOUT_MS: z.coerce.number().int().positive().default(500),
   FLAGSMITH_CACHE_SECONDS: z.coerce.number().int().positive().default(60),
+  /**
+   * The browser idle timeout (platform.md, Identity): off unless set to "on". Not to be turned on
+   * until HZ-111's controls are built (a warning with "Stay signed in", and signing in again
+   * without losing a form) and the CSO and DPO have decided (H-353); production refuses it.
+   */
+  SESSION_IDLE_TIMEOUT: z.enum(["off", "on"]).default("off"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   APP_VERSION: z.string().default("0.0.0-dev"),
 });
@@ -111,6 +117,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     }
     if (parsed.MALWARE_SCANNER === "mock") {
       throw new Error("MALWARE_SCANNER cannot be mock in production");
+    }
+    // Signing a browser out mid-entry loses the form (HZ-111): off until its controls exist.
+    if (parsed.SESSION_IDLE_TIMEOUT === "on") {
+      throw new Error("SESSION_IDLE_TIMEOUT cannot be on in production until HZ-111 is controlled");
     }
     // Flagsmith only at the environment's own self-hosted host, over TLS (#39 review L2).
     if (parsed.FLAGSMITH_ENVIRONMENT_KEY) {

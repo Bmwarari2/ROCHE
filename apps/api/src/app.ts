@@ -25,6 +25,7 @@ import { incidentsRouter } from "./routes/incidents";
 import { integrationsRouter, supportAccessRouter } from "./routes/integrations";
 import { mcaRouter } from "./routes/mca";
 import { membershipsRouter, meRouter } from "./routes/me";
+import { memberSessionsRouter } from "./routes/member-sessions";
 import { createRouter } from "./routes/openapi";
 import { operatorMiddleware, operatorRouter } from "./routes/operator";
 import { peopleRouter } from "./routes/people";
@@ -174,6 +175,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", membershipsRouter);
   app.route("/", meRouter);
   app.route("/", sessionsRouter);
+  app.route("/", memberSessionsRouter);
   app.route("/", peopleRouter);
   app.route("/", peopleLifecycleRouter);
   app.route("/", peoplePropertyRouter);

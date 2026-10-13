@@ -96,16 +96,61 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   that brings this in are ended then, so every live session is bound. A new
   sign-in naming a revoked device is refused with 403 `device_revoked` on the sync token and
   uploads, and the device wipes, keeping unsent entries under the hold rules. The member's
-  sessions on other devices are not ended (identity-level; the admin session revoke is a Phase 0
-  follow-up).
+  sessions on other devices are not ended (identity-level; a manager ends them with the admin
+  sign-out below).
 - Per-user limits (`PerUserQuota`, `RateLimiter` in `apps/api/src/http`) keep their recent hits in
   Postgres (`request_quota`: one row per member and limit, updated under a row lock), so a limit
   holds across API instances. A row is read and written only in a view acting as its member (a
   hand-over's copies count against their owner). A refusal is 429 with Retry-After.
 - Web: sign-in (password then TOTP, or a passkey), TOTP and passkey set-up and the device list are
   in `apps/web` (`/sign-in`, `/settings/security`).
-- Later: invitations and enrolment by email (Phase 1), admin revoke and idle timeouts per role
-  (Phase 1), SSO (PLAT-005, Phase 2).
+- Idle timeouts per role: **off** unless the environment sets `SESSION_IDLE_TIMEOUT=on`, and
+  production refuses to start with it on, because signing a browser out mid-entry loses the form
+  (HZ-111). When on, a browser session (one using the httpOnly cookie) unused for longer than its
+  member's timeout is audited (`platform.session.idle_timeout`, with the timeout), deleted at its
+  next request to an organisation and refused with 401 `unauthenticated`. The timeout is
+  `session.idle_timeout_minutes.<role key>` for each role the member holds now, else
+  `session.idle_timeout_minutes`, from the rate table (the organisation's row first); several
+  roles take the strictest, kept between `session.idle_timeout_floor_minutes` and
+  `session.idle_timeout_ceiling_minutes`; a missing or invalid figure takes the default, and with
+  no valid default the timeout is not enforced (`idleTimeoutMinutes`,
+  `packages/domain/src/platform/sessions.ts`; 30 minutes, 15 for the owner and group executive,
+  H-350). Last use is the session's `updated_at`, written at most once a minute by the tenant
+  middleware (the device list shows it); the session middleware moves the expiry on hourly itself,
+  with Better Auth's refresh off there. Mobile sessions (the bearer token) are never timed out by
+  the server: the device auto-lock covers them (ADR-0011, HZ-110).
+- **Before the idle timeout may be turned on** (the PR that turns it on closes every item; H-353):
+  HZ-111's controls (a warning before expiry with "Stay signed in", WCAG 2.2.1; signing in again
+  in place without losing the form, with no care text in browser storage); Better Auth's own
+  `/api/auth/get-session` refresh writes `updated_at` hourly and so resets the idle clock (set
+  `session.disableSessionRefresh` or keep last use in a column Better Auth never writes, with a test
+  through `/api/auth/get-session`); whether the timeout applies is decided by a request header (a
+  cookie plus a bogus bearer header reads as the app), so mark each session web or mobile at sign-in
+  and decide by that; last use is per sign-in but the timeout comes from the requested
+  organisation's roles, so a laxer organisation resets a stricter one (take the strictest across
+  the sign-in's memberships, or record last use per session and organisation); background reads
+  (the person record header's 2-minute refresh, `HeaderFreshness`) count as use, which also keeps a
+  shared ward PC signed in as the last user (mark them as background while still checking idle);
+  Harbour's global per-role rows beat an organisation's stricter default; acting-up grants add no
+  role keys; an idle session still works on the identity-level routes (`/v1/memberships`,
+  `/v1/me/sessions`, `revoke-others`) and on `/api/auth/*`; use is recorded before authorisation.
+- Admin sign-out: `POST /v1/members/{tenantUserId}/sessions/revoke` (`platform.user.manage` with
+  step-up, a coded reason) deletes every session of the member's sign-in. It is audited
+  (`platform.session.revoked_for_member`: reason, sessions held, entries waiting) before the
+  sessions end, since the audit trail and the sessions live under different database roles and no
+  one transaction holds both; a failure to end them is audited too, and every refusal (not found
+  or out of scope, another organisation, entries unconfirmed, step-up) by opaque id. A location
+  role reaches only a member whose roles and grants in force are all at its locations (with none in
+  force, where they last worked), never one reaching the whole organisation; anyone else reads as
+  not found. A member who also has an active membership in another organisation is never signed
+  out (409 `member_of_other_organisation`): their sessions are their sign-in's, so it would end
+  their work there too (#40 review M1; tenant-scoped sessions are a STATUS follow-up, H-354).
+  When the member's devices last reported entries waiting, it needs `confirmEntriesWaiting` (409
+  `entries_waiting`, saying that signing out removes the care record from their phone until they
+  sign in again and that unsent entries stay on it until then; HZ-006, HZ-110); for `staff_left`
+  or `suspended`, the holds on those devices fall due at once and the manager is told, as after a
+  device revocation (`hurryRevokedHold`).
+- Later: invitations and enrolment by email (Phase 1), SSO (PLAT-005, Phase 2).
 
 ## Audit trail and history (PLAT-007)
 
