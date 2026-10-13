@@ -261,11 +261,19 @@ export default async function IncidentPage({ params }: { readonly params: Params
                 <li key={person.id} className="flex flex-col gap-1 border-b border-border pb-3">
                   <span className="font-semibold">{incidentPersonLine(person, names, t)}</span>
                   {record ? (
-                    <CommunicationStatus
-                      summary={communicationSummary(record, t)}
-                      flagLabel={t("people.header.communicationNeeds")}
-                      compact
-                    />
+                    // Labelled in every state, so "Not recorded" says what is missing (AIS).
+                    <dl className="m-0 flex flex-wrap items-start gap-x-2 gap-y-1">
+                      <dt className="text-body-dense font-semibold">
+                        {t("people.header.communicationNeeds")}
+                      </dt>
+                      <dd className="m-0">
+                        <CommunicationStatus
+                          summary={communicationSummary(record, t)}
+                          flagLabel={t("people.header.communicationNeeds")}
+                          compact
+                        />
+                      </dd>
+                    </dl>
                   ) : null}
                   {person.injuryDetails ? (
                     <span className="whitespace-pre-line">

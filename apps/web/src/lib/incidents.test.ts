@@ -119,13 +119,20 @@ describe("what the incident screens leave out, said in words (#42 review; HZ-013
   it("hazard HZ-013 adds older open and under-review incidents to a list cut at the limit, and says so", () => {
     const older = incident("older-open", "2026-01-02T09:00:00Z");
     const result = incidentsToList(many, [older, many[0] as (typeof many)[number]], []);
-    expect(result.truncated).toBe(true);
+    expect(result.truncated).toBe("older");
     expect(result.items).toHaveLength(INCIDENT_LIST_LIMIT + 1);
     expect(result.items.at(-1)).toBe(older);
     expect(result.items[0]?.id).toBe("new-0");
-    expect(incidentsToList(many.slice(1), []).truncated).toBe(false);
-    expect(t("safety.incidents.truncated", { limit: INCIDENT_LIST_LIMIT })).toBe(
+    expect(incidentsToList(many.slice(1), []).truncated).toBeNull();
+    expect(t("safety.incidents.truncated", { reach: "older", limit: INCIDENT_LIST_LIMIT })).toBe(
       "Older incidents are not listed. This list shows the newest 500 and every open or under-review incident.",
+    );
+  });
+
+  it("hazard HZ-013 never promises every open incident when the open list itself hit the limit", () => {
+    expect(incidentsToList(many, [], many).truncated).toBe("unfinished");
+    expect(t("safety.incidents.truncated", { reach: "unfinished", limit: 500 })).toBe(
+      "Not every incident is listed: there are more than 500 open or under-review incidents, and older ones are left out.",
     );
   });
 

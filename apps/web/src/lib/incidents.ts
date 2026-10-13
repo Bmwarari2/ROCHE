@@ -53,17 +53,19 @@ export const INCIDENT_LIST_LIMIT = 500;
 /**
  * The newest incidents with every open or under-review one fetched besides, newest first, so an
  * older incident still waiting for answers is never hidden by the list's limit (HZ-013).
- * `truncated` says a list hit the limit, so older incidents may be missing.
+ * `truncated` says what may be missing: older incidents ("older") when the newest hit the limit,
+ * or open and under-review ones too ("unfinished") when one of those lists hit it as well.
  */
 export function incidentsToList<I extends Pick<IncidentSummary, "id" | "occurredAt">>(
   newest: readonly I[],
   ...unfinished: readonly (readonly I[])[]
-): { readonly items: I[]; readonly truncated: boolean } {
+): { readonly items: I[]; readonly truncated: "older" | "unfinished" | null } {
   const byId = new Map<string, I>();
   for (const item of [newest, ...unfinished].flat()) byId.set(item.id, item);
+  const full = (list: readonly I[]) => list.length >= INCIDENT_LIST_LIMIT;
   return {
     items: [...byId.values()].sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt)),
-    truncated: [newest, ...unfinished].some((list) => list.length >= INCIDENT_LIST_LIMIT),
+    truncated: unfinished.some(full) ? "unfinished" : full(newest) ? "older" : null,
   };
 }
 
