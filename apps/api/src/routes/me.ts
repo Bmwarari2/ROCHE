@@ -1,6 +1,6 @@
 import { Me, Membership } from "@harbour/contracts";
 import { featureFlag, location, tenant } from "@harbour/db";
-import { evaluateFlag, FLAGS, type FlagKey, scopeFor } from "@harbour/domain";
+import { scopeFor } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { eq, isNull } from "drizzle-orm";
 import { membershipsFor, withTenant } from "../http/context";
@@ -61,16 +61,16 @@ export const meRouter = createRouter().openapi(
         ),
       );
       const locations = allLocations.filter((l) => working.has(l.id));
-      const flagRows = await tx
+      // The organisation's own rows, deleted ones left out; evaluated after the transaction, so
+      // a slow Flagsmith never holds a database connection.
+      const overrides = await tx
         .select({
           flagKey: featureFlag.flagKey,
           locationId: featureFlag.locationId,
           enabled: featureFlag.enabled,
         })
-        .from(featureFlag);
-      const flags = Object.fromEntries(
-        (Object.keys(FLAGS) as FlagKey[]).map((key) => [key, evaluateFlag(key, flagRows, null)]),
-      );
+        .from(featureFlag)
+        .where(isNull(featureFlag.deletedAt));
       return {
         user: {
           id: access.session.authUserId,
@@ -100,9 +100,14 @@ export const meRouter = createRouter().openapi(
         roleKeys: [...access.effective.roleKeys],
         // Whose records the user may open (ADR-0071): each permission has its own scope.
         scope: scopeFor(access.effective, "people.person.read").scope,
-        flags,
+        overrides,
       };
     });
-    return c.json(body, 200);
+    const { overrides, ...rest } = body;
+    // Organisation-wide, as before: the OpenFeature provider (apps/api/src/flags).
+    const flags = await c
+      .get("services")
+      .flags.evaluateAll({ tenantId: access.tenantId, locationId: null, overrides });
+    return c.json({ ...rest, flags }, 200);
   },
 );
