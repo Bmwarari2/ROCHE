@@ -15,6 +15,7 @@ import { t } from "../i18n/t";
 import { type ChartKind, isChartKind, readNews2, type StoredNews2 } from "./charts";
 import { currentEntries, type EntryStatus, entryStatus, flag } from "./entries";
 import type { MarkRow, NoteRow, ObservationRow, UploadIssueRow } from "./queries";
+import { parseQueuedMove } from "./round-actions";
 import { parseInstant, ukDateTimeParts } from "./time";
 
 export type EntryTable = "care_note" | "observation" | "body_map_mark";
@@ -252,16 +253,30 @@ export function issueItem(row: UploadIssueRow): IssueItem {
       mark_type: typeof payload.mark_type === "string" ? payload.mark_type : null,
     });
   }
-  const occurred = parseInstant(
-    typeof payload.occurred_at === "string" ? payload.occurred_at : null,
-  );
+  // A task's move or a handover acknowledgement: what the carer did, and when on the device.
+  const move = row.record_table === "task" ? parseQueuedMove(payload.queued_transition) : null;
+  if (move) {
+    content = t("mobile.round.move", { to: move.to, title: move.title, reason: move.reason ?? "" });
+  } else if (row.record_table === "handover_acknowledgement") {
+    content = t("mobile.handover.acknowledged");
+  }
+  const at =
+    move?.at ??
+    (typeof payload.acknowledged_at === "string" ? payload.acknowledged_at : null) ??
+    (typeof payload.occurred_at === "string" ? payload.occurred_at : null);
+  const occurred = parseInstant(at);
+  const table = row.record_table ?? "other";
+  // A move names the person it is about itself, so a held or refused move shows on their screen
+  // whatever was kept with it (#37 review round 1, M3).
+  const personId = row.person_id ?? move?.personId ?? null;
   return {
     id: row.id,
-    personId: row.person_id,
-    title: t("mobile.issues.item", {
-      table: row.record_table ?? "other",
-      name: display || t("mobile.common.notRecorded"),
-    }),
+    personId,
+    // A task about nobody and an acknowledgement name no one.
+    title:
+      !personId && (table === "task" || table === "handover_acknowledgement")
+        ? t("mobile.issues.itemNoPerson", { table })
+        : t("mobile.issues.item", { table, name: display || t("mobile.common.notRecorded") }),
     reason: t("mobile.issues.reason", { reason: row.message ?? t("mobile.issues.unknownReason") }),
     // What was recorded stays until someone removes the entry (clinical review M1).
     content: content ? t("mobile.issues.content", { content }) : null,

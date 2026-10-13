@@ -2,6 +2,8 @@ import { AppSchema } from "@harbour/sync/client";
 import { describe, expect, it } from "vitest";
 import type { Me } from "../auth/auth-client";
 import type { FetchLike } from "../auth/http";
+import { issueItem } from "../care/entry-view";
+import { UPLOAD_ISSUES_SQL, type UploadIssueRow } from "../care/queries";
 import { DEMO_TENANT_ID, demoPeople } from "../demo/demo-data";
 import { t } from "../i18n/t";
 import {
@@ -977,6 +979,35 @@ describe("opening the database: the owner check before the device connects (S3, 
         { id: "0199d000-0000-7000-8000-000000000101", person_id: ADA_PERSON },
         { id: "0199d000-0000-7000-8000-000000000102", person_id: ADA_PERSON },
       ]);
+    });
+
+    it("hazard HZ-006 shows a parked held move on its person's screen, named, with what the carer did (#37 review round 1, M3)", async () => {
+      const dev = await device();
+      dev.queue.push(heldMove("0199d000-0000-7000-8000-000000000101"), ack);
+      await holdUnsentWork(dev.holdDb, NOW);
+      await restoreHeldWork(dev.holdDb, NOW, true);
+      // The session's end cleared Ada's record; the next sign-in's sync brings it back.
+      dev.sql
+        .prepare(
+          "INSERT INTO person (id, tenant_id, given_name, family_name, preferred_name) VALUES (?, ?, ?, ?, ?)",
+        )
+        .run(ADA_PERSON, DEMO_TENANT_ID, "Ada", "Example", null);
+      const items = all<UploadIssueRow>(dev.sql, UPLOAD_ISSUES_SQL, [DEMO_TENANT_ID]).map(
+        issueItem,
+      );
+      // What the person's screen lists (`UploadIssues` filters by person).
+      expect(items.filter((i) => i.personId === ADA_PERSON)).toMatchObject([
+        {
+          id: "0199d000-0000-7000-8000-000000000101",
+          title: "Task for Ada Example",
+          content: "What was recorded: Reposition: done",
+        },
+      ]);
+      // The acknowledgement names no one and stays on the shared list.
+      expect(items.find((i) => i.id === ACK)).toMatchObject({
+        personId: null,
+        title: "Handover acknowledgement",
+      });
     });
   });
 

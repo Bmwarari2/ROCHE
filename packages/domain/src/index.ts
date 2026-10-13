@@ -63,6 +63,7 @@ export * from "./platform/dpia";
 export * from "./platform/export";
 export * from "./platform/feature-flags";
 export * from "./platform/forms";
+export * from "./platform/invitations";
 export * from "./platform/notifications";
 export * from "./platform/onboarding";
 export * from "./platform/permissions";
