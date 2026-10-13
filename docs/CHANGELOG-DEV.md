@@ -1274,6 +1274,22 @@ Migration 0053, edited in place:
 **Tests**: `packages/db` `back-entry.test.ts` now 17 (9 new), including the race between an entry
 and a cancel.
 
+## 2026-10-13: Slice 11 part 2, #38 review round 2 (OPS-028)
+
+Migration 0053, edited in place:
+
+- A back-entry can be corrected after its outage is reconciled (only new back-entries are refused
+  there), keeping its outage and paper details.
+- The reconciler check counts as a correction only an entry whose original is a back-entry of the
+  same outage, and a correction cannot make an entry not entered from paper a back-entry.
+- Closing may set the true end before back-entries already entered; reconciliation then waits
+  until each one outside the window with no reason is in the reviewed entries (H-207). A
+  correction of the start or end is refused only when it leaves out an entry that was inside.
+- Docs: operations.md section 12, the HZ-017 rows, H-207, a STATUS low on the clock-drift
+  override.
+
+**Tests**: `packages/db` `back-entry.test.ts` now 20.
+
 ## 2026-10-13: Slice 11 part 3a-1, downtime pack API (OPS-028)
 
 Stacked on part 2. `GET` and `POST /v1/locations/{id}/downtime-pack` (operations.md section 13):
