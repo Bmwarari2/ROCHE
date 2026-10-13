@@ -36,8 +36,46 @@ describe("loadConfig", () => {
   it.each([
     ["local document storage", { DOCUMENT_STORAGE: "local" }, "DOCUMENT_STORAGE"],
     ["the mock malware scanner", { MALWARE_SCANNER: "mock" }, "MALWARE_SCANNER"],
+    ["the browser idle timeout (HZ-111)", { SESSION_IDLE_TIMEOUT: "on" }, "SESSION_IDLE_TIMEOUT"],
+    [
+      "a Flagsmith key with no address",
+      { FLAGSMITH_ENVIRONMENT_KEY: "ser.x" },
+      "FLAGSMITH_API_URL",
+    ],
   ])("refuses %s in production", (_label, change, message) => {
     expect(() => loadConfig({ ...PRODUCTION, ...change })).toThrow(message);
+  });
+
+  // #39 review L2: Flagsmith only over TLS at the environment's own flags host.
+  const FLAGSMITH = {
+    BETTER_AUTH_URL: "https://api.harbour.example.invalid",
+    FLAGSMITH_ENVIRONMENT_KEY: "ser.test-only",
+  };
+  it.each([
+    ["plain http", "http://flags.harbour.example.invalid/api/v1"],
+    ["another host", "https://flags.elsewhere.example.invalid/api/v1"],
+    ["a look-alike host", "https://flags.harbour.example.invalid.evil.example/api/v1"],
+  ])("refuses a Flagsmith address over %s in production", (_label, address) => {
+    expect(() => loadConfig({ ...PRODUCTION, ...FLAGSMITH, FLAGSMITH_API_URL: address })).toThrow(
+      "FLAGSMITH_API_URL",
+    );
+  });
+
+  it("takes the environment's own Flagsmith host over https in production", () => {
+    const config = loadConfig({
+      ...PRODUCTION,
+      ...FLAGSMITH,
+      FLAGSMITH_API_URL: "https://flags.harbour.example.invalid/api/v1",
+    });
+    expect(config.FLAGSMITH_API_URL).toBe("https://flags.harbour.example.invalid/api/v1");
+    // An API not served from an api. host has no flags host to trust.
+    expect(() =>
+      loadConfig({
+        ...PRODUCTION,
+        FLAGSMITH_ENVIRONMENT_KEY: "ser.test-only",
+        FLAGSMITH_API_URL: "https://flags.localhost/api/v1",
+      }),
+    ).toThrow("FLAGSMITH_API_URL");
   });
 
   it("uses local defaults outside production", () => {
