@@ -314,8 +314,8 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
   - The outage window is `[started_at, ended_at)` (the end outside, as for the no-overlap rule),
     an open outage running to now plus `sync.clock_drift_flag_minutes`. A back-entry outside it
     needs `outside_outage_reason`; an entry not from paper may name only an outage its time falls
-    in. The window is checked on every entry and whenever the start or end changes, closing
-    included.
+    in. The window is checked on every entry and whenever the start or end changes (closing as
+    revised in round 2, below).
   - A correction (supersession) of a back-entry stays a back-entry of the same outage: its paper
     details are carried from the entry it corrects when it gives none, and it is refused when it
     names another outage or none.
@@ -325,6 +325,16 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
     back-entry, while someone who only corrected one may reconcile (H-203).
   - Not checked in the database: rule 13 (the normal route), which depends on the API applying
     `checkEntryAgainstOutages` on every care route and on the sync upload.
+- Part 2 after #38 review round 2:
+  - A correction of a back-entry is accepted after its outage is reconciled, keeping the same
+    outage and its paper details; only new back-entries are refused there. A wrong value entered
+    from paper (1500 ml for 150 ml) can always be corrected.
+  - For the reconciler check, a correction is only an entry whose original is a back-entry of the
+    same outage, and a correction cannot make an entry not entered from paper a back-entry.
+  - Closing may set the true end before back-entries already entered (H-207). Reconciliation is
+    then refused until each current back-entry outside the window with no reason for it is in
+    `reviewed_entry_ids`, so the reconciler looks at each one. A correction of the start or end is
+    refused only when it would leave outside a back-entry that was inside the window before.
 - Not yet: outages and back-entry through the API (part 3c); outages and packs in the sync
   streams, and the kiosk fetch (with the mobile step).
 - Part 3 requirements (#32 review round 1):
@@ -354,6 +364,11 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
     HZ-017). Note for Lane C: add them with the mobile step.
   - Rule 13 runs in the API on every care write route and on the sync upload; the database does
     not check it.
+- Part 3 requirements (#38 review round 2):
+  - The reconciliation screen lists the back-entries outside the window with no reason, which
+    must be in `reviewedEntryIds` with the possible duplicates before the outage is reconciled.
+  - A correction of a back-entry after reconciliation goes through the care routes as any
+    correction, and the reconciled outage's history shows it.
 
 ## 13. As built (slice 11 part 3a, downtime pack API)
 

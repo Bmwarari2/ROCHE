@@ -42,6 +42,7 @@ const OUTAGE_HANDED_OVER = outageId(0xc8);
 const OUTAGE_RACE = outageId(0xc9);
 const OUTAGE_AUTUMN = outageId(0xca);
 const OUTAGE_SPRING = outageId(0xcb);
+const OUTAGE_SMUGGLED = outageId(0xcd);
 
 const MINUTE = 60_000;
 /** An instant `minutes` ago, to the minute (a paper time has no seconds). */
@@ -101,6 +102,24 @@ const backEntry = (outage: string, at: Date = ago(3 * HOUR)): Details => ({
   paper_reference: "DT-001",
 });
 
+/** A correction of `supersedes` about Ada at North at `at`; `details` adds columns. */
+const correction = (
+  c: pg.PoolClient,
+  supersedes: string,
+  details: Details,
+  at: Date,
+  id: string | null = null,
+) => {
+  const columns = Object.keys(details);
+  return c.query(
+    `INSERT INTO care_note (id, person_id, location_id, occurred_at, category, body, supersedes_id,
+       correction_reason${columns.map((k) => `, ${k}`).join("")})
+     VALUES (coalesce($1, app.uuid_v7()), $2, $3, $4, 'personal_care',
+             'Assisted with a wash and a shave.', $5, 'Shave left off the first entry'${columns.map((_, i) => `, $${i + 6}`).join("")})`,
+    [id, a.personAda, a.locationNorth, at, supersedes, ...Object.values(details)],
+  );
+};
+
 const declare = (id: string, startedAgo: number, endedAgo: number | null) =>
   asOwner(TENANT_A, (c) =>
     c.query(
@@ -121,12 +140,13 @@ const close = (c: pg.PoolClient, id: string, by: string, endedAt?: Date) =>
        closed_by = $2, back_entry_due_at = now() + interval '72 hours' WHERE id = $1`,
     [id, by, endedAt ?? null],
   );
-const reconcile = (c: pg.PoolClient, id: string, by: string) =>
+const reconcile = (c: pg.PoolClient, id: string, by: string, reviewed: string[] = []) =>
   c.query(
     `UPDATE outage SET state = 'reconciled', reconciled_at = now(), reconciled_by = $2,
-       reconciliation_statement = 'All forms entered and checked', forms_entered = 2
+       reconciliation_statement = 'All forms entered and checked', forms_entered = 2,
+       reviewed_entry_ids = $3::uuid[]
      WHERE id = $1`,
-    [id, by],
+    [id, by, reviewed],
   );
 const cancel = (c: pg.PoolClient, id: string, by: string) =>
   c.query(
@@ -397,34 +417,91 @@ describe("hazard HZ-017 the outage window", () => {
 });
 
 describe("hazard HZ-011 hazard HZ-017 cancelling and reconciling an outage with back-entries", () => {
-  it("refuses an end given on closing that would leave a back-entry outside the outage", async () => {
+  it("closes at the true end even before back-entries already entered, and corrects an end only without leaving out one that was inside", async () => {
     const at = ago(2 * HOUR);
     await asCarer((c) => note(c, a.personAda, backEntry(OUTAGE_NORTH, at), at));
-    await expect(
+    const trueEnd = new Date(at.getTime() - 30 * MINUTE);
+    await asNorthManager((c) => close(c, OUTAGE_NORTH, a.northManager, trueEnd));
+    const correctEnd = (endedAt: Date, reason: string) =>
       asNorthManager((c) =>
-        close(c, OUTAGE_NORTH, a.northManager, new Date(ago(2 * HOUR).getTime() - 30 * MINUTE)),
-      ),
+        c.query("UPDATE outage SET ended_at = $2, correction_reason = $3 WHERE id = $1", [
+          OUTAGE_NORTH,
+          endedAt,
+          reason,
+        ]),
+      );
+    // The entry two hours ago was outside already; the one three hours ago is inside.
+    await expect(
+      correctEnd(ago(3 * HOUR + 30), "The power came back earlier than first said"),
     ).rejects.toThrow(/would leave a paper record entered against the outage outside it/);
-    await expect(asNorthManager((c) => close(c, OUTAGE_NORTH, a.northManager, at))).rejects.toThrow(
-      /would leave a paper record entered against the outage outside it/,
+    await correctEnd(
+      new Date(trueEnd.getTime() + 10 * MINUTE),
+      "The power came back ten minutes later",
     );
   });
 
-  it("lets only someone who entered none of its back-entries reconcile it", async () => {
-    await asNorthManager(async (c) => {
-      await note(c, a.personAda, { ...backEntry(OUTAGE_NORTH), paper_reference: "DT-003" });
-      await close(c, OUTAGE_NORTH, a.northManager, ago(HOUR));
-    });
+  it("lets only someone who entered none of its back-entries reconcile it, once each one outside it is reviewed", async () => {
+    await asNorthManager((c) =>
+      note(c, a.personAda, { ...backEntry(OUTAGE_NORTH), paper_reference: "DT-003" }),
+    );
     await expect(asNorthManager((c) => reconcile(c, OUTAGE_NORTH, a.northManager))).rejects.toThrow(
       /entered none of the outage's paper records/,
     );
-    await asManager((c) => reconcile(c, OUTAGE_NORTH, a.manager));
+    await expect(asManager((c) => reconcile(c, OUTAGE_NORTH, a.manager))).rejects.toThrow(
+      /Review each paper record entered against the outage with a time outside it/,
+    );
+    const { rows } = await asOwner(TENANT_A, (c) =>
+      c.query<{ id: string }>(
+        `SELECT n.id FROM care_note n JOIN outage o ON o.id = n.outage_id
+         WHERE o.id = $1 AND n.late_entry_reason = 'downtime' AND n.occurred_at >= o.ended_at`,
+        [OUTAGE_NORTH],
+      ),
+    );
+    expect(rows).toHaveLength(1);
+    await asManager((c) =>
+      reconcile(
+        c,
+        OUTAGE_NORTH,
+        a.manager,
+        rows.map((r) => r.id),
+      ),
+    );
   });
 
   it("refuses a back-entry once the outage is reconciled", async () => {
     await expect(asCarer((c) => note(c, a.personAda, backEntry(OUTAGE_NORTH)))).rejects.toThrow(
       /names an outage at its own location that is neither cancelled nor reconciled/,
     );
+  });
+
+  it("corrects a back-entry after its outage is reconciled, keeping its paper details and outage", async () => {
+    const { rows } = await asOwner(TENANT_A, (c) =>
+      c.query<{ id: string; occurred_at: Date }>(
+        "SELECT id, occurred_at FROM care_note WHERE outage_id = $1 AND paper_reference = 'DT-003'",
+        [OUTAGE_NORTH],
+      ),
+    );
+    const [entry] = rows;
+    if (!entry) throw new Error("no back-entry to correct");
+    const corrected = entryId(5);
+    await asCarer((c) => correction(c, entry.id, {}, entry.occurred_at, corrected));
+    const after = await asCarer((c) =>
+      c.query(
+        `SELECT n.late_entry_reason, n.outage_id, n.paper_reference,
+           (n.paper_date, n.paper_time, n.paper_occurrence)
+             = (o.paper_date, o.paper_time, o.paper_occurrence) AS same_paper
+         FROM care_note n JOIN care_note o ON o.id = n.supersedes_id WHERE n.id = $1`,
+        [corrected],
+      ),
+    );
+    expect(after.rows).toEqual([
+      {
+        late_entry_reason: "downtime",
+        outage_id: OUTAGE_NORTH,
+        paper_reference: "DT-003",
+        same_paper: true,
+      },
+    ]);
   });
 
   it("refuses to cancel an outage a back-entry cites, even one about someone the canceller cannot see", async () => {
@@ -530,23 +607,6 @@ describe("hazard HZ-011 hazard HZ-017 cancelling and reconciling an outage with 
 describe("hazard HZ-011 hazard HZ-017 corrections of back-entries", () => {
   const original = entryId(1);
   const moved = entryId(2);
-  const correction = (
-    c: pg.PoolClient,
-    supersedes: string,
-    details: Details,
-    at: Date,
-    id: string | null = null,
-  ) => {
-    const columns = Object.keys(details);
-    return c.query(
-      `INSERT INTO care_note (id, person_id, location_id, occurred_at, category, body, supersedes_id,
-         correction_reason${columns.map((k) => `, ${k}`).join("")})
-       VALUES (coalesce($1, app.uuid_v7()), $2, $3, $4, 'personal_care',
-               'Assisted with a wash and a shave.', $5, 'Shave left off the first entry'${columns.map((_, i) => `, $${i + 6}`).join("")})`,
-      [id, a.personAda, a.locationNorth, at, supersedes, ...Object.values(details)],
-    );
-  };
-
   it("carries a back-entry's paper details to a correction that gives none, and keeps it on the same outage", async () => {
     await declare(OUTAGE_CORRECTED, 70 * HOUR, 65 * HOUR);
     const first = ago(66 * HOUR);
@@ -608,6 +668,23 @@ describe("hazard HZ-011 hazard HZ-017 corrections of back-entries", () => {
     }
   });
 
+  it("refuses a correction that makes an entry not entered from paper a back-entry", async () => {
+    const ordinary = entryId(4);
+    const at = ago(68 * HOUR);
+    await asNorthManager((c) =>
+      c.query(
+        `INSERT INTO care_note (id, person_id, location_id, occurred_at, category, body)
+         VALUES ($1, $2, $3, $4, 'personal_care', 'Assisted with a wash.')`,
+        [ordinary, a.personAda, a.locationNorth, at],
+      ),
+    );
+    await expect(
+      asNorthManager((c) => correction(c, ordinary, backEntry(OUTAGE_CORRECTED, at), at)),
+    ).rejects.toThrow(
+      /A correction of an entry not entered from paper cannot make it a paper record/,
+    );
+  });
+
   it("leaves out a corrected back-entry when the outage's start or end changes", async () => {
     // The entry at 69 hours ago is corrected to 67 hours ago, a time it gives on its own paper.
     const corrected = ago(67 * HOUR);
@@ -662,5 +739,42 @@ describe("hazard HZ-011 hazard HZ-017 corrections of back-entries", () => {
     ).rejects.toThrow(/entered none of the outage's paper records/);
 
     await asManager((c) => reconcile(c, OUTAGE_CORRECTED, a.manager));
+  });
+
+  it("counts the author of a back-entry that supersedes an entry not entered from paper", async () => {
+    // Written past the guard (as the table's owner), as a row from before the rule would be.
+    await declare(OUTAGE_SMUGGLED, 100 * HOUR, 95 * HOUR);
+    const ordinary = entryId(6);
+    const at = ago(98 * HOUR);
+    await asOwner(TENANT_A, async (c) => {
+      await c.query(
+        `INSERT INTO care_note (id, person_id, location_id, occurred_at, category, body, created_by)
+         VALUES ($1, $2, $3, $4, 'personal_care', 'Assisted with a wash.', $5)`,
+        [ordinary, a.personAda, a.locationNorth, at, a.carer],
+      );
+      await c.query("ALTER TABLE care_note DISABLE TRIGGER entry_outage_guard");
+      await c.query(
+        `INSERT INTO care_note (person_id, location_id, occurred_at, category, body, created_by,
+           supersedes_id, late_entry_reason, outage_id, paper_date, paper_time, paper_occurrence)
+         VALUES ($1, $2, $3, 'personal_care', 'Assisted with a wash.', $4, $5, 'downtime', $6, $7,
+                 $8, $9)`,
+        [
+          a.personAda,
+          a.locationNorth,
+          at,
+          a.northManager,
+          ordinary,
+          OUTAGE_SMUGGLED,
+          paperAt(at).paper_date,
+          paperAt(at).paper_time,
+          paperAt(at).paper_occurrence,
+        ],
+      );
+      await c.query("ALTER TABLE care_note ENABLE TRIGGER entry_outage_guard");
+    });
+    await asManager((c) => close(c, OUTAGE_SMUGGLED, a.manager));
+    await expect(
+      asNorthManager((c) => reconcile(c, OUTAGE_SMUGGLED, a.northManager)),
+    ).rejects.toThrow(/entered none of the outage's paper records/);
   });
 });
