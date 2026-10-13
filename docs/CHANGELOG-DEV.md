@@ -1278,14 +1278,16 @@ and a cancel.
 
 Migration 0053, edited in place:
 
-- A back-entry can be corrected after its outage is reconciled (only new back-entries are refused
-  there), keeping its outage and paper details.
+- An entry citing an outage, a back-entry or one not from paper, can be corrected after the
+  outage is reconciled, keeping the link (only new entries citing it are refused there); a
+  back-entry is corrected once, a further correction superseding the correction (a partial unique
+  index on each of the five entries).
 - The reconciler check counts as a correction only an entry whose original is a back-entry of the
   same outage, and a correction cannot make an entry not entered from paper a back-entry.
 - Closing may set the true end before back-entries already entered; reconciliation then waits
   until each one outside the window with no reason is in the reviewed entries (H-207). A
   correction of the start or end is refused only when it leaves out an entry that was inside.
-- Docs: operations.md section 12, the HZ-017 rows, H-207, a STATUS low on the clock-drift
-  override.
+- Docs: operations.md section 12, the HZ-017 rows, H-207 and H-208, STATUS on the clock-drift
+  override and the reason a correction past the end needs.
 
-**Tests**: `packages/db` `back-entry.test.ts` now 20.
+**Tests**: `packages/db` `back-entry.test.ts` now 22.

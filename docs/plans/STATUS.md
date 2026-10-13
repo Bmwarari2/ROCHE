@@ -185,7 +185,10 @@ only when they link spec, code, tests and user documentation; no user guides exi
    - Follow-ups from #38 review round 2:
      - `sync.clock_drift_flag_minutes` is read with the organisation's own override first, and
        any member can write `rate_table` (the existing gap), so an override could stretch an open
-       outage's window.
+       outage's window;
+     - part 3 must ask for an outside-the-outage reason when someone corrects a reviewed
+       back-entry whose time is after the true end, because the database refuses such a correction
+       without one (wording H-208).
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; admin session revoke and idle timeouts
    per role; record history PDF export; device push registration; OpenFeature provider; user
