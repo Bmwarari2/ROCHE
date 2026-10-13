@@ -1282,3 +1282,21 @@ Third of four pull requests (`feat/mobile-offline-round-upload`, stacked on the 
 
 **Tests**: `packages/db` 411 (real Postgres), `packages/sync` 81, `apps/mobile` 891, passing
 locally; typecheck clean for db, sync and mobile.
+
+## 2026-10-13: The round and the handover on the phone, uploading, review round 1 (#37)
+
+- Security M1 and clinical M1: a move refused because the task changed (409) reads the task
+  (`status=any`, narrowed to the move's person or the task's home and its due time). Only an
+  answer it can read decides; anything else keeps the move queued, and an ended session ends
+  it. The carer's own move counts as made only at the next version, by them, with their
+  reason; a task nobody closed gets the move once more; otherwise the words say what
+  happened (done, not done, cancelled, changed).
+- Clinical M3: a move kept without its person is named by the person in the move and shows
+  on their screen; a move put back on its task's row after a session ended is sent.
+- Item 8: the move does not send its time of care (#41 closed); the completion is recorded
+  when the move arrives, and the device time stays on the phone (H-309).
+- HZ-006 and HZ-029 rows; a STATUS follow-up that round refusals do not ask for a server
+  copy.
+
+**Tests**: `apps/mobile` 973, `packages/i18n` 48, passing locally; typecheck clean for
+mobile.

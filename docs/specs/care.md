@@ -1345,8 +1345,9 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   (`checkTaskTransition`: done, or not done with a reason of 3 to 500 characters; a task that
   needs evidence is done only by recording the entry it asks for, which carries `task_id`, sent
   as `taskId`) and writes it on the synced row (`status`, and `queued_transition`: the move's own
-  UUIDv7, the version seen, who and when), only while the row is still the open task the carer
-  saw (read back, as SQLite does not count changes made through PowerSync's views). An
+  UUIDv7, the version seen, who and when, the person and the task's home), only while the row
+  is still the open task the carer saw (read back, as SQLite does not count changes made through
+  PowerSync's views). An
   acknowledgement is a new `handover_acknowledgement` row with its own UUIDv7, the location (for
   the route) and the seen token worked out over the keys of the items shown, in their compiled
   order, exactly as the API does (SHA-256, base64url, 43 characters). Hooks for the screens:
@@ -1369,9 +1370,19 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   to "needs attention" with what the carer did and the reason, in the phone's words for a task
   someone else changed first (`version_conflict`) and a handover changed since it was read
   (`handover_changed`); the server's copy then puts the task or the handover back as it is there.
-  A 409 on a move whose answer was lost counts as sent when the task list shows the task in that
-  state, completed by the same member of staff (HZ-029). A move or acknowledgement held at
-  sign-out is kept as needs attention on return, never resent.
+  A 409 `version_conflict` on a move is settled by reading the task (`GET /v1/tasks?status=any`,
+  about the move's person or at the task's home, due within a second of its due time), and only
+  an answer the phone can read decides (#37 review round 1): the move counts as sent when the task
+  shows this move made (the status asked for, by the same member, with the same reason for a task
+  not done, at the very next version; a lost answer, HZ-029); a task nobody closed (open or in
+  progress) gets the move once more against its current version, judged again by the API (H-305);
+  anything else is kept as needs attention in words that say what happened (marked done, marked
+  not done, cancelled, or changed). No network, a 5xx, any other status or a list it cannot read
+  keeps the move queued; a 401, a session 403 or `GET /v1/me` saying so ends the session. A move
+  put back on its task's row after a session ended (an insert) is sent like an update, and a move,
+  held or refused, names the person it is about from the move and shows on their screen. The
+  move's device time stays on the phone: the API records the completion when the move arrives
+  (H-309).
 - **API follow-ups**: the revocation signal, the manager hand-over and the server copy of refused
   entries are built (Device integrity, above), and so, with the care API follow-ups, are keeping an
   IDDSI entry from a device with a flag and an alert to the nurse in charge instead of refusing it

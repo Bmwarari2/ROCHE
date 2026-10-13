@@ -282,6 +282,9 @@ only when they link spec, code, tests and user documentation; no user guides exi
       a lower bound at the task's creation or its window; and a rule for which shift's
       handover a late-synced outcome belongs to. Then the move sends its time of care
       (`round-upload.ts`). CSO decision H-309.
+    - Follow-up (#37 review round 1): a refused task move or handover acknowledgement does
+      not call `onRefused`, so nothing asks for a server copy at once; refused copies cover
+      care tables only (`REFUSED_COPY_TABLES`) until H-307 decides.
 
 ## Human actions outstanding
 
