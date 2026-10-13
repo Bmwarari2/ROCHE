@@ -3,13 +3,19 @@
  * the upload queue count, refused uploads, and saving an entry to the encrypted database (from where
  * PowerSync's persistent upload queue sends it, surviving an app restart).
  */
-import { DEVICE_WRITABLE_TABLES, type OfflineWindowTable } from "@harbour/sync/client";
+import {
+  DEVICE_WRITABLE_TABLES,
+  type OfflineWindowTable,
+  ROUND_WRITABLE_TABLES,
+} from "@harbour/sync/client";
 import { usePowerSync, useQuery } from "@powersync/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "../app-state/session";
 import { useVault } from "../app-state/vault";
+import { sha256Base64 } from "../platform/digest";
 import { newEntryId } from "../platform/ids";
-import { type EntryContext, type EntryRow, insertStatement } from "./entries";
+import { useWriteScope } from "../sync/write-scope-store";
+import { type EntryContext, type EntryRow, type FieldError, insertStatement } from "./entries";
 import {
   CARE_PROFILE_SQL,
   type CareProfileRow,
@@ -19,6 +25,16 @@ import {
   UPLOAD_ISSUES_SQL,
   type UploadIssueRow,
 } from "./queries";
+import {
+  acknowledgementInsert,
+  checkTaskMove,
+  type HandoverToAcknowledge,
+  type ShownItem,
+  type TaskMoveTo,
+  type TaskToMove,
+  writeAcknowledgement,
+  writeTaskMove,
+} from "./round-actions";
 import type { WhenChoice } from "./time";
 
 export function useTenantId(): string {
@@ -106,6 +122,63 @@ export function useSaveEntry(): (table: OfflineWindowTable, row: EntryRow) => Pr
   );
 }
 
+/**
+ * Marks a task done or not done on this device (round-actions.ts): the problem to show, or null
+ * once the move is written and waiting to upload. Only where the server would take it, from the
+ * member and the write scope (never while either is unknown). A write that fails locally is thrown.
+ */
+export function useMoveTask(): (
+  task: TaskToMove,
+  draft: { readonly to: TaskMoveTo; readonly reason: string },
+  personLocationId: string | null,
+) => Promise<FieldError | null> {
+  const db = usePowerSync();
+  const { me } = useSession();
+  const userId = me?.tenantUserId ?? null;
+  const scope = useWriteScope();
+  return useCallback(
+    async (task, draft, personLocationId) => {
+      const check = checkTaskMove(
+        task,
+        draft,
+        { userId, scope, personLocationId, newId: newEntryId },
+        new Date(),
+      );
+      if (!check.ok) return check.error;
+      await writeTaskMove(db, check);
+      return null;
+    },
+    [db, userId, scope],
+  );
+}
+
+/**
+ * Acknowledges a handover on this device over the items the reader was shown: the problem to show,
+ * or null once written. Never while the member is unknown, and once only while one is waiting.
+ */
+export function useAcknowledgeHandover(): (
+  handover: HandoverToAcknowledge,
+  shown: readonly ShownItem[],
+) => Promise<FieldError | null> {
+  const db = usePowerSync();
+  const { me } = useSession();
+  const userId = me?.tenantUserId ?? null;
+  return useCallback(
+    async (handover, shown) => {
+      if (!userId) return { key: "mobile.round.userUnknown" };
+      const insert = await acknowledgementInsert(
+        handover,
+        shown,
+        { userId, newId: newEntryId, sha256Base64 },
+        new Date(),
+      );
+      const written = await writeAcknowledgement(db, insert);
+      return written === "written" ? null : { key: "mobile.handover.alreadyQueued" };
+    },
+    [db, userId],
+  );
+}
+
 /** Changes waiting to upload, refreshed whenever the sync status changes. */
 export function useQueuedChanges(): number {
   const db = usePowerSync();
@@ -124,7 +197,7 @@ export function useQueuedChanges(): number {
     // A write made on this device also changes the count before any status change.
     const disposeChange = db.onChange(
       { onChange: refresh },
-      { tables: [...DEVICE_WRITABLE_TABLES], throttleMs: 250 },
+      { tables: [...DEVICE_WRITABLE_TABLES, ...ROUND_WRITABLE_TABLES], throttleMs: 250 },
     );
     return () => {
       active = false;

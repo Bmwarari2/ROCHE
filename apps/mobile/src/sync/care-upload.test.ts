@@ -70,6 +70,24 @@ describe("toCareUpload", () => {
     });
   });
 
+  it("hazard HZ-029 sends the round's task the entry is the evidence for, so the API completes it", () => {
+    const request = toCareUpload({
+      op: "PUT",
+      table: "observation",
+      id: ID,
+      opData: {
+        ...base,
+        chart: "repositioning",
+        chart_values: '{"chart":"repositioning","position":"left"}',
+        task_id: "0199c000-0000-7000-8000-0000000000a1",
+      },
+    });
+    expect(request).toMatchObject({
+      kind: "request",
+      body: { id: ID, taskId: "0199c000-0000-7000-8000-0000000000a1" },
+    });
+  });
+
   it("leaves out empty optional fields, which the API refuses as null", () => {
     const request = toCareUpload({
       op: "PUT",

@@ -870,6 +870,116 @@ describe("opening the database: the owner check before the device connects (S3, 
     expect(parked[0]?.message).toBe(t("mobile.held.discardFailedEntry"));
   });
 
+  describe("a task's move and a handover acknowledgement held when the session ends (#36 review round 1, M1)", () => {
+    const TASK = "0199d000-0000-7000-8000-0000000000a1";
+    const ACK = "0199d000-0000-7000-8000-000000000201";
+    const move = (id: string) =>
+      JSON.stringify({
+        id,
+        to: "done",
+        reason: null,
+        version: 3,
+        by: sam.tenantUserId,
+        at: "2026-10-11T02:05:00.000Z",
+        tenantId: DEMO_TENANT_ID,
+        personId: ADA_PERSON,
+        dueAt: "2026-10-11 02:00:00Z",
+        title: "Reposition",
+      });
+    const ack: CrudEntryLike = {
+      op: "PUT",
+      table: "handover_acknowledgement",
+      id: ACK,
+      opData: {
+        tenant_id: DEMO_TENANT_ID,
+        handover_id: "0199d000-0000-7000-8000-000000000301",
+        tenant_user_id: sam.tenantUserId,
+        item_keys: "[]",
+        acknowledged_at: "2026-10-11T07:10:00.000Z",
+        location_id: "0199d000-0000-7000-8000-000000000401",
+        seen_token: "token-43",
+      },
+    };
+    const heldMove = (id: string): CrudEntryLike => ({
+      op: "PATCH",
+      table: "task",
+      id: TASK,
+      opData: { status: "done", queued_transition: move(id) },
+    });
+
+    it("hazard HZ-006 holds a move under its own id with its task named, and an acknowledgement under its own", async () => {
+      const dev = await device();
+      dev.queue.push(heldMove("0199d000-0000-7000-8000-000000000101"), ack);
+      await holdUnsentWork(dev.holdDb, NOW);
+      const held = all<{
+        id: string;
+        person_id: string | null;
+        record_table: string;
+        payload: string;
+      }>(
+        dev.sql,
+        "SELECT id, person_id, record_table, payload FROM held_entry ORDER BY position",
+        [],
+      );
+      expect(held.map((h) => [h.id, h.record_table, h.person_id])).toEqual([
+        ["0199d000-0000-7000-8000-000000000101", "task", ADA_PERSON],
+        [ACK, "handover_acknowledgement", null],
+      ]);
+      expect(JSON.parse(held[0]?.payload ?? "{}")).toMatchObject({ task_id: TASK, status: "done" });
+    });
+
+    it("hazard HZ-006 puts the owner's held move and acknowledgement back into the queue after sign-in, as entries are", async () => {
+      const dev = await device();
+      dev.queue.push(heldMove("0199d000-0000-7000-8000-000000000101"), ack);
+      await holdUnsentWork(dev.holdDb, NOW);
+      expect(await restoreHeldWork(dev.holdDb, NOW)).toEqual({
+        restored: 2,
+        parked: 0,
+        remaining: 0,
+      });
+      expect(dev.count("held_entry")).toBe(0);
+      expect(
+        all<{ id: string; status: string; queued_transition: string }>(
+          dev.sql,
+          "SELECT id, status, queued_transition FROM task",
+          [],
+        ),
+      ).toEqual([
+        {
+          id: TASK,
+          status: "done",
+          queued_transition: move("0199d000-0000-7000-8000-000000000101"),
+        },
+      ]);
+      expect(all(dev.sql, "SELECT id, seen_token FROM handover_acknowledgement", [])).toEqual([
+        { id: ACK, seen_token: "token-43" },
+      ]);
+    });
+
+    it("hazard HZ-006 parks two moves for the same task under their own ids, so neither replaces the other", async () => {
+      const dev = await device();
+      dev.queue.push(heldMove("0199d000-0000-7000-8000-000000000101"));
+      await holdUnsentWork(dev.holdDb, NOW);
+      dev.queue.push(heldMove("0199d000-0000-7000-8000-000000000102"));
+      await holdUnsentWork(dev.holdDb, NOW);
+      expect(await restoreHeldWork(dev.holdDb, NOW, true)).toEqual({
+        restored: 0,
+        parked: 2,
+        remaining: 0,
+      });
+      expect(
+        all<{ id: string; person_id: string }>(
+          dev.sql,
+          "SELECT id, person_id FROM upload_issue ORDER BY id",
+          [],
+        ),
+      ).toEqual([
+        { id: "0199d000-0000-7000-8000-000000000101", person_id: ADA_PERSON },
+        { id: "0199d000-0000-7000-8000-000000000102", person_id: ADA_PERSON },
+      ]);
+    });
+  });
+
   it("hazard HZ-040 someone else's refused sign-in keeps the entries blocked (round 4, H1)", async () => {
     const dev = await device({ queued: 1 });
     const outcome = await admitToDatabase(openDeps(dev, { me: kit, uploadBlocked: true }).deps);

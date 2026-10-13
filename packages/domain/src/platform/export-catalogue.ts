@@ -230,6 +230,39 @@ export function resolveColumnDoc(
   };
 }
 
+/**
+ * The back-entry columns on the five entries a device or the web writes (operations.md rules 11 to
+ * 13; migration 0053): empty on every entry written at the time.
+ */
+const BACK_ENTRY_COLUMN_DOCS: Readonly<Record<string, ColumnSpec>> = {
+  late_entry_reason: {
+    description: "Why the entry was made late; empty for an entry written at the time.",
+    codes: { downtime: "Entered from a paper record written during an outage (outage_id)." },
+  },
+  outage_id: {
+    description:
+      "The outage a paper record was written in, or that an entry written later for a time inside it was not from paper (outage.id).",
+  },
+  paper_date: { description: "The date written on the paper record (UK calendar date)." },
+  paper_time: { description: "The time written on the paper record (UK wall clock, HH:MM)." },
+  paper_occurrence: {
+    description: "Which time a paper time in the hour the clocks went back was.",
+    codes: {
+      only: "The time happened once.",
+      earlier: "The first of the two (British Summer Time).",
+      later: "The second of the two (Greenwich Mean Time).",
+    },
+  },
+  outside_outage_reason: {
+    description: "Why a paper record has a time outside its outage, in the writer's words.",
+  },
+  paper_reference: { description: "The reference on the paper form, when it had one." },
+  not_from_paper_reason: {
+    description:
+      "Why an entry written later for a time inside an outage was not copied from paper, in the writer's words.",
+  },
+};
+
 export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.about_me": {
     context: "people",
@@ -331,6 +364,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
           "Sent by: the manager who handed this entry over from a device for its author (created_by), when one did (tenant_user.id; care.md section 6, Device integrity part 6). Empty when its author sent it.",
       },
       device_id: "exported",
+      ...BACK_ENTRY_COLUMN_DOCS,
       late_entry: "exported",
       clock_drift: "exported",
       supersedes_id: "exported",
@@ -689,6 +723,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
           "Sent by: the manager who handed this entry over from a device for its author (created_by), when one did (tenant_user.id; care.md section 6, Device integrity part 6). Empty when its author sent it.",
       },
       device_id: "exported",
+      ...BACK_ENTRY_COLUMN_DOCS,
       late_entry: "exported",
       clock_drift: "exported",
       supersedes_id: "exported",
@@ -961,6 +996,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
           "Sent by: the manager who handed this entry over from a device for its author (created_by), when one did (tenant_user.id; care.md section 6, Device integrity part 6). Empty when its author sent it.",
       },
       device_id: "exported",
+      ...BACK_ENTRY_COLUMN_DOCS,
       late_entry: "exported",
       clock_drift: "exported",
       supersedes_id: "exported",
@@ -2746,6 +2782,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
           "Sent by: the manager who handed this entry over from a device for its author (created_by), when one did (tenant_user.id; care.md section 6, Device integrity part 6). Empty when its author sent it.",
       },
       device_id: "exported",
+      ...BACK_ENTRY_COLUMN_DOCS,
       late_entry: "exported",
       clock_drift: "exported",
       supersedes_id: "exported",
@@ -4013,6 +4050,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
           "Sent by: the manager who handed this entry over from a device for its author (created_by), when one did (tenant_user.id; care.md section 6, Device integrity part 6). Empty when its author sent it.",
       },
       device_id: "exported",
+      ...BACK_ENTRY_COLUMN_DOCS,
       late_entry: "exported",
       clock_drift: "exported",
       supersedes_id: "exported",

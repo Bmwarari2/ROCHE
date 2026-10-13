@@ -32,6 +32,8 @@ export interface EntryContext {
   readonly windowDays?: number | null;
   /** Minutes a typed time may be ahead of the device clock (`sync.clock_drift_flag_minutes`). */
   readonly clockToleranceMinutes?: number | null;
+  /** The round's task the entry is recorded for, which the API completes with it. */
+  readonly taskId?: string | null;
   readonly newId: () => string;
 }
 
@@ -63,6 +65,7 @@ export function entryRow(
     supersedes_id: correction?.supersedesId ?? null,
     correction_reason: correction ? correction.reason.trim() : null,
     created_by: context.userId,
+    ...(context.taskId ? { task_id: context.taskId } : {}),
   };
 }
 

@@ -12,12 +12,14 @@ import {
   numeric,
   pgTable,
   text,
+  time,
   timestamp,
   unique,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { createdColumns, eventColumns, id, mutableColumns, tenantId } from "./_columns";
+import { outage } from "./operations";
 import { contact, person } from "./people";
 import { document, location, tenantUser } from "./platform";
 import { incident } from "./safety";
@@ -105,6 +107,56 @@ const entryTaskOutcome = (table: string) =>
     sql`(task_id IS NULL) = (task_outcome IS NULL) AND (task_outcome IS NULL OR task_outcome IN (${TASK_LINK_OUTCOMES_SQL}))`,
   );
 
+/**
+ * Back-entry from paper during an outage (operations.md rules 11 to 13; HZ-017), on the five
+ * entries a device or the web writes (migration 0053, expand only: empty on every entry written at
+ * the time). A back-entry has the late-entry reason `downtime`, its outage, the date and time as
+ * written on the form (UK wall clock, with the occurrence chosen in the repeated autumn hour), the
+ * form's reference, and a reason when the paper time is outside the outage. An entry written later
+ * for a time inside an outage that was not copied from paper names the outage and says why.
+ */
+const backEntryColumns = () => ({
+  lateEntryReason: text("late_entry_reason"),
+  outageId: uuid("outage_id"),
+  paperDate: date("paper_date"),
+  paperTime: time("paper_time"),
+  paperOccurrence: text("paper_occurrence"),
+  outsideOutageReason: text("outside_outage_reason"),
+  paperReference: text("paper_reference"),
+  notFromPaperReason: text("not_from_paper_reason"),
+});
+
+const BACK_ENTRY_CHECK = sql`CASE WHEN late_entry_reason = 'downtime'
+  THEN outage_id IS NOT NULL AND paper_date IS NOT NULL AND paper_time IS NOT NULL
+    AND extract(second FROM paper_time) = 0 AND paper_occurrence IN ('only', 'earlier', 'later')
+    AND not_from_paper_reason IS NULL
+    AND (outside_outage_reason IS NULL OR btrim(outside_outage_reason) <> '')
+  ELSE late_entry_reason IS NULL AND paper_date IS NULL AND paper_time IS NULL
+    AND paper_occurrence IS NULL AND outside_outage_reason IS NULL AND paper_reference IS NULL
+    AND (outage_id IS NULL) = (not_from_paper_reason IS NULL)
+    AND (not_from_paper_reason IS NULL OR btrim(not_from_paper_reason) <> '')
+END`;
+
+/** The outage reference (composite, so it never reaches another tenant's), the rule and an index. */
+const backEntryConstraints = (
+  table: string,
+  t: { tenantId: AnyPgColumn; outageId: AnyPgColumn; supersedesId: AnyPgColumn },
+) => [
+  foreignKey({
+    name: `${table}_outage_fk`,
+    columns: [t.tenantId, t.outageId],
+    foreignColumns: [outage.tenantId, outage.id],
+  }),
+  check(`${table}_back_entry`, BACK_ENTRY_CHECK),
+  index(`${table}_outage_idx`).on(t.tenantId, t.outageId).where(sql`outage_id IS NOT NULL`),
+  // A back-entry is corrected once; a further correction supersedes the correction, so each
+  // paper record has one current version (#38 review round 2). Ordinary entries keep concurrent
+  // offline corrections.
+  uniqueIndex(`${table}_back_entry_correction_key`)
+    .on(t.tenantId, t.supersedesId)
+    .where(sql`late_entry_reason = 'downtime' AND supersedes_id IS NOT NULL`),
+];
+
 export const personCareProfile = pgTable(
   "person_care_profile",
   {
@@ -138,6 +190,7 @@ export const careNote = pgTable(
   {
     ...entryColumns(),
     ...handedOverByColumn(),
+    ...backEntryColumns(),
     /** personal_care, nutrition, mood, activity, visit, health, night, other. */
     category: text("category").notNull(),
     body: text("body").notNull(),
@@ -149,6 +202,7 @@ export const careNote = pgTable(
   },
   (t) => [
     unique("care_note_tenant_id_id_key").on(t.tenantId, t.id),
+    ...backEntryConstraints("care_note", t),
     personRef("care_note_person_fk", t),
     entryTaskOutcome("care_note"),
     handedOverByRef("care_note_handed_over_by_fk", t),
@@ -163,6 +217,7 @@ export const observation = pgTable(
   {
     ...entryColumns(),
     ...handedOverByColumn(),
+    ...backEntryColumns(),
     /** fluid_intake, fluid_output, food, repositioning, bowel, weight, vitals (NEWS2 set). */
     chart: text("chart").notNull(),
     /** Typed per chart and validated by the API (packages/contracts). */
@@ -172,6 +227,7 @@ export const observation = pgTable(
   },
   (t) => [
     unique("observation_tenant_id_id_key").on(t.tenantId, t.id),
+    ...backEntryConstraints("observation", t),
     personRef("observation_person_fk", t),
     entryTaskOutcome("observation"),
     handedOverByRef("observation_handed_over_by_fk", t),
@@ -186,6 +242,7 @@ export const bodyMapMark = pgTable(
   {
     ...entryColumns(),
     ...handedOverByColumn(),
+    ...backEntryColumns(),
     view: text("view").notNull(),
     region: text("region").notNull(),
     /** The person's side, stated in words and checked against the drawing (HZ-019). */
@@ -223,6 +280,7 @@ export const bodyMapMark = pgTable(
   },
   (t) => [
     unique("body_map_mark_tenant_id_id_key").on(t.tenantId, t.id),
+    ...backEntryConstraints("body_map_mark", t),
     personRef("body_map_mark_person_fk", t),
     entryTaskOutcome("body_map_mark"),
     handedOverByRef("body_map_mark_handed_over_by_fk", t),
@@ -646,6 +704,7 @@ export const activityRecord = pgTable(
   {
     ...entryColumns(),
     ...handedOverByColumn(),
+    ...backEntryColumns(),
     activity: text("activity").notNull(),
     /** `group` or `one_to_one`. */
     format: text("format").notNull(),
@@ -657,6 +716,7 @@ export const activityRecord = pgTable(
   },
   (t) => [
     unique("activity_record_tenant_id_id_key").on(t.tenantId, t.id),
+    ...backEntryConstraints("activity_record", t),
     unique("activity_record_tenant_person_id_key").on(t.tenantId, t.personId, t.id),
     personRef("activity_record_person_fk", t),
     entryTaskOutcome("activity_record"),
@@ -690,6 +750,7 @@ export const visitLog = pgTable(
   {
     ...entryColumns(),
     ...handedOverByColumn(),
+    ...backEntryColumns(),
     /** `facilitated_visit`, `visit_out` or `accompaniment`. */
     kind: text("kind").notNull(),
     contactId: uuid("contact_id"),
@@ -702,6 +763,7 @@ export const visitLog = pgTable(
   },
   (t) => [
     unique("visit_log_tenant_id_id_key").on(t.tenantId, t.id),
+    ...backEntryConstraints("visit_log", t),
     unique("visit_log_tenant_person_id_key").on(t.tenantId, t.personId, t.id),
     personRef("visit_log_person_fk", t),
     entryTaskOutcome("visit_log"),
