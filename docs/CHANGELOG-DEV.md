@@ -1252,13 +1252,42 @@ Stacked on #32. Migration 0053 (numbered after Lane C's 0052):
 
 **Tests**: `packages/db` 416 passing locally (8 new in `back-entry.test.ts`).
 
-## 2026-10-13: Slice 11 part 3a, downtime pack API (OPS-028)
+## 2026-10-13: Slice 11 part 2, #38 review round 1 (OPS-028)
 
-Stacked on part 2. `GET` and `POST /v1/locations/{id}/downtime-pack` (JSON or PDF;
-operations.md section 13): the latest pack the reader can open, built again on the spot when it no
-longer serves the people receiving care there, with the freshness header worked out now on every
-printed page; the PDF is never stored. The pack PDF writer gains a header on every page, page
-breaks and a footer naming whose page it is (HZ-001); shared allergy, communication and rate
-helpers; unconfirmed MAR and PEEP places print as not set.
+Migration 0053, edited in place:
 
-**Tests**: `apps/api` 5 new in `downtime.test.ts`; HZ-021's planned API test now passes.
+- A back-entry against a reconciled outage is refused, as against a cancelled one; the outage is
+  read again locked for share, so a cancel or a reconciliation at the same moment waits for the
+  entry and then counts it.
+- A back-entry's time is the instant its paper date and time give in UK time
+  (`app.paper_instant`: the occurrence chosen in the repeated autumn hour, `only` refused there,
+  the skipped spring hour refused).
+- The outage window is `[start, end)`, an open outage running to now plus the clock-drift
+  allowance: a back-entry outside it needs a reason, an entry not from paper names only an outage
+  it falls in, and the window is checked whenever the start or end changes, closing included.
+- A correction of a back-entry carries its paper details, or must stay on the same outage;
+  superseded entries do not count for the cancel and window checks; the reconciler must not be
+  the author or sender of an original back-entry.
+- Docs: operations.md section 12 (part 2 after round 1, part 3 requirements), the HZ-017 rows,
+  H-203 to H-206, STATUS follow-ups.
+
+**Tests**: `packages/db` `back-entry.test.ts` now 17 (9 new), including the race between an entry
+and a cancel.
+
+## 2026-10-13: Slice 11 part 3a-1, downtime pack API (OPS-028)
+
+Stacked on part 2. `GET` and `POST /v1/locations/{id}/downtime-pack` (operations.md section 13):
+the latest pack the reader can open, built again on the spot when it no longer serves the people
+receiving care there, with the freshness words and header lines worked out now; shared allergy,
+communication and rate helpers; unconfirmed MAR and PEEP places print as not set.
+
+**Tests**: `apps/api` 4 new in `downtime.test.ts`; HZ-021's planned API test now passes.
+
+## 2026-10-13: Slice 11 part 3a-2, the printed downtime pack (OPS-028)
+
+Stacked on part 3a-1. `GET /v1/locations/{id}/downtime-pack?format=pdf` (operations.md section
+13): the pack printed with the header worked out now on every page, a front sheet of warnings and a
+page per person whose footer names them; the PDF is never stored. The PDF writer gains a header on
+every page, page breaks and a footer naming whose page it is (HZ-001).
+
+**Tests**: `apps/api` 1 new in `downtime.test.ts`, and printing in the audit test.
