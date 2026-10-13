@@ -271,10 +271,16 @@ Web read views, slice 9 part 1 (`apps/web/src/app/(shell)/incidents/`,
 its type and time with its status (icon and word), its open questions and whether part of it is
 hidden from the reader; and an incident page with what happened (severity and harm as staff
 judged them), who was told and the people on it (named from the reader's own people list, or by
-kind). A restricted reader is told part of it is hidden and sees no narrative or contacts. Types,
-statuses and labels are the catalogue's, never the API's English. The statutory notifications on
-the incident page follow in part 2. Gaps logged, no API change: staff are "you" or "a colleague"
-(no staff names, H-73); the list stops at 500 incidents without paging; infection details are not
+kind, with their communication needs). A restricted reader is told part of it is hidden, sees
+"About this incident" (times, who raised it, severity and harm) and no narrative or contacts.
+Types, statuses and labels are the catalogue's, never the API's English. After review round 1
+(#42): the incident page shows the questions about statutory notifications still to answer as a
+warning chip, says when notifications are not checked yet or not checked outside England, and
+says it does not show the questions or notifications yet (until part 2, H-256); the page title
+names the incident by its date; a location the reader cannot see reads "Location not shown to
+you"; when the API's limit of 500 is reached the list fetches the open and under-review incidents
+besides and says older incidents are not listed. Gaps logged, no API change: staff are "you" or
+"a colleague" (no staff names, H-73); the list has no paging past 500; infection details are not
 shown; the overdue alert links to `/notifications/statutory/{id}`, which the web does not have
 until the notification pages.
 

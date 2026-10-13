@@ -266,6 +266,12 @@ only when they link spec, code, tests and user documentation; no user guides exi
     person who raised it), prepare a notification, and submit it or mark it not required with
     step-up (`safety.notification.submit`). API gaps ([safety.md](../specs/safety.md) section 5):
     no staff names (H-73); the list has no paging past 500.
+    - Follow-ups from #42 review round 1 (H-256 asks the CSO whether part 1 may ship before part
+      2): `emergencyServicesCalled` and `gpContacted` default to false in `CreateIncident`, so
+      "No" may mean nobody was asked; the sidebar's Incidents icon (a warning triangle) reads as
+      an alert when the sidebar is folded to its icons; a reader without `people.person.read`
+      sees several "A person we support" with nothing to tell them apart; no demo account lacks
+      `safety.incident.read`, so the hidden Incidents item is unit tested only.
 
 ## Human actions outstanding
 
