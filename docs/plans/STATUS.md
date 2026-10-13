@@ -413,6 +413,14 @@ only when they link spec, code, tests and user documentation; no user guides exi
       link has no 44 px target; the journey neither opens nor scans the closed incident's page
       with axe; when needs are recorded the incident page says "Communication needs" twice (the
       label and the flag), so drop the flag's label there or hide the label visually.
+    - Follow-ups from #49 review round 1 (H-256 to H-260 ask the CSO): the clocks are worked out
+      when the page is drawn, with no "as of" time and no refresh; a submitted death notification
+      for a death later recorded in error shows as submitted on the incident (the correction task
+      is the only cue); the local warning line (`SafetyWarning`) belongs in `@harbour/ui`; the
+      reviewers' copy suggestions go to the CSO's wording review (H-258); the open questions are
+      counted twice, in the header chip and the section's notice; the classifier's tasks carry no
+      done state, so "RIDDOR may be needed: check on ..." stays after the check until the
+      incident is classified again (H-259).
 20. Invitations and MFA enrolment (feat/platform-invitations; PLAT-004): the spec and rules are
     built (platform.md, Invitations and MFA enrolment; `invitations.ts`), with a test that no
     one-time code is offered by SMS or email, and review round 1 of #43 folded in (the token only

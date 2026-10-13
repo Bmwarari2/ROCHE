@@ -1556,3 +1556,20 @@ fresh scratch database, run locally.
 
 **Tests**: `apps/web` 434 unit, `packages/i18n` 48; Playwright `e2e/incidents.spec.ts` on a
 fresh scratch database, run locally.
+
+## 2026-10-13: The incident screens, part 2, review round 1 (#49)
+
+Clinical and accessibility review of the notifications on an incident. "No notification found"
+now also needs no outputs and no open check that decides one (RIDDOR's absence check, the
+safeguarding decision guide, an outbreak's links, the candour decision), each said with its date.
+Warnings show only on drafts still open, each with a next step; one waiting for answers says so.
+Deadlines are in the law's terms ("Without delay: the clock started ...", RIDDOR's second
+deadline), an overdue clock says for how long, and an overdue chip at the top links to the
+section, which now comes before the people. Draft and ready are chips; not required uses the
+not-applicable style; notifications about one person name them. A component test draws every
+state with axe-core. Hazard log: HZ-013 control and verification, an HZ-008 assessment, HZ-001
+and HZ-009 rows; human actions H-256 (restated) to H-260; STATUS item 19 follow-ups.
+
+**Tests**: `apps/web` 459 unit (with the component test), `packages/i18n` 48; Playwright
+`e2e/incidents.spec.ts` on a fresh scratch database, run locally.
+
