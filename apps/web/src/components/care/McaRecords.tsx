@@ -1,8 +1,10 @@
 import type {
+  BestInterestsItem,
   CapacityAssessmentItem,
   ConsentDecisionStatus,
   ConsentItem,
   DolsItem,
+  StaffName,
 } from "@harbour/contracts";
 import { Card, StatusChip } from "@harbour/ui";
 import {
@@ -12,13 +14,28 @@ import {
   CircleHelp,
   CircleMinus,
   Clock,
+  History,
   type LucideIcon,
   RefreshCw,
   TriangleAlert,
+  UserCheck,
+  UserX,
 } from "lucide-react";
 import Link from "next/link";
+import type { EntryChain, EntryLike } from "@/lib/care-record";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import {
+  BEST_INTERESTS_ITEMS,
+  bestInterestsWarnings,
+  capacityChip,
+  capacityReason,
+  checklistAnswered,
+  consentCapacity,
+  consentGivenBy,
+  consentRecordChip,
+  consentRecordState,
+  datedTitle,
   decisionView,
   dolsChip,
   dolsClock,
@@ -26,11 +43,17 @@ import {
   dolsHistoryLines,
   dolsReminders,
   dolsTitle,
+  FUNCTIONAL_ELEMENTS,
   legalReviewView,
   type McaChip,
   type McaIcon,
   type McaLine,
+  replacedBy,
+  reviewOverdue,
+  staffName,
 } from "@/lib/mca";
+import { ukToday } from "@/lib/uk-time";
+import { Notice } from "./Notice";
 
 /**
  * The records of the consent, capacity and DoLS tab, as the API returns them (care.md rules 9 to
@@ -47,6 +70,9 @@ const ICONS: Record<McaIcon, LucideIcon> = {
   clock: Clock,
   "refresh-cw": RefreshCw,
   "triangle-alert": TriangleAlert,
+  history: History,
+  "user-check": UserCheck,
+  "user-x": UserX,
 };
 
 function Chip({ chip }: { readonly chip: McaChip }) {
@@ -76,6 +102,117 @@ function Fields({ rows }: { readonly rows: readonly (readonly [string, string | 
       ))}
     </dl>
   );
+}
+
+const when = (iso: string | null | undefined) => formatDateTime(iso) ?? t("common.notRecorded");
+const day = (isoDate: string | null) => formatDate(isoDate) ?? t("common.notRecorded");
+
+const yesNo = (value: boolean | null | undefined) =>
+  value === null || value === undefined ? null : t(value ? "care.common.yes" : "care.common.no");
+const decisionList = (decisions: readonly string[] | undefined) =>
+  decisions?.length
+    ? decisions.map((decision) => t("care.mca.decision", { decision })).join(", ")
+    : null;
+
+/** Who recorded it, by name and job title, when the API says. */
+function RecordedBy({ staff }: { readonly staff: StaffName | null }) {
+  return staff ? (
+    <p className="m-0 text-body-dense text-text-secondary">
+      {t("care.mca.recordedBy", { name: staffName(staff, t) })}
+    </p>
+  ) : null;
+}
+
+/** A link to a record's history, named for the record so several can be told apart; 44 px high. */
+function HistoryLink({ href, label }: { readonly href: string; readonly label: string }) {
+  return (
+    <p className="m-0 text-body-dense">
+      <Link href={href} className="inline-flex min-h-target items-center">
+        {label}
+      </Link>
+    </p>
+  );
+}
+
+/** "Review by dd/mm/yyyy", on its date. */
+function ReviewBy({ reviewOn }: { readonly reviewOn: string }) {
+  return (
+    <Line line={{ text: t("care.mca.reviewBy", { date: day(reviewOn) }), dateTime: reviewOn }} />
+  );
+}
+
+/**
+ * A corrected record (care.md rule 4): why it was corrected, and the earlier versions struck
+ * through, one tap away.
+ */
+function Corrections<
+  E extends EntryLike & { readonly recordedAt: string; readonly correctionReason: string | null },
+>({ chain, text }: { readonly chain: EntryChain<E>; readonly text: (item: E) => string }) {
+  const reason = chain.current.correctionReason;
+  return (
+    <>
+      {chain.current.supersedesId ? (
+        <p className="m-0">
+          {t("care.mca.corrects", { reason: reason ?? t("common.notRecorded") })}
+        </p>
+      ) : null}
+      {chain.earlier.length > 0 ? (
+        <details className="text-body-dense">
+          <summary className="inline-flex min-h-target cursor-pointer items-center text-link">
+            {t("care.timeline.earlier", { count: chain.earlier.length })}
+          </summary>
+          <ol className="m-0 mt-2 flex list-none flex-col gap-2 p-0">
+            {chain.earlier.map((version) => (
+              <li key={version.id} className="rounded-input border border-border px-4 py-2">
+                <Line
+                  className="text-text-secondary"
+                  line={{
+                    text: t("care.timeline.earlierVersion", { dateTime: when(version.recordedAt) }),
+                    dateTime: version.recordedAt,
+                  }}
+                />
+                <del className="text-text-secondary">{text(version)}</del>
+              </li>
+            ))}
+          </ol>
+        </details>
+      ) : null}
+    </>
+  );
+}
+
+/** A warning in words, with its icon. */
+function Warning({ text }: { readonly text: string }) {
+  return (
+    <p className="m-0 flex items-start gap-2 font-semibold" data-warning="">
+      <TriangleAlert size={18} strokeWidth={1.5} aria-hidden="true" className="mt-0.5 shrink-0" />
+      {text}
+    </p>
+  );
+}
+
+const DATE_SLOT = "\u2063";
+
+/** A sentence with its date in a `<time>` element (only the date, not the whole sentence). */
+function DatedText({
+  render,
+  iso,
+}: {
+  readonly render: (dateTime: string) => string;
+  readonly iso: string;
+}) {
+  const [before, after] = render(DATE_SLOT).split(DATE_SLOT);
+  return (
+    <>
+      {before}
+      <time dateTime={iso}>{when(iso)}</time>
+      {after}
+    </>
+  );
+}
+
+function ReviewOverdue() {
+  return <StatusChip status="overdue" label={t("care.mca.reviewOverdue")} icon={Clock} />;
 }
 
 /** Whether a valid consent exists now for each decision, and the capacity found for it. */
@@ -178,6 +315,361 @@ export function DolsCard({
             {dolsTitle(item, t, true)}
           </Link>
         </p>
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * A two-stage capacity assessment as recorded. An older assessment of the same decision says that
+ * a later one replaces its finding, and has no review to be overdue (HZ-026).
+ */
+export function CapacityCard({
+  chain,
+  assessments,
+  today,
+}: {
+  readonly chain: EntryChain<CapacityAssessmentItem>;
+  readonly assessments: readonly CapacityAssessmentItem[];
+  readonly today: string;
+}) {
+  const item = chain.current;
+  const later = replacedBy(item, assessments);
+  const assessor = item.assessorName
+    ? item.assessorRole
+      ? t("care.mca.nameAndRole", { name: item.assessorName, role: item.assessorRole })
+      : item.assessorName
+    : null;
+  // Stage 2 as answered, in the Act's order (none when stage 1 was not met).
+  const stage2 = FUNCTIONAL_ELEMENTS.flatMap((element) => {
+    const answer = item.stage2[element];
+    return answer ? [[element, answer] as const] : [];
+  });
+  return (
+    <Card
+      as="article"
+      title={datedTitle(item.decision, item.assessedAt, t)}
+      headingLevel={4}
+      className="break-words"
+    >
+      <div className="flex flex-col gap-2" data-capacity={item.outcome}>
+        <p className="m-0 flex flex-wrap items-center gap-2">
+          <Chip chip={capacityChip(item.outcome, t)} />
+          {later ? (
+            <StatusChip
+              status="notApplicable"
+              icon={History}
+              label={t("care.mca.capacity.replaced", {
+                date: formatDate(ukToday(new Date(later.assessedAt))) ?? "",
+              })}
+            />
+          ) : reviewOverdue(item.reviewOn, today) ? (
+            <ReviewOverdue />
+          ) : null}
+        </p>
+        <Line
+          line={{
+            text: t("care.mca.capacity.assessed", {
+              dateTime: when(item.assessedAt),
+              named: assessor ? "yes" : "no",
+              assessor: assessor ?? "",
+            }),
+            dateTime: item.assessedAt,
+          }}
+        />
+        {item.decisionKind ? (
+          <p className="m-0 text-body-dense text-text-secondary">
+            {t("care.mca.capacity.kind", {
+              decision: t("care.mca.decision", { decision: item.decisionKind }),
+            })}
+          </p>
+        ) : null}
+        <Fields
+          rows={[
+            ["reason", capacityReason(item, t)],
+            [
+              "impairment",
+              [yesNo(item.stage1.impairment), item.stage1.description].filter(Boolean).join("\n"),
+            ],
+            ["because", yesNo(item.inabilityBecauseOfImpairment)],
+            [
+              "steps",
+              item.practicableSteps
+                .map(({ step, detail }) => t("care.mca.capacity.step", { step, detail }))
+                .join("\n"),
+            ],
+          ]}
+        />
+        {stage2.length > 0 ? (
+          <dl className="m-0 flex flex-col gap-2">
+            {stage2.map(([element, answer]) => (
+              <div key={element} className="min-w-0">
+                <dt className="text-body-dense font-semibold">
+                  {t("care.mca.capacity.element", { element })}
+                </dt>
+                <dd className="m-0 whitespace-pre-line break-words">
+                  {[t("care.mca.capacity.able", { able: String(answer.able) }), answer.evidence]
+                    .filter(Boolean)
+                    .join("\n")}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
+        {item.reviewOn ? (
+          <ReviewBy reviewOn={item.reviewOn} />
+        ) : (
+          <p className="m-0">{t("care.mca.noReviewDate")}</p>
+        )}
+        <Corrections
+          chain={chain}
+          text={(version) =>
+            `${version.decision}: ${t("care.mca.capacity.outcome", { outcome: version.outcome })}`
+          }
+        />
+        <RecordedBy staff={item.recordedByStaff} />
+      </div>
+    </Card>
+  );
+}
+
+/** A best-interests decision: the checklist, who was consulted and the IMCA prompt (rule 10). */
+export function BestInterestsCard({
+  chain,
+  assessments,
+  today,
+}: {
+  readonly chain: EntryChain<BestInterestsItem>;
+  readonly assessments: readonly CapacityAssessmentItem[];
+  readonly today: string;
+}) {
+  const item = chain.current;
+  const assessment = assessments.find((a) => a.id === item.capacityAssessmentId);
+  const warnings = bestInterestsWarnings(assessment, assessments, t);
+  return (
+    <Card
+      as="article"
+      title={datedTitle(item.decision, item.decidedAt, t)}
+      headingLevel={4}
+      className="break-words"
+    >
+      <div className="flex flex-col gap-2" data-best-interests="">
+        {reviewOverdue(item.reviewOn, today) ? (
+          <p className="m-0">
+            <ReviewOverdue />
+          </p>
+        ) : null}
+        <Line
+          line={{
+            text: t("care.mca.bi.decided", { dateTime: when(item.decidedAt) }),
+            dateTime: item.decidedAt,
+          }}
+        />
+        {assessment ? (
+          <Line
+            className="text-body-dense text-text-secondary"
+            line={{
+              text: t("care.mca.bi.follows", {
+                dateTime: when(assessment.assessedAt),
+                decision: assessment.decision,
+                outcome: assessment.outcome,
+              }),
+              dateTime: assessment.assessedAt,
+            }}
+          />
+        ) : null}
+        {warnings.map((warning) => (
+          <Warning key={warning} text={warning} />
+        ))}
+        {item.imcaPrompt ? (
+          <Notice
+            tone="warning"
+            icon={<CircleAlert size={20} strokeWidth={1.5} />}
+            title={t("care.mca.bi.imca")}
+          >
+            {/* In the catalogue's words from the decision's own facts, not the API's English. */}
+            {t("care.mca.bi.imcaNeeded", {
+              kind:
+                item.seriousMedicalTreatment && item.accommodationChange
+                  ? "both"
+                  : item.seriousMedicalTreatment
+                    ? "smt"
+                    : item.accommodationChange
+                      ? "move"
+                      : "other",
+            })}
+          </Notice>
+        ) : null}
+        {item.seriousMedicalTreatment ? (
+          <p className="m-0">{t("care.mca.bi.about", { kind: "smt" })}</p>
+        ) : null}
+        {item.accommodationChange ? (
+          <p className="m-0">{t("care.mca.bi.about", { kind: "accommodation" })}</p>
+        ) : null}
+        {item.consultations.length > 0 ? (
+          <div>
+            <p className="m-0 text-body-dense font-semibold">
+              {t("care.mca.field", { field: "consulted" })}
+            </p>
+            <ul className="m-0 flex flex-col gap-1 ps-5">
+              {item.consultations.map((c) => (
+                <li key={`${c.consultee}-${c.consultedAt}`}>
+                  <DatedText
+                    iso={c.consultedAt}
+                    render={(dateTime) =>
+                      t("care.mca.bi.consultation", {
+                        named: c.name ? "yes" : "no",
+                        name: c.name ?? "",
+                        kind: t("care.mca.bi.consultee", { kind: c.consultee }),
+                        dateTime,
+                        views: c.views,
+                      })
+                    }
+                  />
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        <Fields rows={[["noConsultation", item.noConsultationReason]]} />
+        <details className="text-body-dense">
+          <summary className="inline-flex min-h-target cursor-pointer items-center text-link">
+            {t("care.mca.bi.checklist", {
+              answered: checklistAnswered(item),
+              total: BEST_INTERESTS_ITEMS.length,
+            })}
+          </summary>
+          <dl className="m-0 mt-2 flex flex-col gap-2">
+            {BEST_INTERESTS_ITEMS.map((key) => {
+              const answer = item.checklist[key];
+              return (
+                <div key={key}>
+                  <dt className="font-semibold">{t("care.mca.bi.item", { item: key })}</dt>
+                  <dd className="m-0 whitespace-pre-line">
+                    {t("care.mca.bi.answer", {
+                      answer: answer?.answer ?? "none",
+                      text: answer ? ("note" in answer ? answer.note : answer.reason) : "",
+                    })}
+                  </dd>
+                </div>
+              );
+            })}
+          </dl>
+        </details>
+        <ReviewBy reviewOn={item.reviewOn} />
+        <Corrections chain={chain} text={(version) => version.decision} />
+        <RecordedBy staff={item.recordedByStaff} />
+      </div>
+    </Card>
+  );
+}
+
+/** One consent or refusal: whether it decides its decision now, who gave it and on what authority. */
+export function ConsentCard({
+  item,
+  decisions,
+  assessments,
+  bestInterests,
+  personId,
+  personName,
+}: {
+  readonly item: ConsentItem;
+  readonly decisions: readonly ConsentDecisionStatus[];
+  readonly assessments: readonly CapacityAssessmentItem[];
+  readonly bestInterests: readonly BestInterestsItem[];
+  readonly personId: string;
+  readonly personName: string;
+}) {
+  const state = consentRecordState(item, decisions);
+  const rep = item.representative;
+  const decided = bestInterests.find((bi) => bi.id === item.bestInterestsDecisionId);
+  const conditions = item.restraintConditions;
+  const decision = t("care.mca.decision", { decision: item.decision });
+  return (
+    <Card
+      as="article"
+      title={datedTitle(decision, item.givenAt, t)}
+      headingLevel={4}
+      className="break-words"
+    >
+      <div className="flex flex-col gap-2" data-consent-record={state}>
+        <p className="m-0 flex flex-wrap items-center gap-2">
+          <Chip chip={consentRecordChip(state, t)} />
+        </p>
+        <Line
+          line={{
+            text: t("care.mca.consent.made", {
+              outcome: item.outcome,
+              dateTime: when(item.givenAt),
+              who: consentGivenBy(item, personName, t),
+            }),
+            dateTime: item.givenAt,
+          }}
+        />
+        <Line
+          className="text-body-dense text-text-secondary"
+          line={consentCapacity(item, assessments, t)}
+        />
+        {item.expiresAt ? (
+          <Line
+            line={{
+              text: t("care.mca.consent.expires", {
+                expired: state === "expired" ? "yes" : "no",
+                dateTime: when(item.expiresAt),
+              }),
+              dateTime: item.expiresAt,
+            }}
+          />
+        ) : null}
+        {item.withdrawnAt ? (
+          <Line
+            line={{
+              text: t("care.mca.consent.withdrawn", {
+                future: Date.parse(item.withdrawnAt) > Date.now() ? "yes" : "no",
+                dateTime: when(item.withdrawnAt),
+                reason: item.withdrawnReason ?? t("common.notRecorded"),
+              }),
+              dateTime: item.withdrawnAt,
+            }}
+          />
+        ) : null}
+        <Fields
+          rows={[
+            ["evidence", item.evidence],
+            ["lpa", yesNo(rep?.registered)],
+            ["opg", rep?.opgReference ?? null],
+            ["excluded", decisionList(rep?.excludedDecisions)],
+            [
+              "deputyScope",
+              rep?.deputyScope ? t("care.mca.deputyScope", { scope: rep.deputyScope }) : null,
+            ],
+            ["deputyDecisions", decisionList(rep?.deputyDecisions)],
+            ["restraint", yesNo(rep?.restraintExpresslyAuthorised)],
+            ["orderEnds", rep?.orderEndsAt ? when(rep.orderEndsAt) : null],
+            ["court", rep?.courtReference ?? null],
+            ["necessary", yesNo(conditions?.necessaryToPreventHarm)],
+            ["proportionate", yesNo(conditions?.proportionate)],
+            [
+              "bestInterests",
+              decided
+                ? t("care.mca.bi.decidedOn", {
+                    dateTime: when(decided.decidedAt),
+                    decision: decided.decision,
+                  })
+                : item.bestInterestsDecisionId
+                  ? t("common.notRecorded")
+                  : null,
+            ],
+          ]}
+        />
+        <RecordedBy staff={item.recordedByStaff} />
+        <HistoryLink
+          href={`/people/${personId}/history/consent_record/${item.id}`}
+          label={t("care.mca.consent.historyLink", {
+            decision,
+            date: formatDate(ukToday(new Date(item.givenAt))) ?? "",
+          })}
+        />
       </div>
     </Card>
   );

@@ -305,6 +305,96 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/members/{tenantUserId}/sessions/revoke": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Sign a member of staff out of every device
+     * @description Ends every session of the member's sign-in, on every device (platform.user.manage, step-up), with a coded reason, audited before the sessions end. A location role reaches only members whose roles and grants in force are all at its locations; anyone else reads as not found (audited by opaque id). A member who also works for another organisation in Harbour is not signed out (409 member_of_other_organisation). When the member's devices last reported entries waiting, the sign-out needs confirmEntriesWaiting (409 entries_waiting otherwise): signing out removes the care record from their phone until they sign in again, and the entries not yet sent stay on it until then. For staff_left or suspended, the holds on those devices fall due at once, as after a device revocation.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          tenantUserId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RevokeMemberSessions"];
+        };
+      };
+      responses: {
+        /** @description Signed out */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RevokeMemberSessionsResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/people": {
     parameters: {
       query?: never;
@@ -14097,6 +14187,20 @@ export interface components {
       /** Format: date-time */
       expiresAt: string;
       current: boolean;
+    };
+    RevokeMemberSessionsResult: {
+      revoked: number;
+      entriesWaiting: number;
+    };
+    RevokeMemberSessions: {
+      /** @enum {string} */
+      reasonCode:
+        | "lost_or_stolen_device"
+        | "staff_left"
+        | "suspended"
+        | "suspected_misuse"
+        | "other";
+      confirmEntriesWaiting?: boolean;
     };
     PersonList: {
       items: components["schemas"]["PersonSummary"][];
