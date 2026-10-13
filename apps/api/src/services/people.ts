@@ -15,7 +15,6 @@ import {
   placement,
   preAdmissionAssessment,
   propertyItem,
-  rateTable,
   reviewRecord,
   room,
   sharingDecision,
@@ -49,7 +48,6 @@ import {
   type PlacementType,
   planBedRelease,
   planTaskRestore,
-  type RateRow,
   type Recurrence,
   type ReviewSchedule,
   type RoomView,
@@ -84,7 +82,7 @@ import {
   MAX_TASK_DETAIL_ITEMS,
 } from "./care";
 import { bringPlanReviewForward } from "./care-planning";
-import { bankHolidays, rateNumber } from "./rates";
+import { bankHolidays, rateNumber, rateRows } from "./rates";
 import { roleHolders } from "./role-holders";
 import { withTenantWideScope } from "./safety";
 import { materialiseSeries, seriesRoundTimes } from "./tasks";
@@ -102,24 +100,6 @@ export type Nation = "england" | "wales" | "scotland" | "northern_ireland";
 // ------------------------------------------------------------------------------------------------
 // Rate-table figures
 // ------------------------------------------------------------------------------------------------
-
-async function rateRows(tx: Transaction, keys: readonly string[]): Promise<RateRow[]> {
-  const rows = await tx
-    .select()
-    .from(rateTable)
-    .where(inArray(rateTable.key, [...keys]));
-  return rows.map((r) => ({
-    key: r.key,
-    value: r.value,
-    unit: r.unit,
-    nation: r.nation,
-    validFrom: r.validFrom,
-    validTo: r.validTo,
-    tenantId: r.tenantId,
-    verificationStatus: r.verificationStatus,
-    source: r.source,
-  }));
-}
 
 /**
  * Every people figure for a location's nation, or null when the nation has none yet (the review

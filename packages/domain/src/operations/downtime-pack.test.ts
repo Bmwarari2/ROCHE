@@ -706,6 +706,18 @@ describe("hazard HZ-021 every page says when its information is from and whether
     }
   });
 
+  it.each([
+    ["began after the pack's information", 2, "11/10/2026 01:00"],
+    ["began before the pack's information", -3, "10/10/2026 22:00"],
+  ])("during an outage that %s, says paper began at the earlier time", (_label, hours, since) => {
+    const during: DowntimeFreshnessContext = {
+      outage: { startedAt: new Date(AS_AT.getTime() + hours * HOUR) },
+      clockDriftMinutes: rates.clockDriftMinutes,
+    };
+    const freshness = downtimePackFreshness(result, new Date(AS_AT.getTime() + 4 * HOUR), during);
+    expect(freshness.notice).toContain(`Anything recorded since ${since} is on paper`);
+  });
+
   it("flags a device clock behind the pack instead of calling it current", () => {
     const behind = new Date(AS_AT.getTime() - (rates.clockDriftMinutes + 1) * 60_000);
     const freshness = downtimePackFreshness(result, behind, NO_OUTAGE);

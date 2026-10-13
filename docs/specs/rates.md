@@ -170,6 +170,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | people.return_checks_due_hours | 24 | hours | 2000-01-01 | - | all | Harbour default for the checks after a return from hospital (people.md rule 10): each check is a task due this many hours after the return, escalated by the task engine when overdue; no published figure; CSO to confirm (H-85); tenant default | to-verify |
 | exit.money_and_property_return_days | 28 | days | 2000-01-01 | - | all | Harbour default matching cma.deposit_return_days (master prompt 9.2); no statutory period for returning personal money and property; tenant default | to-verify |
 | downtime_pack.valid_hours | 36 | hours | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: a nightly downtime pack is in date for 36 hours from its information's time, longer than the nightly interval so one failed night does not leave a home with only an out-of-date pack (master prompt 13.4 "nightly"); tenant default; CSO to confirm (H-101) | to-verify |
+| downtime_pack.requests_per_hour | 30 | count | 2000-01-01 | - | all | Harbour security policy default, not a statutory figure: a member opens, prints or builds downtime packs at most 30 times an hour, as each is a whole-home record (operations.md section 12; #45 review round 1); tenant default | to-verify |
 | downtime.duplicate_match_minutes | 10 | minutes | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: entries for the same person and kind within this many minutes of each other are listed as possible duplicates at outage reconciliation (master prompt 13.4 back-entry workflow); tenant default | to-verify |
 | downtime.back_entry_due_hours | 24 | hours | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: paper records from an outage are entered within 24 hours of its closure (master prompt 13.4 back-entry workflow); tenant default | to-verify |
 | evidence_pack.link_expiry_days.default | 7 | days | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: an inspector evidence pack link lasts 7 days unless the sender chooses otherwise (master prompt 11.2 "time-limited link"); tenant default | to-verify |
@@ -370,6 +371,10 @@ literals, and tests assert against the table, not a literal (section 7, section 
   to the Registered Manager. Entries for one person and kind within
   `downtime.duplicate_match_minutes` of each other are listed as possible duplicates. No statute
   sets any of these figures; the tenant's business continuity lead confirms them (H-98).
+- `downtime_pack.requests_per_hour` (30): a security policy default, not a statutory figure. Each
+  member opens, prints or builds downtime packs at most this many times an hour (a pack holds the
+  whole home's records), counted per member in Postgres like the transfer pack limit; a pack is
+  reused while nothing it was built from has changed ([operations.md](operations.md) section 12).
 - `evidence_pack.link_expiry_days.default` (7) and `.max` (30): policy defaults for the time-limited
   link to an inspector evidence pack ([quality.md](quality.md) rule 7). The sender may choose a
   shorter or longer expiry up to the maximum; a tenant may lower the maximum. No statute or CQC
