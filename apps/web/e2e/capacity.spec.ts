@@ -6,7 +6,7 @@ import {
   type Page,
   test,
 } from "@playwright/test";
-import { demoPerson, expectAccessible, signIn } from "./support";
+import { demoPerson, expectAccessible, settleAnimations, signIn } from "./support";
 
 /**
  * Phase 1 slice 9: the consent, capacity and DoLS tab (register rows CARE-021 and CARE-022;
@@ -282,7 +282,10 @@ test("hazard HZ-020 hazard HZ-026 the tab shows consent by decision and the DoLS
 test("the tab reflows at 320 px and says when nothing is recorded", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 900 });
   await page.goto(`/people/${PERSON}/capacity`);
+  // On a phone the shell's sidebar folds to its icons; measure once it has finished folding, not
+  // while the page is still moving across.
   await page.locator('[data-collapsed="true"]').waitFor();
+  await settleAnimations(page);
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   );
