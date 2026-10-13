@@ -326,9 +326,14 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
   - Not checked in the database: rule 13 (the normal route), which depends on the API applying
     `checkEntryAgainstOutages` on every care route and on the sync upload.
 - Part 2 after #38 review round 2:
-  - A correction of a back-entry is accepted after its outage is reconciled, keeping the same
-    outage and its paper details; only new back-entries are refused there. A wrong value entered
-    from paper (1500 ml for 150 ml) can always be corrected.
+  - A correction of an entry that cites the outage, a back-entry or one not from paper, is
+    accepted after the outage is reconciled, keeping the link (a back-entry keeps its paper details
+    too); only new entries citing it are refused. A wrong value (1500 ml for 150 ml) can always be
+    corrected.
+  - A back-entry is corrected once: a partial unique index on `(tenant_id, supersedes_id)` over
+    back-entry rows on each of the five entries means a further correction supersedes the
+    correction, so each paper record has one current version. Ordinary entries keep concurrent
+    offline corrections.
   - For the reconciler check, a correction is only an entry whose original is a back-entry of the
     same outage, and a correction cannot make an entry not entered from paper a back-entry.
   - Closing may set the true end before back-entries already entered (H-207). Reconciliation is
@@ -369,6 +374,11 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
     must be in `reviewedEntryIds` with the possible duplicates before the outage is reconciled.
   - A correction of a back-entry after reconciliation goes through the care routes as any
     correction, and the reconciled outage's history shows it.
+  - Correcting a reviewed back-entry whose time is after the outage's true end, the form asks for
+    an outside-the-outage reason, because the database refuses the correction without one (wording
+    H-208). A correction of an entry not from paper whose time is now outside the outage drops the
+    link, as rule 13 then does not ask for it. A second correction of the same back-entry is
+    refused (the unique index): the form corrects the current version.
 
 ## 13. As built (slice 11 part 3a, downtime pack API)
 

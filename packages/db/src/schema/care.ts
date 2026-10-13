@@ -140,7 +140,7 @@ END`;
 /** The outage reference (composite, so it never reaches another tenant's), the rule and an index. */
 const backEntryConstraints = (
   table: string,
-  t: { tenantId: AnyPgColumn; outageId: AnyPgColumn },
+  t: { tenantId: AnyPgColumn; outageId: AnyPgColumn; supersedesId: AnyPgColumn },
 ) => [
   foreignKey({
     name: `${table}_outage_fk`,
@@ -149,6 +149,12 @@ const backEntryConstraints = (
   }),
   check(`${table}_back_entry`, BACK_ENTRY_CHECK),
   index(`${table}_outage_idx`).on(t.tenantId, t.outageId).where(sql`outage_id IS NOT NULL`),
+  // A back-entry is corrected once; a further correction supersedes the correction, so each
+  // paper record has one current version (#38 review round 2). Ordinary entries keep concurrent
+  // offline corrections.
+  uniqueIndex(`${table}_back_entry_correction_key`)
+    .on(t.tenantId, t.supersedesId)
+    .where(sql`late_entry_reason = 'downtime' AND supersedes_id IS NOT NULL`),
 ];
 
 export const personCareProfile = pgTable(

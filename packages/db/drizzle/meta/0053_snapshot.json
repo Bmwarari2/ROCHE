@@ -814,6 +814,28 @@
           "method": "btree",
           "with": {}
         },
+        "activity_record_back_entry_correction_key": {
+          "name": "activity_record_back_entry_correction_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "supersedes_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "late_entry_reason = 'downtime' AND supersedes_id IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "activity_record_person_idx": {
           "name": "activity_record_person_idx",
           "columns": [
@@ -1876,6 +1898,28 @@
           "method": "btree",
           "with": {}
         },
+        "body_map_mark_back_entry_correction_key": {
+          "name": "body_map_mark_back_entry_correction_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "supersedes_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "late_entry_reason = 'downtime' AND supersedes_id IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "body_map_mark_person_idx": {
           "name": "body_map_mark_person_idx",
           "columns": [
@@ -2262,6 +2306,28 @@
           ],
           "isUnique": false,
           "where": "outage_id IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "care_note_back_entry_correction_key": {
+          "name": "care_note_back_entry_correction_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "supersedes_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "late_entry_reason = 'downtime' AND supersedes_id IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -4295,6 +4361,28 @@
           "method": "btree",
           "with": {}
         },
+        "observation_back_entry_correction_key": {
+          "name": "observation_back_entry_correction_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "supersedes_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "late_entry_reason = 'downtime' AND supersedes_id IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "observation_person_chart_idx": {
           "name": "observation_person_chart_idx",
           "columns": [
@@ -5153,6 +5241,28 @@
           ],
           "isUnique": false,
           "where": "outage_id IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "visit_log_back_entry_correction_key": {
+          "name": "visit_log_back_entry_correction_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "supersedes_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "late_entry_reason = 'downtime' AND supersedes_id IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
