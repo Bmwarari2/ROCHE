@@ -666,6 +666,39 @@ View logic is in `apps/web/src/lib/mca.ts`; the journey with axe (every warning 
 320 px, the empty tab) is `apps/web/e2e/capacity.spec.ts`. The capacity assessments,
 best-interests decisions and consent records, and the forms, come next (STATUS).
 
+Built in slice 9 (web, the consent, capacity and DoLS tab, part 2): the tab also reads
+`/best-interests` and shows, held to the same standards (catalogue words, unknown values warn,
+dates in `<time>` elements, each card named with its UK date):
+
+- **Capacity assessments** (HZ-026), grouped by correction: the outcome as a finding ("Lacks
+  capacity for this decision" in a neutral or information tone, never an alarm), when and by whom
+  it was assessed, the decision it is about, the outcome in the Act's words as the API stored it,
+  stage 1 with its description, each stage 2 answer with its evidence, whether the inability is
+  because of the impairment, the practicable steps, the review date or "No review date set" and
+  an overdue review; a correction says why, and the versions it replaced are struck through.
+- **Best-interests decisions**: when decided and the assessment they follow, the IMCA prompt as a
+  warning worded from the decision's own facts (serious medical treatment, a change of
+  accommodation), the people consulted and their views, why nobody was consulted, the section 4
+  checklist with each answer, the review date, and corrections as above.
+- **Consent records**: whether each decides its decision now, was replaced by a later record,
+  withdrawn (with the reason) or expired, or is refused (a warning) or not valid; who gave it,
+  with a representative's authority (registration, exclusions, the deputy's order, its end,
+  restraint expressly allowed), the restraint conditions for bed rails and the best-interests
+  decision for covert medicines; the capacity it was made under with the assessment's date; who
+  recorded it; and a history link named with the decision and date.
+
+After review round 1 of part 2 (#35): the finding in force for each decision is picked with the
+domain's `capacityFinding`, so an older assessment of the same decision (or, without a consent
+decision, of the same words) says "A later assessment (dd/mm/yyyy) replaces this finding" and
+shows no overdue review (H-254); the finding is worded from the two stages and the abilities the
+person could not use, never the API's English reason. A best-interests decision says what its
+assessment found and warns when that assessment was corrected later or the finding now in force
+is not a lack of capacity (H-255). A deciding consent record that was withdrawn or expired warns;
+one dated later reads "Starts later: not in force yet"; a decision or deciding record the web
+cannot place warns; a withdrawal dated later reads as to come; a representative recorded only as
+a contact is named as one of the person's contacts. The IMCA notice reads "An independent mental
+capacity advocate may be needed".
+
 Built in the care API follow-ups (the remaining findings of the #15 reviews; migrations 0043 and
 0044; `apps/api/src/routes/care-settings.ts`, `services/staff.ts`, `services/escalation-policies.ts`):
 

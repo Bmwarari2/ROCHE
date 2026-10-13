@@ -1,8 +1,11 @@
 import type {
+  BestInterestsItem,
   CapacityAssessmentItem,
   ConsentDecisionStatus,
   ConsentItem,
+  CreateCapacityAssessment,
   DolsItem,
+  StaffName,
 } from "@harbour/contracts";
 import {
   type ConsentProblem,
@@ -30,7 +33,10 @@ export type McaIcon =
   | "ban"
   | "clock"
   | "refresh-cw"
-  | "triangle-alert";
+  | "triangle-alert"
+  | "history"
+  | "user-check"
+  | "user-x";
 
 export interface McaChip {
   readonly status:
@@ -161,6 +167,261 @@ export function decisionView(
       : null,
     reviewOverdue: decision.capacityReviewOverdue,
   };
+}
+
+export type ConsentRecordState =
+  | "in_force"
+  | "refused"
+  | "not_valid"
+  | "withdrawn"
+  | "expired"
+  | "replaced"
+  | "not_yet"
+  | "unknown";
+
+/**
+ * Where one consent record stands. The record that decides its decision now (the latest made by
+ * now, as the API says) is in force, refused, withdrawn, expired or not valid; a record the API
+ * names another record over was replaced by it; one dated later than now is not in force yet. A
+ * decision the API does not list, or no deciding record for a record already made, warns.
+ */
+export function consentRecordState(
+  item: Pick<ConsentItem, "id" | "decision" | "givenAt" | "withdrawnAt" | "expiresAt">,
+  decisions: readonly Pick<ConsentDecisionStatus, "decision" | "status" | "recordId">[],
+  now: Date = new Date(),
+): ConsentRecordState {
+  const passed = (iso: string | null) => iso !== null && Date.parse(iso) <= now.getTime();
+  const deciding = decisions.find((d) => d.decision === item.decision);
+  if (!deciding) return "unknown";
+  if (deciding.recordId === item.id) {
+    if (deciding.status === "valid") return "in_force";
+    if (deciding.status === "refused") return "refused";
+    if (passed(item.withdrawnAt)) return "withdrawn";
+    if (passed(item.expiresAt)) return "expired";
+    return "not_valid";
+  }
+  if (!passed(item.givenAt)) return "not_yet";
+  return deciding.recordId === null ? "unknown" : "replaced";
+}
+
+/** A deciding record that no longer gives consent (withdrawn, expired, not valid) warns. */
+const RECORD_CHIPS: Record<ConsentRecordState, Omit<McaChip, "label">> = {
+  in_force: { status: "done", icon: "circle-check" },
+  refused: { status: "due", icon: "ban" },
+  not_valid: { status: "overdue", icon: "circle-alert" },
+  withdrawn: { status: "due", icon: "circle-minus" },
+  expired: { status: "due", icon: "clock" },
+  replaced: { status: "notApplicable", icon: "history" },
+  not_yet: { status: "info", icon: "clock" },
+  unknown: { status: "overdue", icon: "circle-alert" },
+};
+
+export function consentRecordChip(state: ConsentRecordState, t: Translator): McaChip {
+  return { ...RECORD_CHIPS[state], label: t("care.mca.consent.record", { state }) };
+}
+
+/** Who gave or refused consent: the person, or the representative with their authority. */
+export function consentGivenBy(
+  item: Pick<ConsentItem, "givenBy" | "representative">,
+  personName: string,
+  t: Translator,
+): string {
+  if (item.givenBy === "person") return personName;
+  const rep = item.representative;
+  return t("care.mca.consent.representative", {
+    name:
+      rep?.name ??
+      (rep?.contactId ? t("care.mca.consent.contact", { name: personName }) : null) ??
+      t("common.notRecorded"),
+    kind: rep?.kind ?? "other",
+  });
+}
+
+/** "Nell Nurse, Clinical lead", or the name alone. */
+export function staffName(staff: StaffName, t: Translator): string {
+  return staff.jobTitle
+    ? t("care.mca.nameAndRole", { name: staff.displayName, role: staff.jobTitle })
+    : staff.displayName;
+}
+
+// ------------------------------------------------------------------------------------------------
+// Capacity and best interests (rules 9 and 10)
+// ------------------------------------------------------------------------------------------------
+
+/** The four abilities of the functional test (Mental Capacity Act 2005 s.3(1)), in its order. */
+export const FUNCTIONAL_ELEMENTS = [
+  "understand",
+  "retain",
+  "useOrWeigh",
+  "communicate",
+] as const satisfies readonly (keyof CreateCapacityAssessment["stage2"])[];
+
+/** The section 4 checklist items, in the order the API's checklist takes them. */
+export const BEST_INTERESTS_ITEMS = [
+  "no_unjustified_assumptions",
+  "relevant_circumstances",
+  "regaining_capacity",
+  "participation",
+  "life_sustaining_treatment",
+  "wishes_and_feelings",
+  "beliefs_and_values",
+  "other_factors",
+  "views_of_others",
+  "less_restrictive_option",
+] as const satisfies readonly (keyof BestInterestsItem["checklist"])[];
+
+/** The outcome of a capacity assessment as the two-stage test found it: a finding, not an alarm. */
+export function capacityChip(outcome: string, t: Translator): McaChip {
+  const label = t("care.mca.capacity.outcome", { outcome });
+  if (outcome === "has_capacity") return { status: "neutral", icon: "user-check", label };
+  if (outcome === "lacks_capacity") return { status: "info", icon: "user-x", label };
+  return { status: "overdue", icon: "circle-alert", label };
+}
+
+/** A record's heading or history link with its UK date, so several can be told apart. */
+export function datedTitle(title: string, iso: string, t: Translator): string {
+  return t("care.mca.titleWithDate", { title, date: ukDate(iso) });
+}
+
+/**
+ * The capacity a consent record was made under, with the date of the assessment it names when
+ * the person's assessments include it; else the stored status alone.
+ */
+export function consentCapacity(
+  item: Pick<ConsentItem, "capacityStatus" | "capacityAssessmentId">,
+  assessments: readonly Pick<CapacityAssessmentItem, "id" | "assessedAt">[],
+  t: Translator,
+): McaLine {
+  const assessment = assessments.find((a) => a.id === item.capacityAssessmentId);
+  return assessment && item.capacityStatus !== "assumed"
+    ? line(
+        t("care.mca.consent.assessedOn", {
+          capacity: item.capacityStatus,
+          date: ukDate(assessment.assessedAt),
+        }),
+        assessment.assessedAt,
+      )
+    : line(t("care.mca.consent.capacityThen", { status: item.capacityStatus }));
+}
+
+type AssessmentFacts = Pick<
+  CapacityAssessmentItem,
+  "id" | "decision" | "decisionKind" | "assessedAt" | "outcome" | "reviewOn" | "superseded"
+>;
+
+/** Two assessments are of the same decision: the same consent decision, or the same words. */
+function sameDecision(a: AssessmentFacts, b: AssessmentFacts): boolean {
+  return a.decisionKind !== null || b.decisionKind !== null
+    ? a.decisionKind === b.decisionKind
+    : a.decision.trim().toLowerCase() === b.decision.trim().toLowerCase();
+}
+
+/**
+ * The finding in force for an assessment's decision, by the domain's rule (`capacityFinding`: the
+ * latest assessment of that decision made by now, corrections replacing what they correct). An
+ * assessment without a consent decision is compared by its words.
+ */
+export function currentFinding<A extends AssessmentFacts>(
+  assessment: A,
+  assessments: readonly A[],
+  now: Date = new Date(),
+): A {
+  const candidates = assessments.filter(
+    (a) =>
+      !a.superseded && sameDecision(a, assessment) && Date.parse(a.assessedAt) <= now.getTime(),
+  );
+  if (assessment.decisionKind) {
+    const found = capacityFinding(
+      candidates.map((a) => ({ ...a, assessedAt: new Date(a.assessedAt) })),
+      assessment.decisionKind,
+      now,
+      ukToday(now),
+    );
+    return found.status === "assumed"
+      ? assessment
+      : (candidates.find((a) => a.id === found.assessment.id) ?? assessment);
+  }
+  return (
+    [...candidates].sort((a, b) => Date.parse(b.assessedAt) - Date.parse(a.assessedAt))[0] ??
+    assessment
+  );
+}
+
+/**
+ * The later assessment that replaces this one's finding, when there is one: an older assessment
+ * of the same decision is history, never a standing finding (HZ-026).
+ */
+export function replacedBy<A extends AssessmentFacts>(
+  assessment: A,
+  assessments: readonly A[],
+  now: Date = new Date(),
+): A | null {
+  const current = currentFinding(assessment, assessments, now);
+  return current.id !== assessment.id &&
+    Date.parse(current.assessedAt) >= Date.parse(assessment.assessedAt)
+    ? current
+    : null;
+}
+
+/**
+ * The outcome in words from what the assessment recorded (the two stages and the abilities the
+ * person could not use), never the API's English reason.
+ */
+export function capacityReason(
+  item: Pick<CapacityAssessmentItem, "outcome" | "unableTo" | "stage1">,
+  t: Translator,
+): string {
+  const unable = new Intl.ListFormat(t.locale === "cy" ? "cy" : "en-GB", {
+    type: "conjunction",
+  }).format(item.unableTo.map((element) => t("care.mca.capacity.unableTo", { element })));
+  const basis =
+    item.outcome === "lacks_capacity"
+      ? item.unableTo.length > 0 && item.stage1.impairment
+        ? "lacks"
+        : "unknown"
+      : item.outcome === "has_capacity"
+        ? !item.stage1.impairment
+          ? "no_impairment"
+          : item.unableTo.length === 0
+            ? "able"
+            : "not_because"
+        : "unknown";
+  return t("care.mca.capacity.reason", { basis, unable });
+}
+
+/**
+ * What a best-interests decision should warn about its assessment: that the assessment it follows
+ * was corrected, and that the finding now in force for that decision is not a lack of capacity.
+ */
+export function bestInterestsWarnings<A extends AssessmentFacts>(
+  followed: A | undefined,
+  assessments: readonly A[],
+  t: Translator,
+  now: Date = new Date(),
+): string[] {
+  if (!followed) return [t("care.mca.bi.assessmentMissing")];
+  const warnings: string[] = [];
+  if (followed.superseded) warnings.push(t("care.mca.bi.assessmentCorrected"));
+  const current = currentFinding(followed, assessments, now);
+  if (current.outcome !== "lacks_capacity") {
+    warnings.push(
+      t("care.mca.bi.findingChanged", {
+        date: ukDate(current.assessedAt),
+        outcome: current.outcome,
+      }),
+    );
+  }
+  return warnings;
+}
+
+/** A review date that has passed (compared as UK dates). */
+export function reviewOverdue(reviewOn: string | null, today: string): boolean {
+  return reviewOn !== null && reviewOn < today;
+}
+
+/** How many of the section 4 checklist items were answered. */
+export function checklistAnswered(item: Pick<BestInterestsItem, "checklist">): number {
+  return BEST_INTERESTS_ITEMS.filter((key) => item.checklist[key] !== undefined).length;
 }
 
 // ------------------------------------------------------------------------------------------------
