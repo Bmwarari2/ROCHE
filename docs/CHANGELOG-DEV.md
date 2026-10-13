@@ -1404,3 +1404,47 @@ Migration 0053, edited in place:
   override and the reason a correction past the end needs.
 
 **Tests**: `packages/db` `back-entry.test.ts` now 22.
+
+## 2026-10-13: Invitations and MFA enrolment, spec and rules (Lane D)
+
+- platform.md gains "Invitations and MFA enrolment": invite (step-up, reach, one pending link per
+  member, a 256-bit token kept only as a hash, `invitation.expiry_hours` from the rate table),
+  open, accept once (a new sign-in only where none exists for the address; never setting the
+  password of an existing account), enrol a passkey or authenticator app before any care record,
+  revoke and list; and the schema asked of migration 0054.
+- `packages/domain/src/platform/invitations.ts` with table-driven tests: state, expiry, who may be
+  invited, acceptance refusals and the path to a sign-in. API test: no one-time code by SMS or
+  email (`OTP_NOT_CONFIGURED`).
+- Data standards, records of processing and retention list the planned `invitation` rows;
+  human action H-355. Blocked on migration 0054 for the store and routes.
+
+## 2026-10-13: #43 review round 1, invitations (Lane D)
+
+- The link carries its token only in the URL fragment; the page sends it in POST bodies, so it
+  is in no load balancer or web log (M1). Lookup and acceptance are security-definer functions
+  under their own NOLOGIN owner role, taking the raw token, locking the row and checking the
+  sign-in's email and the organisation's status inside; the app role cannot read stored hashes
+  (M2). An inviter must hold every permission of the member's roles (`permissionsBeyondInviter`,
+  table-driven); the address is copied by the database and a change to the member revokes open
+  links; an operator may invite only a first owner, through a definer function (M3). The address
+  is cleared when an invitation is accepted, revoked or lapses, and invitations have their own
+  retention class (M4).
+- Lows: lapsed invitations are swept nightly (and freed for a new one), `invitation.expiry_hours_max`
+  caps the expiry, lookups and acceptances are throttled per client address and token, the
+  invitation is locked before a sign-in is created and the sign-in deleted on failure,
+  `signedInAlreadyMember` is required, and members are never invited without MFA. M5 (MFA counted
+  when enrolled rather than used) follows in its own PR.
+
+## 2026-10-13: #43 review round 2, invitations (Lane D)
+
+- N1: a revocation names its reviser, except, with no reviser and only through the definer
+  owner's functions, the nightly sweep of lapsed invitations, the member-change trigger (so worker
+  jobs with no member still clear the address) and the first owner's re-invitation; acceptance
+  happens only inside `accept_invitation`. N2: an invitation's sender is always the session's
+  member; `created_by_operator` only inside `invite_first_owner`, which the application role
+  cannot imitate.
+- Lows: `invite_first_owner` reads the expiry from the rate table and the operator from the
+  session; the definer owner's grants listed (a column grant on `auth.user` of id and email only);
+  throttling counts tokens by hash; a nightly sweep of unlinked sign-ins older than
+  `invitation.unlinked_sign_in_hours`.
+

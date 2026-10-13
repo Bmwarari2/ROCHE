@@ -361,6 +361,20 @@ only when they link spec, code, tests and user documentation; no user guides exi
     only `platform.device.revoke`); with nothing waiting there is no warning that the phone loses
     its care record mid-shift (H-351); organisations can override the timeout floor and ceiling
     (harmless while the timeout is off).
+20. Invitations and MFA enrolment (feat/platform-invitations; PLAT-004): the spec and rules are
+    built (platform.md, Invitations and MFA enrolment; `invitations.ts`), with a test that no
+    one-time code is offered by SMS or email, and review round 1 of #43 folded in (the token only
+    in the URL fragment and POST bodies; locked, hashing security-definer functions under their own
+    owner role, with the sign-in's email checked inside; inviters must hold every permission of the
+    member's roles, the address copied by the database and cleared when the invitation closes; an
+    operator may invite only a first owner, through a definer function; an expiry ceiling;
+    throttling per client address and token; a lapsed-invitation sweep; members never created
+    without MFA). Next, stacked on #43 (numbered provisionally): migration 0054 with the table,
+    the functions and their database tests; then the invite, lookup, accept, revoke, list and sweep
+    routes; the operator's owner invitation and the invitation email; the web accept page with the
+    password rules and the redirect to enrolment, with Playwright and axe (H-355). Then
+    `fix/platform-mfa-session-factor` (#43 review M5): MFA counts only when the session used a
+    passkey or a verified TOTP code, not merely when one is enrolled.
 
 ## Human actions outstanding
 
