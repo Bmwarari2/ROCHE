@@ -1320,3 +1320,20 @@ actions H-254 and H-255 for the CSO; STATUS item 16 for the follow-ups.
 - Data standards, records of processing and retention list the planned `invitation` rows;
   human action H-355. Blocked on migration 0054 for the store and routes.
 
+## 2026-10-13: #43 review round 1, invitations (Lane D)
+
+- The link carries its token only in the URL fragment; the page sends it in POST bodies, so it
+  is in no load balancer or web log (M1). Lookup and acceptance are security-definer functions
+  under their own NOLOGIN owner role, taking the raw token, locking the row and checking the
+  sign-in's email and the organisation's status inside; the app role cannot read stored hashes
+  (M2). An inviter must hold every permission of the member's roles (`permissionsBeyondInviter`,
+  table-driven); the address is copied by the database and a change to the member revokes open
+  links; an operator may invite only a first owner, through a definer function (M3). The address
+  is cleared when an invitation is accepted, revoked or lapses, and invitations have their own
+  retention class (M4).
+- Lows: lapsed invitations are swept nightly (and freed for a new one), `invitation.expiry_hours_max`
+  caps the expiry, lookups and acceptances are throttled per client address and token, the
+  invitation is locked before a sign-in is created and the sign-in deleted on failure,
+  `signedInAlreadyMember` is required, and members are never invited without MFA. M5 (MFA counted
+  when enrolled rather than used) follows in its own PR.
+

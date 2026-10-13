@@ -7,7 +7,10 @@ import {
   invitationExpiresAt,
   invitationState,
   invitationsToRevoke,
+  invitationsToSweep,
   inviteRefusal,
+  type MemberRole,
+  permissionsBeyondInviter,
 } from "./invitations";
 
 const CREATED = new Date("2026-10-13T09:00:00Z");
@@ -41,24 +44,81 @@ describe("invitation state (PLAT-004)", () => {
     expect(invitationState(invitation, now)).toBe(state);
   });
 
-  it("lapses after the rate table's hours", () => {
-    expect(invitationExpiresAt(CREATED, 72)).toEqual(EXPIRES);
+  it("lapses after the organisation's hours, never past the Harbour maximum", () => {
+    expect(invitationExpiresAt(CREATED, 72, 168)).toEqual(EXPIRES);
+    expect(invitationExpiresAt(CREATED, 2000, 72)).toEqual(EXPIRES);
     for (const hours of [0, -1, Number.NaN]) {
-      expect(() => invitationExpiresAt(CREATED, hours)).toThrow(RangeError);
+      expect(() => invitationExpiresAt(CREATED, hours, 168)).toThrow(RangeError);
+      expect(() => invitationExpiresAt(CREATED, 72, hours)).toThrow(RangeError);
     }
   });
 
-  it("revokes every pending invitation when a new one is sent", () => {
+  it("revokes every open invitation, lapsed ones too, when a new one is sent", () => {
     const used = { ...pending, acceptedAt: CREATED };
+    const revoked = { ...pending, revokedAt: CREATED };
     const lapsed = { ...pending, expiresAt: CREATED };
-    expect(invitationsToRevoke([pending, used, lapsed], at("2026-10-14T00:00:00Z"))).toEqual([
-      pending,
+    expect(
+      invitationsToRevoke([pending, used, revoked, lapsed], at("2026-10-14T00:00:00Z")),
+    ).toEqual([pending, lapsed]);
+  });
+
+  it("sweeps lapsed invitations nightly so their address is cleared (#43 review M4)", () => {
+    const lapsed = { ...pending, expiresAt: CREATED };
+    const used = { ...pending, acceptedAt: CREATED, expiresAt: CREATED };
+    expect(invitationsToSweep([pending, lapsed, used], at("2026-10-14T00:00:00Z"))).toEqual([
+      lapsed,
     ]);
   });
 });
 
+// #43 review M3: an invitation gives the member their roles' permissions, so the inviter must
+// hold each of them where the role applies.
+describe("an inviter covers the member's roles", () => {
+  const NORTH = "north";
+  const SOUTH = "south";
+  // A Registered Manager at North: people and care plans there, user management there.
+  const northManager = (permission: string, location: string | null) =>
+    location === NORTH &&
+    ["people.person.read", "care.plan.write", "platform.user.manage"].includes(permission);
+  const owner = () => true;
+  const carerAt = (location: string | null): MemberRole => ({
+    permissions: ["people.person.read"],
+    locationId: location,
+  });
+  const managerAt = (location: string | null): MemberRole => ({
+    permissions: ["people.person.read", "care.plan.write", "platform.user.manage"],
+    locationId: location,
+  });
+  it.each([
+    ["a carer at the manager's home", [carerAt(NORTH)], northManager, []],
+    ["another manager at the manager's home", [managerAt(NORTH)], northManager, []],
+    ["a carer at another home", [carerAt(SOUTH)], northManager, ["people.person.read"]],
+    [
+      "a role across the organisation",
+      [managerAt(null)],
+      northManager,
+      ["care.plan.write", "people.person.read", "platform.user.manage"],
+    ],
+    [
+      "a role carrying a permission the inviter lacks",
+      [{ permissions: ["people.person.read", "finance.money.approve"], locationId: NORTH }],
+      northManager,
+      ["finance.money.approve"],
+    ],
+    ["anyone, by an owner who holds everything", [managerAt(null), carerAt(SOUTH)], owner, []],
+    ["a member with no roles", [], northManager, []],
+  ] as const)("%s", (_name, roles, holds, missing) => {
+    expect(permissionsBeyondInviter(roles, holds)).toEqual(missing);
+  });
+});
+
 describe("who may be invited", () => {
-  const member = { status: "invited", authUserId: null, email: "ada@example.invalid" } as const;
+  const member = {
+    status: "invited",
+    authUserId: null,
+    email: "ada@example.invalid",
+    mfaRequired: true,
+  } as const;
   it.each([
     ["an invited member with no sign-in", member, null],
     ["an active member", { ...member, status: "active" }, "member_active"],
@@ -70,6 +130,11 @@ describe("who may be invited", () => {
       "member_has_sign_in",
     ],
     ["a member with an unusable address", { ...member, email: "not an address" }, "email_invalid"],
+    [
+      "a member set up without a second factor",
+      { ...member, mfaRequired: false },
+      "member_mfa_not_required",
+    ],
   ] as const)("%s", (_name, input, refusal) => {
     expect(inviteRefusal(input)).toBe(refusal);
   });
@@ -90,9 +155,11 @@ describe("who may be invited", () => {
 describe("accepting an invitation", () => {
   const base = {
     invitation: pending,
+    organisationActive: true,
     memberStatus: "invited",
     invitedEmail: "ada@example.invalid",
     signedInEmail: null,
+    signedInAlreadyMember: false,
     now: at("2026-10-14T00:00:00Z"),
   } as const;
   it.each([
@@ -108,6 +175,11 @@ describe("accepting an invitation", () => {
       "invitation_revoked",
     ],
     ["an expired link", { ...base, now: EXPIRES }, "invitation_expired"],
+    [
+      "an organisation suspended or closed",
+      { ...base, organisationActive: false },
+      "organisation_not_active",
+    ],
     ["a member suspended since", { ...base, memberStatus: "suspended" }, "member_not_invited"],
     ["a member removed since", { ...base, memberStatus: "left" }, "member_not_invited"],
     ["signed in with the invited address", { ...base, signedInEmail: "ADA@example.invalid" }, null],
