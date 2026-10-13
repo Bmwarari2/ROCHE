@@ -9,7 +9,7 @@ import {
   type SidebarItem,
   type SwitcherOption,
 } from "@harbour/ui";
-import { Bell, House, LogOut, ShieldCheck, Users } from "lucide-react";
+import { Bell, House, LogOut, ShieldCheck, TriangleAlert, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState, useTransition } from "react";
@@ -32,6 +32,8 @@ export interface ShellFrameLabels {
   readonly navigation: string;
   readonly home: string;
   readonly people: string;
+  /** Shown only to people who may read incidents (safety.incident.read). */
+  readonly incidents?: string;
   readonly notifications: string;
   /** Accessible text for the unread badge, for example "3 unread". */
   readonly unreadNotifications: string;
@@ -59,6 +61,7 @@ export interface ShellFrameProps {
 
 function currentSection(pathname: string): string {
   if (pathname.startsWith("/people")) return "people";
+  if (pathname.startsWith("/incidents")) return "incidents";
   if (pathname.startsWith("/notifications")) return "notifications";
   if (pathname.startsWith("/settings")) return "settings";
   return "home";
@@ -137,6 +140,16 @@ export function ShellFrame({
   const items: SidebarItem[] = [
     { id: "home", label: labels.home, href: "/", icon: <House {...icon} /> },
     { id: "people", label: labels.people, href: "/people", icon: <Users {...icon} /> },
+    ...(labels.incidents
+      ? [
+          {
+            id: "incidents",
+            label: labels.incidents,
+            href: "/incidents",
+            icon: <TriangleAlert {...icon} />,
+          },
+        ]
+      : []),
     {
       id: "notifications",
       label: labels.notifications,

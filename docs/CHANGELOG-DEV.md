@@ -1234,3 +1234,19 @@ mobile.
 
 **Tests**: `packages/db` 411 (real Postgres), `packages/sync` 81, `apps/mobile` 891, passing
 locally; typecheck clean for db, sync and mobile.
+
+## 2026-10-13: The incident screens, part 1: the list and an incident (slice 9)
+
+- An Incidents item in the sidebar for holders of `safety.incident.read`, and the list of
+  incidents for the chosen location, newest first: each named by its type and time, with its
+  status as an icon and a word, the questions still to answer and whether part of it is hidden
+  from the reader.
+- An incident page: what happened, with severity and harm as staff judged them; who was told;
+  and the people on it. A reader who cannot see everyone on it is told part of it is hidden
+  (HZ-013). The statutory notifications on the page follow in part 2.
+- Words come from the catalogue (en-GB, with the Welsh copy marked untranslated). No API change;
+  the gaps are in safety.md section 5 and STATUS item 17.
+
+**Tests**: `apps/web` 396 unit, `packages/i18n` 48; Playwright `e2e/incidents.spec.ts`,
+`care-record.spec.ts` and `capacity.spec.ts` on a fresh scratch database, run locally.
+
