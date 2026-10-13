@@ -24,6 +24,7 @@ import {
   type HandoverAcknowledgement,
   type HandoverItem,
   type HandoverItemKind,
+  type HandoverItemSummary,
   type HandoverSources,
   type HandoverSourceType,
   incomingAcknowledged,
@@ -126,6 +127,7 @@ const toItem = (r: ItemRow): HandoverItem => ({
   at: r.at,
   lateAddition: r.lateAddition,
   addedAt: r.addedAt,
+  summary: (r.summary as HandoverItemSummary | null) ?? null,
 });
 
 /**
@@ -187,6 +189,8 @@ async function appendItems(
       at: i.at,
       lateAddition: i.lateAddition,
       addedAt: i.addedAt,
+      // Written once with the item, from its source (H-300); items stay append-only.
+      summary: i.summary ?? null,
     })),
   );
 }
@@ -210,7 +214,9 @@ export async function handoverSources(
       id: task.id,
       personId: task.personId,
       kind: task.kind,
+      title: task.title,
       status: task.status,
+      statusReason: task.statusReason,
       priority: task.priority,
       evidenceRequired: task.evidenceRequired,
       dueAt: task.dueAt,
@@ -274,6 +280,10 @@ export async function handoverSources(
       personId: bodyMapMark.personId,
       occurredAt: bodyMapMark.occurredAt,
       recordedAt: bodyMapMark.recordedAt,
+      markType: bodyMapMark.markType,
+      view: bodyMapMark.view,
+      region: bodyMapMark.region,
+      side: bodyMapMark.side,
     })
     .from(bodyMapMark)
     .where(
@@ -341,15 +351,20 @@ export async function handoverSources(
       windowEnd: t.windowEnd,
       createdAt: t.createdAt,
       closedAt: ["done", "skipped", "cancelled"].includes(t.status) ? t.completedAt : null,
+      title: t.title,
+      statusReason: t.statusReason,
     })),
     observations: observations.map((o) => {
-      const news2 = (o.flags as { news2?: { band?: string } } | null)?.news2;
+      const news2 = (o.flags as { news2?: { band?: string; score?: unknown } } | null)?.news2;
+      const chart = (o.values as { chart?: unknown } | null)?.chart;
       return {
         id: o.id,
         personId: o.personId,
         occurredAt: o.occurredAt,
         recordedAt: o.recordedAt,
+        chart: typeof chart === "string" ? chart : undefined,
         news2Band: (news2?.band ?? null) as News2Band | null,
+        news2Score: typeof news2?.score === "number" ? news2.score : null,
         refused: observationIsRefusal(
           o.values as { chart: string; refused?: boolean; declined?: boolean },
         ),

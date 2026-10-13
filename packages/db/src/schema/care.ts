@@ -904,7 +904,7 @@ export const handover = pgTable(
 /** A note the outgoing staff add to a handover or to one of its items, while it is open. */
 /**
  * One compiled item (`HandoverItem` from packages/domain): kind, person, source table and id, when,
- * and whether and when it was added late. References only, never clinical text. Append-only: an
+ * and whether and when it was added late, with its worded summary (`summary`). Append-only: an
  * item is never changed or removed (HZ-018), and a reader sees only the items about people they
  * may see (HZ-011).
  */
@@ -926,6 +926,14 @@ export const handoverItem = pgTable(
     at: timestamp("at", { withTimezone: true }).notNull(),
     lateAddition: boolean("late_addition").notNull(),
     addedAt: timestamp("added_at", { withTimezone: true }).notNull(),
+    /**
+     * What the item says, as a catalogue key and its parameters (`HandoverItemSummary` from
+     * packages/domain), so a screen words it in the reader's language without reading the source
+     * (the phone holds neither incidents, alerts nor skipped tasks; H-300). The parameters are codes
+     * (a NEWS2 band, a chart, an incident type, an alert kind, a mark's type and region) and, for a
+     * task, its title and the reason it was not done. Null on items compiled before migration 0056.
+     */
+    summary: jsonb("summary"),
     ...createdColumns(),
   },
   (t) => [
@@ -945,6 +953,12 @@ export const handoverItem = pgTable(
     check(
       "handover_item_source_type",
       sql`source_type IN ('task', 'observation', 'incident', 'body_map_mark', 'care_note', 'notification')`,
+    ),
+    // A catalogue key in the handover summary namespace and an object of parameters, never free
+    // English; a malformed summary is refused, not taken as none.
+    check(
+      "handover_item_summary",
+      sql`summary IS NULL OR coalesce(jsonb_typeof(summary) = 'object' AND jsonb_typeof(summary -> 'key') = 'string' AND summary ->> 'key' LIKE 'handover.summary.%' AND jsonb_typeof(summary -> 'params') = 'object', false)`,
     ),
   ],
 );

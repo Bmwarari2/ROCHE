@@ -541,6 +541,16 @@ describe("offline sync", () => {
       entries_write_location_ids: [DEMO.locationId],
       entries_write_assigned: false,
     });
+    // The shift pattern of each nation it has homes in, for the phone's handover (ADR-0072).
+    const day = await json<RateValue>(
+      await demo("manager", "/v1/rates/handover.day_shift_start_minute"),
+    );
+    const night = await json<RateValue>(
+      await demo("manager", "/v1/rates/handover.night_shift_start_minute"),
+    );
+    expect(payload.handover_shifts).toEqual({
+      england: { day: Number(day.value), night: Number(night.value) },
+    });
   });
 
   it("hazard HZ-028 issues the fail-safe window when the tenant's rate is out of range (L3)", async () => {
