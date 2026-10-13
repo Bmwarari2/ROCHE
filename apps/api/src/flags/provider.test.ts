@@ -146,7 +146,7 @@ describe("the OpenFeature provider over the flag catalogue (PLAT-003)", () => {
       locationId: null,
       overrides: [],
     });
-    expect(remoteFailed["module.workforce"]).toBe(false);
+    expect(remoteFailed["module.public_site"]).toBe(false);
     expect(remoteFailed["module.residential"]).toBe(true);
   });
 
@@ -179,13 +179,13 @@ describe("Flagsmith (optional, H-13)", () => {
     const fetchFn = vi.fn(
       async (_url: string, _init: RequestInit) =>
         new Response(
-          JSON.stringify({ flags: [{ enabled: true, feature: { name: "module.workforce" } }] }),
+          JSON.stringify({ flags: [{ enabled: true, feature: { name: "module.public_site" } }] }),
           { status: 200 },
         ),
     );
     const remote = new FlagsmithFlags(options, logger, fetchFn as unknown as typeof fetch);
     const flags = await remote.flagsFor({ tenantId: TENANT, locationId: LOC });
-    expect(flags?.get("module.workforce")).toBe(true);
+    expect(flags?.get("module.public_site")).toBe(true);
     const [url, init] = fetchFn.mock.calls[0] ?? ["", {}];
     expect(url).toBe("http://flags.invalid/api/v1/identities/");
     expect(new Headers(init.headers).get("x-environment-key")).toBe("test-key");

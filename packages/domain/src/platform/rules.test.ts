@@ -116,7 +116,7 @@ describe("feature flags", () => {
   // The OpenFeature provider's order (apps/api/src/flags): location row, tenant row, Flagsmith
   // where it may set the flag and answered, catalogue default.
   it.each([
-    ["remote sets a module marked remote", "module.workforce", [], null, true, true, "remote"],
+    ["remote sets a module marked remote", "module.public_site", [], null, true, true, "remote"],
     [
       "remote can switch a remote module off",
       "module.public_site",
@@ -128,8 +128,8 @@ describe("feature flags", () => {
     ],
     [
       "the tenant row wins over remote",
-      "module.workforce",
-      [{ flagKey: "module.workforce", locationId: null, enabled: false }],
+      "module.public_site",
+      [{ flagKey: "module.public_site", locationId: null, enabled: false }],
       null,
       true,
       false,
@@ -137,14 +137,22 @@ describe("feature flags", () => {
     ],
     [
       "the location row wins over remote",
-      "module.workforce",
-      [{ flagKey: "module.workforce", locationId: LOC, enabled: true }],
+      "module.public_site",
+      [{ flagKey: "module.public_site", locationId: LOC, enabled: true }],
       LOC,
       false,
       true,
       "location",
     ],
-    ["remote unreachable falls back", "module.workforce", [], null, undefined, false, "catalogue"],
+    [
+      "remote unreachable falls back",
+      "module.public_site",
+      [],
+      null,
+      undefined,
+      false,
+      "catalogue",
+    ],
     ["remote never switches eMAR on", "module.emar", [], null, true, false, "catalogue"],
     [
       "remote never switches residential off",
@@ -180,8 +188,8 @@ describe("feature flags", () => {
     expect(resolveFlag(key, rows, location, remote)).toEqual({ enabled, source });
   });
 
-  // #39 review M1: Flagsmith sets only the flags marked remote, never a clinical or
-  // data-protection module, an AI flag or a clinical tool.
+  // #39 review M1 and round 2: Flagsmith sets only the flags marked remote, never a clinical or
+  // data-protection module (workforce adds criminal offence data), an AI flag or a clinical tool.
   it.each(
     (Object.keys(FLAGS) as FlagKey[]).filter(
       (k) =>
@@ -194,6 +202,7 @@ describe("feature flags", () => {
           "module.supported_living",
           "module.family_portal",
           "module.finance",
+          "module.workforce",
           "dols.post_2026_review_workflow",
           "locale.welsh",
         ].includes(k),
@@ -204,7 +213,7 @@ describe("feature flags", () => {
 
   it("lets Flagsmith set only the flags marked remote", () => {
     const remote = (Object.keys(FLAGS) as FlagKey[]).filter(remoteMaySet);
-    expect(remote.sort()).toEqual(["module.public_site", "module.workforce"]);
+    expect(remote.sort()).toEqual(["module.public_site"]);
   });
 
   it("knows the catalogue's keys", () => {
