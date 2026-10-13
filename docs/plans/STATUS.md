@@ -168,10 +168,10 @@ only when they link spec, code, tests and user documentation; no user guides exi
      - `rate_table` writes have no permission check, so any member could override
        `care_note.late_entry_hours` (an existing gap).
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
-   session; invitations and MFA enrolment flow end to end; admin session revoke and idle timeouts
-   per role; record history PDF export; device push registration; user guides per role (moves
-   PLAT and MOB rows to `done`). The OpenFeature provider is in feat/platform-flags-and-sessions
-   (item 15).
+   session; invitations and MFA enrolment flow end to end; record history PDF export; device push
+   registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature
+   provider is in feat/platform-flags-and-sessions, the admin sign-out and idle timeouts per role
+   in feat/platform-session-controls (items 15 and 16).
 7. Open engineering decisions: certificate pinning (ADR-0028), shared-device sign-in (ADR-0025,
    needs CSO and DPO), the risk rating matrix (ADR-0032, proposed).
 8. `@harbour/ui` defaults without a label prop stay English in a Welsh shell: the sidebar's expand
@@ -224,6 +224,13 @@ only when they link spec, code, tests and user documentation; no user guides exi
     agree with `/v1/me`); an operator kill switch for AI in Flagsmith, if wanted (today Flagsmith
     never reads AI flags); Flagsmith wiring in the API task (H-352); the OpenFeature SDK's own
     error log goes to the console, not the API's logger.
+16. Session follow-ups (feat/platform-session-controls; PLAT-004, HZ-110): the person record's
+    header refreshes itself every 2 minutes while visible (`HeaderFreshness`), so an open record
+    keeps a browser session from timing out: mark those refreshes as background and count only
+    requests a person made; the sign-in page should say the person was signed out after a period
+    of inactivity (the 401 carries it as its title); the admin sign-out screen in staff management
+    (with the member's devices). The admin sign-out deletes the sessions before writing its audit
+    row (two pools), so a failed audit write leaves a 500 with the sessions already ended.
 
 ## Human actions outstanding
 

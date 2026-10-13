@@ -1179,3 +1179,17 @@ history link with its focus ring, 320 px, the empty tab), run locally.
   table-driven order (`rules.test.ts`), the provider and Flagsmith unit tests
   (`apps/api/src/flags/provider.test.ts`) and `apps/api/test/flags-and-sessions.test.ts`.
 
+## 2026-10-13: Admin sign-out and idle timeouts per role (Lane D)
+
+- `POST /v1/members/{tenantUserId}/sessions/revoke`: a holder of `platform.user.manage`, with
+  step-up and a coded reason, signs a member out of every device (sessions are identity-level, so
+  every organisation too); audited; a location role reaches only members wholly at its homes;
+  entries waiting on the member's devices need confirming first (409 `entries_waiting`).
+- Browser sessions are signed out after their role's idle timeout from the rate table
+  (`session.idle_timeout_minutes[.<role>]`: 30 minutes, 15 for the owner and group executive;
+  the strictest of the member's roles); mobile sessions never (HZ-110). The session middleware
+  moves the expiry on hourly itself, with Better Auth's refresh off there, so a refresh never
+  counts as use. No migration: the rows are seeded from rates.md, and no new permission.
+- Hazard HZ-110; human actions H-350 and H-351. Tests: `sessions.test.ts` (domain, table-driven)
+  and `apps/api/test/flags-and-sessions.test.ts`; the API suite passes.
+

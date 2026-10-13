@@ -61,6 +61,7 @@
 | [HZ-071](#hz-071-full-tenant-export-incomplete-or-misread-when-a-provider-changes-system) | Full tenant export incomplete or misread when a provider changes system | Catastrophic / Medium / 4 | Catastrophic / Very low / 3 (4 until the CSO accepts, H-119) | Open | None (Phase 1) | Phase 1, Phase 2 |
 | [HZ-072](#hz-072-sample-data-mistaken-for-or-mixed-with-real-records) | Sample data mistaken for, or mixed with, real records | Considerable / Medium / 3 | Considerable / Low / 2 | Open | None (Phase 1) | Phase 1 |
 | [HZ-073](#hz-073-safety-work-or-essential-information-hidden-from-the-person-who-must-act-because-of-their-access-scope) | Safety work or essential information hidden from the person who must act because of their access scope | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-169) | Open | None (Phase 1) | Phase 1 |
+| [HZ-110](#hz-110-a-server-side-sign-out-clears-a-carers-offline-records-during-a-shift) | A server-side sign-out clears a carer's offline records during a shift | Major / Low / 3 | Major / Very low / 2 (engineering proposal; the CSO rates it, H-351) | Open | None (Phase 1) | Phase 1 |
 
 Twelve hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
@@ -2440,6 +2441,45 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 | `apps/api` and the kiosk fetch: `hazard HZ-021 rebuilds the pack when someone on the latest one has moved` | Planned, Phase 1 (slice 11 part 3) |
 | `apps/mobile/src/sync/write-scope-store.test.ts`: `hazard HZ-073 keeping where the phone may record (review rounds 4 and 5)` (a scope that cannot be kept, removed or read leaves the phone recording about no one, also after a restart and sign-out); `apps/mobile/src/sync/write-scope.test.ts`: `records about no one while no scope is known`; `apps/web/src/lib/care-record.test.ts`: `never says the record cannot be recorded in above chart settings the viewer can change` | Passing (Phase 1) |
 | `apps/api/test/tasks.test.ts`: `hazard HZ-008 hazard HZ-073 an overdue task goes down the order until someone active is told` (an organisation-wide Registered Manager told; an invited team leader skipped; with no one, audited and left to be tried again); `apps/api/test/jobs.test.ts`: `hazard HZ-008 hazard HZ-073 sends a step no one holds to a Registered Manager reaching the home, and audits one no one can be sent`; `apps/api/test/device-integrity.test.ts`: `hazard HZ-073 audits an urgent review no one can be told about, as the system` | Passing (Phase 1) |
+
+---
+
+## HZ-110 A server-side sign-out clears a carer's offline records during a shift
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-110 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `platform` module (lead engineer) |
+| Source | Idle timeouts per role and the admin sign-out (platform.md, Identity; feat/platform-flags-and-sessions); related to HZ-006 (silent sync failure, loss of offline records), HZ-021 (essential information) and HZ-040 (held entries) |
+
+**Description**: the server ends a Care mode session (an idle timeout, or a manager signing the member out), and at its next contact the phone clears what it had synced, keeping only unsent entries (HZ-006). The carer loses the care plan, allergies and other reference data on the device until they sign in again, which may be impossible without signal, and entries wait longer to reach the record.
+
+**Causes**: a server idle timeout applied to the mobile app's session, so a shift without signal ends in a sign-out; a manager signing out a member mid-shift without knowing their device holds entries; signing out the wrong member, or one at another home.
+
+**Effects**: essential information missing at the point of care (HZ-021); entries reaching the record late (HZ-006).
+
+**Initial risk**: severity Major, likelihood Low, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | The server's idle timeout applies only to browser sessions (the httpOnly cookie); the mobile app's session (its bearer token) is never timed out by the server, and the device's own auto-lock covers it (ADR-0011) | Built in Phase 1 (feat/platform-flags-and-sessions) |
+| Design | The admin sign-out needs `platform.user.manage`, a fresh sign-in and a coded reason, is audited, reaches only members whose roles and grants are all at the manager's homes, and when the member's devices last reported entries waiting is refused until the manager confirms (409 `entries_waiting`), saying the entries stay on the device until the member signs in again | Built in Phase 1 (feat/platform-flags-and-sessions) |
+| Design | A device whose session the API has ended keeps unsent entries, encrypted, for their owner to send after signing in again (HZ-006, `held-work.ts`) | Built in Phase 1 (#15) |
+| Training and user documentation | Deployer control: sign a carer out mid-shift only for a lost or stolen device, a departure, a suspension or suspected misuse, and tell them to sign in again before going on with care (DCB0160 template) | Phase 1 |
+
+**Target residual risk**: severity Major, likelihood Very low, **risk 2** (an engineering proposal; the CSO rates it, H-351).
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `apps/api/test/flags-and-sessions.test.ts`: `hazard HZ-110 idle timeouts per role (section 5.3)`: `never signs out the mobile app's session, which the device lock covers`; `signs out a browser session idle past its role's timeout, and audits it` | Passing (Phase 1) |
+| `apps/api/test/flags-and-sessions.test.ts`: `asks before signing out a member whose device holds entries, then signs out every session`; `reaches only members wholly at the manager's homes`; `needs platform.user.manage and a fresh sign-in` | Passing (Phase 1) |
+| `apps/mobile/src/app-state/held-work.test.ts`: `when the API ends the session (401 or 403)` (unsent entries kept, the rest cleared) | Passing (Phase 1) |
 
 ---
 

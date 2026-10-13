@@ -94,6 +94,14 @@ export const problems = {
       "This device last reported entries that have not reached Harbour.",
       `${count} ${count === 1 ? "entry is" : "entries are"} waiting on it. Confirm to withdraw it anyway: they stay on the device until handed over or deleted, and its task is due at once.`,
     ),
+  /** A sign-out asked for without confirming the entries the member's devices last reported waiting. */
+  memberEntriesWaiting: (count: number) =>
+    new HttpProblem(
+      409,
+      "entries_waiting",
+      "This member's devices last reported entries that have not reached Harbour.",
+      `${count} ${count === 1 ? "entry is" : "entries are"} waiting. Confirm to sign them out anyway: the entries stay on the device, protected, until they sign in again to send them.`,
+    ),
 };
 
 export function problemResponse(c: Context, problem: HttpProblem, requestId?: string) {
