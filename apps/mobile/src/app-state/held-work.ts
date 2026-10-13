@@ -36,6 +36,7 @@ import type { SyncDeviceReport } from "@harbour/contracts";
 import { AppSchema, DEVICE_WRITABLE_TABLES } from "@harbour/sync/client";
 import type { Me } from "../auth/auth-client";
 import type { FieldError } from "../care/entries";
+import { parseQueuedMove } from "../care/round-actions";
 import { type MessageKey, t } from "../i18n/t";
 import { type DatabaseKey, databaseFilename } from "../security/db-key";
 import { buildDeviceReport, reportLocationIds } from "../sync/device-report";
@@ -480,18 +481,18 @@ export async function holdUnsentWork(db: HoldDb, now: Date): Promise<number> {
     let position = start;
     for (const entry of crud) {
       position += 1;
-      const data = entry.opData ?? {};
-      await tx.execute("DELETE FROM held_entry WHERE id = ?", [entry.id]);
+      const held = heldRecordOf(entry);
+      await tx.execute("DELETE FROM held_entry WHERE id = ?", [held.id]);
       await tx.execute(
         `INSERT INTO held_entry (id, tenant_id, person_id, record_table, op, payload, position,
           held_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          entry.id,
-          text(data.tenant_id),
-          text(data.person_id),
+          held.id,
+          held.tenantId,
+          held.personId,
           entry.table,
           entry.op,
-          JSON.stringify(data),
+          JSON.stringify(held.payload),
           position,
           now.toISOString(),
         ],
@@ -507,6 +508,63 @@ export async function holdUnsentWork(db: HoldDb, now: Date): Promise<number> {
 }
 
 const WRITABLE = new Set<string>(DEVICE_WRITABLE_TABLES);
+
+/**
+ * How a queued change is held: an entry or an acknowledgement under its own id; a task's move
+ * under the move's own id (never the task's), with the task's id kept in the payload, so a move
+ * never replaces another held or parked record for the same task (#36 review round 1, M1). The
+ * move carries its tenant and person, which the update itself does not.
+ */
+function heldRecordOf(entry: {
+  readonly table: string;
+  readonly id: string;
+  readonly opData?: Record<string, unknown> | undefined;
+}): {
+  readonly id: string;
+  readonly tenantId: string | null;
+  readonly personId: string | null;
+  readonly payload: Record<string, unknown>;
+} {
+  const data = entry.opData ?? {};
+  const move = entry.table === "task" ? parseQueuedMove(data.queued_transition) : null;
+  if (move) {
+    return {
+      id: move.id,
+      tenantId: move.tenantId,
+      personId: move.personId,
+      payload: { ...data, task_id: entry.id },
+    };
+  }
+  return {
+    id: entry.id,
+    tenantId: text(data.tenant_id),
+    personId: text(data.person_id),
+    payload: data,
+  };
+}
+
+/**
+ * Whether a held change goes back into the queue for its owner (#36 review round 1, clinical M1):
+ * a new care entry or acknowledgement, and a task's move whose task is named, exactly as entries
+ * are. Anything else moves to "needs attention".
+ */
+function resendable(row: HeldEntryRow): boolean {
+  const table = row.record_table ?? "";
+  if (row.op === "PUT" && (WRITABLE.has(table) || table === "handover_acknowledgement"))
+    return true;
+  if (table !== "task" || row.op !== "PATCH") return false;
+  const data = payloadOf(row);
+  return typeof data.task_id === "string" && parseQueuedMove(data.queued_transition) !== null;
+}
+
+function payloadOf(row: HeldEntryRow): Record<string, unknown> {
+  try {
+    const parsed: unknown = JSON.parse(row.payload ?? "{}");
+    return isRecord(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
 
 function columnsOf(table: string): ReadonlySet<string> {
   const definition = AppSchema.tables.find((t) => t.name === table);
@@ -562,12 +620,10 @@ async function park(tx: TxLike, row: HeldEntryRow, code: ParkCode, now: Date): P
 
 async function putBack(tx: TxLike, row: HeldEntryRow): Promise<void> {
   const table = row.record_table ?? "";
-  let data: Record<string, unknown> = {};
-  try {
-    const parsed: unknown = JSON.parse(row.payload ?? "{}");
-    if (isRecord(parsed)) data = parsed;
-  } catch {
-    data = {};
+  const data = payloadOf(row);
+  if (table === "task") {
+    await putBackMove(tx, row, data);
+    return;
   }
   // Table names come from the fixed list of writable tables and columns from the schema, never
   // from the data.
@@ -582,6 +638,37 @@ async function putBack(tx: TxLike, row: HeldEntryRow): Promise<void> {
         .map(() => ", ?")
         .join("")})`,
       [row.id, ...columns.map((c) => toSql(data[c]))],
+    );
+  }
+  await tx.execute("DELETE FROM held_entry WHERE id = ?", [row.id]);
+}
+
+/**
+ * A held move goes back on its task: the same update when the task is on the device again, or the
+ * task's row with the move when it is not (the session's end cleared it), either of which puts the
+ * move into the upload queue again with its own id.
+ */
+async function putBackMove(
+  tx: TxLike,
+  row: HeldEntryRow,
+  data: Record<string, unknown>,
+): Promise<void> {
+  const taskId = String(data.task_id);
+  const status = toSql(data.status);
+  const queued = toSql(data.queued_transition);
+  const present = await tx.getOptional<{ id: string }>("SELECT id FROM task WHERE id = ?", [
+    taskId,
+  ]);
+  if (present) {
+    await tx.execute("UPDATE task SET status = ?, queued_transition = ? WHERE id = ?", [
+      status,
+      queued,
+      taskId,
+    ]);
+  } else {
+    await tx.execute(
+      "INSERT INTO task (id, tenant_id, person_id, status, queued_transition) VALUES (?, ?, ?, ?, ?)",
+      [taskId, row.tenant_id, row.person_id, status, queued],
     );
   }
   await tx.execute("DELETE FROM held_entry WHERE id = ?", [row.id]);
@@ -620,12 +707,12 @@ export async function restoreHeldWork(
       }
       continue;
     }
-    const resendable = row.op === "PUT" && WRITABLE.has(row.record_table ?? "");
+    const goesBack = resendable(row);
     try {
       await db.writeTransaction((tx) =>
-        resendable ? putBack(tx, row) : park(tx, row, "held_not_restored", now),
+        goesBack ? putBack(tx, row) : park(tx, row, "held_not_restored", now),
       );
-      if (resendable) restored += 1;
+      if (goesBack) restored += 1;
       else parked += 1;
     } catch {
       try {
