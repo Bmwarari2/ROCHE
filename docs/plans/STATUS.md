@@ -276,6 +276,27 @@ only when they link spec, code, tests and user documentation; no user guides exi
       a lower bound at the task's creation or its window; and a rule for which shift's
       handover a late-synced outcome belongs to. Then the move sends its time of care
       (`round-upload.ts`). CSO decision H-309.
+    - Follow-up (#36 review round 2, low): `useMoveTask` takes the person's home
+      (`personLocationId`) from the caller; while it is null (the person row still loading)
+      and the token lists no person ids, `mayRecordFor` lets the move through. Look the home
+      up in the database inside the hook.
+    - Follow-up (#36 review round 2, low): `putBackMove` runs before the phone reconnects,
+      when the session's end has cleared the task row, so it inserts a bare row (no title,
+      due time, version or evidence flag) and queues a PUT, not a PATCH; the upload (#37)
+      sends it (`toRoundUpload` takes a PUT). On a later hold `resendable` re-queues only
+      PATCHes, so such a move is parked. The update branch skips the version check and does
+      not require `queued_transition IS NULL`. The screens must handle the bare row until
+      the server's copy replaces it.
+    - Follow-up (#36 review round 2, low): held moves and acknowledgements go back into the
+      queue only when their owner opens their own database; the manager hand-over
+      (`handover.ts`) leaves them on the device as needing attention. Neither path checks
+      the write scope again; the API still decides.
+    - Follow-up (#36 review round 2, low): after an acknowledgement is refused, the phone can
+      say it is "already waiting to upload" (`mobile.handover.alreadyQueued`) until the next
+      sync clears its row.
+    - Follow-up (#36 review round 2, low): "Tell the person in charge of this shift" is shown
+      to nurses too, including when they are the person in charge; word it by role in the
+      screens PR.
 16. Follow-ups from review round 1 of the capacity assessment, best-interests and consent record
     views (#35; H-254 and H-255 ask the CSO): every section 4 checklist label carries its statute
     citation, which is jargon on a staff screen; an unanswered checklist item gets no warning; the

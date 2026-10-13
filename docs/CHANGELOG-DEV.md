@@ -1252,6 +1252,14 @@ typecheck clean for mobile and sync.
   (#41 closed): an HZ-017 row, a STATUS follow-up and H-309; the completion stays recorded
   when the move arrives.
 
+## 2026-10-13: The round and the handover on the phone, offline writes, review round 2 (#36)
+
+- Merged `main` (#33, #39 and #40), keeping both sides of the shared documents.
+- Logged the five round 2 lows as STATUS item 15 follow-ups: the person's home looked up
+  inside `useMoveTask`; the bare task row a held move is put back on, and its PUT; held round
+  changes re-queued only for their owner; "already waiting to upload" after a refused
+  acknowledgement; "tell the person in charge" shown to nurses.
+
 ## 2026-10-13: The round and the handover on the phone, publication migration (#33)
 
 - Migration 0052 adds `task`, `handover`, `handover_item`, `handover_note` and
