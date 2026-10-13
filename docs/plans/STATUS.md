@@ -167,6 +167,28 @@ only when they link spec, code, tests and user documentation; no user guides exi
      - the database does not refuse a corrected start in the future;
      - `rate_table` writes have no permission check, so any member could override
        `care_note.late_entry_hours` (an existing gap).
+   - Slice 11 part 2, back-entry columns (`feat/operations-back-entry-columns`, stacked on #32,
+     migration 0053; operations.md section 12): built, PR to follow #32. Next, part 3: the API,
+     nightly job and PDF, with the round 1 part 3 requirements.
+   - Follow-ups from #38 review round 1 (security and clinical):
+     - an entry takes the person's current location, so after a move the old home's outage
+       cannot be cited: a paper record about someone who has since moved cannot be entered;
+     - rule 13 (the normal route) depends on the API applying it on every care route and on the
+       sync upload (hazard HZ-017 and operations.md section 12);
+     - entries with `not_from_paper_reason` do not block cancelling, and are left pointing at a
+       cancelled outage;
+     - a failed outage correction tells a holder of `operations.downtime.manage` whether a
+       back-entry about someone outside their scope falls outside the new window (by design, so
+       the check counts every entry);
+     - the guard trusts the entry's `location_id`; nothing checks it is the person's location
+       (an existing gap).
+   - Follow-ups from #38 review round 2:
+     - `sync.clock_drift_flag_minutes` is read with the organisation's own override first, and
+       any member can write `rate_table` (the existing gap), so an override could stretch an open
+       outage's window;
+     - part 3 must ask for an outside-the-outage reason when someone corrects a reviewed
+       back-entry whose time is after the true end, because the database refuses such a correction
+       without one (wording H-208).
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature
