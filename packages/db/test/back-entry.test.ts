@@ -472,6 +472,43 @@ describe("hazard HZ-011 hazard HZ-017 cancelling and reconciling an outage with 
     await expect(asCarer((c) => note(c, a.personAda, backEntry(OUTAGE_NORTH)))).rejects.toThrow(
       /names an outage at its own location that is neither cancelled nor reconciled/,
     );
+    await expect(
+      asCarer((c) =>
+        note(c, a.personAda, {
+          outage_id: OUTAGE_NORTH,
+          not_from_paper_reason: "Recorded from memory at handover",
+        }),
+      ),
+    ).rejects.toThrow(
+      /names an outage at its own location that is neither cancelled nor reconciled/,
+    );
+  });
+
+  it("corrects an entry not from paper that cites a reconciled outage, keeping the link", async () => {
+    const { rows } = await asOwner(TENANT_A, (c) =>
+      c.query<{ id: string; occurred_at: Date }>(
+        `SELECT id, occurred_at FROM care_note
+         WHERE outage_id = $1 AND not_from_paper_reason IS NOT NULL`,
+        [OUTAGE_NORTH],
+      ),
+    );
+    const [entry] = rows;
+    if (!entry) throw new Error("no entry to correct");
+    await asCarer((c) =>
+      correction(
+        c,
+        entry.id,
+        { outage_id: OUTAGE_NORTH, not_from_paper_reason: "Recorded from memory at handover" },
+        entry.occurred_at,
+        entryId(8),
+      ),
+    );
+    const after = await asCarer((c) =>
+      c.query("SELECT outage_id, not_from_paper_reason FROM care_note WHERE id = $1", [entryId(8)]),
+    );
+    expect(after.rows).toEqual([
+      { outage_id: OUTAGE_NORTH, not_from_paper_reason: "Recorded from memory at handover" },
+    ]);
   });
 
   it("corrects a back-entry after its outage is reconciled, keeping its paper details and outage", async () => {
@@ -666,6 +703,22 @@ describe("hazard HZ-011 hazard HZ-017 corrections of back-entries", () => {
         JSON.stringify(details),
       ).rejects.toThrow(/A correction of a paper record stays a paper record of the same outage/);
     }
+  });
+
+  it("corrects a back-entry once, then corrects the correction, so each paper record has one current version", async () => {
+    const first = ago(66 * HOUR);
+    await expect(asManager((c) => correction(c, original, {}, first))).rejects.toThrow(
+      /care_note_back_entry_correction_key/,
+    );
+    await asManager((c) => correction(c, entryId(3), {}, first, entryId(7)));
+    const { rows } = await asManager((c) =>
+      c.query<{ id: string }>(
+        `SELECT t.id FROM care_note t WHERE t.outage_id = $1 AND t.paper_reference = 'DT-010'
+           AND NOT EXISTS (SELECT 1 FROM care_note s WHERE s.supersedes_id = t.id)`,
+        [OUTAGE_CORRECTED],
+      ),
+    );
+    expect(rows).toEqual([{ id: entryId(7) }]);
   });
 
   it("refuses a correction that makes an entry not entered from paper a back-entry", async () => {
