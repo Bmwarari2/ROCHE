@@ -97,11 +97,38 @@ export const location = pgTable(
     phone: text("phone"),
     bedCapacity: integer("bed_capacity"),
     status: text("status").notNull().default("active"),
+    /**
+     * Location settings `downtime.mar_location` and `downtime.peep_location` (operations.md rule
+     * 7): where the paper MAR and the PEEPs are kept, worded for the downtime pack. Seeded with
+     * `DEFAULT_PAPER_MAR_LOCATION` and `DEFAULT_PEEP_LOCATION` (a test keeps them in step); the
+     * Registered Manager replaces them with the real place.
+     */
+    downtimeMarLocation: text("downtime_mar_location").notNull().default("the paper MAR chart"),
+    downtimePeepLocation: text("downtime_peep_location")
+      .notNull()
+      .default("the person's PEEP in the fire file"),
+    /**
+     * When and by whom a holder of `platform.location.manage` confirmed the two places; null while
+     * the seeded wording stands, and again whenever a place changes without being confirmed.
+     */
+    downtimePlacesConfirmedAt: timestamp("downtime_places_confirmed_at", { withTimezone: true }),
+    downtimePlacesConfirmedBy: uuid("downtime_places_confirmed_by"),
     ...mutableColumns(),
   },
   (t) => [
     unique("location_tenant_id_id_key").on(t.tenantId, t.id),
     index("location_tenant_id_idx").on(t.tenantId),
+    check(
+      "location_downtime_places",
+      sql`char_length(btrim(downtime_mar_location)) BETWEEN 1 AND 200
+        AND char_length(btrim(downtime_peep_location)) BETWEEN 1 AND 200
+        AND (downtime_places_confirmed_at IS NULL) = (downtime_places_confirmed_by IS NULL)`,
+    ),
+    foreignKey({
+      name: "location_downtime_places_confirmed_by_fk",
+      columns: [t.tenantId, t.downtimePlacesConfirmedBy],
+      foreignColumns: [tenantUser.tenantId, tenantUser.id],
+    }),
   ],
 );
 

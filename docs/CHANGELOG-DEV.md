@@ -1082,6 +1082,58 @@ Hosted CI (now running, the repository being public) was green on `67c3fdc`.
   run failed, since `eachTenant` catches a failure (review round 1 of #30).
 - esbuild in `apps/api` is on 0.28 (STATUS dependencies item).
 
+## 2026-10-12: Slice 11 part 1, downtime pack and outage schema (OPS-028)
+
+The first schema step for operations.md section 2, on the slice 11 domain rules. The back-entry
+columns on the care events follow in part 2 (they reference `outage`), to keep this PR small.
+
+- `downtime_pack` (append-only) and `outage` (mutable, versioned) with forced row-level security
+  (migrations 0050 and 0051). A pack is visible only where the reader holds
+  `operations.downtime.read` and can see every person on it; an outage to staff at its location,
+  written only by holders of `operations.downtime.manage` there. Windows at a location never
+  overlap; `app.outage_guard` keeps the window back-entries rely on and the workflow's order.
+- Location settings `downtime.mar_location` and `downtime.peep_location` as two columns on
+  `location`, seeded with the domain defaults.
+- The export catalogue classifies both tables and the two columns (retention `downtime_pack` and
+  `downtime_record`); data standards and records of processing add the cancellation and pack
+  fields; HZ-011, HZ-017 and HZ-021 name the new database tests.
+
+**Tests**: `packages/db` 406 (13 new in `downtime.test.ts`), `packages/domain` operations and export
+tests passing locally.
+
+## 2026-10-12: Slice 11 part 1, review round 1 (#32)
+
+Security and clinical safety reviews of the downtime pack and outage schema. Fixed in migrations
+0050 and 0051 (not yet on `main`, so edited in place):
+
+- (M1) An outage is declared open by a trigger: nothing closed, reconciled, cancelled or corrected
+  at declaration, `declared_at` is the database's time and `declared_late` is worked out from
+  `care_note.late_entry_hours` (late when no figure is found); neither changes afterwards except
+  the flag following a corrected start.
+- (M2) A pack's `person_ids` are worked out from its content (pages and anyone left out), so the
+  row-level security policy is never told less than the pack holds.
+- (clinical M2) The MAR and PEEP places gain a confirmation (`downtime_places_confirmed_at`,
+  `_by`); only holders of `platform.location.manage` change or confirm them; the HZ-021 control
+  now claims only what is built (H-201).
+- (clinical M3) An outage's start and end can be corrected before reconciliation with a
+  `correction_reason` of their own, kept in the history (H-202).
+- Lows: non-blank reconciliation statement and reasons; tests for non-holder and cross-tenant
+  updates, owner delete and truncate of a pack, final cancelled outages and closed to cancelled.
+- Logged: a pack hidden after a move (HZ-021, HZ-073, H-200, a planned part 3 test), pack PDFs
+  kept out of `document`'s general view, and STATUS follow-ups.
+
+**Tests**: `packages/db` 408 passing locally (15 in `downtime.test.ts`).
+
+## 2026-10-12: Slice 11 part 1, review round 2 (#32)
+
+Security closed M1 and M2. Clinical safety found one new medium: a pack's `person_ids` took in the
+content's `excluded` people (another location's, former residents), hiding the pack from every
+location-scoped nurse in charge. Now `person_ids` comes from the pages only; the stored content
+names no one left out, holds only the pack's own keys and warnings about its own people; the
+`warnings` column holds counts only; and a pack with no pages is refused while anyone is receiving
+care at the location. H-202 notes that a narrowing correction can drop entries from the duplicate
+review; three STATUS follow-ups.
+
 ## 2026-10-12: The round and the handover on the phone, streams (slice 10 part 2, Lane C)
 
 First of three pull requests for tasks and handovers in Care mode
@@ -1149,3 +1201,19 @@ Second of four pull requests (`feat/mobile-offline-round-writes`, stacked on #33
 
 **Tests**: `apps/mobile` 910, `packages/sync` 81, `packages/i18n` 48, passing locally;
 typecheck clean for mobile and sync.
+
+## 2026-10-13: The round and the handover on the phone, publication migration (#33)
+
+- Migration 0052 adds `task`, `handover`, `handover_item`, `handover_note` and
+  `handover_acknowledgement` to the `powersync` publication, with the `sync_replication_read`
+  policy and `SELECT` (only) for `harbour_sync`, as 0012 and 0017 do.
+- `packages/db/test/sync-publication.test.ts` reads the source tables of every stream query and
+  checks each is published and readable by the sync role, and that the sync role holds nothing
+  but `SELECT` on the five tables.
+- The hazard rows for the streams now name the migration and the test. Round 2 of #33: screens
+  gate item (e) (the phone must be able to say the outgoing handover is not compiled yet or not
+  final, which needs the expected shift on the device; H-303), the alias caveat in H-304, and a
+  STATUS low for a carer assigned to two people at different homes.
+
+**Tests**: `packages/db` 411 (real Postgres), `packages/sync` 81, `apps/mobile` 891, passing
+locally; typecheck clean for db, sync and mobile.
