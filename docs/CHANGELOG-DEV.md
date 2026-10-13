@@ -1265,3 +1265,16 @@ actions H-254 and H-255 for the CSO; STATUS item 16 for the follow-ups.
 **Tests**: `apps/web` 410 unit, `packages/i18n` 48; Playwright `e2e/capacity.spec.ts`,
 `care-record.spec.ts` and `break-glass.spec.ts` on a fresh scratch database, run locally.
 
+## 2026-10-13: A task's time of care from a device (slice 10 part 2, Lane C)
+
+- `TaskTransitionRequest` takes an optional `occurredAt` (when the task was done or not done)
+  and `deviceTime` (when the device recorded the move). The API records the completion at the
+  time of care, checked as an entry's time is: refused when later than its clock allows or
+  before the offline window, flagged late from the device time (`care_note.late_entry_hours`),
+  with the flags in the move's audit event. Permission is still judged when the move arrives.
+  Without it the completion time is when the move arrives, as before.
+- HZ-017 rows; a STATUS follow-up for a column that shows the flag on the task.
+
+**Tests**: `apps/api` task suite 35 (4 new), `packages/contracts` 34, passing locally;
+typecheck clean for api, contracts, web and mobile.
+

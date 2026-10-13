@@ -247,6 +247,10 @@ only when they link spec, code, tests and user documentation; no user guides exi
     - Follow-up (#33 review round 2, low): no test yet of a carer assigned to two people at
       different homes where the person who opens a handover differs from the item's person (the
       two `person_assignment` joins in the `assigned_handovers` item and note queries).
+    - Follow-up (`feat/care-task-move-device-time`): a task's move may carry its time of care
+      (`occurredAt`) and device time; the API records the completion at that time and keeps the
+      late-entry and clock-drift flags in the move's audit event. Showing them on the task (a
+      `completed_late` column and the device time, as entries have) needs a migration.
 16. Follow-ups from review round 1 of the capacity assessment, best-interests and consent record
     views (#35; H-254 and H-255 ask the CSO): every section 4 checklist label carries its statute
     citation, which is jargon on a staff screen; an unanswered checklist item gets no warning; the
