@@ -37,7 +37,7 @@ const t = createTranslator("en-GB");
 const PERSON = "0194d000-0000-7000-8600-000000000001";
 
 describe("record tabs", () => {
-  it("lists the ten sections in order, the overview first and history last", () => {
+  it("lists the eleven sections in order, the overview first and history last", () => {
     expect(RECORD_TABS.map((d) => d.tab)).toEqual([
       "overview",
       "care-plan",
@@ -47,6 +47,7 @@ describe("record tabs", () => {
       "charts",
       "body-map",
       "advance-care",
+      "capacity",
       "activities",
       "history",
     ]);
