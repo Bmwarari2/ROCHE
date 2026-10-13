@@ -154,8 +154,9 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
 
 ## Invitations and MFA enrolment (PLAT-004)
 
-Status: the rules are built (`packages/domain/src/platform/invitations.ts`, table-driven tests);
-the store, the routes and the screens follow with migration 0054 (the schema below). Built already
+Status: the rules are built (`packages/domain/src/platform/invitations.ts`, table-driven tests),
+and the store (migration 0054, the schema below; `packages/db/test/invitations.test.ts`); the
+routes and the screens follow. Built already
 and relied on: NCSC password rules at sign-up (`passwordProblem`: 12 to 128 characters, a
 deny-list, no expiry, throttling not lockout), passkeys and authenticator apps (TOTP) with the
 set-up screen (`/settings/security`), `mfa_enrolment_required` on every permission that touches
@@ -204,10 +205,13 @@ Flow:
    accepted, clears its address and writes the audit event (`platform.invitation.accepted`) in the
    same transaction. If anything fails after the sign-in was created, the transaction rolls back
    and the new sign-in is deleted, so no password is left on an address with no member linked;
-   and should the process stop between the two, a nightly sweep deletes any sign-in older than
-   `invitation.unlinked_sign_in_hours` (rate table, 24) that no membership row and no operator
-   record names (the membership check is a yes-or-no security-definer function owned by
-   `harbour_membership_reader`).
+   and should the process stop between the two, a nightly sweep deletes the sign-in. To know which
+   sign-ins those are, the new sign-in's id is recorded on the invitation in its own committed
+   transaction before it is linked (`app.record_invitation_sign_in`, `claimed_auth_user_id`); the
+   sweep (`app.unlinked_invitation_sign_ins`) lists only those, recorded more than
+   `invitation.unlinked_sign_in_hours` ago (rate table, 24), on an invitation never accepted, and
+   named by no membership. A sign-in made any other way (a family portal user, a professional or
+   inspector with expiring access) is never listed.
 4. **Enrol.** The new session is sent to `/settings/security?reason=mfa`; until a passkey or an
    authenticator app is enrolled, every care-record permission answers `mfa_enrolment_required`
    (built: `refusalOf`, `touchesCareRecords`).
@@ -217,7 +221,7 @@ Flow:
    (`member_removed`, `member_changed`). A nightly sweep revokes lapsed invitations as `expired`
    (`invitationsToSweep`), which frees the member for a new invitation and clears the address.
 
-Schema for migration 0054 (built by Lane D, stacked on this PR; numbered provisionally):
+Schema, as built in migration 0054 (`packages/db/drizzle/0054_invitations.sql`):
 
 - `invitation`: `id` (UUIDv7), `tenant_id` (forced row-level security, tenant policy),
   `tenant_user_id` (composite foreign key to `tenant_user`), `email` (copied from the member by a
@@ -272,7 +276,18 @@ Schema for migration 0054 (built by Lane D, stacked on this PR; numbered provisi
 - `harbour_invitation_owner` holds only what its functions need: the invitation table, the member
   columns it links (`auth_user_id`, `status`), reading the organisation, roles and the rate table,
   appending audit events, an active-admin check on `operator_user`, and a column grant on
-  `auth.user` of `id` and `email` only (ADR-0002).
+  `auth.user` of `id` and `email` only (ADR-0002). `harbour_owner` holds it with `SET` but not
+  `INHERIT`, so the role's open policies on `invitation` and `operator_user` never apply to
+  migrations and seeds (`packages/db/src/admin/roles.ts`).
+- The member-change trigger function (`app.invitation_member_changed`, on `tenant_user`,
+  `role_assignment` and `access_grant`) is itself a security-definer function owned by
+  `harbour_invitation_owner`, so its revocations are recognised as the definer path whoever makes
+  the change, and a worker job with no member (`app.user_id` unset) still revokes and clears the
+  address.
+- `app.record_invitation_sign_in(token, auth_user_id)` and `app.unlinked_invitation_sign_ins()`:
+  the claim and the narrow sweep list above, under the same owner (`EXECUTE` to `harbour_app` and
+  `harbour_worker` respectively). `app.sweep_expired_invitations()` revokes lapsed invitations
+  (`EXECUTE` to `harbour_worker`).
 - Retention: `invitation` rows take their own class (`invitation`, retention.md); the address is
   gone once the invitation is closed, and the audit trail keeps who was given access and when.
 

@@ -1511,3 +1511,16 @@ Migration 0053, edited in place:
   throttling counts tokens by hash; a nightly sweep of unlinked sign-ins older than
   `invitation.unlinked_sign_in_hours`.
 
+## 2026-10-13: Invitations, migration 0054 (Lane D)
+
+- `invitation` (forced row-level security; the app role inserts its member, link, expiry and
+  sender only, cannot read the hash, revokes only, never deletes) and the NOLOGIN role
+  `harbour_invitation_owner`, held by `harbour_owner` with SET but not INHERIT. Definer functions:
+  lookup, claim (locks), the sign-in record, acceptance (checks the sign-in's email), the first
+  owner's invitation (expiry from the rate table, the operator from the session), the member-change
+  trigger, the lapsed-invitation sweep and the narrow unlinked sign-in list.
+- Database tests: sender rules (round 2 N2), coverage of the member's permissions (M3), the
+  operator path, single-use acceptance, revocations with no reviser (N1: the sweep, a worker-style
+  status change), and the unlinked sign-in list leaving other sign-ins alone. Database 450, API 737,
+  domain 4,159 passing.
+
