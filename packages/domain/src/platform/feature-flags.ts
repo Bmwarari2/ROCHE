@@ -49,7 +49,6 @@ export const FLAGS = {
     description: "Recruitment, training, rostering and pay rules",
     defaultEnabled: false,
     licensed: true,
-    remote: true,
   },
   "module.family_portal": {
     description: "Family and person portals",
