@@ -165,18 +165,20 @@ export interface NotificationsView {
 /**
  * What the notifications section says around its list (safety.md section 5; HZ-013): not checked
  * yet, outside England, questions still to answer and the kinds waiting for them warn; "none
- * found" is said only when nothing is open.
+ * found" is said only when nothing is open. A holder of `safety.notification.submit` is told to
+ * check them themselves, not sent to ask someone (#42 review round 2).
  */
 export function notificationsView(
   classifier: Pick<
     ClassifierView,
     "nationSupported" | "openQuestions" | "pending" | "notifications"
   > | null,
+  canSubmit: boolean,
   t: Translator,
 ): NotificationsView {
   const notice = (notice: string, count = 0) => ({
     title: t("safety.notification.notice", { notice, count }),
-    body: t("safety.notification.noticeHint", { notice }),
+    body: t("safety.notification.noticeHint", { notice, self: String(canSubmit) }),
   });
   if (!classifier) return { notices: [notice("notChecked")], pending: [], none: null };
   if (!classifier.nationSupported) return { notices: [notice("nation")], pending: [], none: null };

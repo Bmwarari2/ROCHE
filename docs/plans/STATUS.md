@@ -310,6 +310,14 @@ only when they link spec, code, tests and user documentation; no user guides exi
       an alert when the sidebar is folded to its icons; a reader without `people.person.read`
       sees several "A person we support" with nothing to tell them apart; no demo account lacks
       `safety.incident.read`, so the hidden Incidents item is unit tested only.
+    - Follow-ups from #42 review round 2: `INCIDENT_LIST_LIMIT` repeats the API's 500 (the API
+      should return a `truncated` flag, or the limit should be a shared contract constant);
+      communication needs for people outside the reader's people list are left out silently
+      (say "not shown to you"); the list gives no sign that an incident's notifications have not
+      been checked yet; the "What happened" field repeats its section's heading; the breadcrumb
+      link has no 44 px target; the journey neither opens nor scans the closed incident's page
+      with axe; when needs are recorded the incident page says "Communication needs" twice (the
+      label and the flag), so drop the flag's label there or hide the label visually.
 
 ## Human actions outstanding
 

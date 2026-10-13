@@ -271,11 +271,28 @@ describe("statutory notifications on an incident (safety.md section 4; HZ-013)",
   ])(
     "hazard HZ-013 never says none are needed while anything is open: %s",
     (_, classifier, notices, pending, none) => {
-      const result = notificationsView(classifier, t);
+      const result = notificationsView(classifier, false, t);
       expect(result.notices.map((n) => n.title)).toEqual(notices);
       expect(result.notices.every((n) => n.body.length > 0)).toBe(true);
       expect(result.pending).toEqual(pending);
       expect(result.none).toBe(none);
     },
   );
+
+  it("tells a holder of safety.notification.submit to check, not to ask themselves", () => {
+    const hint = (classifier: View | null, canSubmit: boolean) =>
+      notificationsView(classifier, canSubmit, t).notices.map((n) => n.body);
+    expect(hint(null, false)).toEqual([
+      "Harbour has not yet checked which notifications this incident needs. Ask a nurse or the Registered Manager to check it.",
+    ]);
+    expect(hint(null, true)).toEqual([
+      "Harbour has not yet checked which notifications this incident needs. Until it has, check what the law needs for this incident yourself.",
+    ]);
+    expect(hint(view({ openQuestions: [question] }), false)).toEqual([
+      "A nurse or the Registered Manager needs to answer them.",
+    ]);
+    expect(hint(view({ openQuestions: [question] }), true)).toEqual([
+      "Until you can answer them on this page, check what the law needs for this incident yourself.",
+    ]);
+  });
 });

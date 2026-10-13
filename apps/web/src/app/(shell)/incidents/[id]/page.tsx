@@ -78,8 +78,14 @@ function Warning({ text }: { readonly text: string }) {
 const when = (iso: string | null) => formatDateTime(iso) ?? null;
 
 /** Whether the statutory notifications this incident needs are drafted, and when each is due. */
-function Notifications({ classifier }: { readonly classifier: IncidentDetail["classifier"] }) {
-  const view = notificationsView(classifier, t);
+function Notifications({
+  classifier,
+  canSubmit,
+}: {
+  readonly classifier: IncidentDetail["classifier"];
+  readonly canSubmit: boolean;
+}) {
+  const view = notificationsView(classifier, canSubmit, t);
   const items = notificationsInOrder(classifier?.notifications ?? []);
   return (
     <div className="flex flex-col gap-3">
@@ -293,7 +299,10 @@ export default async function IncidentPage({ params }: { readonly params: Params
       </Card>
       {incident.restricted ? null : (
         <Card as="section" title={section("notifications")} headingLevel={2}>
-          <Notifications classifier={incident.classifier} />
+          <Notifications
+            classifier={incident.classifier}
+            canSubmit={can(me.permissions, "safety.notification.submit")}
+          />
         </Card>
       )}
     </div>
