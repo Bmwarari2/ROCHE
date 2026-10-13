@@ -53,6 +53,11 @@ CREATE INDEX "body_map_mark_outage_idx" ON "body_map_mark" USING btree ("tenant_
 CREATE INDEX "care_note_outage_idx" ON "care_note" USING btree ("tenant_id","outage_id") WHERE outage_id IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "observation_outage_idx" ON "observation" USING btree ("tenant_id","outage_id") WHERE outage_id IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "visit_log_outage_idx" ON "visit_log" USING btree ("tenant_id","outage_id") WHERE outage_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "activity_record_back_entry_correction_key" ON "activity_record" USING btree ("tenant_id","supersedes_id") WHERE late_entry_reason = 'downtime' AND supersedes_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "body_map_mark_back_entry_correction_key" ON "body_map_mark" USING btree ("tenant_id","supersedes_id") WHERE late_entry_reason = 'downtime' AND supersedes_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "care_note_back_entry_correction_key" ON "care_note" USING btree ("tenant_id","supersedes_id") WHERE late_entry_reason = 'downtime' AND supersedes_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "observation_back_entry_correction_key" ON "observation" USING btree ("tenant_id","supersedes_id") WHERE late_entry_reason = 'downtime' AND supersedes_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "visit_log_back_entry_correction_key" ON "visit_log" USING btree ("tenant_id","supersedes_id") WHERE late_entry_reason = 'downtime' AND supersedes_id IS NOT NULL;--> statement-breakpoint
 ALTER TABLE "activity_record" ADD CONSTRAINT "activity_record_back_entry" CHECK (CASE WHEN late_entry_reason = 'downtime'
   THEN outage_id IS NOT NULL AND paper_date IS NOT NULL AND paper_time IS NOT NULL
     AND extract(second FROM paper_time) = 0 AND paper_occurrence IN ('only', 'earlier', 'later')
@@ -147,10 +152,10 @@ $$;
 --   carried from the entry it corrects when it gives none, and refused when it names another; a
 --   correction of any other entry cannot make it a back-entry;
 -- - the writer must be able to see the outage, at the entry's own location, not cancelled, and not
---   reconciled unless the entry corrects one of its back-entries (a wrong value entered from paper
---   is always correctable); it is read again locked for share, in the system's view (a share lock
---   needs the update policy), so a cancel or a reconciliation running at the same time waits for
---   this entry and then counts it;
+--   reconciled unless the entry corrects an entry that cites it, a back-entry or one not from
+--   paper, keeping the link (a wrong value is always correctable); it is read again locked for
+--   share, in the system's view (a share lock needs the update policy), so a cancel or a
+--   reconciliation running at the same time waits for this entry and then counts it;
 -- - a back-entry's time is the instant its paper date, time and occurrence give;
 -- - a back-entry outside the outage window [start, end) says why; an open outage runs to now plus
 --   `sync.clock_drift_flag_minutes`; an entry not from paper names only an outage it falls in.
@@ -162,7 +167,7 @@ DECLARE
   v_scope text;
   v_user text;
   v_seen boolean;  -- seen, at the entry's location, and still open to this entry
-  v_correcting boolean := false;  -- a correction of a back-entry
+  v_correcting boolean := false;  -- a correction of an entry citing the same outage
   v_end timestamptz;
 BEGIN
   IF NEW.supersedes_id IS NOT NULL THEN
@@ -186,11 +191,12 @@ BEGIN
         RAISE EXCEPTION 'A correction of a paper record stays a paper record of the same outage'
           USING ERRCODE = 'integrity_constraint_violation';
       END IF;
-      v_correcting := true;
     ELSIF NEW.late_entry_reason = 'downtime' THEN
       RAISE EXCEPTION 'A correction of an entry not entered from paper cannot make it a paper record'
         USING ERRCODE = 'integrity_constraint_violation';
     END IF;
+    v_correcting := v_original.outage_id IS NOT NULL
+      AND NEW.outage_id IS NOT DISTINCT FROM v_original.outage_id;
   END IF;
   IF NEW.outage_id IS NULL THEN
     RETURN NEW;
