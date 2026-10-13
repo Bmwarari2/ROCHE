@@ -246,8 +246,8 @@ only when they link spec, code, tests and user documentation; no user guides exi
     unknown outcome or type reads as plain text, not the warning chip the hazard log describes; an
     authorisation not yet started with a midnight end reads "In force until the end of ...".
 15. Slice 10 part 2 on the phone (Lane C), the round and the handover: the sync streams, the
-    token's handover claims and the client tables are in review (#33,
-    `feat/mobile-tasks-handover-sync`, [care.md](../specs/care.md) section 6), with migration
+    token's handover claims and the client tables are on `main` (#33,
+    [care.md](../specs/care.md) section 6), with migration
     0052, which adds `task`, `handover`, `handover_item`, `handover_note` and
     `handover_acknowledgement` to the `powersync` publication with the `sync_replication_read`
     policy and `SELECT` for `harbour_sync`, and a database test that every table the streams read
@@ -263,7 +263,9 @@ only when they link spec, code, tests and user documentation; no user guides exi
       on the phone never reads as "nothing due" when the streams have no data; (e) the phone can
       say "the outgoing handover is not compiled yet" or "not final", which needs the shift
       pattern or the expected shift on the device, decided in the screens PR (#33 review round 2;
-      H-303).
+      H-303); (f) a task whose evidence entry is saved on the phone shows "evidence recorded,
+      waiting to upload" until it uploads, so it is not recorded twice (#36 review round 1,
+      clinical M3; HZ-029).
     - Follow-up: whether the round on the phone should also hold unfinished tasks due before the
       window (H-301).
     - Follow-up (#33 review round 1): the streams ignore `person_assignment.valid_from`, so a
@@ -275,9 +277,56 @@ only when they link spec, code, tests and user documentation; no user guides exi
     - Follow-up (#33 review round 1): `location_open_tasks` keeps tasks about people active, on
       leave or in hospital, while the web round has no status filter, so tasks about someone at
       pre-admission are on the web round only.
+    - Offline writes for the round and the handover: the local writes (a task done or not
+      done, a handover acknowledged) on `feat/mobile-offline-round-writes`, and their upload
+      (each to its own route, a refusal to "needs attention") on
+      `feat/mobile-offline-round-upload`, after #33; then the screens, behind the gate.
     - Follow-up (#33 review round 2, low): no test yet of a carer assigned to two people at
       different homes where the person who opens a handover differs from the item's person (the
       two `person_assignment` joins in the `assigned_handovers` item and note queries).
+    - Follow-up (migration 0052 security check, low): `task` is published with every column,
+      including `details` and `status_reason`, which no stream sends; a publication column list
+      (Postgres 15 and later) would keep them out of PowerSync's storage. A forward migration
+      that sets the list must keep every column a stream reads.
+    - Follow-up (#36 review round 1): the seen token trusts the `shown` list it is given; the
+      handover screen must pass only the items it rendered, with a test.
+    - Follow-up (#36 review round 1): the HZ-018 seen-token test compares the phone's token with
+      a copy of the API's code; test `platform/digest.ts` and the API's own function instead.
+    - Follow-up (#36 review round 1): `handover_acknowledgement.acknowledged_at` holds the device
+      time on an acknowledgement made on the phone, until the server's copy replaces it, where
+      data standards say server time; record it apart or say so in the screen.
+    - Follow-up (#36 review round 1): `writeTaskMove` throws `TaskMoveNotWritten`; return it as
+      a result, as `writeAcknowledgement` does.
+    - Follow-up (#36 review round 1): on #36 alone a queued move goes to `POST /v1/sync/upload`
+      with every column it carries (data minimisation); gone once the upload (#37) lands.
+    - Follow-up (#36 review round 1; #41 closed): a task's time of care from the phone. The
+      API records a move's completion when it arrives, and the phone keeps its device time in
+      its own row only. The full design: a migration for task columns (time of care, time
+      received, late flag); a late label wherever a task shows (web round, handover, phone);
+      a lower bound at the task's creation or its window; and a rule for which shift's
+      handover a late-synced outcome belongs to. Then the move sends its time of care
+      (`round-upload.ts`). CSO decision H-309.
+    - Follow-up (#36 review round 2, low): `useMoveTask` takes the person's home
+      (`personLocationId`) from the caller; while it is null (the person row still loading)
+      and the token lists no person ids, `mayRecordFor` lets the move through. Look the home
+      up in the database inside the hook.
+    - Follow-up (#36 review round 2, low): `putBackMove` runs before the phone reconnects,
+      when the session's end has cleared the task row, so it inserts a bare row (no title,
+      due time, version or evidence flag) and queues a PUT, not a PATCH; the upload (#37)
+      sends it (`toRoundUpload` takes a PUT). On a later hold `resendable` re-queues only
+      PATCHes, so such a move is parked. The update branch skips the version check and does
+      not require `queued_transition IS NULL`. The screens must handle the bare row until
+      the server's copy replaces it.
+    - Follow-up (#36 review round 2, low): held moves and acknowledgements go back into the
+      queue only when their owner opens their own database; the manager hand-over
+      (`handover.ts`) leaves them on the device as needing attention. Neither path checks
+      the write scope again; the API still decides.
+    - Follow-up (#36 review round 2, low): after an acknowledgement is refused, the phone can
+      say it is "already waiting to upload" (`mobile.handover.alreadyQueued`) until the next
+      sync clears its row.
+    - Follow-up (#36 review round 2, low): "Tell the person in charge of this shift" is shown
+      to nurses too, including when they are the person in charge; word it by role in the
+      screens PR.
 16. Follow-ups from review round 1 of the capacity assessment, best-interests and consent record
     views (#35; H-254 and H-255 ask the CSO): every section 4 checklist label carries its statute
     citation, which is jargon on a staff screen; an unanswered checklist item gets no warning; the

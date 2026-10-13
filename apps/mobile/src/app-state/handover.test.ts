@@ -385,6 +385,22 @@ describe("hazard HZ-040 hazard HZ-006 handing over held entries (Device integrit
     expect(rows("upload_issue")).toEqual([]);
   });
 
+  it.each(["task", "handover_acknowledgement"])(
+    "hazard HZ-006 never sends the owner's %s in a hand-over: it stays for review (#36 review round 1)",
+    async (table) => {
+      const { db, rows } = await heldDatabase([
+        { id: E1, table, op: table === "task" ? "PATCH" : "PUT" },
+      ]);
+      const { fetch, calls } = fakeFetch([]);
+      const result = await handOverHeldWork(deps(db, fetch));
+      expect(calls).toEqual([]);
+      expect(result).toMatchObject({ parked: 1, remaining: 1 });
+      expect(rows("upload_issue")).toEqual([
+        expect.objectContaining({ id: E1, code: "held_not_restored" }),
+      ]);
+    },
+  );
+
   it("never sends a change that is not a care entry, keeping it for review instead", async () => {
     const { db, rows } = await heldDatabase([{ id: E1, table: "person" }]);
     const { fetch, calls } = fakeFetch([]);
