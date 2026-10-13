@@ -197,6 +197,10 @@ export interface HandoverTaskSource {
   readonly id: string;
   readonly personId: string | null;
   readonly kind: string;
+  /** The task's title, as the round shows it (for the item's summary). */
+  readonly title?: string;
+  /** Why it was not done or was cancelled, for a skipped task's summary. */
+  readonly statusReason?: string | null;
   readonly status: TaskStatus;
   readonly priority: "routine" | "urgent";
   readonly evidenceRequired: boolean;
@@ -209,8 +213,12 @@ export interface HandoverTaskSource {
 
 export interface HandoverObservationSource extends Timed {
   readonly personId: string;
+  /** The chart (`fluid_intake`, `vital_signs` and so on), for a refusal's summary. */
+  readonly chart?: string;
   /** The NEWS2 band for vital signs, null for other charts. */
   readonly news2Band: News2Band | null;
+  /** The NEWS2 aggregate score stored with the band, when there is one. */
+  readonly news2Score?: number | null;
   /** From `observationIsRefusal`. */
   readonly refused: boolean;
 }
@@ -222,6 +230,11 @@ export interface HandoverIncidentSource extends Timed {
 
 export interface HandoverMarkSource extends Timed {
   readonly personId: string;
+  /** What the mark is and where, as the body map stores it, for the item's summary. */
+  readonly markType?: string;
+  readonly view?: string;
+  readonly region?: string;
+  readonly side?: string;
 }
 
 export interface HandoverNoteSource extends Timed {
@@ -231,6 +244,8 @@ export interface HandoverNoteSource extends Timed {
 
 export interface HandoverAlertSource {
   readonly id: string;
+  /** The alert's kind (`care.urgent_result` and so on), for the item's summary. */
+  readonly kind?: string;
   readonly personId: string | null;
   readonly severity: Severity;
   readonly createdAt: Date;
@@ -255,6 +270,44 @@ export type HandoverSourceType =
   | "care_note"
   | "notification";
 
+/**
+ * What a handover item says, as a catalogue key and its parameters, so a screen words it in the
+ * reader's language without reading the source: the phone holds neither incidents, alerts nor
+ * skipped tasks (H-300). Parameters are codes (a NEWS2 band, a chart, an incident type, an alert
+ * kind, a mark's type, view, region and side), the NEWS2 score, and for a task the words staff
+ * wrote: its title and why it was not done. Never a person's name.
+ */
+export interface HandoverItemSummary {
+  readonly key: HandoverSummaryKey;
+  readonly params: Readonly<Record<string, string | number>>;
+}
+
+/** Every summary key, one per kind of item; each app's catalogue words them (`mobile.` + key). */
+export const HANDOVER_SUMMARY_KEYS = {
+  fall: "handover.summary.fall",
+  news2: "handover.summary.news2",
+  incident: "handover.summary.incident",
+  alert: "handover.summary.alert",
+  body_map_mark: "handover.summary.bodyMapMark",
+  flagged_note: "handover.summary.flaggedNote",
+  overdue_task: "handover.summary.overdueTask",
+  skipped_task: "handover.summary.skippedTask",
+  unfinished_task: "handover.summary.unfinishedTask",
+  must_follow_up: "handover.summary.mustFollowUp",
+  refusal: "handover.summary.refusal",
+} as const satisfies Record<HandoverItemKind, string>;
+export type HandoverSummaryKey = (typeof HANDOVER_SUMMARY_KEYS)[HandoverItemKind];
+
+/** An alert kind as a catalogue choice: `care.urgent_result` becomes `care_urgent_result`. */
+export function alertSummaryCode(kind: string | undefined): string {
+  return (kind ?? "").replace(/[^a-z0-9_]/gi, "_").toLowerCase() || "other";
+}
+
+const summary = (
+  kind: HandoverItemKind,
+  params: Record<string, string | number> = {},
+): HandoverItemSummary => ({ key: HANDOVER_SUMMARY_KEYS[kind], params });
+
 export interface HandoverItem {
   /** Stable identity: the same record never appears twice under the same kind. */
   readonly key: string;
@@ -267,6 +320,8 @@ export interface HandoverItem {
   /** Appended after the handover was first compiled. */
   readonly lateAddition: boolean;
   readonly addedAt: Date;
+  /** What it says (`HandoverItemSummary`); absent on items compiled before summaries existed. */
+  readonly summary?: HandoverItemSummary | null;
 }
 
 function inShift(at: Date, shift: ShiftWindow): boolean {
@@ -293,6 +348,7 @@ export function compileHandover(
     sourceId: string,
     personId: string | null,
     at: Date,
+    params: Record<string, string | number> = {},
   ) => {
     const key = `${kind}:${sourceType}:${sourceId}:${personId ?? "-"}`;
     if (keys.has(key)) return;
@@ -306,35 +362,58 @@ export function compileHandover(
       at,
       lateAddition: false,
       addedAt: compiledAt,
+      summary: summary(kind, params),
     });
   };
+  const title = (t: HandoverTaskSource) => ({ title: t.title ?? "" });
   const end = shift.end.getTime();
 
   for (const o of sources.observations) {
     if (!belongs(o, shift)) continue;
     // Anything above "low" asks for more than routine monitoring: an aggregate of 5 or more, or a
     // single parameter scoring 3 (RCP NEWS2, 2017).
-    if (o.news2Band && o.news2Band !== "low")
-      add("news2", "observation", o.id, o.personId, o.occurredAt);
-    if (o.refused) add("refusal", "observation", o.id, o.personId, o.occurredAt);
+    if (o.news2Band && o.news2Band !== "low") {
+      const score = o.news2Score;
+      add("news2", "observation", o.id, o.personId, o.occurredAt, {
+        band: o.news2Band,
+        ...(typeof score === "number" ? { scored: "yes", score } : { scored: "no" }),
+      });
+    }
+    if (o.refused) {
+      add("refusal", "observation", o.id, o.personId, o.occurredAt, {
+        source: "observation",
+        chart: o.chart ?? "other",
+      });
+    }
   }
   for (const incident of sources.incidents) {
     if (!belongs(incident, shift)) continue;
     const kind = incident.type === "fall" ? "fall" : "incident";
     const people = incident.personIds.length > 0 ? incident.personIds : [null];
+    const params: Record<string, string> =
+      kind === "fall" ? { source: "incident" } : { type: incident.type };
     for (const personId of people)
-      add(kind, "incident", incident.id, personId, incident.occurredAt);
+      add(kind, "incident", incident.id, personId, incident.occurredAt, params);
   }
   for (const mark of sources.bodyMapMarks) {
-    if (belongs(mark, shift))
-      add("body_map_mark", "body_map_mark", mark.id, mark.personId, mark.occurredAt);
+    if (belongs(mark, shift)) {
+      add("body_map_mark", "body_map_mark", mark.id, mark.personId, mark.occurredAt, {
+        markType: mark.markType ?? "other",
+        view: mark.view ?? "",
+        region: mark.region ?? "",
+        side: mark.side ?? "",
+      });
+    }
   }
   for (const note of sources.notes) {
     if (!belongs(note, shift)) continue;
     if (note.tags.includes(HANDOVER_NOTE_TAGS.fall))
-      add("fall", "care_note", note.id, note.personId, note.occurredAt);
+      add("fall", "care_note", note.id, note.personId, note.occurredAt, { source: "care_note" });
     if (note.tags.includes(HANDOVER_NOTE_TAGS.refusal)) {
-      add("refusal", "care_note", note.id, note.personId, note.occurredAt);
+      add("refusal", "care_note", note.id, note.personId, note.occurredAt, {
+        source: "care_note",
+        chart: "other",
+      });
     }
     if (note.tags.includes(HANDOVER_NOTE_TAGS.handover)) {
       add("flagged_note", "care_note", note.id, note.personId, note.occurredAt);
@@ -345,7 +424,10 @@ export function compileHandover(
     // Raised this shift, or raised earlier and still unacknowledged when the shift ended.
     const unacknowledged = alert.acknowledgedAt === null || alert.acknowledgedAt.getTime() >= end;
     if (inShift(alert.createdAt, shift) || unacknowledged) {
-      add("alert", "notification", alert.id, alert.personId, alert.createdAt);
+      add("alert", "notification", alert.id, alert.personId, alert.createdAt, {
+        alert: alertSummaryCode(alert.kind),
+        acknowledged: unacknowledged ? "no" : "yes",
+      });
     }
   }
   for (const t of sources.tasks) {
@@ -358,23 +440,27 @@ export function compileHandover(
         inShift(t.closedAt, shift) &&
         (t.priority === "urgent" || t.evidenceRequired)
       ) {
-        add("skipped_task", "task", t.id, t.personId, t.closedAt);
+        add("skipped_task", "task", t.id, t.personId, t.closedAt, {
+          ...title(t),
+          status: t.status,
+          reason: t.statusReason ?? "",
+        });
       }
       continue;
     }
     const windowEnd = (t.windowEnd ?? t.dueAt).getTime();
     if (windowEnd < end) {
-      add("overdue_task", "task", t.id, t.personId, t.windowEnd ?? t.dueAt);
+      add("overdue_task", "task", t.id, t.personId, t.windowEnd ?? t.dueAt, title(t));
     } else if (t.dueAt.getTime() < end) {
       // Due by the end of the shift and not done, though its window is still open.
-      add("unfinished_task", "task", t.id, t.personId, t.dueAt);
+      add("unfinished_task", "task", t.id, t.personId, t.dueAt, title(t));
     }
     // Raised this shift; an older one still open shows as overdue once its window closes.
     if (
       (MUST_FOLLOW_UP_TASK_KINDS as readonly string[]).includes(t.kind) &&
       inShift(t.createdAt, shift)
     ) {
-      add("must_follow_up", "task", t.id, t.personId, t.createdAt);
+      add("must_follow_up", "task", t.id, t.personId, t.createdAt, title(t));
     }
   }
 
@@ -541,6 +627,7 @@ export function alertConditions(rows: readonly AlertNotification[]): HandoverAle
       .sort((a, b) => a.getTime() - b.getTime());
     alerts.push({
       id: first.id,
+      kind: first.kind,
       personId: copies.find((c) => c.personId !== null)?.personId ?? null,
       severity: copies.some((c) => c.severity === "urgent") ? "urgent" : first.severity,
       createdAt: first.createdAt,

@@ -65,6 +65,16 @@ export interface SyncTokenClaims {
    * `mobile.offline_window_days` in the rate table. Without it no point-of-care entries sync.
    */
   readonly offline_days: readonly string[];
+  /**
+   * The day and night shift start times (minutes after midnight, UK time) of each nation the
+   * organisation has homes in (`england`, `wales` and so on), from the rate table, sent where the
+   * handover family reaches. Not read by any stream: the phone works out from it which handover it
+   * should hold, offline, and says when that one is not compiled yet or not final (ADR-0072). A
+   * nation whose figures are missing is left out, and the phone then says it cannot tell.
+   */
+  readonly handover_shifts?: Readonly<
+    Record<string, { readonly day: number; readonly night: number }>
+  >;
 }
 
 /** Token lifetime: short, because sync streams cannot see an assignment's end time. */

@@ -1373,6 +1373,19 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   (#33 review round 2; H-303); and (f) a task whose evidence entry is saved on the phone shows
   "evidence recorded, waiting to upload" until the entry uploads, so it is not recorded twice
   (#36 review round 1, clinical M3; HZ-029).
+  The data for items (a), (b) and (e) is built (`feat/mobile-round-gate-data`, migration 0056,
+  provisional number; ADR-0072):
+  - (a) each `handover_item` carries `summary`, a catalogue key (`handover.summary.*`, one per
+    kind; `HANDOVER_SUMMARY_KEYS`) and its parameters. The parameters are codes, the NEWS2 score,
+    and a task's title and the reason it was not done. It is compiled with the item from its
+    source and synced with it. The phone words it from `mobile.` + key (`handover-summary.ts`), or
+    by the item's kind when it has none.
+  - (b) `task.from_earlier_plan` is the round view's notice, kept on the task by the database with
+    the same rule (`planRoundNotice`) and synced with the open tasks.
+  - (e) the sync token carries `handover_shifts`: each nation's day and night start times, where
+    the handover family reaches. The phone works out the expected outgoing shift with `shiftAt` and
+    `previousShift`, and says "not compiled yet" when no handover for it has arrived, and "not
+    final" while `locked_at` is empty.
 - **The round and the handover: writing offline (slice 10 part 2, second PR; no screen yet).**
   `apps/mobile/src/care/round-actions.ts` checks a task's move with the API's own rules
   (`checkTaskTransition`: done, or not done with a reason of 3 to 500 characters; a task that

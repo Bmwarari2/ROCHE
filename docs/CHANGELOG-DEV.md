@@ -1543,3 +1543,24 @@ item 19 logs the follow-ups.
 **Tests**: `apps/web` 425 unit, `packages/i18n` 48; Playwright `e2e/incidents.spec.ts` on a
 fresh scratch database, run locally.
 
+## 2026-10-13: The screens gate data for the round and the handover (slice 10 part 2, Lane C)
+
+- Gate item (a): each handover item carries a worded summary, compiled with it from its source
+  (`handover_item.summary`: a catalogue key `handover.summary.*` and its parameters, codes and a
+  task's title and reason, never a person's name). The API returns it, the streams sync it, and
+  the phone words it from its own catalogue, in English and Welsh, or by the item's kind when it
+  has none (`apps/mobile/src/care/handover-summary.ts`).
+- Gate item (b): `task.from_earlier_plan`, the round view's "From an earlier plan" notice, kept on
+  the task by the database with the same rule (`planRoundNotice`). It is worked out when an open
+  task is written, when its series changes, and at the end of a transaction that changes its
+  plan's status. The API never writes it, and the open-task streams sync it.
+- Gate item (e): the sync token carries each nation's shift pattern (`handover_shifts`) where the
+  handover family reaches, for the phone to work out the expected handover offline (ADR-0072).
+- Migration 0056 (provisional number; 0054 and 0055 are pending in other lanes): the two columns,
+  the summary's check, the triggers and a backfill. HZ-018, HZ-024 and HZ-028 rows; H-300 and
+  H-303 updated; records of processing and data standards.
+
+**Tests**: `packages/db` 444 (real Postgres), `apps/api` 738, `packages/domain` 4177,
+`packages/sync` 83, `apps/mobile` 1005, `packages/i18n` 48, passing locally; typecheck clean for
+api, web, mobile, db, domain, sync and contracts.
+
