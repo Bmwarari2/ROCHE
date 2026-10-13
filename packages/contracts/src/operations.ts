@@ -119,7 +119,8 @@ export type OutageItem = z.infer<typeof OutageItem>;
 export const OutageList = z.object({ items: z.array(OutageItem) }).meta({ id: "OutageList" });
 
 const words = (max: number) => z.string().trim().min(1).max(max);
-const expectedVersion = z.number().int().min(1);
+/** The version the change is based on; a stale one is refused with 409. */
+const version = z.number().int().min(1);
 
 export const DeclareOutage = z
   .object({
@@ -130,30 +131,33 @@ export const DeclareOutage = z
     endedAt: isoDateTime.optional(),
   })
   .meta({ id: "DeclareOutage" });
+export type DeclareOutage = z.infer<typeof DeclareOutage>;
 
 export const CloseOutage = z
-  .object({ endedAt: isoDateTime, expectedVersion })
+  .object({ endedAt: isoDateTime.meta({ description: "When systems came back" }), version })
   .meta({ id: "CloseOutage" });
 
 export const ReconcileOutage = z
   .object({
-    statement: words(2000),
-    /** Every entry in the possible duplicates, once reviewed (kept, or corrected by supersession). */
+    statement: words(2000).meta({ description: "What was checked" }),
+    /**
+     * Every entry in the possible duplicates and every back-entry outside the window with no
+     * reason, once reviewed (kept, or corrected by supersession).
+     */
     reviewedEntryIds: z.array(uuid).max(1000),
-    expectedVersion,
+    version,
   })
   .meta({ id: "ReconcileOutage" });
 
-export const CancelOutage = z
-  .object({ reason: words(1000), expectedVersion })
-  .meta({ id: "CancelOutage" });
+export const CancelOutage = z.object({ reason: words(1000), version }).meta({ id: "CancelOutage" });
 
 export const CorrectOutage = z
   .object({
     startedAt: isoDateTime,
+    /** Null only for an outage still open, which stays open. */
     endedAt: isoDateTime.nullable(),
     reason: words(500),
-    expectedVersion,
+    version,
   })
   .meta({ id: "CorrectOutage" });
 
@@ -168,5 +172,12 @@ export const OutageReconciliation = z
     digitalEntriesInWindow: z.number().int(),
     /** Entry ids that may be the same care recorded twice; review each before reconciling. */
     duplicateGroups: z.array(z.array(uuid)),
+    /** Back-entries outside the window with no reason for it; review each before reconciling. */
+    outsideWindowEntryIds: z.array(uuid),
+    /** Whether you entered or sent any of its paper records, so cannot reconcile it (H-203). */
+    enteredByYou: z.boolean(),
+    /** What stops reconciling now, in words; empty when only the statement is needed. */
+    blockers: z.array(z.string()),
   })
   .meta({ id: "OutageReconciliation" });
+export type OutageReconciliation = z.infer<typeof OutageReconciliation>;

@@ -51,7 +51,11 @@ type Nation = Exclude<RateNation, "uk" | "all">;
 const Params = z.object({ id: z.uuid() });
 
 /** The location must be where the permission's roles and grants reach (ADR-0071). */
-function requireReach(access: TenantAccess, permission: Permission, locationId: string): void {
+export function requireReach(
+  access: TenantAccess,
+  permission: Permission,
+  locationId: string,
+): void {
   const { scope, locationIds } = scopeFor(access.effective, permission);
   if (scope !== "tenant" && !(scope === "locations" && locationIds.includes(locationId))) {
     throw problems.notFound();
