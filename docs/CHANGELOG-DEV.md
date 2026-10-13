@@ -1511,6 +1511,38 @@ Migration 0053, edited in place:
   throttling counts tokens by hash; a nightly sweep of unlinked sign-ins older than
   `invitation.unlinked_sign_in_hours`.
 
+## 2026-10-13: The incident screens, part 1: the list and an incident (slice 9)
+
+- An Incidents item in the sidebar for holders of `safety.incident.read`, and the list of
+  incidents for the chosen location, newest first: each named by its type and time, with its
+  status as an icon and a word, the questions still to answer and whether part of it is hidden
+  from the reader.
+- An incident page: what happened, with severity and harm as staff judged them; who was told;
+  and the people on it. A reader who cannot see everyone on it is told part of it is hidden
+  (HZ-013). The statutory notifications on the page follow in part 2.
+- Words come from the catalogue (en-GB, with the Welsh copy marked untranslated). No API change;
+  the gaps are in safety.md section 5 and STATUS item 19.
+
+**Tests**: `apps/web` 396 unit, `packages/i18n` 48; Playwright `e2e/incidents.spec.ts`,
+`care-record.spec.ts` and `capacity.spec.ts` on a fresh scratch database, run locally.
+
+## 2026-10-13: The incident screens, part 1, review round 1 (#42)
+
+Accessibility and clinical review of the incidents list and an incident's read view. The
+incident page shows the questions about statutory notifications still to answer as a warning
+chip, says when notifications are not checked yet or outside England, and says it does not show
+the questions or notifications yet (HZ-013; H-256 for the CSO). A restricted reader sees "About
+this incident" with a notice that says what they see, and "You cannot see the people on this
+incident" when they see none. Each person we support shows their communication needs. When the
+API's limit of 500 is reached the list fetches the open and under-review incidents besides and
+says older ones are not listed. The page title names the incident by its date; a hidden location
+reads "Location not shown to you"; the empty list reads "No incidents you can see". The journey
+adds closed and under-review incidents, the empty list and the questions on the page; STATUS
+item 19 logs the follow-ups.
+
+**Tests**: `apps/web` 425 unit, `packages/i18n` 48; Playwright `e2e/incidents.spec.ts` on a
+fresh scratch database, run locally.
+
 ## 2026-10-13: Invitations, migration 0054 (Lane D)
 
 - `invitation` (forced row-level security; the app role inserts its member, link, expiry and
