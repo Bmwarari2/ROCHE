@@ -191,9 +191,35 @@ only when they link spec, code, tests and user documentation; no user guides exi
     under each member's settings) inside the entry's transaction.
     Measure it against the 100 ms point-of-care budget on a large organisation; if it is slow,
     evaluate the scope for all candidates at once in a database function.
-13. Slice 10 part 2 on the phone (Lane C), the round and the handover: the sync streams, the
-    token's handover claims and the client tables are in review (#33,
-    `feat/mobile-tasks-handover-sync`, [care.md](../specs/care.md) section 6), with migration
+13. The consent, capacity and DoLS tab, the rest (slice 9, CARE-021 and CARE-022; consent by
+    decision and the DoLS register are on `feat/web-mca-tab`): read views of the capacity
+    assessments (the two-stage answers, the outcome in the Act's words, corrections struck
+    through), the best-interests decisions (checklist, consultations, the IMCA prompt as a warning)
+    and the consent records (whether each decides its decision now, was replaced, withdrawn or
+    expired; the representative's authority; history links); then the forms, each offered only
+    where `access.reaching` lists its permission and with the read-only line otherwise (ADR-0071),
+    each with a client UUIDv7 kept across retries (HZ-029) and its refusals mapped in
+    `refusals.ts`: record a consent or refusal (the representative and their authority, the
+    restraint conditions for bed rails, the best-interests decision for covert medicines) and
+    withdraw one (`care.capacity.write`); a two-stage capacity assessment and its correction; a
+    best-interests decision; record a DoLS request or authorisation and update its outcome, dates,
+    extension or end (`care.dols.manage`), deciding with the CSO how a typed end date maps to the
+    API's exclusive `grantedTo` (HZ-020); and the legal-change review screen
+    (`/v1/dols/legal-change-review`). Also: consents and DoLS in the history tab's list of records
+    with earlier versions, and the API gaps in care.md section 10 (English-only reasons; an
+    expired authorisation that a later one followed reads as expired).
+14. Follow-ups from review round 1 of the consent, capacity and DoLS tab (#34; H-250 to H-253 ask
+    the CSO): a drafted CQC notification past its due time has no overdue cue on the tab; the
+    expiry reminder lines do not say whether the reminder was sent or acted on; check the timing
+    of "Today is the last day in force" against the API's `daysLeft` and the expiry job once the
+    CSO answers H-250; the empty DoLS register gives no next step (who to ask, or the form once it
+    exists); the legal-change review warning does not follow the tenant flag (H-253) and shows for
+    homes in Wales although its text points to DHSC guidance for England. From review round 2: an
+    unknown outcome or type reads as plain text, not the warning chip the hazard log describes; an
+    authorisation not yet started with a midnight end reads "In force until the end of ...".
+15. Slice 10 part 2 on the phone (Lane C), the round and the handover: the sync streams, the
+    token's handover claims and the client tables are on `main` (#33,
+    [care.md](../specs/care.md) section 6), with migration
     0052, which adds `task`, `handover`, `handover_item`, `handover_note` and
     `handover_acknowledgement` to the `powersync` publication with the `sync_replication_read`
     policy and `SELECT` for `harbour_sync`, and a database test that every table the streams read
@@ -224,7 +250,7 @@ only when they link spec, code, tests and user documentation; no user guides exi
     - Offline writes for the round and the handover: the local writes (a task done or not
       done, a handover acknowledged) on `feat/mobile-offline-round-writes`, and their upload
       (each to its own route, a refusal to "needs attention") on
-      `feat/mobile-offline-round-upload`, stacked on #33; then the screens, behind the gate.
+      `feat/mobile-offline-round-upload`, after #33; then the screens, behind the gate.
     - Follow-up (offline writes): a refused move or acknowledgement is removed from "needs
       attention" through the deletion record built for unsent entries (a coded reason, device
       authentication, audited as `refused_removed`); decide with the screens whether these need
@@ -232,6 +258,10 @@ only when they link spec, code, tests and user documentation; no user guides exi
     - Follow-up (#33 review round 2, low): no test yet of a carer assigned to two people at
       different homes where the person who opens a handover differs from the item's person (the
       two `person_assignment` joins in the `assigned_handovers` item and note queries).
+    - Follow-up (migration 0052 security check, low): `task` is published with every column,
+      including `details` and `status_reason`, which no stream sends; a publication column list
+      (Postgres 15 and later) would keep them out of PowerSync's storage. A forward migration
+      that sets the list must keep every column a stream reads.
 
 ## Human actions outstanding
 

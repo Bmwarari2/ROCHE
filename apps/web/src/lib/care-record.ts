@@ -20,6 +20,7 @@ export type RecordTab =
   | "charts"
   | "body-map"
   | "advance-care"
+  | "capacity"
   | "activities"
   | "history";
 
@@ -39,6 +40,7 @@ export const RECORD_TABS: readonly TabDefinition[] = [
   { tab: "charts", needs: "care.note.read" },
   { tab: "body-map", needs: "care.note.read" },
   { tab: "advance-care", needs: "care.plan.read" },
+  { tab: "capacity", needs: "care.plan.read" },
   { tab: "activities", needs: "care.note.read" },
   { tab: "history", needs: "people.person.read" },
 ];
