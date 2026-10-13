@@ -3,6 +3,7 @@ export * from "./care";
 export * from "./enums";
 export * from "./integrations";
 export * from "./mca";
+export * from "./operations";
 export * from "./operator";
 export * from "./people";
 export * from "./people-lifecycle";
