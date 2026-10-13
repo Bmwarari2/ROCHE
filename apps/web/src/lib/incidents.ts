@@ -8,10 +8,9 @@ import type { Translator } from "@harbour/i18n";
 import { formatDateTime } from "./format";
 
 /**
- * View logic for the incident screens (docs/specs/safety.md; register rows SAFE-001 to SAFE-003;
- * hazard HZ-013). Pure and unit tested. Every status, clock and notification is the API's (the
- * classifier and `notificationClockState` run on the server); the web says them in the
- * catalogue's words with an icon, and a value it does not know warns, never reads as calm.
+ * View logic for the incident screens (docs/specs/safety.md; register rows SAFE-001 and
+ * SAFE-002; hazard HZ-013). Pure and unit tested. Every status is the API's; the web says it in
+ * the catalogue's words with an icon, and a value it does not know warns, never reads as calm.
  */
 
 export type SafetyIcon = "circle-alert" | "clock" | "circle-check" | "search" | "triangle-alert";
@@ -46,6 +45,36 @@ export function incidentTitle(
     type: t("safety.incident.type", { type: item.type }),
     dateTime: formatDateTime(item.occurredAt) ?? t("common.notRecorded"),
   });
+}
+
+/** The API's limit on one list of incidents (`GET /v1/incidents`). */
+export const INCIDENT_LIST_LIMIT = 500;
+
+/**
+ * The newest incidents with every open or under-review one fetched besides, newest first, so an
+ * older incident still waiting for answers is never hidden by the list's limit (HZ-013).
+ * `truncated` says a list hit the limit, so older incidents may be missing.
+ */
+export function incidentsToList<I extends Pick<IncidentSummary, "id" | "occurredAt">>(
+  newest: readonly I[],
+  ...unfinished: readonly (readonly I[])[]
+): { readonly items: I[]; readonly truncated: boolean } {
+  const byId = new Map<string, I>();
+  for (const item of [newest, ...unfinished].flat()) byId.set(item.id, item);
+  return {
+    items: [...byId.values()].sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt)),
+    truncated: [newest, ...unfinished].some((list) => list.length >= INCIDENT_LIST_LIMIT),
+  };
+}
+
+export interface SafetyNotice {
+  readonly title: string;
+  readonly body: string;
+}
+
+/** The sidebar's Incidents label, only for holders of `safety.incident.read`. */
+export function incidentsNavLabel(permissions: readonly string[], t: Translator) {
+  return permissions.includes("safety.incident.read") ? t("shell.nav.incidents") : undefined;
 }
 
 /**
@@ -120,11 +149,6 @@ export function notificationWarnings(
 /** The kind of notification in the catalogue's words, never the API's English label. */
 export function notificationKindLabel(kind: string, t: Translator): string {
   return t("safety.notification.kind", { kind });
-}
-
-export interface SafetyNotice {
-  readonly title: string;
-  readonly body: string;
 }
 
 export interface NotificationsView {

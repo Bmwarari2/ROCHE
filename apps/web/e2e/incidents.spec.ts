@@ -11,13 +11,15 @@ import { demoPerson, expectAccessible, settleAnimations, signIn } from "./suppor
 /**
  * Phase 1 slice 9: the incident screens, read only (register rows SAFE-001 and SAFE-002; hazard
  * HZ-013) against the demo tenant. Recording and managing incidents come later, so the journeys
- * record incidents through the API as the demo nurse and read them on the screens. Each run adds
- * its own incidents, marked with the run in their narrative, and changes nothing already there.
+ * record incidents through the API as the demo nurse and carer and read them on the screens. Each
+ * run adds its own incidents, marked with the run in their narrative, and changes nothing already
+ * there; nobody records an incident at Harbour Mews, so its list stays empty.
  */
 
 const API_URL = process.env.API_URL ?? "http://localhost:4000";
 const DEMO_TENANT = "0194d000-0000-7000-8000-000000000001";
 const DEMO_LOCATION = "0194d000-0000-7000-8000-000000000101";
+const MEWS_LOCATION = "0194d000-0000-7000-8000-000000000150";
 const RUN = `run ${Date.now().toString(36)}`;
 const T0 = Date.now();
 const at = (offsetMinutes: number) => new Date(T0 + offsetMinutes * 60_000).toISOString();
@@ -28,7 +30,7 @@ test.describe.configure({ mode: "serial" });
 const sessions: Record<string, Awaited<ReturnType<BrowserContext["cookies"]>>> = {};
 
 test.beforeAll(async ({ browser }, testInfo) => {
-  for (const user of ["nurse", "carer"]) {
+  for (const user of ["nurse", "carer", "owner"]) {
     const context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
     await signIn(await context.newPage(), `${user}@example.invalid`);
     sessions[user] = await context.cookies();
@@ -41,13 +43,48 @@ async function as(context: BrowserContext, user: string) {
   await context.addCookies(sessions[user] ?? []);
 }
 
-async function post(request: APIRequestContext, path: string, data: object, status = 201) {
-  const response = await request.post(`${API_URL}${path}`, {
-    headers: { "x-harbour-tenant": DEMO_TENANT },
-    data,
-  });
+interface Incident {
+  readonly id: string;
+  readonly version: number;
+  readonly classifier: { readonly openQuestions: readonly { key: string; kind: string }[] } | null;
+}
+
+async function call<T = Incident>(
+  request: APIRequestContext,
+  path: string,
+  data?: object,
+  status = data ? 201 : 200,
+): Promise<T> {
+  const options = { headers: { "x-harbour-tenant": DEMO_TENANT }, ...(data ? { data } : {}) };
+  const response = await (data ? request.post : request.get).call(
+    request,
+    `${API_URL}${path}`,
+    options,
+  );
   expect(response.status(), `${path} ${await response.text()}`).toBe(status);
-  return (await response.json()) as { id: string };
+  return (await response.json()) as T;
+}
+
+const recordIncident = (request: APIRequestContext, data: object) =>
+  call(request, "/v1/incidents", { locationId: DEMO_LOCATION, occurredAt: at(-60), ...data });
+
+/** Answers every open question "no" (or none, or 0), as a manager would before closing. */
+async function answerEverything(request: APIRequestContext, id: string) {
+  for (let round = 0; round < 6; round += 1) {
+    const open = (await call(request, `/v1/incidents/${id}`)).classifier?.openQuestions ?? [];
+    if (open.length === 0) return;
+    const value = (kind: string) =>
+      kind === "yes_no_unsure"
+        ? "no"
+        : kind === "days" || kind === "hours"
+          ? 0
+          : kind === "choice"
+            ? "none"
+            : ["none"];
+    const answers = open.map((q) => ({ key: q.key, value: value(q.kind) }));
+    await call(request, `/v1/incidents/${id}/classifier`, { answers }, 200);
+  }
+  throw new Error("The questions kept coming");
 }
 
 /** Presses Tab until the target has focus: the keyboard is the only way in. */
@@ -60,16 +97,40 @@ async function tabTo(page: Page, target: Locator, limit = 300) {
 }
 
 const section = (page: Page, name: string) => page.getByRole("region", { name });
+const cardFor = (page: Page, id: string) =>
+  page.getByRole("article").filter({ has: page.locator(`a[href="/incidents/${id}"]`) });
 
 test("hazard HZ-013 the nurse finds an incident and reads its notifications, every warning in words", async ({
   page,
   context,
 }) => {
+  // A closed incident: raised by the carer, answered and closed by the nurse.
+  await as(context, "carer");
+  const toClose = await recordIncident(page.request, {
+    type: "environmental",
+    description: `The lift stopped between floors (${RUN}).`,
+  });
   await as(context, "nurse");
-  // A behaviour incident: "not sure" whether the police are involved drafts a provisional
-  // notification to CQC, overdue at once, and leaves the other questions open.
-  const incident = await post(page.request, "/v1/incidents", {
-    locationId: DEMO_LOCATION,
+  await answerEverything(page.request, toClose.id);
+  const answered = await call(page.request, `/v1/incidents/${toClose.id}`);
+  await call(
+    page.request,
+    `/v1/incidents/${toClose.id}/close`,
+    { reason: "The lift was repaired and checked.", version: answered.version },
+    200,
+  );
+  // One under review, and a behaviour incident: "not sure" whether the police are involved.
+  const near = await recordIncident(page.request, {
+    type: "near_miss",
+    description: `A hoist sling nearly gave way (${RUN}).`,
+  });
+  await call(
+    page.request,
+    `/v1/incidents/${near.id}/review`,
+    { to: "under_review", version: near.version },
+    200,
+  );
+  const incident = await recordIncident(page.request, {
     type: "behaviour",
     occurredAt: at(-45),
     description: `Shouting in the lounge, then pushed a chair over (${RUN}).`,
@@ -93,10 +154,15 @@ test("hazard HZ-013 the nurse finds an incident and reads its notifications, eve
     "page",
   );
   const link = page.locator(`a[href="/incidents/${incident.id}"]`);
-  const card = page.getByRole("article").filter({ has: link });
+  const card = cardFor(page, incident.id);
   await expect(link).toHaveText(/^Behaviour, \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/);
   await expect(card.getByText("Open", { exact: true })).toBeVisible();
-  await expect(card.getByText(/^\d+ questions? to answer$/)).toBeVisible();
+  await expect(
+    card.getByText(/^\d+ questions? about statutory notifications to answer$/),
+  ).toBeVisible();
+  await expect(cardFor(page, near.id).getByText("Under review", { exact: true })).toBeVisible();
+  await expect(cardFor(page, toClose.id).getByText("Closed", { exact: true })).toBeVisible();
+  await expect(cardFor(page, toClose.id).getByText(/questions? about/)).toHaveCount(0);
   await expectAccessible(page, "incidents list");
 
   // Open it with the keyboard.
@@ -104,9 +170,14 @@ test("hazard HZ-013 the nurse finds an incident and reads its notifications, eve
   await page.keyboard.press("Enter");
   await page.waitForURL((url) => url.pathname === `/incidents/${incident.id}`);
   await expect(page.getByRole("heading", { level: 1, name: /^Behaviour, / })).toBeVisible();
+  await expect(page).toHaveTitle(/^Incident, \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/);
   await expect(page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link")).toHaveText(
     "Incidents",
   );
+  // HZ-013: the questions still open are said beside the status.
+  await expect(
+    page.getByText(/^\d+ questions? about statutory notifications to answer$/),
+  ).toBeVisible();
   const details = section(page, "What happened");
   await expect(details.getByText(`(${RUN})`, { exact: false })).toBeVisible();
   await expect(details.getByText("Moved other residents to the dining room")).toBeVisible();
@@ -118,9 +189,12 @@ test("hazard HZ-013 the nurse finds an incident and reads its notifications, eve
     told.locator("div").filter({ hasText: /^Emergency services calledNo$/ }),
   ).toBeVisible();
   const people = section(page, "People on this incident");
-  await expect(people.getByText("Cara Placeholder: affected")).toBeVisible();
+  const cara = people.getByRole("listitem").filter({ hasText: "Cara Placeholder: affected" });
+  await expect(cara.getByText("Communication needs", { exact: true })).toBeVisible();
+  await expect(cara.getByText("Uses a hearing loop")).toBeVisible();
   await expect(people.getByText("Vic Visitor: witness")).toBeVisible();
 
+  // "Not sure" whether the police are involved drafts a provisional notification, overdue at once.
   const notifications = section(page, "Statutory notifications");
   await expect(
     notifications.getByText(/questions? to answer before Harbour can say which notifications/),
@@ -137,7 +211,7 @@ test("hazard HZ-013 the nurse finds an incident and reads its notifications, eve
   await expectAccessible(page, "incident");
 
   // A later "no" leaves the draft in place, flagged, until someone decides it is not required.
-  await post(
+  await call(
     page.request,
     `/v1/incidents/${incident.id}/classifier`,
     { answers: [{ key: "police.involved", value: "no" }] },
@@ -160,8 +234,7 @@ test("hazard HZ-013 a carer who cannot see everyone on an incident sees it partl
 }) => {
   await as(context, "nurse");
   // The demo carer supports residents 1 to 3; Else (resident 5) is outside her scope.
-  const incident = await post(page.request, "/v1/incidents", {
-    locationId: DEMO_LOCATION,
+  const incident = await recordIncident(page.request, {
     type: "fall",
     occurredAt: at(-30),
     description: `Both slipped on a wet floor in the corridor (${RUN}).`,
@@ -174,20 +247,34 @@ test("hazard HZ-013 a carer who cannot see everyone on an incident sees it partl
   await as(context, "carer");
   await page.goto("/incidents");
   const link = page.locator(`a[href="/incidents/${incident.id}"]`);
-  const card = page.getByRole("article").filter({ has: link });
-  await expect(card.getByText("Partly hidden from you")).toBeVisible();
+  await expect(cardFor(page, incident.id).getByText("Partly hidden from you")).toBeVisible();
   await link.click();
   await page.waitForURL((url) => url.pathname === `/incidents/${incident.id}`);
   await expect(
     page.getByText("Part of this incident is about people you cannot see"),
   ).toBeVisible();
-  await expect(section(page, "People on this incident").getByRole("listitem")).toHaveText([
-    "Cara Placeholder: affected",
-  ]);
+  await expect(section(page, "About this incident")).toBeVisible();
+  await expect(section(page, "What happened")).toHaveCount(0);
+  const people = section(page, "People on this incident").getByRole("listitem");
+  await expect(people).toHaveCount(1);
+  await expect(people.first()).toContainText("Cara Placeholder: affected");
   await expect(page.getByText(`(${RUN})`, { exact: false })).toHaveCount(0);
   await expect(section(page, "Who was told")).toHaveCount(0);
+  await expect(page.getByText(/questions? about statutory notifications/)).toHaveCount(0);
   await expect(section(page, "Statutory notifications")).toHaveCount(0);
   await expectAccessible(page, "incident partly hidden");
+});
+
+test("the list says when there are no incidents you can see", async ({ page, context }) => {
+  await as(context, "owner");
+  await context.addCookies([
+    { name: "harbour_location", value: MEWS_LOCATION, url: test.info().project.use.baseURL ?? "" },
+  ]);
+  await page.goto("/incidents");
+  await expect(
+    page.getByRole("heading", { level: 2, name: "No incidents you can see" }),
+  ).toBeVisible();
+  await expectAccessible(page, "incidents list, empty");
 });
 
 test("the incident screens reflow at 320 px", async ({ page, context }) => {

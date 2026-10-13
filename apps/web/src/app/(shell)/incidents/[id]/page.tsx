@@ -1,11 +1,13 @@
 import type { IncidentDetail } from "@harbour/contracts";
 import { Card, PageHeader, StatusChip } from "@harbour/ui";
-import { Lock, TriangleAlert } from "lucide-react";
+import { CircleAlert, Lock, TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { EntryBadges } from "@/components/care/EntryBadges";
 import { Notice } from "@/components/care/Notice";
+import { CommunicationStatus } from "@/components/people/CommunicationStatus";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { can, entryAuthor } from "@/lib/care-record";
@@ -23,14 +25,26 @@ import {
   notificationsView,
   notificationWarnings,
 } from "@/lib/incidents";
-import { personNames } from "@/lib/people";
+import { communicationSummary, personNames } from "@/lib/people";
 import { readOrFail } from "@/lib/person-record";
 
 type Params = Promise<{ id: string }>;
 type Row = readonly [field: string, value: string | null, dateTime?: string | null];
 
-/** The page title says what the page is, never who was involved. */
-export const metadata: Metadata = { title: t("safety.incident.pageTitle") };
+/** One read per request, shared by the page title and the page. */
+const getIncident = cache(async (id: string) => {
+  const api = await tenantApi();
+  return api.GET("/v1/incidents/{id}", { params: { path: { id } } });
+});
+
+/** The page title names the incident by when it happened, never who was involved. */
+export async function generateMetadata({ params }: { readonly params: Params }): Promise<Metadata> {
+  const { id } = await params;
+  const occurredAt = isUuid(id) ? (await getIncident(id)).data?.occurredAt : undefined;
+  return {
+    title: t("safety.incident.pageTitle", { dateTime: formatDateTime(occurredAt) ?? "none" }),
+  };
+}
 
 const iconProps = { size: 20, strokeWidth: 1.5, "aria-hidden": true } as const;
 
@@ -118,10 +132,11 @@ function Notifications({ classifier }: { readonly classifier: IncidentDetail["cl
 }
 
 /**
- * One incident (register rows SAFE-001 and SAFE-002; hazard HZ-013): what happened, who was told,
- * the people on it, and the statutory notifications with their clocks and warnings, as the API
- * returns them. A reader who cannot see everyone on it sees the header and their own people only.
- * Answering the questions and preparing the notifications follow (docs/plans/STATUS.md).
+ * One incident (register row SAFE-001; hazard HZ-013): what happened, who was told and the
+ * people on it, as the API returns them, with the questions about statutory notifications still
+ * to answer and the statutory notifications with their clocks and warnings (#42 review). A
+ * reader who cannot see everyone on it sees the header and their own people only. Answering the
+ * questions and preparing the notifications follow (docs/plans/STATUS.md).
  */
 export default async function IncidentPage({ params }: { readonly params: Params }) {
   const { id } = await params;
@@ -129,21 +144,23 @@ export default async function IncidentPage({ params }: { readonly params: Params
   const { me } = await getShellContext();
   const listTitle = t("safety.incidents.title");
   if (!can(me.permissions, "safety.incident.read")) return <SafetyForbidden title={listTitle} />;
-  const api = await tenantApi();
-  const result = await api.GET("/v1/incidents/{id}", { params: { path: { id } } });
+  const result = await getIncident(id);
   if (problemCode(result.error) === "not_found") notFound();
   const incident = readOrFail(result, `/incidents/${id}`);
   if (!incident) return <SafetyForbidden title={listTitle} />;
-  // Names of the people we support on it, from the reader's own scope; without access to the
-  // people list they are named by kind ("A person we support").
-  const people = await api.GET("/v1/people", { params: { query: {} } });
-  const names = new Map((people.data?.items ?? []).map((p) => [p.id, personNames(p).full]));
+  // The people we support on it, from the reader's own scope, for their names and communication
+  // needs; without access to the people list they are named by kind ("A person we support").
+  const api = await tenantApi();
+  const list = await api.GET("/v1/people", { params: { query: {} } });
+  const people = new Map((list.data?.items ?? []).map((p) => [p.id, p]));
+  const names = new Map([...people].map(([key, p]) => [key, personNames(p).full]));
   const title = incidentTitle(incident, t);
   const location = me.locations.find((l) => l.id === incident.locationId);
   const author = (userId: string | null) =>
     userId ? t("safety.incident.who", { who: entryAuthor(userId, me.tenantUserId) }) : null;
   const section = (name: string) => t("safety.incident.section", { section: name });
   const notRecorded = t("common.notRecorded");
+  const questions = incident.restricted ? 0 : incident.openQuestionCount;
 
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
@@ -156,11 +173,18 @@ export default async function IncidentPage({ params }: { readonly params: Params
         </span>
         <span>{title}</span>
       </nav>
-      <PageHeader eyebrow={location?.name ?? notRecorded} title={title} />
+      <PageHeader eyebrow={location?.name ?? t("safety.incident.locationHidden")} title={title} />
       <p className="m-0 flex flex-wrap items-center gap-2">
         <SafetyChip chip={incidentStatusChip(incident.status, t)} />
         {incident.restricted ? (
           <StatusChip status="info" label={t("safety.incident.restrictedChip")} icon={Lock} />
+        ) : null}
+        {questions > 0 ? (
+          <StatusChip
+            status="due"
+            label={t("safety.incident.questionsChip", { count: questions })}
+            icon={CircleAlert}
+          />
         ) : null}
         <EntryBadges entry={incident} />
       </p>
@@ -169,7 +193,12 @@ export default async function IncidentPage({ params }: { readonly params: Params
           {t("safety.incident.restrictedHint")}
         </Notice>
       ) : null}
-      <Card as="section" title={section("details")} headingLevel={2} className="break-words">
+      <Card
+        as="section"
+        title={section(incident.restricted ? "about" : "details")}
+        headingLevel={2}
+        className="break-words"
+      >
         <Fields
           rows={[
             ["occurredAt", when(incident.occurredAt), incident.occurredAt],
@@ -221,24 +250,36 @@ export default async function IncidentPage({ params }: { readonly params: Params
       )}
       <Card as="section" title={section("people")} headingLevel={2} className="break-words">
         {incident.people.length === 0 ? (
-          <p className="m-0">{t("safety.incident.noPeople")}</p>
+          <p className="m-0">
+            {t("safety.incident.noPeople", { restricted: String(incident.restricted) })}
+          </p>
         ) : (
           <ul className="m-0 flex list-none flex-col gap-3 p-0">
-            {incident.people.map((person) => (
-              <li key={person.id} className="flex flex-col gap-1 border-b border-border pb-3">
-                <span className="font-semibold">{incidentPersonLine(person, names, t)}</span>
-                {person.injuryDetails ? (
-                  <span className="whitespace-pre-line">
-                    {t("safety.incident.injury", { details: person.injuryDetails })}
-                  </span>
-                ) : null}
-                {incidentPersonFacts(person, t).map((fact) => (
-                  <span key={fact} className="text-body-dense">
-                    {fact}
-                  </span>
-                ))}
-              </li>
-            ))}
+            {incident.people.map((person) => {
+              const record = person.personId ? people.get(person.personId) : undefined;
+              return (
+                <li key={person.id} className="flex flex-col gap-1 border-b border-border pb-3">
+                  <span className="font-semibold">{incidentPersonLine(person, names, t)}</span>
+                  {record ? (
+                    <CommunicationStatus
+                      summary={communicationSummary(record, t)}
+                      flagLabel={t("people.header.communicationNeeds")}
+                      compact
+                    />
+                  ) : null}
+                  {person.injuryDetails ? (
+                    <span className="whitespace-pre-line">
+                      {t("safety.incident.injury", { details: person.injuryDetails })}
+                    </span>
+                  ) : null}
+                  {incidentPersonFacts(person, t).map((fact) => (
+                    <span key={fact} className="text-body-dense">
+                      {fact}
+                    </span>
+                  ))}
+                </li>
+              );
+            })}
           </ul>
         )}
       </Card>

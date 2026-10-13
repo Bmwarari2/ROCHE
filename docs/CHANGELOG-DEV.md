@@ -1235,6 +1235,36 @@ mobile.
 **Tests**: `packages/db` 411 (real Postgres), `packages/sync` 81, `apps/mobile` 891, passing
 locally; typecheck clean for db, sync and mobile.
 
+## 2026-10-13: The consent, capacity and DoLS tab, part 2 (slice 9, Lane B)
+
+The rest of the tab's read views, on the API already on `main` and held to the standards of #34's
+review round 1: capacity assessments with the two-stage answers, the outcome in the Act's words,
+the review date and corrections struck through; best-interests decisions with the section 4
+checklist, the people consulted and the IMCA prompt as a warning in the catalogue's words; and
+consent records saying whether each decides its decision now, a refusal as a warning, the
+representative's authority, the capacity it was made under with the assessment's date, and a
+history link named with the decision and date (the web history page now opens consent records).
+No API, schema or permission change. The forms are next (STATUS item 13).
+
+**Tests**: `apps/web` 401 unit, `packages/i18n` 48; Playwright `e2e/capacity.spec.ts` (three
+journeys, with axe in both themes) and `e2e/care-record.spec.ts`, run locally on a fresh scratch
+database set up as the CI e2e job does.
+
+## 2026-10-13: The consent, capacity and DoLS tab, part 2, review round 1 (#35)
+
+Accessibility and clinical review of the capacity assessment, best-interests and consent record
+views. An older capacity finding that a later assessment of the same decision replaces says so
+and has no overdue review; a best-interests decision says what its assessment found and warns
+when it was corrected or overtaken; the finding is worded from the two stages in the catalogue,
+not the API's English; consent records warn when the deciding record was withdrawn or expired,
+or cannot be placed, and say when one starts later. The journey records every consent state,
+both representatives with their authority, the corrected best-interests decision and the later
+assessment before its axe and 320 px checks, and opens the earlier version by keyboard. Human
+actions H-254 and H-255 for the CSO; STATUS item 16 for the follow-ups.
+
+**Tests**: `apps/web` 410 unit, `packages/i18n` 48; Playwright `e2e/capacity.spec.ts`,
+`care-record.spec.ts` and `break-glass.spec.ts` on a fresh scratch database, run locally.
+
 ## 2026-10-13: The incident screens, part 1: the list and an incident (slice 9)
 
 - An Incidents item in the sidebar for holders of `safety.incident.read`, and the list of
@@ -1250,6 +1280,23 @@ locally; typecheck clean for db, sync and mobile.
 **Tests**: `apps/web` 396 unit, `packages/i18n` 48; Playwright `e2e/incidents.spec.ts`,
 `care-record.spec.ts` and `capacity.spec.ts` on a fresh scratch database, run locally.
 
+## 2026-10-13: The incident screens, part 1, review round 1 (#42)
+
+Accessibility and clinical review of the incidents list and an incident's read view. The
+incident page shows the questions about statutory notifications still to answer as a warning
+chip, says when notifications are not checked yet or outside England, and says it does not show
+the questions or notifications yet (HZ-013; H-256 for the CSO). A restricted reader sees "About
+this incident" with a notice that says what they see, and "You cannot see the people on this
+incident" when they see none. Each person we support shows their communication needs. When the
+API's limit of 500 is reached the list fetches the open and under-review incidents besides and
+says older ones are not listed. The page title names the incident by its date; a hidden location
+reads "Location not shown to you"; the empty list reads "No incidents you can see". The journey
+adds closed and under-review incidents, the empty list and the questions on the page; STATUS
+item 17 logs the follow-ups.
+
+**Tests**: `apps/web` 425 unit, `packages/i18n` 48; Playwright `e2e/incidents.spec.ts` on a
+fresh scratch database, run locally.
+
 ## 2026-10-13: The incident screens, part 2: the notifications on an incident (slice 9)
 
 - The incident page shows each statutory notification with its clock as an icon and a word
@@ -1261,6 +1308,5 @@ locally; typecheck clean for db, sync and mobile.
 - Kinds and recipients come from the catalogue, checked against the domain's
   `NOTIFICATION_KINDS`. No API change; the gaps are in safety.md section 5 and STATUS item 17.
 
-**Tests**: `apps/web` 409 unit, `packages/i18n` 48; Playwright `e2e/incidents.spec.ts` on a
+**Tests**: `apps/web` 434 unit, `packages/i18n` 48; Playwright `e2e/incidents.spec.ts` on a
 fresh scratch database, run locally.
-

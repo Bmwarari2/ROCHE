@@ -4,9 +4,12 @@ import { NOTIFICATION_KINDS, STATUTORY_NOTIFICATION_KINDS } from "@harbour/domai
 import { createTranslator } from "@harbour/i18n";
 import { describe, expect, it } from "vitest";
 import {
+  INCIDENT_LIST_LIMIT,
   incidentPersonFacts,
   incidentPersonLine,
   incidentStatusChip,
+  incidentsNavLabel,
+  incidentsToList,
   incidentTitle,
   notificationClockChip,
   notificationKindLabel,
@@ -104,6 +107,47 @@ describe("incidents in the list and on the page (safety.md; HZ-013)", () => {
       "Subject to the Mental Health Act",
       "2 body map marks",
     ]);
+  });
+});
+
+describe("what the incident screens leave out, said in words (#42 review; HZ-013)", () => {
+  const incident = (id: string, occurredAt: string) => ({ id, occurredAt });
+  const many = Array.from({ length: INCIDENT_LIST_LIMIT }, (_, n) =>
+    incident(`new-${n}`, new Date(Date.UTC(2026, 9, 12, 12, 0, -n)).toISOString()),
+  );
+
+  it("hazard HZ-013 adds older open and under-review incidents to a list cut at the limit, and says so", () => {
+    const older = incident("older-open", "2026-01-02T09:00:00Z");
+    const result = incidentsToList(many, [older, many[0] as (typeof many)[number]], []);
+    expect(result.truncated).toBe(true);
+    expect(result.items).toHaveLength(INCIDENT_LIST_LIMIT + 1);
+    expect(result.items.at(-1)).toBe(older);
+    expect(result.items[0]?.id).toBe("new-0");
+    expect(incidentsToList(many.slice(1), []).truncated).toBe(false);
+    expect(t("safety.incidents.truncated", { limit: INCIDENT_LIST_LIMIT })).toBe(
+      "Older incidents are not listed. This list shows the newest 500 and every open or under-review incident.",
+    );
+  });
+
+  it("words the questions, the people and the title so nothing hidden reads as none", () => {
+    expect(t("safety.incident.questionsChip", { count: 2 })).toBe(
+      "2 questions about statutory notifications to answer",
+    );
+    expect(t("safety.incident.noPeople", { restricted: "true" })).toBe(
+      "You cannot see the people on this incident",
+    );
+    expect(t("safety.incident.noPeople", { restricted: "false" })).toBe(
+      "No one is recorded on this incident",
+    );
+    expect(t("safety.incident.pageTitle", { dateTime: "12/10/2026 14:05" })).toBe(
+      "Incident, 12/10/2026 14:05",
+    );
+    expect(t("safety.incident.pageTitle", { dateTime: "none" })).toBe("Incident");
+  });
+
+  it("offers the Incidents item only to holders of safety.incident.read", () => {
+    expect(incidentsNavLabel(["safety.incident.read"], t)).toBe("Incidents");
+    expect(incidentsNavLabel(["safety.incident.report", "people.person.read"], t)).toBeUndefined();
   });
 });
 

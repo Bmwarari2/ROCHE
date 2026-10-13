@@ -192,11 +192,8 @@ only when they link spec, code, tests and user documentation; no user guides exi
     Measure it against the 100 ms point-of-care budget on a large organisation; if it is slow,
     evaluate the scope for all candidates at once in a database function.
 13. The consent, capacity and DoLS tab, the rest (slice 9, CARE-021 and CARE-022; consent by
-    decision and the DoLS register are on `feat/web-mca-tab`): read views of the capacity
-    assessments (the two-stage answers, the outcome in the Act's words, corrections struck
-    through), the best-interests decisions (checklist, consultations, the IMCA prompt as a warning)
-    and the consent records (whether each decides its decision now, was replaced, withdrawn or
-    expired; the representative's authority; history links); then the forms, each offered only
+    decision and the DoLS register are on `main` (#34); the capacity assessment, best-interests and
+    consent record views are on `feat/web-mca-records`): the forms, each offered only
     where `access.reaching` lists its permission and with the read-only line otherwise (ADR-0071),
     each with a client UUIDv7 kept across retries (HZ-029) and its refusals mapped in
     `refusals.ts`: record a consent or refusal (the representative and their authority, the
@@ -250,6 +247,12 @@ only when they link spec, code, tests and user documentation; no user guides exi
     - Follow-up (#33 review round 2, low): no test yet of a carer assigned to two people at
       different homes where the person who opens a handover differs from the item's person (the
       two `person_assignment` joins in the `assigned_handovers` item and note queries).
+16. Follow-ups from review round 1 of the capacity assessment, best-interests and consent record
+    views (#35; H-254 and H-255 ask the CSO): every section 4 checklist label carries its statute
+    citation, which is jargon on a staff screen; an unanswered checklist item gets no warning; the
+    IMCA warning stays on a decision whose advocate was instructed or that is finished; the
+    corrections list ignores `supersededOutsideList` and `correctsHidden`; the journey's
+    best-interests decision (a move) follows a bed-rails assessment, which H-255 asks about.
 17. The incident screens, the rest (slice 9, SAFE-001 to SAFE-003; the incidents list and an
     incident's read view are on `feat/web-incidents`, the notifications with their clocks on the
     incident page on `feat/web-incident-notifications`): the statutory notification pages (`/notifications/statutory` with every draft's clock
@@ -263,6 +266,12 @@ only when they link spec, code, tests and user documentation; no user guides exi
     step-up (`safety.notification.submit`). API gaps ([safety.md](../specs/safety.md) section 5):
     no staff names (H-73); the list has no paging past 500; a draft stays `provisional` after the
     answer that made it changes; the questions, exclusions, reasoning and tasks are English only.
+    - Follow-ups from #42 review round 1 (H-256 asks the CSO whether part 1 may ship before part
+      2): `emergencyServicesCalled` and `gpContacted` default to false in `CreateIncident`, so
+      "No" may mean nobody was asked; the sidebar's Incidents icon (a warning triangle) reads as
+      an alert when the sidebar is folded to its icons; a reader without `people.person.read`
+      sees several "A person we support" with nothing to tell them apart; no demo account lacks
+      `safety.incident.read`, so the hidden Incidents item is unit tested only.
 
 ## Human actions outstanding
 
