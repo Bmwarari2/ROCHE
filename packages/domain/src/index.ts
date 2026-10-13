@@ -73,6 +73,7 @@ export * from "./platform/roles";
 export * from "./platform/sample-data";
 export * from "./platform/search";
 export * from "./platform/separation-of-duties";
+export * from "./platform/sessions";
 export * from "./platform/sub-processors";
 export * from "./platform/tasks";
 export * from "./platform/workflow";
