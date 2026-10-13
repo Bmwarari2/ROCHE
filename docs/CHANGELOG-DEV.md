@@ -1219,6 +1219,62 @@ permission and API suites (128), passing locally; typecheck clean for sync, API 
 **Tests**: `packages/sync` 81, `apps/mobile` 891, passing locally; typecheck clean for sync and
 mobile.
 
+## 2026-10-12: The round and the handover on the phone, offline writes (slice 10 part 2, Lane C)
+
+Second of four pull requests (`feat/mobile-offline-round-writes`, stacked on #33); no screen yet.
+
+- A task is marked done, or not done with a reason, on the device: checked with the API's own
+  rules (`checkTaskTransition`), written on the synced row with the move in `queued_transition`
+  (its own UUIDv7 and the version seen) only while the row is the open task the carer saw. A
+  task that needs evidence is done by recording the entry it asks for, which now carries
+  `task_id` and is sent as `taskId`.
+- A handover is acknowledged on the device as a new row with the seen token worked out over the
+  items shown, exactly as the API does (tested against its algorithm).
+- HZ-018 test row; care.md section 6 and data standards updated.
+
+**Tests**: `apps/mobile` 910, `packages/sync` 81, `packages/i18n` 48, passing locally;
+typecheck clean for mobile and sync.
+
+## 2026-10-12: The round and the handover on the phone, offline upload (slice 10 part 2, Lane C)
+
+Third of four pull requests (`feat/mobile-offline-round-upload`, stacked on the writes).
+
+- The connector sends a task's move to `POST /v1/tasks/{id}/transition` and an acknowledgement
+  to the handover's acknowledgements route, each with the entry headers; care entries and these
+  share one request path.
+- A refusal moves it to "needs attention" with what the carer did, in the phone's words for a
+  task changed first or a handover changed since it was read; a 409 on a move whose answer was
+  lost counts as sent when the task list shows it made by the same member of staff (HZ-029).
+- Hazard rows on HZ-006, HZ-018 and HZ-029; care.md section 6; a STATUS follow-up on dismissing
+  a refused move or acknowledgement.
+
+**Tests**: `apps/mobile` 924, `packages/i18n` 48, passing locally; typecheck clean for mobile.
+
+## 2026-10-13: The round and the handover on the phone, offline writes, review round 1 (#36)
+
+- Security M1: a task's move is offered only where the server would take it (a task given to
+  the member, or one about a person naming `care.note.write` where the write scope reaches
+  them), never while the member or the scope is unknown; one acknowledgement waits per
+  handover and member.
+- Clinical M1: a move or acknowledgement held when a session ends goes back into the queue
+  for its owner after sign-in, as entries do, and is never sent by another member in a
+  hand-over; held moves are kept under their own id.
+- Clinical M3 and M4: the evidence copy says the task completes when the entry uploads;
+  screens gate item (f); HZ-006 and HZ-029 rows, with hazard ids in the tests' names; the
+  module no longer claims what the upload does.
+- Logged: H-305 to H-308 for the CSO and DPO, and five STATUS follow-ups. A task's time of
+  care from the phone waits for task columns, a late label, a lower bound and a handover rule
+  (#41 closed): an HZ-017 row, a STATUS follow-up and H-309; the completion stays recorded
+  when the move arrives.
+
+## 2026-10-13: The round and the handover on the phone, offline writes, review round 2 (#36)
+
+- Merged `main` (#33, #39 and #40), keeping both sides of the shared documents.
+- Logged the five round 2 lows as STATUS item 15 follow-ups: the person's home looked up
+  inside `useMoveTask`; the bare task row a held move is put back on, and its PUT; held round
+  changes re-queued only for their owner; "already waiting to upload" after a refused
+  acknowledgement; "tell the person in charge" shown to nurses.
+
 ## 2026-10-13: The round and the handover on the phone, publication migration (#33)
 
 - Migration 0052 adds `task`, `handover`, `handover_item`, `handover_note` and
@@ -1234,6 +1290,54 @@ mobile.
 
 **Tests**: `packages/db` 411 (real Postgres), `packages/sync` 81, `apps/mobile` 891, passing
 locally; typecheck clean for db, sync and mobile.
+
+## 2026-10-13: The round and the handover on the phone, uploading, review round 1 (#37)
+
+- Security M1 and clinical M1: a move refused because the task changed (409) reads the task
+  (`status=any`, narrowed to the move's person or the task's home and its due time). Only an
+  answer it can read decides; anything else keeps the move queued, and an ended session ends
+  it. The carer's own move counts as made only at the next version, by them, with their
+  reason; a task nobody closed gets the move once more; otherwise the words say what
+  happened (done, not done, cancelled, changed).
+- Clinical M3: a move kept without its person is named by the person in the move and shows
+  on their screen; a move put back on its task's row after a session ended is sent.
+- Item 8: the move does not send its time of care (#41 closed); the completion is recorded
+  when the move arrives, and the device time stays on the phone (H-309).
+- A move whose follow-up check keeps failing is parked after 5 failed reads or 30 minutes,
+  with its data and words saying it could not be checked, so care entries behind it upload.
+- HZ-006 and HZ-029 rows; a STATUS follow-up that round refusals do not ask for a server
+  copy.
+
+**Tests**: `apps/mobile` 977, `packages/i18n` 48, passing locally; typecheck clean for
+mobile.
+
+## 2026-10-13: The round and the handover on the phone, uploading, review round 2 (#37)
+
+- Medium: a move refused with a 409 is never sent again, even to a task still open, because a
+  task's version also moves when more is added to it (a review task's entries), so a stale
+  "done" could close what the nurse never saw. The words are true of the task: still open, it
+  changed after you marked it (`task_changed`); done or not done by someone else, or cancelled,
+  what happened; in your name but not as this move, it could not be checked; not in the list, it
+  could not be found (`task_not_found`). The lost-reply check stays. H-310 and a STATUS
+  follow-up for a content version that would make a resend safe; H-305 updated.
+- N1: only reads the server refused count towards the cap; no network, a timeout or a 5xx keeps
+  the move queued however long it lasts (tested with the real backoff).
+- Lows: a move that cannot be sent is kept under its own id and tenant when they can be read
+  (STATUS says why not otherwise); the cap's count is cleared when the session ends.
+
+**Tests**: `apps/mobile` 981, `packages/i18n` 48, passing locally; typecheck clean for mobile.
+
+## 2026-10-13: The round and the handover on the phone, uploading, confirmation check (#37)
+
+- A 5xx or 429 on the task read starts the 30-minute clock without counting towards the 5
+  reads, so a fault in that one route parks the move after 30 minutes and the entries behind it
+  upload, while a short outage parks nothing. A 401 on any upload ends the session through the
+  same path, clearing the check counts.
+- STATUS: screens gate item (g), the needs-attention screen with or before the round screen;
+  follow-ups for an unchecked 403 on the task read, the `task_unchecked` wording for a closed
+  task, and the alert-fatigue risk with no resend.
+
+**Tests**: `apps/mobile` 984, passing locally; typecheck clean for mobile.
 
 ## 2026-10-13: The consent, capacity and DoLS tab, part 2 (slice 9, Lane B)
 
@@ -1306,6 +1410,106 @@ actions H-254 and H-255 for the CSO; STATUS item 16 for the follow-ups.
   the phone loses its care record until the member signs in again, and for `staff_left` or
   `suspended` chases the holds on their devices as a revocation does. HZ-110 claims only what is
   built.
+
+## 2026-10-12: Slice 11 part 2, back-entry columns (OPS-028)
+
+Stacked on #32. Migration 0053 (numbered after Lane C's 0052):
+
+- Expand-only back-entry columns on `care_note`, `observation`, `body_map_mark`,
+  `activity_record` and `visit_log`, empty on every existing entry, with a CHECK tying them
+  together and a composite reference to `outage` (which gains its `(tenant_id, id)` key).
+- An entry names only an outage at its own location that was not cancelled (`entry_outage_guard`).
+- `outage_guard` refuses to cancel an outage once a back-entry cites it, and a reconciler who
+  entered any of its back-entries, both counted in the organisation's view and giving the caller
+  their own view back.
+- The export catalogue describes the eight columns on each of the five entries.
+- (#32 review round 2) A correction of an outage's start or end may not leave a back-entry with
+  no reason for being outside the outage outside it.
+
+**Tests**: `packages/db` 416 passing locally (8 new in `back-entry.test.ts`).
+
+## 2026-10-13: Slice 11 part 2, #38 review round 1 (OPS-028)
+
+Migration 0053, edited in place:
+
+- A back-entry against a reconciled outage is refused, as against a cancelled one; the outage is
+  read again locked for share, so a cancel or a reconciliation at the same moment waits for the
+  entry and then counts it.
+- A back-entry's time is the instant its paper date and time give in UK time
+  (`app.paper_instant`: the occurrence chosen in the repeated autumn hour, `only` refused there,
+  the skipped spring hour refused).
+- The outage window is `[start, end)`, an open outage running to now plus the clock-drift
+  allowance: a back-entry outside it needs a reason, an entry not from paper names only an outage
+  it falls in, and the window is checked whenever the start or end changes, closing included.
+- A correction of a back-entry carries its paper details, or must stay on the same outage;
+  superseded entries do not count for the cancel and window checks; the reconciler must not be
+  the author or sender of an original back-entry.
+- Docs: operations.md section 12 (part 2 after round 1, part 3 requirements), the HZ-017 rows,
+  H-203 to H-206, STATUS follow-ups.
+
+**Tests**: `packages/db` `back-entry.test.ts` now 17 (9 new), including the race between an entry
+and a cancel.
+
+## 2026-10-13: Slice 11 part 2, #38 review round 2 (OPS-028)
+
+Migration 0053, edited in place:
+
+- An entry citing an outage, a back-entry or one not from paper, can be corrected after the
+  outage is reconciled, keeping the link (only new entries citing it are refused there); a
+  back-entry is corrected once, a further correction superseding the correction (a partial unique
+  index on each of the five entries).
+- The reconciler check counts as a correction only an entry whose original is a back-entry of the
+  same outage, and a correction cannot make an entry not entered from paper a back-entry.
+- Closing may set the true end before back-entries already entered; reconciliation then waits
+  until each one outside the window with no reason is in the reviewed entries (H-207). A
+  correction of the start or end is refused only when it leaves out an entry that was inside.
+- Docs: operations.md section 12, the HZ-017 rows, H-207 and H-208, STATUS on the clock-drift
+  override and the reason a correction past the end needs.
+
+**Tests**: `packages/db` `back-entry.test.ts` now 22.
+
+## 2026-10-13: Invitations and MFA enrolment, spec and rules (Lane D)
+
+- platform.md gains "Invitations and MFA enrolment": invite (step-up, reach, one pending link per
+  member, a 256-bit token kept only as a hash, `invitation.expiry_hours` from the rate table),
+  open, accept once (a new sign-in only where none exists for the address; never setting the
+  password of an existing account), enrol a passkey or authenticator app before any care record,
+  revoke and list; and the schema asked of migration 0054.
+- `packages/domain/src/platform/invitations.ts` with table-driven tests: state, expiry, who may be
+  invited, acceptance refusals and the path to a sign-in. API test: no one-time code by SMS or
+  email (`OTP_NOT_CONFIGURED`).
+- Data standards, records of processing and retention list the planned `invitation` rows;
+  human action H-355. Blocked on migration 0054 for the store and routes.
+
+## 2026-10-13: #43 review round 1, invitations (Lane D)
+
+- The link carries its token only in the URL fragment; the page sends it in POST bodies, so it
+  is in no load balancer or web log (M1). Lookup and acceptance are security-definer functions
+  under their own NOLOGIN owner role, taking the raw token, locking the row and checking the
+  sign-in's email and the organisation's status inside; the app role cannot read stored hashes
+  (M2). An inviter must hold every permission of the member's roles (`permissionsBeyondInviter`,
+  table-driven); the address is copied by the database and a change to the member revokes open
+  links; an operator may invite only a first owner, through a definer function (M3). The address
+  is cleared when an invitation is accepted, revoked or lapses, and invitations have their own
+  retention class (M4).
+- Lows: lapsed invitations are swept nightly (and freed for a new one), `invitation.expiry_hours_max`
+  caps the expiry, lookups and acceptances are throttled per client address and token, the
+  invitation is locked before a sign-in is created and the sign-in deleted on failure,
+  `signedInAlreadyMember` is required, and members are never invited without MFA. M5 (MFA counted
+  when enrolled rather than used) follows in its own PR.
+
+## 2026-10-13: #43 review round 2, invitations (Lane D)
+
+- N1: a revocation names its reviser, except, with no reviser and only through the definer
+  owner's functions, the nightly sweep of lapsed invitations, the member-change trigger (so worker
+  jobs with no member still clear the address) and the first owner's re-invitation; acceptance
+  happens only inside `accept_invitation`. N2: an invitation's sender is always the session's
+  member; `created_by_operator` only inside `invite_first_owner`, which the application role
+  cannot imitate.
+- Lows: `invite_first_owner` reads the expiry from the rate table and the operator from the
+  session; the definer owner's grants listed (a column grant on `auth.user` of id and email only);
+  throttling counts tokens by hash; a nightly sweep of unlinked sign-ins older than
+  `invitation.unlinked_sign_in_hours`.
 
 ## 2026-10-13: The incident screens, part 1: the list and an incident (slice 9)
 

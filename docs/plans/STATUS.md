@@ -167,6 +167,28 @@ only when they link spec, code, tests and user documentation; no user guides exi
      - the database does not refuse a corrected start in the future;
      - `rate_table` writes have no permission check, so any member could override
        `care_note.late_entry_hours` (an existing gap).
+   - Slice 11 part 2, back-entry columns (`feat/operations-back-entry-columns`, stacked on #32,
+     migration 0053; operations.md section 12): built, PR to follow #32. Next, part 3: the API,
+     nightly job and PDF, with the round 1 part 3 requirements.
+   - Follow-ups from #38 review round 1 (security and clinical):
+     - an entry takes the person's current location, so after a move the old home's outage
+       cannot be cited: a paper record about someone who has since moved cannot be entered;
+     - rule 13 (the normal route) depends on the API applying it on every care route and on the
+       sync upload (hazard HZ-017 and operations.md section 12);
+     - entries with `not_from_paper_reason` do not block cancelling, and are left pointing at a
+       cancelled outage;
+     - a failed outage correction tells a holder of `operations.downtime.manage` whether a
+       back-entry about someone outside their scope falls outside the new window (by design, so
+       the check counts every entry);
+     - the guard trusts the entry's `location_id`; nothing checks it is the person's location
+       (an existing gap).
+   - Follow-ups from #38 review round 2:
+     - `sync.clock_drift_flag_minutes` is read with the organisation's own override first, and
+       any member can write `rate_table` (the existing gap), so an override could stretch an open
+       outage's window;
+     - part 3 must ask for an outside-the-outage reason when someone corrects a reviewed
+       back-entry whose time is after the true end, because the database refuses such a correction
+       without one (wording H-208).
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature
@@ -216,8 +238,8 @@ only when they link spec, code, tests and user documentation; no user guides exi
     unknown outcome or type reads as plain text, not the warning chip the hazard log describes; an
     authorisation not yet started with a midnight end reads "In force until the end of ...".
 15. Slice 10 part 2 on the phone (Lane C), the round and the handover: the sync streams, the
-    token's handover claims and the client tables are in review (#33,
-    `feat/mobile-tasks-handover-sync`, [care.md](../specs/care.md) section 6), with migration
+    token's handover claims and the client tables are on `main` (#33,
+    [care.md](../specs/care.md) section 6), with migration
     0052, which adds `task`, `handover`, `handover_item`, `handover_note` and
     `handover_acknowledgement` to the `powersync` publication with the `sync_replication_read`
     policy and `SELECT` for `harbour_sync`, and a database test that every table the streams read
@@ -233,7 +255,10 @@ only when they link spec, code, tests and user documentation; no user guides exi
       on the phone never reads as "nothing due" when the streams have no data; (e) the phone can
       say "the outgoing handover is not compiled yet" or "not final", which needs the shift
       pattern or the expected shift on the device, decided in the screens PR (#33 review round 2;
-      H-303).
+      H-303); (f) a task whose evidence entry is saved on the phone shows "evidence recorded,
+      waiting to upload" until it uploads, so it is not recorded twice (#36 review round 1,
+      clinical M3; HZ-029); (g) the needs-attention screen ships with the round screen or before
+      it, since "no care left without a prompt" depends on it (#37 confirmation check).
     - Follow-up: whether the round on the phone should also hold unfinished tasks due before the
       window (H-301).
     - Follow-up (#33 review round 1): the streams ignore `person_assignment.valid_from`, so a
@@ -245,9 +270,79 @@ only when they link spec, code, tests and user documentation; no user guides exi
     - Follow-up (#33 review round 1): `location_open_tasks` keeps tasks about people active, on
       leave or in hospital, while the web round has no status filter, so tasks about someone at
       pre-admission are on the web round only.
+    - Offline writes for the round and the handover: the local writes (a task done or not
+      done, a handover acknowledged) on `feat/mobile-offline-round-writes`, and their upload
+      (each to its own route, a refusal to "needs attention") on
+      `feat/mobile-offline-round-upload`, after #33; then the screens, behind the gate.
+    - Follow-up (offline writes): a refused move or acknowledgement is removed from "needs
+      attention" through the deletion record built for unsent entries (a coded reason, device
+      authentication, audited as `refused_removed`); decide with the screens whether these need
+      a lighter dismissal, and whether the device report should count them apart from entries.
     - Follow-up (#33 review round 2, low): no test yet of a carer assigned to two people at
       different homes where the person who opens a handover differs from the item's person (the
       two `person_assignment` joins in the `assigned_handovers` item and note queries).
+    - Follow-up (migration 0052 security check, low): `task` is published with every column,
+      including `details` and `status_reason`, which no stream sends; a publication column list
+      (Postgres 15 and later) would keep them out of PowerSync's storage. A forward migration
+      that sets the list must keep every column a stream reads.
+    - Follow-up (#36 review round 1): the seen token trusts the `shown` list it is given; the
+      handover screen must pass only the items it rendered, with a test.
+    - Follow-up (#36 review round 1): the HZ-018 seen-token test compares the phone's token with
+      a copy of the API's code; test `platform/digest.ts` and the API's own function instead.
+    - Follow-up (#36 review round 1): `handover_acknowledgement.acknowledged_at` holds the device
+      time on an acknowledgement made on the phone, until the server's copy replaces it, where
+      data standards say server time; record it apart or say so in the screen.
+    - Follow-up (#36 review round 1): `writeTaskMove` throws `TaskMoveNotWritten`; return it as
+      a result, as `writeAcknowledgement` does.
+    - Follow-up (#36 review round 1): on #36 alone a queued move goes to `POST /v1/sync/upload`
+      with every column it carries (data minimisation); gone once the upload (#37) lands.
+    - Follow-up (#36 review round 1; #41 closed): a task's time of care from the phone. The
+      API records a move's completion when it arrives, and the phone keeps its device time in
+      its own row only. The full design: a migration for task columns (time of care, time
+      received, late flag); a late label wherever a task shows (web round, handover, phone);
+      a lower bound at the task's creation or its window; and a rule for which shift's
+      handover a late-synced outcome belongs to. Then the move sends its time of care
+      (`round-upload.ts`). CSO decision H-309.
+    - Follow-up (#37 review round 1): a refused task move or handover acknowledgement does
+      not call `onRefused`, so nothing asks for a server copy at once; refused copies cover
+      care tables only (`REFUSED_COPY_TABLES`) until H-307 decides.
+    - Follow-up (#37 review round 2): a task's version moves with assignment and escalation as
+      well as with its details, so a move refused with a 409 is never sent again. A
+      server-side content version that assignment and escalation leave alone would let a
+      later change resend safely (a migration and the transition route; CSO decision H-310).
+    - Follow-up (#37 review round 2, low): a task change whose move cannot be read at all (not
+      JSON) is kept under the task's id, with the tenant the row carries, if any: no id of its
+      own can be read, so a second such change for the same task replaces the first.
+    - Follow-up (#37 confirmation check): a 403 whose session cannot be checked (an edge or
+      firewall page with `/v1/me` unreachable) counts towards the cap on the task read, while
+      the upload path keeps it queued; treat it as a network failure there too.
+    - Follow-up (#37 confirmation check): `task_unchecked` says "check the task on the
+      round", but a closed task no longer shows there; point to the task's history, or word
+      it differently, in the screens PR.
+    - Follow-up (#37 confirmation check): with no resend, every move made offline on a task
+      that escalated during an outage becomes a needs-attention item, an alert-fatigue risk;
+      it waits on H-305, H-310 and the lighter way to dismiss a refused move.
+    - Follow-up (#36 review round 2, low): `useMoveTask` takes the person's home
+      (`personLocationId`) from the caller; while it is null (the person row still loading)
+      and the token lists no person ids, `mayRecordFor` lets the move through. Look the home
+      up in the database inside the hook.
+    - Follow-up (#36 review round 2, low): `putBackMove` runs before the phone reconnects,
+      when the session's end has cleared the task row, so it inserts a bare row (no title,
+      due time, version or evidence flag) and queues a PUT, not a PATCH; the upload (#37)
+      sends it (`toRoundUpload` takes a PUT). On a later hold `resendable` re-queues only
+      PATCHes, so such a move is parked. The update branch skips the version check and does
+      not require `queued_transition IS NULL`. The screens must handle the bare row until
+      the server's copy replaces it.
+    - Follow-up (#36 review round 2, low): held moves and acknowledgements go back into the
+      queue only when their owner opens their own database; the manager hand-over
+      (`handover.ts`) leaves them on the device as needing attention. Neither path checks
+      the write scope again; the API still decides.
+    - Follow-up (#36 review round 2, low): after an acknowledgement is refused, the phone can
+      say it is "already waiting to upload" (`mobile.handover.alreadyQueued`) until the next
+      sync clears its row.
+    - Follow-up (#36 review round 2, low): "Tell the person in charge of this shift" is shown
+      to nurses too, including when they are the person in charge; word it by role in the
+      screens PR.
 16. Follow-ups from review round 1 of the capacity assessment, best-interests and consent record
     views (#35; H-254 and H-255 ask the CSO): every section 4 checklist label carries its statute
     citation, which is jargon on a staff screen; an unanswered checklist item gets no warning; the
@@ -318,6 +413,20 @@ only when they link spec, code, tests and user documentation; no user guides exi
       link has no 44 px target; the journey neither opens nor scans the closed incident's page
       with axe; when needs are recorded the incident page says "Communication needs" twice (the
       label and the flag), so drop the flag's label there or hide the label visually.
+20. Invitations and MFA enrolment (feat/platform-invitations; PLAT-004): the spec and rules are
+    built (platform.md, Invitations and MFA enrolment; `invitations.ts`), with a test that no
+    one-time code is offered by SMS or email, and review round 1 of #43 folded in (the token only
+    in the URL fragment and POST bodies; locked, hashing security-definer functions under their own
+    owner role, with the sign-in's email checked inside; inviters must hold every permission of the
+    member's roles, the address copied by the database and cleared when the invitation closes; an
+    operator may invite only a first owner, through a definer function; an expiry ceiling;
+    throttling per client address and token; a lapsed-invitation sweep; members never created
+    without MFA). Next, stacked on #43 (numbered provisionally): migration 0054 with the table,
+    the functions and their database tests; then the invite, lookup, accept, revoke, list and sweep
+    routes; the operator's owner invitation and the invitation email; the web accept page with the
+    password rules and the redirect to enrolment, with Playwright and axe (H-355). Then
+    `fix/platform-mfa-session-factor` (#43 review M5): MFA counts only when the session used a
+    passkey or a verified TOTP code, not merely when one is enrolled.
 
 ## Human actions outstanding
 

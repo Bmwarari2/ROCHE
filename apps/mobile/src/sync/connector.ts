@@ -15,7 +15,8 @@
  *   body-map marks, activities and visits) go one by one to the API's own endpoints for them
  *   (`care-upload.ts`) with the device's UUIDv7, the device id, the tenant and the time the device
  *   sent the request (`x-harbour-sent-at`), so the server computes late-entry and clock-drift flags
- *   correctly (HZ-010, HZ-017) and ignores a replay. Anything else goes to `POST /v1/sync/upload`.
+ *   correctly (HZ-010, HZ-017) and ignores a replay. A task's move and a handover acknowledgement
+ *   go to their own routes (`round-upload.ts`). Anything else goes to `POST /v1/sync/upload`.
  *
  * Transient failures (no network, 408, 425, 429, 5xx) are retried with backoff and then left
  * queued for PowerSync to retry. The API is authoritative: when it refuses an entry for good (for
@@ -25,6 +26,8 @@
  * saved: needs attention" until someone deals with them, and the content goes to the server's copy
  * of refused entries (`onRefused`, `refused-copies.ts`), so it is never only on one phone.
  */
+
+import type { RoundWritableTable } from "@harbour/sync/client";
 import type {
   CommonPowerSyncDatabase,
   PowerSyncBackendConnector,
@@ -39,6 +42,16 @@ import {
   UPLOAD_BACKOFF,
 } from "./backoff";
 import { isCareEntryTable, toCareUpload } from "./care-upload";
+import {
+  isRoundWritableTable,
+  type RoundMove,
+  roundRefusalMessage,
+  settleMove,
+  type TaskState,
+  taskStateIn,
+  taskStatePath,
+  toRoundUpload,
+} from "./round-upload";
 import {
   checkSession,
   classifyForbidden,
@@ -109,6 +122,43 @@ export class UploadRejectedError extends Error {
     this.status = status;
     this.code = code;
     this.reason = reason;
+  }
+}
+
+/**
+ * How long a move's follow-up check (reading the task after a 409) may keep failing before the
+ * move is parked as "needs attention" and the queue carries on. A move left at the head of the
+ * queue would hold back the notes and charts behind it (HZ-006; #37 review rounds 1 and 2):
+ *
+ * - a refusal the server answered, not about the session (a 403 on the task list, a 404, an answer
+ *   that cannot be read), counts towards 5 reads and starts the 30-minute clock;
+ * - a 5xx or a 429 starts the clock but does not count, so a short outage never parks the move,
+ *   while a fault in the task read alone (the uploads still working) parks it after 30 minutes;
+ * - no network or a timeout (408, 425) neither counts nor starts the clock: nothing else in the
+ *   queue can upload then either, so the move just stays queued (N1).
+ *
+ * Whichever comes first parks the move. The count is kept in memory, so a restart of the app
+ * starts it again, and it is cleared when the session ends, before a hold or a wipe takes the move.
+ */
+export const TASK_CHECK_MAX_FAILURES = 5;
+export const TASK_CHECK_MAX_MS = 30 * 60 * 1000;
+
+/**
+ * How a failed follow-up check weighs against the cap: "refused" (counted, and starts the clock),
+ * "server" (a 5xx or 429: starts the clock only) or "uncounted" (no network, a timeout, an ended
+ * session).
+ */
+function checkFailureKind(error: unknown): "refused" | "server" | "uncounted" {
+  if (!(error instanceof HttpError)) return "uncounted";
+  if (error.status === 429 || error.status >= 500) return "server";
+  return isRetryableStatus(error.status) ? "uncounted" : "refused";
+}
+
+/** The move's follow-up check was refused past its cap: the move is parked, never dropped. */
+class TaskCheckGaveUp extends Error {
+  constructor() {
+    super("The task could not be checked; the move is kept as needing attention");
+    this.name = "TaskCheckGaveUp";
   }
 }
 
@@ -261,6 +311,8 @@ export interface HarbourConnectorOptions {
 
 export class HarbourConnector implements PowerSyncBackendConnector {
   private readonly options: HarbourConnectorOptions;
+  /** Failed follow-up checks per move id, with when the first failed (`TASK_CHECK_MAX_*`). */
+  private readonly checkFailures = new Map<string, { count: number; since: number }>();
 
   constructor(options: HarbourConnectorOptions) {
     this.options = options;
@@ -296,12 +348,14 @@ export class HarbourConnector implements PowerSyncBackendConnector {
   }
 
   private ended(): never {
+    this.checkFailures.clear();
     this.options.onSessionRevoked();
     throw new SessionRevokedError();
   }
 
   /** A manager revoked this device: never parked, never retried, reported as a revocation. */
   private revoked(): never {
+    this.checkFailures.clear();
     (this.options.onDeviceRevoked ?? this.options.onSessionRevoked)();
     throw new DeviceRevokedError();
   }
@@ -363,6 +417,7 @@ export class HarbourConnector implements PowerSyncBackendConnector {
       credentials: "omit",
     });
     if (response.status === 401) {
+      this.checkFailures.clear();
       this.options.onSessionRevoked();
       return null;
     }
@@ -395,6 +450,8 @@ export class HarbourConnector implements PowerSyncBackendConnector {
     for (const entry of transaction.crud) {
       if (isCareEntryTable(entry.table)) {
         await this.uploadCareEntry(database, { ...entry, table: entry.table }, clientId);
+      } else if (isRoundWritableTable(entry.table)) {
+        await this.uploadRoundChange(database, { ...entry, table: entry.table }, clientId);
       } else {
         others.push(entry);
       }
@@ -429,50 +486,8 @@ export class HarbourConnector implements PowerSyncBackendConnector {
       this.options.onRefused?.();
       return;
     }
-    const body = JSON.stringify(request.body);
     try {
-      await retryWithBackoff(async () => {
-        const headers = await this.authorisedHeaders();
-        const response = await this.options.fetch(`${this.options.apiUrl}${request.path}`, {
-          method: "POST",
-          headers: {
-            ...headers,
-            "Content-Type": "application/json",
-            "Idempotency-Key": request.recordId,
-            [TENANT_HEADER]: request.tenantId,
-            [DEVICE_HEADER]: clientId,
-            // The device clock as this request leaves, so drift is measured at send time and time
-            // spent in the queue is never mistaken for drift (HZ-010).
-            [SENT_AT_HEADER]: this.now().toISOString(),
-          },
-          credentials: "omit",
-          body,
-        });
-        if (response.ok) return;
-        if (response.status === 401) {
-          this.options.onSessionRevoked();
-          throw new SessionRevokedError();
-        }
-        if (isRetryableStatus(response.status)) {
-          throw new HttpError(
-            response.status,
-            "Upload failed",
-            parseRetryAfter(response.headers.get("retry-after")),
-          );
-        }
-        if (response.status === 403) {
-          // A session code, or `GET /v1/me` after an unexplained 403, ends the session (H1). Any
-          // other code from the API refuses this entry, which moves to "needs attention"; when an
-          // unexplained 403 cannot be checked the entry stays queued and is tried again later.
-          const refusal = await this.forbidden(response, false);
-          if (refusal.session === "unknown") {
-            throw new HttpError(403, "Upload refused; the session could not be checked");
-          }
-          throw new UploadRejectedError(403, refusal.code ?? "http_403", refusal.reason);
-        }
-        const problem = await readProblem(response);
-        throw new UploadRejectedError(response.status, problem.code, problem.reason);
-      }, this.retryOptions());
+      await this.postChange(request, clientId);
     } catch (error) {
       if (!(error instanceof UploadRejectedError)) throw error;
       await recordUploadIssue(database, {
@@ -488,6 +503,213 @@ export class HarbourConnector implements PowerSyncBackendConnector {
       });
       this.options.onRefused?.();
     }
+  }
+
+  /**
+   * A task's move or a handover acknowledgement to its own route (`round-upload.ts`). A refusal
+   * moves it to "needs attention" with the phone's words for the two a carer must act on; the
+   * server's copy then puts the task or the handover back as it is there. A move the API refuses
+   * because the task changed (409 `version_conflict`) is settled by reading the task
+   * (`settleConflict`).
+   */
+  private async uploadRoundChange(
+    database: UploadSource,
+    entry: CrudEntryLike & { readonly table: RoundWritableTable },
+    clientId: string,
+  ): Promise<void> {
+    const request = toRoundUpload(entry);
+    const park = (status: number | null, code: string, message: string) =>
+      recordUploadIssue(database, {
+        id: request.recordId,
+        tenantId: request.tenantId,
+        personId: request.personId,
+        table: entry.table,
+        httpStatus: status,
+        code,
+        message,
+        // A move keeps its task's id with it, as a held move does, so it can be sent again.
+        payload:
+          entry.table === "task"
+            ? { ...(entry.opData ?? {}), task_id: entry.id }
+            : { ...(entry.opData ?? {}) },
+        rejectedAt: this.now(),
+      });
+    if (request.kind === "refused") {
+      await park(null, request.code, request.message);
+      return;
+    }
+    try {
+      await this.postChange(request, clientId);
+    } catch (error) {
+      if (!(error instanceof UploadRejectedError)) throw error;
+      if (error.status === 409 && error.code === "version_conflict" && request.move) {
+        await this.settleConflict(request.move, park);
+        return;
+      }
+      await park(
+        error.status,
+        error.code,
+        roundRefusalMessage(entry.table, error.code, error.reason) ??
+          t("mobile.issues.unknownReason"),
+      );
+    }
+  }
+
+  /**
+   * A move the API refused because the task changed (#37 review rounds 1 and 2). Reads the task as
+   * the API has it, and only an answer it can read decides (`settleMove`): the carer's own move
+   * already made (its response was lost, HZ-029) counts as sent; anything else moves to "needs
+   * attention" in words that are true of the task, and is never sent again on its own. When the
+   * task cannot be read this throws and the move stays queued, to be tried again, until the cap
+   * (`TASK_CHECK_MAX_FAILURES`, `TASK_CHECK_MAX_MS`): then the move is kept as needing attention,
+   * saying it could not be checked, and the queue carries on.
+   */
+  private async settleConflict(
+    move: RoundMove,
+    park: (status: number | null, code: string, message: string) => Promise<void>,
+  ): Promise<void> {
+    const state = await this.readTask(move);
+    if (state === "unchecked") {
+      await park(409, "task_unchecked", t("mobile.round.taskUnchecked"));
+      return;
+    }
+    const settled = settleMove(state, move);
+    if (settled.kind === "parked") await park(409, settled.code, settled.message);
+  }
+
+  /**
+   * The task as the API has it, from the task list (`taskStatePath`): its state, or null when the
+   * list the API sent does not have it. Throws, so the move stays queued, on anything else: a
+   * network failure or a retryable status after backoff, any other status, or an answer it cannot
+   * read; past the cap it answers "unchecked" instead, and the move is parked. A 401, a session
+   * code on a 403, or `GET /v1/me` saying so after an unexplained 403 ends the session at once
+   * (H1); a manager's revocation is reported as one.
+   */
+  private async readTask(move: RoundMove): Promise<TaskState | null | "unchecked"> {
+    const read = async () => {
+      try {
+        return await this.fetchTaskState(move);
+      } catch (error) {
+        const kind = checkFailureKind(error);
+        if (kind !== "uncounted" && this.checkFailed(move.id, kind === "refused")) {
+          throw new TaskCheckGaveUp();
+        }
+        throw error;
+      }
+    };
+    try {
+      const state = await retryWithBackoff(read, {
+        ...this.retryOptions(),
+        classify: (error) =>
+          error instanceof TaskCheckGaveUp ? { retry: false } : classifyUploadError(error),
+      });
+      this.checkFailures.delete(move.id);
+      return state;
+    } catch (error) {
+      if (!(error instanceof TaskCheckGaveUp)) throw error;
+      this.checkFailures.delete(move.id);
+      return "unchecked";
+    }
+  }
+
+  /**
+   * Records a failed follow-up check (the clock starts at the first; `counts` adds to the reads);
+   * true once the move has reached the cap.
+   */
+  private checkFailed(moveId: string, counts: boolean): boolean {
+    const now = this.now().getTime();
+    const before = this.checkFailures.get(moveId);
+    const record = {
+      count: (before?.count ?? 0) + (counts ? 1 : 0),
+      since: before?.since ?? now,
+    };
+    this.checkFailures.set(moveId, record);
+    return record.count >= TASK_CHECK_MAX_FAILURES || now - record.since >= TASK_CHECK_MAX_MS;
+  }
+
+  private async fetchTaskState(move: RoundMove): Promise<TaskState | null> {
+    const headers = await this.authorisedHeaders();
+    const response = await this.options.fetch(`${this.options.apiUrl}${taskStatePath(move)}`, {
+      method: "GET",
+      headers: { ...headers, [TENANT_HEADER]: move.tenantId },
+      credentials: "omit",
+    });
+    if (response.status === 401) this.ended();
+    if (response.status === 403) {
+      await this.forbidden(response, false);
+      throw new HttpError(403, "The task could not be read; the move stays queued");
+    }
+    if (!response.ok) {
+      throw new HttpError(
+        response.status,
+        "The task could not be read; the move stays queued",
+        parseRetryAfter(response.headers.get("retry-after")),
+      );
+    }
+    const state = taskStateIn(await response.json().catch(() => undefined), move.taskId);
+    if (state === "unreadable") {
+      throw new HttpError(
+        response.status,
+        "The task list could not be read; the move stays queued",
+      );
+    }
+    return state;
+  }
+
+  /**
+   * One queued change to its own endpoint, with the device's id for it, the device and the time
+   * the request leaves. Transient failures retry with backoff and then stay queued; a refusal for
+   * good throws `UploadRejectedError`.
+   */
+  private async postChange(
+    request: {
+      readonly path: string;
+      readonly recordId: string;
+      readonly tenantId: string;
+      readonly body: unknown;
+    },
+    clientId: string,
+  ): Promise<void> {
+    const body = JSON.stringify(request.body);
+    await retryWithBackoff(async () => {
+      const headers = await this.authorisedHeaders();
+      const response = await this.options.fetch(`${this.options.apiUrl}${request.path}`, {
+        method: "POST",
+        headers: {
+          ...headers,
+          "Content-Type": "application/json",
+          "Idempotency-Key": request.recordId,
+          [TENANT_HEADER]: request.tenantId,
+          [DEVICE_HEADER]: clientId,
+          // The device clock as this request leaves, so drift is measured at send time and time
+          // spent in the queue is never mistaken for drift (HZ-010).
+          [SENT_AT_HEADER]: this.now().toISOString(),
+        },
+        credentials: "omit",
+        body,
+      });
+      if (response.ok) return;
+      if (response.status === 401) this.ended();
+      if (isRetryableStatus(response.status)) {
+        throw new HttpError(
+          response.status,
+          "Upload failed",
+          parseRetryAfter(response.headers.get("retry-after")),
+        );
+      }
+      if (response.status === 403) {
+        // A session code, or `GET /v1/me` after an unexplained 403, ends the session (H1). Any
+        // other code from the API refuses this change, which moves to "needs attention"; when an
+        // unexplained 403 cannot be checked the change stays queued and is tried again later.
+        const refusal = await this.forbidden(response, false);
+        if (refusal.session === "unknown") {
+          throw new HttpError(403, "Upload refused; the session could not be checked");
+        }
+        throw new UploadRejectedError(403, refusal.code ?? "http_403", refusal.reason);
+      }
+      const problem = await readProblem(response);
+      throw new UploadRejectedError(response.status, problem.code, problem.reason);
+    }, this.retryOptions());
   }
 
   /** Other tables through `POST /v1/sync/upload` (none is writable from a device yet). */
@@ -536,10 +758,7 @@ export class HarbourConnector implements PowerSyncBackendConnector {
           rejected = await readRejected(response);
           return;
         }
-        if (response.status === 401) {
-          this.options.onSessionRevoked();
-          throw new SessionRevokedError();
-        }
+        if (response.status === 401) this.ended();
         if (response.status === 403) {
           // An API refusal of the batch withdraws access; an unexplained 403 is never parked: back
           // off and try again (H1).

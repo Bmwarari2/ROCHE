@@ -56,6 +56,7 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | audit_event.care_record | 8 | years | care_ended | NHS Records Management Code of Practice; master prompt 5.5 | Audit events about a person's record are kept at least as long as that record (longest period wins), so the history view and signed exports for inspectors, coroners and courts stay complete. |
 | security_log | 6 | months | created | Master prompt 5.3; NCSC logging guidance | Floor for security logs outside `audit_event` (authentication service, WAF, infrastructure). Logs carry opaque IDs only, never personal data. |
 | ai_interaction_log | 12 | months | created | Master prompt 16.2 | Pseudonymised prompts, context sets, model and version, outputs and user actions from the AI gateway. |
+| invitation | 12 | months | created | Harbour default for data minimisation (UK GDPR Art 5(1)(c) and (e)); #43 review M4 | Invitations to join an organisation. The address is cleared as soon as the invitation is accepted, revoked or lapses (a nightly sweep), so a closed invitation holds opaque ids and times only; the audit trail keeps who was given access, by whom and when, for its own period. DPO to confirm (H-355). |
 
 ## Mapping of Phase 0 and Phase 1 tables to record classes
 
@@ -101,6 +102,7 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `family_portal_user` | care_record, with the contact |
 | `location_visit_restriction` | care_record |
 | `sharing_decision_suspension` ([people.md](people.md)) | care_record, with the decision |
+| `invitation` ([platform.md](platform.md), Invitations and MFA enrolment; migration 0054) | invitation; its address is cleared when it closes, and the link is only ever a hash |
 | `tenant_export` ([platform-completions.md](platform-completions.md)) | audit_event; the export file itself is deleted at `export.link_expiry_hours` and never kept as a record |
 | `dpia`, `sub_processor_response`, `tenant_setting_decision`, `retention_decision` | audit_event (interim: accountability evidence; H-115) |
 | Search audit events that showed people | audit_event.care_record: they record views of those people's care records, so they are kept as long as those records |
