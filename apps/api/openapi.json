@@ -323,6 +323,44 @@
         ],
         "description": "A device where the person is signed in. Never carries the session token."
       },
+      "RevokeMemberSessionsResult": {
+        "type": "object",
+        "properties": {
+          "revoked": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "entriesWaiting": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "revoked",
+          "entriesWaiting"
+        ]
+      },
+      "RevokeMemberSessions": {
+        "type": "object",
+        "properties": {
+          "reasonCode": {
+            "type": "string",
+            "enum": [
+              "lost_or_stolen_device",
+              "staff_left",
+              "suspended",
+              "suspected_misuse",
+              "other"
+            ]
+          },
+          "confirmEntriesWaiting": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "reasonCode"
+        ]
+      },
       "PersonList": {
         "type": "object",
         "properties": {
@@ -18477,6 +18515,105 @@
           },
           "401": {
             "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/members/{tenantUserId}/sessions/revoke": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Sign a member of staff out of every device",
+        "description": "Ends every session of the member's sign-in, on every device (platform.user.manage, step-up), with a coded reason, audited before the sessions end. A location role reaches only members whose roles and grants in force are all at its locations; anyone else reads as not found (audited by opaque id). A member who also works for another organisation in Harbour is not signed out (409 member_of_other_organisation). When the member's devices last reported entries waiting, the sign-out needs confirmEntriesWaiting (409 entries_waiting otherwise): signing out removes the care record from their phone until they sign in again, and the entries not yet sent stay on it until then. For staff_left or suspended, the holds on those devices fall due at once, as after a device revocation.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "tenantUserId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeMemberSessions"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed out",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevokeMemberSessionsResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
             "content": {
               "application/problem+json": {
                 "schema": {

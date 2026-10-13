@@ -1,9 +1,21 @@
-import type { ConsentDecisionStatus, DolsItem } from "@harbour/contracts";
-import { ConsentDecisionKind, DolsStatus } from "@harbour/contracts";
+import type { CapacityAssessmentItem, ConsentDecisionStatus, DolsItem } from "@harbour/contracts";
+import { BestInterestsItemKey, ConsentDecisionKind, DolsStatus } from "@harbour/contracts";
+import { BEST_INTERESTS_CHECKLIST, FUNCTIONAL_ELEMENT_WORDING } from "@harbour/domain";
 import { createTranslator } from "@harbour/i18n";
 import { describe, expect, it } from "vitest";
 import {
+  BEST_INTERESTS_ITEMS,
+  bestInterestsWarnings,
   CONSENT_PROBLEMS,
+  capacityChip,
+  capacityReason,
+  checklistAnswered,
+  consentCapacity,
+  consentGivenBy,
+  consentRecordChip,
+  consentRecordState,
+  currentFinding,
+  datedTitle,
   decisionView,
   dolsChip,
   dolsClock,
@@ -11,14 +23,19 @@ import {
   dolsHistoryLines,
   dolsReminders,
   dolsTitle,
+  FUNCTIONAL_ELEMENTS,
   lastDayInForce,
   legalReviewView,
   renewedIds,
+  replacedBy,
+  reviewOverdue,
+  staffName,
 } from "./mca";
 
 const t = createTranslator("en-GB");
 const RECORD = "0194d000-0000-7000-8600-0000000000c1";
 const ASSESSMENT = "0194d000-0000-7000-8600-0000000000c2";
+const OTHER = "0194d000-0000-7000-8600-0000000000c3";
 const NOW = new Date("2026-10-12T09:00:00Z");
 const texts = (lines: readonly { text: string }[]) => lines.map((l) => l.text);
 
@@ -427,5 +444,261 @@ describe("DoLS register (care.md rule 11)", () => {
       status: "overdue",
       label: "Review after the legal change: could not be read",
     });
+  });
+});
+
+describe("consent records (care.md rule 9)", () => {
+  const decisions = [
+    { decision: "bed_rails" as const, status: "valid" as const, recordId: RECORD },
+    { decision: "photos" as const, status: "none" as const, recordId: RECORD },
+    { decision: "sharing" as const, status: "none" as const, recordId: null },
+  ];
+  const record = (over: Partial<Parameters<typeof consentRecordState>[0]>) => ({
+    id: RECORD,
+    decision: "bed_rails" as const,
+    givenAt: "2026-10-01T09:00:00Z",
+    withdrawnAt: null,
+    expiresAt: null,
+    ...over,
+  });
+  const now = new Date("2026-10-12T09:00:00Z");
+  const past = "2026-10-05T09:00:00Z";
+  const future = "2026-10-20T09:00:00Z";
+
+  it.each([
+    ["the record deciding a valid consent", record({}), "in_force", "done"],
+    ["a record a later one replaced", record({ id: OTHER }), "replaced", "notApplicable"],
+    [
+      "a deciding record withdrawn",
+      record({ decision: "photos", withdrawnAt: past }),
+      "withdrawn",
+      "due",
+    ],
+    [
+      "a withdrawal dated later, while still valid",
+      record({ withdrawnAt: future }),
+      "in_force",
+      "done",
+    ],
+    [
+      "a deciding record expired",
+      record({ decision: "photos", expiresAt: past }),
+      "expired",
+      "due",
+    ],
+    ["a deciding record that is not valid", record({ decision: "photos" }), "not_valid", "overdue"],
+    [
+      "a record that starts later",
+      record({ id: OTHER, decision: "sharing", givenAt: future }),
+      "not_yet",
+      "info",
+    ],
+    [
+      "a record made with no deciding record",
+      record({ id: OTHER, decision: "sharing" }),
+      "unknown",
+      "overdue",
+    ],
+    [
+      "a decision the API does not list",
+      record({ decision: "covert_medicines" }),
+      "unknown",
+      "overdue",
+    ],
+  ] as const)("hazard HZ-026 says where %s stands", (_name, item, state, tone) => {
+    const found = consentRecordState(item, decisions, now);
+    expect(found).toBe(state);
+    expect(consentRecordChip(found, t).status).toBe(tone);
+  });
+
+  it("words each consent record state, and warns on one it does not know", () => {
+    expect(consentRecordChip("replaced", t).label).toBe("Replaced by a later record");
+    expect(consentRecordChip("not_yet", t).label).toBe("Starts later: not in force yet");
+    expect(consentRecordChip("unknown", t).label).toBe("Status could not be read");
+  });
+
+  it("names a representative recorded only as a contact", () => {
+    const contact = {
+      kind: "deputy" as const,
+      contactId: RECORD,
+      excludedDecisions: [],
+      deputyDecisions: [],
+    };
+    expect(consentGivenBy({ givenBy: "representative", representative: contact }, "Else", t)).toBe(
+      "One of Else's contacts (deputy)",
+    );
+  });
+
+  it("names the representative with their authority, or the person", () => {
+    const representative = {
+      kind: "lpa_health_welfare" as const,
+      name: "Sam Example",
+      excludedDecisions: [],
+      deputyDecisions: [],
+    };
+    expect(consentGivenBy({ givenBy: "representative", representative }, "Else", t)).toBe(
+      "Sam Example (health and welfare attorney)",
+    );
+    expect(consentGivenBy({ givenBy: "person", representative: null }, "Else", t)).toBe("Else");
+  });
+
+  it("names staff with their job title when there is one", () => {
+    const staff = { id: RECORD, displayName: "Nell Nurse", jobTitle: "Clinical lead" };
+    expect(staffName(staff, t)).toBe("Nell Nurse, Clinical lead");
+    expect(staffName({ ...staff, jobTitle: null }, t)).toBe("Nell Nurse");
+  });
+});
+
+describe("capacity and best interests (care.md rules 9 and 10)", () => {
+  it("keeps the functional test and the section 4 checklist in the domain's order", () => {
+    expect([...FUNCTIONAL_ELEMENTS]).toEqual(Object.keys(FUNCTIONAL_ELEMENT_WORDING));
+    expect([...BEST_INTERESTS_ITEMS]).toEqual(BEST_INTERESTS_CHECKLIST.map((item) => item.key));
+    expect([...BEST_INTERESTS_ITEMS].sort()).toEqual([...BestInterestsItemKey.options].sort());
+    const items = BEST_INTERESTS_ITEMS.map((item) => t("care.mca.bi.item", { item }));
+    expect(new Set(items).size).toBe(BEST_INTERESTS_ITEMS.length);
+  });
+
+  it("hazard HZ-026 shows the outcome in words, as a finding rather than an alarm", () => {
+    expect(capacityChip("lacks_capacity", t)).toMatchObject({
+      status: "info",
+      label: "Lacks capacity for this decision",
+    });
+    expect(capacityChip("has_capacity", t)).toMatchObject({
+      status: "neutral",
+      label: "Has capacity for this decision",
+    });
+    expect(capacityChip("unsure", t)).toMatchObject({
+      status: "overdue",
+      label: "Outcome could not be read",
+    });
+  });
+
+  it("hazard HZ-026 shows a refused consent record as a warning, and its capacity with the assessment's date", () => {
+    expect(consentRecordChip("refused", t)).toMatchObject({ status: "due", label: "Refused" });
+    const assessments = [{ id: ASSESSMENT, assessedAt: "2026-10-01T10:00:00Z" }];
+    const lacking = { capacityStatus: "lacks_capacity" as const, capacityAssessmentId: ASSESSMENT };
+    expect(consentCapacity(lacking, assessments, t)).toEqual({
+      text: "Assessed on 01/10/2026 as lacking capacity for this decision",
+      dateTime: "2026-10-01T10:00:00Z",
+    });
+    expect(consentCapacity({ ...lacking, capacityAssessmentId: OTHER }, assessments, t).text).toBe(
+      "Assessed as lacking capacity for this decision",
+    );
+    expect(
+      consentCapacity({ capacityStatus: "assumed", capacityAssessmentId: null }, assessments, t)
+        .text,
+    ).toBe("Capacity was assumed");
+    expect(
+      consentCapacity(
+        { capacityStatus: "unsure" as "assumed", capacityAssessmentId: null },
+        assessments,
+        t,
+      ).text,
+    ).toBe("The capacity finding could not be read");
+  });
+
+  it("names each record with its UK date, and warns on checklist values it does not know", () => {
+    expect(datedTitle("Bed rails", "2026-10-11T23:30:00Z", t)).toBe("Bed rails (12/10/2026)");
+    expect(t("care.mca.bi.answer", { answer: "maybe", text: "" })).toBe(
+      "The answer could not be read",
+    );
+    expect(t("care.mca.bi.consultee", { kind: "neighbour" })).toBe(
+      "Someone whose role could not be read",
+    );
+  });
+
+  it("compares review dates as UK dates", () => {
+    expect(reviewOverdue("2026-10-11", "2026-10-12")).toBe(true);
+    expect(reviewOverdue("2026-10-12", "2026-10-12")).toBe(false);
+    expect(reviewOverdue(null, "2026-10-12")).toBe(false);
+  });
+
+  it("counts the checklist items answered", () => {
+    expect(
+      checklistAnswered({
+        checklist: {
+          relevant_circumstances: { answer: "considered", note: "Asked about home." },
+          life_sustaining_treatment: { answer: "not_applicable", reason: "Not treatment." },
+        },
+      }),
+    ).toBe(2);
+  });
+});
+
+describe("which capacity finding stands (HZ-026)", () => {
+  const assessment = (over: Partial<CapacityAssessmentItem>): CapacityAssessmentItem => ({
+    id: RECORD,
+    personId: RECORD,
+    decision: "Whether to use bed rails at night",
+    decisionKind: "bed_rails",
+    assessedAt: "2026-01-10T10:00:00Z",
+    assessorTenantUserId: null,
+    assessorName: "Nell Nurse",
+    assessorRole: null,
+    practicableSteps: [],
+    stage1: { impairment: true, description: "Dementia." },
+    stage2: {},
+    inabilityBecauseOfImpairment: true,
+    outcome: "lacks_capacity",
+    unableTo: ["understand", "useOrWeigh"],
+    reason: "English from the API",
+    reviewOn: "2026-04-10",
+    recordedAt: "2026-01-10T10:00:00Z",
+    recordedBy: null,
+    recordedByStaff: null,
+    supersedesId: null,
+    correctionReason: null,
+    superseded: false,
+    ...over,
+  });
+  const january = assessment({});
+  const october = assessment({
+    id: OTHER,
+    assessedAt: "2026-10-01T10:00:00Z",
+    outcome: "has_capacity",
+    unableTo: [],
+    stage1: { impairment: false, description: null },
+  });
+
+  it("hazard HZ-026 says a later assessment of the same decision replaces an older finding", () => {
+    expect(replacedBy(january, [january, october], NOW)?.id).toBe(OTHER);
+    expect(replacedBy(october, [january, october], NOW)).toBeNull();
+    expect(currentFinding(january, [january, october], NOW).id).toBe(OTHER);
+    // A different decision never replaces it (decision-specific).
+    const photos = { ...october, decisionKind: "photos" as const };
+    expect(replacedBy(january, [january, photos], NOW)).toBeNull();
+    // Without a consent decision, the words of the decision are compared.
+    const words = { ...january, decisionKind: null };
+    expect(replacedBy(words, [words, { ...october, decisionKind: null }], NOW)?.id).toBe(OTHER);
+  });
+
+  it("hazard HZ-026 warns when a best-interests decision follows a corrected or overtaken assessment", () => {
+    expect(bestInterestsWarnings(january, [january], t, NOW)).toEqual([]);
+    expect(bestInterestsWarnings(january, [january, october], t, NOW)).toEqual([
+      "The latest assessment of this decision (01/10/2026) found the person has capacity, so they decide for themselves. Check this decision still stands.",
+    ]);
+    const corrected = { ...january, superseded: true };
+    const correction = { ...january, id: OTHER, supersedesId: RECORD };
+    expect(bestInterestsWarnings(corrected, [corrected, correction], t, NOW)).toEqual([
+      "The capacity assessment this decision follows was corrected later. Check the decision still stands.",
+    ]);
+    expect(bestInterestsWarnings(undefined, [], t, NOW)[0]).toMatch(
+      /^The capacity assessment this/,
+    );
+  });
+
+  it("words the finding from the two stages, in the catalogue, never the API's English", () => {
+    expect(capacityReason(january, t)).toBe(
+      "Lacks capacity for this decision: there is an impairment of, or a disturbance in the functioning of, the mind or brain, and because of it the person is unable to understand the information relevant to the decision and use or weigh that information as part of deciding.",
+    );
+    expect(capacityReason(october, t)).toBe(
+      "Has capacity for this decision: there is no impairment of, or disturbance in the functioning of, the mind or brain.",
+    );
+    expect(
+      capacityReason({ ...october, stage1: { impairment: true, description: null } }, t),
+    ).toMatch(/^Has capacity for this decision: the person can understand/);
+    expect(capacityReason({ ...january, outcome: "unsure" as "has_capacity" }, t)).toBe(
+      "The reason for this finding could not be read. Check the assessment.",
+    );
   });
 });
