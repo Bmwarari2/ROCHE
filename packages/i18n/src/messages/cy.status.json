@@ -1053,6 +1053,10 @@
     "safety.incident.unnamed",
     "safety.incident.injury",
     "safety.incident.personFact",
-    "safety.incident.bodyMapMarks"
+    "safety.incident.bodyMapMarks",
+    "safety.incidents.truncated",
+    "safety.incident.locationHidden",
+    "safety.incident.notice",
+    "safety.incident.noticeHint"
   ]
 }

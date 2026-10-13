@@ -42,6 +42,58 @@ export function incidentTitle(
   });
 }
 
+/** The API's limit on one list of incidents (`GET /v1/incidents`). */
+export const INCIDENT_LIST_LIMIT = 500;
+
+/**
+ * The newest incidents with every open or under-review one fetched besides, newest first, so an
+ * older incident still waiting for answers is never hidden by the list's limit (HZ-013).
+ * `truncated` says a list hit the limit, so older incidents may be missing.
+ */
+export function incidentsToList<I extends Pick<IncidentSummary, "id" | "occurredAt">>(
+  newest: readonly I[],
+  ...unfinished: readonly (readonly I[])[]
+): { readonly items: I[]; readonly truncated: boolean } {
+  const byId = new Map<string, I>();
+  for (const item of [newest, ...unfinished].flat()) byId.set(item.id, item);
+  return {
+    items: [...byId.values()].sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt)),
+    truncated: [newest, ...unfinished].some((list) => list.length >= INCIDENT_LIST_LIMIT),
+  };
+}
+
+export interface SafetyNotice {
+  readonly title: string;
+  readonly body: string;
+}
+
+/**
+ * What the incident page says about statutory notifications while it does not show them
+ * (HZ-013, #42 review): not checked yet, or not checked outside England, and that the questions
+ * and notifications are not on this page yet. Nothing for a reader who cannot see everyone on
+ * the incident: they are told part of it is hidden instead.
+ */
+export function incidentNotices(
+  incident: {
+    readonly restricted: boolean;
+    readonly classifier: { readonly nationSupported: boolean } | null;
+  },
+  t: Translator,
+): SafetyNotice[] {
+  if (incident.restricted) return [];
+  const notice = (notice: string) => ({
+    title: t("safety.incident.notice", { notice }),
+    body: t("safety.incident.noticeHint", { notice }),
+  });
+  if (!incident.classifier) return [notice("notChecked")];
+  return [...(incident.classifier.nationSupported ? [] : [notice("nation")]), notice("notShown")];
+}
+
+/** The sidebar's Incidents label, only for holders of `safety.incident.read`. */
+export function incidentsNavLabel(permissions: readonly string[], t: Translator) {
+  return permissions.includes("safety.incident.read") ? t("shell.nav.incidents") : undefined;
+}
+
 /** What was recorded about someone on an incident, beyond their name and role. */
 export function incidentPersonFacts(
   person: Pick<

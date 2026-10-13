@@ -33,7 +33,7 @@ export interface ShellFrameLabels {
   readonly home: string;
   readonly people: string;
   /** Shown only to people who may read incidents (safety.incident.read). */
-  readonly incidents?: string;
+  readonly incidents?: string | undefined;
   readonly notifications: string;
   /** Accessible text for the unread badge, for example "3 unread". */
   readonly unreadNotifications: string;
