@@ -137,6 +137,36 @@ only when they link spec, code, tests and user documentation; no user guides exi
    channels, notifications, visit booking and the family portal policy of ADR-0061; search, the
    full export, DPIA, onboarding and sample data), then slice 14; the rest of the web record
    (slice 9) and Care mode part 2 (slice 10) alongside ([phase-1.md](phase-1.md)).
+   - Slice 11 part 1, downtime pack and outage schema (`feat/operations-downtime-schema`,
+     migrations 0050 and 0051; operations.md section 12): in review. Next, part 2: the
+     expand-only back-entry columns on `care_note`, `observation`, `body_map_mark`,
+     `activity_record` and `visit_log` (with `outage_id`), the cancel refusal once a back-entry
+     cites an outage and the reconciler check; then part 3, the API, nightly job and PDF.
+   - Follow-ups from #32 review round 1 (security and clinical):
+     - bound outage and pack times: no far-future `back_entry_due_at`, `closed_at` or
+       `generated_at`, and a start or end in the future (beyond the clock tolerance) refused in
+       the database as the domain refuses it;
+     - `downtime_pack.warnings` holds counts and opaque ids only: a CHECK or a write-side mapping
+       test (the domain's `DowntimeWarning` carries a message, which must not be stored there);
+     - outage free text (description, reconciliation statement, cancellation and correction
+       reasons) reaches assigned care workers: guidance on the forms not to write names;
+     - `outage.workflow_instance_id` is not checked to be an `operations.outage` workflow for an
+       outage at this location;
+     - a kiosk-built pack is inserted under its builder's permission when uploaded, so it is
+       refused if their role or grant has ended by then;
+     - a location-scoped Registered Manager cannot review a pre-move pack later (H-200);
+     - an open outage with no end blocks the next declaration at the location until it is closed
+       or corrected;
+     - part 3 emits the `operations.*` audit and outbox events of section 5;
+     - store an outage's start as typed with the occurrence chosen in a repeated hour (needs the
+       domain's declaration to carry the written form, as `resolvePaperTime` does);
+     - who may change the other `location` columns is still enforced only by the API.
+   - Follow-ups from #32 review round 2:
+     - a missing `care_note.late_entry_hours` rate marks every outage late without saying why:
+       audit it as a configuration gap;
+     - the database does not refuse a corrected start in the future;
+     - `rate_table` writes have no permission check, so any member could override
+       `care_note.late_entry_hours` (an existing gap).
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; admin session revoke and idle timeouts
    per role; record history PDF export; device push registration; OpenFeature provider; user
@@ -163,9 +193,9 @@ only when they link spec, code, tests and user documentation; no user guides exi
     evaluate the scope for all candidates at once in a database function.
 13. Slice 10 part 2 on the phone (Lane C), the round and the handover: the sync streams, the
     token's handover claims and the client tables are in review (#33,
-    `feat/mobile-tasks-handover-sync`, [care.md](../specs/care.md) section 6). Before they deliver
-    anything, migration 0052 (after #32) adds `task`, `handover`, `handover_item`, `handover_note`
-    and `handover_acknowledgement` to the `powersync` publication with the `sync_replication_read`
+    `feat/mobile-tasks-handover-sync`, [care.md](../specs/care.md) section 6), with migration
+    0052, which adds `task`, `handover`, `handover_item`, `handover_note` and
+    `handover_acknowledgement` to the `powersync` publication with the `sync_replication_read`
     policy and `SELECT` for `harbour_sync`, and a database test that every table the streams read
     is published. Then: completing or skipping a task and acknowledging a handover offline
     (queued, idempotent, the task's version and the seen token over the items shown; a refusal to
@@ -175,8 +205,11 @@ only when they link spec, code, tests and user documentation; no user guides exi
       ship until (a) each handover item carries a worded summary (item 4) or its source
       (incidents, alerts, skipped-task reasons) is on the device (H-300); (b) the "From an earlier
       plan" notice reaches the phone, through the plan action reference or a computed flag
-      (HZ-024, H-303); (c) the publication migration has landed; (d) an empty list on the phone
-      never reads as "nothing due" when the streams have no data.
+      (HZ-024, H-303); (c) the publication migration has landed (0052, in #33); (d) an empty list
+      on the phone never reads as "nothing due" when the streams have no data; (e) the phone can
+      say "the outgoing handover is not compiled yet" or "not final", which needs the shift
+      pattern or the expected shift on the device, decided in the screens PR (#33 review round 2;
+      H-303).
     - Follow-up: whether the round on the phone should also hold unfinished tasks due before the
       window (H-301).
     - Follow-up (#33 review round 1): the streams ignore `person_assignment.valid_from`, so a
@@ -196,6 +229,9 @@ only when they link spec, code, tests and user documentation; no user guides exi
       attention" through the deletion record built for unsent entries (a coded reason, device
       authentication, audited as `refused_removed`); decide with the screens whether these need
       a lighter dismissal, and whether the device report should count them apart from entries.
+    - Follow-up (#33 review round 2, low): no test yet of a carer assigned to two people at
+      different homes where the person who opens a handover differs from the item's person (the
+      two `person_assignment` joins in the `assigned_handovers` item and note queries).
 
 ## Human actions outstanding
 
