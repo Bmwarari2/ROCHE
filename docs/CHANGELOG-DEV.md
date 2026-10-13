@@ -1219,6 +1219,47 @@ permission and API suites (128), passing locally; typecheck clean for sync, API 
 **Tests**: `packages/sync` 81, `apps/mobile` 891, passing locally; typecheck clean for sync and
 mobile.
 
+## 2026-10-12: The round and the handover on the phone, offline writes (slice 10 part 2, Lane C)
+
+Second of four pull requests (`feat/mobile-offline-round-writes`, stacked on #33); no screen yet.
+
+- A task is marked done, or not done with a reason, on the device: checked with the API's own
+  rules (`checkTaskTransition`), written on the synced row with the move in `queued_transition`
+  (its own UUIDv7 and the version seen) only while the row is the open task the carer saw. A
+  task that needs evidence is done by recording the entry it asks for, which now carries
+  `task_id` and is sent as `taskId`.
+- A handover is acknowledged on the device as a new row with the seen token worked out over the
+  items shown, exactly as the API does (tested against its algorithm).
+- HZ-018 test row; care.md section 6 and data standards updated.
+
+**Tests**: `apps/mobile` 910, `packages/sync` 81, `packages/i18n` 48, passing locally;
+typecheck clean for mobile and sync.
+
+## 2026-10-13: The round and the handover on the phone, offline writes, review round 1 (#36)
+
+- Security M1: a task's move is offered only where the server would take it (a task given to
+  the member, or one about a person naming `care.note.write` where the write scope reaches
+  them), never while the member or the scope is unknown; one acknowledgement waits per
+  handover and member.
+- Clinical M1: a move or acknowledgement held when a session ends goes back into the queue
+  for its owner after sign-in, as entries do, and is never sent by another member in a
+  hand-over; held moves are kept under their own id.
+- Clinical M3 and M4: the evidence copy says the task completes when the entry uploads;
+  screens gate item (f); HZ-006 and HZ-029 rows, with hazard ids in the tests' names; the
+  module no longer claims what the upload does.
+- Logged: H-305 to H-308 for the CSO and DPO, and five STATUS follow-ups. A task's time of
+  care from the phone waits for task columns, a late label, a lower bound and a handover rule
+  (#41 closed): an HZ-017 row, a STATUS follow-up and H-309; the completion stays recorded
+  when the move arrives.
+
+## 2026-10-13: The round and the handover on the phone, offline writes, review round 2 (#36)
+
+- Merged `main` (#33, #39 and #40), keeping both sides of the shared documents.
+- Logged the five round 2 lows as STATUS item 15 follow-ups: the person's home looked up
+  inside `useMoveTask`; the bare task row a held move is put back on, and its PUT; held round
+  changes re-queued only for their owner; "already waiting to upload" after a refused
+  acknowledgement; "tell the person in charge" shown to nurses.
+
 ## 2026-10-13: The round and the handover on the phone, publication migration (#33)
 
 - Migration 0052 adds `task`, `handover`, `handover_item`, `handover_note` and
