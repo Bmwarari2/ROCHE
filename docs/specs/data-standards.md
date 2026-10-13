@@ -504,7 +504,7 @@ tenant export with these names.
 
 | Harbour field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `downtime_pack.source` | Harbour | `server_nightly`, `server_on_demand`, `kiosk_cache` | |
+| `downtime_pack.source` | Harbour | `server_nightly`, `server_rebuild` (the system again after someone moved or their status changed; migration 0054), `server_on_demand`, `kiosk_cache` | |
 | `downtime_pack.generated_at`, `as_at`, `valid_until` | Harbour | ISO 8601 UTC; shown dd/mm/yyyy hh:mm UK time | `valid_until` = `as_at` + `downtime_pack.valid_hours` |
 | `downtime_pack` content sections | Harbour; allergies as `allergy`, communication needs as AIS, resuscitation as `advance_care_record`, IDDSI levels as the care profile (IDDSI framework codes, food and drink separately), care plan domains as the PRSB PCSP domains | `identity`, `allergies`, `resuscitation`, `iddsi_food`, `iddsi_drink`, `communication`, `evacuation`, `medicines_due`, `contacts`, `care_plan`, `risks`, each with status `included`, `not_recorded`, `held_elsewhere`, `withheld`, `conflicting` (resuscitation records that disagree) or `unreadable` (a stored value that is not a valid code) | The snapshot is stored as JSON with its rendered PDF. The resuscitation section lists every active ReSPECT and DNACPR record. Medicines due list scheduled doses (`due`, `given`, `not_given`) and PRN medicines with their last-given time, dm+d-coded from Phase 2 |
 | Location settings `downtime.mar_location`, `downtime.peep_location` | Harbour | Plain text, worded for the printed page | Where the paper MAR and the PEEPs are kept until the eMAR (Phase 2) and PEEPs (Phase 3) |

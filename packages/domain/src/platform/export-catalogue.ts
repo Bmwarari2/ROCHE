@@ -1753,6 +1753,8 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description: "How the pack was built.",
         codes: {
           server_nightly: "The nightly job built it.",
+          server_rebuild:
+            "The system built it again after someone moved in, out or away, or their status changed.",
           server_on_demand: "A member built it on demand.",
           kiosk_cache: "A kiosk built it from its own cache when the server could not be reached.",
         },

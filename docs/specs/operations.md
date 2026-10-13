@@ -303,8 +303,8 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
   start or end that would leave a back-entry with no outside-the-outage reason outside it (#32
   review round 2), all counted in the organisation's view (`app.outage_back_entries`), so a
   back-entry about someone the caller can no longer see still counts.
-- Not yet: the API, nightly job and PDF (part 3); outages and packs in the sync streams (with the
-  mobile step).
+- Not yet: outages and back-entry through the API (part 3b); outages and packs in the sync
+  streams, and the kiosk fetch (with the mobile step).
 - Part 3 requirements (#32 review round 1):
   - A pack is hidden from the location's holders once someone it names moves away (H-200). The
     API builds a fresh pack on demand whenever anyone moves into, out of or away from the
@@ -321,3 +321,36 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
   - The full export reads packs as the system or as a holder of `operations.downtime.read`.
   - The builder passes `assembleDowntimePack` only the location's own people receiving care,
     so nothing is left out, and stores the pack without anyone left out (#32 review round 2).
+
+## 13. As built (slice 11 part 3a, downtime pack API)
+
+`apps/api/src/routes/operations.ts`, `services/downtime-pack.ts`, `services/downtime-pack-pdf.ts`,
+the nightly job and the outbox handlers in `jobs/tasks.ts`; migration 0054; tests in
+`apps/api/test/downtime.test.ts`.
+
+- `GET /v1/locations/{id}/downtime-pack` (`operations.downtime.read` where the location is): the
+  latest pack the reader can open, built on the spot as `server_on_demand` when it no longer names
+  exactly the people receiving care there with their status now, the location changed since (where
+  the MAR and PEEPs are kept), or it expired. The freshness words and the four header lines are
+  worked out at the moment of the request (`downtimePackFreshness`, `downtimePageHeader`, with any
+  outage open at the location). `?format=pdf` prints it with the header on every page, a front
+  sheet of warnings (safety-critical first) and a page per person whose footer names them; the PDF
+  is drawn per request and never stored, so it is never a `document`. Photos are not printed; the
+  page says whether one is held. Opening, printing and building are audited
+  (`operations.downtime_pack.opened`, `.printed`, `.generated`).
+- `POST /v1/locations/{id}/downtime-pack`: builds one now.
+- Building reads only the location's own people receiving care, in the builder's view, and
+  publishes `operations.downtime_pack.generated` (location and pack ids) for kiosks.
+- Nightly: the `downtime-packs` queue runs hourly; each location gets one `server_nightly` pack per
+  UK night, under an advisory lock, each location in its own savepoint, through `eachTenant`.
+- Rebuild on moves: after `people.person.admitted`, `went_on_leave`, `went_to_hospital`,
+  `returned`, `discharged`, `died` and `status_corrected`, the system builds the pack again
+  (`server_rebuild`, migration 0054) at the location the person was at and the one they are at,
+  when the latest no longer serves.
+- Places: `PUT /v1/locations/{id}/downtime-places` (`platform.location.manage`) sets them, and
+  with `confirm` confirms them in the caller's name and completes the
+  `operations.downtime_places` task; while unconfirmed, the pack prints "where it is kept is not set
+  in Harbour: ask the nurse in charge" (H-201), and the nightly job keeps one open task for the
+  location's Registered Manager.
+- Not yet: the kiosk's own fetch route (the mobile step; it fetches in the system's view for its
+  location, section 12); printing photos on the pages.

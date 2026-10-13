@@ -24,8 +24,17 @@ import { workflowInstance } from "./work";
  * what they produce. Row-level security and the outage guard are in migration 0051.
  */
 
-/** How a pack was built (data-standards.md, `downtime_pack.source`). */
-export const DOWNTIME_PACK_SOURCES = ["server_nightly", "server_on_demand", "kiosk_cache"] as const;
+/**
+ * How a pack was built (data-standards.md, `downtime_pack.source`): by the nightly job, by the
+ * system again after someone moved in, out or away (migration 0054), on demand by a member, or on
+ * a kiosk from its cache.
+ */
+export const DOWNTIME_PACK_SOURCES = [
+  "server_nightly",
+  "server_rebuild",
+  "server_on_demand",
+  "kiosk_cache",
+] as const;
 /** `OUTAGE_KINDS` in packages/domain; a test keeps the list in step. */
 export const OUTAGE_KIND_CODES = [
   "power",
@@ -91,8 +100,12 @@ export const downtimePack = pgTable(
       foreignColumns: [document.tenantId, document.id],
     }),
     check("downtime_pack_source", sql`source IN (${sqlList(DOWNTIME_PACK_SOURCES)})`),
-    // The nightly pack is the system's; one built on demand or on a kiosk names its member.
-    check("downtime_pack_generated_by", sql`(source = 'server_nightly') = (generated_by IS NULL)`),
+    // The system builds the nightly pack and a rebuild; one built on demand or on a kiosk names
+    // its member.
+    check(
+      "downtime_pack_generated_by",
+      sql`(source IN ('server_nightly', 'server_rebuild')) = (generated_by IS NULL)`,
+    ),
     check("downtime_pack_times", sql`as_at <= generated_at AND valid_until > as_at`),
     check(
       "downtime_pack_json",
