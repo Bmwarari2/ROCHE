@@ -101,6 +101,7 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `family_portal_user` | care_record, with the contact |
 | `location_visit_restriction` | care_record |
 | `sharing_decision_suspension` ([people.md](people.md)) | care_record, with the decision |
+| `invitation` ([platform.md](platform.md), Invitations and MFA enrolment; planned, migration 0054) | audit_event: the record of who was given access to the organisation, and when; the link itself is only a hash and lapses at `invitation.expiry_hours` |
 | `tenant_export` ([platform-completions.md](platform-completions.md)) | audit_event; the export file itself is deleted at `export.link_expiry_hours` and never kept as a record |
 | `dpia`, `sub_processor_response`, `tenant_setting_decision`, `retention_decision` | audit_event (interim: accountability evidence; H-115) |
 | Search audit events that showed people | audit_event.care_record: they record views of those people's care records, so they are kept as long as those records |

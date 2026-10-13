@@ -241,6 +241,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | mobile.auto_lock_seconds.shared | 30 | seconds | 2000-01-01 | - | all | master prompt 17.2, ADR-0011; tenant default | master-prompt |
 | mobile.auto_lock_seconds.shared_max | 120 | seconds | 2000-01-01 | - | all | master prompt 17.2 (configurable from 30 seconds to 2 minutes) | master-prompt |
 | account_deletion.confirmation_days | 30 | days | 2000-01-01 | - | all | master prompt 17.3 | master-prompt |
+| invitation.expiry_hours | 72 | hours | 2000-01-01 | - | all | Harbour default: how long an invitation link to join an organisation works before it lapses (platform.md, Invitations); single use; no published figure; policy value, not statutory; tenant default | to-verify |
 | export.link_expiry_hours | 72 | hours | 2000-01-01 | - | all | Harbour default: how long a ready full tenant export can be downloaded before the file is deleted (master prompt 5.1 asks for delivery by expiring link but sets no period; platform-completions.md rule 12); policy value, not statutory; tenant default | to-verify |
 | export.link_expiry_hours_max | 168 | hours | 2000-01-01 | - | all | Harbour ceiling on the tenant's export.link_expiry_hours setting, so no tenant can keep a full export downloadable for more than 7 days (platform-completions.md rule 12; security review); policy value, not statutory | to-verify |
 | break_glass.search_max_per_day | 5 | count | 2000-01-01 | - | all | Harbour default: break-glass searches one user may run in any 24 hours before further searches are refused and the data protection lead is told (platform-completions.md rule 9; security review); policy value, not statutory; tenant default | to-verify |
@@ -392,6 +393,10 @@ literals, and tests assert against the table, not a literal (section 7, section 
   sub-processor processes a tenant's data, which is also the window in which the tenant may object
   (DPA template clause 6.2, bracketed until the solicitor confirms it, H-32). It is contractual,
   so a tenant whose signed DPA says otherwise has its own value; it is never a statutory period.
+- `invitation.expiry_hours` (72): how long an invitation link works (platform.md, Invitations
+  and MFA enrolment). Long enough to cover a weekend, short enough that a forwarded or old email
+  is soon useless; the link is single use and a new invitation revokes the old one. Tenant
+  default, confirmed by the tenant's data protection lead (H-355).
 
 ## Other notes
 

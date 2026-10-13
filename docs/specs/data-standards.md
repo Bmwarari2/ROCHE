@@ -87,6 +87,9 @@ names below are the concepts this contract carries and must be kept in step with
 | `location.regulator` | Harbour code list | `cqc`, `ciw`, `care_inspectorate`, `rqia`, `ofsted` | Drives the compliance framework version. |
 | `location.postcode` | NHS Data Dictionary POSTCODE format | Upper case, single space before the inward code | Also used for UKHSA outbreak reports. |
 | `service.service_type` | Harbour code list | `residential`, `nursing`, `supported_living`, `domiciliary`, `complex_care`, `live_in`, `respite`, `day_service` | Section 4 service types; drives which modules are active. |
+| `invitation.email` | RFC 5321 address | Printable ASCII, shaped like local@domain.tld, at most 254 characters (`isPlausibleEmail`), stored normalised (`normaliseEmail`) | Planned, migration 0054 (platform.md, Invitations and MFA enrolment). The address the invitation was sent to, the member's work email at the time; the person's sign-in is created for exactly this address. Never in the audit trail or logs. |
+| `invitation.token_hash` | SHA-256 | 64 lower-case hex characters of the hash of a 256-bit random token | Planned, migration 0054. The link's token is never stored or logged; only its hash, unique. |
+| `invitation.expires_at`, `accepted_at`, `revoked_at`, `revocation_reason` | ISO 8601 UTC; Harbour code list | `expires_at` after `created_at` by `invitation.expiry_hours`; reason `superseded`, `revoked`, `member_removed` | Planned, migration 0054. Single use: accepted or revoked is final. |
 
 ## Person
 

@@ -253,6 +253,15 @@ only when they link spec, code, tests and user documentation; no user guides exi
     IMCA warning stays on a decision whose advocate was instructed or that is finished; the
     corrections list ignores `supersededOutsideList` and `correctsHidden`; the journey's
     best-interests decision (a move) follows a bed-rails assessment, which H-255 asks about.
+18. Invitations and MFA enrolment (feat/platform-invitations; PLAT-004): the spec and rules are
+    built (platform.md, Invitations and MFA enrolment; `invitations.ts`), with a test that no
+    one-time code is offered by SMS or email. **Needs migration 0054 (Lane A)**: the `invitation`
+    table (forced row-level security, a partial unique index of one pending invitation per member,
+    updates only to the acceptance and revocation columns, no delete) and the security-definer
+    functions `app.invitation_for_token` and `app.accept_invitation`, as the spec lists. Then: the
+    invite, open, accept, revoke and list routes (step-up, reach, throttling, audit), the operator's
+    owner invitation, the invitation email through the email adapter, the web accept page with the
+    password rules and the redirect to enrolment, and Playwright with axe (H-355).
 
 ## Human actions outstanding
 

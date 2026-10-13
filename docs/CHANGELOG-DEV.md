@@ -1265,3 +1265,16 @@ actions H-254 and H-255 for the CSO; STATUS item 16 for the follow-ups.
 **Tests**: `apps/web` 410 unit, `packages/i18n` 48; Playwright `e2e/capacity.spec.ts`,
 `care-record.spec.ts` and `break-glass.spec.ts` on a fresh scratch database, run locally.
 
+## 2026-10-13: Invitations and MFA enrolment, spec and rules (Lane D)
+
+- platform.md gains "Invitations and MFA enrolment": invite (step-up, reach, one pending link per
+  member, a 256-bit token kept only as a hash, `invitation.expiry_hours` from the rate table),
+  open, accept once (a new sign-in only where none exists for the address; never setting the
+  password of an existing account), enrol a passkey or authenticator app before any care record,
+  revoke and list; and the schema asked of migration 0054.
+- `packages/domain/src/platform/invitations.ts` with table-driven tests: state, expiry, who may be
+  invited, acceptance refusals and the path to a sign-in. API test: no one-time code by SMS or
+  email (`OTP_NOT_CONFIGURED`).
+- Data standards, records of processing and retention list the planned `invitation` rows;
+  human action H-355. Blocked on migration 0054 for the store and routes.
+

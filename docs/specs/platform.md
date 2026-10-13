@@ -107,6 +107,69 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
 - Later: invitations and enrolment by email (Phase 1), admin revoke and idle timeouts per role
   (Phase 1), SSO (PLAT-005, Phase 2).
 
+## Invitations and MFA enrolment (PLAT-004)
+
+Status: the rules are built (`packages/domain/src/platform/invitations.ts`, table-driven tests);
+the store, the routes and the screens wait for migration 0054 (Lane A; the schema below). Built
+already and relied on: NCSC password rules at sign-up (`passwordProblem`: 12 to 128 characters, a
+deny-list, no expiry, throttling not lockout), passkeys and authenticator apps (TOTP) with the
+set-up screen (`/settings/security`), `mfa_enrolment_required` on every permission that touches
+care records until one is enrolled, and no one-time code by SMS or email (Better Auth's
+`/two-factor/send-otp` answers `OTP_NOT_CONFIGURED`; SMS only by a documented exception, none
+granted).
+
+Flow:
+
+1. **Invite.** A holder of `platform.user.manage`, with step-up, invites a member who is still
+   `invited` and has no sign-in (`inviteRefusal`), within the same reach as the admin sign-out (a
+   location role only members wholly at its homes). Sending revokes the member's pending
+   invitations (`invitationsToRevoke`), stores a new one with the SHA-256 of a 256-bit random token
+   (`INVITATION_TOKEN_BYTES`; the token itself is never stored or logged) and an expiry of
+   `invitation.expiry_hours` (rate table, 72), and emails the link through the organisation's
+   email adapter: a generic subject ("You have been invited to Harbour"), the organisation's name,
+   the expiry in UK time, nothing about any person receiving care. Audited
+   (`platform.invitation.sent`, opaque ids, never the address or the token); refused attempts too.
+   The first owner, made by `POST /operator/tenants`, is invited by an operator admin
+   (`POST /operator/tenants/{id}/owner-invitation`), audited in the tenant's chain.
+2. **Open the link.** `GET /v1/invitations/{token}` (no session, throttled per address): the
+   organisation's name, the address masked, the expiry, the state, and whether to create a sign-in
+   or sign in first (`acceptancePath`). An unknown token is 404 and a platform audit event.
+3. **Accept.** `POST /v1/invitations/{token}/accept`, once (`acceptRefusal`: used, revoked,
+   expired, the member no longer `invited`, signed in with another address, already a member). With
+   no sign-in for the address, the person sets a password meeting the NCSC rules and a sign-in is
+   created for the invited address (holding the link proves the address); with a sign-in for the
+   address, they must sign in first and accept while signed in: an invitation never sets the
+   password of an existing account. Accepting links the member (`auth_user_id`, status `active`),
+   marks the invitation accepted in the same statement that checks it is still pending (single
+   use under concurrency) and is audited (`platform.invitation.accepted`).
+4. **Enrol.** The new session is sent to `/settings/security?reason=mfa`; until a passkey or an
+   authenticator app is enrolled, every care-record permission answers `mfa_enrolment_required`
+   (built: `refusalOf`, `touchesCareRecords`).
+5. **Revoke and list.** `POST /v1/invitations/{id}/revoke` and `GET /v1/invitations?tenantUserId=`
+   (`platform.user.manage`; states and times, never tokens); a member suspended or removed loses
+   any pending link.
+
+Schema requested for migration 0054 (Lane A owns migrations):
+
+- `invitation`: `id` (UUIDv7), `tenant_id` (forced row-level security, tenant policy),
+  `tenant_user_id` (composite foreign key to `tenant_user`), `email` (the normalised address it was
+  sent to), `token_hash` (SHA-256 hex, unique, not null), `created_by` (`tenant_user`, null when an
+  operator sent it) and `created_by_operator` (`operator_user`, null otherwise; exactly one set),
+  `created_at`, `expires_at` (after `created_at`), `accepted_at`, `accepted_auth_user_id`,
+  `revoked_at`, `revoked_by`, `revocation_reason` (`superseded`, `revoked`, `member_removed`).
+  At most one invitation per member neither accepted nor revoked (partial unique index); the app
+  role may insert and select, and update only the acceptance and revocation columns (a trigger
+  refuses any other change); no delete. RLS isolation tests and the coverage list.
+- `app.invitation_for_token(token_hash)`: a security-definer function owned by a NOLOGIN role (as
+  `memberships_for_auth_user`), executable by `harbour_app`, returning the invitation's id,
+  organisation, member, times and the organisation's display name, because the link is opened
+  before any organisation is chosen.
+- `app.accept_invitation(token_hash, auth_user_id)`: a security-definer function that, in one
+  statement each, marks the invitation accepted only while pending and unexpired and links the
+  member only while `invited` with no sign-in, returning the organisation and member or nothing.
+- The operator role may insert an owner's first invitation (or a definer function for it).
+- Retention: `invitation` rows take the `audit_event` class (who was given access, and when).
+
 ## Audit trail and history (PLAT-007)
 
 - `audit_event`: append-only (no UPDATE or DELETE for the app; triggers refuse anyone else),
