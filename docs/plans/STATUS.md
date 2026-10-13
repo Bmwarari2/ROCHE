@@ -169,8 +169,9 @@ only when they link spec, code, tests and user documentation; no user guides exi
        `care_note.late_entry_hours` (an existing gap).
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; admin session revoke and idle timeouts
-   per role; record history PDF export; device push registration; OpenFeature provider; user
-   guides per role (moves PLAT and MOB rows to `done`).
+   per role; record history PDF export; device push registration; user guides per role (moves
+   PLAT and MOB rows to `done`). The OpenFeature provider is in feat/platform-flags-and-sessions
+   (item 16).
 7. Open engineering decisions: certificate pinning (ADR-0028), shared-device sign-in (ADR-0025,
    needs CSO and DPO), the risk rating matrix (ADR-0032, proposed).
 8. `@harbour/ui` defaults without a label prop stay English in a Welsh shell: the sidebar's expand
@@ -253,6 +254,15 @@ only when they link spec, code, tests and user documentation; no user guides exi
     IMCA warning stays on a decision whose advocate was instructed or that is finished; the
     corrections list ignores `supersededOutsideList` and `correctsHidden`; the journey's
     best-interests decision (a move) follows a bed-rails assessment, which H-255 asks about.
+17. Flags follow-ups (feat/platform-flags-and-sessions; PLAT-003): the clinical routes' flags
+    (`flagsAt`, `flagRows`, `legalChangeReviewEnabled`) through the provider once per-role flags
+    exist (today they read the organisation's rows directly, which Flagsmith may not set, so they
+    agree with `/v1/me`); an operator kill switch for AI in Flagsmith, if wanted (today Flagsmith
+    never reads AI flags); Flagsmith wiring in the API task (H-352); the OpenFeature SDK's own
+    error log goes to the console, not the API's logger, so it bypasses pino's redaction. From
+    #39 review round 1: an AI flag is recognised only by its `ai: true` marker (consider deriving
+    it from a category of flag); the OpenFeature provider is global and set by each `createApp`,
+    so in one process the last app created wins.
 
 ## Human actions outstanding
 

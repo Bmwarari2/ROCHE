@@ -1265,3 +1265,18 @@ actions H-254 and H-255 for the CSO; STATUS item 16 for the follow-ups.
 **Tests**: `apps/web` 410 unit, `packages/i18n` 48; Playwright `e2e/capacity.spec.ts`,
 `care-record.spec.ts` and `break-glass.spec.ts` on a fresh scratch database, run locally.
 
+## 2026-10-13: OpenFeature provider over the flag catalogue (Lane D)
+
+- Flags go through an OpenFeature provider (`@openfeature/server-sdk`, Apache-2.0;
+  `apps/api/src/flags`): the organisation's location row, then tenant row, then Flagsmith, then
+  the catalogue. Flagsmith is used only when its key is set (production requires https on the
+  environment's own flags host), sees opaque ids only, may set only the flags marked `remote`
+  (the workforce module and the public site; never AI, clinical or data-protection modules,
+  clinical tools, review workflows or language) and falls back to the catalogue when it does not
+  answer, asking at most once per identity per cache period; a provider error keeps the
+  organisation's own rows (#39 review round 1). `/v1/me` uses the provider and now leaves out
+  deleted rows.
+- Human action H-352 (Flagsmith key in the API task once H-13 is decided). Tests: the domain's
+  table-driven order (`rules.test.ts`), the provider and Flagsmith unit tests
+  (`apps/api/src/flags/provider.test.ts`) and `apps/api/test/flags-and-sessions.test.ts`.
+
