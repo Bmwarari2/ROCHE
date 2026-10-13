@@ -170,6 +170,11 @@ only when they link spec, code, tests and user documentation; no user guides exi
    - Slice 11 part 2, back-entry columns (`feat/operations-back-entry-columns`, stacked on #32,
      migration 0053; operations.md section 12): built, PR to follow #32. Next, part 3: the API,
      nightly job and PDF, with the round 1 part 3 requirements.
+   - Slice 11 part 3a, downtime pack API (`feat/operations-downtime-pack-api`, stacked on part
+     2; operations.md section 13): built, PR to follow part 2. Then part 3b, the nightly job,
+     rebuilds after moves and the places route (`feat/operations-downtime-api`), and part 3c,
+     outages and back-entry through the API. Follow-ups: the kiosk fetch route and photos on
+     the printed pages (mobile step).
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; admin session revoke and idle timeouts
    per role; record history PDF export; device push registration; OpenFeature provider; user

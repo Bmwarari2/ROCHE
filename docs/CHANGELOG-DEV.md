@@ -1150,3 +1150,14 @@ Stacked on #32. Migration 0053 (numbered after Lane C's 0052):
   no reason for being outside the outage outside it.
 
 **Tests**: `packages/db` 416 passing locally (8 new in `back-entry.test.ts`).
+
+## 2026-10-13: Slice 11 part 3a, downtime pack API (OPS-028)
+
+Stacked on part 2. `GET` and `POST /v1/locations/{id}/downtime-pack` (JSON or PDF;
+operations.md section 13): the latest pack the reader can open, built again on the spot when it no
+longer serves the people receiving care there, with the freshness header worked out now on every
+printed page; the PDF is never stored. The pack PDF writer gains a header on every page, page
+breaks and a footer naming whose page it is (HZ-001); shared allergy, communication and rate
+helpers; unconfirmed MAR and PEEP places print as not set.
+
+**Tests**: `apps/api` 5 new in `downtime.test.ts`; HZ-021's planned API test now passes.

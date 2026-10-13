@@ -12539,6 +12539,144 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/locations/{id}/downtime-pack": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The location's downtime pack, with its freshness now (JSON or PDF)
+     * @description The latest pack you can open, built on the spot when it no longer names exactly the people receiving care here with their status now, the places changed, or it expired. `format=pdf` prints it with the header worked out now on every page (HZ-021). Opening and printing are audited.
+     */
+    get: {
+      parameters: {
+        query?: {
+          format?: "json" | "pdf";
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The pack */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DowntimePackOut"];
+            "application/pdf": string;
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /** Build the location's downtime pack now */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Built */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DowntimePackOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/rates/{key}": {
     parameters: {
       query?: never;
@@ -18600,6 +18738,50 @@ export interface components {
       reason: string;
       version: number;
     };
+    /** @description A location's downtime pack, with its freshness worked out now (HZ-021) */
+    DowntimePackOut: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      locationId: string;
+      source: components["schemas"]["DowntimePackSource"];
+      /** Format: date-time */
+      generatedAt: string;
+      /**
+       * Format: date-time
+       * @description When its information was read
+       */
+      asAt: string;
+      /**
+       * Format: date-time
+       * @description After this the pack says it is out of date
+       */
+      validUntil: string;
+      /**
+       * Format: uuid
+       * @description Null for the nightly job
+       */
+      generatedBy: string | null;
+      freshness: {
+        state: components["schemas"]["DowntimeFreshnessState"];
+        /** @description The words at the top of every page, now */
+        notice: string;
+        hoursOld: number;
+      };
+      header: string[];
+      built: boolean;
+      /** @description One page per person receiving care, in room order (DowntimePersonPage) */
+      pages: {
+        [key: string]: unknown;
+      }[];
+      warnings: {
+        [key: string]: unknown;
+      }[];
+    };
+    /** @enum {string} */
+    DowntimePackSource: "server_nightly" | "server_on_demand" | "kiosk_cache";
+    /** @enum {string} */
+    DowntimeFreshnessState: "current" | "out_of_date" | "outage" | "clock_behind";
     RateValue: {
       key: string;
       value: number;

@@ -16558,6 +16558,120 @@
           "version"
         ]
       },
+      "DowntimePackOut": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "source": {
+            "$ref": "#/components/schemas/DowntimePackSource"
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "asAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When its information was read"
+          },
+          "validUntil": {
+            "type": "string",
+            "format": "date-time",
+            "description": "After this the pack says it is out of date"
+          },
+          "generatedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Null for the nightly job"
+          },
+          "freshness": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "$ref": "#/components/schemas/DowntimeFreshnessState"
+              },
+              "notice": {
+                "type": "string",
+                "description": "The words at the top of every page, now"
+              },
+              "hoursOld": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "state",
+              "notice",
+              "hoursOld"
+            ]
+          },
+          "header": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "built": {
+            "type": "boolean"
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            },
+            "description": "One page per person receiving care, in room order (DowntimePersonPage)"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          }
+        },
+        "required": [
+          "id",
+          "locationId",
+          "source",
+          "generatedAt",
+          "asAt",
+          "validUntil",
+          "generatedBy",
+          "freshness",
+          "header",
+          "built",
+          "pages",
+          "warnings"
+        ],
+        "description": "A location's downtime pack, with its freshness worked out now (HZ-021)"
+      },
+      "DowntimePackSource": {
+        "type": "string",
+        "enum": [
+          "server_nightly",
+          "server_on_demand",
+          "kiosk_cache"
+        ]
+      },
+      "DowntimeFreshnessState": {
+        "type": "string",
+        "enum": [
+          "current",
+          "out_of_date",
+          "outage",
+          "clock_behind"
+        ]
+      },
       "RateValue": {
         "type": "object",
         "properties": {
@@ -33204,6 +33318,182 @@
           },
           "409": {
             "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/locations/{id}/downtime-pack": {
+      "get": {
+        "tags": [
+          "operations"
+        ],
+        "summary": "The location's downtime pack, with its freshness now (JSON or PDF)",
+        "description": "The latest pack you can open, built on the spot when it no longer names exactly the people receiving care here with their status now, the places changed, or it expired. `format=pdf` prints it with the header worked out now on every page (HZ-021). Opening and printing are audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "pdf"
+              ],
+              "default": "json"
+            },
+            "required": false,
+            "name": "format",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The pack",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DowntimePackOut"
+                }
+              },
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "operations"
+        ],
+        "summary": "Build the location's downtime pack now",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Built",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DowntimePackOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
             "content": {
               "application/problem+json": {
                 "schema": {
