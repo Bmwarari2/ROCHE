@@ -1016,6 +1016,18 @@
     "safety.incident.unnamed",
     "safety.incident.injury",
     "safety.incident.personFact",
-    "safety.incident.bodyMapMarks"
+    "safety.incident.bodyMapMarks",
+    "safety.notification.kind",
+    "safety.notification.recipient",
+    "safety.notification.clock",
+    "safety.notification.status",
+    "safety.notification.dueBy",
+    "safety.notification.provisional",
+    "safety.notification.noLongerIndicated",
+    "safety.notification.harbourTarget",
+    "safety.notification.notice",
+    "safety.notification.noticeHint",
+    "safety.notification.pending",
+    "safety.notification.none"
   ]
 }

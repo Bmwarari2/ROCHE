@@ -1,5 +1,6 @@
+import type { IncidentDetail } from "@harbour/contracts";
 import { Card, PageHeader, StatusChip } from "@harbour/ui";
-import { Lock } from "lucide-react";
+import { Lock, TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -16,6 +17,11 @@ import {
   incidentPersonLine,
   incidentStatusChip,
   incidentTitle,
+  notificationClockChip,
+  notificationKindLabel,
+  notificationsInOrder,
+  notificationsView,
+  notificationWarnings,
 } from "@/lib/incidents";
 import { personNames } from "@/lib/people";
 import { readOrFail } from "@/lib/person-record";
@@ -46,13 +52,76 @@ function Fields({ rows }: { readonly rows: readonly Row[] }) {
   );
 }
 
+function Warning({ text }: { readonly text: string }) {
+  return (
+    <p className="m-0 flex items-start gap-2 font-semibold">
+      <TriangleAlert {...iconProps} size={18} className="mt-0.5 shrink-0" />
+      {text}
+    </p>
+  );
+}
+
 const when = (iso: string | null) => formatDateTime(iso) ?? null;
 
+/** Whether the statutory notifications this incident needs are drafted, and when each is due. */
+function Notifications({ classifier }: { readonly classifier: IncidentDetail["classifier"] }) {
+  const view = notificationsView(classifier, t);
+  const items = notificationsInOrder(classifier?.notifications ?? []);
+  return (
+    <div className="flex flex-col gap-3">
+      {view.notices.map((notice) => (
+        <Notice
+          key={notice.title}
+          tone="warning"
+          icon={<TriangleAlert {...iconProps} />}
+          title={notice.title}
+        >
+          {notice.body}
+        </Notice>
+      ))}
+      {view.pending.map((line) => (
+        <Warning key={line} text={line} />
+      ))}
+      {view.none ? <p className="m-0">{view.none}</p> : null}
+      {items.length > 0 ? (
+        <ul className="m-0 flex list-none flex-col gap-3 p-0">
+          {items.map((item) => (
+            <li
+              key={item.id}
+              className="flex flex-col gap-1 border-b border-border pb-3 break-words"
+              data-notification={item.kind}
+            >
+              <h3 className="m-0 text-body font-semibold">{notificationKindLabel(item.kind, t)}</h3>
+              <span className="flex flex-wrap items-center gap-2">
+                <SafetyChip chip={notificationClockChip(item, t)} />
+                {item.clock === "done" ? null : (
+                  <span>{t("safety.notification.status", { status: item.status })}</span>
+                )}
+              </span>
+              <span className="text-body-dense">
+                <time dateTime={item.dueAt}>
+                  {t("safety.notification.dueBy", { dateTime: when(item.dueAt) ?? "" })}
+                </time>
+              </span>
+              <span className="text-body-dense text-text-secondary">
+                {t("safety.notification.recipient", { kind: item.kind })}
+              </span>
+              {notificationWarnings(item, t).map((text) => (
+                <Warning key={text} text={text} />
+              ))}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 /**
- * One incident (register row SAFE-001; hazard HZ-013): what happened, who was told and the
- * people on it, as the API returns them. A reader who cannot see everyone on it sees the header
- * and their own people only. The statutory notifications with their clocks, and the forms,
- * follow (docs/plans/STATUS.md).
+ * One incident (register rows SAFE-001 and SAFE-002; hazard HZ-013): what happened, who was told,
+ * the people on it, and the statutory notifications with their clocks and warnings, as the API
+ * returns them. A reader who cannot see everyone on it sees the header and their own people only.
+ * Answering the questions and preparing the notifications follow (docs/plans/STATUS.md).
  */
 export default async function IncidentPage({ params }: { readonly params: Params }) {
   const { id } = await params;
@@ -173,6 +242,11 @@ export default async function IncidentPage({ params }: { readonly params: Params
           </ul>
         )}
       </Card>
+      {incident.restricted ? null : (
+        <Card as="section" title={section("notifications")} headingLevel={2}>
+          <Notifications classifier={incident.classifier} />
+        </Card>
+      )}
     </div>
   );
 }

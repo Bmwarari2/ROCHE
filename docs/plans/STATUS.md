@@ -251,9 +251,8 @@ only when they link spec, code, tests and user documentation; no user guides exi
       different homes where the person who opens a handover differs from the item's person (the
       two `person_assignment` joins in the `assigned_handovers` item and note queries).
 17. The incident screens, the rest (slice 9, SAFE-001 to SAFE-003; the incidents list and an
-    incident's read view are on `feat/web-incidents`): part 2, the statutory notifications on the
-    incident page with their clocks and warnings (`feat/web-incident-notifications`, stacked on
-    part 1); the statutory notification pages (`/notifications/statutory` with every draft's clock
+    incident's read view are on `feat/web-incidents`, the notifications with their clocks on the
+    incident page on `feat/web-incident-notifications`): the statutory notification pages (`/notifications/statutory` with every draft's clock
     for `safety.incident.manage`, and `/notifications/statutory/{id}` with its deadlines, required
     content and sources, which the overdue alert already links to; the sidebar's `/notifications`
     section must not claim that path); then the forms, each offered only where `access.reaching`
@@ -262,7 +261,8 @@ only when they link spec, code, tests and user documentation; no user guides exi
     questions in the catalogue's words, review and close (`safety.incident.manage`, never the
     person who raised it), prepare a notification, and submit it or mark it not required with
     step-up (`safety.notification.submit`). API gaps ([safety.md](../specs/safety.md) section 5):
-    no staff names (H-73); the list has no paging past 500.
+    no staff names (H-73); the list has no paging past 500; a draft stays `provisional` after the
+    answer that made it changes; the questions, exclusions, reasoning and tasks are English only.
 
 ## Human actions outstanding
 

@@ -1,5 +1,13 @@
 import { EmptyState, PageHeader, StatusChip } from "@harbour/ui";
-import { CircleAlert, CircleCheck, Clock, Lock, type LucideIcon, Search } from "lucide-react";
+import {
+  CircleAlert,
+  CircleCheck,
+  Clock,
+  Lock,
+  type LucideIcon,
+  Search,
+  TriangleAlert,
+} from "lucide-react";
 import { t } from "@/lib/i18n";
 import type { SafetyChip as Chip, SafetyIcon } from "@/lib/incidents";
 
@@ -8,6 +16,7 @@ const ICONS: Record<SafetyIcon, LucideIcon> = {
   clock: Clock,
   "circle-check": CircleCheck,
   search: Search,
+  "triangle-alert": TriangleAlert,
 };
 
 /** A status from the incident screens: an icon and a word, never colour alone. */

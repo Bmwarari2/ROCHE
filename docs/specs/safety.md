@@ -272,8 +272,15 @@ its type and time with its status (icon and word), its open questions and whethe
 hidden from the reader; and an incident page with what happened (severity and harm as staff
 judged them), who was told and the people on it (named from the reader's own people list, or by
 kind). A restricted reader is told part of it is hidden and sees no narrative or contacts. Types,
-statuses and labels are the catalogue's, never the API's English. The statutory notifications on
-the incident page follow in part 2. Gaps logged, no API change: staff are "you" or "a colleague"
+statuses and labels are the catalogue's, never the API's English. Part 2 adds the statutory
+notifications to the incident page: each with its clock (overdue, due, or how it ended), when it
+is due, its recipient and its warnings (provisional, no longer indicated, a Harbour target);
+open questions, the kinds waiting for them, "not checked yet" and "outside England" warn; "no
+notification found" is said only when nothing is open; kinds and recipients are the catalogue's,
+checked against `NOTIFICATION_KINDS`. A draft stays `provisional` after the answer that made it
+changes, so the web shows only "no longer indicated" on such a draft; the questions' text, the
+exclusions, the reasoning and the tasks are English from the API and not shown yet (the page
+gives the count). Gaps logged, no API change: staff are "you" or "a colleague"
 (no staff names, H-73); the list stops at 500 incidents without paging; infection details are not
 shown; the overdue alert links to `/notifications/statutory/{id}`, which the web does not have
 until the notification pages.
@@ -317,7 +324,7 @@ authorities is a legal obligation (Article 6(1)(c)) recorded on the notification
   `packages/db/test/mca-and-incidents.test.ts` and `apps/api/test/incidents.test.ts`.
 - Web and mobile: Playwright journey from a fall to a submitted Reg 18 draft; Maestro offline
   incident capture. Built so far: `apps/web/e2e/incidents.spec.ts` reads the list and an
-  incident, and the restricted view, with axe (slice 9, part 1).
+  incident with its drafts, clocks and warnings, and the restricted view, with axe (slice 9).
 
 ## 10. Open questions
 

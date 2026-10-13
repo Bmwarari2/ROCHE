@@ -41,12 +41,12 @@ async function as(context: BrowserContext, user: string) {
   await context.addCookies(sessions[user] ?? []);
 }
 
-async function post(request: APIRequestContext, path: string, data: object) {
+async function post(request: APIRequestContext, path: string, data: object, status = 201) {
   const response = await request.post(`${API_URL}${path}`, {
     headers: { "x-harbour-tenant": DEMO_TENANT },
     data,
   });
-  expect(response.status(), `${path} ${await response.text()}`).toBe(201);
+  expect(response.status(), `${path} ${await response.text()}`).toBe(status);
   return (await response.json()) as { id: string };
 }
 
@@ -61,12 +61,13 @@ async function tabTo(page: Page, target: Locator, limit = 300) {
 
 const section = (page: Page, name: string) => page.getByRole("region", { name });
 
-test("hazard HZ-013 the nurse finds an incident in the list, with its open questions, and reads it", async ({
+test("hazard HZ-013 the nurse finds an incident and reads its notifications, every warning in words", async ({
   page,
   context,
 }) => {
   await as(context, "nurse");
-  // A behaviour incident: "not sure" whether the police are involved, other questions open.
+  // A behaviour incident: "not sure" whether the police are involved drafts a provisional
+  // notification to CQC, overdue at once, and leaves the other questions open.
   const incident = await post(page.request, "/v1/incidents", {
     locationId: DEMO_LOCATION,
     type: "behaviour",
@@ -120,7 +121,32 @@ test("hazard HZ-013 the nurse finds an incident in the list, with its open quest
   await expect(people.getByText("Cara Placeholder: affected")).toBeVisible();
   await expect(people.getByText("Vic Visitor: witness")).toBeVisible();
 
+  const notifications = section(page, "Statutory notifications");
+  await expect(
+    notifications.getByText(/questions? to answer before Harbour can say which notifications/),
+  ).toBeVisible();
+  const police = notifications.locator('[data-notification="cqc_reg18_police"]');
+  await expect(
+    police.getByRole("heading", { name: "Incident reported to or investigated by the police" }),
+  ).toBeVisible();
+  await expect(police.getByText("Overdue", { exact: true })).toBeVisible();
+  await expect(police.getByText("Draft", { exact: true })).toBeVisible();
+  await expect(police.locator("time")).toHaveText(/^Due by \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/);
+  await expect(police.getByText("To the Care Quality Commission")).toBeVisible();
+  await expect(police.getByText("Provisional: it rests on an answer of not sure")).toBeVisible();
   await expectAccessible(page, "incident");
+
+  // A later "no" leaves the draft in place, flagged, until someone decides it is not required.
+  await post(
+    page.request,
+    `/v1/incidents/${incident.id}/classifier`,
+    { answers: [{ key: "police.involved", value: "no" }] },
+    200,
+  );
+  await page.reload();
+  await expect(police.getByText(/^The answers no longer show this is needed/)).toBeVisible();
+  await expect(police.getByText("Provisional: it rests on an answer of not sure")).toHaveCount(0);
+  await expectAccessible(page, "incident with a draft no longer indicated");
   await page.emulateMedia({ colorScheme: "dark" });
   await expectAccessible(page, "incident, dark theme");
   await page.goto("/incidents");

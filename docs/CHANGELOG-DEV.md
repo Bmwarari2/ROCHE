@@ -1250,3 +1250,17 @@ locally; typecheck clean for db, sync and mobile.
 **Tests**: `apps/web` 396 unit, `packages/i18n` 48; Playwright `e2e/incidents.spec.ts`,
 `care-record.spec.ts` and `capacity.spec.ts` on a fresh scratch database, run locally.
 
+## 2026-10-13: The incident screens, part 2: the notifications on an incident (slice 9)
+
+- The incident page shows each statutory notification with its clock as an icon and a word
+  (overdue first, then the soonest due, then done), when it is due, its recipient and its
+  warnings: provisional, no longer indicated (only that, though the API keeps the draft
+  provisional) and a Harbour target rather than a legal deadline.
+- Questions still to answer, the kinds waiting for them, "not checked yet" and "not checked
+  outside England" warn; "no notification found" only when nothing is open (HZ-013).
+- Kinds and recipients come from the catalogue, checked against the domain's
+  `NOTIFICATION_KINDS`. No API change; the gaps are in safety.md section 5 and STATUS item 17.
+
+**Tests**: `apps/web` 409 unit, `packages/i18n` 48; Playwright `e2e/incidents.spec.ts` on a
+fresh scratch database, run locally.
+
