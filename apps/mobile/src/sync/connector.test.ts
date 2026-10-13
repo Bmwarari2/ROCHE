@@ -10,6 +10,8 @@ import {
   readProblem,
   SENT_AT_HEADER,
   SessionRevokedError,
+  TASK_CHECK_MAX_FAILURES,
+  TASK_CHECK_MAX_MS,
   TENANT_HEADER,
   toUploadOperation,
   UploadRejectedError,
@@ -939,7 +941,8 @@ describe("uploadData: the round and the handover go to their own routes", () => 
         message: expect.stringMatching(
           /^This task was already marked done before your change reached Harbour, so your change was not recorded\./,
         ),
-        payload: move().opData,
+        // The task's id stays with the move, so it can be sent again from needs attention.
+        payload: { ...move().opData, task_id: TASK },
       },
     ]);
     expect(queue.state.completed).toBe(1);
@@ -1050,6 +1053,109 @@ describe("uploadData: the round and the handover go to their own routes", () => 
       expect(revoked.count).toBe(0);
     },
   );
+
+  describe("hazard HZ-006 a move whose follow-up check keeps failing never holds back the entries behind it (#37 review round 1)", () => {
+    /** A queue of transactions in order: the next one comes only once the one before completes. */
+    function queueOf(transactions: CrudEntryLike[][]) {
+      const state = { completed: 0, sql: [] as Array<{ sql: string; params: unknown[] }> };
+      let next = 0;
+      const source = {
+        getClientId: async () => "client-1",
+        execute: async (sql: string, params: unknown[] = []) => {
+          state.sql.push({ sql, params });
+          return { rowsAffected: 1 };
+        },
+        getNextCrudTransaction: async () => {
+          const crud = transactions[next];
+          if (!crud) return null;
+          return {
+            crud,
+            transactionId: next + 1,
+            haveMore: next + 1 < transactions.length,
+            complete: async () => {
+              state.completed += 1;
+              next += 1;
+            },
+          };
+        },
+      } as unknown as UploadSource;
+      const parked = () =>
+        state.sql
+          .filter((x) => x.sql.startsWith("INSERT INTO upload_issue"))
+          .map((x) => ({ id: x.params[0], code: x.params[5], message: x.params[6] }));
+      return { source, state, parked };
+    }
+    const taskListRefused = () => problem(403, "missing_permission", "No access.");
+
+    it("parks the move after the cap on a lasting 403 on the task list, and the care entry behind it uploads", async () => {
+      const answers: Array<Response | Error> = [];
+      for (let i = 0; i < TASK_CHECK_MAX_FAILURES; i += 1)
+        answers.push(conflict(), taskListRefused());
+      answers.push(json({ id: "0199d000-0000-7000-8000-000000000001" }, 201));
+      const { fetch, calls } = fakeFetch(answers);
+      const queue = queueOf([[move()], [note()]]);
+      const { instance, revoked } = connector(fetch);
+      for (let i = 1; i < TASK_CHECK_MAX_FAILURES; i += 1) {
+        await expect(instance.uploadData(queue.source)).rejects.toThrow();
+        expect(queue.parked()).toEqual([]);
+      }
+      // The last check allowed fails too: the move is kept as needing attention, honestly worded.
+      await instance.uploadData(queue.source);
+      expect(queue.parked()).toEqual([
+        {
+          id: MOVE,
+          code: "task_unchecked",
+          message:
+            "We could not check whether this was saved. Check the task on the round before recording it again.",
+        },
+      ]);
+      const kept = queue.state.sql.find((x) => x.sql.startsWith("INSERT INTO upload_issue"));
+      expect(JSON.parse(String(kept?.params[7]))).toEqual({ ...move().opData, task_id: TASK });
+      // The queue carries on: the note behind the move uploads.
+      await instance.uploadData(queue.source);
+      expect(calls.at(-1)?.url).toBe(`${API}/v1/people/${PERSON}/notes`);
+      expect(queue.state.completed).toBe(2);
+      expect(revoked.count).toBe(0);
+    });
+
+    it("parks the move once 30 minutes have passed since the check first failed, whatever the count", async () => {
+      let now = new Date("2026-10-11T15:00:00.000Z");
+      const { fetch } = fakeFetch([conflict(), json({}, 400), conflict(), json({}, 400)]);
+      const queue = queueOf([[move()]]);
+      const { instance } = connector(fetch, { now: () => now });
+      await expect(instance.uploadData(queue.source)).rejects.toThrow();
+      now = new Date(now.getTime() + TASK_CHECK_MAX_MS);
+      await instance.uploadData(queue.source);
+      expect(queue.parked()).toMatchObject([{ id: MOVE, code: "task_unchecked" }]);
+      expect(queue.state.completed).toBe(1);
+    });
+
+    it("starts the count again once the task is read", async () => {
+      const { fetch } = fakeFetch([
+        conflict(),
+        taskListRefused(),
+        conflict(),
+        listed({ status: "open", version: 4, completedBy: null, completedAt: null }),
+        conflict(),
+      ]);
+      const queue = queueOf([[move()]]);
+      const { instance } = connector(fetch);
+      await expect(instance.uploadData(queue.source)).rejects.toThrow();
+      await instance.uploadData(queue.source);
+      // Read, sent again once and refused again: kept with the phone's words, not as unchecked.
+      expect(queue.parked()).toMatchObject([{ id: MOVE, code: "version_conflict" }]);
+    });
+
+    it("still ends the session at once on a 401, whatever the count", async () => {
+      const { fetch } = fakeFetch([conflict(), new Response("", { status: 401 })]);
+      const queue = queueOf([[move()], [note()]]);
+      const { instance, revoked } = connector(fetch);
+      await expect(instance.uploadData(queue.source)).rejects.toBeInstanceOf(SessionRevokedError);
+      expect(revoked.count).toBe(1);
+      expect(queue.parked()).toEqual([]);
+      expect(queue.state.completed).toBe(0);
+    });
+  });
 
   it.each([
     ["a 401", () => [new Response("", { status: 401 })]],

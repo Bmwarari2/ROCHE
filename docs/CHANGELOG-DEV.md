@@ -1295,8 +1295,10 @@ locally; typecheck clean for db, sync and mobile.
   on their screen; a move put back on its task's row after a session ended is sent.
 - Item 8: the move does not send its time of care (#41 closed); the completion is recorded
   when the move arrives, and the device time stays on the phone (H-309).
+- A move whose follow-up check keeps failing is parked after 5 failed reads or 30 minutes,
+  with its data and words saying it could not be checked, so care entries behind it upload.
 - HZ-006 and HZ-029 rows; a STATUS follow-up that round refusals do not ask for a server
   copy.
 
-**Tests**: `apps/mobile` 973, `packages/i18n` 48, passing locally; typecheck clean for
+**Tests**: `apps/mobile` 977, `packages/i18n` 48, passing locally; typecheck clean for
 mobile.

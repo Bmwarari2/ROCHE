@@ -281,6 +281,7 @@
     "mobile.round.scopeUnknown",
     "mobile.round.taskChanged",
     "mobile.round.taskNow",
+    "mobile.round.taskUnchecked",
     "mobile.round.userUnknown",
     "mobile.security.compromised",
     "mobile.signOut.body",

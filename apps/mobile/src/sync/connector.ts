@@ -128,6 +128,24 @@ export class UploadRejectedError extends Error {
   }
 }
 
+/**
+ * How long a move's follow-up check (reading the task after a 409) may keep failing before the
+ * move is parked as "needs attention" and the queue carries on: 5 failed reads (one run of upload
+ * backoff), or 30 minutes from the first failure, whichever comes first. A move left at the head
+ * of the queue would hold back the notes and charts behind it (HZ-006; #37 review round 1). The
+ * count is kept in memory, so a restart of the app starts it again: at most 5 more reads.
+ */
+export const TASK_CHECK_MAX_FAILURES = 5;
+export const TASK_CHECK_MAX_MS = 30 * 60 * 1000;
+
+/** The move's follow-up check failed past its cap: the move is parked, never dropped. */
+class TaskCheckGaveUp extends Error {
+  constructor() {
+    super("The task could not be checked; the move is kept as needing attention");
+    this.name = "TaskCheckGaveUp";
+  }
+}
+
 const OPS = new Set<UploadOp>(["PUT", "PATCH", "DELETE"]);
 
 export function toUploadOperation(entry: CrudEntryLike): UploadOperation {
@@ -277,6 +295,8 @@ export interface HarbourConnectorOptions {
 
 export class HarbourConnector implements PowerSyncBackendConnector {
   private readonly options: HarbourConnectorOptions;
+  /** Failed follow-up checks per move id, with when the first failed (`TASK_CHECK_MAX_*`). */
+  private readonly checkFailures = new Map<string, { count: number; since: number }>();
 
   constructor(options: HarbourConnectorOptions) {
     this.options = options;
@@ -488,7 +508,11 @@ export class HarbourConnector implements PowerSyncBackendConnector {
         httpStatus: status,
         code,
         message,
-        payload: { ...(entry.opData ?? {}) },
+        // A move keeps its task's id with it, as a held move does, so it can be sent again.
+        payload:
+          entry.table === "task"
+            ? { ...(entry.opData ?? {}), task_id: entry.id }
+            : { ...(entry.opData ?? {}) },
         rejectedAt: this.now(),
       });
     if (request.kind === "refused") {
@@ -518,7 +542,9 @@ export class HarbourConnector implements PowerSyncBackendConnector {
    * response was lost, HZ-029) counts as sent; a task nobody closed gets the move once more against
    * its current version, judged again by the API; anything else moves to "needs attention" in words
    * that say what happened to the task. When the task cannot be read (no network, a 5xx, an ended
-   * session, an answer it cannot read) this throws and the move stays queued, to be tried again.
+   * session, an answer it cannot read) this throws and the move stays queued, to be tried again,
+   * until the cap (`TASK_CHECK_MAX_FAILURES`, `TASK_CHECK_MAX_MS`): then the move is kept as needing
+   * attention, saying it could not be checked, and the queue carries on.
    */
   private async settleConflict(
     request: RoundUploadRequest,
@@ -527,6 +553,10 @@ export class HarbourConnector implements PowerSyncBackendConnector {
     park: (status: number | null, code: string, message: string) => Promise<void>,
   ): Promise<void> {
     const state = await this.readTask(move);
+    if (state === "unchecked") {
+      await park(409, "task_unchecked", t("mobile.round.taskUnchecked"));
+      return;
+    }
     if (state && moveMade(state, move)) return;
     if (state && mayResend(state, move)) {
       try {
@@ -552,38 +582,71 @@ export class HarbourConnector implements PowerSyncBackendConnector {
    * The task as the API has it, from the task list (`taskStatePath`): its state, or null when the
    * list the API sent does not have it. Throws, so the move stays queued, on anything else: a
    * network failure or a retryable status after backoff, any other status, or an answer it cannot
-   * read. A 401, a session code on a 403, or `GET /v1/me` saying so after an unexplained 403 ends
-   * the session (H1); a manager's revocation is reported as one.
+   * read; past the cap it answers "unchecked" instead, and the move is parked. A 401, a session
+   * code on a 403, or `GET /v1/me` saying so after an unexplained 403 ends the session at once
+   * (H1); a manager's revocation is reported as one.
    */
-  private async readTask(move: RoundMove): Promise<TaskState | null> {
-    return retryWithBackoff(async () => {
-      const headers = await this.authorisedHeaders();
-      const response = await this.options.fetch(`${this.options.apiUrl}${taskStatePath(move)}`, {
-        method: "GET",
-        headers: { ...headers, [TENANT_HEADER]: move.tenantId },
-        credentials: "omit",
+  private async readTask(move: RoundMove): Promise<TaskState | null | "unchecked"> {
+    const read = async () => {
+      try {
+        return await this.fetchTaskState(move);
+      } catch (error) {
+        if (error instanceof SessionRevokedError) throw error;
+        if (this.checkFailed(move.id)) throw new TaskCheckGaveUp();
+        throw error;
+      }
+    };
+    try {
+      const state = await retryWithBackoff(read, {
+        ...this.retryOptions(),
+        classify: (error) =>
+          error instanceof TaskCheckGaveUp ? { retry: false } : classifyUploadError(error),
       });
-      if (response.status === 401) this.ended();
-      if (response.status === 403) {
-        await this.forbidden(response, false);
-        throw new HttpError(403, "The task could not be read; the move stays queued");
-      }
-      if (!response.ok) {
-        throw new HttpError(
-          response.status,
-          "The task could not be read; the move stays queued",
-          parseRetryAfter(response.headers.get("retry-after")),
-        );
-      }
-      const state = taskStateIn(await response.json().catch(() => undefined), move.taskId);
-      if (state === "unreadable") {
-        throw new HttpError(
-          response.status,
-          "The task list could not be read; the move stays queued",
-        );
-      }
+      this.checkFailures.delete(move.id);
       return state;
-    }, this.retryOptions());
+    } catch (error) {
+      if (!(error instanceof TaskCheckGaveUp)) throw error;
+      this.checkFailures.delete(move.id);
+      return "unchecked";
+    }
+  }
+
+  /** Counts a failed follow-up check; true once the move has reached the cap. */
+  private checkFailed(moveId: string): boolean {
+    const now = this.now().getTime();
+    const before = this.checkFailures.get(moveId);
+    const record = { count: (before?.count ?? 0) + 1, since: before?.since ?? now };
+    this.checkFailures.set(moveId, record);
+    return record.count >= TASK_CHECK_MAX_FAILURES || now - record.since >= TASK_CHECK_MAX_MS;
+  }
+
+  private async fetchTaskState(move: RoundMove): Promise<TaskState | null> {
+    const headers = await this.authorisedHeaders();
+    const response = await this.options.fetch(`${this.options.apiUrl}${taskStatePath(move)}`, {
+      method: "GET",
+      headers: { ...headers, [TENANT_HEADER]: move.tenantId },
+      credentials: "omit",
+    });
+    if (response.status === 401) this.ended();
+    if (response.status === 403) {
+      await this.forbidden(response, false);
+      throw new HttpError(403, "The task could not be read; the move stays queued");
+    }
+    if (!response.ok) {
+      throw new HttpError(
+        response.status,
+        "The task could not be read; the move stays queued",
+        parseRetryAfter(response.headers.get("retry-after")),
+      );
+    }
+    const state = taskStateIn(await response.json().catch(() => undefined), move.taskId);
+    if (state === "unreadable") {
+      throw new HttpError(
+        response.status,
+        "The task list could not be read; the move stays queued",
+      );
+    }
+    return state;
   }
 
   /**

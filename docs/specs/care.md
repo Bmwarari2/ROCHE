@@ -1378,7 +1378,9 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   progress) gets the move once more against its current version, judged again by the API (H-305);
   anything else is kept as needs attention in words that say what happened (marked done, marked
   not done, cancelled, or changed). No network, a 5xx, any other status or a list it cannot read
-  keeps the move queued; a 401, a session 403 or `GET /v1/me` saying so ends the session. A move
+  keeps the move queued, up to 5 failed reads or 30 minutes from the first failure; then the move
+  is kept as needs attention, with its data, saying it could not be checked, so the entries behind
+  it still upload. A 401, a session 403 or `GET /v1/me` saying so ends the session at once. A move
   put back on its task's row after a session ended (an insert) is sent like an update, and a move,
   held or refused, names the person it is about from the move and shows on their screen. The
   move's device time stays on the phone: the API records the completion when the move arrives
