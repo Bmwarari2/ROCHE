@@ -276,7 +276,17 @@ only when they link spec, code, tests and user documentation; no user guides exi
     rates.md against the current SP 800-63B revision; tenant-scoped sessions, so a member who works
     for two organisations can be signed out of one (H-354). Still to build: the sign-in page saying
     the person was signed out after a period of inactivity, and the admin sign-out screen in staff
-    management (with the member's devices).
+    management (with the member's devices). From #40 review round 2 (lows): the 409
+    `member_of_other_organisation` tells the calling organisation that the person is active
+    elsewhere (consider a generic refusal), and its advice to ask them to sign out is wrong for a
+    suspended member or suspected misuse (point to suspending the membership or withdrawing the
+    device); a member of several organisations can be signed out remotely only through Harbour
+    support, which needs a documented procedure; holds are chased only after the sessions end and
+    the audit is written, so a failure there leaves the tasks unhurried; `suspected_misuse` is not
+    in `CHASE_HELD`; `platform.user.manage` holders can now bring device holds due at once (before,
+    only `platform.device.revoke`); with nothing waiting there is no warning that the phone loses
+    its care record mid-shift (H-351); organisations can override the timeout floor and ceiling
+    (harmless while the timeout is off).
 
 ## Human actions outstanding
 
