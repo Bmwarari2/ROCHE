@@ -198,6 +198,8 @@ describe("hazard HZ-011 data scope is per permission (ADR-0071)", () => {
       people_location_ids: [DEMO.locationId],
       care_location_ids: [DEMO.locationId],
       entries_location_ids: [DEMO.locationId],
+      // The handovers too, read with care.handover.manage: never where the finance role reaches.
+      handover_location_ids: [DEMO.locationId],
     });
     // The grant carries the person and the notes, not the care plan: the recent entries sync at
     // the Lodge, and the phone may record there; the care reference does not, and nor does the
@@ -208,6 +210,9 @@ describe("hazard HZ-011 data scope is per permission (ADR-0071)", () => {
       entries_location_ids: [LODGE.locationId],
       entries_write_location_ids: [LODGE.locationId],
       people_assigned: false,
+      // Neither the administrator role nor the grant carries care.handover.manage.
+      handover_location_ids: [],
+      handover_assigned: false,
     });
     await asOwner(
       `INSERT INTO access_grant

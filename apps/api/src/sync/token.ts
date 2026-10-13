@@ -49,6 +49,8 @@ export class SyncTokenSigner {
       people_assigned: claims.people_assigned,
       care_assigned: claims.care_assigned,
       entries_assigned: claims.entries_assigned,
+      handover_location_ids: [...claims.handover_location_ids],
+      handover_assigned: claims.handover_assigned,
       entries_write_location_ids: [...claims.entries_write_location_ids],
       entries_write_assigned: claims.entries_write_assigned,
       ...(claims.entries_write_person_ids
