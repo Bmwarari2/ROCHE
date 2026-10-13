@@ -271,6 +271,13 @@ only when they link spec, code, tests and user documentation; no user guides exi
       a result, as `writeAcknowledgement` does.
     - Follow-up (#36 review round 1): on #36 alone a queued move goes to `POST /v1/sync/upload`
       with every column it carries (data minimisation); gone once the upload (#37) lands.
+    - Follow-up (#36 review round 1; #41 closed): a task's time of care from the phone. The
+      API records a move's completion when it arrives, and the phone keeps its device time in
+      its own row only. The full design: a migration for task columns (time of care, time
+      received, late flag); a late label wherever a task shows (web round, handover, phone);
+      a lower bound at the task's creation or its window; and a rule for which shift's
+      handover a late-synced outcome belongs to. Then the move sends its time of care
+      (`round-upload.ts`). CSO decision H-309.
 
 ## Human actions outstanding
 

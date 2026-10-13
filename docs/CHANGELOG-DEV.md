@@ -1247,7 +1247,10 @@ typecheck clean for mobile and sync.
 - Clinical M3 and M4: the evidence copy says the task completes when the entry uploads;
   screens gate item (f); HZ-006 and HZ-029 rows, with hazard ids in the tests' names; the
   module no longer claims what the upload does.
-- Logged: H-305 to H-308 for the CSO and DPO, and five STATUS follow-ups.
+- Logged: H-305 to H-308 for the CSO and DPO, and five STATUS follow-ups. A task's time of
+  care from the phone waits for task columns, a late label, a lower bound and a handover rule
+  (#41 closed): an HZ-017 row, a STATUS follow-up and H-309; the completion stays recorded
+  when the move arrives.
 
 ## 2026-10-13: The round and the handover on the phone, publication migration (#33)
 
