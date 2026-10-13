@@ -105,7 +105,12 @@ async function CapacityTab({ params }: { readonly params: Params }) {
       </Part>
       <Part part="capacity" empty={capacity.items.length === 0}>
         {entryChains(capacity.items).map((chain) => (
-          <CapacityCard key={chain.current.id} chain={chain} today={today} />
+          <CapacityCard
+            key={chain.current.id}
+            chain={chain}
+            assessments={capacity.items}
+            today={today}
+          />
         ))}
       </Part>
       <Part part="bestInterests" empty={bestInterests.items.length === 0}>

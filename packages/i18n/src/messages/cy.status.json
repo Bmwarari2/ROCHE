@@ -1021,6 +1021,13 @@
     "care.mca.bi.answer",
     "care.mca.titleWithDate",
     "care.mca.consent.historyLink",
-    "care.mca.bi.imcaNeeded"
+    "care.mca.bi.imcaNeeded",
+    "care.mca.consent.contact",
+    "care.mca.capacity.unableTo",
+    "care.mca.capacity.reason",
+    "care.mca.capacity.replaced",
+    "care.mca.bi.assessmentMissing",
+    "care.mca.bi.assessmentCorrected",
+    "care.mca.bi.findingChanged"
   ]
 }

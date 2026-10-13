@@ -305,28 +305,6 @@ test("hazard HZ-020 hazard HZ-026 the tab shows consent by decision and the DoLS
   await expectAccessible(page, "DoLS authorisation history");
 });
 
-test("the tab reflows at 320 px and says when nothing is recorded", async ({ page }) => {
-  await page.setViewportSize({ width: 320, height: 900 });
-  await page.goto(`/people/${PERSON}/capacity`);
-  // On a phone the shell's sidebar folds to its icons; measure once it has finished folding, not
-  // while the page is still moving across.
-  await page.locator('[data-collapsed="true"]').waitFor();
-  await settleAnimations(page);
-  const overflow = await page.evaluate(
-    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-  );
-  expect(overflow, "the page scrolls sideways").toBeLessThanOrEqual(0);
-  await expectAccessible(page, "consent, capacity and DoLS tab at 320 px");
-
-  await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto(`/people/${EMPTY}/capacity`);
-  await expect(page.getByText("No DoLS requests or authorisations.")).toBeVisible();
-  await expect(
-    page.locator('[data-consent-decision="bed_rails"]').getByText("No consent recorded"),
-  ).toBeVisible();
-  await expectAccessible(page, "consent, capacity and DoLS tab with nothing recorded");
-});
-
 test("hazard HZ-026 the tab shows the two-stage test, the best-interests checklist and each consent record, with corrections", async ({
   page,
 }) => {
@@ -347,7 +325,7 @@ test("hazard HZ-026 the tab shows the two-stage test, the best-interests checkli
     correctionReason: "The assessor's role was incomplete.",
   });
   const considered = { answer: "considered", note: "Talked with the team and her family." };
-  await record(page.request, "best-interests", {
+  const bestInterestsBody = {
     capacityAssessmentId: original.id,
     decision: `Move to a ground-floor room near the nurses' station (${RUN})`,
     decidedAt: at(-2 * HOUR),
@@ -373,15 +351,94 @@ test("hazard HZ-026 the tab shows the two-stage test, the best-interests checkli
     ],
     accommodationChange: true,
     reviewOn: assessed.reviewOn,
+  };
+  const bestInterests = await record(page.request, "best-interests", bestInterestsBody);
+  await record(page.request, "best-interests", {
+    ...bestInterestsBody,
+    supersedesId: bestInterests.id,
+    correctionReason: "The review date was wrong.",
+  });
+  // Representatives' consent to bed rails while she lacked capacity for it: a registered
+  // attorney with the restraint conditions, then a deputy whose order expressly allows restraint.
+  const conditions = { necessaryToPreventHarm: true, proportionate: true };
+  await record(page.request, "consents", {
+    decision: "bed_rails",
+    outcome: "given",
+    givenBy: "representative",
+    representative: {
+      kind: "lpa_health_welfare",
+      name: "Sam Example",
+      registered: true,
+      opgReference: "OPG 999 000",
+      excludedDecisions: ["covert_medicines"],
+    },
+    restraintConditions: conditions,
+    givenAt: at(-2.5 * HOUR),
+    evidence: `Sam agreed to bed rails at night (${RUN}).`,
+  });
+  await record(page.request, "consents", {
+    decision: "bed_rails",
+    outcome: "given",
+    givenBy: "representative",
+    representative: {
+      kind: "deputy",
+      name: "Jo Example",
+      deputyScope: "personal_welfare",
+      deputyDecisions: ["bed_rails"],
+      restraintExpresslyAuthorised: true,
+      orderEndsAt: at(365 * DAY),
+      courtReference: "COP 999",
+    },
+    restraintConditions: conditions,
+    givenAt: at(-2.25 * HOUR),
+    evidence: `Jo agreed to bed rails at night (${RUN}).`,
+  });
+  // A later assessment finds she now has capacity for bed rails: the deputy's consent no longer
+  // applies, and the earlier findings are history.
+  await record(page.request, "capacity-assessments", {
+    decision: `Whether to use bed rails at night (${RUN}, reviewed)`,
+    decisionKind: "bed_rails",
+    assessedAt: at(-HOUR),
+    assessorName: "Nell Nurse",
+    stage1: { impairment: false },
+    outcome: "has_capacity",
+    reviewOn: assessed.reviewOn,
+  });
+  // Marketing agreed then withdrawn; the care plan consent agreed again, replacing the first.
+  const marketing = await record(page.request, "consents", {
+    decision: "marketing",
+    outcome: "given",
+    givenBy: "person",
+    givenAt: at(-2 * HOUR),
+    evidence: `Happy to be in the newsletter (${RUN}).`,
+  });
+  const withdrawn = await page.request.post(
+    `${API_URL}/v1/people/${PERSON}/consents/${marketing.id}/withdraw`,
+    {
+      headers: { "x-harbour-tenant": DEMO_TENANT },
+      data: { reason: "Changed her mind.", version: 1 },
+    },
+  );
+  expect(withdrawn.status(), await withdrawn.text()).toBe(200);
+  await record(page.request, "consents", {
+    decision: "care_plan",
+    outcome: "given",
+    givenBy: "person",
+    givenAt: at(-0.5 * HOUR),
+    evidence: `Agreed the updated plan (${RUN}).`,
   });
 
   await page.goto(`/people/${PERSON}/capacity`);
 
-  // The two-stage test as recorded, the outcome in the Act's words, and the correction.
+  // The two-stage test as recorded, the finding in words, and the correction.
   const capacity = article(page, "Capacity assessments", decision);
   await expect(
     capacity.getByText("Lacks capacity for this decision", { exact: true }),
   ).toBeVisible();
+  await expect(
+    capacity.getByText(/^Lacks capacity for this decision: there is an impairment of/),
+  ).toBeVisible();
+  await expect(capacity.getByText(/s\.2\(1\)/)).toHaveCount(0);
   await expect(
     capacity.getByText(/^Assessed .* by Nell Nurse, Clinical lead \(registered nurse\)$/),
   ).toBeVisible();
@@ -394,32 +451,91 @@ test("hazard HZ-026 the tab shows the two-stage test, the best-interests checkli
       "This corrects an earlier version. Reason: The assessor's role was incomplete.",
     ),
   ).toBeVisible();
-  await expect(capacity.getByText(/^Review by \d{2}\/\d{2}\/\d{4}$/)).toBeVisible();
+  // A later assessment of the same decision replaces this finding (HZ-026): no review is overdue.
+  await expect(
+    capacity.getByText(/^A later assessment \(\d{2}\/\d{2}\/\d{4}\) replaces this finding$/),
+  ).toBeVisible();
+  await expect(capacity.getByText("Review overdue")).toHaveCount(0);
   await expect(capacity.locator("time").first()).toHaveAttribute("datetime", /^\d{4}-\d{2}-\d{2}/);
-  await capacity.getByText("Show the earlier version").click();
+  const reviewed = article(page, "Capacity assessments", `${RUN}, reviewed`);
+  await expect(reviewed.getByText("Has capacity for this decision", { exact: true })).toBeVisible();
+  await expect(reviewed.getByText(/replaces this finding/)).toHaveCount(0);
+  // The earlier version, opened by keyboard.
+  const earlier = capacity.getByText("Show the earlier version");
+  await tabTo(page, earlier);
+  await page.keyboard.press("Enter");
   await expect(capacity.locator("del")).toHaveText(/^Whether to use bed rails at night/);
 
-  // A change of accommodation with only paid carers consulted: the IMCA prompt (MCA s.38, s.39).
-  const bestInterests = article(page, "Best-interests decisions");
+  // The best-interests decision follows the corrected assessment, and she now has capacity:
+  // both are warnings. A move with only paid carers consulted: the IMCA prompt, as a warning.
+  const best = article(page, "Best-interests decisions");
   await expect(
-    bestInterests.getByText("Independent Mental Capacity Advocate (IMCA)"),
+    best.getByText(/It found the person lacks capacity for this decision\.$/),
   ).toBeVisible();
   await expect(
-    bestInterests.getByText(/consulted about a change of accommodation\. Ask the NHS body/),
+    best.getByText(/^The capacity assessment this decision follows was corrected later/),
   ).toBeVisible();
-  await bestInterests.getByText("Section 4 checklist: 10 of 10 items answered").click();
   await expect(
-    bestInterests.getByText("A less restrictive way to achieve the purpose (s.1(6))"),
+    best.getByText(/^The latest assessment of this decision \(.*\) found the person has capacity/),
+  ).toBeVisible();
+  const imca = best.locator(".border-warning");
+  await expect(
+    imca.getByText("An independent mental capacity advocate may be needed"),
+  ).toBeVisible();
+  await expect(
+    imca.getByText(/consulted about a change of accommodation\. Ask the NHS body/),
+  ).toBeVisible();
+  await expect(
+    best.getByText("This corrects an earlier version. Reason: The review date was wrong."),
+  ).toBeVisible();
+  await best.getByText("Section 4 checklist: 10 of 10 items answered").click();
+  await expect(
+    best.getByText("A less restrictive way to achieve the purpose (s.1(6))"),
   ).toBeVisible();
 
-  // The care plan consent the first journey recorded, as the record deciding it now, and the
-  // refusal of photographs on social media as a warning.
-  const consent = article(page, "Consent records", `Talked the plan through with Else (${RUN})`);
+  // Each consent record: in force, replaced, withdrawn, refused, and not valid, with the
+  // representatives' authority and the restraint conditions.
+  const records = (text: string) => article(page, "Consent records", `${text} (${RUN})`);
+  const consent = records("Agreed the updated plan");
   await expect(consent.getByText("In force", { exact: true })).toBeVisible();
-  const refusal = article(page, "Consent records", `Said no to photographs online (${RUN})`);
-  await expect(refusal.locator('.hb-status-chip[data-status="due"]')).toHaveText("Refused");
   await expect(consent.getByText(/^Consent given .* by Else$/)).toBeVisible();
   await expect(consent.getByText("Recorded by Nell Nurse", { exact: false })).toBeVisible();
+  await expect(
+    records("Talked the plan through with Else").getByText("Replaced by a later record"),
+  ).toBeVisible();
+  await expect(
+    records("Happy to be in the newsletter").getByText("Withdrawn", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    records("Said no to photographs online").locator('.hb-status-chip[data-status="due"]'),
+  ).toHaveText("Refused");
+  const attorney = records("Sam agreed to bed rails at night");
+  await expect(attorney.getByText("Replaced by a later record")).toBeVisible();
+  await expect(attorney.getByText(/by Sam Example \(health and welfare attorney\)$/)).toBeVisible();
+  for (const [field, value] of [
+    ["Registered with the Office of the Public Guardian", "Yes"],
+    ["Office of the Public Guardian reference", "OPG 999 000"],
+    ["Decisions the power of attorney excludes", "Covert administration of medicines"],
+    ["Bed rails necessary to prevent harm", "Yes"],
+    ["Bed rails proportionate to the likelihood and seriousness of harm", "Yes"],
+  ] as const) {
+    await expect(
+      attorney.getByText(field, { exact: true }).locator("xpath=following-sibling::dd[1]"),
+    ).toHaveText(value);
+  }
+  const deputy = records("Jo agreed to bed rails at night");
+  await expect(deputy.getByText("Not valid", { exact: true })).toBeVisible();
+  for (const [field, value] of [
+    ["Court order covers", "Personal welfare"],
+    ["Decisions the court order covers", "Bed rails"],
+    ["Court order expressly allows restraint", "Yes"],
+    ["Court reference", "COP 999"],
+  ] as const) {
+    await expect(
+      deputy.getByText(field, { exact: true }).locator("xpath=following-sibling::dd[1]"),
+    ).toHaveText(value);
+  }
+  await expect(deputy.getByText("Court order ends", { exact: true })).toBeVisible();
 
   await expectAccessible(page, "consent, capacity and DoLS records");
   await page.emulateMedia({ colorScheme: "dark" });
@@ -434,4 +550,27 @@ test("hazard HZ-026 the tab shows the two-stage test, the best-interests checkli
   await expect(
     page.getByRole("heading", { level: 2, name: "Changes to the consent record" }),
   ).toBeVisible();
+});
+
+// After the journeys above, so every state they recorded is on the page measured.
+test("the tab reflows at 320 px and says when nothing is recorded", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto(`/people/${PERSON}/capacity`);
+  // On a phone the shell's sidebar folds to its icons; measure once it has finished folding, not
+  // while the page is still moving across.
+  await page.locator('[data-collapsed="true"]').waitFor();
+  await settleAnimations(page);
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow, "the page scrolls sideways").toBeLessThanOrEqual(0);
+  await expectAccessible(page, "consent, capacity and DoLS tab at 320 px");
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`/people/${EMPTY}/capacity`);
+  await expect(page.getByText("No DoLS requests or authorisations.")).toBeVisible();
+  await expect(
+    page.locator('[data-consent-decision="bed_rails"]').getByText("No consent recorded"),
+  ).toBeVisible();
+  await expectAccessible(page, "consent, capacity and DoLS tab with nothing recorded");
 });

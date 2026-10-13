@@ -175,33 +175,45 @@ export type ConsentRecordState =
   | "not_valid"
   | "withdrawn"
   | "expired"
-  | "replaced";
+  | "replaced"
+  | "not_yet"
+  | "unknown";
 
 /**
- * Where one consent record stands: the record that decides its decision now (the latest), or
- * replaced by a later one. A withdrawal or an expiry says so; the deciding record's validity is
- * the API's.
+ * Where one consent record stands. The record that decides its decision now (the latest made by
+ * now, as the API says) is in force, refused, withdrawn, expired or not valid; a record the API
+ * names another record over was replaced by it; one dated later than now is not in force yet. A
+ * decision the API does not list, or no deciding record for a record already made, warns.
  */
 export function consentRecordState(
-  item: Pick<ConsentItem, "id" | "decision" | "withdrawnAt" | "expiresAt">,
+  item: Pick<ConsentItem, "id" | "decision" | "givenAt" | "withdrawnAt" | "expiresAt">,
   decisions: readonly Pick<ConsentDecisionStatus, "decision" | "status" | "recordId">[],
   now: Date = new Date(),
 ): ConsentRecordState {
-  if (item.withdrawnAt) return "withdrawn";
+  const passed = (iso: string | null) => iso !== null && Date.parse(iso) <= now.getTime();
   const deciding = decisions.find((d) => d.decision === item.decision);
-  if (deciding?.recordId !== item.id) return "replaced";
-  if (deciding.status === "valid") return "in_force";
-  if (deciding.status === "refused") return "refused";
-  return item.expiresAt && Date.parse(item.expiresAt) <= now.getTime() ? "expired" : "not_valid";
+  if (!deciding) return "unknown";
+  if (deciding.recordId === item.id) {
+    if (deciding.status === "valid") return "in_force";
+    if (deciding.status === "refused") return "refused";
+    if (passed(item.withdrawnAt)) return "withdrawn";
+    if (passed(item.expiresAt)) return "expired";
+    return "not_valid";
+  }
+  if (!passed(item.givenAt)) return "not_yet";
+  return deciding.recordId === null ? "unknown" : "replaced";
 }
 
+/** A deciding record that no longer gives consent (withdrawn, expired, not valid) warns. */
 const RECORD_CHIPS: Record<ConsentRecordState, Omit<McaChip, "label">> = {
   in_force: { status: "done", icon: "circle-check" },
   refused: { status: "due", icon: "ban" },
   not_valid: { status: "overdue", icon: "circle-alert" },
-  withdrawn: { status: "notApplicable", icon: "circle-minus" },
-  expired: { status: "notApplicable", icon: "clock" },
+  withdrawn: { status: "due", icon: "circle-minus" },
+  expired: { status: "due", icon: "clock" },
   replaced: { status: "notApplicable", icon: "history" },
+  not_yet: { status: "info", icon: "clock" },
+  unknown: { status: "overdue", icon: "circle-alert" },
 };
 
 export function consentRecordChip(state: ConsentRecordState, t: Translator): McaChip {
@@ -215,9 +227,13 @@ export function consentGivenBy(
   t: Translator,
 ): string {
   if (item.givenBy === "person") return personName;
+  const rep = item.representative;
   return t("care.mca.consent.representative", {
-    name: item.representative?.name ?? t("common.notRecorded"),
-    kind: item.representative?.kind ?? "other",
+    name:
+      rep?.name ??
+      (rep?.contactId ? t("care.mca.consent.contact", { name: personName }) : null) ??
+      t("common.notRecorded"),
+    kind: rep?.kind ?? "other",
   });
 }
 
@@ -286,6 +302,116 @@ export function consentCapacity(
         assessment.assessedAt,
       )
     : line(t("care.mca.consent.capacityThen", { status: item.capacityStatus }));
+}
+
+type AssessmentFacts = Pick<
+  CapacityAssessmentItem,
+  "id" | "decision" | "decisionKind" | "assessedAt" | "outcome" | "reviewOn" | "superseded"
+>;
+
+/** Two assessments are of the same decision: the same consent decision, or the same words. */
+function sameDecision(a: AssessmentFacts, b: AssessmentFacts): boolean {
+  return a.decisionKind !== null || b.decisionKind !== null
+    ? a.decisionKind === b.decisionKind
+    : a.decision.trim().toLowerCase() === b.decision.trim().toLowerCase();
+}
+
+/**
+ * The finding in force for an assessment's decision, by the domain's rule (`capacityFinding`: the
+ * latest assessment of that decision made by now, corrections replacing what they correct). An
+ * assessment without a consent decision is compared by its words.
+ */
+export function currentFinding<A extends AssessmentFacts>(
+  assessment: A,
+  assessments: readonly A[],
+  now: Date = new Date(),
+): A {
+  const candidates = assessments.filter(
+    (a) =>
+      !a.superseded && sameDecision(a, assessment) && Date.parse(a.assessedAt) <= now.getTime(),
+  );
+  if (assessment.decisionKind) {
+    const found = capacityFinding(
+      candidates.map((a) => ({ ...a, assessedAt: new Date(a.assessedAt) })),
+      assessment.decisionKind,
+      now,
+      ukToday(now),
+    );
+    return found.status === "assumed"
+      ? assessment
+      : (candidates.find((a) => a.id === found.assessment.id) ?? assessment);
+  }
+  return (
+    [...candidates].sort((a, b) => Date.parse(b.assessedAt) - Date.parse(a.assessedAt))[0] ??
+    assessment
+  );
+}
+
+/**
+ * The later assessment that replaces this one's finding, when there is one: an older assessment
+ * of the same decision is history, never a standing finding (HZ-026).
+ */
+export function replacedBy<A extends AssessmentFacts>(
+  assessment: A,
+  assessments: readonly A[],
+  now: Date = new Date(),
+): A | null {
+  const current = currentFinding(assessment, assessments, now);
+  return current.id !== assessment.id &&
+    Date.parse(current.assessedAt) >= Date.parse(assessment.assessedAt)
+    ? current
+    : null;
+}
+
+/**
+ * The outcome in words from what the assessment recorded (the two stages and the abilities the
+ * person could not use), never the API's English reason.
+ */
+export function capacityReason(
+  item: Pick<CapacityAssessmentItem, "outcome" | "unableTo" | "stage1">,
+  t: Translator,
+): string {
+  const unable = new Intl.ListFormat(t.locale === "cy" ? "cy" : "en-GB", {
+    type: "conjunction",
+  }).format(item.unableTo.map((element) => t("care.mca.capacity.unableTo", { element })));
+  const basis =
+    item.outcome === "lacks_capacity"
+      ? item.unableTo.length > 0 && item.stage1.impairment
+        ? "lacks"
+        : "unknown"
+      : item.outcome === "has_capacity"
+        ? !item.stage1.impairment
+          ? "no_impairment"
+          : item.unableTo.length === 0
+            ? "able"
+            : "not_because"
+        : "unknown";
+  return t("care.mca.capacity.reason", { basis, unable });
+}
+
+/**
+ * What a best-interests decision should warn about its assessment: that the assessment it follows
+ * was corrected, and that the finding now in force for that decision is not a lack of capacity.
+ */
+export function bestInterestsWarnings<A extends AssessmentFacts>(
+  followed: A | undefined,
+  assessments: readonly A[],
+  t: Translator,
+  now: Date = new Date(),
+): string[] {
+  if (!followed) return [t("care.mca.bi.assessmentMissing")];
+  const warnings: string[] = [];
+  if (followed.superseded) warnings.push(t("care.mca.bi.assessmentCorrected"));
+  const current = currentFinding(followed, assessments, now);
+  if (current.outcome !== "lacks_capacity") {
+    warnings.push(
+      t("care.mca.bi.findingChanged", {
+        date: ukDate(current.assessedAt),
+        outcome: current.outcome,
+      }),
+    );
+  }
+  return warnings;
 }
 
 /** A review date that has passed (compared as UK dates). */

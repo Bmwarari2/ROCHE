@@ -27,7 +27,9 @@ import { formatDate, formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import {
   BEST_INTERESTS_ITEMS,
+  bestInterestsWarnings,
   capacityChip,
+  capacityReason,
   checklistAnswered,
   consentCapacity,
   consentGivenBy,
@@ -46,6 +48,7 @@ import {
   type McaChip,
   type McaIcon,
   type McaLine,
+  replacedBy,
   reviewOverdue,
   staffName,
 } from "@/lib/mca";
@@ -178,6 +181,36 @@ function Corrections<
   );
 }
 
+/** A warning in words, with its icon. */
+function Warning({ text }: { readonly text: string }) {
+  return (
+    <p className="m-0 flex items-start gap-2 font-semibold" data-warning="">
+      <TriangleAlert size={18} strokeWidth={1.5} aria-hidden="true" className="mt-0.5 shrink-0" />
+      {text}
+    </p>
+  );
+}
+
+const DATE_SLOT = "\u2063";
+
+/** A sentence with its date in a `<time>` element (only the date, not the whole sentence). */
+function DatedText({
+  render,
+  iso,
+}: {
+  readonly render: (dateTime: string) => string;
+  readonly iso: string;
+}) {
+  const [before, after] = render(DATE_SLOT).split(DATE_SLOT);
+  return (
+    <>
+      {before}
+      <time dateTime={iso}>{when(iso)}</time>
+      {after}
+    </>
+  );
+}
+
 function ReviewOverdue() {
   return <StatusChip status="overdue" label={t("care.mca.reviewOverdue")} icon={Clock} />;
 }
@@ -287,15 +320,21 @@ export function DolsCard({
   );
 }
 
-/** A two-stage capacity assessment as recorded, with the outcome in the Act's words. */
+/**
+ * A two-stage capacity assessment as recorded. An older assessment of the same decision says that
+ * a later one replaces its finding, and has no review to be overdue (HZ-026).
+ */
 export function CapacityCard({
   chain,
+  assessments,
   today,
 }: {
   readonly chain: EntryChain<CapacityAssessmentItem>;
+  readonly assessments: readonly CapacityAssessmentItem[];
   readonly today: string;
 }) {
   const item = chain.current;
+  const later = replacedBy(item, assessments);
   const assessor = item.assessorName
     ? item.assessorRole
       ? t("care.mca.nameAndRole", { name: item.assessorName, role: item.assessorRole })
@@ -316,7 +355,17 @@ export function CapacityCard({
       <div className="flex flex-col gap-2" data-capacity={item.outcome}>
         <p className="m-0 flex flex-wrap items-center gap-2">
           <Chip chip={capacityChip(item.outcome, t)} />
-          {reviewOverdue(item.reviewOn, today) ? <ReviewOverdue /> : null}
+          {later ? (
+            <StatusChip
+              status="notApplicable"
+              icon={History}
+              label={t("care.mca.capacity.replaced", {
+                date: formatDate(ukToday(new Date(later.assessedAt))) ?? "",
+              })}
+            />
+          ) : reviewOverdue(item.reviewOn, today) ? (
+            <ReviewOverdue />
+          ) : null}
         </p>
         <Line
           line={{
@@ -337,7 +386,7 @@ export function CapacityCard({
         ) : null}
         <Fields
           rows={[
-            ["reason", item.reason],
+            ["reason", capacityReason(item, t)],
             [
               "impairment",
               [yesNo(item.stage1.impairment), item.stage1.description].filter(Boolean).join("\n"),
@@ -396,6 +445,7 @@ export function BestInterestsCard({
 }) {
   const item = chain.current;
   const assessment = assessments.find((a) => a.id === item.capacityAssessmentId);
+  const warnings = bestInterestsWarnings(assessment, assessments, t);
   return (
     <Card
       as="article"
@@ -422,11 +472,15 @@ export function BestInterestsCard({
               text: t("care.mca.bi.follows", {
                 dateTime: when(assessment.assessedAt),
                 decision: assessment.decision,
+                outcome: assessment.outcome,
               }),
               dateTime: assessment.assessedAt,
             }}
           />
         ) : null}
+        {warnings.map((warning) => (
+          <Warning key={warning} text={warning} />
+        ))}
         {item.imcaPrompt ? (
           <Notice
             tone="warning"
@@ -460,15 +514,18 @@ export function BestInterestsCard({
             <ul className="m-0 flex flex-col gap-1 ps-5">
               {item.consultations.map((c) => (
                 <li key={`${c.consultee}-${c.consultedAt}`}>
-                  <time dateTime={c.consultedAt}>
-                    {t("care.mca.bi.consultation", {
-                      named: c.name ? "yes" : "no",
-                      name: c.name ?? "",
-                      kind: t("care.mca.bi.consultee", { kind: c.consultee }),
-                      dateTime: when(c.consultedAt),
-                      views: c.views,
-                    })}
-                  </time>
+                  <DatedText
+                    iso={c.consultedAt}
+                    render={(dateTime) =>
+                      t("care.mca.bi.consultation", {
+                        named: c.name ? "yes" : "no",
+                        name: c.name ?? "",
+                        kind: t("care.mca.bi.consultee", { kind: c.consultee }),
+                        dateTime,
+                        views: c.views,
+                      })
+                    }
+                  />
                 </li>
               ))}
             </ul>
@@ -568,6 +625,7 @@ export function ConsentCard({
           <Line
             line={{
               text: t("care.mca.consent.withdrawn", {
+                future: Date.parse(item.withdrawnAt) > Date.now() ? "yes" : "no",
                 dateTime: when(item.withdrawnAt),
                 reason: item.withdrawnReason ?? t("common.notRecorded"),
               }),
