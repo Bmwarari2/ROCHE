@@ -67,6 +67,7 @@ const TAB_TITLES: Record<string, string> = {
   Charts: "Fluid intake | Charts",
   "Body map": "Body map",
   "Advance care": "Advance care",
+  "Consent, capacity and DoLS": "Consent, capacity and DoLS",
   "Activities and visits": "Activities and visits",
   History: "History",
 };
@@ -92,6 +93,7 @@ test("hazard HZ-001 hazard HZ-015 the header shows the resuscitation status, all
     "Charts",
     "Body map",
     "Advance care",
+    "Consent, capacity and DoLS",
     "Activities and visits",
     "History",
     "Overview",

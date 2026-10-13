@@ -1134,6 +1134,107 @@ names no one left out, holds only the pack's own keys and warnings about its own
 care at the location. H-202 notes that a narrowing correction can drop entries from the duplicate
 review; three STATUS follow-ups.
 
+## 2026-10-12: The consent, capacity and DoLS tab, part 1 (slice 9, Lane B)
+
+The web record gains an eleventh tab, "Consent, capacity and DoLS" (`/people/{id}/capacity`,
+`care.plan.read`), on the API already on `main`: whether a valid consent is in place now for each
+decision, with the capacity found for it, and the DoLS register with each authorisation's clock in
+words and UK dates, its reminders, CQC notification and legal-change review state, and a link to
+its history (the web history page now opens DoLS authorisations). Statuses are icon and word; an
+unknown one is a warning (HZ-020, HZ-026). No API, schema or permission change. The capacity
+assessments, best-interests decisions, consent records and the forms are the next part (STATUS
+item 13); two API gaps are in care.md section 10.
+
+**Tests**: `apps/web` 378 unit (18 new in `src/lib/mca.test.ts`), `packages/i18n` 48; Playwright
+`e2e/capacity.spec.ts` (records through the API as the demo nurse, then reads the tab, with axe in
+both themes and on the DoLS history) and the existing record journeys with the new tab, run
+locally.
+
+## 2026-10-12: The consent, capacity and DoLS tab, review round 1 (#34)
+
+Accessibility and clinical review of part 1. Every reason, CQC line, type, outcome and review
+state is now in the catalogue's words (en-GB and Welsh), with no internal or roadmap names; an
+unknown value warns. Consent: "Refused" is a warning that says who refused, nothing recorded reads
+"No consent recorded" with the next step, and each decision shows the date of the capacity
+finding and its review date. DoLS: a midnight end reads as the last day in force and the days
+count to it; a renewed authorisation reads "Renewed"; one from before the June 2026 judgment with
+no review warns with the next step; each authorisation and its history link are named with the
+date; dates are in `<time>` elements; the history link is 44 px; long references wrap.
+`/people/{id}/dols` (the expiry alert's link) opens the tab. Human actions H-250 to H-253 for the
+CSO; STATUS item 14 for the follow-ups.
+
+**Tests**: `apps/web` 388 unit (31 in `src/lib/mca.test.ts`), `packages/i18n` 48; Playwright
+`e2e/capacity.spec.ts` (every warning state, the alert link, axe in both themes, keyboard to the
+history link with its focus ring, 320 px, the empty tab), run locally.
+
+## 2026-10-12: The round and the handover on the phone, streams (slice 10 part 2, Lane C)
+
+First of three pull requests for tasks and handovers in Care mode
+(`feat/mobile-tasks-handover-sync`).
+
+- Sync streams (`packages/sync/src/streams/sync-config.yaml`): `assigned_open_tasks` and
+  `location_open_tasks` carry the open tasks due on a day of the offline window, scoped as the
+  round view (`care.plan.read`, `app.task_visible`); `assigned_handovers` and
+  `location_handovers` carry the handovers of shifts ending in the window with the items, notes
+  and acknowledgements the handover views show (`care.handover.manage`). Limited readers get only
+  their people's items and notes, the handover's own notes and their own acknowledgements; items
+  about a person carry no status filter, as row-level security has none (HZ-018). No task details
+  or reasons, handover refresh time, version or device ids reach a device.
+- The sync token carries `handover_location_ids` and `handover_assigned` (`familyReach` for
+  `care.handover.manage`), audited with the other families; the device schema gains `task`,
+  `handover`, `handover_item` (`key` as `item_key`), `handover_note` and
+  `handover_acknowledgement`, read-only.
+- Isolation through the real sync-rules engine (`task-handover-streams.test.ts`, 16 tests):
+  scopes, ended assignments, moved and deceased people, items about nobody, acknowledgements,
+  each family only with its own claims, two tenants, hostile connection parameters, no window or
+  tenant. Hazard log rows on HZ-011, HZ-018 and HZ-028; care.md section 6, records of processing
+  and data standards updated.
+- Needs a migration before anything syncs (Lane A): the five tables join the `powersync`
+  publication with the sync role's read policy and grant. Next: the offline completion and
+  acknowledgement, then the screens (STATUS item 13).
+
+**Tests**: `packages/sync` 79, `apps/mobile` 891, and in `apps/api` the sync family, scope per
+permission and API suites (128), passing locally; typecheck clean for sync, API and mobile.
+
+## 2026-10-12: The round and the handover on the phone, review round 1 of #33
+
+- Security M1: other members' acknowledgements no longer carry their item keys (which name the
+  people and what happened to them). Each reader gets their own acknowledgements with keys; a
+  whole reader gets who acknowledged and when in a new device table,
+  `handover_staff_acknowledgement` (a renamed output of `handover_acknowledgement`). Fixtures use
+  real keys (`kind:sourceType:sourceId:personId`), and a test proves a moved resident's keys in
+  a nurse's acknowledgement never reach the manager's phone.
+- Security L1 and L3: a limited reader's items, notes and own acknowledgements come only from
+  handovers they may open (joining `person_assignment` twice: one to open the handover, one for
+  the item's person), so nothing the API refuses reaches the phone; a reader whole at one home
+  and assigned elsewhere gets, in the homes they see whole, the items about their people who
+  have moved, as the API shows them. Mixed-scope and hostile-parameter tests cover items and
+  notes.
+- Clinical M1 to M3 and lows: `locked_at` and the shift bounds say not final; the hazard rows
+  claim only what is built and are marked not yet live until the publication migration; HZ-024
+  gains a planned phone control; task titles are free text (3 to 120 characters) in the schema
+  and data standards. The screens gate, CSO questions H-300 to H-304 and three follow-ups are
+  in STATUS item 13 and care.md section 6.
+
+**Tests**: `packages/sync` 81, `apps/mobile` 891, passing locally; typecheck clean for sync and
+mobile.
+
+## 2026-10-13: The round and the handover on the phone, publication migration (#33)
+
+- Migration 0052 adds `task`, `handover`, `handover_item`, `handover_note` and
+  `handover_acknowledgement` to the `powersync` publication, with the `sync_replication_read`
+  policy and `SELECT` (only) for `harbour_sync`, as 0012 and 0017 do.
+- `packages/db/test/sync-publication.test.ts` reads the source tables of every stream query and
+  checks each is published and readable by the sync role, and that the sync role holds nothing
+  but `SELECT` on the five tables.
+- The hazard rows for the streams now name the migration and the test. Round 2 of #33: screens
+  gate item (e) (the phone must be able to say the outgoing handover is not compiled yet or not
+  final, which needs the expected shift on the device; H-303), the alias caveat in H-304, and a
+  STATUS low for a carer assigned to two people at different homes.
+
+**Tests**: `packages/db` 411 (real Postgres), `packages/sync` 81, `apps/mobile` 891, passing
+locally; typecheck clean for db, sync and mobile.
+
 ## 2026-10-12: Slice 11 part 2, back-entry columns (OPS-028)
 
 Stacked on #32. Migration 0053 (numbered after Lane C's 0052):
@@ -1151,22 +1252,51 @@ Stacked on #32. Migration 0053 (numbered after Lane C's 0052):
 
 **Tests**: `packages/db` 416 passing locally (8 new in `back-entry.test.ts`).
 
-## 2026-10-13: Slice 11 part 3a, downtime pack API (OPS-028)
+## 2026-10-13: Slice 11 part 2, #38 review round 1 (OPS-028)
 
-Stacked on part 2. `GET` and `POST /v1/locations/{id}/downtime-pack` (JSON or PDF;
-operations.md section 13): the latest pack the reader can open, built again on the spot when it no
-longer serves the people receiving care there, with the freshness header worked out now on every
-printed page; the PDF is never stored. The pack PDF writer gains a header on every page, page
-breaks and a footer naming whose page it is (HZ-001); shared allergy, communication and rate
-helpers; unconfirmed MAR and PEEP places print as not set.
+Migration 0053, edited in place:
 
-**Tests**: `apps/api` 5 new in `downtime.test.ts`; HZ-021's planned API test now passes.
+- A back-entry against a reconciled outage is refused, as against a cancelled one; the outage is
+  read again locked for share, so a cancel or a reconciliation at the same moment waits for the
+  entry and then counts it.
+- A back-entry's time is the instant its paper date and time give in UK time
+  (`app.paper_instant`: the occurrence chosen in the repeated autumn hour, `only` refused there,
+  the skipped spring hour refused).
+- The outage window is `[start, end)`, an open outage running to now plus the clock-drift
+  allowance: a back-entry outside it needs a reason, an entry not from paper names only an outage
+  it falls in, and the window is checked whenever the start or end changes, closing included.
+- A correction of a back-entry carries its paper details, or must stay on the same outage;
+  superseded entries do not count for the cancel and window checks; the reconciler must not be
+  the author or sender of an original back-entry.
+- Docs: operations.md section 12 (part 2 after round 1, part 3 requirements), the HZ-017 rows,
+  H-203 to H-206, STATUS follow-ups.
+
+**Tests**: `packages/db` `back-entry.test.ts` now 17 (9 new), including the race between an entry
+and a cancel.
+
+## 2026-10-13: Slice 11 part 3a-1, downtime pack API (OPS-028)
+
+Stacked on part 2. `GET` and `POST /v1/locations/{id}/downtime-pack` (operations.md section 13):
+the latest pack the reader can open, built again on the spot when it no longer serves the people
+receiving care there, with the freshness words and header lines worked out now; shared allergy,
+communication and rate helpers; unconfirmed MAR and PEEP places print as not set.
+
+**Tests**: `apps/api` 4 new in `downtime.test.ts`; HZ-021's planned API test now passes.
+
+## 2026-10-13: Slice 11 part 3a-2, the printed downtime pack (OPS-028)
+
+Stacked on part 3a-1. `GET /v1/locations/{id}/downtime-pack?format=pdf` (operations.md section
+13): the pack printed with the header worked out now on every page, a front sheet of warnings and a
+page per person whose footer names them; the PDF is never stored. The PDF writer gains a header on
+every page, page breaks and a footer naming whose page it is (HZ-001).
+
+**Tests**: `apps/api` 1 new in `downtime.test.ts`, and printing in the audit test.
 
 ## 2026-10-13: Slice 11 part 3b, nightly packs, rebuilds and places (OPS-028)
 
-Stacked on part 3a (operations.md section 13): the nightly job (hourly catch-up, once per location
-and UK night, each location in its own savepoint); a system rebuild after people lifecycle events
-(`server_rebuild`, migration 0054) at both the old and the new location; `PUT
+Stacked on part 3a-2 (operations.md section 13): the nightly job (hourly catch-up, once per
+location and UK night, each location in its own savepoint); a system rebuild after people
+lifecycle events (`server_rebuild`, migration 0054) at both the old and the new location; `PUT
 /v1/locations/{id}/downtime-places`, confirmed by a holder of `platform.location.manage`, with the
 task the nightly job keeps open while the places are unconfirmed.
 

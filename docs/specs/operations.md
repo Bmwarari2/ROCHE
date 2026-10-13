@@ -303,8 +303,30 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
   start or end that would leave a back-entry with no outside-the-outage reason outside it (#32
   review round 2), all counted in the organisation's view (`app.outage_back_entries`), so a
   back-entry about someone the caller can no longer see still counts.
-- Not yet: outages and back-entry through the API (part 3c); outages and packs in the sync streams, and the kiosk
-  fetch (with the mobile step).
+- Part 2 after #38 review round 1:
+  - `app.entry_outage_guard` also refuses a reconciled outage, and reads the outage again locked
+    for share (in the system's view, as a share lock needs the update policy), so a cancel or a
+    reconciliation at the same moment waits for the entry and then counts it.
+  - A back-entry's `occurred_at` is the instant its paper date and time give in Europe/London
+    (`app.paper_instant`): in the repeated autumn hour `earlier` is British Summer Time and
+    `later` Greenwich Mean Time, and `only` is refused; a time in the skipped spring hour is
+    refused.
+  - The outage window is `[started_at, ended_at)` (the end outside, as for the no-overlap rule),
+    an open outage running to now plus `sync.clock_drift_flag_minutes`. A back-entry outside it
+    needs `outside_outage_reason`; an entry not from paper may name only an outage its time falls
+    in. The window is checked on every entry and whenever the start or end changes, closing
+    included.
+  - A correction (supersession) of a back-entry stays a back-entry of the same outage: its paper
+    details are carried from the entry it corrects when it gives none, and it is refused when it
+    names another outage or none.
+  - `app.outage_back_entries` says whether each entry is a correction and whether it has been
+    corrected: superseded entries do not count for the cancel and window checks (H-205), and the
+    reconciler must not be the author, or the sender (`handed_over_by`), of any original
+    back-entry, while someone who only corrected one may reconcile (H-203).
+  - Not checked in the database: rule 13 (the normal route), which depends on the API applying
+    `checkEntryAgainstOutages` on every care route and on the sync upload.
+- Not yet: outages and back-entry through the API (part 3c); outages and packs in the sync
+  streams, and the kiosk fetch (with the mobile step).
 - Part 3 requirements (#32 review round 1):
   - A pack is hidden from the location's holders once someone it names moves away (H-200). The
     API builds a fresh pack on demand whenever anyone moves into, out of or away from the
@@ -321,11 +343,22 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
   - The full export reads packs as the system or as a holder of `operations.downtime.read`.
   - The builder passes `assembleDowntimePack` only the location's own people receiving care,
     so nothing is left out, and stores the pack without anyone left out (#32 review round 2).
+- Part 3 requirements (#38 review round 1):
+  - A back-entry arriving after its outage is reconciled is refused (H-204). The API and the sync
+    upload answer in words that say so and point to the Registered Manager: "This outage has been
+    reconciled, so this paper record cannot be added to it. Give the paper form to the
+    Registered Manager." The device keeps the entry for review rather than dropping it.
+  - The sync streams carry the back-entry label fields (`late_entry_reason`, `outage_id`,
+    `paper_date`, `paper_time`, `paper_occurrence`, `outside_outage_reason`, `paper_reference`,
+    `not_from_paper_reason`) on the five entries, so the label shows on the device (rule 12;
+    HZ-017). Note for Lane C: add them with the mobile step.
+  - Rule 13 runs in the API on every care write route and on the sync upload; the database does
+    not check it.
 
 ## 13. As built (slice 11 part 3a, downtime pack API)
 
-`apps/api/src/routes/operations.ts`, `services/downtime-pack.ts`, `services/downtime-pack-pdf.ts`;
-tests in `apps/api/test/downtime.test.ts`.
+`apps/api/src/routes/operations.ts`, `services/downtime-pack.ts`; tests in
+`apps/api/test/downtime.test.ts`.
 
 - `GET /v1/locations/{id}/downtime-pack` (`operations.downtime.read` where the location is): the
   latest pack the reader can open, built on the spot as `server_on_demand` when it no longer names
@@ -333,16 +366,24 @@ tests in `apps/api/test/downtime.test.ts`.
   the MAR and PEEPs are kept), or it expired; so a pack hidden because someone on it moved away is
   replaced for a holder at a reachable location. The freshness words and the four header lines are
   worked out at the moment of the request (`downtimePackFreshness`, `downtimePageHeader`, with any
-  outage open at the location). `?format=pdf` prints it with the header on every page, a front
-  sheet of warnings (safety-critical first) and a page per person whose footer names them; the PDF
-  is drawn per request and never stored, so it is never a `document`. Photos are not printed; the
-  page says whether one is held. Opening, printing and building are audited
-  (`operations.downtime_pack.opened`, `.printed`, `.generated`).
+  outage open at the location). Opening and building are audited
+  (`operations.downtime_pack.opened`, `.generated`).
 - `POST /v1/locations/{id}/downtime-pack`: builds one now.
 - Building reads only the location's own people receiving care, in the builder's view, and
   publishes `operations.downtime_pack.generated` (location and pack ids) for kiosks. While the MAR
   and PEEP places are unconfirmed, the pack prints "where it is kept is not set in Harbour: ask the
   nurse in charge" (H-201).
+
+Part 3a-2, the printed pack (`services/downtime-pack-pdf.ts`, `services/pdf.ts`):
+
+- `GET /v1/locations/{id}/downtime-pack?format=pdf` prints the same pack with the four header
+  lines, worked out at the moment of the request, on every page; a front sheet of warnings
+  (safety-critical first); and a page per person, starting on a new page, whose footer names
+  them (HZ-001). The PDF is drawn per request and never stored, so it is never a `document`.
+  Photos are not printed; the page says whether one is held. Printing is audited
+  (`operations.downtime_pack.printed`).
+- The in-house PDF writer (ADR-0040) gains header lines on every page, a page break before a
+  block, and a footer naming whose page it is.
 
 Part 3b (`jobs/tasks.ts`, migration 0054):
 

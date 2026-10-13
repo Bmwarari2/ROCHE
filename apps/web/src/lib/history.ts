@@ -13,7 +13,8 @@ export type HistoryTable =
   | "care_plan_section"
   | "care_plan_action"
   | "risk_assessment"
-  | "advance_care_record";
+  | "advance_care_record"
+  | "dols_authorisation";
 
 export const HISTORY_TABLES: readonly HistoryTable[] = [
   "care_plan",
@@ -21,6 +22,7 @@ export const HISTORY_TABLES: readonly HistoryTable[] = [
   "care_plan_action",
   "risk_assessment",
   "advance_care_record",
+  "dols_authorisation",
 ];
 
 export function isHistoryTable(value: unknown): value is HistoryTable {
