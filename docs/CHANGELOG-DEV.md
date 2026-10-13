@@ -1167,6 +1167,74 @@ CSO; STATUS item 14 for the follow-ups.
 `e2e/capacity.spec.ts` (every warning state, the alert link, axe in both themes, keyboard to the
 history link with its focus ring, 320 px, the empty tab), run locally.
 
+## 2026-10-12: The round and the handover on the phone, streams (slice 10 part 2, Lane C)
+
+First of three pull requests for tasks and handovers in Care mode
+(`feat/mobile-tasks-handover-sync`).
+
+- Sync streams (`packages/sync/src/streams/sync-config.yaml`): `assigned_open_tasks` and
+  `location_open_tasks` carry the open tasks due on a day of the offline window, scoped as the
+  round view (`care.plan.read`, `app.task_visible`); `assigned_handovers` and
+  `location_handovers` carry the handovers of shifts ending in the window with the items, notes
+  and acknowledgements the handover views show (`care.handover.manage`). Limited readers get only
+  their people's items and notes, the handover's own notes and their own acknowledgements; items
+  about a person carry no status filter, as row-level security has none (HZ-018). No task details
+  or reasons, handover refresh time, version or device ids reach a device.
+- The sync token carries `handover_location_ids` and `handover_assigned` (`familyReach` for
+  `care.handover.manage`), audited with the other families; the device schema gains `task`,
+  `handover`, `handover_item` (`key` as `item_key`), `handover_note` and
+  `handover_acknowledgement`, read-only.
+- Isolation through the real sync-rules engine (`task-handover-streams.test.ts`, 16 tests):
+  scopes, ended assignments, moved and deceased people, items about nobody, acknowledgements,
+  each family only with its own claims, two tenants, hostile connection parameters, no window or
+  tenant. Hazard log rows on HZ-011, HZ-018 and HZ-028; care.md section 6, records of processing
+  and data standards updated.
+- Needs a migration before anything syncs (Lane A): the five tables join the `powersync`
+  publication with the sync role's read policy and grant. Next: the offline completion and
+  acknowledgement, then the screens (STATUS item 13).
+
+**Tests**: `packages/sync` 79, `apps/mobile` 891, and in `apps/api` the sync family, scope per
+permission and API suites (128), passing locally; typecheck clean for sync, API and mobile.
+
+## 2026-10-12: The round and the handover on the phone, review round 1 of #33
+
+- Security M1: other members' acknowledgements no longer carry their item keys (which name the
+  people and what happened to them). Each reader gets their own acknowledgements with keys; a
+  whole reader gets who acknowledged and when in a new device table,
+  `handover_staff_acknowledgement` (a renamed output of `handover_acknowledgement`). Fixtures use
+  real keys (`kind:sourceType:sourceId:personId`), and a test proves a moved resident's keys in
+  a nurse's acknowledgement never reach the manager's phone.
+- Security L1 and L3: a limited reader's items, notes and own acknowledgements come only from
+  handovers they may open (joining `person_assignment` twice: one to open the handover, one for
+  the item's person), so nothing the API refuses reaches the phone; a reader whole at one home
+  and assigned elsewhere gets, in the homes they see whole, the items about their people who
+  have moved, as the API shows them. Mixed-scope and hostile-parameter tests cover items and
+  notes.
+- Clinical M1 to M3 and lows: `locked_at` and the shift bounds say not final; the hazard rows
+  claim only what is built and are marked not yet live until the publication migration; HZ-024
+  gains a planned phone control; task titles are free text (3 to 120 characters) in the schema
+  and data standards. The screens gate, CSO questions H-300 to H-304 and three follow-ups are
+  in STATUS item 13 and care.md section 6.
+
+**Tests**: `packages/sync` 81, `apps/mobile` 891, passing locally; typecheck clean for sync and
+mobile.
+
+## 2026-10-13: The round and the handover on the phone, publication migration (#33)
+
+- Migration 0052 adds `task`, `handover`, `handover_item`, `handover_note` and
+  `handover_acknowledgement` to the `powersync` publication, with the `sync_replication_read`
+  policy and `SELECT` (only) for `harbour_sync`, as 0012 and 0017 do.
+- `packages/db/test/sync-publication.test.ts` reads the source tables of every stream query and
+  checks each is published and readable by the sync role, and that the sync role holds nothing
+  but `SELECT` on the five tables.
+- The hazard rows for the streams now name the migration and the test. Round 2 of #33: screens
+  gate item (e) (the phone must be able to say the outgoing handover is not compiled yet or not
+  final, which needs the expected shift on the device; H-303), the alias caveat in H-304, and a
+  STATUS low for a carer assigned to two people at different homes.
+
+**Tests**: `packages/db` 411 (real Postgres), `packages/sync` 81, `apps/mobile` 891, passing
+locally; typecheck clean for db, sync and mobile.
+
 ## 2026-10-13: The consent, capacity and DoLS tab, part 2 (slice 9, Lane B)
 
 The rest of the tab's read views, on the API already on `main` and held to the standards of #34's
@@ -1192,7 +1260,7 @@ not the API's English; consent records warn when the deciding record was withdra
 or cannot be placed, and say when one starts later. The journey records every consent state,
 both representatives with their authority, the corrected best-interests decision and the later
 assessment before its axe and 320 px checks, and opens the earlier version by keyboard. Human
-actions H-254 and H-255 for the CSO; STATUS item 15 for the follow-ups.
+actions H-254 and H-255 for the CSO; STATUS item 16 for the follow-ups.
 
 **Tests**: `apps/web` 410 unit, `packages/i18n` 48; Playwright `e2e/capacity.spec.ts`,
 `care-record.spec.ts` and `break-glass.spec.ts` on a fresh scratch database, run locally.

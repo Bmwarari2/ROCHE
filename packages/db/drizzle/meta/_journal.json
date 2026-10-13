@@ -365,6 +365,13 @@
       "when": 1791846396111,
       "tag": "0051_downtime_pack_and_outage_security",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1791861454210,
+      "tag": "0052_round_and_handover_sync",
+      "breakpoints": true
     }
   ]
 }

@@ -1329,6 +1329,48 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
 - **Not yet on the device**: tasks, rounds and handover; writing assessments, activities and visits
   (the upload path takes activities and visits already); photos; incidents; the conflict review.
   Body-map marks and chart history older than the window are not on the device (HZ-028).
+- **The round and the handover: streams (slice 10 part 2, first PR).** Six tables sync read-only,
+  scoped as the API's views are (HZ-011; `packages/sync/test/task-handover-streams.test.ts`).
+  `*_open_tasks` carry the open (`open`, `in_progress`) tasks due on a day of the offline window
+  (the UTC day of `due_at`), as the round view shows them (`care.plan.read`, the care claims):
+  about the people in that scope (at a location, only people active, on leave or in hospital),
+  about nobody at the locations it reaches whole, and about nobody and given to the user. This
+  replaces "today and tomorrow" in the table above: unfinished tasks from earlier rounds in the
+  window stay on the round; one due before the window is on the web round and in the handover
+  (HZ-028, H-301). A task done, skipped or cancelled leaves the device; `details` and
+  `status_reason` are not sent; the title is free text (3 to 120 characters) as the round view
+  shows it. `*_handovers` carry the handovers compiled for shifts ending on a day of the window,
+  with their items, notes and acknowledgements, as the handover views show them
+  (`care.handover.manage`, new token claims `handover_location_ids` and `handover_assigned`).
+  A shift nobody has compiled yet has no handover on the phone, and an empty `locked_at` means
+  not final; `refreshed_at` is not sent (the API shows it to whole readers only, and one synced
+  row cannot differ by reader). Whole at the locations the permission reaches; otherwise only the
+  handovers the user may open (where one of their assigned people lives, as
+  `app.handover_location_visible`), and in them only the items and notes about those people and
+  the notes on the whole handover, never an item about nobody or a note on one. A user with both
+  also gets, in the handovers they see whole, the items and notes about their assigned people who
+  have since moved elsewhere, as the API shows them. Each user gets their own acknowledgements
+  with item keys (`handover_acknowledgement`); a whole reader also gets who acknowledged and when
+  (`handover_staff_acknowledgement`), never another member's item keys, which name people and
+  what happened to them (#33 review round 1, M1, L1 and L3). Items and notes about a person carry
+  no status filter, as row-level security has none (a death in the shift reaches the incoming
+  staff, HZ-018). `handover_item.key` arrives as `item_key`. Migration 0052 adds the five tables to the
+  `powersync` publication with the sync role's read policy and `SELECT` only;
+  `packages/db/test/sync-publication.test.ts` checks that every table a stream reads is published
+  and readable by the sync role. Still to do: completing or skipping a task and acknowledging a
+  handover offline (queued against `POST /v1/tasks/{id}/transition` with the version seen, and
+  `POST /v1/locations/{id}/handovers/{handoverId}/acknowledgements` with a device id and the seen
+  token worked out over the items shown), then the round and handover screens.
+- **Screens gate (#33 review round 1, clinical M2 and M3).** The round and handover screens on the
+  phone do not ship until: (a) each handover item carries a worded summary, or its source
+  (incidents, alerts, skipped-task reasons) is on the device (STATUS item 4; H-300); (b) the
+  "From an earlier plan" notice reaches the phone, through the plan action reference or a
+  computed flag (HZ-024; H-303); (c) the publication migration has landed (migration 0052, in
+  #33); (d) an empty list never reads as "nothing due" or "nothing to hand over" while the streams
+  have no data (the screen says what the phone holds, from when, and that it may be incomplete;
+  HZ-028); and (e) the phone can say "the outgoing handover is not compiled yet" or "not final",
+  which needs the shift pattern or the expected shift on the device, decided in the screens PR
+  (#33 review round 2; H-303).
 - **API follow-ups**: the revocation signal, the manager hand-over and the server copy of refused
   entries are built (Device integrity, above), and so, with the care API follow-ups, are keeping an
   IDDSI entry from a device with a flag and an alert to the nurse in charge instead of refusing it
