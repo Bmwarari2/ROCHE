@@ -18,6 +18,7 @@ import {
   OUTAGE_DECLARATION_MESSAGES,
   OUTAGE_RECONCILIATION_MESSAGES,
   OUTAGE_WORKFLOW,
+  type OutageKind,
   type OutageReconciliationSummary,
   type OutageState,
   type Permission,
@@ -194,16 +195,21 @@ async function reconciliation(
   return { summary: check.summary, entries, enteredByYou, stops };
 }
 
-const outageRoute = <P extends string>(path: P, summary: string, body: z.ZodType) =>
+const outageRoute = <P extends string>(route: {
+  readonly method: "post";
+  readonly path: P;
+  readonly summary: string;
+  readonly body: z.ZodType;
+}) =>
   createRoute({
-    method: "post",
-    path,
+    method: route.method,
+    path: route.path,
     tags: ["operations"],
-    summary,
+    summary: route.summary,
     security,
     request: {
       params: OutageParams,
-      body: { content: { "application/json": { schema: body } } },
+      body: { content: { "application/json": { schema: route.body } } },
     },
     responses: {
       200: jsonBody(OutageItem, "The outage"),
@@ -322,7 +328,12 @@ export const outagesRouter = createRouter()
     },
   )
   .openapi(
-    outageRoute("/v1/outages/{id}/close", "Close an outage when systems are back", CloseOutage),
+    outageRoute({
+      method: "post",
+      path: "/v1/outages/{id}/close",
+      summary: "Close an outage when systems are back",
+      body: CloseOutage,
+    }),
     async (c) => {
       const access = await requirePermission(c, MANAGE);
       const { id } = c.req.valid("param");
@@ -420,11 +431,12 @@ export const outagesRouter = createRouter()
     },
   )
   .openapi(
-    outageRoute(
-      "/v1/outages/{id}/reconcile",
-      "Confirm every paper record from the outage is entered and checked",
-      ReconcileOutage,
-    ),
+    outageRoute({
+      method: "post",
+      path: "/v1/outages/{id}/reconcile",
+      summary: "Confirm every paper record from the outage is entered and checked",
+      body: ReconcileOutage,
+    }),
     async (c) => {
       const access = await requirePermission(c, MANAGE);
       const { id } = c.req.valid("param");
@@ -467,7 +479,12 @@ export const outagesRouter = createRouter()
     },
   )
   .openapi(
-    outageRoute("/v1/outages/{id}/cancel", "Cancel an outage declared in error", CancelOutage),
+    outageRoute({
+      method: "post",
+      path: "/v1/outages/{id}/cancel",
+      summary: "Cancel an outage declared in error",
+      body: CancelOutage,
+    }),
     async (c) => {
       const access = await requirePermission(c, MANAGE);
       const { id } = c.req.valid("param");
@@ -497,11 +514,12 @@ export const outagesRouter = createRouter()
     },
   )
   .openapi(
-    outageRoute(
-      "/v1/outages/{id}/correct",
-      "Correct an outage's start or end, with a reason, before it is reconciled",
-      CorrectOutage,
-    ),
+    outageRoute({
+      method: "post",
+      path: "/v1/outages/{id}/correct",
+      summary: "Correct an outage's start or end, with a reason, before it is reconciled",
+      body: CorrectOutage,
+    }),
     async (c) => {
       const access = await requirePermission(c, MANAGE);
       const { id } = c.req.valid("param");
@@ -528,7 +546,7 @@ export const outagesRouter = createRouter()
         const check = checkOutageDeclaration(
           {
             locationId: row.locationId,
-            kind: row.kind as OutageRow["kind"] as never,
+            kind: row.kind as OutageKind,
             startedAt,
             endedAt,
             declaredAt: now,
