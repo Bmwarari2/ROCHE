@@ -228,6 +228,12 @@ const entryColumns = {
   supersedes_id: column.text,
   correction_reason: column.text,
   created_by: column.text,
+  /**
+   * Device only: the round's task this entry is the evidence for (the 02:00 turn), sent as
+   * `taskId` so the API completes the task, or keeps the entry for review when it cannot. Never
+   * sent by the server, so it is empty on synced rows.
+   */
+  task_id: column.text,
 };
 
 const entryIndexes = { by_person_time: ["person_id", "occurred_at"] };
@@ -357,6 +363,12 @@ const task = new Table(
     updated_at: column.text,
     /** Sent back as `version` when the task is moved, so a stale move is refused. */
     version: column.integer,
+    /**
+     * Device only: a move made on the device and waiting to upload (`QueuedTaskMove` JSON in
+     * apps/mobile: its id, done or skipped, the reason, the version seen, who and when). Never
+     * sent by the server, so the server's copy clears it.
+     */
+    queued_transition: column.text,
   },
   {
     indexes: {
@@ -427,6 +439,13 @@ const handover_acknowledgement = new Table(
     tenant_user_id: column.text,
     item_keys: column.text,
     acknowledged_at: column.text,
+    /**
+     * Device only, for an acknowledgement made on the device: the handover's location (the API
+     * path) and the seen token worked out over the items shown, which the API compares with its
+     * own view. Never sent by the server.
+     */
+    location_id: column.text,
+    seen_token: column.text,
   },
   { indexes: { by_handover: ["handover_id", "tenant_user_id"] } },
 );
@@ -574,8 +593,7 @@ export type OfflineWindowTable = (typeof OFFLINE_WINDOW_TABLES)[number];
 
 /**
  * The round and the handover (`*_open_tasks`, `*_handovers`): open tasks due in the offline window
- * and the handovers of shifts ending in it. Read only on the device until the offline completion
- * and acknowledgement land.
+ * and the handovers of shifts ending in it.
  */
 export const ROUND_AND_HANDOVER_TABLES = [
   "task",
@@ -585,6 +603,13 @@ export const ROUND_AND_HANDOVER_TABLES = [
   "handover_acknowledgement",
   "handover_staff_acknowledgement",
 ] as const;
+
+/**
+ * Round and handover tables the device writes: a task's move (an update carrying
+ * `queued_transition`) and an acknowledgement (an insert). Each goes to its own API route.
+ */
+export const ROUND_WRITABLE_TABLES = ["task", "handover_acknowledgement"] as const;
+export type RoundWritableTable = (typeof ROUND_WRITABLE_TABLES)[number];
 
 /** The only synced tables a device writes to: append-only entries, inserts only. */
 export const DEVICE_WRITABLE_TABLES: readonly OfflineWindowTable[] = OFFLINE_WINDOW_TABLES;
