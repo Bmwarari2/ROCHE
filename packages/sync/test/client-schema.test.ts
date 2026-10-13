@@ -5,6 +5,7 @@ import {
   DEVICE_WRITABLE_TABLES,
   NEVER_EVICT_TABLES,
   OFFLINE_WINDOW_TABLES,
+  ROUND_AND_HANDOVER_TABLES,
 } from "../src/client/schema";
 import { readSyncConfig } from "../src/streams/index";
 import { compile, ids, syncFor } from "./support/simulator";
@@ -21,11 +22,14 @@ function outputColumns(raw: string): { table: string; columns: string[] } {
   const upper = query.toUpperCase();
   const select = upper.indexOf("SELECT ") + "SELECT ".length;
   const from = upper.indexOf(" FROM ");
-  const table =
+  // The output table is the first source table, or its alias when it is renamed (`AS "name"`).
+  const source = (
     query
       .slice(from + " FROM ".length)
       .trim()
-      .split(/[\s,]/)[0] ?? "";
+      .split(",")[0] ?? ""
+  ).split(/\s+/);
+  const table = (source[1]?.toUpperCase() === "AS" ? source[2] : source[0])?.replaceAll('"', "");
   const columns = query
     .slice(select, from)
     .split(",")
@@ -35,7 +39,7 @@ function outputColumns(raw: string): { table: string; columns: string[] } {
       const name = last.includes(".") ? last.slice(last.lastIndexOf(".") + 1) : last;
       return name.replaceAll('"', "");
     });
-  return { table, columns };
+  return { table: table ?? "", columns };
 }
 
 describe("client schema covers every stream", () => {
@@ -64,9 +68,11 @@ describe("client schema covers every stream", () => {
     }
   });
 
-  it("splits the care tables into reference data and windowed entries, and only entries are written", () => {
+  it("splits the care tables into reference data, windowed entries and the round and handover, and only entries are written", () => {
     const synced = AppSchema.tables.filter((t) => !t.localOnly).map((t) => t.name);
-    expect([...NEVER_EVICT_TABLES, ...OFFLINE_WINDOW_TABLES].sort()).toEqual(synced.sort());
+    expect(
+      [...NEVER_EVICT_TABLES, ...OFFLINE_WINDOW_TABLES, ...ROUND_AND_HANDOVER_TABLES].sort(),
+    ).toEqual(synced.sort());
     expect(DEVICE_WRITABLE_TABLES).toEqual(OFFLINE_WINDOW_TABLES);
   });
 

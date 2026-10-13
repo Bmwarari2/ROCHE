@@ -76,6 +76,9 @@ const DAY_MS = 86_400_000;
  * reach, from the roles and grants carrying them (ADR-0071 review round 1, C-M1). A person syncs
  * only where their care reference syncs too, so the phone never shows a resuscitation decision
  * or IDDSI level as "not recorded" when it is merely absent from the device (review round 2).
+ * The round's open tasks follow the care family (care.plan.read, the round view's permission), and
+ * the handovers with their items, notes and acknowledgements follow care.handover.manage, the
+ * permission the handover views read them with.
  * `entries_write` is not a stream: it tells the phone where it may record (care.note.write), so it
  * never offers to record what the server would refuse (review round 2, C2-M3).
  */
@@ -83,6 +86,7 @@ export const SYNCED_READS = {
   people: ["people.person.read", "care.plan.read"],
   care: ["care.plan.read"],
   entries: ["care.note.read"],
+  handover: ["care.handover.manage"],
   entries_write: ["care.note.write"],
 } as const satisfies Record<string, readonly Permission[]>;
 
@@ -160,7 +164,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         tags: ["sync"],
         summary: "A short-lived token for the PowerSync service, scoped to tenant and assignments",
         description:
-          "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids and entries_location_ids with people_assigned, care_assigned and entries_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read and care.note.read), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), and offline_days (the offline window from the rate table, never from the device). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.",
+          "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), and offline_days (the offline window from the rate table, never from the device). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.",
         security,
         responses: { 200: jsonBody(SyncToken, "Token"), ...errorResponses },
       }),
@@ -187,6 +191,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
           const people = familyReach(access.effective, "people", allIds);
           const care = familyReach(access.effective, "care", allIds);
           const entries = familyReach(access.effective, "entries", allIds);
+          const handovers = familyReach(access.effective, "handover", allIds);
           const recording = familyReach(access.effective, "entries_write", allIds);
           // The offline window comes from the rate table here, never from the device (care.md
           // section 6): the streams read it from this claim and ignore connection parameters.
@@ -210,9 +215,11 @@ export function createSyncRouter(signer: SyncTokenSigner) {
               peopleLocations: people.locationIds.length,
               careLocations: care.locationIds.length,
               entriesLocations: entries.locationIds.length,
+              handoverLocations: handovers.locationIds.length,
               peopleAssigned: people.assigned,
               careAssigned: care.assigned,
               entriesAssigned: entries.assigned,
+              handoverAssigned: handovers.assigned,
               offlineWindowDays: windowDays,
             },
             requestId: c.get("requestId"),
@@ -250,6 +257,8 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             people_assigned: people.assigned,
             care_assigned: care.assigned,
             entries_assigned: entries.assigned,
+            handover_location_ids: handovers.locationIds,
+            handover_assigned: handovers.assigned,
             entries_write_location_ids: recording.locationIds,
             entries_write_assigned: recording.assigned,
             ...(writePersonIds ? { entries_write_person_ids: writePersonIds } : {}),

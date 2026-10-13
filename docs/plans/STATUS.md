@@ -199,6 +199,65 @@ only when they link spec, code, tests and user documentation; no user guides exi
     under each member's settings) inside the entry's transaction.
     Measure it against the 100 ms point-of-care budget on a large organisation; if it is slow,
     evaluate the scope for all candidates at once in a database function.
+13. The consent, capacity and DoLS tab, the rest (slice 9, CARE-021 and CARE-022; consent by
+    decision and the DoLS register are on `feat/web-mca-tab`): read views of the capacity
+    assessments (the two-stage answers, the outcome in the Act's words, corrections struck
+    through), the best-interests decisions (checklist, consultations, the IMCA prompt as a warning)
+    and the consent records (whether each decides its decision now, was replaced, withdrawn or
+    expired; the representative's authority; history links); then the forms, each offered only
+    where `access.reaching` lists its permission and with the read-only line otherwise (ADR-0071),
+    each with a client UUIDv7 kept across retries (HZ-029) and its refusals mapped in
+    `refusals.ts`: record a consent or refusal (the representative and their authority, the
+    restraint conditions for bed rails, the best-interests decision for covert medicines) and
+    withdraw one (`care.capacity.write`); a two-stage capacity assessment and its correction; a
+    best-interests decision; record a DoLS request or authorisation and update its outcome, dates,
+    extension or end (`care.dols.manage`), deciding with the CSO how a typed end date maps to the
+    API's exclusive `grantedTo` (HZ-020); and the legal-change review screen
+    (`/v1/dols/legal-change-review`). Also: consents and DoLS in the history tab's list of records
+    with earlier versions, and the API gaps in care.md section 10 (English-only reasons; an
+    expired authorisation that a later one followed reads as expired).
+14. Follow-ups from review round 1 of the consent, capacity and DoLS tab (#34; H-250 to H-253 ask
+    the CSO): a drafted CQC notification past its due time has no overdue cue on the tab; the
+    expiry reminder lines do not say whether the reminder was sent or acted on; check the timing
+    of "Today is the last day in force" against the API's `daysLeft` and the expiry job once the
+    CSO answers H-250; the empty DoLS register gives no next step (who to ask, or the form once it
+    exists); the legal-change review warning does not follow the tenant flag (H-253) and shows for
+    homes in Wales although its text points to DHSC guidance for England. From review round 2: an
+    unknown outcome or type reads as plain text, not the warning chip the hazard log describes; an
+    authorisation not yet started with a midnight end reads "In force until the end of ...".
+15. Slice 10 part 2 on the phone (Lane C), the round and the handover: the sync streams, the
+    token's handover claims and the client tables are in review (#33,
+    `feat/mobile-tasks-handover-sync`, [care.md](../specs/care.md) section 6), with migration
+    0052, which adds `task`, `handover`, `handover_item`, `handover_note` and
+    `handover_acknowledgement` to the `powersync` publication with the `sync_replication_read`
+    policy and `SELECT` for `harbour_sync`, and a database test that every table the streams read
+    is published. Then: completing or skipping a task and acknowledging a handover offline
+    (queued, idempotent, the task's version and the seen token over the items shown; a refusal to
+    "needs attention"), then the round and handover screens in Care mode (staff names where the
+    API gives them, the window and last sync said on the round, HZ-028).
+    - Screens gate (#33 review round 1, clinical M2 and M3): the round and handover screens do not
+      ship until (a) each handover item carries a worded summary (item 4) or its source
+      (incidents, alerts, skipped-task reasons) is on the device (H-300); (b) the "From an earlier
+      plan" notice reaches the phone, through the plan action reference or a computed flag
+      (HZ-024, H-303); (c) the publication migration has landed (0052, in #33); (d) an empty list
+      on the phone never reads as "nothing due" when the streams have no data; (e) the phone can
+      say "the outgoing handover is not compiled yet" or "not final", which needs the shift
+      pattern or the expected shift on the device, decided in the screens PR (#33 review round 2;
+      H-303).
+    - Follow-up: whether the round on the phone should also hold unfinished tasks due before the
+      window (H-301).
+    - Follow-up (#33 review round 1): the streams ignore `person_assignment.valid_from`, so a
+      future-dated assignment syncs early; the existing pattern is now in seven more queries. Sync
+      rules cannot read the clock: decide between a token claim naming the assignments in force
+      and keeping a future assignment out of replication until it starts.
+    - Follow-up (#33 review round 1): the window tests check the query text only; add tests at
+      UTC midnight and across the clock changes on `task.due_at` and `handover.shift_end`.
+    - Follow-up (#33 review round 1): `location_open_tasks` keeps tasks about people active, on
+      leave or in hospital, while the web round has no status filter, so tasks about someone at
+      pre-admission are on the web round only.
+    - Follow-up (#33 review round 2, low): no test yet of a carer assigned to two people at
+      different homes where the person who opens a handover differs from the item's person (the
+      two `person_assignment` joins in the `assigned_handovers` item and note queries).
 
 ## Human actions outstanding
 

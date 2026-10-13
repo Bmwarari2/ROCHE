@@ -37,6 +37,8 @@ const cases: ReadonlyArray<{
   readonly people: Reach;
   readonly care: Reach;
   readonly entries: Reach;
+  /** The handovers, read with care.handover.manage: whole at a location, or limited to their people. */
+  readonly handover: Reach;
   /** Where the phone may record (care.note.write; review round 2, C2-M3). */
   readonly write: Reach;
 }> = [
@@ -46,6 +48,7 @@ const cases: ReadonlyArray<{
     people: assigned,
     care: assigned,
     entries: assigned,
+    handover: assigned,
     write: assigned,
   },
   {
@@ -54,6 +57,7 @@ const cases: ReadonlyArray<{
     people: assigned,
     care: assigned,
     entries: assigned,
+    handover: assigned,
     write: assigned,
   },
   {
@@ -62,6 +66,7 @@ const cases: ReadonlyArray<{
     people: at(NORTH),
     care: at(NORTH),
     entries: at(NORTH),
+    handover: at(NORTH),
     write: at(NORTH),
   },
   {
@@ -70,6 +75,7 @@ const cases: ReadonlyArray<{
     people: at(NORTH),
     care: at(NORTH),
     entries: at(NORTH),
+    handover: at(NORTH),
     write: at(NORTH),
   },
   {
@@ -80,6 +86,7 @@ const cases: ReadonlyArray<{
     people: at(NORTH),
     care: at(NORTH),
     entries: nothing,
+    handover: nothing,
     write: nothing,
   },
   {
@@ -88,6 +95,7 @@ const cases: ReadonlyArray<{
     people: at(NORTH),
     care: at(NORTH),
     entries: at(NORTH),
+    handover: at(NORTH),
     write: at(NORTH),
   },
   {
@@ -96,6 +104,7 @@ const cases: ReadonlyArray<{
     people: { locationIds: [NORTH], assigned: true },
     care: { locationIds: [NORTH], assigned: true },
     entries: { locationIds: [NORTH], assigned: true },
+    handover: { locationIds: [NORTH], assigned: true },
     write: { locationIds: [NORTH], assigned: true },
   },
   {
@@ -107,6 +116,7 @@ const cases: ReadonlyArray<{
     people: { locationIds: [NORTH], assigned: true },
     care: { locationIds: [NORTH], assigned: true },
     entries: assigned,
+    handover: assigned,
     write: assigned,
   },
 ];
@@ -118,11 +128,14 @@ describe("hazard HZ-011 sync stream families per built-in Care mode role (ADR-00
       people: ["people.person.read", "care.plan.read"],
       care: ["care.plan.read"],
       entries: ["care.note.read"],
+      // The round's open tasks sync with the care family; handovers with the permission that
+      // reads them.
+      handover: ["care.handover.manage"],
       entries_write: ["care.note.write"],
     });
   });
 
-  it.each(cases)("$name", ({ roles, people, care, entries, write }) => {
+  it.each(cases)("$name", ({ roles, people, care, entries, handover, write }) => {
     const effective = resolveAccess(
       roles.map((key) => roleAt(key, NORTH)),
       [],
@@ -132,6 +145,7 @@ describe("hazard HZ-011 sync stream families per built-in Care mode role (ADR-00
     expect(familyReach(effective, "people", all)).toEqual(people);
     expect(familyReach(effective, "care", all)).toEqual(care);
     expect(familyReach(effective, "entries", all)).toEqual(entries);
+    expect(familyReach(effective, "handover", all)).toEqual(handover);
     expect(familyReach(effective, "entries_write", all)).toEqual(write);
   });
 
