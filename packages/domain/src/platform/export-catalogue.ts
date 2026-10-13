@@ -46,6 +46,8 @@ export type ExportRetention =
   | "care_record"
   | "audit_event"
   | "serious_incident"
+  | "downtime_pack"
+  | "downtime_record"
   | "tenant_configuration"
   | "as_subject"
   | "by_category"
@@ -117,6 +119,7 @@ export const CLINICAL_EXPORT_TABLES: readonly string[] = [
   "public.handover_acknowledgement",
   "public.refused_entry",
   "public.entry_device_deletion_flag",
+  "public.downtime_pack",
 ];
 
 interface ConventionalDoc {
@@ -1699,6 +1702,52 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.downtime_pack": {
+    context: "operations",
+    description:
+      "Downtime packs (operations.md): a snapshot per location of what staff need during an outage, one page per person receiving care. Kept as downtime_record when in force during a declared outage.",
+    treatment: "tenant_rows",
+    retention: "downtime_pack",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      location_id: "exported",
+      source: {
+        description: "How the pack was built.",
+        codes: {
+          server_nightly: "The nightly job built it.",
+          server_on_demand: "A member built it on demand.",
+          kiosk_cache: "A kiosk built it from its own cache when the server could not be reached.",
+        },
+      },
+      generated_at: { description: "When the pack was built (instant, UTC)." },
+      as_at: {
+        description:
+          "When its information was read (instant, UTC): the server's read time, or a kiosk's last sync.",
+      },
+      valid_until: {
+        description:
+          "Until when the pack reads as current (instant, UTC): as_at plus downtime_pack.valid_hours.",
+      },
+      generated_by: {
+        description: "Tenant user who built it (tenant_user.id); empty for the nightly job.",
+      },
+      person_ids: { description: "The people with a page in the pack (person.id)." },
+      content: {
+        description:
+          "The pack as built, JSON: per person the sections in DOWNTIME_PACK_SECTIONS order with their state (data-standards.md).",
+      },
+      warnings: {
+        description: "Warnings on the pack by kind and section: counts and opaque ids only.",
+      },
+      document_id: {
+        description: "The rendered PDF, when the server rendered one (document.id).",
+      },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
   "public.entry_device_deletion_flag": {
     context: "care",
     description:
@@ -2578,6 +2627,19 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       phone: { description: "Telephone number." },
       bed_capacity: { description: "Registered beds.", unit: "count" },
       status: { description: "active or closed." },
+      downtime_mar_location: {
+        description:
+          "Where the paper MAR is kept, as the downtime pack prints it (location setting downtime.mar_location).",
+      },
+      downtime_peep_location: {
+        description:
+          "Where the PEEPs are kept, as the downtime pack prints it (location setting downtime.peep_location).",
+      },
+      downtime_places_confirmed_at: {
+        description:
+          "When the two places were confirmed (instant, UTC); empty while the seeded wording stands or since a place changed.",
+      },
+      downtime_places_confirmed_by: "exported",
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -2732,6 +2794,69 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     reasonNotExported:
       "Thapsus's own staff records (Thapsus is their controller), not organisation data.",
     columns: {},
+  },
+  "public.outage": {
+    context: "operations",
+    description:
+      "Outages declared at a location (operations.md): the window paper records from it are back-entered against, its closure and its reconciliation.",
+    treatment: "tenant_rows",
+    retention: "downtime_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      location_id: "exported",
+      kind: {
+        description: "What failed.",
+        codes: {
+          power: "Power cut.",
+          network: "Internet or network failure.",
+          harbour_unavailable: "Harbour unavailable.",
+          device_failure: "Devices not working.",
+          planned_maintenance: "Planned maintenance.",
+          other: "Other outage.",
+        },
+      },
+      description: { description: "What failed, in the declarer's words." },
+      state: { description: "declared (open), closed, reconciled or cancelled." },
+      workflow_instance_id: "exported",
+      started_at: { description: "When the outage began (instant, UTC)." },
+      ended_at: { description: "When systems came back (instant, UTC); empty while open." },
+      declared_at: "exported",
+      declared_by: "exported",
+      declared_late: {
+        description:
+          "True when it was declared more than care_note.late_entry_hours after it began.",
+      },
+      closed_at: "exported",
+      closed_by: "exported",
+      back_entry_due_at: {
+        description:
+          "When every paper record should be entered (instant, UTC): the closure plus downtime.back_entry_due_hours.",
+      },
+      reconciled_at: "exported",
+      reconciled_by: {
+        description:
+          "Tenant user who confirmed every paper record entered and checked (tenant_user.id); never one who entered them.",
+      },
+      reconciliation_statement: { description: "What the reconciler checked, in their words." },
+      reviewed_entry_ids: {
+        description: "The possible duplicate care entries reviewed before reconciling (entry ids).",
+      },
+      forms_entered: { description: "Distinct paper forms entered.", unit: "count" },
+      cancelled_at: "exported",
+      cancelled_by: "exported",
+      cancellation_reason: { description: "Why the outage was cancelled (declared in error)." },
+      correction_reason: {
+        description: "Why the start or end was last corrected; earlier ones are in the history.",
+      },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
   },
   "public.outbox_event": {
     context: "platform",
