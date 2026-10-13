@@ -59,7 +59,10 @@ export default async function IncidentsPage() {
         <Notice
           tone="warning"
           icon={<TriangleAlert size={20} strokeWidth={1.5} aria-hidden="true" />}
-          title={t("safety.incidents.truncated", { limit: INCIDENT_LIST_LIMIT })}
+          title={t("safety.incidents.truncated", {
+            reach: data.truncated,
+            limit: INCIDENT_LIST_LIMIT,
+          })}
         />
       ) : null}
       {data.items.length === 0 ? (

@@ -48,17 +48,19 @@ export const INCIDENT_LIST_LIMIT = 500;
 /**
  * The newest incidents with every open or under-review one fetched besides, newest first, so an
  * older incident still waiting for answers is never hidden by the list's limit (HZ-013).
- * `truncated` says a list hit the limit, so older incidents may be missing.
+ * `truncated` says what may be missing: older incidents ("older") when the newest hit the limit,
+ * or open and under-review ones too ("unfinished") when one of those lists hit it as well.
  */
 export function incidentsToList<I extends Pick<IncidentSummary, "id" | "occurredAt">>(
   newest: readonly I[],
   ...unfinished: readonly (readonly I[])[]
-): { readonly items: I[]; readonly truncated: boolean } {
+): { readonly items: I[]; readonly truncated: "older" | "unfinished" | null } {
   const byId = new Map<string, I>();
   for (const item of [newest, ...unfinished].flat()) byId.set(item.id, item);
+  const full = (list: readonly I[]) => list.length >= INCIDENT_LIST_LIMIT;
   return {
     items: [...byId.values()].sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt)),
-    truncated: [newest, ...unfinished].some((list) => list.length >= INCIDENT_LIST_LIMIT),
+    truncated: unfinished.some(full) ? "unfinished" : full(newest) ? "older" : null,
   };
 }
 
@@ -70,20 +72,22 @@ export interface SafetyNotice {
 /**
  * What the incident page says about statutory notifications while it does not show them
  * (HZ-013, #42 review): not checked yet, or not checked outside England, and that the questions
- * and notifications are not on this page yet. Nothing for a reader who cannot see everyone on
- * the incident: they are told part of it is hidden instead.
+ * and notifications are not on this page yet. A holder of `safety.notification.submit` is told
+ * to check them themselves, not sent to ask someone (#42 review round 2). Nothing for a reader
+ * who cannot see everyone on the incident: they are told part of it is hidden instead.
  */
 export function incidentNotices(
   incident: {
     readonly restricted: boolean;
     readonly classifier: { readonly nationSupported: boolean } | null;
   },
+  canSubmit: boolean,
   t: Translator,
 ): SafetyNotice[] {
   if (incident.restricted) return [];
   const notice = (notice: string) => ({
     title: t("safety.incident.notice", { notice }),
-    body: t("safety.incident.noticeHint", { notice }),
+    body: t("safety.incident.noticeHint", { notice, self: String(canSubmit) }),
   });
   if (!incident.classifier) return [notice("notChecked")];
   return [...(incident.classifier.nationSupported ? [] : [notice("nation")]), notice("notShown")];

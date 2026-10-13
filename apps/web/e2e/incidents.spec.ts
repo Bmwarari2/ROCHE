@@ -139,6 +139,7 @@ test("hazard HZ-013 the nurse finds an incident in the list, with its open quest
     familyInformed: { who: "Her daughter", at: at(-20) },
     people: [
       { kind: "service_user", role: "affected", personId: demoPerson(3) },
+      { kind: "service_user", role: "witness", personId: demoPerson(2) },
       { kind: "other_not_at_work", role: "witness", otherName: "Vic Visitor" },
     ],
     answers: [{ key: "police.involved", value: "unsure" }],
@@ -193,8 +194,12 @@ test("hazard HZ-013 the nurse finds an incident in the list, with its open quest
   ).toBeVisible();
   const people = section(page, "People on this incident");
   const cara = people.getByRole("listitem").filter({ hasText: "Cara Placeholder: affected" });
-  await expect(cara.getByText("Communication needs", { exact: true })).toBeVisible();
-  await expect(cara.getByText("Uses a hearing loop")).toBeVisible();
+  await expect(cara.getByRole("term")).toHaveText("Communication needs");
+  await expect(cara.getByRole("definition")).toContainText("Uses a hearing loop");
+  // A person with no needs recorded: the label says what "Not recorded" is about (AIS).
+  const ben = people.getByRole("listitem").filter({ hasText: "Ben Sample: witness" });
+  await expect(ben.getByRole("term")).toHaveText("Communication needs");
+  await expect(ben.getByRole("definition")).toHaveText("Not recorded");
   await expect(people.getByText("Vic Visitor: witness")).toBeVisible();
 
   await expectAccessible(page, "incident");
