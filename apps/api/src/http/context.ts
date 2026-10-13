@@ -1,19 +1,25 @@
 import { DEVICE_HEADER, HANDOVER_OWNER_HEADER, TENANT_HEADER } from "@harbour/contracts";
 import {
   authPasskey,
+  authSession,
   type Database,
   deviceSession,
   person,
   type RequestContext,
+  rateTable,
   type Transaction,
   tenantUser,
   withRequestContext,
 } from "@harbour/db";
 import {
+  activityDue,
   authorise,
   can,
   type DocumentStoragePort,
   type EffectiveAccess,
+  IDLE_TIMEOUT_KEY_PREFIX,
+  idleExpired,
+  idleTimeoutMinutes,
   type MalwareScanPort,
   narrowestScope,
   type Permission,
@@ -23,17 +29,22 @@ import {
   touchesCareRecords,
   widestScope,
 } from "@harbour/domain";
-import { and, count, eq, sql } from "drizzle-orm";
+import { and, count, eq, like, lt, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { Context, MiddlewareHandler } from "hono";
 import type pg from "pg";
-import type { Auth } from "../auth/better-auth";
+import {
+  type Auth,
+  SESSION_EXPIRES_IN_SECONDS,
+  SESSION_UPDATE_AGE_SECONDS,
+} from "../auth/better-auth";
 import type { Config } from "../config";
+import type { FlagService } from "../flags/provider";
 import type { Logger } from "../logger";
 import { accessRowsOfMember } from "../services/access-rows";
 import { bindSession, sessionOnRevokedDevice } from "../services/devices";
 import { writeAudit } from "./audit";
-import { problems } from "./problem";
+import { HttpProblem, problems } from "./problem";
 import type { RateLimiter } from "./rate-limit";
 
 // The device id is the PowerSync client id, a UUID. Anything else is not trusted into the audit
@@ -52,6 +63,8 @@ export interface Services {
   readonly authPool: pg.Pool;
   readonly operatorPool: pg.Pool;
   readonly auth: Auth;
+  /** Feature flags through OpenFeature (catalogue, the organisation's rows, optional Flagsmith). */
+  readonly flags: FlagService;
   readonly storage: DocumentStoragePort;
   readonly scanner: MalwareScanPort;
   /** Per-user limit on the transfer pack routes (S2). */
@@ -67,6 +80,8 @@ export interface SessionInfo {
   readonly email: string;
   readonly twoFactorEnabled: boolean;
   readonly sessionCreatedAt: Date;
+  /** When the session was last used (written at most once a minute; `activityDue`). */
+  readonly lastActiveAt: Date;
 }
 
 export interface Membership {
@@ -124,11 +139,27 @@ export function clientIp(c: Context): string | null {
   return forwarded && /^[0-9a-f.:]+$/i.test(forwarded) ? forwarded : null;
 }
 
-/** Resolves the Better Auth session from the cookie or the bearer token. */
+/**
+ * Resolves the Better Auth session from the cookie or the bearer token. Better Auth's own refresh
+ * is off here because it would also mark the session as used (`updated_at`), which the idle
+ * timeout reads; the expiry is moved on below instead, as Better Auth would, leaving the last use
+ * to the tenant middleware.
+ */
 export const sessionMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
-  const { auth } = c.get("services");
-  const result = await auth.api.getSession({ headers: c.req.raw.headers });
+  const { auth, authPool } = c.get("services");
+  const result = await auth.api.getSession({
+    headers: c.req.raw.headers,
+    query: { disableRefresh: true },
+  });
   if (result) {
+    const now = Date.now();
+    const expiresAt = new Date(result.session.expiresAt).getTime();
+    if (expiresAt - (SESSION_EXPIRES_IN_SECONDS - SESSION_UPDATE_AGE_SECONDS) * 1000 <= now) {
+      await drizzle(authPool)
+        .update(authSession)
+        .set({ expiresAt: new Date(now + SESSION_EXPIRES_IN_SECONDS * 1000) })
+        .where(eq(authSession.id, result.session.id));
+    }
     const user = result.user as typeof result.user & { twoFactorEnabled?: boolean | null };
     c.set("session", {
       authUserId: user.id,
@@ -137,6 +168,7 @@ export const sessionMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
       email: user.email,
       twoFactorEnabled: user.twoFactorEnabled === true,
       sessionCreatedAt: new Date(result.session.createdAt),
+      lastActiveAt: new Date(result.session.updatedAt),
     });
   } else {
     c.set("session", null);
@@ -176,6 +208,7 @@ async function loadAccess(
   sessionId: string,
   deviceId: string | null,
   now: Date,
+  browser: boolean,
 ) {
   // Context with scope 'none': enough to read the user's own role rows, nothing about people.
   const context: RequestContext = {
@@ -201,13 +234,60 @@ async function loadAccess(
           .where(and(eq(deviceSession.sessionId, sessionId), eq(deviceSession.deviceId, deviceId)))
           .limit(1)
       : [];
+    // A browser session's idle timeout, per role, from the rate table (section 5.3).
+    const idleMinutes = browser
+      ? idleTimeoutMinutes(
+          await tx
+            .select()
+            .from(rateTable)
+            .where(like(rateTable.key, `${IDLE_TIMEOUT_KEY_PREFIX}%`)),
+          [...effective.roleKeys],
+          tenantId,
+          now.toISOString().slice(0, 10),
+        )
+      : null;
     return {
       effective,
       mfaRequired: user?.mfaRequired ?? true,
       onRevokedDevice,
       sessionBound: bound !== undefined,
+      idleMinutes,
     };
   });
+}
+
+/**
+ * Whether the request carries the mobile app's bearer token. Browsers authenticate only with the
+ * httpOnly cookie and never hold the token (ADR-0030), so a page script cannot send one; a bearer
+ * request is the app, whose idle lock is the device's own (ADR-0011).
+ */
+function bearerRequest(c: Context): boolean {
+  return /^bearer\s/i.test(c.req.header("authorization") ?? "");
+}
+
+/**
+ * Signs out a browser session idle past its member's timeout (section 5.3; ASVS 5.0 V7.3): the
+ * sign-out is audited, the session deleted, and the request refused as unauthenticated. The audit
+ * row is written first: it and the session live under different database roles, so one
+ * transaction cannot hold both (#40 review).
+ */
+async function endIdleSession(c: Context<AppEnv>, access: TenantAccess, minutes: number) {
+  const services = c.get("services");
+  await writeAudit(services.appPool, access, {
+    action: "platform.session.idle_timeout",
+    resourceType: "session",
+    scope: { idleTimeoutMinutes: minutes },
+    requestId: c.get("requestId"),
+  });
+  await drizzle(services.authPool)
+    .delete(authSession)
+    .where(eq(authSession.id, access.session.sessionId));
+  return new HttpProblem(
+    401,
+    "unauthenticated",
+    "You were signed out because Harbour was not used for a while.",
+    "Sign in again to continue.",
+  );
 }
 
 /** A device's report of its unsent work: the one request a session on a revoked device may make. */
@@ -256,13 +336,16 @@ export const tenantMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
 
   const now = new Date();
   const deviceId = deviceIdOf(c.req.header(DEVICE_HEADER));
-  const { effective, mfaRequired, onRevokedDevice, sessionBound } = await loadAccess(
+  // The idle timeout is off unless the environment turns it on (HZ-111, H-353).
+  const browser = services.config.SESSION_IDLE_TIMEOUT === "on" && !bearerRequest(c);
+  const { effective, mfaRequired, onRevokedDevice, sessionBound, idleMinutes } = await loadAccess(
     services.db,
     membership.tenantId,
     membership.tenantUserId,
     session.sessionId,
     deviceId,
     now,
+    browser,
   );
   // A session bound to a device a manager has revoked is refused whatever it names (#25 review
   // rounds 2 and 3, M1 and M2), except its device's report, so the server still hears what the
@@ -270,26 +353,11 @@ export const tenantMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   if (onRevokedDevice && !(c.req.method === "POST" && c.req.path === DEVICE_REPORT_PATH)) {
     throw problems.deviceRevoked();
   }
-  // Any request naming a device binds the session to it, so a revocation covers a session that
-  // never asked for a sync token (M2). Written once per session and device; nothing on a revoked one.
-  if (deviceId && !sessionBound && !onRevokedDevice && bindsSession(c)) {
-    await withRequestContext(
-      services.db,
-      {
-        tenantId: membership.tenantId,
-        userId: membership.tenantUserId,
-        scope: "tenant",
-        locationIds: [],
-      },
-      (tx) => bindSession(tx, deviceId, membership.tenantUserId, session.sessionId, now),
-    );
-  }
   const mfaSatisfied =
     !mfaRequired ||
     session.twoFactorEnabled ||
     (await hasPasskey(services.authPool, session.authUserId));
-
-  c.set("access", {
+  const access: TenantAccess = {
     tenantId: membership.tenantId,
     tenantUserId: membership.tenantUserId,
     session,
@@ -308,7 +376,34 @@ export const tenantMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     deviceId,
     ip: clientIp(c),
     ...(onRevokedDevice ? { sessionOnRevokedDevice: true } : {}),
-  });
+  };
+  // A browser session unused for longer than the strictest of its member's roles allows is
+  // signed out now (section 5.3). Mobile sessions are left to the device lock (HZ-110).
+  if (idleMinutes !== null && idleExpired(session.lastActiveAt, now, idleMinutes)) {
+    throw await endIdleSession(c, access, idleMinutes);
+  }
+  // Any request naming a device binds the session to it, so a revocation covers a session that
+  // never asked for a sync token (M2). Written once per session and device; nothing on a revoked one.
+  if (deviceId && !sessionBound && !onRevokedDevice && bindsSession(c)) {
+    await withRequestContext(
+      services.db,
+      {
+        tenantId: membership.tenantId,
+        userId: membership.tenantUserId,
+        scope: "tenant",
+        locationIds: [],
+      },
+      (tx) => bindSession(tx, deviceId, membership.tenantUserId, session.sessionId, now),
+    );
+  }
+  // The session's last use, at most once a minute (the idle timeout and the device list read it).
+  if (activityDue(session.lastActiveAt, now)) {
+    await drizzle(services.authPool)
+      .update(authSession)
+      .set({ updatedAt: now })
+      .where(and(eq(authSession.id, session.sessionId), lt(authSession.updatedAt, now)));
+  }
+  c.set("access", access);
   await next();
 };
 
