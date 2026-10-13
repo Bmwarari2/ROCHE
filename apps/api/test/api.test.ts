@@ -112,6 +112,17 @@ describe("authentication", () => {
     expect(response.status).toBe(400);
   });
 
+  it("never offers a one-time code by SMS or email as a second factor (section 5.3)", async () => {
+    // Passkeys and authenticator apps only; SMS is a documented exception that is not configured.
+    const response = await h.request("/api/auth/two-factor/send-otp", {
+      method: "POST",
+      token: h.tokens.nurse,
+      body: {},
+    });
+    expect(response.status).toBe(400);
+    expect(((await response.json()) as { code?: string }).code).toBe("OTP_NOT_CONFIGURED");
+  });
+
   it("refuses passwords shorter than 12 characters", async () => {
     const response = await h.request("/api/auth/sign-up/email", {
       method: "POST",
