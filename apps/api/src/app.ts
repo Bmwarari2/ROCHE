@@ -6,6 +6,7 @@ import { secureHeaders } from "hono/secure-headers";
 import { createAuth } from "./auth/better-auth";
 import { withoutSessionTokens } from "./auth/token-exposure";
 import type { Config } from "./config";
+import { createFlagService } from "./flags/provider";
 import { type AppEnv, type Services, sessionMiddleware, tenantMiddleware } from "./http/context";
 import { HttpProblem, problemResponse, problems } from "./http/problem";
 import { QuotaExceeded } from "./http/quota";
@@ -85,6 +86,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     authPool,
     operatorPool,
     auth: createAuth(config, authPool),
+    flags: createFlagService(config, logger),
     ...createDocumentServices(config),
     transferPackLimiter: new RateLimiter(
       "transfer_pack",

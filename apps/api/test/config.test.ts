@@ -36,6 +36,11 @@ describe("loadConfig", () => {
   it.each([
     ["local document storage", { DOCUMENT_STORAGE: "local" }, "DOCUMENT_STORAGE"],
     ["the mock malware scanner", { MALWARE_SCANNER: "mock" }, "MALWARE_SCANNER"],
+    [
+      "a Flagsmith key with no address",
+      { FLAGSMITH_ENVIRONMENT_KEY: "ser.x" },
+      "FLAGSMITH_API_URL",
+    ],
   ])("refuses %s in production", (_label, change, message) => {
     expect(() => loadConfig({ ...PRODUCTION, ...change })).toThrow(message);
   });

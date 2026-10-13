@@ -1,7 +1,8 @@
 /**
- * Feature flags and module licensing (section 9.1). Evaluated through OpenFeature; the default
- * provider reads the `feature_flag` table (tenant row, then location row), with Flagsmith as an
- * optional provider. Defaults here apply when no row exists. The AI module is always off by default.
+ * Feature flags and module licensing (section 9.1). Evaluated through OpenFeature
+ * (`apps/api/src/flags`): the organisation's `feature_flag` rows (location row, then tenant row),
+ * then Flagsmith where it is configured and may set the flag (`remoteMaySet`), then the defaults
+ * here. The AI module is always off by default, and only the organisation's own row turns it on.
  */
 
 export interface FlagDefinition {
@@ -9,6 +10,8 @@ export interface FlagDefinition {
   readonly defaultEnabled: boolean;
   /** Licensed modules appear on the tenant's Harbour bill when enabled. */
   readonly licensed: boolean;
+  /** An AI flag: off by default, and on only where the organisation's own row says so (section 5). */
+  readonly ai?: boolean;
 }
 
 export const FLAGS = {
@@ -51,6 +54,7 @@ export const FLAGS = {
     description: "AI management copilot (advisory only; needs the DPIA AI addendum)",
     defaultEnabled: false,
     licensed: true,
+    ai: true,
   },
   "module.public_site": {
     description: "Public website with vacancies and fees",
@@ -89,17 +93,54 @@ export interface FlagRow {
   readonly enabled: boolean;
 }
 
+/** Where a flag's value came from, for the evaluation's reason. */
+export type FlagSource = "location" | "tenant" | "remote" | "catalogue";
+
+export function isFlagKey(value: string): value is FlagKey {
+  return Object.hasOwn(FLAGS, value);
+}
+
+export function isAiFlag(key: FlagKey): boolean {
+  const definition: FlagDefinition = FLAGS[key];
+  return definition.ai === true;
+}
+
+/**
+ * Whether Flagsmith may set the flag's value where the organisation has no row of its own:
+ * licensed modules only. Never an AI flag (only the organisation's own row turns AI on), nor a
+ * clinical tool, review workflow or language flag, which change only by the organisation's own
+ * audited row, so the API and every screen read them the same way.
+ */
+export function remoteMaySet(key: FlagKey): boolean {
+  return FLAGS[key].licensed && !isAiFlag(key);
+}
+
+/**
+ * The location row, then the tenant row, then the remote value (only where `remoteMaySet`, and
+ * only when the remote provider answered), then the catalogue default. AI flags are never on by
+ * default.
+ */
+export function resolveFlag(
+  key: FlagKey,
+  rows: readonly FlagRow[],
+  locationId: string | null,
+  remote?: boolean,
+): { readonly enabled: boolean; readonly source: FlagSource } {
+  if (locationId !== null) {
+    const atLocation = rows.find((r) => r.flagKey === key && r.locationId === locationId);
+    if (atLocation) return { enabled: atLocation.enabled, source: "location" };
+  }
+  const tenantWide = rows.find((r) => r.flagKey === key && r.locationId === null);
+  if (tenantWide) return { enabled: tenantWide.enabled, source: "tenant" };
+  if (remote !== undefined && remoteMaySet(key)) return { enabled: remote, source: "remote" };
+  return { enabled: FLAGS[key].defaultEnabled && !isAiFlag(key), source: "catalogue" };
+}
+
 /** Location rows override tenant rows, which override the catalogue default. */
 export function evaluateFlag(
   key: FlagKey,
   rows: readonly FlagRow[],
   locationId: string | null,
 ): boolean {
-  if (locationId !== null) {
-    const atLocation = rows.find((r) => r.flagKey === key && r.locationId === locationId);
-    if (atLocation) return atLocation.enabled;
-  }
-  const tenantWide = rows.find((r) => r.flagKey === key && r.locationId === null);
-  if (tenantWide) return tenantWide.enabled;
-  return FLAGS[key].defaultEnabled;
+  return resolveFlag(key, rows, locationId).enabled;
 }

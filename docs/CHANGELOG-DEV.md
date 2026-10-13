@@ -1167,3 +1167,15 @@ CSO; STATUS item 14 for the follow-ups.
 `e2e/capacity.spec.ts` (every warning state, the alert link, axe in both themes, keyboard to the
 history link with its focus ring, 320 px, the empty tab), run locally.
 
+## 2026-10-13: OpenFeature provider over the flag catalogue (Lane D)
+
+- Flags go through an OpenFeature provider (`@openfeature/server-sdk`, Apache-2.0;
+  `apps/api/src/flags`): the organisation's location row, then tenant row, then Flagsmith, then
+  the catalogue. Flagsmith is used only when its key is set (production refuses a key with no
+  address), sees opaque ids only, may set only licensed modules (never AI, clinical tools, review
+  workflows or language) and falls back to the catalogue when it does not answer, asking at most
+  once per identity per cache period. `/v1/me` uses the provider and now leaves out deleted rows.
+- Human action H-352 (Flagsmith key in the API task once H-13 is decided). Tests: the domain's
+  table-driven order (`rules.test.ts`), the provider and Flagsmith unit tests
+  (`apps/api/src/flags/provider.test.ts`) and `apps/api/test/flags-and-sessions.test.ts`.
+

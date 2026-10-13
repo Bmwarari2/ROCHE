@@ -29,6 +29,7 @@ import type { Context, MiddlewareHandler } from "hono";
 import type pg from "pg";
 import type { Auth } from "../auth/better-auth";
 import type { Config } from "../config";
+import type { FlagService } from "../flags/provider";
 import type { Logger } from "../logger";
 import { accessRowsOfMember } from "../services/access-rows";
 import { bindSession, sessionOnRevokedDevice } from "../services/devices";
@@ -52,6 +53,8 @@ export interface Services {
   readonly authPool: pg.Pool;
   readonly operatorPool: pg.Pool;
   readonly auth: Auth;
+  /** Feature flags through OpenFeature (catalogue, the organisation's rows, optional Flagsmith). */
+  readonly flags: FlagService;
   readonly storage: DocumentStoragePort;
   readonly scanner: MalwareScanPort;
   /** Per-user limit on the transfer pack routes (S2). */

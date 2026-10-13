@@ -55,6 +55,14 @@ const Env = z.object({
   MALWARE_SCANNER: z.enum(["clamd", "mock", "none"]).default("mock"),
   CLAMD_HOST: z.string().default("127.0.0.1"),
   CLAMD_PORT: z.coerce.number().int().default(3310),
+  /**
+   * Flagsmith (ADR-0001, H-13): optional, and off unless the environment's server-side key is set
+   * (from Secrets Manager, never Git). Unreachable, every flag falls back to the catalogue default.
+   */
+  FLAGSMITH_API_URL: z.url().default("http://localhost:8000/api/v1"),
+  FLAGSMITH_ENVIRONMENT_KEY: z.string().optional(),
+  FLAGSMITH_TIMEOUT_MS: z.coerce.number().int().positive().default(500),
+  FLAGSMITH_CACHE_SECONDS: z.coerce.number().int().positive().default(60),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   APP_VERSION: z.string().default("0.0.0-dev"),
 });
@@ -94,6 +102,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     }
     if (parsed.MALWARE_SCANNER === "mock") {
       throw new Error("MALWARE_SCANNER cannot be mock in production");
+    }
+    // A key with the local default address would time out on every evaluation.
+    if (parsed.FLAGSMITH_ENVIRONMENT_KEY && !env.FLAGSMITH_API_URL) {
+      throw new Error("FLAGSMITH_API_URL must be set with FLAGSMITH_ENVIRONMENT_KEY in production");
     }
   }
   return {

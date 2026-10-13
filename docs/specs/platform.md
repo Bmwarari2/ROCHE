@@ -256,8 +256,20 @@ last year the calendar covers, no holiday is skipped, so a deadline can only fal
 ## Feature flags and licensing (PLAT-003)
 
 - Catalogue and defaults in `packages/domain/src/platform/feature-flags.ts` (AI off by default);
-  `feature_flag` rows per tenant or location override the default; `/v1/me` returns evaluated flags.
-- Later: OpenFeature provider with Flagsmith (optional, infra ready), billing visibility (Phase 6).
+  `feature_flag` rows per tenant or location override the default; `/v1/me` returns evaluated flags
+  for the organisation as a whole.
+- Evaluation goes through OpenFeature (`@openfeature/server-sdk`, Apache-2.0;
+  `apps/api/src/flags/provider.ts`). The caller reads the organisation's rows that are not deleted
+  in its transaction and passes them in the evaluation context; the provider applies
+  `resolveFlag`: the location row, then the tenant row, then Flagsmith, then the catalogue default.
+  Flagsmith is used only when `FLAGSMITH_ENVIRONMENT_KEY` is set (H-13), is told opaque ids only
+  (organisation and location), and may set only licensed modules (`remoteMaySet`): never an AI
+  flag (only the organisation's own row turns AI on), a clinical tool, a review workflow or the
+  language, so the clinical routes that read the rows directly (`flagsAt`, `flagRows`) agree with
+  `/v1/me`. Its answers, and its silence, are kept for `FLAGSMITH_CACHE_SECONDS`; unreachable
+  (`FLAGSMITH_TIMEOUT_MS`), every flag falls back to the catalogue and the API logs
+  `flags.remote_unavailable` with no ids. A provider error answers the catalogue default.
+- Later: per-role flags, the clinical routes through the provider, billing visibility (Phase 6).
 
 ## Localisation (PLAT-017)
 

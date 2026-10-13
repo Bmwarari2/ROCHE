@@ -7,7 +7,15 @@ import {
   parseHex,
   toHex,
 } from "./branding";
-import { evaluateFlag, FLAGS } from "./feature-flags";
+import {
+  evaluateFlag,
+  FLAGS,
+  type FlagKey,
+  isAiFlag,
+  isFlagKey,
+  remoteMaySet,
+  resolveFlag,
+} from "./feature-flags";
 import { RateNotFoundError, type RateRow, resolveRate } from "./rates";
 import { addPeriod, retentionDecision, validateTenantOverride } from "./retention";
 import { checkDistinctActors } from "./separation-of-duties";
@@ -95,6 +103,76 @@ describe("feature flags", () => {
 
   it("keeps the AI module off by default (section 16)", () => {
     expect(FLAGS["module.ai"].defaultEnabled).toBe(false);
+  });
+
+  it("marks every AI flag, and none is on by default", () => {
+    const keys = Object.keys(FLAGS) as FlagKey[];
+    for (const key of keys.filter((k) => k.startsWith("module.ai") || k.startsWith("ai."))) {
+      expect(isAiFlag(key), key).toBe(true);
+    }
+    for (const key of keys.filter(isAiFlag)) expect(FLAGS[key].defaultEnabled, key).toBe(false);
+  });
+
+  // The OpenFeature provider's order (apps/api/src/flags): location row, tenant row, Flagsmith
+  // where it may set the flag and answered, catalogue default.
+  it.each([
+    ["remote sets a licensed module with no row", "module.finance", [], null, true, true, "remote"],
+    ["remote can switch a module off", "module.residential", [], null, false, false, "remote"],
+    [
+      "the tenant row wins over remote",
+      "module.finance",
+      [{ flagKey: "module.finance", locationId: null, enabled: false }],
+      null,
+      true,
+      false,
+      "tenant",
+    ],
+    [
+      "the location row wins over remote",
+      "module.finance",
+      [{ flagKey: "module.finance", locationId: LOC, enabled: true }],
+      LOC,
+      false,
+      true,
+      "location",
+    ],
+    ["remote unreachable falls back", "module.residential", [], null, undefined, true, "catalogue"],
+    ["remote never turns AI on", "module.ai", [], null, true, false, "catalogue"],
+    [
+      "only the organisation's row turns AI on",
+      "module.ai",
+      [{ flagKey: "module.ai", locationId: LOC, enabled: true }],
+      LOC,
+      false,
+      true,
+      "location",
+    ],
+    ["remote never sets a clinical tool", "care.tool.waterlow", [], null, true, false, "catalogue"],
+    [
+      "remote never sets a review workflow",
+      "dols.post_2026_review_workflow",
+      [],
+      null,
+      false,
+      true,
+      "catalogue",
+    ],
+    ["remote never sets the language", "locale.welsh", [], null, true, false, "catalogue"],
+  ] as const)("%s", (_name, key, rows, location, remote, enabled, source) => {
+    expect(resolveFlag(key, rows, location, remote)).toEqual({ enabled, source });
+  });
+
+  it("lets the remote provider set licensed modules only, never AI", () => {
+    const remote = (Object.keys(FLAGS) as FlagKey[]).filter(remoteMaySet);
+    expect(remote).toContain("module.finance");
+    expect(remote).not.toContain("module.ai");
+    for (const key of remote) expect(FLAGS[key].licensed, key).toBe(true);
+  });
+
+  it("knows the catalogue's keys", () => {
+    expect(isFlagKey("module.ai")).toBe(true);
+    expect(isFlagKey("module.unknown")).toBe(false);
+    expect(isFlagKey("toString")).toBe(false);
   });
 });
 
