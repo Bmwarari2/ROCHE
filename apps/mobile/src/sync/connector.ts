@@ -126,26 +126,32 @@ export class UploadRejectedError extends Error {
 }
 
 /**
- * How long a move's follow-up check (reading the task after a 409) may keep being refused before
- * the move is parked as "needs attention" and the queue carries on: 5 refused reads, or 30 minutes
- * from the first, whichever comes first. A move left at the head of the queue would hold back the
- * notes and charts behind it (HZ-006; #37 review round 1). Only a read the server answered with a
- * refusal that is not about the session counts (a 403 on the task list, a 404, an answer that
- * cannot be read); no network, a timeout or a 5xx neither counts nor starts the clock, because
- * nothing else in the queue can upload then either, so the move just stays queued (#37 review
- * round 2, N1). The count is kept in memory, so a restart of the app starts it again (at most 5
- * more reads), and it is cleared when the session ends, before a hold or a wipe takes the move.
+ * How long a move's follow-up check (reading the task after a 409) may keep failing before the
+ * move is parked as "needs attention" and the queue carries on. A move left at the head of the
+ * queue would hold back the notes and charts behind it (HZ-006; #37 review rounds 1 and 2):
+ *
+ * - a refusal the server answered, not about the session (a 403 on the task list, a 404, an answer
+ *   that cannot be read), counts towards 5 reads and starts the 30-minute clock;
+ * - a 5xx or a 429 starts the clock but does not count, so a short outage never parks the move,
+ *   while a fault in the task read alone (the uploads still working) parks it after 30 minutes;
+ * - no network or a timeout (408, 425) neither counts nor starts the clock: nothing else in the
+ *   queue can upload then either, so the move just stays queued (N1).
+ *
+ * Whichever comes first parks the move. The count is kept in memory, so a restart of the app
+ * starts it again, and it is cleared when the session ends, before a hold or a wipe takes the move.
  */
 export const TASK_CHECK_MAX_FAILURES = 5;
 export const TASK_CHECK_MAX_MS = 30 * 60 * 1000;
 
 /**
- * Whether a failed follow-up check was a refusal the server answered, not about the session: any
- * status the upload does not retry (a 403 on the task list, a 404, an answer it cannot read). No
- * network, a timeout, a 429 or a 5xx is not, and an ended session is never counted.
+ * How a failed follow-up check weighs against the cap: "refused" (counted, and starts the clock),
+ * "server" (a 5xx or 429: starts the clock only) or "uncounted" (no network, a timeout, an ended
+ * session).
  */
-function isAnsweredRefusal(error: unknown): boolean {
-  return error instanceof HttpError && !isRetryableStatus(error.status);
+function checkFailureKind(error: unknown): "refused" | "server" | "uncounted" {
+  if (!(error instanceof HttpError)) return "uncounted";
+  if (error.status === 429 || error.status >= 500) return "server";
+  return isRetryableStatus(error.status) ? "uncounted" : "refused";
 }
 
 /** The move's follow-up check was refused past its cap: the move is parked, never dropped. */
@@ -584,8 +590,10 @@ export class HarbourConnector implements PowerSyncBackendConnector {
       try {
         return await this.fetchTaskState(move);
       } catch (error) {
-        // Only a refusal the server answered counts towards the cap (N1).
-        if (isAnsweredRefusal(error) && this.checkFailed(move.id)) throw new TaskCheckGaveUp();
+        const kind = checkFailureKind(error);
+        if (kind !== "uncounted" && this.checkFailed(move.id, kind === "refused")) {
+          throw new TaskCheckGaveUp();
+        }
         throw error;
       }
     };
@@ -604,11 +612,17 @@ export class HarbourConnector implements PowerSyncBackendConnector {
     }
   }
 
-  /** Counts a refused follow-up check; true once the move has reached the cap. */
-  private checkFailed(moveId: string): boolean {
+  /**
+   * Records a failed follow-up check (the clock starts at the first; `counts` adds to the reads);
+   * true once the move has reached the cap.
+   */
+  private checkFailed(moveId: string, counts: boolean): boolean {
     const now = this.now().getTime();
     const before = this.checkFailures.get(moveId);
-    const record = { count: (before?.count ?? 0) + 1, since: before?.since ?? now };
+    const record = {
+      count: (before?.count ?? 0) + (counts ? 1 : 0),
+      since: before?.since ?? now,
+    };
     this.checkFailures.set(moveId, record);
     return record.count >= TASK_CHECK_MAX_FAILURES || now - record.since >= TASK_CHECK_MAX_MS;
   }
@@ -675,10 +689,7 @@ export class HarbourConnector implements PowerSyncBackendConnector {
         body,
       });
       if (response.ok) return;
-      if (response.status === 401) {
-        this.options.onSessionRevoked();
-        throw new SessionRevokedError();
-      }
+      if (response.status === 401) this.ended();
       if (isRetryableStatus(response.status)) {
         throw new HttpError(
           response.status,
@@ -747,10 +758,7 @@ export class HarbourConnector implements PowerSyncBackendConnector {
           rejected = await readRejected(response);
           return;
         }
-        if (response.status === 401) {
-          this.options.onSessionRevoked();
-          throw new SessionRevokedError();
-        }
+        if (response.status === 401) this.ended();
         if (response.status === 403) {
           // An API refusal of the batch withdraws access; an unexplained 403 is never parked: back
           // off and try again (H1).

@@ -1131,13 +1131,13 @@ describe("uploadData: the round and the handover go to their own routes", () => 
       expect(queue.state.completed).toBe(0);
     });
 
-    it("never counts no network or a server error: with the real backoff the move stays queued however long it lasts (#37 review round 2, N1)", async () => {
+    it("never counts no network: with the real backoff the move stays queued however long it lasts (#37 review round 2, N1)", async () => {
       const failures = 3 * UPLOAD_BACKOFF.maxAttempts;
       const answers: Array<Response | Error> = [];
       for (let run = 0; run < 3; run += 1) {
         answers.push(conflict());
         for (let i = 0; i < UPLOAD_BACKOFF.maxAttempts; i += 1) {
-          answers.push(run === 1 ? json({}, 503) : new TypeError("Network request failed"));
+          answers.push(new TypeError("Network request failed"));
         }
       }
       expect(failures).toBeGreaterThan(TASK_CHECK_MAX_FAILURES);
@@ -1162,6 +1162,73 @@ describe("uploadData: the round and the handover go to their own routes", () => 
       expect(calls.filter((c) => c.init?.method === "GET")).toHaveLength(failures);
       expect(queue.parked()).toEqual([]);
       expect(queue.state.completed).toBe(0);
+    });
+
+    it("parks the move at 30 minutes when the task read fails with a 500 every time while uploads work, and the next entry uploads (#37 confirmation check)", async () => {
+      let now = new Date("2026-10-11T15:00:00.000Z");
+      const serverError = () => json({}, 500);
+      const { fetch, calls } = fakeFetch([
+        // First run: the move is refused, and the read fails on every attempt of the backoff.
+        conflict(),
+        serverError(),
+        serverError(),
+        serverError(),
+        // 29 minutes later: still failing, not yet parked.
+        conflict(),
+        serverError(),
+        serverError(),
+        serverError(),
+        // 30 minutes after the first failure: parked at the first failed read.
+        conflict(),
+        serverError(),
+        json({ id: "0199d000-0000-7000-8000-000000000001" }, 201),
+      ]);
+      const queue = queueOf([[move()], [note()]]);
+      const { instance } = connector(fetch, { now: () => now });
+      await expect(instance.uploadData(queue.source)).rejects.toThrow();
+      now = new Date(now.getTime() + TASK_CHECK_MAX_MS - 60_000);
+      await expect(instance.uploadData(queue.source)).rejects.toThrow();
+      expect(queue.parked()).toEqual([]);
+      now = new Date(now.getTime() + 60_000);
+      await instance.uploadData(queue.source);
+      expect(queue.parked()).toMatchObject([{ id: MOVE, code: "task_unchecked" }]);
+      await instance.uploadData(queue.source);
+      expect(calls.at(-1)?.url).toBe(`${API}/v1/people/${PERSON}/notes`);
+      expect(queue.state.completed).toBe(2);
+    });
+
+    it("parks nothing when a 503 on the task read clears within 30 minutes", async () => {
+      let now = new Date("2026-10-11T15:00:00.000Z");
+      const { fetch } = fakeFetch([
+        conflict(),
+        json({}, 503),
+        json({}, 503),
+        json({}, 503),
+        // Twenty minutes later the read answers: the carer's own move, already made.
+        conflict(),
+        listed({}),
+      ]);
+      const queue = queueOf([[move()]]);
+      const { instance } = connector(fetch, { now: () => now });
+      await expect(instance.uploadData(queue.source)).rejects.toThrow();
+      now = new Date(now.getTime() + 20 * 60_000);
+      await instance.uploadData(queue.source);
+      expect(queue.parked()).toEqual([]);
+      expect(queue.state.completed).toBe(1);
+    });
+
+    it("never parks on server errors alone before 30 minutes, however many reads fail", async () => {
+      const answers: Array<Response | Error> = [];
+      for (let run = 0; run < 3; run += 1) {
+        answers.push(conflict(), json({}, 503), json({}, 502), json({}, 500));
+      }
+      const { fetch } = fakeFetch(answers);
+      const queue = queueOf([[move()]]);
+      const { instance } = connector(fetch);
+      for (let run = 0; run < 3; run += 1) {
+        await expect(instance.uploadData(queue.source)).rejects.toThrow();
+      }
+      expect(queue.parked()).toEqual([]);
     });
 
     it("still ends the session at once on a 401, whatever the count", async () => {

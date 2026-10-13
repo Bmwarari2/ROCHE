@@ -235,7 +235,8 @@ only when they link spec, code, tests and user documentation; no user guides exi
       pattern or the expected shift on the device, decided in the screens PR (#33 review round 2;
       H-303); (f) a task whose evidence entry is saved on the phone shows "evidence recorded,
       waiting to upload" until it uploads, so it is not recorded twice (#36 review round 1,
-      clinical M3; HZ-029).
+      clinical M3; HZ-029); (g) the needs-attention screen ships with the round screen or before
+      it, since "no care left without a prompt" depends on it (#37 confirmation check).
     - Follow-up: whether the round on the phone should also hold unfinished tasks due before the
       window (H-301).
     - Follow-up (#33 review round 1): the streams ignore `person_assignment.valid_from`, so a
@@ -290,6 +291,15 @@ only when they link spec, code, tests and user documentation; no user guides exi
     - Follow-up (#37 review round 2, low): a task change whose move cannot be read at all (not
       JSON) is kept under the task's id, with the tenant the row carries, if any: no id of its
       own can be read, so a second such change for the same task replaces the first.
+    - Follow-up (#37 confirmation check): a 403 whose session cannot be checked (an edge or
+      firewall page with `/v1/me` unreachable) counts towards the cap on the task read, while
+      the upload path keeps it queued; treat it as a network failure there too.
+    - Follow-up (#37 confirmation check): `task_unchecked` says "check the task on the
+      round", but a closed task no longer shows there; point to the task's history, or word
+      it differently, in the screens PR.
+    - Follow-up (#37 confirmation check): with no resend, every move made offline on a task
+      that escalated during an outage becomes a needs-attention item, an alert-fatigue risk;
+      it waits on H-305, H-310 and the lighter way to dismiss a refused move.
     - Follow-up (#36 review round 2, low): `useMoveTask` takes the person's home
       (`personLocationId`) from the caller; while it is null (the person row still loading)
       and the token lists no person ids, `mayRecordFor` lets the move through. Look the home

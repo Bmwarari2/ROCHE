@@ -1327,6 +1327,18 @@ mobile.
 
 **Tests**: `apps/mobile` 981, `packages/i18n` 48, passing locally; typecheck clean for mobile.
 
+## 2026-10-13: The round and the handover on the phone, uploading, confirmation check (#37)
+
+- A 5xx or 429 on the task read starts the 30-minute clock without counting towards the 5
+  reads, so a fault in that one route parks the move after 30 minutes and the entries behind it
+  upload, while a short outage parks nothing. A 401 on any upload ends the session through the
+  same path, clearing the check counts.
+- STATUS: screens gate item (g), the needs-attention screen with or before the round screen;
+  follow-ups for an unchecked 403 on the task read, the `task_unchecked` wording for a closed
+  task, and the alert-fatigue risk with no resend.
+
+**Tests**: `apps/mobile` 984, passing locally; typecheck clean for mobile.
+
 ## 2026-10-13: The consent, capacity and DoLS tab, part 2 (slice 9, Lane B)
 
 The rest of the tab's read views, on the API already on `main` and held to the standards of #34's

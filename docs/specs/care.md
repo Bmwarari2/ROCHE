@@ -1414,11 +1414,12 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   it and mark it again); marked done or not done by someone else, or cancelled, what happened and
   that the change was not recorded; done in the carer's name but not as this move, that it could
   not be checked; not in the list, that it could not be found (`task_changed`,
-  `version_conflict`, `task_unchecked`, `task_not_found`). No network, a timeout or a 5xx keeps
-  the move queued however long it lasts. Reads the server refuses (a 403 on the task list, a 404,
-  any other status, a list it cannot read) keep it queued up to 5 of them or 30 minutes from the
-  first; then the move is kept as needs attention, with its data, saying it could not be checked,
-  so the entries behind it still upload. A 401, a session 403 or `GET /v1/me` saying so ends the
+  `version_conflict`, `task_unchecked`, `task_not_found`). No network or a timeout keeps the move
+  queued however long it lasts. Reads the server refuses (a 403 on the task list, a 404, any other
+  status, a list it cannot read) keep it queued up to 5 of them or 30 minutes from the first; a
+  5xx or a 429 starts the 30 minutes without counting, so a fault in the task read alone parks the
+  move after 30 minutes while a short outage never does. Then the move is kept as needs attention,
+  with its data, saying it could not be checked, so the entries behind it still upload. A 401, a session 403 or `GET /v1/me` saying so ends the
   session at once. A move
   put back on its task's row after a session ended (an insert) is sent like an update, and a move,
   held or refused, names the person it is about from the move and shows on their screen. The
