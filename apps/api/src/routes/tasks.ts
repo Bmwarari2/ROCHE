@@ -8,7 +8,7 @@ import {
   TaskSeriesItem,
   TaskTransitionRequest,
 } from "@harbour/contracts";
-import { person, type Transaction, task, taskSeries } from "@harbour/db";
+import { location, person, type Transaction, task, taskSeries } from "@harbour/db";
 import {
   can,
   checkTaskTransition,
@@ -34,6 +34,9 @@ import {
 } from "../http/context";
 import { problems } from "../http/problem";
 import { publish } from "../outbox";
+import { careRates, type EntryTimes, entryTimes } from "../services/care";
+import { OFFLINE_WINDOW_RATE_KEY } from "../services/handover";
+import { rateNumber } from "../services/rates";
 import {
   assigneeMayComplete,
   escalationMinutes,
@@ -43,6 +46,7 @@ import {
   taskStaff,
   toTaskItem,
 } from "../services/tasks";
+import { SENT_AT_HEADER } from "./care-shared";
 import {
   conflictResponse,
   createRouter,
@@ -572,6 +576,42 @@ function rethrowReference(error: unknown): never {
   throw error;
 }
 
+/**
+ * A device's time of care for a move (`occurredAt`), checked as an entry's time is (care.md
+ * section 4 rule 3; HZ-017, HZ-010): refused when later than the server's clock allows or before
+ * the offline window (`mobile.offline_window_days` and a day, as handovers are compiled), and
+ * flagged late when recorded long after it (`care_note.late_entry_hours`, from the rate table).
+ */
+async function careTimeOf(
+  tx: Transaction,
+  tenantId: string,
+  row: typeof task.$inferSelect,
+  body: TaskTransitionRequest,
+  sentAt: string | undefined,
+  now: Date,
+): Promise<EntryTimes> {
+  const [where] = row.locationId
+    ? await tx
+        .select({ nation: location.nation })
+        .from(location)
+        .where(eq(location.id, row.locationId))
+    : [];
+  const rates = await careRates(tx, tenantId, where?.nation ?? "england");
+  const times = entryTimes(
+    { occurredAt: body.occurredAt as string, deviceTime: body.deviceTime },
+    sentAt,
+    now,
+    rates,
+  );
+  const windowDays = await rateNumber(tx, tenantId, OFFLINE_WINDOW_RATE_KEY);
+  if (times.occurredAt.getTime() < now.getTime() - (windowDays + 1) * DAY_MS) {
+    throw problems.invalid(
+      `A task can be recorded as done or not done for the last ${windowDays} days only. Give a later time.`,
+    );
+  }
+  return times;
+}
+
 async function transition(c: Context<AppEnv>, id: string, body: TaskTransitionRequest) {
   const access = useScopeOf(c, TASK_READ_SCOPE);
   const now = new Date();
@@ -592,6 +632,15 @@ async function transition(c: Context<AppEnv>, id: string, body: TaskTransitionRe
         });
       }
       if (row.version !== body.version) throw problems.conflict();
+      const finished = TERMINAL_TASK_STATUSES.includes(body.to);
+      if (body.occurredAt && body.to !== "done" && body.to !== "skipped") {
+        throw problems.invalid("Give the time only for a task done or not done.");
+      }
+      // The time of care a device recorded, checked as an entry's is; permission was judged above,
+      // now, whatever that time (fails closed).
+      const careTime = body.occurredAt
+        ? await careTimeOf(tx, access.tenantId, row, body, c.req.header(SENT_AT_HEADER), now)
+        : null;
       const check = checkTaskTransition(asTaskStatus(row.status), {
         to: body.to,
         reason: body.reason ?? null,
@@ -599,13 +648,12 @@ async function transition(c: Context<AppEnv>, id: string, body: TaskTransitionRe
         evidenceRequired: row.evidenceRequired,
       });
       if (!check.ok) throw problems.invalid(check.message);
-      const finished = TERMINAL_TASK_STATUSES.includes(body.to);
       const [updated] = await tx
         .update(task)
         .set({
           status: body.to,
           statusReason: body.reason ?? null,
-          completedAt: finished ? now : null,
+          completedAt: finished ? (careTime?.occurredAt ?? now) : null,
           completedBy: finished ? access.tenantUserId : null,
           evidenceType: body.evidenceType ?? row.evidenceType,
           evidenceId: body.evidenceId ?? row.evidenceId,
@@ -618,6 +666,16 @@ async function transition(c: Context<AppEnv>, id: string, body: TaskTransitionRe
         resourceType: "task",
         resourceId: id,
         reason: body.reason,
+        // A device's time of care and its late-entry and clock-drift flags, as entries keep them.
+        ...(careTime
+          ? {
+              scope: {
+                occurredAt: careTime.occurredAt.toISOString(),
+                lateEntry: careTime.lateEntry,
+                clockDrift: careTime.clockDrift,
+              },
+            }
+          : {}),
         requestId: c.get("requestId"),
       });
       if (finished) {

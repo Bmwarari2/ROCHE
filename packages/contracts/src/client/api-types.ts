@@ -15674,6 +15674,10 @@ export interface components {
       /** Format: uuid */
       evidenceId?: string;
       version: number;
+      /** Format: date-time */
+      occurredAt?: string;
+      /** Format: date-time */
+      deviceTime?: string;
     };
     TaskAssignRequest: {
       /** Format: uuid */

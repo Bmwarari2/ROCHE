@@ -5985,6 +5985,14 @@
           "version": {
             "type": "integer",
             "minimum": 1
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deviceTime": {
+            "type": "string",
+            "format": "date-time"
           }
         },
         "required": [

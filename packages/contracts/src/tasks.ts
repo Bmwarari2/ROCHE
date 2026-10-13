@@ -158,6 +158,19 @@ export const TaskTransitionRequest = z
     evidenceId: uuid.optional(),
     /** The version the person saw, so two devices cannot silently overwrite each other. */
     version: z.number().int().min(1),
+    /**
+     * When the task was done or not done, for a move recorded on a device and sent later: the API
+     * records it as the completion time, refusing a time later than its own clock allows (the
+     * clock drift tolerance) or before the offline window. Only with `done` or `skipped`.
+     * Permission is still judged when the move arrives. Without it, the completion time is when
+     * the move arrives.
+     */
+    occurredAt: isoDateTime.optional(),
+    /**
+     * When the device recorded the move (its clock), for the late-entry rule, as entries have it:
+     * late is measured from `occurredAt` to this, never to when the device happened to sync.
+     */
+    deviceTime: isoDateTime.optional(),
   })
   .meta({ id: "TaskTransitionRequest" });
 export type TaskTransitionRequest = z.infer<typeof TaskTransitionRequest>;

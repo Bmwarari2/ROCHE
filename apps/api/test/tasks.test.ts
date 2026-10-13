@@ -146,6 +146,70 @@ describe("one-off tasks", () => {
     expect(stale.status).toBe(409);
   });
 
+  describe("hazard HZ-017 hazard HZ-010 a time of care sent with a move from a device", () => {
+    const task = (n: number) =>
+      createTask({
+        title: "Offer a drink",
+        personId: resident(n),
+        dueAt: new Date(Date.now() - HOUR).toISOString(),
+      });
+    const move = (t: TaskItem, body: Record<string, unknown>) =>
+      as("carer", `/v1/tasks/${t.id}/transition`, {
+        method: "POST",
+        body: { to: "done", version: t.version, ...body },
+      });
+    const audited = (id: string) =>
+      asDemoTenant(async (c) => {
+        const { rows } = await c.query<{ scope: Record<string, unknown> | null }>(
+          "SELECT scope FROM audit_event WHERE action = 'platform.task.done' AND resource_id = $1",
+          [id],
+        );
+        return rows[0]?.scope ?? null;
+      });
+
+    it("records it as the completion time, not late when the device recorded it then", async () => {
+      const t = await task(1);
+      const at = new Date(Date.now() - 3 * HOUR).toISOString();
+      const done = await move(t, { occurredAt: at, deviceTime: at });
+      expect(done.status).toBe(200);
+      expect(Date.parse((await json<TaskItem>(done)).completedAt ?? "")).toBe(Date.parse(at));
+      expect(await audited(t.id)).toMatchObject({
+        occurredAt: new Date(at).toISOString(),
+        lateEntry: false,
+      });
+    });
+
+    it("flags the move late when recorded long after the time of care (the rate table's hours)", async () => {
+      const t = await task(2);
+      const at = new Date(Date.now() - 3 * HOUR).toISOString();
+      const done = await move(t, { occurredAt: at, deviceTime: new Date().toISOString() });
+      expect(done.status).toBe(200);
+      expect(await audited(t.id)).toMatchObject({ lateEntry: true });
+    });
+
+    it("refuses a time in the future or before the offline window, and with a move that is not done or not done", async () => {
+      const t = await task(3);
+      const future = await move(t, { occurredAt: new Date(Date.now() + 2 * HOUR).toISOString() });
+      expect(future.status).toBe(422);
+      const tooOld = await move(t, {
+        occurredAt: new Date(Date.now() - 10 * 24 * HOUR).toISOString(),
+      });
+      expect(tooOld.status).toBe(422);
+      expect((await json<ProblemDetails>(tooOld)).detail).toMatch(/for the last 7 days only/);
+      const started = await move(t, { to: "in_progress", occurredAt: new Date().toISOString() });
+      expect(started.status).toBe(422);
+      // Nothing changed: the task is still open at its version.
+      const still = await move(t, {});
+      expect(still.status).toBe(200);
+    });
+
+    it("hazard HZ-011 still judges permission when the move arrives, whatever time it carries", async () => {
+      const other = await task(5);
+      const attempt = await move(other, { occurredAt: new Date(Date.now() - HOUR).toISOString() });
+      expect(attempt.status).toBe(404);
+    });
+  });
+
   it("stops a care worker creating or assigning tasks", async () => {
     const response = await as("carer", "/v1/tasks", {
       method: "POST",
