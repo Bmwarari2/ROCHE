@@ -142,13 +142,15 @@ LANGUAGE sql STABLE AS $$
 $$;
 --> statement-breakpoint
 
--- An entry that names an outage (operations.md rules 11 to 13; #38 review round 1):
+-- An entry that names an outage (operations.md rules 11 to 13; #38 review rounds 1 and 2):
 -- - a correction of a back-entry stays a back-entry of the same outage: its paper details are
---   carried from the entry it corrects when it gives none, and refused when it names another;
--- - the writer must be able to see the outage, at the entry's own location, neither cancelled nor
---   reconciled; it is read again locked for share, in the system's view (a share lock needs the
---   update policy), so a cancel or a reconciliation running at the same time waits for this entry
---   and then counts it;
+--   carried from the entry it corrects when it gives none, and refused when it names another; a
+--   correction of any other entry cannot make it a back-entry;
+-- - the writer must be able to see the outage, at the entry's own location, not cancelled, and not
+--   reconciled unless the entry corrects one of its back-entries (a wrong value entered from paper
+--   is always correctable); it is read again locked for share, in the system's view (a share lock
+--   needs the update policy), so a cancel or a reconciliation running at the same time waits for
+--   this entry and then counts it;
 -- - a back-entry's time is the instant its paper date, time and occurrence give;
 -- - a back-entry outside the outage window [start, end) says why; an open outage runs to now plus
 --   `sync.clock_drift_flag_minutes`; an entry not from paper names only an outage it falls in.
@@ -159,7 +161,8 @@ DECLARE
   v_outage record;
   v_scope text;
   v_user text;
-  v_seen boolean;  -- seen, at the entry's location, and still open to entries
+  v_seen boolean;  -- seen, at the entry's location, and still open to this entry
+  v_correcting boolean := false;  -- a correction of a back-entry
   v_end timestamptz;
 BEGIN
   IF NEW.supersedes_id IS NOT NULL THEN
@@ -183,6 +186,10 @@ BEGIN
         RAISE EXCEPTION 'A correction of a paper record stays a paper record of the same outage'
           USING ERRCODE = 'integrity_constraint_violation';
       END IF;
+      v_correcting := true;
+    ELSIF NEW.late_entry_reason = 'downtime' THEN
+      RAISE EXCEPTION 'A correction of an entry not entered from paper cannot make it a paper record'
+        USING ERRCODE = 'integrity_constraint_violation';
     END IF;
   END IF;
   IF NEW.outage_id IS NULL THEN
@@ -199,8 +206,8 @@ BEGIN
       WHERE o.tenant_id = NEW.tenant_id AND o.id = NEW.outage_id FOR SHARE;
     PERFORM set_config('app.scope', v_scope, true);
     PERFORM set_config('app.user_id', v_user, true);
-    v_seen := v_outage.location_id = NEW.location_id
-      AND v_outage.state NOT IN ('cancelled', 'reconciled');
+    v_seen := v_outage.location_id = NEW.location_id AND v_outage.state <> 'cancelled'
+      AND (v_outage.state <> 'reconciled' OR v_correcting);
   END IF;
   IF NOT v_seen THEN
     RAISE EXCEPTION 'An entry names an outage at its own location that is neither cancelled nor reconciled'
@@ -242,43 +249,56 @@ END
 $$;
 --> statement-breakpoint
 
--- The back-entries that cite an outage, from the five entries: who entered each and who sent it
--- for them, its event time and any reason it is outside the outage, whether it corrects another
--- entry, and whether a later entry corrects it. Invoker rights: under the caller's row-level
--- security, so it never shows more than they could read; the guard below calls it in the
--- organisation's view.
+-- The back-entries that cite an outage, from the five entries: each one's id, who entered it and
+-- who sent it for them, its event time and any reason it is outside the outage, whether it
+-- corrects a back-entry of the same outage (#38 review round 2: only that is a correction here),
+-- and whether a later entry corrects it. Invoker rights: under the caller's row-level security, so
+-- it never shows more than they could read; the guard below calls it in the organisation's view.
 CREATE OR REPLACE FUNCTION app.outage_back_entries(p_outage_id uuid)
-RETURNS TABLE (created_by uuid, handed_over_by uuid, occurred_at timestamptz,
+RETURNS TABLE (id uuid, created_by uuid, handed_over_by uuid, occurred_at timestamptz,
   outside_outage_reason text, is_correction boolean, superseded boolean)
 LANGUAGE sql STABLE AS $$
-  SELECT t.created_by, t.handed_over_by, t.occurred_at, t.outside_outage_reason,
-    t.supersedes_id IS NOT NULL, EXISTS (SELECT 1 FROM public.care_note s WHERE s.supersedes_id = t.id)
+  SELECT t.id, t.created_by, t.handed_over_by, t.occurred_at, t.outside_outage_reason,
+    EXISTS (SELECT 1 FROM public.care_note o WHERE o.id = t.supersedes_id
+      AND o.late_entry_reason = 'downtime' AND o.outage_id = t.outage_id),
+    EXISTS (SELECT 1 FROM public.care_note s WHERE s.supersedes_id = t.id)
     FROM public.care_note t WHERE t.outage_id = p_outage_id AND t.late_entry_reason = 'downtime'
   UNION ALL
-  SELECT t.created_by, t.handed_over_by, t.occurred_at, t.outside_outage_reason,
-    t.supersedes_id IS NOT NULL, EXISTS (SELECT 1 FROM public.observation s WHERE s.supersedes_id = t.id)
+  SELECT t.id, t.created_by, t.handed_over_by, t.occurred_at, t.outside_outage_reason,
+    EXISTS (SELECT 1 FROM public.observation o WHERE o.id = t.supersedes_id
+      AND o.late_entry_reason = 'downtime' AND o.outage_id = t.outage_id),
+    EXISTS (SELECT 1 FROM public.observation s WHERE s.supersedes_id = t.id)
     FROM public.observation t WHERE t.outage_id = p_outage_id AND t.late_entry_reason = 'downtime'
   UNION ALL
-  SELECT t.created_by, t.handed_over_by, t.occurred_at, t.outside_outage_reason,
-    t.supersedes_id IS NOT NULL, EXISTS (SELECT 1 FROM public.body_map_mark s WHERE s.supersedes_id = t.id)
+  SELECT t.id, t.created_by, t.handed_over_by, t.occurred_at, t.outside_outage_reason,
+    EXISTS (SELECT 1 FROM public.body_map_mark o WHERE o.id = t.supersedes_id
+      AND o.late_entry_reason = 'downtime' AND o.outage_id = t.outage_id),
+    EXISTS (SELECT 1 FROM public.body_map_mark s WHERE s.supersedes_id = t.id)
     FROM public.body_map_mark t WHERE t.outage_id = p_outage_id AND t.late_entry_reason = 'downtime'
   UNION ALL
-  SELECT t.created_by, t.handed_over_by, t.occurred_at, t.outside_outage_reason,
-    t.supersedes_id IS NOT NULL, EXISTS (SELECT 1 FROM public.activity_record s WHERE s.supersedes_id = t.id)
+  SELECT t.id, t.created_by, t.handed_over_by, t.occurred_at, t.outside_outage_reason,
+    EXISTS (SELECT 1 FROM public.activity_record o WHERE o.id = t.supersedes_id
+      AND o.late_entry_reason = 'downtime' AND o.outage_id = t.outage_id),
+    EXISTS (SELECT 1 FROM public.activity_record s WHERE s.supersedes_id = t.id)
     FROM public.activity_record t WHERE t.outage_id = p_outage_id AND t.late_entry_reason = 'downtime'
   UNION ALL
-  SELECT t.created_by, t.handed_over_by, t.occurred_at, t.outside_outage_reason,
-    t.supersedes_id IS NOT NULL, EXISTS (SELECT 1 FROM public.visit_log s WHERE s.supersedes_id = t.id)
+  SELECT t.id, t.created_by, t.handed_over_by, t.occurred_at, t.outside_outage_reason,
+    EXISTS (SELECT 1 FROM public.visit_log o WHERE o.id = t.supersedes_id
+      AND o.late_entry_reason = 'downtime' AND o.outage_id = t.outage_id),
+    EXISTS (SELECT 1 FROM public.visit_log s WHERE s.supersedes_id = t.id)
     FROM public.visit_log t WHERE t.outage_id = p_outage_id AND t.late_entry_reason = 'downtime'
 $$;
 --> statement-breakpoint
 
 -- The outage guard of 0051 (with #32 review round 1), plus rules 14 and 15: an outage is not
 -- cancelled once a current back-entry cites it; it is reconciled only by someone who entered and
--- sent none of its original back-entries (correcting one during the review does not count); and
--- no start or end (a correction, or the end given on closing) leaves a current back-entry with no
--- reason for being outside the window [start, end) outside it (#32 review round 2; #38 review
--- round 1). These look in the organisation's view and restore the caller's before going on (as
+-- sent none of its original back-entries (correcting one during the review does not count), and
+-- only once every current back-entry outside the window [start, end) with no reason for it has
+-- been reviewed (its id in `reviewed_entry_ids`); and a correction of the start or end does not
+-- leave outside the window a current back-entry with no reason that was inside it before (#32
+-- review round 2; #38 review rounds 1 and 2). Closing may set an end earlier than back-entries
+-- already entered: the true end stands, and reconciliation then looks at each of them (H-207).
+-- These look in the organisation's view and restore the caller's before going on (as
 -- app.admit_handed_over_entry does; an error rolls the setting back with its statement), so a
 -- back-entry about someone the caller can no longer see still counts; tenant isolation still
 -- applies. A trigger function cannot be called on its own, so the wider view reaches nothing else.
@@ -288,6 +308,9 @@ DECLARE
   v_closing boolean := OLD.state = 'declared' AND NEW.state = 'closed';
   v_scope text;
   v_found boolean;
+  v_cited boolean;
+  v_entered boolean;
+  v_unreviewed boolean;
 BEGIN
   IF NEW.location_id IS DISTINCT FROM OLD.location_id
      OR NEW.declared_at IS DISTINCT FROM OLD.declared_at
@@ -314,17 +337,23 @@ BEGIN
     IF NEW.state IN ('cancelled', 'reconciled') THEN
       v_scope := coalesce(current_setting('app.scope', true), '');
       PERFORM set_config('app.scope', 'tenant', true);
-      SELECT EXISTS (
-        SELECT 1 FROM app.outage_back_entries(OLD.id) e
-        WHERE (NEW.state = 'cancelled' AND NOT e.superseded)
-           OR (NEW.state = 'reconciled' AND NOT e.is_correction
-               AND NEW.reconciled_by IN (e.created_by, e.handed_over_by)))
-        INTO v_found;
+      SELECT coalesce(bool_or(NOT e.superseded), false),
+        coalesce(bool_or(NOT e.is_correction
+          AND NEW.reconciled_by IN (e.created_by, e.handed_over_by)), false),
+        coalesce(bool_or(NOT e.superseded AND e.outside_outage_reason IS NULL
+          AND (e.occurred_at < NEW.started_at OR e.occurred_at >= NEW.ended_at)
+          AND NOT e.id = ANY (NEW.reviewed_entry_ids)), false)
+        INTO v_cited, v_entered, v_unreviewed
+        FROM app.outage_back_entries(OLD.id) e;
       PERFORM set_config('app.scope', v_scope, true);
-      IF v_found THEN
-        RAISE EXCEPTION '%', CASE NEW.state
-            WHEN 'cancelled' THEN 'An outage cannot be cancelled once a paper record entered against it cites it'
-            ELSE 'Someone who entered none of the outage''s paper records confirms it reconciled' END
+      IF NEW.state = 'cancelled' AND v_cited THEN
+        RAISE EXCEPTION 'An outage cannot be cancelled once a paper record entered against it cites it'
+          USING ERRCODE = 'integrity_constraint_violation';
+      ELSIF NEW.state = 'reconciled' AND v_entered THEN
+        RAISE EXCEPTION 'Someone who entered none of the outage''s paper records confirms it reconciled'
+          USING ERRCODE = 'integrity_constraint_violation';
+      ELSIF NEW.state = 'reconciled' AND v_unreviewed THEN
+        RAISE EXCEPTION 'Review each paper record entered against the outage with a time outside it before confirming the outage reconciled'
           USING ERRCODE = 'integrity_constraint_violation';
       END IF;
     END IF;
@@ -353,13 +382,17 @@ BEGIN
     RAISE EXCEPTION 'A correction reason goes with a corrected start or end'
       USING ERRCODE = 'integrity_constraint_violation';
   END IF;
-  IF (NEW.started_at, NEW.ended_at) IS DISTINCT FROM (OLD.started_at, OLD.ended_at) THEN
+  IF (NEW.started_at, NEW.ended_at) IS DISTINCT FROM (OLD.started_at, OLD.ended_at)
+     AND NOT v_closing THEN
     v_scope := coalesce(current_setting('app.scope', true), '');
     PERFORM set_config('app.scope', 'tenant', true);
     SELECT EXISTS (
       SELECT 1 FROM app.outage_back_entries(OLD.id) e
       WHERE NOT e.superseded AND e.outside_outage_reason IS NULL
-        AND (e.occurred_at < NEW.started_at OR e.occurred_at >= NEW.ended_at))
+        AND (e.occurred_at < NEW.started_at
+          OR e.occurred_at >= coalesce(NEW.ended_at, 'infinity'::timestamptz))
+        AND e.occurred_at >= OLD.started_at
+        AND e.occurred_at < coalesce(OLD.ended_at, 'infinity'::timestamptz))
       INTO v_found;
     PERFORM set_config('app.scope', v_scope, true);
     IF v_found THEN
