@@ -61,6 +61,23 @@ describe("hazard HZ-018 hazard HZ-028 the sync publication", () => {
     }
   });
 
+  it("gives the sync role a policy that reads every row of each table a stream reads", async () => {
+    // A SELECT on an empty table succeeds with or without a policy (forced row-level security
+    // returns no rows rather than an error), so the policy itself is checked: without it the
+    // replication snapshot is empty and phones silently miss existing rows (HZ-018).
+    const { rows } = await db.pool("harbour_owner").query<{ table: string }>(
+      `SELECT tablename AS table FROM pg_policies
+       WHERE schemaname = 'public' AND 'harbour_sync' = ANY (roles)
+         AND cmd IN ('SELECT', 'ALL') AND permissive = 'PERMISSIVE' AND qual = 'true'`,
+    );
+    const readable = new Set(rows.map((r) => r.table));
+    for (const table of streamSourceTables(readSyncConfig())) {
+      expect(readable.has(table), `${table} has a replication read policy for harbour_sync`).toBe(
+        true,
+      );
+    }
+  });
+
   it("gives the sync role nothing but SELECT on the round and handover tables (migration 0052)", async () => {
     const { rows } = await db.pool("harbour_owner").query<{ table: string; privilege: string }>(
       `SELECT table_name AS table, privilege_type AS privilege
