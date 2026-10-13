@@ -1185,3 +1185,19 @@ permission and API suites (128), passing locally; typecheck clean for sync, API 
 
 **Tests**: `packages/sync` 81, `apps/mobile` 891, passing locally; typecheck clean for sync and
 mobile.
+
+## 2026-10-13: The round and the handover on the phone, publication migration (#33)
+
+- Migration 0052 adds `task`, `handover`, `handover_item`, `handover_note` and
+  `handover_acknowledgement` to the `powersync` publication, with the `sync_replication_read`
+  policy and `SELECT` (only) for `harbour_sync`, as 0012 and 0017 do.
+- `packages/db/test/sync-publication.test.ts` reads the source tables of every stream query and
+  checks each is published and readable by the sync role, and that the sync role holds nothing
+  but `SELECT` on the five tables.
+- The hazard rows for the streams now name the migration and the test. Round 2 of #33: screens
+  gate item (e) (the phone must be able to say the outgoing handover is not compiled yet or not
+  final, which needs the expected shift on the device; H-303), the alias caveat in H-304, and a
+  STATUS low for a carer assigned to two people at different homes.
+
+**Tests**: `packages/db` 411 (real Postgres), `packages/sync` 81, `apps/mobile` 891, passing
+locally; typecheck clean for db, sync and mobile.

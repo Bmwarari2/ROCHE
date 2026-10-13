@@ -1291,9 +1291,10 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   (`handover_staff_acknowledgement`), never another member's item keys, which name people and
   what happened to them (#33 review round 1, M1, L1 and L3). Items and notes about a person carry
   no status filter, as row-level security has none (a death in the shift reaches the incoming
-  staff, HZ-018). `handover_item.key` arrives as `item_key`. The tables must join the `powersync`
-  publication, with the sync role's read policy and grant, before anything arrives (migration
-  0052, sequenced after #32). Still to do: completing or skipping a task and acknowledging a
+  staff, HZ-018). `handover_item.key` arrives as `item_key`. Migration 0052 adds the five tables to the
+  `powersync` publication with the sync role's read policy and `SELECT` only;
+  `packages/db/test/sync-publication.test.ts` checks that every table a stream reads is published
+  and readable by the sync role. Still to do: completing or skipping a task and acknowledging a
   handover offline (queued against `POST /v1/tasks/{id}/transition` with the version seen, and
   `POST /v1/locations/{id}/handovers/{handoverId}/acknowledgements` with a device id and the seen
   token worked out over the items shown), then the round and handover screens.
@@ -1301,9 +1302,12 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   phone do not ship until: (a) each handover item carries a worded summary, or its source
   (incidents, alerts, skipped-task reasons) is on the device (STATUS item 4; H-300); (b) the
   "From an earlier plan" notice reaches the phone, through the plan action reference or a
-  computed flag (HZ-024; H-303); (c) the publication migration has landed; and (d) an empty list
-  never reads as "nothing due" or "nothing to hand over" while the streams have no data (the
-  screen says what the phone holds, from when, and that it may be incomplete; HZ-028).
+  computed flag (HZ-024; H-303); (c) the publication migration has landed (migration 0052, in
+  #33); (d) an empty list never reads as "nothing due" or "nothing to hand over" while the streams
+  have no data (the screen says what the phone holds, from when, and that it may be incomplete;
+  HZ-028); and (e) the phone can say "the outgoing handover is not compiled yet" or "not final",
+  which needs the shift pattern or the expected shift on the device, decided in the screens PR
+  (#33 review round 2; H-303).
 - **API follow-ups**: the revocation signal, the manager hand-over and the server copy of refused
   entries are built (Device integrity, above), and so, with the care API follow-ups, are keeping an
   IDDSI entry from a device with a flag and an alert to the nurse in charge instead of refusing it

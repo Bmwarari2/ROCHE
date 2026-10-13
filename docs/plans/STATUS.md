@@ -193,9 +193,9 @@ only when they link spec, code, tests and user documentation; no user guides exi
     evaluate the scope for all candidates at once in a database function.
 13. Slice 10 part 2 on the phone (Lane C), the round and the handover: the sync streams, the
     token's handover claims and the client tables are in review (#33,
-    `feat/mobile-tasks-handover-sync`, [care.md](../specs/care.md) section 6). Before they deliver
-    anything, migration 0052 (after #32) adds `task`, `handover`, `handover_item`, `handover_note`
-    and `handover_acknowledgement` to the `powersync` publication with the `sync_replication_read`
+    `feat/mobile-tasks-handover-sync`, [care.md](../specs/care.md) section 6), with migration
+    0052, which adds `task`, `handover`, `handover_item`, `handover_note` and
+    `handover_acknowledgement` to the `powersync` publication with the `sync_replication_read`
     policy and `SELECT` for `harbour_sync`, and a database test that every table the streams read
     is published. Then: completing or skipping a task and acknowledging a handover offline
     (queued, idempotent, the task's version and the seen token over the items shown; a refusal to
@@ -205,8 +205,11 @@ only when they link spec, code, tests and user documentation; no user guides exi
       ship until (a) each handover item carries a worded summary (item 4) or its source
       (incidents, alerts, skipped-task reasons) is on the device (H-300); (b) the "From an earlier
       plan" notice reaches the phone, through the plan action reference or a computed flag
-      (HZ-024, H-303); (c) the publication migration has landed; (d) an empty list on the phone
-      never reads as "nothing due" when the streams have no data.
+      (HZ-024, H-303); (c) the publication migration has landed (0052, in #33); (d) an empty list
+      on the phone never reads as "nothing due" when the streams have no data; (e) the phone can
+      say "the outgoing handover is not compiled yet" or "not final", which needs the shift
+      pattern or the expected shift on the device, decided in the screens PR (#33 review round 2;
+      H-303).
     - Follow-up: whether the round on the phone should also hold unfinished tasks due before the
       window (H-301).
     - Follow-up (#33 review round 1): the streams ignore `person_assignment.valid_from`, so a
@@ -218,6 +221,9 @@ only when they link spec, code, tests and user documentation; no user guides exi
     - Follow-up (#33 review round 1): `location_open_tasks` keeps tasks about people active, on
       leave or in hospital, while the web round has no status filter, so tasks about someone at
       pre-admission are on the web round only.
+    - Follow-up (#33 review round 2, low): no test yet of a carer assigned to two people at
+      different homes where the person who opens a handover differs from the item's person (the
+      two `person_assignment` joins in the `assigned_handovers` item and note queries).
 
 ## Human actions outstanding
 
