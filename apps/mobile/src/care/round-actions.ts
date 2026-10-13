@@ -6,9 +6,12 @@
  *
  * - A task marked done or not done (skipped, with a reason) is an update of the synced row that
  *   carries the move in `queued_transition`: its own id, the version the carer saw (the API refuses
- *   a stale move), who and when. A task that needs evidence is done by recording the entry it asks
- *   for (`EntryContext.taskId`), never by a tap. If the API refuses the move, the server's copy
- *   puts the task back as it is there, and the move shows as "needs attention" (HZ-006).
+ *   a stale move), who and when. The phone offers it only where the server would take it, and
+ *   fails closed (#36 review round 1, M1): a task given to the user, or a task about a person that
+ *   names `care.note.write` where the phone may record about that person (`mayRecordFor`); never
+ *   while the user or the write scope is unknown, and never a task that names another permission.
+ *   A task that needs evidence is done by recording the entry it asks for (`EntryContext.taskId`),
+ *   never by a tap.
  * - An acknowledgement is a new row (append-only, a UUIDv7 from the device) with the seen token
  *   worked out, as the API does, over the keys of the items the reader was shown. The API records
  *   the items it shows them and refuses the token when they differ (409), so nobody acknowledges
@@ -18,7 +21,11 @@
  */
 import { checkTaskTransition, MIN_TASK_REASON_LENGTH, type TaskStatus } from "@harbour/domain";
 import type { MessageKey } from "../i18n/t";
+import { mayRecordFor, type WriteScope } from "../sync/write-scope";
 import { type FieldError, flag, type SqlValue } from "./entries";
+
+/** The permission a task about a person names when anyone who may record about them completes it. */
+export const PERSON_TASK_PERMISSION = "care.note.write";
 
 /** API limit from `@harbour/contracts` (`TaskTransitionRequest.reason`); a test keeps them equal. */
 export const TASK_REASON_MAX = 500;
@@ -53,12 +60,19 @@ export interface TaskToMove {
   readonly status: string | null;
   readonly due_at: string | null;
   readonly evidence_required: number | null;
+  readonly required_permission: string | null;
+  readonly assignee_tenant_user_id: string | null;
   readonly version: number | null;
   readonly queued_transition: string | null;
 }
 
 export interface MoveContext {
+  /** The signed-in member's tenant_user id. */
   readonly userId: string | null;
+  /** Where the phone may record, from the last sync token; null while unknown. */
+  readonly scope: WriteScope | null;
+  /** The home of the person the task is about, from the synced person row. */
+  readonly personLocationId: string | null;
   readonly newId: () => string;
 }
 
@@ -98,6 +112,9 @@ export function checkTaskMove(
   if (task.version === null || (task.status !== "open" && task.status !== "in_progress")) {
     return { ok: false, error: { key: "mobile.round.notOpen" } };
   }
+  const refusal = moveRefusal(task, context);
+  if (refusal) return { ok: false, error: { key: refusal } };
+  const userId = context.userId as string;
   const reason = draft.to === "skipped" ? draft.reason.trim() : "";
   const check = checkTaskTransition(task.status as TaskStatus, {
     to: draft.to,
@@ -125,7 +142,7 @@ export function checkTaskMove(
     to: draft.to,
     reason: reason || null,
     version: task.version,
-    by: context.userId,
+    by: userId,
     at: now.toISOString(),
     tenantId: task.tenant_id,
     personId: task.person_id,
@@ -139,6 +156,25 @@ export function checkTaskMove(
     sql: QUEUE_TASK_MOVE_SQL,
     params: [draft.to, JSON.stringify(move), task.id, task.tenant_id, task.version],
   };
+}
+
+/**
+ * Why the phone may not move this task, or null when it may: fails closed while the user or the
+ * write scope is unknown, and for any task neither given to the user nor about a person they may
+ * record about with the permission it names (#36 review round 1, M1).
+ */
+function moveRefusal(task: TaskToMove, context: MoveContext): MessageKey | null {
+  if (!context.userId) return "mobile.round.userUnknown";
+  if (context.scope === null) return "mobile.round.scopeUnknown";
+  if (task.assignee_tenant_user_id === context.userId) return null;
+  if (
+    task.required_permission === PERSON_TASK_PERMISSION &&
+    task.person_id !== null &&
+    mayRecordFor({ id: task.person_id, locationId: context.personLocationId }, context.scope)
+  ) {
+    return null;
+  }
+  return "mobile.round.notYours";
 }
 
 /** Reads a queued move back; null when it is missing or unreadable. */
@@ -210,13 +246,25 @@ export async function seenToken(
   return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "").slice(0, 43);
 }
 
+export interface AcknowledgementInsert {
+  readonly id: string;
+  readonly handoverId: string;
+  readonly userId: string;
+  readonly sql: string;
+  readonly params: SqlValue[];
+}
+
 /** The new acknowledgement row and its insert, over the items shown in their compiled order. */
 export async function acknowledgementInsert(
   handover: HandoverToAcknowledge,
   shown: readonly ShownItem[],
-  context: MoveContext & { readonly sha256Base64: Sha256Base64 },
+  context: {
+    readonly userId: string;
+    readonly newId: () => string;
+    readonly sha256Base64: Sha256Base64;
+  },
   now: Date,
-): Promise<{ readonly id: string; readonly sql: string; readonly params: SqlValue[] }> {
+): Promise<AcknowledgementInsert> {
   const keys = [...shown].sort((a, b) => a.position - b.position).map((i) => i.item_key);
   const row: Record<string, SqlValue> = {
     id: context.newId(),
@@ -232,6 +280,8 @@ export async function acknowledgementInsert(
   const columns = Object.keys(row);
   return {
     id: String(row.id),
+    handoverId: handover.id,
+    userId: context.userId,
     sql: `INSERT INTO handover_acknowledgement (${columns.join(", ")}) VALUES (${columns
       .map(() => "?")
       .join(", ")})`,
@@ -278,12 +328,23 @@ export async function writeTaskMove(
   });
 }
 
-/** Writes an acknowledgement in its own transaction: one acknowledgement, one upload. */
+/**
+ * Writes an acknowledgement in its own transaction: one acknowledgement, one upload. Nothing is
+ * written while the same member's acknowledgement of that handover is still waiting to upload (a
+ * second tap): only one made on the device carries a seen token, never the server's copy.
+ */
 export async function writeAcknowledgement(
   db: WriteDb,
-  insert: { readonly sql: string; readonly params: SqlValue[] },
-): Promise<void> {
-  await db.writeTransaction(async (tx) => {
+  insert: AcknowledgementInsert,
+): Promise<"written" | "already_queued"> {
+  return db.writeTransaction(async (tx) => {
+    const queued = await tx.getOptional<{ id: string }>(
+      `SELECT id FROM handover_acknowledgement
+       WHERE handover_id = ? AND tenant_user_id = ? AND seen_token IS NOT NULL LIMIT 1`,
+      [insert.handoverId, insert.userId],
+    );
+    if (queued) return "already_queued";
     await tx.execute(insert.sql, insert.params);
+    return "written";
   });
 }

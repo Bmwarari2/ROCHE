@@ -1,11 +1,13 @@
 import { createHash } from "node:crypto";
 import { TaskTransitionRequest } from "@harbour/contracts";
 import { describe, expect, it } from "vitest";
+import type { WriteScope } from "../sync/write-scope";
 import { all, openLocalDatabase, type SqliteDatabase } from "../test-support/local-db";
 import type { SqlValue } from "./entries";
 import {
   acknowledgementInsert,
   checkTaskMove,
+  type MoveContext,
   parseQueuedMove,
   seenToken,
   TASK_REASON_MAX,
@@ -35,12 +37,26 @@ const task = (overrides: Partial<TaskToMove> = {}): TaskToMove => ({
   status: "open",
   due_at: "2026-10-11 02:00:00Z",
   evidence_required: 0,
+  required_permission: "care.note.write",
+  assignee_tenant_user_id: null,
   version: 3,
   queued_transition: null,
   ...overrides,
 });
 
-const context = { userId: "user-carer", newId: ids() };
+/** A care worker who records about the people assigned to them (Ada), living at North. */
+const carerScope: WriteScope = {
+  locationIds: [],
+  assigned: true,
+  personIds: ["person-ada"],
+  peopleLocationIds: [],
+};
+const context: MoveContext = {
+  userId: "user-carer",
+  scope: carerScope,
+  personLocationId: "loc-north",
+  newId: ids(),
+};
 
 /** The app's write path on a real SQLite engine: a transaction that rolls back on a throw. */
 function writeDb(db: SqliteDatabase): WriteDb {
@@ -106,7 +122,58 @@ describe("moving a task on the phone (the API's own transition rules)", () => {
     expect(check.ok ? null : check.error.key).toBe(error);
   });
 
-  it("refuses a second move while one is waiting to upload", () => {
+  it.each([
+    ["a person the carer may record about", {}, {}, null],
+    ["no write scope known yet", {}, { scope: null }, "mobile.round.scopeUnknown"],
+    ["no member known yet", {}, { userId: null }, "mobile.round.userUnknown"],
+    [
+      "a home the carer may only read",
+      { person_id: "person-ben" },
+      { scope: { ...carerScope, personIds: ["person-ada"] } },
+      "mobile.round.notYours",
+    ],
+    [
+      "a task given to the carer, about nobody",
+      {
+        person_id: null,
+        required_permission: "platform.task.manage",
+        assignee_tenant_user_id: "user-carer",
+      },
+      {},
+      null,
+    ],
+    [
+      "a task about nobody given to someone else",
+      { person_id: null, required_permission: "care.note.write" },
+      {},
+      "mobile.round.notYours",
+    ],
+    [
+      "a task naming another permission",
+      { required_permission: "medicines.emar.administer" },
+      {},
+      "mobile.round.notYours",
+    ],
+    [
+      "a task given to the carer while the scope is unknown",
+      { assignee_tenant_user_id: "user-carer" },
+      { scope: null },
+      "mobile.round.scopeUnknown",
+    ],
+  ] as const)(
+    "hazard HZ-006 moves a task only where the server would take it: %s (#36 review round 1, M1)",
+    (_name, row, ctx, error) => {
+      const check = checkTaskMove(
+        task(row as Partial<TaskToMove>),
+        { to: "done", reason: "" },
+        { ...context, ...(ctx as Partial<MoveContext>) },
+        NOW,
+      );
+      expect(check.ok ? null : check.error.key).toBe(error);
+    },
+  );
+
+  it("hazard HZ-029 refuses a second move while one is waiting to upload", () => {
     const check = checkTaskMove(
       task({ queued_transition: '{"id":"x"}' }),
       { to: "done", reason: "" },
@@ -154,7 +221,7 @@ describe("moving a task on the phone (the API's own transition rules)", () => {
     ).toBeNull();
   });
 
-  it("writes the move on the row the carer saw, and nothing on a row that has changed", async () => {
+  it("hazard HZ-029 writes the move on the row the carer saw, and nothing on a row that has changed", async () => {
     const db = await withTask();
     const check = checkTaskMove(task(), { to: "done", reason: "" }, context, NOW);
     if (!check.ok) throw new Error("expected a move");
@@ -195,7 +262,7 @@ describe("hazard HZ-018 acknowledging a handover on the phone", () => {
     }
   });
 
-  it("acknowledges the items shown in their compiled order, with the device's id", async () => {
+  it("hazard HZ-029 acknowledges the items shown in their compiled order, once while it waits to upload", async () => {
     const db = await openLocalDatabase();
     const insert = await acknowledgementInsert(
       { id: "handover-1", tenant_id: TENANT, location_id: "loc-north" },
@@ -206,7 +273,15 @@ describe("hazard HZ-018 acknowledging a handover on the phone", () => {
       { userId: "user-carer", newId: () => "0199d000-0000-7000-8000-000000000201", sha256Base64 },
       NOW,
     );
-    await writeAcknowledgement(writeDb(db), insert);
+    expect(await writeAcknowledgement(writeDb(db), insert)).toBe("written");
+    // A second tap while the first waits to upload writes nothing (#36 review round 1, M1).
+    const again = await acknowledgementInsert(
+      { id: "handover-1", tenant_id: TENANT, location_id: "loc-north" },
+      [{ item_key: "fall:observation:a", position: 0 }],
+      { userId: "user-carer", newId: () => "0199d000-0000-7000-8000-000000000202", sha256Base64 },
+      NOW,
+    );
+    expect(await writeAcknowledgement(writeDb(db), again)).toBe("already_queued");
     expect(
       all(db, "SELECT * FROM handover_acknowledgement", []).map((r) => ({ ...(r as object) })),
     ).toEqual([

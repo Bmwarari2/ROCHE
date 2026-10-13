@@ -137,6 +137,9 @@ async function sendEntry(
   owner: string,
 ): Promise<Sent | "local"> {
   const table = row.record_table ?? "";
+  // Only care entries go in the owner's name. A task's move or a handover acknowledgement is the
+  // owner's own act, sent only by them after they sign in again (held-work.ts), never by another
+  // member: it stays on the device as needing attention (#36 review round 1).
   if (row.op !== "PUT" || !isCareEntryTable(table)) return "local";
   let data: Record<string, unknown> = {};
   try {
