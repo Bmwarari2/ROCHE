@@ -197,7 +197,7 @@ export function consentRecordState(
 
 const RECORD_CHIPS: Record<ConsentRecordState, Omit<McaChip, "label">> = {
   in_force: { status: "done", icon: "circle-check" },
-  refused: { status: "info", icon: "ban" },
+  refused: { status: "due", icon: "ban" },
   not_valid: { status: "overdue", icon: "circle-alert" },
   withdrawn: { status: "notApplicable", icon: "circle-minus" },
   expired: { status: "notApplicable", icon: "clock" },
@@ -255,10 +255,37 @@ export const BEST_INTERESTS_ITEMS = [
 ] as const satisfies readonly (keyof BestInterestsItem["checklist"])[];
 
 /** The outcome of a capacity assessment as the two-stage test found it: a finding, not an alarm. */
-export function capacityChip(outcome: "has_capacity" | "lacks_capacity", t: Translator): McaChip {
-  return outcome === "has_capacity"
-    ? { status: "neutral", icon: "user-check", label: t("care.mca.capacity.outcome", { outcome }) }
-    : { status: "info", icon: "user-x", label: t("care.mca.capacity.outcome", { outcome }) };
+export function capacityChip(outcome: string, t: Translator): McaChip {
+  const label = t("care.mca.capacity.outcome", { outcome });
+  if (outcome === "has_capacity") return { status: "neutral", icon: "user-check", label };
+  if (outcome === "lacks_capacity") return { status: "info", icon: "user-x", label };
+  return { status: "overdue", icon: "circle-alert", label };
+}
+
+/** A record's heading or history link with its UK date, so several can be told apart. */
+export function datedTitle(title: string, iso: string, t: Translator): string {
+  return t("care.mca.titleWithDate", { title, date: ukDate(iso) });
+}
+
+/**
+ * The capacity a consent record was made under, with the date of the assessment it names when
+ * the person's assessments include it; else the stored status alone.
+ */
+export function consentCapacity(
+  item: Pick<ConsentItem, "capacityStatus" | "capacityAssessmentId">,
+  assessments: readonly Pick<CapacityAssessmentItem, "id" | "assessedAt">[],
+  t: Translator,
+): McaLine {
+  const assessment = assessments.find((a) => a.id === item.capacityAssessmentId);
+  return assessment && item.capacityStatus !== "assumed"
+    ? line(
+        t("care.mca.consent.assessedOn", {
+          capacity: item.capacityStatus,
+          date: ukDate(assessment.assessedAt),
+        }),
+        assessment.assessedAt,
+      )
+    : line(t("care.mca.consent.capacityThen", { status: item.capacityStatus }));
 }
 
 /** A review date that has passed (compared as UK dates). */

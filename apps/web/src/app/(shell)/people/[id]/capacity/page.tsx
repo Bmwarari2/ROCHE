@@ -124,6 +124,7 @@ async function CapacityTab({ params }: { readonly params: Params }) {
             key={item.id}
             item={item}
             decisions={consents.decisions}
+            assessments={capacity.items}
             bestInterests={bestInterests.items}
             personId={id}
             personName={name}

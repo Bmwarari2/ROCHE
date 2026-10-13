@@ -29,9 +29,11 @@ import {
   BEST_INTERESTS_ITEMS,
   capacityChip,
   checklistAnswered,
+  consentCapacity,
   consentGivenBy,
   consentRecordChip,
   consentRecordState,
+  datedTitle,
   decisionView,
   dolsChip,
   dolsClock,
@@ -47,6 +49,7 @@ import {
   reviewOverdue,
   staffName,
 } from "@/lib/mca";
+import { ukToday } from "@/lib/uk-time";
 import { Notice } from "./Notice";
 
 /**
@@ -99,6 +102,7 @@ function Fields({ rows }: { readonly rows: readonly (readonly [string, string | 
 }
 
 const when = (iso: string | null | undefined) => formatDateTime(iso) ?? t("common.notRecorded");
+const day = (isoDate: string | null) => formatDate(isoDate) ?? t("common.notRecorded");
 
 const yesNo = (value: boolean | null | undefined) =>
   value === null || value === undefined ? null : t(value ? "care.common.yes" : "care.common.no");
@@ -116,11 +120,21 @@ function RecordedBy({ staff }: { readonly staff: StaffName | null }) {
   ) : null;
 }
 
-function HistoryLink({ href }: { readonly href: string }) {
+/** A link to a record's history, named for the record so several can be told apart; 44 px high. */
+function HistoryLink({ href, label }: { readonly href: string; readonly label: string }) {
   return (
     <p className="m-0 text-body-dense">
-      <Link href={href}>{t("care.mca.historyLink")}</Link>
+      <Link href={href} className="inline-flex min-h-target items-center">
+        {label}
+      </Link>
     </p>
+  );
+}
+
+/** "Review by dd/mm/yyyy", on its date. */
+function ReviewBy({ reviewOn }: { readonly reviewOn: string }) {
+  return (
+    <Line line={{ text: t("care.mca.reviewBy", { date: day(reviewOn) }), dateTime: reviewOn }} />
   );
 }
 
@@ -147,9 +161,13 @@ function Corrections<
           <ol className="m-0 mt-2 flex list-none flex-col gap-2 p-0">
             {chain.earlier.map((version) => (
               <li key={version.id} className="rounded-input border border-border px-4 py-2">
-                <p className="m-0 text-text-secondary">
-                  {t("care.timeline.earlierVersion", { dateTime: when(version.recordedAt) })}
-                </p>
+                <Line
+                  className="text-text-secondary"
+                  line={{
+                    text: t("care.timeline.earlierVersion", { dateTime: when(version.recordedAt) }),
+                    dateTime: version.recordedAt,
+                  }}
+                />
                 <del className="text-text-secondary">{text(version)}</del>
               </li>
             ))}
@@ -289,19 +307,27 @@ export function CapacityCard({
     return answer ? [[element, answer] as const] : [];
   });
   return (
-    <Card as="article" title={item.decision} headingLevel={4}>
+    <Card
+      as="article"
+      title={datedTitle(item.decision, item.assessedAt, t)}
+      headingLevel={4}
+      className="break-words"
+    >
       <div className="flex flex-col gap-2" data-capacity={item.outcome}>
         <p className="m-0 flex flex-wrap items-center gap-2">
           <Chip chip={capacityChip(item.outcome, t)} />
           {reviewOverdue(item.reviewOn, today) ? <ReviewOverdue /> : null}
         </p>
-        <p className="m-0">
-          {t("care.mca.capacity.assessed", {
-            dateTime: when(item.assessedAt),
-            named: assessor ? "yes" : "no",
-            assessor: assessor ?? "",
-          })}
-        </p>
+        <Line
+          line={{
+            text: t("care.mca.capacity.assessed", {
+              dateTime: when(item.assessedAt),
+              named: assessor ? "yes" : "no",
+              assessor: assessor ?? "",
+            }),
+            dateTime: item.assessedAt,
+          }}
+        />
         {item.decisionKind ? (
           <p className="m-0 text-body-dense text-text-secondary">
             {t("care.mca.capacity.kind", {
@@ -328,11 +354,11 @@ export function CapacityCard({
         {stage2.length > 0 ? (
           <dl className="m-0 flex flex-col gap-2">
             {stage2.map(([element, answer]) => (
-              <div key={element}>
+              <div key={element} className="min-w-0">
                 <dt className="text-body-dense font-semibold">
                   {t("care.mca.capacity.element", { element })}
                 </dt>
-                <dd className="m-0 whitespace-pre-line">
+                <dd className="m-0 whitespace-pre-line break-words">
                   {[t("care.mca.capacity.able", { able: String(answer.able) }), answer.evidence]
                     .filter(Boolean)
                     .join("\n")}
@@ -342,8 +368,10 @@ export function CapacityCard({
           </dl>
         ) : null}
         {item.reviewOn ? (
-          <p className="m-0">{t("care.mca.reviewBy", { date: formatDate(item.reviewOn) ?? "" })}</p>
-        ) : null}
+          <ReviewBy reviewOn={item.reviewOn} />
+        ) : (
+          <p className="m-0">{t("care.mca.noReviewDate")}</p>
+        )}
         <Corrections
           chain={chain}
           text={(version) =>
@@ -369,21 +397,35 @@ export function BestInterestsCard({
   const item = chain.current;
   const assessment = assessments.find((a) => a.id === item.capacityAssessmentId);
   return (
-    <Card as="article" title={item.decision} headingLevel={4}>
+    <Card
+      as="article"
+      title={datedTitle(item.decision, item.decidedAt, t)}
+      headingLevel={4}
+      className="break-words"
+    >
       <div className="flex flex-col gap-2" data-best-interests="">
         {reviewOverdue(item.reviewOn, today) ? (
           <p className="m-0">
             <ReviewOverdue />
           </p>
         ) : null}
-        <p className="m-0">{t("care.mca.bi.decided", { dateTime: when(item.decidedAt) })}</p>
+        <Line
+          line={{
+            text: t("care.mca.bi.decided", { dateTime: when(item.decidedAt) }),
+            dateTime: item.decidedAt,
+          }}
+        />
         {assessment ? (
-          <p className="m-0 text-body-dense text-text-secondary">
-            {t("care.mca.bi.follows", {
-              dateTime: when(assessment.assessedAt),
-              decision: assessment.decision,
-            })}
-          </p>
+          <Line
+            className="text-body-dense text-text-secondary"
+            line={{
+              text: t("care.mca.bi.follows", {
+                dateTime: when(assessment.assessedAt),
+                decision: assessment.decision,
+              }),
+              dateTime: assessment.assessedAt,
+            }}
+          />
         ) : null}
         {item.imcaPrompt ? (
           <Notice
@@ -391,7 +433,17 @@ export function BestInterestsCard({
             icon={<CircleAlert size={20} strokeWidth={1.5} />}
             title={t("care.mca.bi.imca")}
           >
-            {item.imcaPrompt}
+            {/* In the catalogue's words from the decision's own facts, not the API's English. */}
+            {t("care.mca.bi.imcaNeeded", {
+              kind:
+                item.seriousMedicalTreatment && item.accommodationChange
+                  ? "both"
+                  : item.seriousMedicalTreatment
+                    ? "smt"
+                    : item.accommodationChange
+                      ? "move"
+                      : "other",
+            })}
           </Notice>
         ) : null}
         {item.seriousMedicalTreatment ? (
@@ -400,25 +452,29 @@ export function BestInterestsCard({
         {item.accommodationChange ? (
           <p className="m-0">{t("care.mca.bi.about", { kind: "accommodation" })}</p>
         ) : null}
-        <Fields
-          rows={[
-            [
-              "consulted",
-              item.consultations
-                .map((c) =>
-                  t("care.mca.bi.consultation", {
-                    named: c.name ? "yes" : "no",
-                    name: c.name ?? "",
-                    kind: t("care.mca.bi.consultee", { kind: c.consultee }),
-                    dateTime: when(c.consultedAt),
-                    views: c.views,
-                  }),
-                )
-                .join("\n"),
-            ],
-            ["noConsultation", item.noConsultationReason],
-          ]}
-        />
+        {item.consultations.length > 0 ? (
+          <div>
+            <p className="m-0 text-body-dense font-semibold">
+              {t("care.mca.field", { field: "consulted" })}
+            </p>
+            <ul className="m-0 flex flex-col gap-1 ps-5">
+              {item.consultations.map((c) => (
+                <li key={`${c.consultee}-${c.consultedAt}`}>
+                  <time dateTime={c.consultedAt}>
+                    {t("care.mca.bi.consultation", {
+                      named: c.name ? "yes" : "no",
+                      name: c.name ?? "",
+                      kind: t("care.mca.bi.consultee", { kind: c.consultee }),
+                      dateTime: when(c.consultedAt),
+                      views: c.views,
+                    })}
+                  </time>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        <Fields rows={[["noConsultation", item.noConsultationReason]]} />
         <details className="text-body-dense">
           <summary className="inline-flex min-h-target cursor-pointer items-center text-link">
             {t("care.mca.bi.checklist", {
@@ -443,7 +499,7 @@ export function BestInterestsCard({
             })}
           </dl>
         </details>
-        <p className="m-0">{t("care.mca.reviewBy", { date: formatDate(item.reviewOn) ?? "" })}</p>
+        <ReviewBy reviewOn={item.reviewOn} />
         <Corrections chain={chain} text={(version) => version.decision} />
         <RecordedBy staff={item.recordedByStaff} />
       </div>
@@ -455,12 +511,14 @@ export function BestInterestsCard({
 export function ConsentCard({
   item,
   decisions,
+  assessments,
   bestInterests,
   personId,
   personName,
 }: {
   readonly item: ConsentItem;
   readonly decisions: readonly ConsentDecisionStatus[];
+  readonly assessments: readonly CapacityAssessmentItem[];
   readonly bestInterests: readonly BestInterestsItem[];
   readonly personId: string;
   readonly personName: string;
@@ -469,37 +527,53 @@ export function ConsentCard({
   const rep = item.representative;
   const decided = bestInterests.find((bi) => bi.id === item.bestInterestsDecisionId);
   const conditions = item.restraintConditions;
+  const decision = t("care.mca.decision", { decision: item.decision });
   return (
-    <Card as="article" title={t("care.mca.decision", { decision: item.decision })} headingLevel={4}>
+    <Card
+      as="article"
+      title={datedTitle(decision, item.givenAt, t)}
+      headingLevel={4}
+      className="break-words"
+    >
       <div className="flex flex-col gap-2" data-consent-record={state}>
         <p className="m-0 flex flex-wrap items-center gap-2">
           <Chip chip={consentRecordChip(state, t)} />
         </p>
-        <p className="m-0">
-          {t("care.mca.consent.made", {
-            outcome: item.outcome,
-            dateTime: when(item.givenAt),
-            who: consentGivenBy(item, personName, t),
-          })}
-        </p>
-        <p className="m-0 text-body-dense text-text-secondary">
-          {t("care.mca.consent.capacityThen", { status: item.capacityStatus })}
-        </p>
+        <Line
+          line={{
+            text: t("care.mca.consent.made", {
+              outcome: item.outcome,
+              dateTime: when(item.givenAt),
+              who: consentGivenBy(item, personName, t),
+            }),
+            dateTime: item.givenAt,
+          }}
+        />
+        <Line
+          className="text-body-dense text-text-secondary"
+          line={consentCapacity(item, assessments, t)}
+        />
         {item.expiresAt ? (
-          <p className="m-0">
-            {t("care.mca.consent.expires", {
-              expired: state === "expired" ? "yes" : "no",
-              dateTime: when(item.expiresAt),
-            })}
-          </p>
+          <Line
+            line={{
+              text: t("care.mca.consent.expires", {
+                expired: state === "expired" ? "yes" : "no",
+                dateTime: when(item.expiresAt),
+              }),
+              dateTime: item.expiresAt,
+            }}
+          />
         ) : null}
         {item.withdrawnAt ? (
-          <p className="m-0">
-            {t("care.mca.consent.withdrawn", {
-              dateTime: when(item.withdrawnAt),
-              reason: item.withdrawnReason ?? t("common.notRecorded"),
-            })}
-          </p>
+          <Line
+            line={{
+              text: t("care.mca.consent.withdrawn", {
+                dateTime: when(item.withdrawnAt),
+                reason: item.withdrawnReason ?? t("common.notRecorded"),
+              }),
+              dateTime: item.withdrawnAt,
+            }}
+          />
         ) : null}
         <Fields
           rows={[
@@ -531,7 +605,13 @@ export function ConsentCard({
           ]}
         />
         <RecordedBy staff={item.recordedByStaff} />
-        <HistoryLink href={`/people/${personId}/history/consent_record/${item.id}`} />
+        <HistoryLink
+          href={`/people/${personId}/history/consent_record/${item.id}`}
+          label={t("care.mca.consent.historyLink", {
+            decision,
+            date: formatDate(ukToday(new Date(item.givenAt))) ?? "",
+          })}
+        />
       </div>
     </Card>
   );

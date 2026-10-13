@@ -8,9 +8,11 @@ import {
   CONSENT_PROBLEMS,
   capacityChip,
   checklistAnswered,
+  consentCapacity,
   consentGivenBy,
   consentRecordChip,
   consentRecordState,
+  datedTitle,
   decisionView,
   dolsChip,
   dolsClock,
@@ -503,6 +505,44 @@ describe("capacity and best interests (care.md rules 9 and 10)", () => {
       status: "neutral",
       label: "Has capacity for this decision",
     });
+    expect(capacityChip("unsure", t)).toMatchObject({
+      status: "overdue",
+      label: "Outcome could not be read",
+    });
+  });
+
+  it("hazard HZ-026 shows a refused consent record as a warning, and its capacity with the assessment's date", () => {
+    expect(consentRecordChip("refused", t)).toMatchObject({ status: "due", label: "Refused" });
+    const assessments = [{ id: ASSESSMENT, assessedAt: "2026-10-01T10:00:00Z" }];
+    const lacking = { capacityStatus: "lacks_capacity" as const, capacityAssessmentId: ASSESSMENT };
+    expect(consentCapacity(lacking, assessments, t)).toEqual({
+      text: "Assessed on 01/10/2026 as lacking capacity for this decision",
+      dateTime: "2026-10-01T10:00:00Z",
+    });
+    expect(consentCapacity({ ...lacking, capacityAssessmentId: OTHER }, assessments, t).text).toBe(
+      "Assessed as lacking capacity for this decision",
+    );
+    expect(
+      consentCapacity({ capacityStatus: "assumed", capacityAssessmentId: null }, assessments, t)
+        .text,
+    ).toBe("Capacity was assumed");
+    expect(
+      consentCapacity(
+        { capacityStatus: "unsure" as "assumed", capacityAssessmentId: null },
+        assessments,
+        t,
+      ).text,
+    ).toBe("The capacity finding could not be read");
+  });
+
+  it("names each record with its UK date, and warns on checklist values it does not know", () => {
+    expect(datedTitle("Bed rails", "2026-10-11T23:30:00Z", t)).toBe("Bed rails (12/10/2026)");
+    expect(t("care.mca.bi.answer", { answer: "maybe", text: "" })).toBe(
+      "The answer could not be read",
+    );
+    expect(t("care.mca.bi.consultee", { kind: "neighbour" })).toBe(
+      "Someone whose role could not be read",
+    );
   });
 
   it("compares review dates as UK dates", () => {

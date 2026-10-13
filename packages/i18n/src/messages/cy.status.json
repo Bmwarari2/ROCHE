@@ -1019,6 +1019,8 @@
     "care.mca.bi.checklist",
     "care.mca.bi.item",
     "care.mca.bi.answer",
-    "care.mca.historyLink"
+    "care.mca.titleWithDate",
+    "care.mca.consent.historyLink",
+    "care.mca.bi.imcaNeeded"
   ]
 }

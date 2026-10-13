@@ -391,6 +391,8 @@ test("hazard HZ-026 the tab shows the two-stage test, the best-interests checkli
       "This corrects an earlier version. Reason: The assessor's role was incomplete.",
     ),
   ).toBeVisible();
+  await expect(capacity.getByText(/^Review by \d{2}\/\d{2}\/\d{4}$/)).toBeVisible();
+  await expect(capacity.locator("time").first()).toHaveAttribute("datetime", /^\d{4}-\d{2}-\d{2}/);
   await capacity.getByText("Show the earlier version").click();
   await expect(capacity.locator("del")).toHaveText(/^Whether to use bed rails at night/);
 
@@ -399,14 +401,20 @@ test("hazard HZ-026 the tab shows the two-stage test, the best-interests checkli
   await expect(
     bestInterests.getByText("Independent Mental Capacity Advocate (IMCA)"),
   ).toBeVisible();
+  await expect(
+    bestInterests.getByText(/consulted about a change of accommodation\. Ask the NHS body/),
+  ).toBeVisible();
   await bestInterests.getByText("Section 4 checklist: 10 of 10 items answered").click();
   await expect(
     bestInterests.getByText("A less restrictive way to achieve the purpose (s.1(6))"),
   ).toBeVisible();
 
-  // The consent the first journey recorded, as the record deciding the care plan consent.
-  const consent = article(page, "Consent records");
+  // The care plan consent the first journey recorded, as the record deciding it now, and the
+  // refusal of photographs on social media as a warning.
+  const consent = article(page, "Consent records", `Talked the plan through with Else (${RUN})`);
   await expect(consent.getByText("In force", { exact: true })).toBeVisible();
+  const refusal = article(page, "Consent records", `Said no to photographs online (${RUN})`);
+  await expect(refusal.locator('.hb-status-chip[data-status="due"]')).toHaveText("Refused");
   await expect(consent.getByText(/^Consent given .* by Else$/)).toBeVisible();
   await expect(consent.getByText("Recorded by Nell Nurse", { exact: false })).toBeVisible();
 
@@ -415,7 +423,11 @@ test("hazard HZ-026 the tab shows the two-stage test, the best-interests checkli
   await expectAccessible(page, "consent, capacity and DoLS records, dark theme");
   await page.emulateMedia({ colorScheme: "light" });
 
-  await consent.getByRole("link", { name: "View the changes to this record" }).click();
+  const history = consent.getByRole("link", {
+    name: /^View the changes to the consent record: Care and support plan \(\d{2}\/\d{2}\/\d{4}\)$/,
+  });
+  expect((await history.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+  await history.click();
   await expect(
     page.getByRole("heading", { level: 2, name: "Changes to the consent record" }),
   ).toBeVisible();
