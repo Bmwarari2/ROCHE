@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// CodeQL gate (section 7) while GitHub code scanning is not enabled on the repository (human action
-// H-17): fails on any result whose rule carries a security severity of 7.0 or more (high or
-// critical), and prints where. Usage: node scripts/check-sarif.mjs <directory of .sarif files>
+// CodeQL gate (section 7): fails on any result whose rule carries a security severity of 7.0 or
+// more (high or critical), and prints where, whether or not the results were uploaded to code
+// scanning (a fork's or Dependabot's pull request cannot upload; H-17).
+// Usage: node scripts/check-sarif.mjs <directory of .sarif files>
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
