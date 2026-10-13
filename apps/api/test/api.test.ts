@@ -467,10 +467,12 @@ describe("offline sync", () => {
       people_location_ids: [],
       care_location_ids: [],
       entries_location_ids: [],
-      // The care worker role is scoped to assigned people and carries all three synced reads.
+      handover_location_ids: [],
+      // The care worker role is scoped to assigned people and carries every synced read.
       people_assigned: true,
       care_assigned: true,
       entries_assigned: true,
+      handover_assigned: true,
       // The phone may record for the people the care worker is assigned to (review round 2, C2-M3).
       entries_write_location_ids: [],
       entries_write_assigned: true,
@@ -520,9 +522,11 @@ describe("offline sync", () => {
       people_location_ids: [DEMO.locationId],
       care_location_ids: [DEMO.locationId],
       entries_location_ids: [DEMO.locationId],
+      handover_location_ids: [DEMO.locationId],
       people_assigned: false,
       care_assigned: false,
       entries_assigned: false,
+      handover_assigned: false,
       entries_write_location_ids: [DEMO.locationId],
       entries_write_assigned: false,
     });

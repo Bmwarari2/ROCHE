@@ -318,6 +318,133 @@ const visit_log = new Table(
   { indexes: entryIndexes },
 );
 
+// ------------------------------------------------------------------------------------------------
+// The round and the shift handover (care.md rule 8 and section 6). Read on the device, scoped as
+// the API's round and handover views are; a task leaves the device once it is no longer open, and
+// a handover once its shift ended before the offline window.
+// ------------------------------------------------------------------------------------------------
+
+/**
+ * Open tasks due on a day of the offline window. The title is free text (3 to 120 characters,
+ * written by a manager or generated, "Reposition"), as the round view shows it; the person is a
+ * reference.
+ */
+const task = new Table(
+  {
+    tenant_id: column.text,
+    series_id: column.text,
+    location_id: column.text,
+    person_id: column.text,
+    /** `module.what`, for example `care.reposition`. */
+    kind: column.text,
+    title: column.text,
+    required_permission: column.text,
+    /** A care plan round's action (`care_plan_action`), when the plan generated it. */
+    source_type: column.text,
+    source_id: column.text,
+    assignee_tenant_user_id: column.text,
+    assignee_role_key: column.text,
+    due_at: column.text,
+    window_start: column.text,
+    window_end: column.text,
+    priority: column.text,
+    evidence_required: column.integer,
+    /** `open` or `in_progress` (anything else has left the device). */
+    status: column.text,
+    /** `caught_up` when a return or correction brought a missed round back once (people.md rule 2). */
+    restore_code: column.text,
+    escalation_level: column.integer,
+    updated_at: column.text,
+    /** Sent back as `version` when the task is moved, so a stale move is refused. */
+    version: column.integer,
+  },
+  {
+    indexes: {
+      by_location_due: ["location_id", "due_at"],
+      by_person_due: ["person_id", "due_at"],
+    },
+  },
+);
+
+/** One handover per location and shift; no refresh time or version (whole readers' only). */
+const handover = new Table(
+  {
+    tenant_id: column.text,
+    location_id: column.text,
+    shift_name: column.text,
+    shift_start: column.text,
+    shift_end: column.text,
+    compiled_at: column.text,
+    locked_at: column.text,
+  },
+  { indexes: { by_location_shift: ["location_id", "shift_end"] } },
+);
+
+/**
+ * The compiled items the reader may see, by reference only (`key` on the server, a keyword on the
+ * device). Their keys in `position` order make the seen token the API asks for when acknowledging.
+ */
+const handover_item = new Table(
+  {
+    tenant_id: column.text,
+    handover_id: column.text,
+    item_key: column.text,
+    position: column.integer,
+    kind: column.text,
+    person_id: column.text,
+    source_type: column.text,
+    source_id: column.text,
+    /** When it happened, or when the task fell due. */
+    at: column.text,
+    late_addition: column.integer,
+    added_at: column.text,
+  },
+  { indexes: { by_handover: ["handover_id", "position"] } },
+);
+
+/** Notes by the outgoing staff on the handover (no item) or on one of its items. */
+const handover_note = new Table(
+  {
+    tenant_id: column.text,
+    handover_id: column.text,
+    item_key: column.text,
+    person_id: column.text,
+    body: column.text,
+    created_at: column.text,
+    created_by: column.text,
+  },
+  { indexes: { by_handover: ["handover_id", "created_at"] } },
+);
+
+/**
+ * The reader's own acknowledgements, with the keys of the items they could see (JSON array),
+ * recorded by the server: what they have acknowledged and what is new to them since.
+ */
+const handover_acknowledgement = new Table(
+  {
+    tenant_id: column.text,
+    handover_id: column.text,
+    tenant_user_id: column.text,
+    item_keys: column.text,
+    acknowledged_at: column.text,
+  },
+  { indexes: { by_handover: ["handover_id", "tenant_user_id"] } },
+);
+
+/**
+ * Who acknowledged a handover the reader sees whole, and when: never the item keys, which name the
+ * people and what happened to them, and which the API never returns (#33 review round 1, M1).
+ */
+const handover_staff_acknowledgement = new Table(
+  {
+    tenant_id: column.text,
+    handover_id: column.text,
+    tenant_user_id: column.text,
+    acknowledged_at: column.text,
+  },
+  { indexes: { by_handover: ["handover_id", "acknowledged_at"] } },
+);
+
 /**
  * Local-only: an upload the API refused for good (for example the person's record closed while
  * the device was offline). The entry's content stays here, encrypted on the device, until someone
@@ -383,6 +510,12 @@ export const AppSchema = new Schema({
   body_map_mark,
   activity_record,
   visit_log,
+  task,
+  handover,
+  handover_item,
+  handover_note,
+  handover_acknowledgement,
+  handover_staff_acknowledgement,
   upload_issue,
   held_entry,
 });
@@ -403,6 +536,12 @@ export type ObservationRecord = Database["observation"];
 export type BodyMapMarkRecord = Database["body_map_mark"];
 export type ActivityRecordRecord = Database["activity_record"];
 export type VisitLogRecord = Database["visit_log"];
+export type TaskRecord = Database["task"];
+export type HandoverRecord = Database["handover"];
+export type HandoverItemRecord = Database["handover_item"];
+export type HandoverNoteRecord = Database["handover_note"];
+export type HandoverAcknowledgementRecord = Database["handover_acknowledgement"];
+export type HandoverStaffAcknowledgementRecord = Database["handover_staff_acknowledgement"];
 export type UploadIssueRecord = Database["upload_issue"];
 export type HeldEntryRecord = Database["held_entry"];
 
@@ -432,6 +571,20 @@ export const OFFLINE_WINDOW_TABLES = [
   "visit_log",
 ] as const;
 export type OfflineWindowTable = (typeof OFFLINE_WINDOW_TABLES)[number];
+
+/**
+ * The round and the handover (`*_open_tasks`, `*_handovers`): open tasks due in the offline window
+ * and the handovers of shifts ending in it. Read only on the device until the offline completion
+ * and acknowledgement land.
+ */
+export const ROUND_AND_HANDOVER_TABLES = [
+  "task",
+  "handover",
+  "handover_item",
+  "handover_note",
+  "handover_acknowledgement",
+  "handover_staff_acknowledgement",
+] as const;
 
 /** The only synced tables a device writes to: append-only entries, inserts only. */
 export const DEVICE_WRITABLE_TABLES: readonly OfflineWindowTable[] = OFFLINE_WINDOW_TABLES;
