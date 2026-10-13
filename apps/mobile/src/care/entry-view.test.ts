@@ -191,8 +191,29 @@ describe("hazard HZ-006 refused entries stay readable", () => {
       content: "What was recorded: Reposition: not done, because Asleep, will turn at 03:00",
       when: "11/10/2026 at 03:05",
     });
+    // A held move kept without its person (its payload names the task) still names the person
+    // the move is about, and shows on their screen (#37 review round 1, M3).
+    const held = issueItem({
+      ...row,
+      person_id: null,
+      code: "held_not_restored",
+      payload: JSON.stringify({
+        status: "skipped",
+        queued_transition: JSON.stringify(move),
+        task_id: "task-1",
+      }),
+    });
+    expect(held).toMatchObject({ personId: "p1", title: "Task for Bea Sample" });
     // A task about nobody, and an acknowledgement, name no one.
-    expect(issueItem({ ...row, person_id: null }).title).toBe("Task");
+    const nobody = issueItem({
+      ...row,
+      person_id: null,
+      preferred_name: null,
+      given_name: null,
+      family_name: null,
+      payload: JSON.stringify({ queued_transition: JSON.stringify({ ...move, personId: null }) }),
+    });
+    expect(nobody).toMatchObject({ personId: null, title: "Task" });
     expect(
       issueItem({
         ...row,

@@ -15,7 +15,8 @@
  *   body-map marks, activities and visits) go one by one to the API's own endpoints for them
  *   (`care-upload.ts`) with the device's UUIDv7, the device id, the tenant and the time the device
  *   sent the request (`x-harbour-sent-at`), so the server computes late-entry and clock-drift flags
- *   correctly (HZ-010, HZ-017) and ignores a replay. Anything else goes to `POST /v1/sync/upload`.
+ *   correctly (HZ-010, HZ-017) and ignores a replay. A task's move and a handover acknowledgement
+ *   go to their own routes (`round-upload.ts`). Anything else goes to `POST /v1/sync/upload`.
  *
  * Transient failures (no network, 408, 425, 429, 5xx) are retried with backoff and then left
  * queued for PowerSync to retry. The API is authoritative: when it refuses an entry for good (for
@@ -33,7 +34,6 @@ import type {
   PowerSyncCredentials,
 } from "@powersync/common";
 import { type FetchLike, HttpError, isRetryableStatus, parseRetryAfter } from "../auth/http";
-import type { QueuedTaskMove } from "../care/round-actions";
 import { t } from "../i18n/t";
 import {
   type BackoffPolicy,
@@ -44,9 +44,15 @@ import {
 import { isCareEntryTable, toCareUpload } from "./care-upload";
 import {
   isRoundWritableTable,
-  moveAlreadyMade,
-  moveCheckPath,
+  mayResend,
+  moveMade,
+  overtakenMessage,
+  type RoundMove,
+  type RoundUploadRequest,
   roundRefusalMessage,
+  type TaskState,
+  taskStateIn,
+  taskStatePath,
   toRoundUpload,
 } from "./round-upload";
 import {
@@ -463,9 +469,9 @@ export class HarbourConnector implements PowerSyncBackendConnector {
   /**
    * A task's move or a handover acknowledgement to its own route (`round-upload.ts`). A refusal
    * moves it to "needs attention" with the phone's words for the two a carer must act on; the
-   * server's copy then puts the task or the handover back as it is there. A 409 on a move the task
-   * list shows as already made by the carer was a lost response to a move the API took, so it
-   * counts as sent (HZ-029).
+   * server's copy then puts the task or the handover back as it is there. A move the API refuses
+   * because the task changed (409 `version_conflict`) is settled by reading the task
+   * (`settleConflict`).
    */
   private async uploadRoundChange(
     database: UploadSource,
@@ -493,7 +499,8 @@ export class HarbourConnector implements PowerSyncBackendConnector {
       await this.postChange(request, clientId);
     } catch (error) {
       if (!(error instanceof UploadRejectedError)) throw error;
-      if (error.status === 409 && request.move && (await this.moveAlreadyMade(request.move))) {
+      if (error.status === 409 && error.code === "version_conflict" && request.move) {
+        await this.settleConflict(request, request.move, clientId, park);
         return;
       }
       await park(
@@ -505,23 +512,78 @@ export class HarbourConnector implements PowerSyncBackendConnector {
     }
   }
 
-  /** Whether the task list shows the move as made by the carer; false when it cannot tell. */
-  private async moveAlreadyMade(
-    move: QueuedTaskMove & { readonly taskId: string },
-  ): Promise<boolean> {
-    const path = moveCheckPath(move);
-    if (!path) return false;
-    try {
+  /**
+   * A move the API refused because the task changed (#37 review round 1). Reads the task as the
+   * API has it, and only an answer it can read decides: the carer's own move already made (its
+   * response was lost, HZ-029) counts as sent; a task nobody closed gets the move once more against
+   * its current version, judged again by the API; anything else moves to "needs attention" in words
+   * that say what happened to the task. When the task cannot be read (no network, a 5xx, an ended
+   * session, an answer it cannot read) this throws and the move stays queued, to be tried again.
+   */
+  private async settleConflict(
+    request: RoundUploadRequest,
+    move: RoundMove,
+    clientId: string,
+    park: (status: number | null, code: string, message: string) => Promise<void>,
+  ): Promise<void> {
+    const state = await this.readTask(move);
+    if (state && moveMade(state, move)) return;
+    if (state && mayResend(state, move)) {
+      try {
+        await this.postChange(
+          { ...request, body: { ...request.body, version: state.version } },
+          clientId,
+        );
+        return;
+      } catch (error) {
+        if (!(error instanceof UploadRejectedError)) throw error;
+        await park(
+          error.status,
+          error.code,
+          roundRefusalMessage("task", error.code, error.reason) ?? t("mobile.issues.unknownReason"),
+        );
+        return;
+      }
+    }
+    await park(409, "version_conflict", overtakenMessage(state));
+  }
+
+  /**
+   * The task as the API has it, from the task list (`taskStatePath`): its state, or null when the
+   * list the API sent does not have it. Throws, so the move stays queued, on anything else: a
+   * network failure or a retryable status after backoff, any other status, or an answer it cannot
+   * read. A 401, a session code on a 403, or `GET /v1/me` saying so after an unexplained 403 ends
+   * the session (H1); a manager's revocation is reported as one.
+   */
+  private async readTask(move: RoundMove): Promise<TaskState | null> {
+    return retryWithBackoff(async () => {
       const headers = await this.authorisedHeaders();
-      const response = await this.options.fetch(`${this.options.apiUrl}${path}`, {
+      const response = await this.options.fetch(`${this.options.apiUrl}${taskStatePath(move)}`, {
         method: "GET",
         headers: { ...headers, [TENANT_HEADER]: move.tenantId },
         credentials: "omit",
       });
-      return response.ok && moveAlreadyMade(await response.json(), move);
-    } catch {
-      return false;
-    }
+      if (response.status === 401) this.ended();
+      if (response.status === 403) {
+        await this.forbidden(response, false);
+        throw new HttpError(403, "The task could not be read; the move stays queued");
+      }
+      if (!response.ok) {
+        throw new HttpError(
+          response.status,
+          "The task could not be read; the move stays queued",
+          parseRetryAfter(response.headers.get("retry-after")),
+        );
+      }
+      const state = taskStateIn(await response.json().catch(() => undefined), move.taskId);
+      if (state === "unreadable") {
+        throw new HttpError(
+          response.status,
+          "The task list could not be read; the move stays queued",
+        );
+      }
+      return state;
+    }, this.retryOptions());
   }
 
   /**

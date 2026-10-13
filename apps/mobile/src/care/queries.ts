@@ -216,11 +216,19 @@ export interface AssessmentRow {
 
 /**
  * Entries the server refused, kept on the device until dealt with. A refusal recorded without a
- * tenant (an entry that lost its tenant) is listed too, so it can never sit unseen (S7).
+ * tenant (an entry that lost its tenant) is listed too, so it can never sit unseen (S7). A task's
+ * move kept without its person is named by the person in the move itself (#37 review round 1, M3);
+ * a payload that is not JSON names no one and never stops the list.
  */
 export const UPLOAD_ISSUES_SQL = `SELECT i.id, i.person_id, i.record_table, i.http_status, i.code,
   i.message, i.payload, i.rejected_at, i.server_copy, p.preferred_name, p.given_name, p.family_name
-FROM upload_issue i
+FROM (SELECT u.id, u.tenant_id, u.record_table, u.http_status, u.code, u.message, u.payload,
+    u.rejected_at, u.server_copy,
+    COALESCE(u.person_id, CASE WHEN u.record_table = 'task' AND json_valid(u.payload) THEN
+      CASE WHEN json_valid(json_extract(u.payload, '$.queued_transition'))
+        THEN json_extract(json_extract(u.payload, '$.queued_transition'), '$.personId') END
+    END) AS person_id
+  FROM upload_issue u) i
 LEFT JOIN person p ON p.id = i.person_id AND p.tenant_id = i.tenant_id
 WHERE (i.tenant_id = ? OR i.tenant_id IS NULL)
 ORDER BY i.rejected_at DESC, i.id`;

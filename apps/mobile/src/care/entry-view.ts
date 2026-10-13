@@ -266,12 +266,15 @@ export function issueItem(row: UploadIssueRow): IssueItem {
     (typeof payload.occurred_at === "string" ? payload.occurred_at : null);
   const occurred = parseInstant(at);
   const table = row.record_table ?? "other";
+  // A move names the person it is about itself, so a held or refused move shows on their screen
+  // whatever was kept with it (#37 review round 1, M3).
+  const personId = row.person_id ?? move?.personId ?? null;
   return {
     id: row.id,
-    personId: row.person_id,
+    personId,
     // A task about nobody and an acknowledgement name no one.
     title:
-      !row.person_id && (table === "task" || table === "handover_acknowledgement")
+      !personId && (table === "task" || table === "handover_acknowledgement")
         ? t("mobile.issues.itemNoPerson", { table })
         : t("mobile.issues.item", { table, name: display || t("mobile.common.notRecorded") }),
     reason: t("mobile.issues.reason", { reason: row.message ?? t("mobile.issues.unknownReason") }),

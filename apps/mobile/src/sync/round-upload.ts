@@ -5,10 +5,16 @@
  * `POST /v1/locations/{locationId}/handovers/{handoverId}/acknowledgements` with its device id and
  * seen token. `POST /v1/sync/upload` writes neither.
  *
+ * When the API says the task changed before a move reached it (409 `version_conflict`), the
+ * connector reads the task as the API has it (`taskStatePath`, `taskStateIn`) and decides here: the
+ * carer's own move already made (a lost response, HZ-029), the task still open so the move goes
+ * again once against the current version, or words that say what happened to it (#37 review
+ * round 1).
+ *
  * Pure, so the mapping is tested without a device. A change that cannot become a valid request is
  * refused here, with a reason, rather than sent; the connector keeps it as "needs attention".
  */
-import type { AcknowledgeHandover, TaskTransitionRequest } from "@harbour/contracts";
+import type { AcknowledgeHandover, TaskStatus, TaskTransitionRequest } from "@harbour/contracts";
 import { ROUND_WRITABLE_TABLES, type RoundWritableTable } from "@harbour/sync/client";
 import { parseQueuedMove, type QueuedTaskMove } from "../care/round-actions";
 import { parseInstant } from "../care/time";
@@ -18,6 +24,9 @@ import type { CrudEntryLike } from "./connector";
 export function isRoundWritableTable(table: string): table is RoundWritableTable {
   return (ROUND_WRITABLE_TABLES as readonly string[]).includes(table);
 }
+
+/** A queued move with the task it is on. */
+export type RoundMove = QueuedTaskMove & { readonly taskId: string };
 
 export interface RoundUploadRequest {
   readonly kind: "request";
@@ -29,7 +38,7 @@ export interface RoundUploadRequest {
   readonly path: string;
   readonly body: TaskTransitionRequest | AcknowledgeHandover;
   /** For a task's move: what the carer did, to recognise it when the API says the task changed. */
-  readonly move: (QueuedTaskMove & { readonly taskId: string }) | null;
+  readonly move: RoundMove | null;
 }
 
 export interface RoundUploadRefusal {
@@ -48,14 +57,21 @@ function text(value: unknown): string | null {
 
 const segment = encodeURIComponent;
 
-/** Maps one queued change to its API request, or says why it cannot be sent. */
+/**
+ * Maps one queued change to its API request, or says why it cannot be sent. A move is an update of
+ * the synced task, or the task's row put back with it after the session that recorded it ended
+ * (`held-work.ts`). The move's device time stays on the phone: the API records the completion when
+ * the move arrives, which errs towards looking late, until tasks keep the time of care, the time
+ * received and a late flag where people see them (STATUS item 15 follow-up; H-309).
+ */
 export function toRoundUpload(
   entry: CrudEntryLike & { readonly table: RoundWritableTable },
 ): RoundUploadRequest | RoundUploadRefusal {
   const data = entry.opData ?? {};
   if (entry.table === "task") {
     // The device changes a task only by queuing a move on it.
-    const move = entry.op === "PATCH" ? parseQueuedMove(data.queued_transition) : null;
+    const move =
+      entry.op === "PATCH" || entry.op === "PUT" ? parseQueuedMove(data.queued_transition) : null;
     if (!move) {
       return {
         kind: "refused",
@@ -67,6 +83,11 @@ export function toRoundUpload(
         message: t("mobile.round.moveUnreadable"),
       };
     }
+    const body: TaskTransitionRequest = {
+      to: move.to,
+      ...(move.reason ? { reason: move.reason } : {}),
+      version: move.version,
+    };
     return {
       kind: "request",
       table: "task",
@@ -74,11 +95,7 @@ export function toRoundUpload(
       tenantId: move.tenantId,
       personId: move.personId,
       path: `/v1/tasks/${segment(entry.id)}/transition`,
-      body: {
-        to: move.to,
-        ...(move.reason ? { reason: move.reason } : {}),
-        version: move.version,
-      },
+      body,
       move: { ...move, taskId: entry.id },
     };
   }
@@ -127,30 +144,95 @@ export function roundRefusalMessage(
   return reason;
 }
 
-/**
- * Whether the API's task list shows the move as already made by the carer: the response to a move
- * it took was lost, and the move sent again met the new version (409). Anything else, or a list
- * that cannot be read, is not.
- */
-export function moveAlreadyMade(
-  list: unknown,
-  move: QueuedTaskMove & { readonly taskId: string },
-): boolean {
-  if (!move.by || typeof list !== "object" || list === null) return false;
-  const items = (list as { items?: unknown }).items;
-  if (!Array.isArray(items)) return false;
-  return items.some((item) => {
-    if (typeof item !== "object" || item === null) return false;
-    const i = item as Record<string, unknown>;
-    return i.id === move.taskId && i.status === move.to && i.completedBy === move.by;
-  });
+/** The task as the API has it, read after it said the task changed. */
+export interface TaskState {
+  readonly status: string;
+  readonly version: number;
+  readonly completedBy: string | null;
+  readonly statusReason: string | null;
+  readonly completedAt: string | null;
 }
 
-/** The task list query that finds the task by its due time (the list has no single-task read). */
-export function moveCheckPath(move: QueuedTaskMove & { readonly taskId: string }): string | null {
+/**
+ * The task list query that finds the task (the list has no single-task read): any status, about
+ * the person the move is about (or at the task's home when it is about nobody), due within a
+ * second of the task's due time when it is known.
+ */
+export function taskStatePath(move: RoundMove): string {
+  const query = ["status=any"];
+  if (move.personId) query.push(`personId=${segment(move.personId)}`);
+  else if (move.locationId) query.push(`locationId=${segment(move.locationId)}`);
   const due = parseInstant(move.dueAt)?.getTime();
-  if (due === undefined) return null;
-  const from = new Date(due - 1000).toISOString();
-  const to = new Date(due + 1000).toISOString();
-  return `/v1/tasks?status=closed&from=${segment(from)}&to=${segment(to)}`;
+  if (due !== undefined) {
+    query.push(`from=${segment(new Date(due - 1000).toISOString())}`);
+    query.push(`to=${segment(new Date(due + 1000).toISOString())}`);
+  }
+  return `/v1/tasks?${query.join("&")}`;
+}
+
+function textOrNull(value: unknown): string | null | undefined {
+  if (value === null) return null;
+  return typeof value === "string" ? value : undefined;
+}
+
+/**
+ * The task in the API's answer: its state, null when the answer is a list without it (deleted, or
+ * no longer anywhere the carer may see), or "unreadable" when the answer is not a list or the task
+ * in it cannot be read, which decides nothing.
+ */
+export function taskStateIn(list: unknown, taskId: string): TaskState | null | "unreadable" {
+  if (typeof list !== "object" || list === null) return "unreadable";
+  const items = (list as { items?: unknown }).items;
+  if (!Array.isArray(items)) return "unreadable";
+  const item = items.find(
+    (i): i is Record<string, unknown> => typeof i === "object" && i !== null && i.id === taskId,
+  );
+  if (!item) return null;
+  const completedBy = textOrNull(item.completedBy);
+  const statusReason = textOrNull(item.statusReason);
+  const completedAt = textOrNull(item.completedAt);
+  if (
+    typeof item.status !== "string" ||
+    typeof item.version !== "number" ||
+    !Number.isInteger(item.version) ||
+    completedBy === undefined ||
+    statusReason === undefined ||
+    completedAt === undefined
+  ) {
+    return "unreadable";
+  }
+  return { status: item.status, version: item.version, completedBy, statusReason, completedAt };
+}
+
+/**
+ * Whether the task shows this move as made, so its response was lost (HZ-029): the status the
+ * carer chose, by them, with their reason for a task not done, at the very next version after the
+ * one they saw. A move by someone else, or another move by the same carer, is not this one.
+ */
+export function moveMade(state: TaskState, move: RoundMove): boolean {
+  if (!move.by || state.status !== move.to || state.completedBy !== move.by) return false;
+  if (move.to === "skipped" && state.statusReason !== move.reason) return false;
+  return state.version === move.version + 1;
+}
+
+const OPEN_STATUSES: readonly string[] = ["open", "in_progress"] satisfies TaskStatus[];
+
+/**
+ * Whether the move goes again against the task's current version: nobody closed the task (it is
+ * open or in progress), only something else about it changed, such as who it is given to. The
+ * API judges the move again when it arrives.
+ */
+export function mayResend(state: TaskState, move: RoundMove): boolean {
+  return OPEN_STATUSES.includes(state.status) && state.version > move.version;
+}
+
+const CLOSED_STATUSES: readonly string[] = ["done", "skipped", "cancelled"] satisfies TaskStatus[];
+
+/**
+ * What happened to a task the move did not reach in time, in words a carer can act on: marked
+ * done, marked not done, cancelled, or otherwise changed (including a task no longer in the list).
+ */
+export function overtakenMessage(state: TaskState | null): string {
+  const status = state && CLOSED_STATUSES.includes(state.status) ? state.status : "other";
+  return t("mobile.round.taskNow", { status });
 }
