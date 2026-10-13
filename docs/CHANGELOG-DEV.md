@@ -1524,3 +1524,22 @@ Migration 0053, edited in place:
   status change), and the unlinked sign-in list leaving other sign-ins alone. Database 450, API 737,
   domain 4,159 passing.
 
+
+## 2026-10-13: #48 review round 1, invitation store (Lane D)
+
+- H1: the unlinked sign-in sweep never lists a sign-in that any membership row names, in any
+  organisation and any state (`app.auth_user_has_membership`, a yes-or-no definer owned by
+  `harbour_membership_reader`), or an operator's; and `record_invitation_sign_in` records only a
+  sign-in at the invitation's address created after the invitation.
+- M1: the sign-in is recorded in its own committed transaction before the acceptance's, so it
+  survives a rollback and the sweep can find it. M2: the database refuses an expiry past the global
+  `invitation.expiry_hours_max`; an organisation's figure never raises it. M3: member-change
+  revocations, the first owner's superseded invitation and the recorded claim are audited.
+- Found by the new per-role test: `EXECUTE` on the definer functions was still open to `PUBLIC`,
+  because `harbour_owner` (holding the owner role without INHERIT) could not revoke once ownership
+  had moved; the grants are now set before the change of owner.
+- Lows: the first owner's invitation checks the organisation's status and takes only a live owner
+  role; a member revokes only as revoked or superseded; `clock_timestamp()` for expiry; an MFA
+  requirement change revokes; deleted members refused; callers' settings restored; no address
+  update grant; narrower column grants for the definer owner; the SET-not-INHERIT membership
+  asserted. Database 470, API 737, domain 4,159 passing.

@@ -396,7 +396,12 @@ only when they link spec, code, tests and user documentation; no user guides exi
     M5): MFA counts only when the session used a passkey or a verified TOTP code, not merely when
     one is enrolled. Follow-up: `harbour_membership_reader` is granted to `harbour_owner` with
     `INHERIT`, so its open policies reach the owner's own queries; make it `SET` only as
-    `harbour_invitation_owner` is.
+    `harbour_invitation_owner` is. Logged from #48 review round 1: `invitation_scope` lets a
+    locations-scoped role read and revoke every invitation in the organisation, so the routes must
+    narrow both to the members `platform.user.manage` reaches (as `app.may_invite` does for
+    sending), with a test; and the routes pass the token to the definer functions only as a bound
+    parameter, never interpolated into SQL or logged. Existing clusters run `pnpm db:bootstrap`
+    before migration 0054 (it creates `harbour_invitation_owner`).
 
 ## Human actions outstanding
 

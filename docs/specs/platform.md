@@ -196,30 +196,37 @@ Flow:
    unknown token is 404 and a platform audit event.
 3. **Accept.** `POST /v1/invitations/accept` with the token in the body, once (`acceptRefusal`:
    used, revoked, lapsed, the organisation suspended or closed, the member no longer `invited`,
-   signed in with another address, already a member), throttled like the lookup. The invitation
-   is locked first (`app.claim_invitation`, holding the row for the transaction); with no sign-in
+   signed in with another address, already a member), throttled like the lookup. With no sign-in
    for the address, the person sets a password meeting the NCSC rules and a sign-in is created for
    the invited address (holding the link proves the address); with one, they must sign in first and
-   accept while signed in, so an invitation never sets the password of an existing account. Then
-   `app.accept_invitation` links the member (`auth_user_id`, status `active`), marks the invitation
-   accepted, clears its address and writes the audit event (`platform.invitation.accepted`) in the
-   same transaction. If anything fails after the sign-in was created, the transaction rolls back
-   and the new sign-in is deleted, so no password is left on an address with no member linked;
-   and should the process stop between the two, a nightly sweep deletes the sign-in. To know which
-   sign-ins those are, the new sign-in's id is recorded on the invitation in its own committed
-   transaction before it is linked (`app.record_invitation_sign_in`, `claimed_auth_user_id`); the
-   sweep (`app.unlinked_invitation_sign_ins`) lists only those, recorded more than
-   `invitation.unlinked_sign_in_hours` ago (rate table, 24), on an invitation never accepted, and
-   named by no membership. A sign-in made any other way (a family portal user, a professional or
-   inspector with expiring access) is never listed.
+   accept while signed in, so an invitation never sets the password of an existing account. A new
+   sign-in's id is then recorded on the invitation in its own committed transaction, before the
+   acceptance begins (`app.record_invitation_sign_in`, `claimed_auth_user_id`, audited as
+   `platform.invitation.claimed`; #48 review M1), so a record survives an acceptance that rolls
+   back. Only a sign-in at the invitation's address created after the invitation, while it is open
+   and unlapsed, is recorded, once (again only when the first recorded sign-in no longer exists;
+   #48 review H1). The acceptance's transaction then locks the invitation (`app.claim_invitation`,
+   holding the row) and `app.accept_invitation` links the member (`auth_user_id`, status
+   `active`), marks the invitation accepted, clears its address and writes the audit event
+   (`platform.invitation.accepted`). If anything fails after the sign-in was created, the
+   transaction rolls back and the new sign-in is deleted, so no password is left on an address with
+   no member linked; and should the process stop between the two, a nightly sweep deletes the
+   sign-in. The sweep (`app.unlinked_invitation_sign_ins`) lists only recorded sign-ins, recorded
+   more than `invitation.unlinked_sign_in_hours` ago (rate table, 24), on an invitation never
+   accepted, named by no membership row in any organisation and any state
+   (`app.auth_user_has_membership`, a yes-or-no security-definer function owned by
+   `harbour_membership_reader`) and by no operator. A sign-in made any other way (a family portal
+   user, a professional or inspector with expiring access) is never listed, nor is a member's.
 4. **Enrol.** The new session is sent to `/settings/security?reason=mfa`; until a passkey or an
    authenticator app is enrolled, every care-record permission answers `mfa_enrolment_required`
    (built: `refusalOf`, `touchesCareRecords`).
 5. **Revoke, list and sweep.** `POST /v1/invitations/{id}/revoke` and
    `GET /v1/invitations?tenantUserId=` (`platform.user.manage`; states and times, never tokens or
-   hashes). A member suspended or removed, or whose address or roles change, loses any open link
-   (`member_removed`, `member_changed`). A nightly sweep revokes lapsed invitations as `expired`
-   (`invitationsToSweep`), which frees the member for a new invitation and clears the address.
+   hashes). A member suspended or removed, or whose address, MFA requirement, roles or grants
+   change, loses any open link (`member_removed`, `member_changed`), each revocation audited
+   (`platform.invitation.revoked` with its reason; #48 review M3). A nightly sweep revokes lapsed
+   invitations as `expired` (`invitationsToSweep`, `platform.invitation.expired`), which frees the
+   member for a new invitation and clears the address.
 
 Schema, as built in migration 0054 (`packages/db/drizzle/0054_invitations.sql`):
 
@@ -240,43 +247,60 @@ Schema, as built in migration 0054 (`packages/db/drizzle/0054_invitations.sql`):
     (`app.may_invite`). `created_by_operator` is refused unless the insert runs inside
     `app.invite_first_owner`, recognised by `current_user = 'harbour_invitation_owner'` (the
     definer's owner); there `created_by` is null and `created_by_operator` required. The address is
-    copied from the member, never taken from the request.
+    copied from the member, never taken from the request. The member must still be `invited`, not
+    deleted, with no sign-in and `mfa_required`. `created_at` is set by the database to the moment
+    of the insert, and `expires_at` must fall after it and no later than the global
+    `invitation.expiry_hours_max` (#48 review M2): an organisation's own figure never raises the
+    ceiling, and a sender that skips the rule is still refused.
   - **Update**: an invitation keeps its member, link, sender and expiry, and changes only by being
-    accepted or revoked, once, its address cleared then; accepted or revoked is final; no delete.
-    Accepted only inside `app.accept_invitation` (`current_user = 'harbour_invitation_owner'`),
-    before it lapses; the application role has no update grant on the acceptance columns.
-    Revoked in the reviser's name (`revoked_by = app.current_user_id()`, not null), except, with
-    `revoked_by` null, in exactly three cases, each only through a function owned by
-    `harbour_invitation_owner` (round 2, N1): the nightly sweep (`expired`, and only once
-    `expires_at <= now()`); the member-change trigger (`member_removed`, `member_changed`), which
-    covers worker jobs that run with no member; and the first owner's re-invitation
-    (`superseded`, inside `invite_first_owner`). A member's change made by a signed-in member
-    records them as the reviser.
-  - Changing a member's address, roles, grants or status revokes their open invitations. RLS
-    isolation tests and the coverage list.
+    claimed, accepted or revoked, its address cleared when it is accepted or revoked; accepted or
+    revoked is final; no delete. Claimed only inside `app.record_invitation_sign_in`, while open
+    and unlapsed. Accepted only inside `app.accept_invitation` (`current_user =
+    'harbour_invitation_owner'`), before it lapses, for the member it is for; the application role
+    has no update grant on the claim or acceptance columns, nor on the address. A member revokes
+    in their own name (`revoked_by = app.current_user_id()`, not null) and only as `revoked` or
+    `superseded` (#48 review, low). With `revoked_by` null, in exactly three cases, each only
+    through a function owned by `harbour_invitation_owner` (round 2, N1): the nightly sweep
+    (`expired`, and only once lapsed); the member-change trigger (`member_removed`,
+    `member_changed`), which covers worker jobs that run with no member; and the first owner's
+    re-invitation (`superseded`, inside `invite_first_owner`). A member's change made by a
+    signed-in member records them as the reviser, and only as `member_removed` or
+    `member_changed`.
+  - Changing a member's address, MFA requirement, roles, grants, status or deletion revokes their
+    open invitations, each audited. Expiry checks read the clock at the moment
+    (`clock_timestamp()`), not the transaction's start.
+  - Who reads and revokes (`invitation_scope`): a role across the organisation or at locations,
+    and the member it is for. A location-scoped manager therefore reaches every invitation in the
+    organisation in the database; the routes narrow them to the members `platform.user.manage`
+    reaches (logged in STATUS item 20).
 - `app.claim_invitation(token)` and `app.accept_invitation(token, auth_user_id)`: security-definer
   functions owned by their own NOLOGIN role (`harbour_invitation_owner`, as
   `memberships_for_auth_user` is owned by `harbour_membership_reader`), with
   `SET search_path = pg_catalog, public`, `REVOKE ALL ... FROM PUBLIC` and `EXECUTE` granted to
   `harbour_app` only. They take the raw token and hash it themselves; `claim_invitation` locks the
   row (`FOR UPDATE`) and refuses an invitation that is not open, has lapsed, belongs to an
-  organisation that is not onboarding or active, or whose member is no longer `invited`;
-  `accept_invitation` also compares the sign-in's email (read from `auth.user`) with the
+  organisation that is not onboarding or active, or whose member is no longer `invited` or is
+  deleted; `accept_invitation` also compares the sign-in's email (read from `auth.user`) with the
   invitation's before linking. `app.invitation_for_token(token)`, under the same owner, answers
-  the lookup without changing anything.
+  the lookup without changing anything. The routes pass the token only as a bound parameter.
 - `app.invite_first_owner(tenant, token_hash)`: a security-definer function owned by
   `harbour_invitation_owner`, with `SET search_path = pg_catalog, public`, `REVOKE ALL ... FROM
   PUBLIC` and `EXECUTE` granted to `harbour_operator` only. It invites only the organisation's
-  invited owner while the organisation has no active member, superseding any open invitation. It
+  invited owner while the organisation is onboarding or active and has no active member, the owner
+  role live (neither deleted nor archived) and its assignment in force, superseding any open
+  invitation (audited as `platform.invitation.revoked`, `superseded`, naming the operator). It
   takes neither the expiry nor the operator from its caller: the expiry is
   `invitation.expiry_hours` (the organisation's figure, else the global one) capped at
   `invitation.expiry_hours_max`, both read from the rate table inside; the operator is the one the
   operator middleware set for the transaction (`app.operator_id`, as `app.user_id` is for members),
   checked inside to be an active admin in `operator_user`.
-- `harbour_invitation_owner` holds only what its functions need: the invitation table, the member
-  columns it links (`auth_user_id`, `status`), reading the organisation, roles and the rate table,
-  appending audit events, an active-admin check on `operator_user`, and a column grant on
-  `auth.user` of `id` and `email` only (ADR-0002). `harbour_owner` holds it with `SET` but not
+- `harbour_invitation_owner` holds only what its functions need (#48 review, low): the invitation
+  table; on `tenant_user` the columns it reads (`id`, `tenant_id`, `auth_user_id`, `status`,
+  `email`, `mfa_required`, `deleted_at`, `created_at`) and updates (`auth_user_id`, `status`);
+  the organisation's name, status and nation; the role and assignment columns the first owner's
+  check reads; the rate table; appending audit events; an active-admin check on `operator_user`;
+  `EXECUTE` on `app.auth_user_has_membership`; and a column grant on `auth.user` of `id`, `email`
+  and `created_at` only (ADR-0002). `harbour_owner` holds it with `SET` but not
   `INHERIT`, so the role's open policies on `invitation` and `operator_user` never apply to
   migrations and seeds (`packages/db/src/admin/roles.ts`).
 - The member-change trigger function (`app.invitation_member_changed`, on `tenant_user`,
@@ -288,6 +312,18 @@ Schema, as built in migration 0054 (`packages/db/drizzle/0054_invitations.sql`):
   the claim and the narrow sweep list above, under the same owner (`EXECUTE` to `harbour_app` and
   `harbour_worker` respectively). `app.sweep_expired_invitations()` revokes lapsed invitations
   (`EXECUTE` to `harbour_worker`).
+- Every write a definer function makes is audited through `app.invitation_audit` (owned by
+  `harbour_invitation_owner`, executable by no login role), in the invitation's organisation,
+  naming the actor its caller passes or the system, with opaque ids only: `platform.invitation.sent`
+  (first owner), `.claimed`, `.accepted`, `.revoked` (member changes; the first owner's
+  re-invitation) and `.expired`. Each function gives the caller back its `app.tenant_id`,
+  `app.user_id` and `app.scope`.
+- `EXECUTE` on the definer functions is revoked from `PUBLIC` and granted while `harbour_owner`
+  still owns them, then ownership moves: holding `harbour_invitation_owner` without `INHERIT`, it
+  could not revoke or grant afterwards (a `REVOKE` would only warn and leave `PUBLIC` able to run
+  them). A table-driven test checks `EXECUTE` per login role.
+- `pnpm db:bootstrap` creates `harbour_invitation_owner`; an existing cluster must run it again
+  before migration 0054 (`docs/runbooks/local-development.md`).
 - Retention: `invitation` rows take their own class (`invitation`, retention.md); the address is
   gone once the invitation is closed, and the audit trail keeps who was given access and when.
 
