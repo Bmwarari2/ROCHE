@@ -46,6 +46,11 @@ export interface QueuedTaskMove {
   readonly at: string;
   readonly tenantId: string;
   readonly personId: string | null;
+  /**
+   * The task's home, so the connector asks the API for this task's state at that location when
+   * the task is about nobody (a move queued before it was kept reads as null).
+   */
+  readonly locationId: string | null;
   readonly dueAt: string | null;
   /** The task's title (free text, as the round shows it), so "needs attention" can say which. */
   readonly title: string;
@@ -56,6 +61,7 @@ export interface TaskToMove {
   readonly id: string;
   readonly tenant_id: string;
   readonly person_id: string | null;
+  readonly location_id: string | null;
   readonly title: string | null;
   readonly status: string | null;
   readonly due_at: string | null;
@@ -146,6 +152,7 @@ export function checkTaskMove(
     at: now.toISOString(),
     tenantId: task.tenant_id,
     personId: task.person_id,
+    locationId: task.location_id,
     dueAt: task.due_at,
     title: task.title ?? "",
   };
@@ -212,6 +219,7 @@ export function parseQueuedMove(value: unknown): QueuedTaskMove | null {
     at,
     tenantId,
     personId: text(m.personId),
+    locationId: text(m.locationId),
     dueAt: text(m.dueAt),
     title: text(m.title) ?? "",
   };
