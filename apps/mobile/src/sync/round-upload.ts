@@ -6,10 +6,10 @@
  * seen token. `POST /v1/sync/upload` writes neither.
  *
  * When the API says the task changed before a move reached it (409 `version_conflict`), the
- * connector reads the task as the API has it (`taskStatePath`, `taskStateIn`) and decides here: the
- * carer's own move already made (a lost response, HZ-029), the task still open so the move goes
- * again once against the current version, or words that say what happened to it (#37 review
- * round 1).
+ * connector reads the task as the API has it (`taskStatePath`, `taskStateIn`) and decides here
+ * (`settleMove`): the carer's own move already made (a lost response, HZ-029), or words that say
+ * what happened to the task. A move the API refused is never sent again on its own, even to a task
+ * still open: a stale "done" could close what was added to the task since (#37 review round 2).
  *
  * Pure, so the mapping is tested without a device. A change that cannot become a valid request is
  * refused here, with a reason, rather than sent; the connector keeps it as "needs attention".
@@ -57,6 +57,25 @@ function text(value: unknown): string | null {
 
 const segment = encodeURIComponent;
 
+/** What can still be read of a move that is not a valid one: its id, tenant and person. */
+function readableParts(value: unknown): {
+  readonly id: string | null;
+  readonly tenantId: string | null;
+  readonly personId: string | null;
+} {
+  if (typeof value !== "string") return { id: null, tenantId: null, personId: null };
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (typeof parsed !== "object" || parsed === null) {
+      return { id: null, tenantId: null, personId: null };
+    }
+    const m = parsed as Record<string, unknown>;
+    return { id: text(m.id), tenantId: text(m.tenantId), personId: text(m.personId) };
+  } catch {
+    return { id: null, tenantId: null, personId: null };
+  }
+}
+
 /**
  * Maps one queued change to its API request, or says why it cannot be sent. A move is an update of
  * the synced task, or the task's row put back with it after the session that recorded it ended
@@ -73,12 +92,15 @@ export function toRoundUpload(
     const move =
       entry.op === "PATCH" || entry.op === "PUT" ? parseQueuedMove(data.queued_transition) : null;
     if (!move) {
+      // Kept under the move's own id and tenant when they can still be read, so it never replaces
+      // another record for the task; otherwise under the task's id (STATUS item 15 follow-up).
+      const partial = readableParts(data.queued_transition);
       return {
         kind: "refused",
         table: "task",
-        recordId: entry.id,
-        tenantId: null,
-        personId: null,
+        recordId: partial.id ?? entry.id,
+        tenantId: partial.tenantId ?? text(data.tenant_id),
+        personId: partial.personId ?? text(data.person_id),
         code: "round_change_unreadable",
         message: t("mobile.round.moveUnreadable"),
       };
@@ -128,16 +150,15 @@ export function toRoundUpload(
 }
 
 /**
- * The words kept with a refusal: the phone's own for the two refusals a carer must act on (the
- * task changed before the move reached Harbour; the handover changed before the acknowledgement
- * did), otherwise the API's reason.
+ * The words kept with a refusal: the phone's own for a handover that changed before the
+ * acknowledgement reached Harbour, otherwise the API's reason. A move refused because its task
+ * changed is worded from the task as it now is (`settleMove`).
  */
 export function roundRefusalMessage(
   table: RoundWritableTable,
   code: string,
   reason: string | null,
 ): string | null {
-  if (table === "task" && code === "version_conflict") return t("mobile.round.taskChanged");
   if (table === "handover_acknowledgement" && code === "handover_changed") {
     return t("mobile.handover.changed");
   }
@@ -216,23 +237,42 @@ export function moveMade(state: TaskState, move: RoundMove): boolean {
 }
 
 const OPEN_STATUSES: readonly string[] = ["open", "in_progress"] satisfies TaskStatus[];
-
-/**
- * Whether the move goes again against the task's current version: nobody closed the task (it is
- * open or in progress), only something else about it changed, such as who it is given to. The
- * API judges the move again when it arrives.
- */
-export function mayResend(state: TaskState, move: RoundMove): boolean {
-  return OPEN_STATUSES.includes(state.status) && state.version > move.version;
-}
-
 const CLOSED_STATUSES: readonly string[] = ["done", "skipped", "cancelled"] satisfies TaskStatus[];
 
+/** What becomes of a move the API refused because its task changed. */
+export type SettledMove =
+  | { readonly kind: "made" }
+  | { readonly kind: "parked"; readonly code: string; readonly message: string };
+
+const parked = (code: string, message: string): SettledMove => ({ kind: "parked", code, message });
+
 /**
- * What happened to a task the move did not reach in time, in words a carer can act on: marked
- * done, marked not done, cancelled, or otherwise changed (including a task no longer in the list).
+ * Settles a move the API refused because its task changed (409), from the task as the API now has
+ * it (null when the list it sent does not have the task). Only the carer's own move, already made,
+ * counts as sent (HZ-029). Anything else is kept as needing attention and never sent again, with
+ * words that are true of the task (#37 review round 2):
+ *
+ * - not in the list: it could not be found;
+ * - still open or in progress: it changed after the carer marked it (a new assignee, an
+ *   escalation, or more added to it), so they check it and mark it again;
+ * - done or not done by someone else, or cancelled: what happened to it, and that the carer's
+ *   change was not recorded;
+ * - done or not done in the carer's own name, but not as this move: whether it was saved cannot
+ *   be told.
  */
-export function overtakenMessage(state: TaskState | null): string {
-  const status = state && CLOSED_STATUSES.includes(state.status) ? state.status : "other";
-  return t("mobile.round.taskNow", { status });
+export function settleMove(state: TaskState | null, move: RoundMove): SettledMove {
+  if (state === null) return parked("task_not_found", t("mobile.round.taskNotFound"));
+  if (moveMade(state, move)) return { kind: "made" };
+  if (OPEN_STATUSES.includes(state.status)) {
+    return parked("task_changed", t("mobile.round.taskChanged"));
+  }
+  if (
+    (state.status === "done" || state.status === "skipped") &&
+    move.by !== null &&
+    state.completedBy === move.by
+  ) {
+    return parked("task_unchecked", t("mobile.round.taskUnchecked"));
+  }
+  const status = CLOSED_STATUSES.includes(state.status) ? state.status : "other";
+  return parked("version_conflict", t("mobile.round.taskNow", { status }));
 }

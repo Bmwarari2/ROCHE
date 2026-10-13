@@ -3,11 +3,10 @@ import { describe, expect, it } from "vitest";
 import type { QueuedTaskMove } from "../care/round-actions";
 import {
   isRoundWritableTable,
-  mayResend,
   moveMade,
-  overtakenMessage,
   type RoundMove,
   roundRefusalMessage,
+  settleMove,
   type TaskState,
   taskStateIn,
   taskStatePath,
@@ -111,6 +110,26 @@ describe("a task's move to its own route", () => {
       expect(refusal).toMatchObject({ kind: "refused", code: "round_change_unreadable" });
     }
   });
+
+  it("keeps a move it cannot send under the move's own id and tenant when they can be read (#37 review round 2)", () => {
+    // A move whose version was lost: not valid, but its id, tenant and person still read.
+    const broken = JSON.stringify({ ...move, version: "three" });
+    expect(toRoundUpload(taskPatch({ queued_transition: broken }))).toMatchObject({
+      kind: "refused",
+      recordId: MOVE_ID,
+      tenantId: TENANT,
+      personId: "person-ada",
+    });
+    // Nothing of it reads: under the task's id, with the tenant the row carries, if any.
+    expect(
+      toRoundUpload({
+        op: "PUT",
+        table: "task",
+        id: TASK,
+        opData: { tenant_id: TENANT, queued_transition: "{not json" },
+      }),
+    ).toMatchObject({ kind: "refused", recordId: TASK, tenantId: TENANT, personId: null });
+  });
 });
 
 describe("hazard HZ-018 an acknowledgement to its own route", () => {
@@ -142,33 +161,16 @@ describe("what a carer is told", () => {
     expect(isRoundWritableTable("care_note")).toBe(false);
   });
 
-  it("words the two refusals a carer must act on, and keeps the API's reason otherwise", () => {
-    expect(roundRefusalMessage("task", "version_conflict", "x")).toMatch(/Someone else changed/);
+  it("words a changed handover's refusal, and keeps the API's reason otherwise", () => {
     expect(roundRefusalMessage("handover_acknowledgement", "handover_changed", "x")).toMatch(
       /Open it again/,
     );
     expect(roundRefusalMessage("task", "missing_permission", "Not yours")).toBe("Not yours");
-  });
-
-  it("words what happened to a task the move did not reach in time", () => {
-    const state = (status: string): TaskState => ({
-      status,
-      version: 4,
-      completedBy: "user-other",
-      statusReason: null,
-      completedAt: "2026-10-11T02:03:00.000Z",
-    });
-    expect(overtakenMessage(state("done"))).toMatch(
-      /^This task was already marked done before your change reached Harbour, so your change was not recorded\./,
-    );
-    expect(overtakenMessage(state("skipped"))).toMatch(/^This task was already marked not done /);
-    expect(overtakenMessage(state("cancelled"))).toMatch(/^This task was cancelled before /);
-    expect(overtakenMessage(state("open"))).toMatch(/^This task changed before /);
-    expect(overtakenMessage(null)).toMatch(/^This task changed before /);
+    expect(roundRefusalMessage("task", "version_conflict", "Changed.")).toBe("Changed.");
   });
 });
 
-describe("hazard HZ-029 a move the API says the task changed for (#37 review round 1)", () => {
+describe("hazard HZ-029 hazard HZ-006 a move the API says the task changed for (#37 review rounds 1 and 2)", () => {
   const taken: RoundMove = { ...move, taskId: TASK };
   const state = (overrides: Partial<TaskState> = {}): TaskState => ({
     status: "skipped",
@@ -199,15 +201,76 @@ describe("hazard HZ-029 a move the API says the task changed for (#37 review rou
     expect(moveMade(state({ status: "done", statusReason: null }), done)).toBe(true);
   });
 
+  const words = {
+    changed: "This task changed after you marked it. Check it and mark it again.",
+    notFound: "We could not find this task. Check the round before recording it again.",
+    unchecked:
+      "We could not check whether this was saved. Check the task on the round before recording it again.",
+  };
   it.each([
-    ["open at a later version", { status: "open", version: 4 }, true],
-    ["in progress at a later version", { status: "in_progress", version: 5 }, true],
-    ["open at the version seen", { status: "open", version: 3 }, false],
-    ["done by someone else", { status: "done", completedBy: "user-other" }, false],
-    ["not done", { status: "skipped" }, false],
-    ["cancelled", { status: "cancelled", completedBy: null }, false],
-  ] as const)("sends the move again only when nobody closed the task: %s", (_label, now, again) => {
-    expect(mayResend(state(now), taken)).toBe(again);
+    ["this move, already made", {}, { kind: "made" }],
+    // Still open: never sent again, whatever changed (#37 review round 2).
+    [
+      "open at a later version (more added to it, or a new assignee)",
+      { status: "open", completedBy: null },
+      { code: "task_changed", message: words.changed },
+    ],
+    [
+      "in progress at a later version (escalated)",
+      { status: "in_progress", version: 5, completedBy: null },
+      { code: "task_changed", message: words.changed },
+    ],
+    [
+      "open at the version seen",
+      { status: "open", version: 3, completedBy: null },
+      { code: "task_changed", message: words.changed },
+    ],
+    [
+      "done by someone else",
+      { status: "done", completedBy: "user-other" },
+      {
+        code: "version_conflict",
+        message: expect.stringMatching(
+          /^This task was already marked done before your change reached Harbour, so your change was not recorded\./,
+        ),
+      },
+    ],
+    [
+      "not done by someone else",
+      { completedBy: "user-other" },
+      {
+        code: "version_conflict",
+        message: expect.stringMatching(/^This task was already marked not done /),
+      },
+    ],
+    [
+      "cancelled",
+      { status: "cancelled", completedBy: null },
+      {
+        code: "version_conflict",
+        message: expect.stringMatching(/^This task was cancelled before /),
+      },
+    ],
+    [
+      "a status this build does not know",
+      { status: "archived", completedBy: null },
+      { code: "version_conflict", message: expect.stringMatching(/^This task changed before /) },
+    ],
+    [
+      "not done in the carer's name, but not as this move",
+      { version: 6 },
+      { code: "task_unchecked", message: words.unchecked },
+    ],
+  ] as const)("settles the move from the task as it now is: %s", (_label, now, outcome) => {
+    expect(settleMove(state(now), taken)).toMatchObject(outcome);
+  });
+
+  it("says it could not find a task the list leaves out, never that it changed", () => {
+    expect(settleMove(null, taken)).toEqual({
+      kind: "parked",
+      code: "task_not_found",
+      message: words.notFound,
+    });
   });
 
   it("reads the task from the API's list, and decides nothing on an answer it cannot read", () => {

@@ -283,6 +283,13 @@ only when they link spec, code, tests and user documentation; no user guides exi
     - Follow-up (#37 review round 1): a refused task move or handover acknowledgement does
       not call `onRefused`, so nothing asks for a server copy at once; refused copies cover
       care tables only (`REFUSED_COPY_TABLES`) until H-307 decides.
+    - Follow-up (#37 review round 2): a task's version moves with assignment and escalation as
+      well as with its details, so a move refused with a 409 is never sent again. A
+      server-side content version that assignment and escalation leave alone would let a
+      later change resend safely (a migration and the transition route; CSO decision H-310).
+    - Follow-up (#37 review round 2, low): a task change whose move cannot be read at all (not
+      JSON) is kept under the task's id, with the tenant the row carries, if any: no id of its
+      own can be read, so a second such change for the same task replaces the first.
     - Follow-up (#36 review round 2, low): `useMoveTask` takes the person's home
       (`personLocationId`) from the caller; while it is null (the person row still loading)
       and the token lists no person ids, `mayRecordFor` lets the move through. Look the home

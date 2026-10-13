@@ -44,12 +44,9 @@ import {
 import { isCareEntryTable, toCareUpload } from "./care-upload";
 import {
   isRoundWritableTable,
-  mayResend,
-  moveMade,
-  overtakenMessage,
   type RoundMove,
-  type RoundUploadRequest,
   roundRefusalMessage,
+  settleMove,
   type TaskState,
   taskStateIn,
   taskStatePath,
@@ -129,16 +126,29 @@ export class UploadRejectedError extends Error {
 }
 
 /**
- * How long a move's follow-up check (reading the task after a 409) may keep failing before the
- * move is parked as "needs attention" and the queue carries on: 5 failed reads (one run of upload
- * backoff), or 30 minutes from the first failure, whichever comes first. A move left at the head
- * of the queue would hold back the notes and charts behind it (HZ-006; #37 review round 1). The
- * count is kept in memory, so a restart of the app starts it again: at most 5 more reads.
+ * How long a move's follow-up check (reading the task after a 409) may keep being refused before
+ * the move is parked as "needs attention" and the queue carries on: 5 refused reads, or 30 minutes
+ * from the first, whichever comes first. A move left at the head of the queue would hold back the
+ * notes and charts behind it (HZ-006; #37 review round 1). Only a read the server answered with a
+ * refusal that is not about the session counts (a 403 on the task list, a 404, an answer that
+ * cannot be read); no network, a timeout or a 5xx neither counts nor starts the clock, because
+ * nothing else in the queue can upload then either, so the move just stays queued (#37 review
+ * round 2, N1). The count is kept in memory, so a restart of the app starts it again (at most 5
+ * more reads), and it is cleared when the session ends, before a hold or a wipe takes the move.
  */
 export const TASK_CHECK_MAX_FAILURES = 5;
 export const TASK_CHECK_MAX_MS = 30 * 60 * 1000;
 
-/** The move's follow-up check failed past its cap: the move is parked, never dropped. */
+/**
+ * Whether a failed follow-up check was a refusal the server answered, not about the session: any
+ * status the upload does not retry (a 403 on the task list, a 404, an answer it cannot read). No
+ * network, a timeout, a 429 or a 5xx is not, and an ended session is never counted.
+ */
+function isAnsweredRefusal(error: unknown): boolean {
+  return error instanceof HttpError && !isRetryableStatus(error.status);
+}
+
+/** The move's follow-up check was refused past its cap: the move is parked, never dropped. */
 class TaskCheckGaveUp extends Error {
   constructor() {
     super("The task could not be checked; the move is kept as needing attention");
@@ -332,12 +342,14 @@ export class HarbourConnector implements PowerSyncBackendConnector {
   }
 
   private ended(): never {
+    this.checkFailures.clear();
     this.options.onSessionRevoked();
     throw new SessionRevokedError();
   }
 
   /** A manager revoked this device: never parked, never retried, reported as a revocation. */
   private revoked(): never {
+    this.checkFailures.clear();
     (this.options.onDeviceRevoked ?? this.options.onSessionRevoked)();
     throw new DeviceRevokedError();
   }
@@ -399,6 +411,7 @@ export class HarbourConnector implements PowerSyncBackendConnector {
       credentials: "omit",
     });
     if (response.status === 401) {
+      this.checkFailures.clear();
       this.options.onSessionRevoked();
       return null;
     }
@@ -524,7 +537,7 @@ export class HarbourConnector implements PowerSyncBackendConnector {
     } catch (error) {
       if (!(error instanceof UploadRejectedError)) throw error;
       if (error.status === 409 && error.code === "version_conflict" && request.move) {
-        await this.settleConflict(request, request.move, clientId, park);
+        await this.settleConflict(request.move, park);
         return;
       }
       await park(
@@ -537,19 +550,16 @@ export class HarbourConnector implements PowerSyncBackendConnector {
   }
 
   /**
-   * A move the API refused because the task changed (#37 review round 1). Reads the task as the
-   * API has it, and only an answer it can read decides: the carer's own move already made (its
-   * response was lost, HZ-029) counts as sent; a task nobody closed gets the move once more against
-   * its current version, judged again by the API; anything else moves to "needs attention" in words
-   * that say what happened to the task. When the task cannot be read (no network, a 5xx, an ended
-   * session, an answer it cannot read) this throws and the move stays queued, to be tried again,
-   * until the cap (`TASK_CHECK_MAX_FAILURES`, `TASK_CHECK_MAX_MS`): then the move is kept as needing
-   * attention, saying it could not be checked, and the queue carries on.
+   * A move the API refused because the task changed (#37 review rounds 1 and 2). Reads the task as
+   * the API has it, and only an answer it can read decides (`settleMove`): the carer's own move
+   * already made (its response was lost, HZ-029) counts as sent; anything else moves to "needs
+   * attention" in words that are true of the task, and is never sent again on its own. When the
+   * task cannot be read this throws and the move stays queued, to be tried again, until the cap
+   * (`TASK_CHECK_MAX_FAILURES`, `TASK_CHECK_MAX_MS`): then the move is kept as needing attention,
+   * saying it could not be checked, and the queue carries on.
    */
   private async settleConflict(
-    request: RoundUploadRequest,
     move: RoundMove,
-    clientId: string,
     park: (status: number | null, code: string, message: string) => Promise<void>,
   ): Promise<void> {
     const state = await this.readTask(move);
@@ -557,25 +567,8 @@ export class HarbourConnector implements PowerSyncBackendConnector {
       await park(409, "task_unchecked", t("mobile.round.taskUnchecked"));
       return;
     }
-    if (state && moveMade(state, move)) return;
-    if (state && mayResend(state, move)) {
-      try {
-        await this.postChange(
-          { ...request, body: { ...request.body, version: state.version } },
-          clientId,
-        );
-        return;
-      } catch (error) {
-        if (!(error instanceof UploadRejectedError)) throw error;
-        await park(
-          error.status,
-          error.code,
-          roundRefusalMessage("task", error.code, error.reason) ?? t("mobile.issues.unknownReason"),
-        );
-        return;
-      }
-    }
-    await park(409, "version_conflict", overtakenMessage(state));
+    const settled = settleMove(state, move);
+    if (settled.kind === "parked") await park(409, settled.code, settled.message);
   }
 
   /**
@@ -591,8 +584,8 @@ export class HarbourConnector implements PowerSyncBackendConnector {
       try {
         return await this.fetchTaskState(move);
       } catch (error) {
-        if (error instanceof SessionRevokedError) throw error;
-        if (this.checkFailed(move.id)) throw new TaskCheckGaveUp();
+        // Only a refusal the server answered counts towards the cap (N1).
+        if (isAnsweredRefusal(error) && this.checkFailed(move.id)) throw new TaskCheckGaveUp();
         throw error;
       }
     };
@@ -611,7 +604,7 @@ export class HarbourConnector implements PowerSyncBackendConnector {
     }
   }
 
-  /** Counts a failed follow-up check; true once the move has reached the cap. */
+  /** Counts a refused follow-up check; true once the move has reached the cap. */
   private checkFailed(moveId: string): boolean {
     const now = this.now().getTime();
     const before = this.checkFailures.get(moveId);

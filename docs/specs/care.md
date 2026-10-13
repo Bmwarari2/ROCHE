@@ -1401,19 +1401,25 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   the idempotency key (the move's or the acknowledgement's own id), tenant, device and sent-at
   headers entries use; care entries and these share one request path. A refusal for good moves it
   to "needs attention" with what the carer did and the reason, in the phone's words for a task
-  someone else changed first (`version_conflict`) and a handover changed since it was read
+  that changed first (`version_conflict`, below) and a handover changed since it was read
   (`handover_changed`); the server's copy then puts the task or the handover back as it is there.
   A 409 `version_conflict` on a move is settled by reading the task (`GET /v1/tasks?status=any`,
   about the move's person or at the task's home, due within a second of its due time), and only
   an answer the phone can read decides (#37 review round 1): the move counts as sent when the task
   shows this move made (the status asked for, by the same member, with the same reason for a task
-  not done, at the very next version; a lost answer, HZ-029); a task nobody closed (open or in
-  progress) gets the move once more against its current version, judged again by the API (H-305);
-  anything else is kept as needs attention in words that say what happened (marked done, marked
-  not done, cancelled, or changed). No network, a 5xx, any other status or a list it cannot read
-  keeps the move queued, up to 5 failed reads or 30 minutes from the first failure; then the move
-  is kept as needs attention, with its data, saying it could not be checked, so the entries behind
-  it still upload. A 401, a session 403 or `GET /v1/me` saying so ends the session at once. A move
+  not done, at the very next version; a lost answer, HZ-029). Anything else is kept as needs
+  attention and never sent again on its own, even to a task still open: a stale "done" could close
+  entries added to a review task since (#37 review round 2; a safe resend needs a content version,
+  H-310). The words are true of the task: still open, it changed after the carer marked it (check
+  it and mark it again); marked done or not done by someone else, or cancelled, what happened and
+  that the change was not recorded; done in the carer's name but not as this move, that it could
+  not be checked; not in the list, that it could not be found (`task_changed`,
+  `version_conflict`, `task_unchecked`, `task_not_found`). No network, a timeout or a 5xx keeps
+  the move queued however long it lasts. Reads the server refuses (a 403 on the task list, a 404,
+  any other status, a list it cannot read) keep it queued up to 5 of them or 30 minutes from the
+  first; then the move is kept as needs attention, with its data, saying it could not be checked,
+  so the entries behind it still upload. A 401, a session 403 or `GET /v1/me` saying so ends the
+  session at once. A move
   put back on its task's row after a session ended (an insert) is sent like an update, and a move,
   held or refused, names the person it is about from the move and shows on their screen. The
   move's device time stays on the phone: the API records the completion when the move arrives

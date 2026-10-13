@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FetchLike } from "../auth/http";
+import { UPLOAD_BACKOFF } from "./backoff";
 import {
   type CrudEntryLike,
   classifyUploadError,
@@ -950,9 +951,9 @@ describe("uploadData: the round and the handover go to their own routes", () => 
 
   it.each([
     [
-      "the carer's own move made since, at a later version",
+      "done in the carer's name, but not as this move",
       { version: 6 },
-      /^This task was already marked done /,
+      /^We could not check whether this was saved\. Check the task on the round before recording it again\.$/,
     ],
     [
       "marked not done by someone else",
@@ -960,7 +961,11 @@ describe("uploadData: the round and the handover go to their own routes", () => 
       /^This task was already marked not done /,
     ],
     ["cancelled", { status: "cancelled", completedBy: null }, /^This task was cancelled /],
-    ["no longer in the list", { id: "another" }, /^This task changed /],
+    [
+      "no longer in the list",
+      { id: "another" },
+      /^We could not find this task\. Check the round before recording it again\.$/,
+    ],
   ] as const)(
     "hazard HZ-006 says what happened to a task the move did not reach in time: %s",
     async (_label, item, words) => {
@@ -973,60 +978,38 @@ describe("uploadData: the round and the handover go to their own routes", () => 
     },
   );
 
-  it("hazard HZ-029 sends the move once more against the current version when nobody closed the task (#37 review round 1, M1)", async () => {
-    const { fetch, calls } = fakeFetch([
-      conflict(),
-      listed({ status: "open", version: 4, completedBy: null, completedAt: null }),
-      json({}, 200),
-    ]);
-    const queue = fakeQueue([move()]);
-    await connector(fetch).instance.uploadData(queue.source);
-    expect(calls).toHaveLength(3);
-    expect(calls[2]?.url).toBe(`${API}/v1/tasks/${TASK}/transition`);
-    expect(JSON.parse(String(calls[2]?.init?.body))).toEqual({ to: "done", version: 4 });
-    expect(new Headers(calls[2]?.init?.headers).get("idempotency-key")).toBe(MOVE);
-    expect(queue.issues()).toEqual([]);
-    expect(queue.state.completed).toBe(1);
-  });
-
-  it("hazard HZ-029 sends it again only once: a second refusal is kept as needs attention", async () => {
-    const { fetch, calls } = fakeFetch([
-      conflict(),
-      listed({ status: "in_progress", version: 4, completedBy: null, completedAt: null }),
-      conflict(),
-    ]);
-    const queue = fakeQueue([move()]);
-    await connector(fetch).instance.uploadData(queue.source);
-    expect(calls).toHaveLength(3);
-    expect(queue.issues()).toMatchObject([
-      {
-        id: MOVE,
-        personId: PERSON,
-        httpStatus: 409,
-        code: "version_conflict",
-        message: expect.stringMatching(/^Someone else changed this task/),
-      },
-    ]);
-    expect(queue.state.completed).toBe(1);
-  });
-
-  it("hazard HZ-006 keeps the API's reason when the move sent again is refused for another reason", async () => {
-    const { fetch } = fakeFetch([
-      conflict(),
-      listed({ status: "open", version: 4, completedBy: null, completedAt: null }),
-      problem(403, "missing_permission", "No access.", "This task is no longer given to you."),
-    ]);
-    const queue = fakeQueue([move()]);
-    await connector(fetch).instance.uploadData(queue.source);
-    expect(queue.issues()).toMatchObject([
-      {
-        id: MOVE,
-        httpStatus: 403,
-        code: "missing_permission",
-        message: "This task is no longer given to you.",
-      },
-    ]);
-  });
+  it.each([
+    [
+      "more added to an open review task (its details)",
+      { status: "open", version: 4, completedBy: null, completedAt: null, details: { entries: 3 } },
+    ],
+    [
+      "an escalation only",
+      { status: "open", version: 4, completedBy: null, completedAt: null, escalated: true },
+    ],
+  ] as const)(
+    "hazard HZ-006 hazard HZ-029 never sends a refused move again to a task still open: %s (#37 review round 2)",
+    async (_label, item) => {
+      const { fetch, calls } = fakeFetch([conflict(), listed(item)]);
+      const queue = fakeQueue([move()]);
+      await connector(fetch).instance.uploadData(queue.source);
+      // The refused move and the read, and no second move.
+      expect(calls.map((c) => c.init?.method)).toEqual(["POST", "GET"]);
+      expect(queue.issues()).toEqual([
+        {
+          id: MOVE,
+          tenantId: TENANT,
+          personId: PERSON,
+          table: "task",
+          httpStatus: 409,
+          code: "task_changed",
+          message: "This task changed after you marked it. Check it and mark it again.",
+          payload: { ...move().opData, task_id: TASK },
+        },
+      ]);
+      expect(queue.state.completed).toBe(1);
+    },
+  );
 
   it.each([
     [
@@ -1130,20 +1113,55 @@ describe("uploadData: the round and the handover go to their own routes", () => 
       expect(queue.state.completed).toBe(1);
     });
 
-    it("starts the count again once the task is read", async () => {
-      const { fetch } = fakeFetch([
-        conflict(),
-        taskListRefused(),
-        conflict(),
-        listed({ status: "open", version: 4, completedBy: null, completedAt: null }),
-        conflict(),
-      ]);
+    it("starts the count again when the session ends, before a hold or a wipe takes the move", async () => {
+      const answers: Array<Response | Error> = [];
+      for (let i = 1; i < TASK_CHECK_MAX_FAILURES; i += 1)
+        answers.push(conflict(), taskListRefused());
+      answers.push(conflict(), new Response("", { status: 401 }), conflict(), taskListRefused());
+      const { fetch } = fakeFetch(answers);
       const queue = queueOf([[move()]]);
       const { instance } = connector(fetch);
+      for (let i = 1; i < TASK_CHECK_MAX_FAILURES; i += 1) {
+        await expect(instance.uploadData(queue.source)).rejects.toThrow();
+      }
+      await expect(instance.uploadData(queue.source)).rejects.toBeInstanceOf(SessionRevokedError);
+      // Back after sign-in: one more refusal is the first again, so the move stays queued.
       await expect(instance.uploadData(queue.source)).rejects.toThrow();
-      await instance.uploadData(queue.source);
-      // Read, sent again once and refused again: kept with the phone's words, not as unchecked.
-      expect(queue.parked()).toMatchObject([{ id: MOVE, code: "version_conflict" }]);
+      expect(queue.parked()).toEqual([]);
+      expect(queue.state.completed).toBe(0);
+    });
+
+    it("never counts no network or a server error: with the real backoff the move stays queued however long it lasts (#37 review round 2, N1)", async () => {
+      const failures = 3 * UPLOAD_BACKOFF.maxAttempts;
+      const answers: Array<Response | Error> = [];
+      for (let run = 0; run < 3; run += 1) {
+        answers.push(conflict());
+        for (let i = 0; i < UPLOAD_BACKOFF.maxAttempts; i += 1) {
+          answers.push(run === 1 ? json({}, 503) : new TypeError("Network request failed"));
+        }
+      }
+      expect(failures).toBeGreaterThan(TASK_CHECK_MAX_FAILURES);
+      const { fetch, calls } = fakeFetch(answers);
+      const queue = queueOf([[move()], [note()]]);
+      let now = new Date("2026-10-11T15:00:00.000Z");
+      const instance = new HarbourConnector({
+        apiUrl: API,
+        fetch,
+        getToken: async () => "tok",
+        getTenantId: () => TENANT,
+        onSessionRevoked: () => undefined,
+        backoff: UPLOAD_BACKOFF,
+        random: () => 0.5,
+        sleep: async () => undefined,
+        now: () => now,
+      });
+      for (let run = 0; run < 3; run += 1) {
+        await expect(instance.uploadData(queue.source)).rejects.toThrow();
+        now = new Date(now.getTime() + TASK_CHECK_MAX_MS);
+      }
+      expect(calls.filter((c) => c.init?.method === "GET")).toHaveLength(failures);
+      expect(queue.parked()).toEqual([]);
+      expect(queue.state.completed).toBe(0);
     });
 
     it("still ends the session at once on a 401, whatever the count", async () => {

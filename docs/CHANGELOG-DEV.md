@@ -1311,6 +1311,22 @@ locally; typecheck clean for db, sync and mobile.
 **Tests**: `apps/mobile` 977, `packages/i18n` 48, passing locally; typecheck clean for
 mobile.
 
+## 2026-10-13: The round and the handover on the phone, uploading, review round 2 (#37)
+
+- Medium: a move refused with a 409 is never sent again, even to a task still open, because a
+  task's version also moves when more is added to it (a review task's entries), so a stale
+  "done" could close what the nurse never saw. The words are true of the task: still open, it
+  changed after you marked it (`task_changed`); done or not done by someone else, or cancelled,
+  what happened; in your name but not as this move, it could not be checked; not in the list, it
+  could not be found (`task_not_found`). The lost-reply check stays. H-310 and a STATUS
+  follow-up for a content version that would make a resend safe; H-305 updated.
+- N1: only reads the server refused count towards the cap; no network, a timeout or a 5xx keeps
+  the move queued however long it lasts (tested with the real backoff).
+- Lows: a move that cannot be sent is kept under its own id and tenant when they can be read
+  (STATUS says why not otherwise); the cap's count is cleared when the session ends.
+
+**Tests**: `apps/mobile` 981, `packages/i18n` 48, passing locally; typecheck clean for mobile.
+
 ## 2026-10-13: The consent, capacity and DoLS tab, part 2 (slice 9, Lane B)
 
 The rest of the tab's read views, on the API already on `main` and held to the standards of #34's

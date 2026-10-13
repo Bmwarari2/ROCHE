@@ -179,7 +179,7 @@ describe("hazard HZ-006 refused entries stay readable", () => {
       record_table: "task",
       http_status: 409,
       code: "version_conflict",
-      message: "Someone else changed this task before your change reached Harbour.",
+      message: "This task changed after you marked it. Check it and mark it again.",
       payload: JSON.stringify({ status: "skipped", queued_transition: JSON.stringify(move) }),
       rejected_at: null,
       preferred_name: "Bea",
