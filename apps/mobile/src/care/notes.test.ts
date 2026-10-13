@@ -46,7 +46,7 @@ describe("writing a note offline", () => {
     });
   });
 
-  it("names the round's task it is recorded for, and the upload sends it", () => {
+  it("hazard HZ-029 names the round's task it is recorded for, and the upload sends it", () => {
     const task = "0199d000-0000-7000-8000-0000000000a1";
     const result = checkNote(draft(), { ...context, taskId: task }, NOW);
     expect(result.ok && result.row.task_id).toBe(task);

@@ -70,7 +70,7 @@ describe("toCareUpload", () => {
     });
   });
 
-  it("sends the round's task the entry is the evidence for, so the API completes it", () => {
+  it("hazard HZ-029 sends the round's task the entry is the evidence for, so the API completes it", () => {
     const request = toCareUpload({
       op: "PUT",
       table: "observation",

@@ -338,5 +338,9 @@
   "mobile.round.alreadyQueued": "This task is already marked and waiting to upload.",
   "mobile.round.reasonRequired": "Say why the task was not done ({min} characters or more).",
   "mobile.round.reasonTooLong": "Keep the reason to {max} characters or fewer.",
-  "mobile.round.evidenceRequired": "Record the entry this task asks for. Saving it completes the task."
+  "mobile.round.evidenceRequired": "Record the entry this task asks for. The task is completed when the entry uploads; until then it stays open on this phone.",
+  "mobile.round.userUnknown": "This phone does not know who you are yet. Sync again before marking tasks or acknowledging a handover, or tell the person in charge of this shift.",
+  "mobile.round.scopeUnknown": "This phone does not know yet what you may record. Sync again, or tell the person in charge of this shift.",
+  "mobile.round.notYours": "You cannot mark this task on this phone. Tell the person in charge of this shift.",
+  "mobile.handover.alreadyQueued": "Your acknowledgement of this handover is already waiting to upload."
 }
