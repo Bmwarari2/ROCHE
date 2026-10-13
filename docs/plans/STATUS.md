@@ -265,7 +265,8 @@ only when they link spec, code, tests and user documentation; no user guides exi
       pattern or the expected shift on the device, decided in the screens PR (#33 review round 2;
       H-303); (f) a task whose evidence entry is saved on the phone shows "evidence recorded,
       waiting to upload" until it uploads, so it is not recorded twice (#36 review round 1,
-      clinical M3; HZ-029).
+      clinical M3; HZ-029); (g) the needs-attention screen ships with the round screen or before
+      it, since "no care left without a prompt" depends on it (#37 confirmation check).
     - Follow-up: whether the round on the phone should also hold unfinished tasks due before the
       window (H-301).
     - Follow-up (#33 review round 1): the streams ignore `person_assignment.valid_from`, so a
@@ -281,6 +282,10 @@ only when they link spec, code, tests and user documentation; no user guides exi
       done, a handover acknowledged) on `feat/mobile-offline-round-writes`, and their upload
       (each to its own route, a refusal to "needs attention") on
       `feat/mobile-offline-round-upload`, after #33; then the screens, behind the gate.
+    - Follow-up (offline writes): a refused move or acknowledgement is removed from "needs
+      attention" through the deletion record built for unsent entries (a coded reason, device
+      authentication, audited as `refused_removed`); decide with the screens whether these need
+      a lighter dismissal, and whether the device report should count them apart from entries.
     - Follow-up (#33 review round 2, low): no test yet of a carer assigned to two people at
       different homes where the person who opens a handover differs from the item's person (the
       two `person_assignment` joins in the `assigned_handovers` item and note queries).
@@ -306,6 +311,25 @@ only when they link spec, code, tests and user documentation; no user guides exi
       a lower bound at the task's creation or its window; and a rule for which shift's
       handover a late-synced outcome belongs to. Then the move sends its time of care
       (`round-upload.ts`). CSO decision H-309.
+    - Follow-up (#37 review round 1): a refused task move or handover acknowledgement does
+      not call `onRefused`, so nothing asks for a server copy at once; refused copies cover
+      care tables only (`REFUSED_COPY_TABLES`) until H-307 decides.
+    - Follow-up (#37 review round 2): a task's version moves with assignment and escalation as
+      well as with its details, so a move refused with a 409 is never sent again. A
+      server-side content version that assignment and escalation leave alone would let a
+      later change resend safely (a migration and the transition route; CSO decision H-310).
+    - Follow-up (#37 review round 2, low): a task change whose move cannot be read at all (not
+      JSON) is kept under the task's id, with the tenant the row carries, if any: no id of its
+      own can be read, so a second such change for the same task replaces the first.
+    - Follow-up (#37 confirmation check): a 403 whose session cannot be checked (an edge or
+      firewall page with `/v1/me` unreachable) counts towards the cap on the task read, while
+      the upload path keeps it queued; treat it as a network failure there too.
+    - Follow-up (#37 confirmation check): `task_unchecked` says "check the task on the
+      round", but a closed task no longer shows there; point to the task's history, or word
+      it differently, in the screens PR.
+    - Follow-up (#37 confirmation check): with no resend, every move made offline on a task
+      that escalated during an outage becomes a needs-attention item, an alert-fatigue risk;
+      it waits on H-305, H-310 and the lighter way to dismiss a refused move.
     - Follow-up (#36 review round 2, low): `useMoveTask` takes the person's home
       (`personLocationId`) from the caller; while it is null (the person row still loading)
       and the token lists no person ids, `mayRecordFor` lets the move through. Look the home
@@ -369,6 +393,39 @@ only when they link spec, code, tests and user documentation; no user guides exi
     only `platform.device.revoke`); with nothing waiting there is no warning that the phone loses
     its care record mid-shift (H-351); organisations can override the timeout floor and ceiling
     (harmless while the timeout is off).
+19. The incident screens, the rest (slice 9, SAFE-001 to SAFE-003; the incidents list and an
+    incident's read view are on `feat/web-incidents`): part 2, the statutory notifications on the
+    incident page with their clocks and warnings (`feat/web-incident-notifications`, stacked on
+    part 1); the statutory notification pages (`/notifications/statutory` with every draft's clock
+    for `safety.incident.manage`, and `/notifications/statutory/{id}` with its deadlines, required
+    content and sources, which the overdue alert already links to; the sidebar's `/notifications`
+    section must not claim that path); then the forms, each offered only where `access.reaching`
+    lists its permission (ADR-0071), with a client UUIDv7 kept across retries and refusals mapped
+    in `refusals.ts`: record an incident (`safety.incident.report`), answer the classifier's
+    questions in the catalogue's words, review and close (`safety.incident.manage`, never the
+    person who raised it), prepare a notification, and submit it or mark it not required with
+    step-up (`safety.notification.submit`). API gaps ([safety.md](../specs/safety.md) section 5):
+    no staff names (H-73); the list has no paging past 500.
+    - Follow-ups from #42 review round 1 (H-256 asks the CSO whether part 1 may ship before part
+      2): `emergencyServicesCalled` and `gpContacted` default to false in `CreateIncident`, so
+      "No" may mean nobody was asked; the sidebar's Incidents icon (a warning triangle) reads as
+      an alert when the sidebar is folded to its icons; a reader without `people.person.read`
+      sees several "A person we support" with nothing to tell them apart; no demo account lacks
+      `safety.incident.read`, so the hidden Incidents item is unit tested only.
+20. Invitations and MFA enrolment (feat/platform-invitations; PLAT-004): the spec and rules are
+    built (platform.md, Invitations and MFA enrolment; `invitations.ts`), with a test that no
+    one-time code is offered by SMS or email, and review round 1 of #43 folded in (the token only
+    in the URL fragment and POST bodies; locked, hashing security-definer functions under their own
+    owner role, with the sign-in's email checked inside; inviters must hold every permission of the
+    member's roles, the address copied by the database and cleared when the invitation closes; an
+    operator may invite only a first owner, through a definer function; an expiry ceiling;
+    throttling per client address and token; a lapsed-invitation sweep; members never created
+    without MFA). Next, stacked on #43 (numbered provisionally): migration 0054 with the table,
+    the functions and their database tests; then the invite, lookup, accept, revoke, list and sweep
+    routes; the operator's owner invitation and the invitation email; the web accept page with the
+    password rules and the redirect to enrolment, with Playwright and axe (H-355). Then
+    `fix/platform-mfa-session-factor` (#43 review M5): MFA counts only when the session used a
+    passkey or a verified TOTP code, not merely when one is enrolled.
 
 ## Human actions outstanding
 

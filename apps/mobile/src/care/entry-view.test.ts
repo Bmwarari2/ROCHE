@@ -160,6 +160,75 @@ describe("hazard HZ-006 refused entries stay readable", () => {
     });
   });
 
+  it("hazard HZ-006 says which task a refused move was for and what the carer did", () => {
+    const move = {
+      id: "m1",
+      to: "skipped",
+      reason: "Asleep, will turn at 03:00",
+      version: 3,
+      by: "u1",
+      at: "2026-10-11T02:05:00.000Z",
+      tenantId: "t1",
+      personId: "p1",
+      dueAt: "2026-10-11 02:00:00Z",
+      title: "Reposition",
+    };
+    const row: UploadIssueRow = {
+      id: "m1",
+      person_id: "p1",
+      record_table: "task",
+      http_status: 409,
+      code: "version_conflict",
+      message: "This task changed after you marked it. Check it and mark it again.",
+      payload: JSON.stringify({ status: "skipped", queued_transition: JSON.stringify(move) }),
+      rejected_at: null,
+      preferred_name: "Bea",
+      given_name: "Beatrice",
+      family_name: "Sample",
+    };
+    expect(issueItem(row)).toMatchObject({
+      title: "Task for Bea Sample",
+      content: "What was recorded: Reposition: not done, because Asleep, will turn at 03:00",
+      when: "11/10/2026 at 03:05",
+    });
+    // A held move kept without its person (its payload names the task) still names the person
+    // the move is about, and shows on their screen (#37 review round 1, M3).
+    const held = issueItem({
+      ...row,
+      person_id: null,
+      code: "held_not_restored",
+      payload: JSON.stringify({
+        status: "skipped",
+        queued_transition: JSON.stringify(move),
+        task_id: "task-1",
+      }),
+    });
+    expect(held).toMatchObject({ personId: "p1", title: "Task for Bea Sample" });
+    // A task about nobody, and an acknowledgement, name no one.
+    const nobody = issueItem({
+      ...row,
+      person_id: null,
+      preferred_name: null,
+      given_name: null,
+      family_name: null,
+      payload: JSON.stringify({ queued_transition: JSON.stringify({ ...move, personId: null }) }),
+    });
+    expect(nobody).toMatchObject({ personId: null, title: "Task" });
+    expect(
+      issueItem({
+        ...row,
+        id: "a1",
+        person_id: null,
+        record_table: "handover_acknowledgement",
+        payload: JSON.stringify({ acknowledged_at: "2026-10-11T07:10:00.000Z" }),
+      }),
+    ).toMatchObject({
+      title: "Handover acknowledgement",
+      content: "What was recorded: Handover acknowledged",
+      when: "11/10/2026 at 08:10",
+    });
+  });
+
   it.each([
     ["copied", "Harbour has a copy for the nurse in charge to review."],
     [

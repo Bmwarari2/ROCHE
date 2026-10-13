@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FetchLike } from "../auth/http";
+import { UPLOAD_BACKOFF } from "./backoff";
 import {
   type CrudEntryLike,
   classifyUploadError,
@@ -10,6 +11,8 @@ import {
   readProblem,
   SENT_AT_HEADER,
   SessionRevokedError,
+  TASK_CHECK_MAX_FAILURES,
+  TASK_CHECK_MAX_MS,
   TENANT_HEADER,
   toUploadOperation,
   UploadRejectedError,
@@ -839,5 +842,495 @@ describe("hazard HZ-006 a refused entry's copy goes to the server at once (Devic
     const saved = fakeQueue([note()]);
     await make(fakeFetch([json({ id: "x" }, 201)]).fetch).uploadData(saved.source);
     expect(refusedSignals.count).toBe(1);
+  });
+});
+
+describe("uploadData: the round and the handover go to their own routes", () => {
+  const TASK = "0199d000-0000-7000-8000-0000000000a1";
+  const MOVE = "0199d000-0000-7000-8000-000000000101";
+  const ACK = "0199d000-0000-7000-8000-000000000201";
+  const queued = {
+    id: MOVE,
+    to: "done",
+    reason: null,
+    version: 3,
+    by: "user-carer",
+    at: "2026-10-11T02:05:00.000Z",
+    tenantId: TENANT,
+    personId: PERSON,
+    locationId: "0199d000-0000-7000-8000-000000000401",
+    dueAt: "2026-10-11 02:00:00Z",
+    title: "Reposition",
+  };
+  /** The task list query for this move: about its person, within a second of its due time. */
+  const TASK_STATE_URL = `${API}/v1/tasks?status=any&personId=${PERSON}&from=2026-10-11T01%3A59%3A59.000Z&to=2026-10-11T02%3A00%3A01.000Z`;
+  /** The task in the API's list. */
+  const listed = (item: Record<string, unknown>) =>
+    json({
+      items: [
+        {
+          id: TASK,
+          status: "done",
+          version: 4,
+          completedBy: "user-carer",
+          statusReason: null,
+          completedAt: "2026-10-11T02:06:00.000Z",
+          ...item,
+        },
+      ],
+    });
+  const conflict = () => problem(409, "version_conflict", "Someone else changed this record.");
+  const move = (): CrudEntryLike => ({
+    op: "PATCH",
+    table: "task",
+    id: TASK,
+    opData: { status: "done", queued_transition: JSON.stringify(queued) },
+  });
+  const acknowledgement = (): CrudEntryLike => ({
+    op: "PUT",
+    table: "handover_acknowledgement",
+    id: ACK,
+    opData: {
+      tenant_id: TENANT,
+      handover_id: "0199d000-0000-7000-8000-000000000301",
+      location_id: "0199d000-0000-7000-8000-000000000401",
+      seen_token: "token-43",
+      item_keys: "[]",
+      acknowledged_at: "2026-10-11T07:10:00.000Z",
+    },
+  });
+
+  it("sends a task's move with the version seen, keyed by the move's own id", async () => {
+    const { fetch, calls } = fakeFetch([json({}, 200)]);
+    const queue = fakeQueue([move()]);
+    await connector(fetch).instance.uploadData(queue.source);
+    expect(calls[0]?.url).toBe(`${API}/v1/tasks/${TASK}/transition`);
+    const headers = new Headers(calls[0]?.init?.headers);
+    expect(headers.get("idempotency-key")).toBe(MOVE);
+    expect(headers.get(TENANT_HEADER)).toBe(TENANT);
+    expect(headers.get(DEVICE_HEADER)).toBe("client-1");
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({ to: "done", version: 3 });
+    expect(queue.issues()).toEqual([]);
+    expect(queue.state.completed).toBe(1);
+  });
+
+  it("hazard HZ-029 counts a move the API already took as sent when its answer was lost", async () => {
+    const { fetch, calls } = fakeFetch([conflict(), listed({})]);
+    const queue = fakeQueue([move()]);
+    await connector(fetch).instance.uploadData(queue.source);
+    expect(calls[1]?.url).toBe(TASK_STATE_URL);
+    expect(calls[1]?.init?.method).toBe("GET");
+    expect(new Headers(calls[1]?.init?.headers).get(TENANT_HEADER)).toBe(TENANT);
+    expect(calls).toHaveLength(2);
+    expect(queue.issues()).toEqual([]);
+    expect(queue.state.completed).toBe(1);
+  });
+
+  it("hazard HZ-006 keeps a move someone else overtook as needs attention, in words that say what happened", async () => {
+    const { fetch, calls } = fakeFetch([conflict(), listed({ completedBy: "user-other" })]);
+    const queue = fakeQueue([move()]);
+    await connector(fetch).instance.uploadData(queue.source);
+    expect(calls).toHaveLength(2);
+    expect(queue.issues()).toEqual([
+      {
+        id: MOVE,
+        tenantId: TENANT,
+        personId: PERSON,
+        table: "task",
+        httpStatus: 409,
+        code: "version_conflict",
+        message: expect.stringMatching(
+          /^This task was already marked done before your change reached Harbour, so your change was not recorded\./,
+        ),
+        // The task's id stays with the move, so it can be sent again from needs attention.
+        payload: { ...move().opData, task_id: TASK },
+      },
+    ]);
+    expect(queue.state.completed).toBe(1);
+  });
+
+  it.each([
+    [
+      "done in the carer's name, but not as this move",
+      { version: 6 },
+      /^We could not check whether this was saved\. Check the task on the round before recording it again\.$/,
+    ],
+    [
+      "marked not done by someone else",
+      { status: "skipped", completedBy: "user-other" },
+      /^This task was already marked not done /,
+    ],
+    ["cancelled", { status: "cancelled", completedBy: null }, /^This task was cancelled /],
+    [
+      "no longer in the list",
+      { id: "another" },
+      /^We could not find this task\. Check the round before recording it again\.$/,
+    ],
+  ] as const)(
+    "hazard HZ-006 says what happened to a task the move did not reach in time: %s",
+    async (_label, item, words) => {
+      const { fetch } = fakeFetch([conflict(), listed(item)]);
+      const queue = fakeQueue([move()]);
+      await connector(fetch).instance.uploadData(queue.source);
+      expect(queue.issues()).toMatchObject([
+        { id: MOVE, httpStatus: 409, message: expect.stringMatching(words) },
+      ]);
+    },
+  );
+
+  it.each([
+    [
+      "more added to an open review task (its details)",
+      { status: "open", version: 4, completedBy: null, completedAt: null, details: { entries: 3 } },
+    ],
+    [
+      "an escalation only",
+      { status: "open", version: 4, completedBy: null, completedAt: null, escalated: true },
+    ],
+  ] as const)(
+    "hazard HZ-006 hazard HZ-029 never sends a refused move again to a task still open: %s (#37 review round 2)",
+    async (_label, item) => {
+      const { fetch, calls } = fakeFetch([conflict(), listed(item)]);
+      const queue = fakeQueue([move()]);
+      await connector(fetch).instance.uploadData(queue.source);
+      // The refused move and the read, and no second move.
+      expect(calls.map((c) => c.init?.method)).toEqual(["POST", "GET"]);
+      expect(queue.issues()).toEqual([
+        {
+          id: MOVE,
+          tenantId: TENANT,
+          personId: PERSON,
+          table: "task",
+          httpStatus: 409,
+          code: "task_changed",
+          message: "This task changed after you marked it. Check it and mark it again.",
+          payload: { ...move().opData, task_id: TASK },
+        },
+      ]);
+      expect(queue.state.completed).toBe(1);
+    },
+  );
+
+  it.each([
+    [
+      "no network",
+      () => [new TypeError("Network request failed"), new TypeError("x"), new TypeError("x")],
+    ],
+    ["a server error", () => [json({}, 500), json({}, 503), json({}, 502)]],
+    ["an answer it cannot read", () => [new Response("<html></html>", { status: 200 })]],
+    ["a list without the task's fields", () => [json({ items: [{ id: TASK, status: "done" }] })]],
+    [
+      "a refusal from the API that leaves the session standing",
+      () => [problem(403, "missing_permission", "No access.")],
+    ],
+    ["any other status", () => [json({}, 400)]],
+  ] as const)(
+    "hazard HZ-029 keeps the move queued when the task cannot be read: %s (#37 review round 1, security M1)",
+    async (_label, answers) => {
+      const { fetch } = fakeFetch([conflict(), ...answers()]);
+      const queue = fakeQueue([move()]);
+      const { instance, revoked } = connector(fetch);
+      await expect(instance.uploadData(queue.source)).rejects.toThrow();
+      expect(queue.issues()).toEqual([]);
+      expect(queue.state.completed).toBe(0);
+      expect(revoked.count).toBe(0);
+    },
+  );
+
+  describe("hazard HZ-006 a move whose follow-up check keeps failing never holds back the entries behind it (#37 review round 1)", () => {
+    /** A queue of transactions in order: the next one comes only once the one before completes. */
+    function queueOf(transactions: CrudEntryLike[][]) {
+      const state = { completed: 0, sql: [] as Array<{ sql: string; params: unknown[] }> };
+      let next = 0;
+      const source = {
+        getClientId: async () => "client-1",
+        execute: async (sql: string, params: unknown[] = []) => {
+          state.sql.push({ sql, params });
+          return { rowsAffected: 1 };
+        },
+        getNextCrudTransaction: async () => {
+          const crud = transactions[next];
+          if (!crud) return null;
+          return {
+            crud,
+            transactionId: next + 1,
+            haveMore: next + 1 < transactions.length,
+            complete: async () => {
+              state.completed += 1;
+              next += 1;
+            },
+          };
+        },
+      } as unknown as UploadSource;
+      const parked = () =>
+        state.sql
+          .filter((x) => x.sql.startsWith("INSERT INTO upload_issue"))
+          .map((x) => ({ id: x.params[0], code: x.params[5], message: x.params[6] }));
+      return { source, state, parked };
+    }
+    const taskListRefused = () => problem(403, "missing_permission", "No access.");
+
+    it("parks the move after the cap on a lasting 403 on the task list, and the care entry behind it uploads", async () => {
+      const answers: Array<Response | Error> = [];
+      for (let i = 0; i < TASK_CHECK_MAX_FAILURES; i += 1)
+        answers.push(conflict(), taskListRefused());
+      answers.push(json({ id: "0199d000-0000-7000-8000-000000000001" }, 201));
+      const { fetch, calls } = fakeFetch(answers);
+      const queue = queueOf([[move()], [note()]]);
+      const { instance, revoked } = connector(fetch);
+      for (let i = 1; i < TASK_CHECK_MAX_FAILURES; i += 1) {
+        await expect(instance.uploadData(queue.source)).rejects.toThrow();
+        expect(queue.parked()).toEqual([]);
+      }
+      // The last check allowed fails too: the move is kept as needing attention, honestly worded.
+      await instance.uploadData(queue.source);
+      expect(queue.parked()).toEqual([
+        {
+          id: MOVE,
+          code: "task_unchecked",
+          message:
+            "We could not check whether this was saved. Check the task on the round before recording it again.",
+        },
+      ]);
+      const kept = queue.state.sql.find((x) => x.sql.startsWith("INSERT INTO upload_issue"));
+      expect(JSON.parse(String(kept?.params[7]))).toEqual({ ...move().opData, task_id: TASK });
+      // The queue carries on: the note behind the move uploads.
+      await instance.uploadData(queue.source);
+      expect(calls.at(-1)?.url).toBe(`${API}/v1/people/${PERSON}/notes`);
+      expect(queue.state.completed).toBe(2);
+      expect(revoked.count).toBe(0);
+    });
+
+    it("parks the move once 30 minutes have passed since the check first failed, whatever the count", async () => {
+      let now = new Date("2026-10-11T15:00:00.000Z");
+      const { fetch } = fakeFetch([conflict(), json({}, 400), conflict(), json({}, 400)]);
+      const queue = queueOf([[move()]]);
+      const { instance } = connector(fetch, { now: () => now });
+      await expect(instance.uploadData(queue.source)).rejects.toThrow();
+      now = new Date(now.getTime() + TASK_CHECK_MAX_MS);
+      await instance.uploadData(queue.source);
+      expect(queue.parked()).toMatchObject([{ id: MOVE, code: "task_unchecked" }]);
+      expect(queue.state.completed).toBe(1);
+    });
+
+    it("starts the count again when the session ends, before a hold or a wipe takes the move", async () => {
+      const answers: Array<Response | Error> = [];
+      for (let i = 1; i < TASK_CHECK_MAX_FAILURES; i += 1)
+        answers.push(conflict(), taskListRefused());
+      answers.push(conflict(), new Response("", { status: 401 }), conflict(), taskListRefused());
+      const { fetch } = fakeFetch(answers);
+      const queue = queueOf([[move()]]);
+      const { instance } = connector(fetch);
+      for (let i = 1; i < TASK_CHECK_MAX_FAILURES; i += 1) {
+        await expect(instance.uploadData(queue.source)).rejects.toThrow();
+      }
+      await expect(instance.uploadData(queue.source)).rejects.toBeInstanceOf(SessionRevokedError);
+      // Back after sign-in: one more refusal is the first again, so the move stays queued.
+      await expect(instance.uploadData(queue.source)).rejects.toThrow();
+      expect(queue.parked()).toEqual([]);
+      expect(queue.state.completed).toBe(0);
+    });
+
+    it("never counts no network: with the real backoff the move stays queued however long it lasts (#37 review round 2, N1)", async () => {
+      const failures = 3 * UPLOAD_BACKOFF.maxAttempts;
+      const answers: Array<Response | Error> = [];
+      for (let run = 0; run < 3; run += 1) {
+        answers.push(conflict());
+        for (let i = 0; i < UPLOAD_BACKOFF.maxAttempts; i += 1) {
+          answers.push(new TypeError("Network request failed"));
+        }
+      }
+      expect(failures).toBeGreaterThan(TASK_CHECK_MAX_FAILURES);
+      const { fetch, calls } = fakeFetch(answers);
+      const queue = queueOf([[move()], [note()]]);
+      let now = new Date("2026-10-11T15:00:00.000Z");
+      const instance = new HarbourConnector({
+        apiUrl: API,
+        fetch,
+        getToken: async () => "tok",
+        getTenantId: () => TENANT,
+        onSessionRevoked: () => undefined,
+        backoff: UPLOAD_BACKOFF,
+        random: () => 0.5,
+        sleep: async () => undefined,
+        now: () => now,
+      });
+      for (let run = 0; run < 3; run += 1) {
+        await expect(instance.uploadData(queue.source)).rejects.toThrow();
+        now = new Date(now.getTime() + TASK_CHECK_MAX_MS);
+      }
+      expect(calls.filter((c) => c.init?.method === "GET")).toHaveLength(failures);
+      expect(queue.parked()).toEqual([]);
+      expect(queue.state.completed).toBe(0);
+    });
+
+    it("parks the move at 30 minutes when the task read fails with a 500 every time while uploads work, and the next entry uploads (#37 confirmation check)", async () => {
+      let now = new Date("2026-10-11T15:00:00.000Z");
+      const serverError = () => json({}, 500);
+      const { fetch, calls } = fakeFetch([
+        // First run: the move is refused, and the read fails on every attempt of the backoff.
+        conflict(),
+        serverError(),
+        serverError(),
+        serverError(),
+        // 29 minutes later: still failing, not yet parked.
+        conflict(),
+        serverError(),
+        serverError(),
+        serverError(),
+        // 30 minutes after the first failure: parked at the first failed read.
+        conflict(),
+        serverError(),
+        json({ id: "0199d000-0000-7000-8000-000000000001" }, 201),
+      ]);
+      const queue = queueOf([[move()], [note()]]);
+      const { instance } = connector(fetch, { now: () => now });
+      await expect(instance.uploadData(queue.source)).rejects.toThrow();
+      now = new Date(now.getTime() + TASK_CHECK_MAX_MS - 60_000);
+      await expect(instance.uploadData(queue.source)).rejects.toThrow();
+      expect(queue.parked()).toEqual([]);
+      now = new Date(now.getTime() + 60_000);
+      await instance.uploadData(queue.source);
+      expect(queue.parked()).toMatchObject([{ id: MOVE, code: "task_unchecked" }]);
+      await instance.uploadData(queue.source);
+      expect(calls.at(-1)?.url).toBe(`${API}/v1/people/${PERSON}/notes`);
+      expect(queue.state.completed).toBe(2);
+    });
+
+    it("parks nothing when a 503 on the task read clears within 30 minutes", async () => {
+      let now = new Date("2026-10-11T15:00:00.000Z");
+      const { fetch } = fakeFetch([
+        conflict(),
+        json({}, 503),
+        json({}, 503),
+        json({}, 503),
+        // Twenty minutes later the read answers: the carer's own move, already made.
+        conflict(),
+        listed({}),
+      ]);
+      const queue = queueOf([[move()]]);
+      const { instance } = connector(fetch, { now: () => now });
+      await expect(instance.uploadData(queue.source)).rejects.toThrow();
+      now = new Date(now.getTime() + 20 * 60_000);
+      await instance.uploadData(queue.source);
+      expect(queue.parked()).toEqual([]);
+      expect(queue.state.completed).toBe(1);
+    });
+
+    it("never parks on server errors alone before 30 minutes, however many reads fail", async () => {
+      const answers: Array<Response | Error> = [];
+      for (let run = 0; run < 3; run += 1) {
+        answers.push(conflict(), json({}, 503), json({}, 502), json({}, 500));
+      }
+      const { fetch } = fakeFetch(answers);
+      const queue = queueOf([[move()]]);
+      const { instance } = connector(fetch);
+      for (let run = 0; run < 3; run += 1) {
+        await expect(instance.uploadData(queue.source)).rejects.toThrow();
+      }
+      expect(queue.parked()).toEqual([]);
+    });
+
+    it("still ends the session at once on a 401, whatever the count", async () => {
+      const { fetch } = fakeFetch([conflict(), new Response("", { status: 401 })]);
+      const queue = queueOf([[move()], [note()]]);
+      const { instance, revoked } = connector(fetch);
+      await expect(instance.uploadData(queue.source)).rejects.toBeInstanceOf(SessionRevokedError);
+      expect(revoked.count).toBe(1);
+      expect(queue.parked()).toEqual([]);
+      expect(queue.state.completed).toBe(0);
+    });
+  });
+
+  it.each([
+    ["a 401", () => [new Response("", { status: 401 })]],
+    ["a session code on a 403", () => [problem(403, "not_a_member", "Not a member.")]],
+    [
+      "an unexplained 403 that /v1/me says ended the session",
+      () => [emptyForbidden(), new Response("", { status: 401 })],
+    ],
+  ] as const)(
+    "hazard HZ-006 ends the session, leaving the move queued, when reading the task meets %s",
+    async (_label, answers) => {
+      const { fetch } = fakeFetch([conflict(), ...answers()]);
+      const queue = fakeQueue([move()]);
+      const { instance, revoked } = connector(fetch);
+      await expect(instance.uploadData(queue.source)).rejects.toBeInstanceOf(SessionRevokedError);
+      expect(revoked.count).toBe(1);
+      expect(queue.issues()).toEqual([]);
+      expect(queue.state.completed).toBe(0);
+    },
+  );
+
+  it("hazard HZ-006 sends a held move put back on its task's row, and names its person if it is refused (#37 review round 1, M3)", async () => {
+    const { fetch, calls } = fakeFetch([
+      problem(422, "invalid", "Invalid.", "This task needs evidence."),
+    ]);
+    const restored: CrudEntryLike = {
+      op: "PUT",
+      table: "task",
+      id: TASK,
+      opData: {
+        tenant_id: TENANT,
+        person_id: PERSON,
+        status: "done",
+        queued_transition: JSON.stringify(queued),
+      },
+    };
+    const queue = fakeQueue([restored]);
+    await connector(fetch).instance.uploadData(queue.source);
+    expect(calls[0]?.url).toBe(`${API}/v1/tasks/${TASK}/transition`);
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({ to: "done", version: 3 });
+    expect(queue.issues()).toMatchObject([
+      {
+        id: MOVE,
+        personId: PERSON,
+        table: "task",
+        httpStatus: 422,
+        message: "This task needs evidence.",
+      },
+    ]);
+  });
+
+  it("hazard HZ-018 sends an acknowledgement with its id and seen token, and keeps a changed handover's refusal", async () => {
+    const { fetch, calls } = fakeFetch([
+      json({}, 201),
+      problem(
+        409,
+        "handover_changed",
+        "The handover has changed since you opened it.",
+        "Open it again to see what was added, then acknowledge it.",
+      ),
+    ]);
+    const { instance } = connector(fetch);
+    const sent = fakeQueue([acknowledgement()]);
+    await instance.uploadData(sent.source);
+    expect(calls[0]?.url).toBe(
+      `${API}/v1/locations/0199d000-0000-7000-8000-000000000401/handovers/0199d000-0000-7000-8000-000000000301/acknowledgements`,
+    );
+    expect(new Headers(calls[0]?.init?.headers).get("idempotency-key")).toBe(ACK);
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({ id: ACK, seenToken: "token-43" });
+    expect(sent.issues()).toEqual([]);
+
+    const refused = fakeQueue([acknowledgement()]);
+    await instance.uploadData(refused.source);
+    expect(refused.issues()).toMatchObject([
+      {
+        id: ACK,
+        table: "handover_acknowledgement",
+        httpStatus: 409,
+        code: "handover_changed",
+        message: expect.stringMatching(/^The handover changed before your acknowledgement/),
+      },
+    ]);
+    expect(refused.state.completed).toBe(1);
+  });
+
+  it("keeps a change to a task that is not a readable move as needs attention, unsent", async () => {
+    const { fetch, calls } = fakeFetch([]);
+    const queue = fakeQueue([{ op: "PATCH", table: "task", id: TASK, opData: { status: "done" } }]);
+    await connector(fetch).instance.uploadData(queue.source);
+    expect(calls).toEqual([]);
+    expect(queue.issues()).toMatchObject([{ id: TASK, code: "round_change_unreadable" }]);
   });
 });

@@ -33,6 +33,7 @@ const task = (overrides: Partial<TaskToMove> = {}): TaskToMove => ({
   id: TASK,
   tenant_id: TENANT,
   person_id: "person-ada",
+  location_id: "loc-north",
   title: "Reposition",
   status: "open",
   due_at: "2026-10-11 02:00:00Z",
@@ -194,6 +195,7 @@ describe("moving a task on the phone (the API's own transition rules)", () => {
       at: NOW.toISOString(),
       tenantId: TENANT,
       personId: "person-ada",
+      locationId: "loc-north",
       dueAt: "2026-10-11 02:00:00Z",
       title: "Reposition",
     });
