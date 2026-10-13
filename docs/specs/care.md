@@ -1378,8 +1378,9 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   (`checkTaskTransition`: done, or not done with a reason of 3 to 500 characters; a task that
   needs evidence is done only by recording the entry it asks for, which carries `task_id`, sent
   as `taskId`) and writes it on the synced row (`status`, and `queued_transition`: the move's own
-  UUIDv7, the version seen, who and when), only while the row is still the open task the carer
-  saw (read back, as SQLite does not count changes made through PowerSync's views). An
+  UUIDv7, the version seen, who and when, the person and the task's home), only while the row
+  is still the open task the carer saw (read back, as SQLite does not count changes made through
+  PowerSync's views). An
   acknowledgement is a new `handover_acknowledgement` row with its own UUIDv7, the location (for
   the route) and the seen token worked out over the keys of the items shown, in their compiled
   order, exactly as the API does (SHA-256, base64url, 43 characters). Hooks for the screens:
@@ -1392,9 +1393,38 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   into the queue for its owner after sign-in, exactly as entries do (a held move under its own
   id, putting its task's row back with the move), and is never sent by another member in a
   hand-over: it stays for review (clinical M1). A task that needs evidence says the entry
-  completes it when it uploads (clinical M3). Until the upload (the third PR) lands, the
-  connector sends neither to its route: one queued in between goes to `POST /v1/sync/upload`,
-  which refuses it, and stays as needs attention.
+  completes it when it uploads (clinical M3).
+- **The round and the handover: uploading what was written offline (slice 10 part 2, third PR).**
+  The connector sends each to its own route (`round-upload.ts`): a move to
+  `POST /v1/tasks/{id}/transition` with `{ to, reason, version }`, an acknowledgement to
+  `POST /v1/locations/{id}/handovers/{handoverId}/acknowledgements` with `{ id, seenToken }`, with
+  the idempotency key (the move's or the acknowledgement's own id), tenant, device and sent-at
+  headers entries use; care entries and these share one request path. A refusal for good moves it
+  to "needs attention" with what the carer did and the reason, in the phone's words for a task
+  that changed first (`version_conflict`, below) and a handover changed since it was read
+  (`handover_changed`); the server's copy then puts the task or the handover back as it is there.
+  A 409 `version_conflict` on a move is settled by reading the task (`GET /v1/tasks?status=any`,
+  about the move's person or at the task's home, due within a second of its due time), and only
+  an answer the phone can read decides (#37 review round 1): the move counts as sent when the task
+  shows this move made (the status asked for, by the same member, with the same reason for a task
+  not done, at the very next version; a lost answer, HZ-029). Anything else is kept as needs
+  attention and never sent again on its own, even to a task still open: a stale "done" could close
+  entries added to a review task since (#37 review round 2; a safe resend needs a content version,
+  H-310). The words are true of the task: still open, it changed after the carer marked it (check
+  it and mark it again); marked done or not done by someone else, or cancelled, what happened and
+  that the change was not recorded; done in the carer's name but not as this move, that it could
+  not be checked; not in the list, that it could not be found (`task_changed`,
+  `version_conflict`, `task_unchecked`, `task_not_found`). No network or a timeout keeps the move
+  queued however long it lasts. Reads the server refuses (a 403 on the task list, a 404, any other
+  status, a list it cannot read) keep it queued up to 5 of them or 30 minutes from the first; a
+  5xx or a 429 starts the 30 minutes without counting, so a fault in the task read alone parks the
+  move after 30 minutes while a short outage never does. Then the move is kept as needs attention,
+  with its data, saying it could not be checked, so the entries behind it still upload. A 401, a session 403 or `GET /v1/me` saying so ends the
+  session at once. A move
+  put back on its task's row after a session ended (an insert) is sent like an update, and a move,
+  held or refused, names the person it is about from the move and shows on their screen. The
+  move's device time stays on the phone: the API records the completion when the move arrives
+  (H-309).
 - **API follow-ups**: the revocation signal, the manager hand-over and the server copy of refused
   entries are built (Device integrity, above), and so, with the care API follow-ups, are keeping an
   IDDSI entry from a device with a flag and an alert to the nurse in charge instead of refusing it

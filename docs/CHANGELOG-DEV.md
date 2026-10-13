@@ -1235,6 +1235,21 @@ Second of four pull requests (`feat/mobile-offline-round-writes`, stacked on #33
 **Tests**: `apps/mobile` 910, `packages/sync` 81, `packages/i18n` 48, passing locally;
 typecheck clean for mobile and sync.
 
+## 2026-10-12: The round and the handover on the phone, offline upload (slice 10 part 2, Lane C)
+
+Third of four pull requests (`feat/mobile-offline-round-upload`, stacked on the writes).
+
+- The connector sends a task's move to `POST /v1/tasks/{id}/transition` and an acknowledgement
+  to the handover's acknowledgements route, each with the entry headers; care entries and these
+  share one request path.
+- A refusal moves it to "needs attention" with what the carer did, in the phone's words for a
+  task changed first or a handover changed since it was read; a 409 on a move whose answer was
+  lost counts as sent when the task list shows it made by the same member of staff (HZ-029).
+- Hazard rows on HZ-006, HZ-018 and HZ-029; care.md section 6; a STATUS follow-up on dismissing
+  a refused move or acknowledgement.
+
+**Tests**: `apps/mobile` 924, `packages/i18n` 48, passing locally; typecheck clean for mobile.
+
 ## 2026-10-13: The round and the handover on the phone, offline writes, review round 1 (#36)
 
 - Security M1: a task's move is offered only where the server would take it (a task given to
@@ -1275,6 +1290,54 @@ typecheck clean for mobile and sync.
 
 **Tests**: `packages/db` 411 (real Postgres), `packages/sync` 81, `apps/mobile` 891, passing
 locally; typecheck clean for db, sync and mobile.
+
+## 2026-10-13: The round and the handover on the phone, uploading, review round 1 (#37)
+
+- Security M1 and clinical M1: a move refused because the task changed (409) reads the task
+  (`status=any`, narrowed to the move's person or the task's home and its due time). Only an
+  answer it can read decides; anything else keeps the move queued, and an ended session ends
+  it. The carer's own move counts as made only at the next version, by them, with their
+  reason; a task nobody closed gets the move once more; otherwise the words say what
+  happened (done, not done, cancelled, changed).
+- Clinical M3: a move kept without its person is named by the person in the move and shows
+  on their screen; a move put back on its task's row after a session ended is sent.
+- Item 8: the move does not send its time of care (#41 closed); the completion is recorded
+  when the move arrives, and the device time stays on the phone (H-309).
+- A move whose follow-up check keeps failing is parked after 5 failed reads or 30 minutes,
+  with its data and words saying it could not be checked, so care entries behind it upload.
+- HZ-006 and HZ-029 rows; a STATUS follow-up that round refusals do not ask for a server
+  copy.
+
+**Tests**: `apps/mobile` 977, `packages/i18n` 48, passing locally; typecheck clean for
+mobile.
+
+## 2026-10-13: The round and the handover on the phone, uploading, review round 2 (#37)
+
+- Medium: a move refused with a 409 is never sent again, even to a task still open, because a
+  task's version also moves when more is added to it (a review task's entries), so a stale
+  "done" could close what the nurse never saw. The words are true of the task: still open, it
+  changed after you marked it (`task_changed`); done or not done by someone else, or cancelled,
+  what happened; in your name but not as this move, it could not be checked; not in the list, it
+  could not be found (`task_not_found`). The lost-reply check stays. H-310 and a STATUS
+  follow-up for a content version that would make a resend safe; H-305 updated.
+- N1: only reads the server refused count towards the cap; no network, a timeout or a 5xx keeps
+  the move queued however long it lasts (tested with the real backoff).
+- Lows: a move that cannot be sent is kept under its own id and tenant when they can be read
+  (STATUS says why not otherwise); the cap's count is cleared when the session ends.
+
+**Tests**: `apps/mobile` 981, `packages/i18n` 48, passing locally; typecheck clean for mobile.
+
+## 2026-10-13: The round and the handover on the phone, uploading, confirmation check (#37)
+
+- A 5xx or 429 on the task read starts the 30-minute clock without counting towards the 5
+  reads, so a fault in that one route parks the move after 30 minutes and the entries behind it
+  upload, while a short outage parks nothing. A 401 on any upload ends the session through the
+  same path, clearing the check counts.
+- STATUS: screens gate item (g), the needs-attention screen with or before the round screen;
+  follow-ups for an unchecked 403 on the task read, the `task_unchecked` wording for a closed
+  task, and the alert-fatigue risk with no resend.
+
+**Tests**: `apps/mobile` 984, passing locally; typecheck clean for mobile.
 
 ## 2026-10-13: The consent, capacity and DoLS tab, part 2 (slice 9, Lane B)
 

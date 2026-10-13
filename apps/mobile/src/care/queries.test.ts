@@ -188,6 +188,41 @@ describe("hazard HZ-006 refused uploads on the device", () => {
     expect(all(db, UPLOAD_ISSUES_SQL, [DEMO_TENANT_ID])).toEqual([]);
   });
 
+  it("hazard HZ-006 names the person a task's move is about when it was kept without them (#37 review round 1, M3)", () => {
+    const insert = db.prepare(
+      "INSERT INTO upload_issue (id, tenant_id, person_id, record_table, code, message, payload, rejected_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    );
+    const move = JSON.stringify({ id: "move-1", to: "done", personId: BEA, title: "Reposition" });
+    insert.run(
+      "move-1",
+      DEMO_TENANT_ID,
+      null,
+      "task",
+      "held_not_restored",
+      "Not restored",
+      JSON.stringify({ status: "done", queued_transition: move, task_id: "task-1" }),
+      "2026-10-11T12:00:00Z",
+    );
+    // A payload that is not JSON names no one and never stops the list.
+    insert.run(
+      "move-2",
+      DEMO_TENANT_ID,
+      null,
+      "task",
+      "round_change_unreadable",
+      "Unreadable",
+      "{not json",
+      "2026-10-11T11:00:00Z",
+    );
+    const rows = all<UploadIssueRow>(db, UPLOAD_ISSUES_SQL, [DEMO_TENANT_ID]);
+    expect(rows.map((r) => [r.id, r.person_id, r.preferred_name])).toEqual([
+      ["move-1", BEA, "Bea"],
+      ["move-2", null, null],
+    ]);
+    db.prepare(DELETE_UPLOAD_ISSUE_SQL).run(DEMO_TENANT_ID, "move-1");
+    db.prepare(DELETE_UPLOAD_ISSUE_SQL).run(DEMO_TENANT_ID, "move-2");
+  });
+
   it("hazard HZ-006 shows and removes a refusal recorded without a tenant (S7)", () => {
     db.prepare(
       "INSERT INTO upload_issue (id, tenant_id, person_id, record_table, code, message, payload, rejected_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
