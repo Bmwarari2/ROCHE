@@ -1337,7 +1337,9 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   have no data (the screen says what the phone holds, from when, and that it may be incomplete;
   HZ-028); and (e) the phone can say "the outgoing handover is not compiled yet" or "not final",
   which needs the shift pattern or the expected shift on the device, decided in the screens PR
-  (#33 review round 2; H-303).
+  (#33 review round 2; H-303); and (f) a task whose evidence entry is saved on the phone shows
+  "evidence recorded, waiting to upload" until the entry uploads, so it is not recorded twice
+  (#36 review round 1, clinical M3; HZ-029).
 - **The round and the handover: writing offline (slice 10 part 2, second PR; no screen yet).**
   `apps/mobile/src/care/round-actions.ts` checks a task's move with the API's own rules
   (`checkTaskTransition`: done, or not done with a reason of 3 to 500 characters; a task that
@@ -1348,9 +1350,18 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   acknowledgement is a new `handover_acknowledgement` row with its own UUIDv7, the location (for
   the route) and the seen token worked out over the keys of the items shown, in their compiled
   order, exactly as the API does (SHA-256, base64url, 43 characters). Hooks for the screens:
-  `useMoveTask`, `useAcknowledgeHandover`. Until the upload (the third PR) lands, the connector
-  sends neither to its route: one queued in between goes to `POST /v1/sync/upload`, which
-  refuses it, and stays as needs attention.
+  `useMoveTask`, `useAcknowledgeHandover`. A move is offered only where the server would take it,
+  failing closed (#36 review round 1, M1): a task given to the user, or a task about a person
+  that names `care.note.write` where the write scope lets the phone record about them
+  (`mayRecordFor`); never while the member (`tenantUserId`) or the write scope is unknown, never a
+  task naming another permission. One acknowledgement per handover and member waits at a time
+  (a second tap writes nothing). A move or acknowledgement held when a session ends goes back
+  into the queue for its owner after sign-in, exactly as entries do (a held move under its own
+  id, putting its task's row back with the move), and is never sent by another member in a
+  hand-over: it stays for review (clinical M1). A task that needs evidence says the entry
+  completes it when it uploads (clinical M3). Until the upload (the third PR) lands, the
+  connector sends neither to its route: one queued in between goes to `POST /v1/sync/upload`,
+  which refuses it, and stays as needs attention.
 - **API follow-ups**: the revocation signal, the manager hand-over and the server copy of refused
   entries are built (Device integrity, above), and so, with the care API follow-ups, are keeping an
   IDDSI entry from a device with a flag and an alert to the nurse in charge instead of refusing it

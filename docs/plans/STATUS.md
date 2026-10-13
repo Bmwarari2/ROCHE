@@ -235,7 +235,9 @@ only when they link spec, code, tests and user documentation; no user guides exi
       on the phone never reads as "nothing due" when the streams have no data; (e) the phone can
       say "the outgoing handover is not compiled yet" or "not final", which needs the shift
       pattern or the expected shift on the device, decided in the screens PR (#33 review round 2;
-      H-303).
+      H-303); (f) a task whose evidence entry is saved on the phone shows "evidence recorded,
+      waiting to upload" until it uploads, so it is not recorded twice (#36 review round 1,
+      clinical M3; HZ-029).
     - Follow-up: whether the round on the phone should also hold unfinished tasks due before the
       window (H-301).
     - Follow-up (#33 review round 1): the streams ignore `person_assignment.valid_from`, so a
@@ -258,6 +260,17 @@ only when they link spec, code, tests and user documentation; no user guides exi
       including `details` and `status_reason`, which no stream sends; a publication column list
       (Postgres 15 and later) would keep them out of PowerSync's storage. A forward migration
       that sets the list must keep every column a stream reads.
+    - Follow-up (#36 review round 1): the seen token trusts the `shown` list it is given; the
+      handover screen must pass only the items it rendered, with a test.
+    - Follow-up (#36 review round 1): the HZ-018 seen-token test compares the phone's token with
+      a copy of the API's code; test `platform/digest.ts` and the API's own function instead.
+    - Follow-up (#36 review round 1): `handover_acknowledgement.acknowledged_at` holds the device
+      time on an acknowledgement made on the phone, until the server's copy replaces it, where
+      data standards say server time; record it apart or say so in the screen.
+    - Follow-up (#36 review round 1): `writeTaskMove` throws `TaskMoveNotWritten`; return it as
+      a result, as `writeAcknowledgement` does.
+    - Follow-up (#36 review round 1): on #36 alone a queued move goes to `POST /v1/sync/upload`
+      with every column it carries (data minimisation); gone once the upload (#37) lands.
 
 ## Human actions outstanding
 
