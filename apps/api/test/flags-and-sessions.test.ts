@@ -38,16 +38,19 @@ describe("flags through the OpenFeature provider (PLAT-003)", () => {
     await asTenant(
       "INSERT INTO feature_flag (flag_key, enabled, deleted_at) VALUES ('module.finance', true, now())",
     );
-    const before = (await (await me({ token: h.tokens.carer ?? "" })).json()) as {
-      flags: Record<string, boolean>;
-    };
-    expect(before.flags["module.finance"]).toBe(false);
-    expect(before.flags["module.ai"]).toBe(false);
-    await asTenant("UPDATE feature_flag SET deleted_at = NULL WHERE flag_key = 'module.finance'");
-    const after = (await (await me({ token: h.tokens.carer ?? "" })).json()) as {
-      flags: Record<string, boolean>;
-    };
-    expect(after.flags["module.finance"]).toBe(true);
-    await asTenant("DELETE FROM feature_flag WHERE flag_key = 'module.finance'");
+    try {
+      const before = (await (await me({ token: h.tokens.carer ?? "" })).json()) as {
+        flags: Record<string, boolean>;
+      };
+      expect(before.flags["module.finance"]).toBe(false);
+      expect(before.flags["module.ai"]).toBe(false);
+      await asTenant("UPDATE feature_flag SET deleted_at = NULL WHERE flag_key = 'module.finance'");
+      const after = (await (await me({ token: h.tokens.carer ?? "" })).json()) as {
+        flags: Record<string, boolean>;
+      };
+      expect(after.flags["module.finance"]).toBe(true);
+    } finally {
+      await asTenant("DELETE FROM feature_flag WHERE flag_key = 'module.finance'");
+    }
   });
 });

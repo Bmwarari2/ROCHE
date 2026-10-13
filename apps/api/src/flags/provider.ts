@@ -103,7 +103,8 @@ export const FLAG_DOMAIN = "harbour";
 
 /**
  * Registers the provider (with Flagsmith only when its key is set) and returns the evaluator.
- * When the provider fails, the client answers the catalogue default with AI off.
+ * When the provider fails, the client answers the organisation's own rows, then the catalogue
+ * default with AI off (`resolveFlag` without Flagsmith; #39 review L1).
  */
 export function createFlagService(
   config: Config,
@@ -136,7 +137,9 @@ export function createFlagService(
         })),
       };
       const values = await Promise.all(
-        keys.map((key) => client.getBooleanValue(key, resolveFlag(key, [], null).enabled, context)),
+        keys.map((key) =>
+          client.getBooleanValue(key, resolveFlag(key, overrides, locationId).enabled, context),
+        ),
       );
       return Object.fromEntries(keys.map((key, i) => [key, values[i] === true])) as Record<
         FlagKey,
