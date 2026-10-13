@@ -1,18 +1,23 @@
-import { DEVICE_HEADER } from "@harbour/contracts";
+import { DEVICE_HEADER, TENANT_HEADER } from "@harbour/contracts";
 import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createApp } from "../src/app";
+import { loadConfig } from "../src/config";
+import { createLogger } from "../src/logger";
 import { createHarness, type Harness, LODGE, OTHER, PASSWORD } from "./support/harness";
 
 /**
  * PLAT-003 and PLAT-004 follow-ups: `/v1/me` evaluates flags through the OpenFeature provider;
- * browser sessions are signed out after their role's idle timeout from the rate table, mobile
- * sessions never (HZ-110); a manager signs a member of staff out of every device.
+ * browser sessions are signed out after their role's idle timeout from the rate table, only when
+ * the environment turns it on (HZ-111), mobile sessions never (HZ-110); a manager signs a member
+ * of staff out of every device.
  */
 
 let h: Harness;
 
 beforeAll(async () => {
-  h = await createHarness();
+  // The idle timeout is off by default (HZ-111); these tests turn it on to prove it.
+  h = await createHarness({ SESSION_IDLE_TIMEOUT: "on" });
 }, 120_000);
 
 afterAll(async () => {
@@ -103,7 +108,34 @@ describe("flags through the OpenFeature provider (PLAT-003)", () => {
   });
 });
 
-describe("hazard HZ-110 idle timeouts per role (section 5.3)", () => {
+describe("hazard HZ-111 the idle timeout is off unless the environment turns it on", () => {
+  it("never signs out an idle browser session with the default configuration", async () => {
+    const off = createApp(
+      loadConfig({
+        NODE_ENV: "test",
+        DATABASE_APP_URL: h.db.url("harbour_app"),
+        DATABASE_AUTH_URL: h.db.url("harbour_auth"),
+        DATABASE_OPERATOR_URL: h.db.url("harbour_operator"),
+        LOG_LEVEL: "silent",
+      }),
+      createLogger("silent"),
+    );
+    try {
+      expect(off.services.config.SESSION_IDLE_TIMEOUT).toBe("off");
+      const carer = await browserSignIn("carer");
+      await idleFor(carer.token, 6 * 60);
+      const response = await off.app.request("/v1/me", {
+        headers: { cookie: carer.cookie, [TENANT_HEADER]: DEMO.tenantId },
+      });
+      expect(response.status).toBe(200);
+      expect(await sessionExists(carer.token)).toBe(true);
+    } finally {
+      await off.close();
+    }
+  });
+});
+
+describe("hazard HZ-110 hazard HZ-111 idle timeouts per role, when turned on (section 5.3)", () => {
   it("signs out a browser session idle past its role's timeout, and audits it", async () => {
     const carer = await browserSignIn("carer");
     expect((await me(carer)).status).toBe(200);
@@ -181,7 +213,7 @@ describe("hazard HZ-110 idle timeouts per role (section 5.3)", () => {
   });
 });
 
-describe("a manager signs a member of staff out of every device", () => {
+describe("hazard HZ-110 a manager signs a member of staff out of every device", () => {
   const revoke = (token: string, member: string, body: Record<string, unknown> = {}) =>
     h.request(`/v1/members/${member}/sessions/revoke`, {
       method: "POST",
@@ -189,8 +221,14 @@ describe("a manager signs a member of staff out of every device", () => {
       tenant: DEMO.tenantId,
       body: { reasonCode: "lost_or_stolen_device", ...body },
     });
+  const refusals = (reason: string, member: string) =>
+    asTenant(
+      `SELECT 1 FROM audit_event WHERE action = 'platform.session.revoked_for_member'
+       AND outcome = 'denied' AND reason = $1 AND resource_id = $2`,
+      [reason, member],
+    );
 
-  it("needs platform.user.manage and a fresh sign-in", async () => {
+  it("hazard HZ-110 needs platform.user.manage and a fresh sign-in", async () => {
     expect((await revoke(h.tokens.carer ?? "", DEMO.users.nurse.id)).status).toBe(403);
     const manager = await browserSignIn("manager");
     await auth().query(
@@ -207,17 +245,37 @@ describe("a manager signs a member of staff out of every device", () => {
     expect(refused).toHaveLength(1);
   });
 
-  it("reaches only members wholly at the manager's homes", async () => {
+  it("hazard HZ-110 reaches only members wholly at the manager's homes, and audits a refusal", async () => {
     const manager = await browserSignIn("manager");
     for (const member of [DEMO.users.owner.id, LODGE.qualityLeadId, OTHER.managerId]) {
       expect((await revoke(manager.token, member)).status, member).toBe(404);
+      expect(await refusals("not_found_or_out_of_scope", member), member).toHaveLength(1);
     }
     // The owner reaches another organisation's member no more than the manager does.
     const owner = await browserSignIn("owner");
     expect((await revoke(owner.token, OTHER.managerId)).status).toBe(404);
   });
 
-  it("asks before signing out a member whose device holds entries, then signs out every session", async () => {
+  it("hazard HZ-110 never signs out someone who also works for another organisation", async () => {
+    // The agency worker belongs to the demo organisation and to Other Provider.
+    const [agency] = await asTenant(
+      "SELECT id, auth_user_id FROM tenant_user WHERE email = 'agency@example.invalid' AND tenant_id = $1",
+      [DEMO.tenantId],
+    );
+    const owner = await browserSignIn("owner");
+    const refused = await revoke(owner.token, agency?.id);
+    expect(refused.status).toBe(409);
+    const body = (await refused.json()) as { code: string; detail: string };
+    expect(body.code).toBe("member_of_other_organisation");
+    expect(body.detail).toContain("sign them out there too");
+    expect(await refusals("member_of_other_organisation", agency?.id)).toHaveLength(1);
+    const sessions = await auth().query("SELECT 1 FROM auth.session WHERE user_id = $1", [
+      agency?.auth_user_id,
+    ]);
+    expect(sessions.rowCount).toBeGreaterThan(0);
+  });
+
+  it("hazard HZ-110 asks before signing out a member whose phone holds entries, then signs out every session and chases the hold", async () => {
     const carer = await browserSignIn("carer");
     const device = "0199d000-0000-4000-8000-0000000d0001";
     const report = await h.request("/v1/sync/device-report", {
@@ -236,12 +294,20 @@ describe("a manager signs a member of staff out of every device", () => {
     });
     expect(report.status).toBeLessThan(300);
     const manager = await browserSignIn("manager");
-    const unconfirmed = await revoke(manager.token, DEMO.users.carer.id);
+    const leaving = { reasonCode: "staff_left" };
+    const unconfirmed = await revoke(manager.token, DEMO.users.carer.id, leaving);
     expect(unconfirmed.status).toBe(409);
-    expect(((await unconfirmed.json()) as { code: string }).code).toBe("entries_waiting");
+    const problem = (await unconfirmed.json()) as { code: string; detail: string };
+    expect(problem.code).toBe("entries_waiting");
+    expect(problem.detail).toContain("removes the care record from their phone");
+    expect(problem.detail).toContain("stay on the phone");
     expect(await sessionExists(carer.token)).toBe(true);
+    expect(await refusals("entries_waiting", DEMO.users.carer.id)).toHaveLength(1);
 
-    const done = await revoke(manager.token, DEMO.users.carer.id, { confirmEntriesWaiting: true });
+    const done = await revoke(manager.token, DEMO.users.carer.id, {
+      ...leaving,
+      confirmEntriesWaiting: true,
+    });
     expect(done.status).toBe(200);
     const result = (await done.json()) as { revoked: number; entriesWaiting: number };
     expect(result.revoked).toBeGreaterThanOrEqual(2);
@@ -256,13 +322,23 @@ describe("a manager signs a member of staff out of every device", () => {
       {
         actor_tenant_user_id: DEMO.users.manager.id,
         resource_id: DEMO.users.carer.id,
-        reason: "lost_or_stolen_device",
+        reason: "staff_left",
         scope: {
-          reasonCode: "lost_or_stolen_device",
-          revoked: result.revoked,
+          reasonCode: "staff_left",
+          sessions: result.revoked,
           entriesWaiting: result.entriesWaiting,
         },
       },
+    ]);
+    // Someone who has left will not sign in to send them: the hold is chased, as after a
+    // revocation, and the manager is told.
+    const notices = await asTenant(
+      `SELECT title FROM notification WHERE kind = 'sync.revoked_device_waiting'
+       AND recipient_tenant_user_id = $1 AND source_id = $2`,
+      [DEMO.users.manager.id, device],
+    );
+    expect(notices).toEqual([
+      { title: "A device of someone you signed out still holds unsent care entries" },
     ]);
   });
 });

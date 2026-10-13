@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { RateNotFoundError, type RateRow } from "./rates";
-import { activityDue, IDLE_TIMEOUT_RATE_KEY, idleExpired, idleTimeoutMinutes } from "./sessions";
+import type { RateRow } from "./rates";
+import {
+  activityDue,
+  IDLE_TIMEOUT_CEILING_KEY,
+  IDLE_TIMEOUT_FLOOR_KEY,
+  IDLE_TIMEOUT_RATE_KEY,
+  idleExpired,
+  idleTimeoutMinutes,
+} from "./sessions";
 
 const TENANT = "tenant-a";
 const ON = "2026-10-13";
@@ -50,18 +57,49 @@ describe("idle timeout per role (section 5.3)", () => {
     expect(idleTimeoutMinutes(rows, roles, TENANT, ON)).toBe(expected);
   });
 
-  it("fails loudly without the default row", () => {
-    expect(() =>
-      idleTimeoutMinutes([row(`${KEY}.owner`, 15)], ["care_worker"], TENANT, ON),
-    ).toThrow(RateNotFoundError);
-    expect(() => idleTimeoutMinutes([], [], TENANT, ON)).toThrow(RateNotFoundError);
-  });
-
-  it.each([0, -5, Number.NaN])("refuses a figure of %s minutes", (value) => {
-    expect(() => idleTimeoutMinutes([row(KEY, value)], [], TENANT, ON)).toThrow(RangeError);
-    expect(() =>
-      idleTimeoutMinutes([row(KEY, 30), row(`${KEY}.owner`, value)], ["owner"], TENANT, ON),
-    ).toThrow(RangeError);
+  // #40 review: a missing or invalid figure never refuses a request.
+  it.each([
+    ["no default and no role row: not enforced", [row(`${KEY}.owner`, 15)], ["care_worker"], null],
+    ["no rows at all: not enforced", [], [], null],
+    ["a zero role figure takes the default", [row(KEY, 30), row(`${KEY}.owner`, 0)], ["owner"], 30],
+    [
+      "a negative role figure takes the default",
+      [row(KEY, 30), row(`${KEY}.owner`, -5)],
+      ["owner"],
+      30,
+    ],
+    [
+      "a role figure that is not a number takes the default",
+      [row(KEY, 30), row(`${KEY}.owner`, Number.NaN)],
+      ["owner"],
+      30,
+    ],
+    ["a zero default with no role row: not enforced", [row(KEY, 0)], ["care_worker"], null],
+    [
+      "a figure under the floor is raised to it",
+      [row(KEY, 30), row(`${KEY}.owner`, 1), row(IDLE_TIMEOUT_FLOOR_KEY, 5)],
+      ["owner"],
+      5,
+    ],
+    [
+      "a figure over the ceiling is lowered to it",
+      [row(KEY, 2000), row(IDLE_TIMEOUT_CEILING_KEY, 720)],
+      ["care_worker"],
+      720,
+    ],
+    [
+      "an organisation's figure is kept within the floor and ceiling",
+      [
+        row(KEY, 30),
+        row(KEY, 2, TENANT),
+        row(IDLE_TIMEOUT_FLOOR_KEY, 5),
+        row(IDLE_TIMEOUT_CEILING_KEY, 720),
+      ],
+      ["care_worker"],
+      5,
+    ],
+  ] as const)("%s", (_name, rows, roles, expected) => {
+    expect(idleTimeoutMinutes(rows, roles, TENANT, ON)).toBe(expected);
   });
 });
 

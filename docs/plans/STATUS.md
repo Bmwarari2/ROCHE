@@ -260,13 +260,23 @@ only when they link spec, code, tests and user documentation; no user guides exi
     #39 review round 1: an AI flag is recognised only by its `ai: true` marker (consider deriving
     it from a category of flag); the OpenFeature provider is global and set by each `createApp`,
     so in one process the last app created wins.
-17. Session follow-ups (feat/platform-session-controls; PLAT-004, HZ-110): the person record's
-    header refreshes itself every 2 minutes while visible (`HeaderFreshness`), so an open record
-    keeps a browser session from timing out: mark those refreshes as background and count only
-    requests a person made; the sign-in page should say the person was signed out after a period
-    of inactivity (the 401 carries it as its title); the admin sign-out screen in staff management
-    (with the member's devices). The admin sign-out deletes the sessions before writing its audit
-    row (two pools), so a failed audit write leaves a 500 with the sessions already ended.
+17. Session follow-ups (feat/platform-session-controls; PLAT-004, HZ-110, HZ-111): the browser
+    idle timeout ships **off** (`SESSION_IDLE_TIMEOUT`; production refuses it); the PR that turns
+    it on must close every prerequisite in platform.md (Identity): HZ-111's warning with "Stay
+    signed in" and signing in again without losing the form, Better Auth's `get-session` refresh
+    resetting idle, sessions marked web or mobile at sign-in instead of by a request header, the
+    strictest timeout across the sign-in's memberships, background reads (the 2-minute header
+    refresh, which also keeps a shared ward PC signed in as the last user) not counting as use,
+    global role rows beating an organisation's stricter default, acting-up grants adding no role
+    keys, idle sessions still working on the identity-level routes and `/api/auth/*`, and use
+    recorded before authorisation; the CSO and DPO decide the figures and when (H-353). Also from
+    #40 review round 1: timeout rates are looked up by UTC date with the nation fixed to England;
+    the 15-minute owner timeout against drafting a statutory notification; the `entries_waiting`
+    confirmation should say how old the devices' last report is; check the NIST figures in
+    rates.md against the current SP 800-63B revision; tenant-scoped sessions, so a member who works
+    for two organisations can be signed out of one (H-354). Still to build: the sign-in page saying
+    the person was signed out after a period of inactivity, and the admin sign-out screen in staff
+    management (with the member's devices).
 
 ## Human actions outstanding
 

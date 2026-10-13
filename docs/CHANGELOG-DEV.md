@@ -1264,3 +1264,16 @@ locally; typecheck clean for db, sync and mobile.
 - Hazard HZ-110; human actions H-350 and H-351. Tests: `sessions.test.ts` (domain, table-driven)
   and `apps/api/test/flags-and-sessions.test.ts`; the API suite passes.
 
+## 2026-10-13: #40 review round 1 (Lane D)
+
+- The browser idle timeout ships off (`SESSION_IDLE_TIMEOUT`, refused in production) because
+  signing out mid-entry loses the form: new hazard HZ-111 with its planned controls, and H-353 for
+  the CSO and DPO; the security review's bypasses are listed in platform.md as prerequisites for
+  turning it on. A missing or invalid timeout figure falls back to the default and is kept between
+  a floor and a ceiling (rate table), never a 500.
+- The admin sign-out refuses a member who also works for another organisation (409, H-354),
+  writes its audit row before ending the sessions and audits every refusal by opaque id, says that
+  the phone loses its care record until the member signs in again, and for `staff_left` or
+  `suspended` chases the holds on their devices as a revocation does. HZ-110 claims only what is
+  built.
+

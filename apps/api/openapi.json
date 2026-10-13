@@ -18418,7 +18418,7 @@
           "platform"
         ],
         "summary": "Sign a member of staff out of every device",
-        "description": "Ends every session of the member's identity, on every device and in every organisation they belong to (platform.user.manage, step-up), with a coded reason, audited. A location role reaches only members whose roles and grants in force are all at its locations; anyone else reads as not found. When the member's devices last reported entries waiting, the sign-out needs confirmEntriesWaiting (409 entries_waiting otherwise): the entries stay on the device, protected, until the member signs in again to send them.",
+        "description": "Ends every session of the member's sign-in, on every device (platform.user.manage, step-up), with a coded reason, audited before the sessions end. A location role reaches only members whose roles and grants in force are all at its locations; anyone else reads as not found (audited by opaque id). A member who also works for another organisation in Harbour is not signed out (409 member_of_other_organisation). When the member's devices last reported entries waiting, the sign-out needs confirmEntriesWaiting (409 entries_waiting otherwise): signing out removes the care record from their phone until they sign in again, and the entries not yet sent stay on it until then. For staff_left or suspended, the holds on those devices fall due at once, as after a device revocation.",
         "security": [
           {
             "bearerAuth": []

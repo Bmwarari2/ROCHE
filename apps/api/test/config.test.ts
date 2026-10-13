@@ -36,6 +36,7 @@ describe("loadConfig", () => {
   it.each([
     ["local document storage", { DOCUMENT_STORAGE: "local" }, "DOCUMENT_STORAGE"],
     ["the mock malware scanner", { MALWARE_SCANNER: "mock" }, "MALWARE_SCANNER"],
+    ["the browser idle timeout (HZ-111)", { SESSION_IDLE_TIMEOUT: "on" }, "SESSION_IDLE_TIMEOUT"],
     [
       "a Flagsmith key with no address",
       { FLAGSMITH_ENVIRONMENT_KEY: "ser.x" },

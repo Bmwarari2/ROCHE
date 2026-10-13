@@ -17,7 +17,7 @@ import {
   can,
   type DocumentStoragePort,
   type EffectiveAccess,
-  IDLE_TIMEOUT_RATE_KEY,
+  IDLE_TIMEOUT_KEY_PREFIX,
   idleExpired,
   idleTimeoutMinutes,
   type MalwareScanPort,
@@ -240,7 +240,7 @@ async function loadAccess(
           await tx
             .select()
             .from(rateTable)
-            .where(like(rateTable.key, `${IDLE_TIMEOUT_RATE_KEY}%`)),
+            .where(like(rateTable.key, `${IDLE_TIMEOUT_KEY_PREFIX}%`)),
           [...effective.roleKeys],
           tenantId,
           now.toISOString().slice(0, 10),
@@ -267,19 +267,21 @@ function bearerRequest(c: Context): boolean {
 
 /**
  * Signs out a browser session idle past its member's timeout (section 5.3; ASVS 5.0 V7.3): the
- * session is deleted, the sign-out audited, and the request refused as unauthenticated.
+ * sign-out is audited, the session deleted, and the request refused as unauthenticated. The audit
+ * row is written first: it and the session live under different database roles, so one
+ * transaction cannot hold both (#40 review).
  */
 async function endIdleSession(c: Context<AppEnv>, access: TenantAccess, minutes: number) {
   const services = c.get("services");
-  await drizzle(services.authPool)
-    .delete(authSession)
-    .where(eq(authSession.id, access.session.sessionId));
   await writeAudit(services.appPool, access, {
     action: "platform.session.idle_timeout",
     resourceType: "session",
     scope: { idleTimeoutMinutes: minutes },
     requestId: c.get("requestId"),
   });
+  await drizzle(services.authPool)
+    .delete(authSession)
+    .where(eq(authSession.id, access.session.sessionId));
   return new HttpProblem(
     401,
     "unauthenticated",
@@ -334,7 +336,8 @@ export const tenantMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
 
   const now = new Date();
   const deviceId = deviceIdOf(c.req.header(DEVICE_HEADER));
-  const browser = !bearerRequest(c);
+  // The idle timeout is off unless the environment turns it on (HZ-111, H-353).
+  const browser = services.config.SESSION_IDLE_TIMEOUT === "on" && !bearerRequest(c);
   const { effective, mfaRequired, onRevokedDevice, sessionBound, idleMinutes } = await loadAccess(
     services.db,
     membership.tenantId,
