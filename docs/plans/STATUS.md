@@ -182,6 +182,10 @@ only when they link spec, code, tests and user documentation; no user guides exi
        the check counts every entry);
      - the guard trusts the entry's `location_id`; nothing checks it is the person's location
        (an existing gap).
+   - Follow-ups from #38 review round 2:
+     - `sync.clock_drift_flag_minutes` is read with the organisation's own override first, and
+       any member can write `rate_table` (the existing gap), so an override could stretch an open
+       outage's window.
    - Slice 11 part 3a-1, downtime pack API (`feat/operations-downtime-pack-read`, stacked on
      part 2; operations.md section 13): built, PR to follow part 2. Then part 3a-2, the printed
      pack (`feat/operations-downtime-pack-api`), part 3b, the nightly job, rebuilds after moves
