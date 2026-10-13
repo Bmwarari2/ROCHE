@@ -7,7 +7,8 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    // Component tests (.tsx) choose jsdom per file with a `@vitest-environment` comment.
+    include: ["src/**/*.test.{ts,tsx}"],
     passWithNoTests: false,
   },
 });

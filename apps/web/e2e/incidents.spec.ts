@@ -46,7 +46,10 @@ async function as(context: BrowserContext, user: string) {
 interface Incident {
   readonly id: string;
   readonly version: number;
-  readonly classifier: { readonly openQuestions: readonly { key: string; kind: string }[] } | null;
+  readonly classifier: {
+    readonly openQuestions: readonly { key: string; kind: string }[];
+    readonly notifications: readonly { id: string; kind: string; version: number }[];
+  } | null;
 }
 
 async function call<T = Incident>(
@@ -204,15 +207,27 @@ test("hazard HZ-013 the nurse finds an incident and reads its notifications, eve
   await expect(
     notifications.getByText(/questions? to answer before Harbour can say which notifications/),
   ).toBeVisible();
+  // The nurse answers the questions (safety.incident.manage): the page says they are not here yet.
+  await expect(notifications.getByText(/^The questions are not on this page yet\./)).toBeVisible();
   const police = notifications.locator('[data-notification="cqc_reg18_police"]');
   await expect(
     police.getByRole("heading", { name: "Incident reported to or investigated by the police" }),
   ).toBeVisible();
-  await expect(police.getByText("Overdue", { exact: true })).toBeVisible();
+  await expect(police.getByText(/^Overdue for \d+ (minute|minutes|hour|hours)$/)).toBeVisible();
   await expect(police.getByText("Draft", { exact: true })).toBeVisible();
-  await expect(police.locator("time")).toHaveText(/^Due by \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/);
+  // Without delay: the clock started when it happened, in a time element a machine can read.
+  const started = police.locator("time");
+  await expect(started).toHaveText(
+    /^Without delay: the clock started \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/,
+  );
+  expect(Date.parse((await started.getAttribute("datetime")) ?? "")).toBe(Date.parse(at(-45)));
   await expect(police.getByText("To the Care Quality Commission")).toBeVisible();
-  await expect(police.getByText("Provisional: it rests on an answer of not sure")).toBeVisible();
+  await expect(police.getByText(/^Provisional: it rests on an answer of not sure\./)).toBeVisible();
+  // The overdue notification is named at the top of the page and opens the section.
+  const overdue = page.getByRole("link", { name: /statutory notifications? overdue: go to/ });
+  await expect(overdue).toBeVisible();
+  await overdue.click();
+  await expect(page).toHaveURL(/#notifications$/);
   await expectAccessible(page, "incident");
 
   // A later "no" leaves the draft in place, flagged, until someone decides it is not required.
@@ -224,12 +239,64 @@ test("hazard HZ-013 the nurse finds an incident and reads its notifications, eve
   );
   await page.reload();
   await expect(police.getByText(/^The answers no longer show this is needed/)).toBeVisible();
-  await expect(police.getByText("Provisional: it rests on an answer of not sure")).toHaveCount(0);
+  await expect(police.getByText(/^Provisional:/)).toHaveCount(0);
   await expectAccessible(page, "incident with a draft no longer indicated");
   await page.emulateMedia({ colorScheme: "dark" });
   await expectAccessible(page, "incident, dark theme");
   await page.goto("/incidents");
   await expectAccessible(page, "incidents list, dark theme");
+  await page.emulateMedia({ colorScheme: "light" });
+
+  // The closed incident, every question answered "no": none found, said only now.
+  await page.goto(`/incidents/${toClose.id}`);
+  await expect(page.getByText("Closed", { exact: true }).first()).toBeVisible();
+  await expect(
+    section(page, "Statutory notifications").getByText(
+      "Harbour found no statutory notification to make on what is recorded so far",
+    ),
+  ).toBeVisible();
+  await expectAccessible(page, "closed incident");
+});
+
+test("hazard HZ-013 a safeguarding concern: a Harbour target, made as soon as possible, ready to submit", async ({
+  page,
+  context,
+}) => {
+  await as(context, "nurse");
+  const incident = await recordIncident(page.request, {
+    type: "safeguarding_concern",
+    occurredAt: at(-90),
+    description: `Bruising on her arm she could not explain (${RUN}).`,
+    people: [{ kind: "service_user", role: "affected", personId: demoPerson(3) }],
+    answers: [{ key: "safeguarding.concern", value: "yes" }],
+  });
+  const s42 = incident.classifier?.notifications.find((n) => n.kind === "safeguarding_s42");
+  expect(s42, "a safeguarding concern draft").toBeDefined();
+  await call(
+    page.request,
+    `/v1/notifications/statutory/${s42?.id}/prepare`,
+    { content: {}, ready: true, version: s42?.version },
+    200,
+  );
+
+  await page.goto(`/incidents/${incident.id}`);
+  const notifications = section(page, "Statutory notifications");
+  const concern = notifications.locator('[data-notification="safeguarding_s42"]');
+  await expect(concern.getByText("Ready to submit", { exact: true })).toBeVisible();
+  await expect(concern.getByText(/^Overdue for \d+ (hour|hours)$/)).toBeVisible();
+  await expect(
+    concern.getByText(
+      "This time is Harbour's target, not a legal deadline: make it as soon as possible all the same.",
+    ),
+  ).toBeVisible();
+  await expect(
+    notifications.locator('[data-notification="cqc_reg18_abuse"]').getByText("Draft", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expectAccessible(page, "incident with a safeguarding concern");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expectAccessible(page, "incident with a safeguarding concern, dark theme");
   await page.emulateMedia({ colorScheme: "light" });
 });
 

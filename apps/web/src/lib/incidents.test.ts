@@ -12,10 +12,14 @@ import {
   incidentsToList,
   incidentTitle,
   notificationClockChip,
+  notificationDueLines,
   notificationKindLabel,
+  notificationStatusChip,
+  notificationSubjects,
   notificationsInOrder,
   notificationsView,
   notificationWarnings,
+  overdueCount,
 } from "./incidents";
 
 const t = createTranslator("en-GB");
@@ -159,8 +163,10 @@ describe("what the incident screens leave out, said in words (#42 review; HZ-013
 });
 
 describe("statutory notifications on an incident (safety.md section 4; HZ-013)", () => {
+  const NOW = new Date("2026-10-12T16:05:00Z");
   const draft = (over: Partial<StatutoryNotificationSummary> = {}) =>
     ({
+      id: "n1",
       kind: "cqc_reg18_police",
       status: "draft",
       clock: "overdue",
@@ -168,23 +174,48 @@ describe("statutory notifications on an incident (safety.md section 4; HZ-013)",
       provisional: false,
       noLongerIndicated: false,
       statutory: true,
+      personId: null,
       ...over,
     }) as const;
+  const chip = (over: Partial<StatutoryNotificationSummary>) =>
+    notificationClockChip(draft(over) as never, NOW, t);
 
   it.each([
-    ["overdue", "draft", "overdue", "circle-alert", "Overdue"],
-    ["due", "ready", "due", "clock", "Due"],
-    ["done", "submitted", "done", "circle-check", "Submitted"],
-    ["done", "not_required", "done", "circle-check", "Not required"],
-    ["paused", "draft", "overdue", "triangle-alert", "Clock not known"],
+    ["overdue", "draft", "2026-10-12T13:05:00Z", "overdue", "circle-alert", "Overdue for 3 hours"],
+    ["overdue", "draft", "2026-10-09T13:05:00Z", "overdue", "circle-alert", "Overdue for 3 days"],
+    ["overdue", "draft", "2026-10-12T16:04:00Z", "overdue", "circle-alert", "Overdue for 1 minute"],
+    ["due", "ready", "2026-10-20T09:00:00Z", "due", "clock", "Due"],
+    ["done", "submitted", "2026-10-10T09:00:00Z", "done", "circle-check", "Submitted"],
+    [
+      "done",
+      "not_required",
+      "2026-10-10T09:00:00Z",
+      "notApplicable",
+      "circle-minus",
+      "Not required",
+    ],
+    ["done", "withdrawn", "2026-10-10T09:00:00Z", "overdue", "triangle-alert", "Status not known"],
+    ["paused", "draft", "2026-10-10T09:00:00Z", "overdue", "triangle-alert", "Clock not known"],
   ])(
-    "hazard HZ-013 shows the %s clock of a %s draft with an icon and a word; an unknown clock warns",
-    (clock, status, tone, icon, label) => {
-      expect(notificationClockChip({ clock, status } as never, t)).toEqual({
+    "hazard HZ-013 shows a %s clock on a %s notification due %s as an icon and a word",
+    (clock, status, dueAt, tone, icon, label) => {
+      expect(chip({ clock, status, dueAt } as never)).toEqual({ status: tone, icon, label });
+    },
+  );
+
+  it.each([
+    ["draft", "neutral", "file-pen", "Draft"],
+    ["ready", "info", "send", "Ready to submit"],
+    ["queued", "overdue", "triangle-alert", "Status not known"],
+  ])(
+    "hazard HZ-013 shows a %s notification still open as its own chip, never run on into the clock",
+    (status, tone, icon, label) => {
+      expect(notificationStatusChip(draft({ status } as never), t)).toEqual({
         status: tone,
         icon,
         label,
       });
+      expect(notificationStatusChip(draft({ status: "submitted", clock: "done" }), t)).toBeNull();
     },
   );
 
@@ -203,43 +234,168 @@ describe("statutory notifications on an incident (safety.md section 4; HZ-013)",
     ]);
   });
 
-  it("hazard HZ-013 warns on a provisional draft, one no longer indicated and a Harbour target", () => {
-    expect(notificationWarnings(draft(), t)).toEqual([]);
-    expect(notificationWarnings(draft({ provisional: true, statutory: false }), t)).toEqual([
-      "Provisional: it rests on an answer of not sure",
-      "This time is Harbour's target, not a legal deadline",
+  type Output = ClassifierView["outputs"][number];
+  const output = (over: Partial<Output>): Output => ({
+    kind: "cqc_reg18_police",
+    dueAt: "2026-10-12T13:05:00Z",
+    deadlines: [],
+    reasons: [],
+    provisional: false,
+    requiredContent: [],
+    ...over,
+  });
+
+  it("hazard HZ-013 says a without-delay notification's legal wording and when its clock started", () => {
+    const outputs = [
+      output({
+        deadlines: [
+          { key: "without_delay", dueAt: "2026-10-12T13:05:00Z", wording: "", statutory: true },
+        ],
+      }),
+    ];
+    expect(notificationDueLines(draft(), outputs, t)).toEqual([
+      {
+        text: "Without delay: the clock started 12/10/2026 14:05",
+        dateTime: "2026-10-12T13:05:00Z",
+      },
+    ]);
+  });
+
+  it("hazard HZ-013 shows RIDDOR's second deadline, and no deadline once a notification is done", () => {
+    const riddor = output({
+      kind: "riddor_specified_injury",
+      deadlines: [
+        {
+          key: "notify_without_delay",
+          dueAt: "2026-10-12T13:05:00Z",
+          wording: "",
+          statutory: true,
+        },
+        { key: "report_received", dueAt: "2026-10-22T13:05:00Z", wording: "", statutory: true },
+      ],
+    });
+    const item = draft({ kind: "riddor_specified_injury" });
+    expect(notificationDueLines(item, [riddor], t).map((line) => line.text)).toEqual([
+      "Tell the enforcing authority without delay: the clock started 12/10/2026 14:05",
+      "The report must be received by 22/10/2026 14:05",
+    ]);
+    expect(notificationDueLines({ ...item, clock: "done" }, [riddor], t)).toEqual([]);
+  });
+
+  it("hazard HZ-013 says Due by when the classifier gave no deadline, and warns when the time is unreadable", () => {
+    expect(notificationDueLines(draft({ clock: "due" }), [], t)).toEqual([
+      { text: "Due by 12/10/2026 14:05", dateTime: "2026-10-12T13:05:00Z" },
+    ]);
+    expect(notificationDueLines(draft({ dueAt: "not a time" }), [], t)).toEqual([
+      { text: "Due time not known", dateTime: null },
+    ]);
+  });
+
+  it("hazard HZ-009 tells the two 01:30s apart on the night the clocks go back", () => {
+    const lines = ["2026-10-25T00:30:00Z", "2026-10-25T01:30:00Z"].map(
+      (dueAt) => notificationDueLines(draft({ clock: "due", dueAt }), [], t)[0]?.text,
+    );
+    expect(lines[0]).not.toBe(lines[1]);
+    expect(lines).toEqual(["Due by 25/10/2026 01:30 BST", "Due by 25/10/2026 01:30 GMT"]);
+  });
+
+  it("hazard HZ-013 gives each warning on a draft still open its next step", () => {
+    expect(notificationWarnings(draft(), null, t)).toEqual([]);
+    expect(notificationWarnings(draft({ provisional: true }), null, t)).toEqual([
+      "Provisional: it rests on an answer of not sure. Someone who can submit notifications confirms it or marks it not required. If in doubt, notify.",
     ]);
     // The API keeps the draft provisional after a later "no"; it no longer rests on "not sure".
-    expect(notificationWarnings(draft({ provisional: true, noLongerIndicated: true }), t)).toEqual([
+    expect(
+      notificationWarnings(draft({ provisional: true, noLongerIndicated: true }), null, t),
+    ).toEqual([
       "The answers no longer show this is needed. Someone who can submit notifications must decide whether it is not required.",
     ]);
+    expect(
+      notificationWarnings(draft({ kind: "safeguarding_s42", statutory: false }), null, t),
+    ).toEqual([
+      "This time is Harbour's target, not a legal deadline: make it as soon as possible all the same.",
+    ]);
+    expect(notificationWarnings(draft({ kind: "leder", statutory: false }), null, t)).toEqual([
+      "This time is Harbour's target, not a legal deadline.",
+    ]);
+  });
+
+  it("hazard HZ-013 says a draft waiting for answers is waiting, without inviting a not-required decision", () => {
+    expect(notificationWarnings(draft({ noLongerIndicated: true }), 2, t)).toEqual([
+      "Waiting for the answers to 2 questions before Harbour can say whether this is still needed",
+    ]);
+  });
+
+  it("hazard HZ-013 puts no warnings on a notification that is finished", () => {
+    for (const status of ["submitted", "not_required"] as const) {
+      const done = draft({ status, clock: "done", provisional: true, noLongerIndicated: true });
+      expect(notificationWarnings({ ...done, statutory: false }, 1, t)).toEqual([]);
+    }
   });
 
   it("names every kind and its recipient in the catalogue, as the domain names them", () => {
     for (const kind of STATUTORY_NOTIFICATION_KINDS) {
       const info = NOTIFICATION_KINDS[kind];
-      expect(notificationKindLabel(kind, t), kind).toBe(info.label);
+      // RIDDOR's threshold comes from the rate table, never the words "seven days".
+      expect(notificationKindLabel(kind, t, 7), kind).toBe(info.label.replace("seven", "7"));
       expect(t("safety.notification.recipient", { kind }).toLowerCase(), kind).toContain(
         info.recipient.toLowerCase().replace(/^the /, ""),
       );
     }
+    expect(notificationKindLabel("riddor_over_7_day", t)).toBe(
+      "RIDDOR: worker unable to work for longer than the reporting threshold",
+    );
     expect(notificationKindLabel("cqc_reg99", t)).toBe(
       "Notification of a kind Harbour does not recognise",
     );
   });
 
+  it("hazard HZ-001 says who each notification about one person is about, and numbers those not shown", () => {
+    const names = new Map([[PERSON, "Cara Placeholder"]]);
+    const subjects = notificationSubjects(
+      [
+        draft({ id: "a", kind: "cqc_reg16_death", personId: PERSON }),
+        draft({ id: "b", kind: "leder", personId: "0194d000-0000-7000-8600-000000000005" }),
+        draft({
+          id: "c",
+          kind: "medical_examiner",
+          personId: "0194d000-0000-7000-8600-000000000006",
+        }),
+        draft({ id: "d", kind: "leder", personId: "0194d000-0000-7000-8600-000000000005" }),
+        draft({ id: "e" }),
+      ],
+      names,
+      t,
+    );
+    expect(Object.fromEntries(subjects)).toEqual({
+      a: "About Cara Placeholder",
+      b: "About a person we support (not shown to you), person 1",
+      c: "About a person we support (not shown to you), person 2",
+      d: "About a person we support (not shown to you), person 1",
+    });
+  });
+
   type View = Pick<
     ClassifierView,
-    "nationSupported" | "openQuestions" | "pending" | "notifications"
+    "nationSupported" | "openQuestions" | "pending" | "notifications" | "outputs" | "tasks"
   >;
   const view = (over: Partial<View> = {}): View => ({
     nationSupported: true,
     openQuestions: [],
     pending: [],
     notifications: [],
+    outputs: [],
+    tasks: [],
     ...over,
   });
   const question = { key: "police.involved" } as View["openQuestions"][number];
+  const task = (name: string): View["tasks"][number] => ({
+    task: name,
+    reason: "",
+    dueAt: "2026-10-20T13:05:00Z",
+    until: null,
+  });
+  const manager = { canSubmit: false, canManage: true };
 
   it.each<[string, View | null, string[], string[], string | null]>([
     ["not checked yet", null, ["Notifications not checked yet"], [], null],
@@ -260,7 +416,39 @@ describe("statutory notifications on an incident (safety.md section 4; HZ-013)",
       ["May be needed once they are answered: Incident reported to or investigated by the police"],
       null,
     ],
+    [
+      "a RIDDOR absence check",
+      view({ tasks: [task("riddor_absence_check")] }),
+      [],
+      [
+        "RIDDOR may be needed: check on 20/10/2026 14:05 whether the worker is still unable to do their normal work",
+      ],
+      null,
+    ],
+    [
+      "the safeguarding decision guide",
+      view({ tasks: [task("safeguarding_decision_guide")] }),
+      [],
+      [
+        "A safeguarding concern may be needed: complete the adult safeguarding decision guide by 20/10/2026 14:05",
+      ],
+      null,
+    ],
+    [
+      "an outbreak report drafted on its first incident",
+      view({ outputs: [output({ kind: "ukhsa_outbreak" })] }),
+      [],
+      ["Needed, and drafted on another record: Outbreak report to the health protection team"],
+      null,
+    ],
     ["drafts made", view({ notifications: [draft() as never] }), [], [], null],
+    [
+      "a care task only (the post-fall checklist)",
+      view({ tasks: [task("post_fall_observations")] }),
+      [],
+      [],
+      "Harbour found no statutory notification to make on what is recorded so far",
+    ],
     [
       "nothing open or drafted",
       view(),
@@ -269,30 +457,44 @@ describe("statutory notifications on an incident (safety.md section 4; HZ-013)",
       "Harbour found no statutory notification to make on what is recorded so far",
     ],
   ])(
-    "hazard HZ-013 never says none are needed while anything is open: %s",
-    (_, classifier, notices, pending, none) => {
-      const result = notificationsView(classifier, false, t);
+    "hazard HZ-013 never says none are needed while anything is open or waiting: %s",
+    (_, classifier, notices, waiting, none) => {
+      const result = notificationsView(classifier, manager, t);
       expect(result.notices.map((n) => n.title)).toEqual(notices);
       expect(result.notices.every((n) => n.body.length > 0)).toBe(true);
-      expect(result.pending).toEqual(pending);
+      expect(result.waiting.map((line) => line.text)).toEqual(waiting);
       expect(result.none).toBe(none);
     },
   );
 
-  it("tells a holder of safety.notification.submit to check, not to ask themselves", () => {
-    const hint = (classifier: View | null, canSubmit: boolean) =>
-      notificationsView(classifier, canSubmit, t).notices.map((n) => n.body);
-    expect(hint(null, false)).toEqual([
+  it("hazard HZ-013 words the hints for who can act: submitters check, managers answer, others tell", () => {
+    const hint = (classifier: View | null, access: { canSubmit: boolean; canManage: boolean }) =>
+      notificationsView(classifier, access, t).notices.map((n) => n.body);
+    expect(hint(null, { canSubmit: false, canManage: true })).toEqual([
       "Harbour has not yet checked which notifications this incident needs. Ask a nurse or the Registered Manager to check it.",
     ]);
-    expect(hint(null, true)).toEqual([
+    expect(hint(null, { canSubmit: true, canManage: true })).toEqual([
       "Harbour has not yet checked which notifications this incident needs. Until it has, check what the law needs for this incident yourself.",
     ]);
-    expect(hint(view({ openQuestions: [question] }), false)).toEqual([
-      "A nurse or the Registered Manager needs to answer them.",
+    const open = view({ openQuestions: [question] });
+    expect(hint(open, { canSubmit: true, canManage: false })).toEqual([
+      "The questions are not on this page yet. Tell the nurse in charge or the Registered Manager that this incident has questions to answer.",
     ]);
-    expect(hint(view({ openQuestions: [question] }), true)).toEqual([
-      "Until you can answer them on this page, check what the law needs for this incident yourself.",
+    expect(hint(open, { canSubmit: false, canManage: true })).toEqual([
+      "The questions are not on this page yet. Until they are, check what the law needs for this incident yourself.",
     ]);
+  });
+
+  it("hazard HZ-013 counts the overdue notifications for the chip at the top of the page", () => {
+    const notifications = [
+      draft(),
+      draft({ clock: "due" }),
+      draft({ clock: "overdue", id: "n2" }),
+    ] as never;
+    expect(overdueCount(view({ notifications }))).toBe(2);
+    expect(overdueCount(null)).toBe(0);
+    expect(t("safety.incident.overdueLink", { count: 2 })).toBe(
+      "2 statutory notifications overdue: go to them",
+    );
   });
 });
