@@ -170,6 +170,18 @@ only when they link spec, code, tests and user documentation; no user guides exi
    - Slice 11 part 2, back-entry columns (`feat/operations-back-entry-columns`, stacked on #32,
      migration 0053; operations.md section 12): built, PR to follow #32. Next, part 3: the API,
      nightly job and PDF, with the round 1 part 3 requirements.
+   - Follow-ups from #38 review round 1 (security and clinical):
+     - an entry takes the person's current location, so after a move the old home's outage
+       cannot be cited: a paper record about someone who has since moved cannot be entered;
+     - rule 13 (the normal route) depends on the API applying it on every care route and on the
+       sync upload (hazard HZ-017 and operations.md section 12);
+     - entries with `not_from_paper_reason` do not block cancelling, and are left pointing at a
+       cancelled outage;
+     - a failed outage correction tells a holder of `operations.downtime.manage` whether a
+       back-entry about someone outside their scope falls outside the new window (by design, so
+       the check counts every entry);
+     - the guard trusts the entry's `location_id`; nothing checks it is the person's location
+       (an existing gap).
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; admin session revoke and idle timeouts
    per role; record history PDF export; device push registration; OpenFeature provider; user

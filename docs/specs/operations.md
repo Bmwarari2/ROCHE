@@ -303,6 +303,28 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
   start or end that would leave a back-entry with no outside-the-outage reason outside it (#32
   review round 2), all counted in the organisation's view (`app.outage_back_entries`), so a
   back-entry about someone the caller can no longer see still counts.
+- Part 2 after #38 review round 1:
+  - `app.entry_outage_guard` also refuses a reconciled outage, and reads the outage again locked
+    for share (in the system's view, as a share lock needs the update policy), so a cancel or a
+    reconciliation at the same moment waits for the entry and then counts it.
+  - A back-entry's `occurred_at` is the instant its paper date and time give in Europe/London
+    (`app.paper_instant`): in the repeated autumn hour `earlier` is British Summer Time and
+    `later` Greenwich Mean Time, and `only` is refused; a time in the skipped spring hour is
+    refused.
+  - The outage window is `[started_at, ended_at)` (the end outside, as for the no-overlap rule),
+    an open outage running to now plus `sync.clock_drift_flag_minutes`. A back-entry outside it
+    needs `outside_outage_reason`; an entry not from paper may name only an outage its time falls
+    in. The window is checked on every entry and whenever the start or end changes, closing
+    included.
+  - A correction (supersession) of a back-entry stays a back-entry of the same outage: its paper
+    details are carried from the entry it corrects when it gives none, and it is refused when it
+    names another outage or none.
+  - `app.outage_back_entries` says whether each entry is a correction and whether it has been
+    corrected: superseded entries do not count for the cancel and window checks (H-205), and the
+    reconciler must not be the author, or the sender (`handed_over_by`), of any original
+    back-entry, while someone who only corrected one may reconcile (H-203).
+  - Not checked in the database: rule 13 (the normal route), which depends on the API applying
+    `checkEntryAgainstOutages` on every care route and on the sync upload.
 - Not yet: the API, nightly job and PDF (part 3); outages and packs in the sync streams (with the
   mobile step).
 - Part 3 requirements (#32 review round 1):
@@ -321,3 +343,14 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
   - The full export reads packs as the system or as a holder of `operations.downtime.read`.
   - The builder passes `assembleDowntimePack` only the location's own people receiving care,
     so nothing is left out, and stores the pack without anyone left out (#32 review round 2).
+- Part 3 requirements (#38 review round 1):
+  - A back-entry arriving after its outage is reconciled is refused (H-204). The API and the sync
+    upload answer in words that say so and point to the Registered Manager: "This outage has been
+    reconciled, so this paper record cannot be added to it. Give the paper form to the
+    Registered Manager." The device keeps the entry for review rather than dropping it.
+  - The sync streams carry the back-entry label fields (`late_entry_reason`, `outage_id`,
+    `paper_date`, `paper_time`, `paper_occurrence`, `outside_outage_reason`, `paper_reference`,
+    `not_from_paper_reason`) on the five entries, so the label shows on the device (rule 12;
+    HZ-017). Note for Lane C: add them with the mobile step.
+  - Rule 13 runs in the API on every care write route and on the sync upload; the database does
+    not check it.
