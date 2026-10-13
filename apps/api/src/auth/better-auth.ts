@@ -10,6 +10,11 @@ import type { Config } from "../config";
 import { passwordProblem } from "./password-policy";
 import { MOBILE_APP_ORIGIN } from "./token-exposure";
 
+/** A session lasts 12 hours from its last refresh (platform.md, Identity). */
+export const SESSION_EXPIRES_IN_SECONDS = 60 * 60 * 12;
+/** A session in use is refreshed (its expiry moved on) at most once an hour. */
+export const SESSION_UPDATE_AGE_SECONDS = 60 * 60;
+
 /**
  * Better Auth (ADR-0009): email and password with NCSC rules, passkeys (FIDO2) and TOTP as MFA,
  * bearer tokens for the mobile app. Runs on its own database role (harbour_auth) that can reach
@@ -36,8 +41,8 @@ export function createAuth(config: Config, authPool: pg.Pool) {
       disableSignUp: config.NODE_ENV === "production",
     },
     session: {
-      expiresIn: 60 * 60 * 12,
-      updateAge: 60 * 60,
+      expiresIn: SESSION_EXPIRES_IN_SECONDS,
+      updateAge: SESSION_UPDATE_AGE_SECONDS,
       freshAge: config.STEP_UP_WINDOW_SECONDS,
     },
     rateLimit: {
