@@ -258,7 +258,9 @@ only when they link spec, code, tests and user documentation; no user guides exi
       H-303); (f) a task whose evidence entry is saved on the phone shows "evidence recorded,
       waiting to upload" until it uploads, so it is not recorded twice (#36 review round 1,
       clinical M3; HZ-029); (g) the needs-attention screen ships with the round screen or before
-      it, since "no care left without a prompt" depends on it (#37 confirmation check).
+      it, since "no care left without a prompt" depends on it (#37 confirmation check). The data
+      for (a), (b) and (e) is on `feat/mobile-round-gate-data` (migration 0056, provisional
+      number; ADR-0072); the screens (3(b) the round, 3(c) the handover) close the rest.
     - Follow-up: whether the round on the phone should also hold unfinished tasks due before the
       window (H-301).
     - Follow-up (#33 review round 1): the streams ignore `person_assignment.valid_from`, so a
@@ -322,6 +324,12 @@ only when they link spec, code, tests and user documentation; no user guides exi
     - Follow-up (#37 confirmation check): with no resend, every move made offline on a task
       that escalated during an outage becomes a needs-attention item, an alert-fatigue risk;
       it waits on H-305, H-310 and the lighter way to dismiss a refused move.
+    - Follow-up (gate data): the web has no handover screen yet; when it does, it words
+      `HandoverItem.summary` from its own catalogue (`handover.summary.*`), as the phone does.
+      Items compiled before migration 0056 have no summary and are worded by kind.
+    - Follow-up (gate data): a skipped task's reason is free text staff wrote and now reaches
+      the phone with the handover item (as notes already do); the CSO and DPO confirm that
+      with H-300 and H-307.
     - Follow-up (#36 review round 2, low): `useMoveTask` takes the person's home
       (`personLocationId`) from the caller; while it is null (the person row still loading)
       and the token lists no person ids, `mayRecordFor` lets the move through. Look the home
