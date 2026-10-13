@@ -182,6 +182,10 @@ only when they link spec, code, tests and user documentation; no user guides exi
        the check counts every entry);
      - the guard trusts the entry's `location_id`; nothing checks it is the person's location
        (an existing gap).
+   - Follow-ups from #38 review round 2:
+     - `sync.clock_drift_flag_minutes` is read with the organisation's own override first, and
+       any member can write `rate_table` (the existing gap), so an override could stretch an open
+       outage's window.
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; admin session revoke and idle timeouts
    per role; record history PDF export; device push registration; OpenFeature provider; user
