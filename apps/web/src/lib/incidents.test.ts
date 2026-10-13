@@ -261,6 +261,27 @@ describe("statutory notifications on an incident (safety.md section 4; HZ-013)",
     ]);
   });
 
+  it("hazard HZ-013 says candour's spoken step is as soon as reasonably practicable from when the clock started", () => {
+    const candour = output({
+      kind: "candour",
+      deadlines: [
+        { key: "verbal_notification", dueAt: "2026-10-12T13:05:00Z", wording: "", statutory: true },
+        {
+          key: "written_notification_target",
+          dueAt: "2026-10-23T17:00:00Z",
+          wording: "",
+          statutory: false,
+        },
+      ],
+    });
+    expect(
+      notificationDueLines(draft({ kind: "candour" }), [candour], t).map((line) => line.text),
+    ).toEqual([
+      "Tell the person, with an apology, as soon as reasonably practicable: the clock started 12/10/2026 14:05",
+      "Written notification: Harbour's target by 23/10/2026 18:00",
+    ]);
+  });
+
   it("hazard HZ-013 shows RIDDOR's second deadline, and no deadline once a notification is done", () => {
     const riddor = output({
       kind: "riddor_specified_injury",
@@ -333,7 +354,7 @@ describe("statutory notifications on an incident (safety.md section 4; HZ-013)",
     }
   });
 
-  it("names every kind and its recipient in the catalogue, as the domain names them", () => {
+  it("hazard HZ-013 names every kind and its recipient in the catalogue, as the domain names them", () => {
     for (const kind of STATUTORY_NOTIFICATION_KINDS) {
       const info = NOTIFICATION_KINDS[kind];
       // RIDDOR's threshold comes from the rate table, never the words "seven days".
@@ -395,7 +416,7 @@ describe("statutory notifications on an incident (safety.md section 4; HZ-013)",
     dueAt: "2026-10-20T13:05:00Z",
     until: null,
   });
-  const manager = { canSubmit: false, canManage: true };
+  const manager = { canSubmit: false, canManage: true, closed: false, now: NOW };
 
   it.each<[string, View | null, string[], string[], string | null]>([
     ["not checked yet", null, ["Notifications not checked yet"], [], null],
@@ -469,7 +490,9 @@ describe("statutory notifications on an incident (safety.md section 4; HZ-013)",
 
   it("hazard HZ-013 words the hints for who can act: submitters check, managers answer, others tell", () => {
     const hint = (classifier: View | null, access: { canSubmit: boolean; canManage: boolean }) =>
-      notificationsView(classifier, access, t).notices.map((n) => n.body);
+      notificationsView(classifier, { ...access, closed: false, now: NOW }, t).notices.map(
+        (n) => n.body,
+      );
     expect(hint(null, { canSubmit: false, canManage: true })).toEqual([
       "Harbour has not yet checked which notifications this incident needs. Ask a nurse or the Registered Manager to check it.",
     ]);
@@ -485,13 +508,40 @@ describe("statutory notifications on an incident (safety.md section 4; HZ-013)",
     ]);
   });
 
-  it("hazard HZ-013 counts the overdue notifications for the chip at the top of the page", () => {
+  it("hazard HZ-013 says a check whose date has passed may not have been done, and drops the checks once closed", () => {
+    const checks = view({
+      tasks: [
+        { ...task("safeguarding_decision_guide"), dueAt: "2026-10-11T13:05:00Z" },
+        { ...task("riddor_absence_check"), dueAt: "2026-10-20T13:05:00Z" },
+      ],
+    });
+    expect(notificationsView(checks, manager, t).waiting).toEqual([
+      {
+        text: "Check whether this was done: the adult safeguarding decision guide, due 11/10/2026 14:05 (a safeguarding concern may be needed)",
+        dateTime: "2026-10-11T13:05:00Z",
+      },
+      {
+        text: "RIDDOR may be needed: check on 20/10/2026 14:05 whether the worker is still unable to do their normal work",
+        dateTime: "2026-10-20T13:05:00Z",
+      },
+    ]);
+    // Closed: the checks are over, and the stored tasks never clear, so they are left out.
+    const closed = notificationsView(checks, { ...manager, closed: true }, t);
+    expect(closed.waiting).toEqual([]);
+    expect(closed.none).toBe(
+      "Harbour found no statutory notification to make on what is recorded so far",
+    );
+  });
+
+  it("hazard HZ-013 counts overdue notifications and unknown clocks for the chip at the top of the page", () => {
     const notifications = [
       draft(),
       draft({ clock: "due" }),
       draft({ clock: "overdue", id: "n2" }),
+      draft({ clock: "paused" as never, id: "n3" }),
+      draft({ clock: "done", status: "submitted", id: "n4" }),
     ] as never;
-    expect(overdueCount(view({ notifications }))).toBe(2);
+    expect(overdueCount(view({ notifications }))).toBe(3);
     expect(overdueCount(null)).toBe(0);
     expect(t("safety.incident.overdueLink", { count: 2 })).toBe(
       "2 statutory notifications overdue: go to them",

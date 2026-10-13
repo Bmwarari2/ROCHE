@@ -56,7 +56,13 @@ const classifier = (over: Partial<ClassifierView>): ClassifierView => ({
 
 function draw(view: ClassifierView | null, access = manager) {
   document.body.innerHTML = `<main><h1>Incident</h1><section aria-labelledby="h"><h2 id="h">Statutory notifications</h2>${renderToStaticMarkup(
-    <IncidentNotifications classifier={view} access={access} names={names} now={NOW} />,
+    <IncidentNotifications
+      classifier={view}
+      access={access}
+      names={names}
+      closed={false}
+      now={NOW}
+    />,
   )}</section></main>`;
   return document.body;
 }
@@ -110,6 +116,49 @@ describe("the statutory notifications on an incident, every state (HZ-013)", () 
   ])("hazard HZ-013 says %s in words, with no axe violations", async (_, view, words) => {
     const body = draw(view);
     for (const word of words) expect(text(body)).toContain(word);
+    await expectAccessible(body);
+  });
+
+  it("hazard HZ-013 says each check that decides a notification with its time, and one drafted elsewhere, with no axe violations", async () => {
+    const body = draw(
+      classifier({
+        tasks: [
+          {
+            task: "riddor_absence_check",
+            reason: "",
+            dueAt: "2026-10-20T13:05:00Z",
+            until: null,
+          },
+          {
+            task: "safeguarding_decision_guide",
+            reason: "",
+            dueAt: "2026-10-11T13:05:00Z",
+            until: null,
+          },
+        ],
+        outputs: [
+          {
+            kind: "ukhsa_outbreak",
+            dueAt: "2026-10-12T13:05:00Z",
+            deadlines: [],
+            reasons: [],
+            provisional: false,
+            requiredContent: [],
+          },
+        ],
+      }),
+    );
+    const times = [...body.querySelectorAll("time")];
+    expect(times.map((time) => time.getAttribute("datetime"))).toEqual([
+      "2026-10-20T13:05:00Z",
+      "2026-10-11T13:05:00Z",
+    ]);
+    expect(times[0]?.textContent).toContain("RIDDOR may be needed: check on 20/10/2026 14:05");
+    expect(times[1]?.textContent).toContain("Check whether this was done:");
+    expect(text(body)).toContain(
+      "Needed, and drafted on another record: Outbreak report to the health protection team",
+    );
+    expect(text(body)).not.toContain("Harbour found no statutory notification");
     await expectAccessible(body);
   });
 

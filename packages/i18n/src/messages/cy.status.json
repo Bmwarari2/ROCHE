@@ -1075,6 +1075,7 @@
     "safety.notification.waiting",
     "safety.notification.about",
     "safety.notification.task",
-    "safety.notification.elsewhere"
+    "safety.notification.elsewhere",
+    "safety.notification.taskPast"
   ]
 }

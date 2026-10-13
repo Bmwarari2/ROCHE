@@ -27,12 +27,7 @@ const ICONS: Record<SafetyIcon, LucideIcon> = {
 
 /** A status from the incident screens: an icon and a word, never colour alone. */
 export function SafetyChip({ chip }: { readonly chip: Chip }) {
-  const icon = ICONS[chip.icon];
-  return chip.status === "neutral" || chip.status === "info" ? (
-    <StatusChip status={chip.status} label={chip.label} icon={icon} />
-  ) : (
-    <StatusChip status={chip.status} label={chip.label} icon={icon} />
-  );
+  return <StatusChip status={chip.status} label={chip.label} icon={ICONS[chip.icon]} />;
 }
 
 /** A page the viewer may not open: says so in words. */

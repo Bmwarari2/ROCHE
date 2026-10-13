@@ -296,9 +296,13 @@ export function notificationSubjects(
   return subjects;
 }
 
-/** The overdue notifications still to do, for the chip at the top of the incident page. */
+/**
+ * The notifications needing attention now, for the chip at the top of the incident page: overdue,
+ * and any whose clock the web does not know (#49 review round 2).
+ */
 export function overdueCount(classifier: Pick<ClassifierView, "notifications"> | null): number {
-  return (classifier?.notifications ?? []).filter((n) => n.clock === "overdue").length;
+  return (classifier?.notifications ?? []).filter((n) => n.clock !== "due" && n.clock !== "done")
+    .length;
 }
 
 /** Classifier tasks that decide whether a notification is needed, in the catalogue's words. */
@@ -329,13 +333,24 @@ export interface NotificationsView {
  * outbreak's first incident). "None found" is said only when none of these is there (#49
  * review). The questions are answered by holders of `safety.incident.manage`; "not checked" is
  * worded for holders of `safety.notification.submit`, who are not sent to ask themselves.
+ *
+ * The stored tasks carry no done state, and classifying again does not clear these checks (#49
+ * review round 2): on a closed incident they are left out, and once a check's date has passed it
+ * reads "Check whether this was done: ..." rather than "by" a date gone by.
  */
 export function notificationsView(
   classifier: Pick<
     ClassifierView,
     "nationSupported" | "openQuestions" | "pending" | "notifications" | "outputs" | "tasks"
   > | null,
-  access: { readonly canSubmit: boolean; readonly canManage: boolean },
+  context: {
+    readonly canSubmit: boolean;
+    readonly canManage: boolean;
+    /** The incident is closed: its checks are over. */
+    readonly closed: boolean;
+    /** When the page was drawn. */
+    readonly now: Date;
+  },
   t: Translator,
   riddorDays?: number,
 ): NotificationsView {
@@ -344,10 +359,10 @@ export function notificationsView(
     body: t("safety.notification.noticeHint", { notice, self: String(self) }),
   });
   if (!classifier) {
-    return { notices: [notice("notChecked", access.canSubmit)], waiting: [], none: null };
+    return { notices: [notice("notChecked", context.canSubmit)], waiting: [], none: null };
   }
   if (!classifier.nationSupported) {
-    return { notices: [notice("nation", access.canSubmit)], waiting: [], none: null };
+    return { notices: [notice("nation", context.canSubmit)], waiting: [], none: null };
   }
   const count = classifier.openQuestions.length;
   const label = (kind: string) => notificationKindLabel(kind, t, riddorDays);
@@ -355,12 +370,15 @@ export function notificationsView(
     text: t("safety.notification.pending", { kind: label(p.kind) }),
     dateTime: null,
   }));
-  const tasks = classifier.tasks
+  const tasks = (context.closed ? [] : classifier.tasks)
     .filter((task) => NOTIFICATION_TASKS.has(task.task))
     .map((task) => {
       const dateTime = formatDateTime(task.dueAt);
+      const past = dateTime !== null && Date.parse(task.dueAt ?? "") < context.now.getTime();
       return {
-        text: t("safety.notification.task", { task: task.task, dateTime: dateTime ?? "none" }),
+        text: past
+          ? t("safety.notification.taskPast", { task: task.task, dateTime })
+          : t("safety.notification.task", { task: task.task, dateTime: dateTime ?? "none" }),
         dateTime: dateTime ? task.dueAt : null,
       };
     });
@@ -373,7 +391,7 @@ export function notificationsView(
     }));
   const waiting = [...pending, ...tasks, ...elsewhere];
   return {
-    notices: count > 0 ? [notice("questions", access.canManage, count)] : [],
+    notices: count > 0 ? [notice("questions", context.canManage, count)] : [],
     waiting,
     none:
       count === 0 &&

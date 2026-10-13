@@ -223,11 +223,14 @@ test("hazard HZ-013 the nurse finds an incident and reads its notifications, eve
   expect(Date.parse((await started.getAttribute("datetime")) ?? "")).toBe(Date.parse(at(-45)));
   await expect(police.getByText("To the Care Quality Commission")).toBeVisible();
   await expect(police.getByText(/^Provisional: it rests on an answer of not sure\./)).toBeVisible();
-  // The overdue notification is named at the top of the page and opens the section.
+  // The overdue notification is named at the top of the page; by keyboard, the link moves focus
+  // into the notifications (WCAG 2.4.3), not only the view.
   const overdue = page.getByRole("link", { name: /statutory notifications? overdue: go to/ });
   await expect(overdue).toBeVisible();
-  await overdue.click();
+  await overdue.focus();
+  await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/#notifications$/);
+  await expect(notifications.locator(":focus")).toHaveText("Statutory notifications");
   await expectAccessible(page, "incident");
 
   // A later "no" leaves the draft in place, flagged, until someone decides it is not required.

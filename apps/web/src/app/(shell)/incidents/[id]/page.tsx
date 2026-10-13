@@ -23,6 +23,7 @@ import {
 } from "@/lib/incidents";
 import { communicationSummary, personNames } from "@/lib/people";
 import { readOrFail } from "@/lib/person-record";
+import { ukToday } from "@/lib/uk-time";
 
 type Params = Promise<{ id: string }>;
 type Row = readonly [field: string, value: string | null, dateTime?: string | null];
@@ -106,7 +107,7 @@ export default async function IncidentPage({ params }: { readonly params: Params
     ? await api.GET("/v1/rates/{key}", {
         params: {
           path: { key: "riddor.over_7_day.threshold_days" },
-          query: { on: incident.occurredAt.slice(0, 10) },
+          query: { on: ukToday(new Date(incident.occurredAt)) },
         },
       })
     : null;
@@ -136,8 +137,9 @@ export default async function IncidentPage({ params }: { readonly params: Params
           />
         ) : null}
         {overdue > 0 ? (
-          // Named with the chip's words first, so what is seen is what is said (WCAG 2.5.3).
-          <Link
+          // A native link, so the browser moves focus to the section's heading (WCAG 2.4.3); named
+          // with the chip's words first, so what is seen is what is said (WCAG 2.5.3).
+          <a
             href="#notifications"
             aria-label={t("safety.incident.overdueLink", { count: overdue })}
             className="inline-flex min-h-target items-center"
@@ -147,7 +149,7 @@ export default async function IncidentPage({ params }: { readonly params: Params
               label={t("safety.incident.overdueChip", { count: overdue })}
               icon={CircleAlert}
             />
-          </Link>
+          </a>
         ) : null}
         <EntryBadges entry={incident} />
       </p>
@@ -212,23 +214,24 @@ export default async function IncidentPage({ params }: { readonly params: Params
         </Card>
       )}
       {incident.restricted ? null : (
-        <Card
-          as="section"
-          id="notifications"
-          title={section("notifications")}
-          headingLevel={2}
-          className="scroll-mt-nav"
-        >
-          <IncidentNotifications
-            classifier={incident.classifier}
-            access={{
-              canSubmit: can(me.permissions, "safety.notification.submit"),
-              canManage: can(me.permissions, "safety.incident.manage"),
-            }}
-            names={names}
-            {...(threshold?.data ? { riddorDays: threshold.data.value } : {})}
-            now={new Date()}
-          />
+        <Card as="section" aria-labelledby="notifications">
+          <div className="flex flex-col gap-4">
+            {/* Focusable, so the overdue link at the top brings focus here. */}
+            <h2 id="notifications" tabIndex={-1} className="hb-card__title scroll-mt-nav">
+              {section("notifications")}
+            </h2>
+            <IncidentNotifications
+              classifier={incident.classifier}
+              access={{
+                canSubmit: can(me.permissions, "safety.notification.submit"),
+                canManage: can(me.permissions, "safety.incident.manage"),
+              }}
+              names={names}
+              {...(threshold?.data ? { riddorDays: threshold.data.value } : {})}
+              closed={incident.status === "closed"}
+              now={new Date()}
+            />
+          </div>
         </Card>
       )}
       <Card as="section" title={section("people")} headingLevel={2} className="break-words">

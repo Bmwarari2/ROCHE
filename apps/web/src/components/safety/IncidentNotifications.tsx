@@ -17,12 +17,18 @@ import { SafetyChip } from "./SafetyChip";
 
 const iconProps = { strokeWidth: 1.5, "aria-hidden": true } as const;
 
-/** A warning in words with its icon, never colour alone. */
-export function SafetyWarning({ text }: { readonly text: string }) {
+/** A warning in words with its icon, never colour alone; one about a moment carries its time. */
+export function SafetyWarning({
+  text,
+  dateTime = null,
+}: {
+  readonly text: string;
+  readonly dateTime?: string | null;
+}) {
   return (
     <p className="m-0 flex items-start gap-2 font-semibold">
       <TriangleAlert {...iconProps} size={18} className="mt-0.5 shrink-0" />
-      {text}
+      {dateTime ? <time dateTime={dateTime}>{text}</time> : text}
     </p>
   );
 }
@@ -49,10 +55,13 @@ export function IncidentNotifications({
   access,
   names,
   riddorDays,
+  closed,
   now,
 }: {
   readonly classifier: IncidentDetail["classifier"];
   readonly access: { readonly canSubmit: boolean; readonly canManage: boolean };
+  /** The incident is closed: the checks that decide a notification are over. */
+  readonly closed: boolean;
   /** The reader's people by id, for who a notification is about. */
   readonly names: ReadonlyMap<string, string>;
   /** RIDDOR's over-seven-day threshold from the rate table, when the page could read it. */
@@ -60,7 +69,7 @@ export function IncidentNotifications({
   /** When the page was drawn, which the clocks are counted to. */
   readonly now: Date;
 }) {
-  const view = notificationsView(classifier, access, t, riddorDays);
+  const view = notificationsView(classifier, { ...access, closed, now }, t, riddorDays);
   const items = notificationsInOrder(classifier?.notifications ?? []);
   const subjects = notificationSubjects(items, names, t);
   const waitingFor = new Map((classifier?.pending ?? []).map((p) => [p.kind, p.waitingFor.length]));
@@ -77,7 +86,7 @@ export function IncidentNotifications({
         </Notice>
       ))}
       {view.waiting.map((line) => (
-        <SafetyWarning key={line.text} text={line.text} />
+        <SafetyWarning key={line.text} text={line.text} dateTime={line.dateTime} />
       ))}
       {view.none ? <p className="m-0">{view.none}</p> : null}
       {items.length > 0 ? (

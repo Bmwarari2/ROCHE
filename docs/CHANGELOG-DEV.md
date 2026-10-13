@@ -1573,3 +1573,17 @@ and HZ-009 rows; human actions H-256 (restated) to H-260; STATUS item 19 follow-
 **Tests**: `apps/web` 459 unit (with the component test), `packages/i18n` 48; Playwright
 `e2e/incidents.spec.ts` on a fresh scratch database, run locally.
 
+## 2026-10-13: The incident screens, part 2, review round 2 (#49)
+
+The overdue chip is a native link to the notifications' heading, which takes focus, so the
+keyboard lands there (WCAG 2.4.3); the journey opens it by keyboard. Checks that decide a
+notification are left out once the incident is closed, and once their date has passed read
+"Check whether this was done: ..." (the stored tasks never clear; H-259 corrected). Candour's
+spoken step counts from when the clock started; the written target reads "Harbour's target by";
+the check lines carry their time; RIDDOR's threshold is looked up by the UK date; unknown clocks
+count in the overdue chip. H-257 adds candour and RIDDOR's time of day; STATUS item 19 logs the
+round's follow-ups.
+
+**Tests**: `apps/web` 462 unit (with the component test), `packages/i18n` 48; Playwright
+`e2e/incidents.spec.ts` on a fresh scratch database, run locally.
+

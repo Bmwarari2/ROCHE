@@ -421,6 +421,11 @@ only when they link spec, code, tests and user documentation; no user guides exi
       counted twice, in the header chip and the section's notice; the classifier's tasks carry no
       done state, so "RIDDOR may be needed: check on ..." stays after the check until the
       incident is classified again (H-259).
+    - Follow-ups from #49 review round 2: the outbreak line "Needed, and drafted on another
+      record" neither names nor links that record, nor shows its status; "person N" on a
+      notification has nothing to match in the people section; there is no cue at the top of the
+      page for the "not checked yet" and "outside England" notices; the reviewers' optional copy
+      points go to H-258.
 20. Invitations and MFA enrolment (feat/platform-invitations; PLAT-004): the spec and rules are
     built (platform.md, Invitations and MFA enrolment; `invitations.ts`), with a test that no
     one-time code is offered by SMS or email, and review round 1 of #43 folded in (the token only
