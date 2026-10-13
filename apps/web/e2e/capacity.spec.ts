@@ -50,7 +50,10 @@ async function record(request: APIRequestContext, path: string, data: object) {
   return (await response.json()) as { id: string };
 }
 
-const at = (offset: number) => new Date(Date.now() + offset).toISOString();
+// One clock for the run, so times given as the same offset are the same instant (a renewal that
+// starts as the authorisation it follows ends has no gap).
+const T0 = Date.now();
+const at = (offset: number) => new Date(T0 + offset).toISOString();
 
 /** Presses Tab until the target has focus: the keyboard is the only way in. */
 async function tabTo(page: Page, target: Locator, limit = 300) {

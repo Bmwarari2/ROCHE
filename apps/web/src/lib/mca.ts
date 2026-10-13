@@ -180,17 +180,25 @@ const DOLS_CHIPS: Record<DolsItem["status"], Omit<McaChip, "label">> = {
 
 /**
  * The authorisations a later granted one names as the one it follows
- * (`precededByAuthorisationId`): an expired one among them was renewed, not left to lapse.
+ * (`precededByAuthorisationId`) and takes over from without a gap: the follower starts no later
+ * than the one it follows ends. Such an expired one was renewed, not left to lapse. When the
+ * follower starts later, or either time is unknown, the earlier one stays "Expired", so a gap with
+ * no authorisation in force never reads as calm (HZ-020; #34 review round 2).
  */
 export function renewedIds(
-  items: readonly Pick<DolsItem, "outcome" | "precededByAuthorisationId">[],
+  items: readonly Pick<
+    DolsItem,
+    "id" | "outcome" | "precededByAuthorisationId" | "grantedFrom" | "endsAt"
+  >[],
 ): ReadonlySet<string> {
+  const byId = new Map(items.map((item) => [item.id, item]));
   return new Set(
-    items.flatMap((item) =>
-      item.outcome === "granted" && item.precededByAuthorisationId
-        ? [item.precededByAuthorisationId]
-        : [],
-    ),
+    items.flatMap((item) => {
+      if (item.outcome !== "granted" || !item.precededByAuthorisationId) return [];
+      const before = byId.get(item.precededByAuthorisationId);
+      if (!before?.endsAt || !item.grantedFrom) return [];
+      return Date.parse(item.grantedFrom) <= Date.parse(before.endsAt) ? [before.id] : [];
+    }),
   );
 }
 

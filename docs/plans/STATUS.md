@@ -213,7 +213,10 @@ only when they link spec, code, tests and user documentation; no user guides exi
     expiry reminder lines do not say whether the reminder was sent or acted on; check the timing
     of "Today is the last day in force" against the API's `daysLeft` and the expiry job once the
     CSO answers H-250; the empty DoLS register gives no next step (who to ask, or the form once it
-    exists); the legal-change review warning does not follow the tenant flag (H-253).
+    exists); the legal-change review warning does not follow the tenant flag (H-253) and shows for
+    homes in Wales although its text points to DHSC guidance for England. From review round 2: an
+    unknown outcome or type reads as plain text, not the warning chip the hazard log describes; an
+    authorisation not yet started with a midnight end reads "In force until the end of ...".
 
 ## Human actions outstanding
 
