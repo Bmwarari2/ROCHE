@@ -687,6 +687,18 @@ dates in `<time>` elements, each card named with its UK date):
   decision for covert medicines; the capacity it was made under with the assessment's date; who
   recorded it; and a history link named with the decision and date.
 
+After review round 1 of part 2 (#35): the finding in force for each decision is picked with the
+domain's `capacityFinding`, so an older assessment of the same decision (or, without a consent
+decision, of the same words) says "A later assessment (dd/mm/yyyy) replaces this finding" and
+shows no overdue review (H-254); the finding is worded from the two stages and the abilities the
+person could not use, never the API's English reason. A best-interests decision says what its
+assessment found and warns when that assessment was corrected later or the finding now in force
+is not a lack of capacity (H-255). A deciding consent record that was withdrawn or expired warns;
+one dated later reads "Starts later: not in force yet"; a decision or deciding record the web
+cannot place warns; a withdrawal dated later reads as to come; a representative recorded only as
+a contact is named as one of the person's contacts. The IMCA notice reads "An independent mental
+capacity advocate may be needed".
+
 Built in the care API follow-ups (the remaining findings of the #15 reviews; migrations 0043 and
 0044; `apps/api/src/routes/care-settings.ts`, `services/staff.ts`, `services/escalation-policies.ts`):
 

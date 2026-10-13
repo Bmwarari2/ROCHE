@@ -214,6 +214,12 @@ only when they link spec, code, tests and user documentation; no user guides exi
     homes in Wales although its text points to DHSC guidance for England. From review round 2: an
     unknown outcome or type reads as plain text, not the warning chip the hazard log describes; an
     authorisation not yet started with a midnight end reads "In force until the end of ...".
+15. Follow-ups from review round 1 of the capacity assessment, best-interests and consent record
+    views (#35; H-254 and H-255 ask the CSO): every section 4 checklist label carries its statute
+    citation, which is jargon on a staff screen; an unanswered checklist item gets no warning; the
+    IMCA warning stays on a decision whose advocate was instructed or that is finished; the
+    corrections list ignores `supersededOutsideList` and `correctsHidden`; the journey's
+    best-interests decision (a move) follows a bed-rails assessment, which H-255 asks about.
 
 ## Human actions outstanding
 
