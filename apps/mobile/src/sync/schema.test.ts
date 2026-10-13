@@ -26,6 +26,12 @@ describe("schema bridge", () => {
       body_map_mark: false,
       activity_record: false,
       visit_log: false,
+      task: false,
+      handover: false,
+      handover_item: false,
+      handover_note: false,
+      handover_acknowledgement: false,
+      handover_staff_acknowledgement: false,
       upload_issue: true,
       held_entry: true,
     });

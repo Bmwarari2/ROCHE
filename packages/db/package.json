@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@harbour/config": "workspace:*",
+    "@harbour/sync": "workspace:*",
     "@types/node": "^22.15.0",
     "@types/pg": "^8.15.0",
     "drizzle-kit": "^0.31.11",

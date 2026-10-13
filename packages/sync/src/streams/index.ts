@@ -38,6 +38,15 @@ export interface SyncTokenClaims {
   readonly care_assigned: boolean;
   readonly entries_assigned: boolean;
   /**
+   * The handover family (handovers with their items, notes and acknowledgements) follows
+   * care.handover.manage, the permission the API reads handovers with: `handover_location_ids`
+   * are the locations whose handovers the user sees whole, and `handover_assigned` gives the
+   * handovers where the people assigned to them live, limited to those people. The open tasks
+   * follow the care claims (care.plan.read, the round view's permission).
+   */
+  readonly handover_location_ids: readonly string[];
+  readonly handover_assigned: boolean;
+  /**
    * Where the phone may record (care.note.write, review round 2, C2-M3): not read by any stream,
    * only by the phone, so it never offers to record about someone the server would refuse.
    */
