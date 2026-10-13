@@ -351,6 +351,20 @@
       "when": 1791815419426,
       "tag": "0049_scope_per_permission_security",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1791846394299,
+      "tag": "0050_downtime_pack_and_outage",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1791846396111,
+      "tag": "0051_downtime_pack_and_outage_security",
+      "breakpoints": true
     }
   ]
 }
