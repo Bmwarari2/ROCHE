@@ -190,8 +190,9 @@ Flow:
    organisation's chain; operators have no other way to write an invitation.
 2. **Open the link.** `POST /v1/invitations/lookup` with the token in the body (no session): the
    organisation's name, the address masked, the expiry, the state, and whether to create a sign-in
-   or sign in first (`acceptancePath`). Throttled per client address and per token; an unknown
-   token is 404 and a platform audit event.
+   or sign in first (`acceptancePath`). Throttled per client address and per token, the token
+   counted by its SHA-256 (the raw token is never stored, in `request_quota` or anywhere); an
+   unknown token is 404 and a platform audit event.
 3. **Accept.** `POST /v1/invitations/accept` with the token in the body, once (`acceptRefusal`:
    used, revoked, lapsed, the organisation suspended or closed, the member no longer `invited`,
    signed in with another address, already a member), throttled like the lookup. The invitation
@@ -202,7 +203,11 @@ Flow:
    `app.accept_invitation` links the member (`auth_user_id`, status `active`), marks the invitation
    accepted, clears its address and writes the audit event (`platform.invitation.accepted`) in the
    same transaction. If anything fails after the sign-in was created, the transaction rolls back
-   and the new sign-in is deleted, so no password is left on an address with no member linked.
+   and the new sign-in is deleted, so no password is left on an address with no member linked;
+   and should the process stop between the two, a nightly sweep deletes any sign-in older than
+   `invitation.unlinked_sign_in_hours` (rate table, 24) that no membership row and no operator
+   record names (the membership check is a yes-or-no security-definer function owned by
+   `harbour_membership_reader`).
 4. **Enrol.** The new session is sent to `/settings/security?reason=mfa`; until a passkey or an
    authenticator app is enrolled, every care-record permission answers `mfa_enrolment_required`
    (built: `refusalOf`, `touchesCareRecords`).
@@ -222,12 +227,29 @@ Schema for migration 0054 (built by Lane D, stacked on this PR; numbered provisi
   (`tenant_user`) or `created_by_operator` (`operator_user`; exactly one), `created_at`,
   `expires_at`, `accepted_at`, `accepted_auth_user_id`, `revoked_at`, `revoked_by`,
   `revocation_reason` (`INVITATION_REVOCATION_REASONS`). One open invitation per member (partial
-  unique index on neither accepted nor revoked; lapsed rows are swept). A trigger checks on insert
-  that the inviter holds `platform.user.manage` and every permission of the member's roles where
-  they apply; on update, an invitation keeps its member, link, sender and expiry, and changes only
-  by being accepted (by the member it is for, before it lapses) or revoked (in the reviser's name),
-  its address cleared then; accepted or revoked is final; no delete. Changing a member's address,
-  roles or status revokes their open invitations. RLS isolation tests and the coverage list.
+  unique index on neither accepted nor revoked; lapsed rows are swept). The application role may
+  insert only `tenant_user_id`, `token_hash`, `expires_at` and `created_by`, never
+  `created_by_operator`.
+  - **Insert** (#43 review round 2, N2): `created_by` must equal `app.current_user_id()`, never
+    null, and that member (the session's, not one the request names) must hold
+    `platform.user.manage` and every permission of the member's roles and grants where they apply
+    (`app.may_invite`). `created_by_operator` is refused unless the insert runs inside
+    `app.invite_first_owner`, recognised by `current_user = 'harbour_invitation_owner'` (the
+    definer's owner); there `created_by` is null and `created_by_operator` required. The address is
+    copied from the member, never taken from the request.
+  - **Update**: an invitation keeps its member, link, sender and expiry, and changes only by being
+    accepted or revoked, once, its address cleared then; accepted or revoked is final; no delete.
+    Accepted only inside `app.accept_invitation` (`current_user = 'harbour_invitation_owner'`),
+    before it lapses; the application role has no update grant on the acceptance columns.
+    Revoked in the reviser's name (`revoked_by = app.current_user_id()`, not null), except, with
+    `revoked_by` null, in exactly three cases, each only through a function owned by
+    `harbour_invitation_owner` (round 2, N1): the nightly sweep (`expired`, and only once
+    `expires_at <= now()`); the member-change trigger (`member_removed`, `member_changed`), which
+    covers worker jobs that run with no member; and the first owner's re-invitation
+    (`superseded`, inside `invite_first_owner`). A member's change made by a signed-in member
+    records them as the reviser.
+  - Changing a member's address, roles, grants or status revokes their open invitations. RLS
+    isolation tests and the coverage list.
 - `app.claim_invitation(token)` and `app.accept_invitation(token, auth_user_id)`: security-definer
   functions owned by their own NOLOGIN role (`harbour_invitation_owner`, as
   `memberships_for_auth_user` is owned by `harbour_membership_reader`), with
@@ -238,9 +260,19 @@ Schema for migration 0054 (built by Lane D, stacked on this PR; numbered provisi
   `accept_invitation` also compares the sign-in's email (read from `auth.user`) with the
   invitation's before linking. `app.invitation_for_token(token)`, under the same owner, answers
   the lookup without changing anything.
-- `app.invite_first_owner(tenant, token_hash, expires_at, operator)`: a security-definer function
-  executable by `harbour_operator` only, inviting only the organisation's invited owner while the
-  organisation has no active member.
+- `app.invite_first_owner(tenant, token_hash)`: a security-definer function owned by
+  `harbour_invitation_owner`, with `SET search_path = pg_catalog, public`, `REVOKE ALL ... FROM
+  PUBLIC` and `EXECUTE` granted to `harbour_operator` only. It invites only the organisation's
+  invited owner while the organisation has no active member, superseding any open invitation. It
+  takes neither the expiry nor the operator from its caller: the expiry is
+  `invitation.expiry_hours` (the organisation's figure, else the global one) capped at
+  `invitation.expiry_hours_max`, both read from the rate table inside; the operator is the one the
+  operator middleware set for the transaction (`app.operator_id`, as `app.user_id` is for members),
+  checked inside to be an active admin in `operator_user`.
+- `harbour_invitation_owner` holds only what its functions need: the invitation table, the member
+  columns it links (`auth_user_id`, `status`), reading the organisation, roles and the rate table,
+  appending audit events, an active-admin check on `operator_user`, and a column grant on
+  `auth.user` of `id` and `email` only (ADR-0002).
 - Retention: `invitation` rows take their own class (`invitation`, retention.md); the address is
   gone once the invitation is closed, and the audit trail keeps who was given access and when.
 

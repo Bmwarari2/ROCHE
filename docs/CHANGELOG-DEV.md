@@ -1337,3 +1337,16 @@ actions H-254 and H-255 for the CSO; STATUS item 16 for the follow-ups.
   `signedInAlreadyMember` is required, and members are never invited without MFA. M5 (MFA counted
   when enrolled rather than used) follows in its own PR.
 
+## 2026-10-13: #43 review round 2, invitations (Lane D)
+
+- N1: a revocation names its reviser, except, with no reviser and only through the definer
+  owner's functions, the nightly sweep of lapsed invitations, the member-change trigger (so worker
+  jobs with no member still clear the address) and the first owner's re-invitation; acceptance
+  happens only inside `accept_invitation`. N2: an invitation's sender is always the session's
+  member; `created_by_operator` only inside `invite_first_owner`, which the application role
+  cannot imitate.
+- Lows: `invite_first_owner` reads the expiry from the rate table and the operator from the
+  session; the definer owner's grants listed (a column grant on `auth.user` of id and email only);
+  throttling counts tokens by hash; a nightly sweep of unlinked sign-ins older than
+  `invitation.unlinked_sign_in_hours`.
+
