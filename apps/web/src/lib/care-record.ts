@@ -147,9 +147,9 @@ export function visibleTabs(
 // Append-only entries and corrections
 // ------------------------------------------------------------------------------------------------
 
+/** An append-only record a correction can supersede (notes, entries, capacity assessments). */
 export interface EntryLike {
   readonly id: string;
-  readonly occurredAt: string;
   readonly supersedesId: string | null;
   readonly superseded: boolean;
 }

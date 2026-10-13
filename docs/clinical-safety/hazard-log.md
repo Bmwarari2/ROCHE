@@ -61,6 +61,8 @@
 | [HZ-071](#hz-071-full-tenant-export-incomplete-or-misread-when-a-provider-changes-system) | Full tenant export incomplete or misread when a provider changes system | Catastrophic / Medium / 4 | Catastrophic / Very low / 3 (4 until the CSO accepts, H-119) | Open | None (Phase 1) | Phase 1, Phase 2 |
 | [HZ-072](#hz-072-sample-data-mistaken-for-or-mixed-with-real-records) | Sample data mistaken for, or mixed with, real records | Considerable / Medium / 3 | Considerable / Low / 2 | Open | None (Phase 1) | Phase 1 |
 | [HZ-073](#hz-073-safety-work-or-essential-information-hidden-from-the-person-who-must-act-because-of-their-access-scope) | Safety work or essential information hidden from the person who must act because of their access scope | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-169) | Open | None (Phase 1) | Phase 1 |
+| [HZ-110](#hz-110-a-server-side-sign-out-clears-a-carers-offline-records-during-a-shift) | A server-side sign-out clears a carer's offline records during a shift | Major / Low / 3 | Major / Very low / 2 (engineering proposal; the CSO rates it, H-351) | Open | None (Phase 1) | Phase 1 |
+| [HZ-111](#hz-111-a-browser-idle-timeout-loses-an-unsaved-care-entry) | A browser idle timeout loses an unsaved care entry | Major / Medium / 3 | Major / Very low / 2 (engineering proposal; the CSO decides, H-353) | Open | None (Phase 1) | Phase 1 |
 
 Twelve hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
@@ -1798,6 +1800,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | Design | Capacity assessments are decision- and time-specific; "lacks capacity" only when stage 1 is met, a stage 2 element is not and the inability is because of the impairment, with practicable steps recorded (`capacity.ts`) | Phase 1 (domain rules built) |
 | Design | The best-interests checklist is complete only when every item is answered, with reasons for "not applicable", a consultation or the reason there was none, and the IMCA prompt (`best-interests.ts`) | Phase 1 (domain rules built) |
 | Design | The web record's consent, capacity and DoLS tab shows, for each decision, whether a valid consent is in place now as the API found it: "Consent in place"; "Refused" as a warning, saying who refused (H-252); "No consent recorded" as a warning with the next step; or "No valid consent" (the stronger warning) with every reason in the catalogue's words; never an unknown status as in place. Beside it, the capacity found for the decision with the date of the assessment ("Assessed on 01/10/2026 as lacking capacity for this decision"), its review date or "No review date set", and an overdue capacity review | Phase 1 (slice 9, built; review round 1) |
+| Design | The same tab shows each capacity assessment as a finding with its date, the two-stage answers and evidence, the practicable steps and the finding worded from the two stages; an older assessment of the same decision says a later one replaces its finding and has no overdue review (the domain's `capacityFinding`, H-254). Each best-interests decision shows what its assessment found and warns when that assessment was corrected or the finding now in force is not a lack of capacity (H-255), with the IMCA prompt as a warning. Each consent record says whether it decides its decision now or was replaced, withdrawn or expired (a deciding record withdrawn or expired warns), a refusal as a warning, with a representative's authority (registration, exclusions, the deputy's order and its end, restraint expressly allowed), the restraint conditions and the capacity it was made under with the assessment's date. Corrections show why and strike through the versions they replaced; unknown values warn | Phase 1 (slice 9, part 2, built) |
 | Test | See Verification | Phase 1 |
 | Training and user documentation | User guide on consent, capacity and representatives with the Act's wording. Deployer control: the tenant's Mental Capacity Act policy and training | Phase 1 |
 
@@ -1818,6 +1821,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | `apps/api/test/mca.test.ts`: `hazard HZ-026 needs a complete best-interests decision before covert medicines`, `prompts for an IMCA when nobody appropriate can be consulted about a move` and `records a withdrawal, keeps the record` | Passing |
 | `packages/db/test/mca-and-incidents.test.ts`: append-only capacity assessments and best-interests decisions; a lacks-capacity outcome the two-stage test does not support and a consent claiming an assessment it does not name are refused by the database | Passing |
 | `apps/web/src/lib/mca.test.ts`: `hazard HZ-026 shows ... with its reason in the catalogue's words` (each consent status), `says who refused, and never shows an unknown status as consent in place` and `shows the date of the capacity finding, its review date and an overdue review`; `apps/web/e2e/capacity.spec.ts`: `hazard HZ-020 hazard HZ-026 the tab shows consent by decision and the DoLS register, every warning state in words` | Passing (slice 9) |
+| `apps/web/src/lib/mca.test.ts`: `hazard HZ-026 says where ... stands` (each consent record), `shows a refused consent record as a warning, and its capacity with the assessment's date`, `shows the outcome in words, as a finding rather than an alarm`, `says a later assessment of the same decision replaces an older finding`, `warns when a best-interests decision follows a corrected or overtaken assessment` and `words the finding from the two stages, in the catalogue, never the API's English`; `apps/web/e2e/capacity.spec.ts`: `hazard HZ-026 the tab shows the two-stage test, the best-interests checklist and each consent record, with corrections` (both representatives' authority, the restraint conditions, the corrected best-interests decision, the IMCA notice in the warning tone, the replaced finding) | Passing (slice 9, part 2) |
 
 ---
 
@@ -2459,6 +2463,87 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 | `apps/api` and the kiosk fetch: `hazard HZ-021 rebuilds the pack when someone on the latest one has moved` | Planned, Phase 1 (slice 11 part 3) |
 | `apps/mobile/src/sync/write-scope-store.test.ts`: `hazard HZ-073 keeping where the phone may record (review rounds 4 and 5)` (a scope that cannot be kept, removed or read leaves the phone recording about no one, also after a restart and sign-out); `apps/mobile/src/sync/write-scope.test.ts`: `records about no one while no scope is known`; `apps/web/src/lib/care-record.test.ts`: `never says the record cannot be recorded in above chart settings the viewer can change` | Passing (Phase 1) |
 | `apps/api/test/tasks.test.ts`: `hazard HZ-008 hazard HZ-073 an overdue task goes down the order until someone active is told` (an organisation-wide Registered Manager told; an invited team leader skipped; with no one, audited and left to be tried again); `apps/api/test/jobs.test.ts`: `hazard HZ-008 hazard HZ-073 sends a step no one holds to a Registered Manager reaching the home, and audits one no one can be sent`; `apps/api/test/device-integrity.test.ts`: `hazard HZ-073 audits an urgent review no one can be told about, as the system` | Passing (Phase 1) |
+
+---
+
+## HZ-110 A server-side sign-out clears a carer's offline records during a shift
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-110 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `platform` module (lead engineer) |
+| Source | The admin sign-out and the idle timeout (platform.md, Identity; branch `feat/platform-session-controls`, #40: `apps/api/src/routes/member-sessions.ts`, `apps/api/src/http/context.ts`); related to HZ-006 (silent sync failure, loss of offline records), HZ-021 (essential information), HZ-040 (held entries) and HZ-111 (the browser side of the idle timeout) |
+
+**Description**: the server ends a Care mode session (a manager signing the member out, or an idle timeout if it applied to the phone), and at its next contact the phone clears what it had synced, keeping only unsent entries (HZ-006). The carer loses the care plan, allergies and other reference data on the device until they sign in again, which may be impossible without signal, and entries wait longer to reach the record.
+
+**Causes**: a server idle timeout applied to the mobile app's session, so a shift without signal ends in a sign-out; a manager signing out a member mid-shift without knowing their phone holds entries or that it will lose its records; signing out the wrong member, one at another home, or one who is working for another organisation at the time; held entries on the phone of someone who has left, never sent because they never sign in again.
+
+**Effects**: essential information missing at the point of care (HZ-021); entries reaching the record late, or never (HZ-006).
+
+**Initial risk**: severity Major, likelihood Low, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | The server's idle timeout never applies to the mobile app's session (a request with its bearer token); the device's own auto-lock covers it (ADR-0011). The idle timeout is off altogether unless the environment turns it on (HZ-111) | Built in Phase 1 (`feat/platform-session-controls`, `apps/api/src/http/context.ts`) |
+| Design | The admin sign-out needs `platform.user.manage`, a fresh sign-in and a coded reason; it is audited before the sessions end, and every refusal is audited by opaque id; a location role reaches only members whose roles and grants are all at its homes | Built in Phase 1 (`feat/platform-session-controls`, `apps/api/src/routes/member-sessions.ts`) |
+| Design | A member who also works for another organisation in Harbour is never signed out (409 `member_of_other_organisation`, in plain words), because their sessions are their sign-in's, not one organisation's | Built in Phase 1 (`feat/platform-session-controls`, #40 review M1) |
+| Design | When the member's devices last reported entries waiting, the sign-out is refused until the manager confirms (409 `entries_waiting`), saying that signing out removes the care record from their phone until they sign in again and that unsent entries stay on the phone until then | Built in Phase 1 (`feat/platform-session-controls`, #40 review M2) |
+| Design | For a member signed out because they have left or been suspended, the holds on their devices fall due at once and the manager is told, as after a device revocation (`hurryRevokedHold`) | Built in Phase 1 (`feat/platform-session-controls`, #40 review M2) |
+| Design | A device whose session the API has ended keeps unsent entries, encrypted, for their owner to send after signing in again (HZ-006, `held-work.ts`) | Built in Phase 1 (#15) |
+| Design | The sign-out confirmation says how old the devices' last report is | Planned (STATUS item 18) |
+| Training and user documentation | Deployer control: sign a carer out mid-shift only for a lost or stolen device, a departure, a suspension or suspected misuse, and tell them to sign in again before going on with care (DCB0160 template) | Phase 1 |
+
+**Target residual risk**: severity Major, likelihood Very low, **risk 2** (an engineering proposal; the CSO rates it, H-351).
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `apps/api/test/flags-and-sessions.test.ts`: `hazard HZ-110 hazard HZ-111 idle timeouts per role, when turned on`: `never signs out the mobile app's session, which the device lock covers` | Passing (Phase 1) |
+| `apps/api/test/flags-and-sessions.test.ts`: `hazard HZ-110 a manager signs a member of staff out of every device`: `hazard HZ-110 asks before signing out a member whose phone holds entries, then signs out every session and chases the hold`; `hazard HZ-110 never signs out someone who also works for another organisation`; `hazard HZ-110 reaches only members wholly at the manager's homes, and audits a refusal`; `hazard HZ-110 needs platform.user.manage and a fresh sign-in` | Passing (Phase 1) |
+| `apps/mobile/src/app-state/held-work.test.ts`: `when the API ends the session (401 or 403)` (unsent entries kept, the rest cleared) | Passing (Phase 1) |
+
+---
+
+## HZ-111 A browser idle timeout loses an unsaved care entry
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-111 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `platform` module (lead engineer) |
+| Source | #40 clinical review round 1 (High); the idle timeout in `apps/api/src/http/context.ts` and the web's sign-in redirect (`apps/web/src/lib/problems.ts`); related to HZ-110 and HZ-006 |
+
+**Description**: a nurse half-way through a note, observation or assessment on the web leaves the tab for longer than the idle timeout. On return, the person record header's refresh on focus (`HeaderFreshness`), or the form's own submit, meets 401, the page goes to sign-in, and what was typed is lost; the care is not recorded, or is recorded later from memory.
+
+**Causes**: an idle timeout enforced by the server with no warning before it expires; a sign-in that unmounts the form; refreshes on focus that reach the server before the person can act.
+
+**Effects**: a care entry, observation or escalation not recorded or recorded late and inaccurately (HZ-006, HZ-014).
+
+**Initial risk**: severity Major, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | The idle timeout is off unless the environment turns it on (`SESSION_IDLE_TIMEOUT`), and production refuses to start with it on, so it introduces no loss until the controls below exist and the CSO and DPO have decided (H-353) | Built in Phase 1 (`feat/platform-session-controls`, `apps/api/src/config.ts`) |
+| Design | A warning before expiry, as WCAG 2.2 success criterion 2.2.1 asks, with "Stay signed in", a request the person makes that counts as use | Planned (before the timeout is turned on) |
+| Design | Signing in again in place without unmounting the form, so what was typed survives; no care text is written to browser storage | Planned (before the timeout is turned on) |
+| Design | Background refreshes never count as use, while the idle check still applies to them | Planned (before the timeout is turned on; platform.md prerequisites) |
+
+**Target residual risk**: severity Major, likelihood Very low, **risk 2** (an engineering proposal; the CSO accepts it, or blocks the timeout until entries are kept, H-353).
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `apps/api/test/flags-and-sessions.test.ts`: `hazard HZ-111 the idle timeout is off unless the environment turns it on` (`never signs out an idle browser session with the default configuration`); `apps/api/test/config.test.ts`: `refuses the browser idle timeout (HZ-111) in production` | Passing (Phase 1) |
+| Playwright: a form half-filled, the warning shown before expiry, "Stay signed in" keeps the session; after expiry, signing in again in place keeps the typed text and stores none in the browser | Planned |
 
 ---
 

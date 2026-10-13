@@ -1114,9 +1114,12 @@ export async function hurryRevokedHold(
     readonly waiting: number;
     readonly now: Date;
     readonly requestId: string | undefined;
+    /** Why the hold is hurried: the device was revoked, or its member signed out (#40 review M2). */
+    readonly because?: "revoked" | "signed_out";
   },
 ): Promise<void> {
   if (input.waiting <= 0) return;
+  const because = input.because ?? "revoked";
   await withRequestContext(db, systemFor(access), async (tx) => {
     await lock(tx, access.tenantId, `device_hold:${input.deviceId}`);
     // The device's own tasks, and any reporter's capped-holds task its hold was merged into.
@@ -1158,7 +1161,7 @@ export async function hurryRevokedHold(
         action: DEVICE_HOLD_ACTIONS.moved,
         resourceType: "task",
         resourceId: row.id,
-        scope: { deviceId: input.deviceId, dueAt: due.toISOString(), because: "revoked" },
+        scope: { deviceId: input.deviceId, dueAt: due.toISOString(), because },
         requestId: input.requestId,
       });
     }
@@ -1168,7 +1171,10 @@ export async function hurryRevokedHold(
         recipientTenantUserId: access.tenantUserId,
         kind: REVOKED_HOLD_NOTICE_KIND,
         severity: "urgent",
-        title: "A device you withdrew still holds unsent care entries",
+        title:
+          because === "revoked"
+            ? "A device you withdrew still holds unsent care entries"
+            : "A device of someone you signed out still holds unsent care entries",
         body: "Hand them over or record their deletion on the device. Its task is due now.",
         link: "/tasks",
         channels: ["in_app", "push"],

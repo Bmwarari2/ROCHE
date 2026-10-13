@@ -7,7 +7,15 @@ import {
   parseHex,
   toHex,
 } from "./branding";
-import { evaluateFlag, FLAGS } from "./feature-flags";
+import {
+  evaluateFlag,
+  FLAGS,
+  type FlagKey,
+  isAiFlag,
+  isFlagKey,
+  remoteMaySet,
+  resolveFlag,
+} from "./feature-flags";
 import { RateNotFoundError, type RateRow, resolveRate } from "./rates";
 import { addPeriod, retentionDecision, validateTenantOverride } from "./retention";
 import { checkDistinctActors } from "./separation-of-duties";
@@ -95,6 +103,123 @@ describe("feature flags", () => {
 
   it("keeps the AI module off by default (section 16)", () => {
     expect(FLAGS["module.ai"].defaultEnabled).toBe(false);
+  });
+
+  it("marks every AI flag, and none is on by default", () => {
+    const keys = Object.keys(FLAGS) as FlagKey[];
+    for (const key of keys.filter((k) => k.startsWith("module.ai") || k.startsWith("ai."))) {
+      expect(isAiFlag(key), key).toBe(true);
+    }
+    for (const key of keys.filter(isAiFlag)) expect(FLAGS[key].defaultEnabled, key).toBe(false);
+  });
+
+  // The OpenFeature provider's order (apps/api/src/flags): location row, tenant row, Flagsmith
+  // where it may set the flag and answered, catalogue default.
+  it.each([
+    ["remote sets a module marked remote", "module.public_site", [], null, true, true, "remote"],
+    [
+      "remote can switch a remote module off",
+      "module.public_site",
+      [],
+      null,
+      false,
+      false,
+      "remote",
+    ],
+    [
+      "the tenant row wins over remote",
+      "module.public_site",
+      [{ flagKey: "module.public_site", locationId: null, enabled: false }],
+      null,
+      true,
+      false,
+      "tenant",
+    ],
+    [
+      "the location row wins over remote",
+      "module.public_site",
+      [{ flagKey: "module.public_site", locationId: LOC, enabled: true }],
+      LOC,
+      false,
+      true,
+      "location",
+    ],
+    [
+      "remote unreachable falls back",
+      "module.public_site",
+      [],
+      null,
+      undefined,
+      false,
+      "catalogue",
+    ],
+    ["remote never switches eMAR on", "module.emar", [], null, true, false, "catalogue"],
+    [
+      "remote never switches residential off",
+      "module.residential",
+      [],
+      null,
+      false,
+      true,
+      "catalogue",
+    ],
+    ["remote never turns AI on", "module.ai", [], null, true, false, "catalogue"],
+    [
+      "only the organisation's row turns AI on",
+      "module.ai",
+      [{ flagKey: "module.ai", locationId: LOC, enabled: true }],
+      LOC,
+      false,
+      true,
+      "location",
+    ],
+    ["remote never sets a clinical tool", "care.tool.waterlow", [], null, true, false, "catalogue"],
+    [
+      "remote never sets a review workflow",
+      "dols.post_2026_review_workflow",
+      [],
+      null,
+      false,
+      true,
+      "catalogue",
+    ],
+    ["remote never sets the language", "locale.welsh", [], null, true, false, "catalogue"],
+  ] as const)("%s", (_name, key, rows, location, remote, enabled, source) => {
+    expect(resolveFlag(key, rows, location, remote)).toEqual({ enabled, source });
+  });
+
+  // #39 review M1 and round 2: Flagsmith sets only the flags marked remote, never a clinical or
+  // data-protection module (workforce adds criminal offence data), an AI flag or a clinical tool.
+  it.each(
+    (Object.keys(FLAGS) as FlagKey[]).filter(
+      (k) =>
+        isAiFlag(k) ||
+        k.startsWith("care.tool.") ||
+        [
+          "module.emar",
+          "module.residential",
+          "module.domiciliary",
+          "module.supported_living",
+          "module.family_portal",
+          "module.finance",
+          "module.workforce",
+          "dols.post_2026_review_workflow",
+          "locale.welsh",
+        ].includes(k),
+    ),
+  )("never lets Flagsmith set %s", (key) => {
+    expect(remoteMaySet(key)).toBe(false);
+  });
+
+  it("lets Flagsmith set only the flags marked remote", () => {
+    const remote = (Object.keys(FLAGS) as FlagKey[]).filter(remoteMaySet);
+    expect(remote.sort()).toEqual(["module.public_site"]);
+  });
+
+  it("knows the catalogue's keys", () => {
+    expect(isFlagKey("module.ai")).toBe(true);
+    expect(isFlagKey("module.unknown")).toBe(false);
+    expect(isFlagKey("toString")).toBe(false);
   });
 });
 

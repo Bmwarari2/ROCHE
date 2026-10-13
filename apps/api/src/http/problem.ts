@@ -94,6 +94,28 @@ export const problems = {
       "This device last reported entries that have not reached Harbour.",
       `${count} ${count === 1 ? "entry is" : "entries are"} waiting on it. Confirm to withdraw it anyway: they stay on the device until handed over or deleted, and its task is due at once.`,
     ),
+  /**
+   * A sign-out asked for without confirming the entries the member's devices last reported waiting
+   * (#40 review M2): the phone loses its care record until they sign in again.
+   */
+  memberEntriesWaiting: (count: number) =>
+    new HttpProblem(
+      409,
+      "entries_waiting",
+      "This person's phone has care entries that have not reached Harbour.",
+      `${count} ${count === 1 ? "entry is" : "entries are"} waiting. Signing them out also removes the care record from their phone until they sign in again. The entries not yet sent stay on the phone, protected, until then. Confirm to sign them out anyway.`,
+    ),
+  /**
+   * Sessions belong to the person's sign-in, not to one organisation (#40 review M1): signing out
+   * someone who also works for another organisation would end their work there too.
+   */
+  memberOfAnotherOrganisation: () =>
+    new HttpProblem(
+      409,
+      "member_of_other_organisation",
+      "This person also works for another organisation in Harbour.",
+      "Signing them out here would sign them out there too, so they have not been signed out. Ask them to sign out of their own devices, or contact Harbour support.",
+    ),
 };
 
 export function problemResponse(c: Context, problem: HttpProblem, requestId?: string) {

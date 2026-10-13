@@ -1267,6 +1267,14 @@ Third of four pull requests (`feat/mobile-offline-round-upload`, stacked on the 
   (#41 closed): an HZ-017 row, a STATUS follow-up and H-309; the completion stays recorded
   when the move arrives.
 
+## 2026-10-13: The round and the handover on the phone, offline writes, review round 2 (#36)
+
+- Merged `main` (#33, #39 and #40), keeping both sides of the shared documents.
+- Logged the five round 2 lows as STATUS item 15 follow-ups: the person's home looked up
+  inside `useMoveTask`; the bare task row a held move is put back on, and its PUT; held round
+  changes re-queued only for their owner; "already waiting to upload" after a refused
+  acknowledgement; "tell the person in charge" shown to nurses.
+
 ## 2026-10-13: The round and the handover on the phone, publication migration (#33)
 
 - Migration 0052 adds `task`, `handover`, `handover_item`, `handover_note` and
@@ -1302,3 +1310,76 @@ locally; typecheck clean for db, sync and mobile.
 
 **Tests**: `apps/mobile` 977, `packages/i18n` 48, passing locally; typecheck clean for
 mobile.
+
+## 2026-10-13: The consent, capacity and DoLS tab, part 2 (slice 9, Lane B)
+
+The rest of the tab's read views, on the API already on `main` and held to the standards of #34's
+review round 1: capacity assessments with the two-stage answers, the outcome in the Act's words,
+the review date and corrections struck through; best-interests decisions with the section 4
+checklist, the people consulted and the IMCA prompt as a warning in the catalogue's words; and
+consent records saying whether each decides its decision now, a refusal as a warning, the
+representative's authority, the capacity it was made under with the assessment's date, and a
+history link named with the decision and date (the web history page now opens consent records).
+No API, schema or permission change. The forms are next (STATUS item 13).
+
+**Tests**: `apps/web` 401 unit, `packages/i18n` 48; Playwright `e2e/capacity.spec.ts` (three
+journeys, with axe in both themes) and `e2e/care-record.spec.ts`, run locally on a fresh scratch
+database set up as the CI e2e job does.
+
+## 2026-10-13: The consent, capacity and DoLS tab, part 2, review round 1 (#35)
+
+Accessibility and clinical review of the capacity assessment, best-interests and consent record
+views. An older capacity finding that a later assessment of the same decision replaces says so
+and has no overdue review; a best-interests decision says what its assessment found and warns
+when it was corrected or overtaken; the finding is worded from the two stages in the catalogue,
+not the API's English; consent records warn when the deciding record was withdrawn or expired,
+or cannot be placed, and say when one starts later. The journey records every consent state,
+both representatives with their authority, the corrected best-interests decision and the later
+assessment before its axe and 320 px checks, and opens the earlier version by keyboard. Human
+actions H-254 and H-255 for the CSO; STATUS item 16 for the follow-ups.
+
+**Tests**: `apps/web` 410 unit, `packages/i18n` 48; Playwright `e2e/capacity.spec.ts`,
+`care-record.spec.ts` and `break-glass.spec.ts` on a fresh scratch database, run locally.
+
+## 2026-10-13: OpenFeature provider over the flag catalogue (Lane D)
+
+- Flags go through an OpenFeature provider (`@openfeature/server-sdk`, Apache-2.0;
+  `apps/api/src/flags`): the organisation's location row, then tenant row, then Flagsmith, then
+  the catalogue. Flagsmith is used only when its key is set (production requires https on the
+  environment's own flags host), sees opaque ids only, may set only the flags marked `remote`
+  (the workforce module and the public site; never AI, clinical or data-protection modules,
+  clinical tools, review workflows or language) and falls back to the catalogue when it does not
+  answer, asking at most once per identity per cache period; a provider error keeps the
+  organisation's own rows (#39 review round 1). `/v1/me` uses the provider and now leaves out
+  deleted rows.
+- Human action H-352 (Flagsmith key in the API task once H-13 is decided). Tests: the domain's
+  table-driven order (`rules.test.ts`), the provider and Flagsmith unit tests
+  (`apps/api/src/flags/provider.test.ts`) and `apps/api/test/flags-and-sessions.test.ts`.
+
+## 2026-10-13: Admin sign-out and idle timeouts per role (Lane D)
+
+- `POST /v1/members/{tenantUserId}/sessions/revoke`: a holder of `platform.user.manage`, with
+  step-up and a coded reason, signs a member out of every device (sessions are identity-level, so
+  every organisation too); audited; a location role reaches only members wholly at its homes;
+  entries waiting on the member's devices need confirming first (409 `entries_waiting`).
+- Browser sessions are signed out after their role's idle timeout from the rate table
+  (`session.idle_timeout_minutes[.<role>]`: 30 minutes, 15 for the owner and group executive;
+  the strictest of the member's roles); mobile sessions never (HZ-110). The session middleware
+  moves the expiry on hourly itself, with Better Auth's refresh off there, so a refresh never
+  counts as use. No migration: the rows are seeded from rates.md, and no new permission.
+- Hazard HZ-110; human actions H-350 and H-351. Tests: `sessions.test.ts` (domain, table-driven)
+  and `apps/api/test/flags-and-sessions.test.ts`; the API suite passes.
+
+## 2026-10-13: #40 review round 1 (Lane D)
+
+- The browser idle timeout ships off (`SESSION_IDLE_TIMEOUT`, refused in production) because
+  signing out mid-entry loses the form: new hazard HZ-111 with its planned controls, and H-353 for
+  the CSO and DPO; the security review's bypasses are listed in platform.md as prerequisites for
+  turning it on. A missing or invalid timeout figure falls back to the default and is kept between
+  a floor and a ceiling (rate table), never a 500.
+- The admin sign-out refuses a member who also works for another organisation (409, H-354),
+  writes its audit row before ending the sessions and audits every refusal by opaque id, says that
+  the phone loses its care record until the member signs in again, and for `staff_left` or
+  `suspended` chases the holds on their devices as a revocation does. HZ-110 claims only what is
+  built.
+
