@@ -1273,3 +1273,12 @@ Migration 0053, edited in place:
 
 **Tests**: `packages/db` `back-entry.test.ts` now 17 (9 new), including the race between an entry
 and a cancel.
+
+## 2026-10-13: Slice 11 part 3a-1, downtime pack API (OPS-028)
+
+Stacked on part 2. `GET` and `POST /v1/locations/{id}/downtime-pack` (operations.md section 13):
+the latest pack the reader can open, built again on the spot when it no longer serves the people
+receiving care there, with the freshness words and header lines worked out now; shared allergy,
+communication and rate helpers; unconfirmed MAR and PEEP places print as not set.
+
+**Tests**: `apps/api` 4 new in `downtime.test.ts`; HZ-021's planned API test now passes.

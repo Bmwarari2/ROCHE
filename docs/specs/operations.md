@@ -325,8 +325,9 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
     back-entry, while someone who only corrected one may reconcile (H-203).
   - Not checked in the database: rule 13 (the normal route), which depends on the API applying
     `checkEntryAgainstOutages` on every care route and on the sync upload.
-- Not yet: the API, nightly job and PDF (part 3); outages and packs in the sync streams (with the
-  mobile step).
+- Not yet: the printed pack (part 3a-2); the nightly job, rebuilds after moves and the places
+  route (part 3b); outages and back-entry through the API (part 3c); outages and packs in the
+  sync streams, and the kiosk fetch (with the mobile step).
 - Part 3 requirements (#32 review round 1):
   - A pack is hidden from the location's holders once someone it names moves away (H-200). The
     API builds a fresh pack on demand whenever anyone moves into, out of or away from the
@@ -354,3 +355,22 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
     HZ-017). Note for Lane C: add them with the mobile step.
   - Rule 13 runs in the API on every care write route and on the sync upload; the database does
     not check it.
+
+## 13. As built (slice 11 part 3a, downtime pack API)
+
+`apps/api/src/routes/operations.ts`, `services/downtime-pack.ts`; tests in
+`apps/api/test/downtime.test.ts`.
+
+- `GET /v1/locations/{id}/downtime-pack` (`operations.downtime.read` where the location is): the
+  latest pack the reader can open, built on the spot as `server_on_demand` when it no longer names
+  exactly the people receiving care there with their status now, the location changed since (where
+  the MAR and PEEPs are kept), or it expired; so a pack hidden because someone on it moved away is
+  replaced for a holder at a reachable location. The freshness words and the four header lines are
+  worked out at the moment of the request (`downtimePackFreshness`, `downtimePageHeader`, with any
+  outage open at the location). Opening and building are audited
+  (`operations.downtime_pack.opened`, `.generated`).
+- `POST /v1/locations/{id}/downtime-pack`: builds one now.
+- Building reads only the location's own people receiving care, in the builder's view, and
+  publishes `operations.downtime_pack.generated` (location and pack ids) for kiosks. While the MAR
+  and PEEP places are unconfirmed, the pack prints "where it is kept is not set in Harbour: ask the
+  nurse in charge" (H-201).

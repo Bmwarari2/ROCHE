@@ -182,6 +182,12 @@ only when they link spec, code, tests and user documentation; no user guides exi
        the check counts every entry);
      - the guard trusts the entry's `location_id`; nothing checks it is the person's location
        (an existing gap).
+   - Slice 11 part 3a-1, downtime pack API (`feat/operations-downtime-pack-read`, stacked on
+     part 2; operations.md section 13): built, PR to follow part 2. Then part 3a-2, the printed
+     pack (`feat/operations-downtime-pack-api`), part 3b, the nightly job, rebuilds after moves
+     and the places route (`feat/operations-downtime-api`), and part 3c, outages and back-entry
+     through the API. Follow-ups: the kiosk fetch route and photos on
+     the printed pages (mobile step).
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; admin session revoke and idle timeouts
    per role; record history PDF export; device push registration; OpenFeature provider; user

@@ -1543,7 +1543,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | `packages/domain/src/operations/kiosk-cache.test.ts`: `hazard HZ-021 the kiosk opens its cached pack only in a PIN session of a downtime reader`; `hazard HZ-021 the kiosk evicts its cached pack on revocation and at the end of retention`; `hazard HZ-021 the kiosk queues an audit event for every print and open` | Passing (Phase 1, slice 11) |
 | `packages/db/test/downtime.test.ts`: `hazard HZ-011 hazard HZ-021 a downtime pack follows its location and its people` (the people taken from the pack's content whatever the caller says; append-only for the application and the owner, no delete or truncate); `hazard HZ-021 seeds every location with the default places, unconfirmed, and refuses a blank one` (`downtime.mar_location`, `downtime.peep_location`: changed and confirmed only by a holder of `platform.location.manage`, in their own name; a changed place unconfirmed again) | Passing (Phase 1, slice 11 schema) |
 | `apps/api` and the kiosk fetch: `hazard HZ-021 rebuilds the pack when someone on the latest one has moved` | Planned, Phase 1 (slice 11 part 3) |
-| `apps/api`: `hazard HZ-021 the downtime pack contains every required section for every current resident` | Planned, Phase 1 |
+| `apps/api/test/downtime.test.ts`: `hazard HZ-021 the downtime pack contains every required section for every current resident`; `builds the pack again when someone's status or the places change`; `is only for holders of operations.downtime.read where the location is` | Passing (Phase 1, slice 11 part 3a) |
 | `apps/mobile` Maestro `hazard-HZ-021-kiosk-downtime-pack.yaml`: print the cached pack offline with the freshness words | Planned, Phase 1 |
 
 ---
