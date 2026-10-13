@@ -393,6 +393,25 @@ only when they link spec, code, tests and user documentation; no user guides exi
     only `platform.device.revoke`); with nothing waiting there is no warning that the phone loses
     its care record mid-shift (H-351); organisations can override the timeout floor and ceiling
     (harmless while the timeout is off).
+19. The incident screens, the rest (slice 9, SAFE-001 to SAFE-003; the incidents list and an
+    incident's read view are on `feat/web-incidents`): part 2, the statutory notifications on the
+    incident page with their clocks and warnings (`feat/web-incident-notifications`, stacked on
+    part 1); the statutory notification pages (`/notifications/statutory` with every draft's clock
+    for `safety.incident.manage`, and `/notifications/statutory/{id}` with its deadlines, required
+    content and sources, which the overdue alert already links to; the sidebar's `/notifications`
+    section must not claim that path); then the forms, each offered only where `access.reaching`
+    lists its permission (ADR-0071), with a client UUIDv7 kept across retries and refusals mapped
+    in `refusals.ts`: record an incident (`safety.incident.report`), answer the classifier's
+    questions in the catalogue's words, review and close (`safety.incident.manage`, never the
+    person who raised it), prepare a notification, and submit it or mark it not required with
+    step-up (`safety.notification.submit`). API gaps ([safety.md](../specs/safety.md) section 5):
+    no staff names (H-73); the list has no paging past 500.
+    - Follow-ups from #42 review round 1 (H-256 asks the CSO whether part 1 may ship before part
+      2): `emergencyServicesCalled` and `gpContacted` default to false in `CreateIncident`, so
+      "No" may mean nobody was asked; the sidebar's Incidents icon (a warning triangle) reads as
+      an alert when the sidebar is folded to its icons; a reader without `people.person.read`
+      sees several "A person we support" with nothing to tell them apart; no demo account lacks
+      `safety.incident.read`, so the hidden Incidents item is unit tested only.
 20. Invitations and MFA enrolment (feat/platform-invitations; PLAT-004): the spec and rules are
     built (platform.md, Invitations and MFA enrolment; `invitations.ts`), with a test that no
     one-time code is offered by SMS or email, and review round 1 of #43 folded in (the token only

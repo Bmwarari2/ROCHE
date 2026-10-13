@@ -20,8 +20,13 @@ const contexts = [
 export default {
   extends: ["@commitlint/config-conventional"],
   // Dependabot writes its own subject and scope ("chore(deps-dev): Bump ..."); its pull requests are
-  // reviewed on the diff, so its commits are not held to the Harbour scopes.
-  ignores: [(message) => /^Signed-off-by: dependabot\[bot\]/m.test(message)],
+  // reviewed on the diff, so its commits are not held to the Harbour scopes. Merge commits that
+  // bring a base or a stacked branch in are not Conventional Commits whatever their title says;
+  // the default ignores cover only Git's own wording ("Merge branch ...").
+  ignores: [
+    (message) => /^Signed-off-by: dependabot\[bot\]/m.test(message),
+    (message) => /^Merge /.test(message),
+  ],
   rules: {
     "scope-enum": [
       2,
