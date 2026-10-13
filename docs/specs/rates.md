@@ -240,6 +240,11 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | mobile.auto_lock_seconds.personal | 120 | seconds | 2000-01-01 | - | all | master prompt 5.3, 17.2 | master-prompt |
 | mobile.auto_lock_seconds.shared | 30 | seconds | 2000-01-01 | - | all | master prompt 17.2, ADR-0011; tenant default | master-prompt |
 | mobile.auto_lock_seconds.shared_max | 120 | seconds | 2000-01-01 | - | all | master prompt 17.2 (configurable from 30 seconds to 2 minutes) | master-prompt |
+| session.idle_timeout_minutes | 30 | minutes | 2000-01-01 | - | all | Harbour default: a browser session unused for this long is signed out at its next request, for every role without its own row (master prompt 5.3; ASVS 5.0 V7.3; NIST SP 800-63B AAL2 asks for re-authentication after 30 minutes of inactivity); mobile sessions use mobile.auto_lock_seconds instead; policy value, not statutory; tenant default | to-verify |
+| session.idle_timeout_minutes.owner | 15 | minutes | 2000-01-01 | - | all | Harbour default for the owner role, which reaches every record, setting and the full export (NIST SP 800-63B AAL3 asks for 15 minutes); policy value, not statutory; tenant default | to-verify |
+| session.idle_timeout_minutes.group_executive | 15 | minutes | 2000-01-01 | - | all | Harbour default for the group executive role, which reads every location's records (NIST SP 800-63B AAL3 asks for 15 minutes); policy value, not statutory; tenant default | to-verify |
+| session.idle_timeout_floor_minutes | 5 | minutes | 2000-01-01 | - | all | Harbour floor on every idle timeout figure, so no row or organisation setting signs browser sessions out in under 5 minutes (#40 review); policy value, not statutory | to-verify |
+| session.idle_timeout_ceiling_minutes | 720 | minutes | 2000-01-01 | - | all | Harbour ceiling on every idle timeout figure: a session lasts 12 hours from its last refresh anyway (platform.md, Identity); policy value, not statutory | to-verify |
 | account_deletion.confirmation_days | 30 | days | 2000-01-01 | - | all | master prompt 17.3 | master-prompt |
 | invitation.expiry_hours | 72 | hours | 2000-01-01 | - | all | Harbour default: how long an invitation link to join an organisation works before it lapses (platform.md, Invitations); single use; no published figure; policy value, not statutory; tenant default | to-verify |
 | export.link_expiry_hours | 72 | hours | 2000-01-01 | - | all | Harbour default: how long a ready full tenant export can be downloaded before the file is deleted (master prompt 5.1 asks for delivery by expiring link but sets no period; platform-completions.md rule 12); policy value, not statutory; tenant default | to-verify |
@@ -393,6 +398,17 @@ literals, and tests assert against the table, not a literal (section 7, section 
   sub-processor processes a tenant's data, which is also the window in which the tenant may object
   (DPA template clause 6.2, bracketed until the solicitor confirms it, H-32). It is contractual,
   so a tenant whose signed DPA says otherwise has its own value; it is never a statutory period.
+- `session.idle_timeout_minutes` (30), `.owner` and `.group_executive` (15): how long a browser
+  session may go unused before the next request signs it out (platform.md, Identity). **Not
+  enforced** until the environment turns it on (`SESSION_IDLE_TIMEOUT`), which waits for HZ-111's
+  controls and the CSO's and DPO's decision (H-353). Each role may have its own row
+  (`session.idle_timeout_minutes.<role key>`); a member holding several roles gets the strictest,
+  kept between `session.idle_timeout_floor_minutes` (5) and `session.idle_timeout_ceiling_minutes`
+  (720); a missing or invalid figure takes the default, and with no valid default the timeout is
+  not enforced. The figures follow NIST SP 800-63B (AAL2 and AAL3); no UK rule sets
+  one. Mobile sessions are not timed out by the server: the device auto-lock covers them, and
+  unsent entries must still upload after a shift without signal (HZ-110). Tenant default,
+  confirmed by the tenant's data protection lead (H-350).
 - `invitation.expiry_hours` (72): how long an invitation link works (platform.md, Invitations
   and MFA enrolment). Long enough to cover a weekend, short enough that a forwarded or old email
   is soon useless; the link is single use and a new invitation revokes the old one. Tenant

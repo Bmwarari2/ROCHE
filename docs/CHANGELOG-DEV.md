@@ -1265,6 +1265,48 @@ actions H-254 and H-255 for the CSO; STATUS item 16 for the follow-ups.
 **Tests**: `apps/web` 410 unit, `packages/i18n` 48; Playwright `e2e/capacity.spec.ts`,
 `care-record.spec.ts` and `break-glass.spec.ts` on a fresh scratch database, run locally.
 
+## 2026-10-13: OpenFeature provider over the flag catalogue (Lane D)
+
+- Flags go through an OpenFeature provider (`@openfeature/server-sdk`, Apache-2.0;
+  `apps/api/src/flags`): the organisation's location row, then tenant row, then Flagsmith, then
+  the catalogue. Flagsmith is used only when its key is set (production requires https on the
+  environment's own flags host), sees opaque ids only, may set only the flags marked `remote`
+  (the workforce module and the public site; never AI, clinical or data-protection modules,
+  clinical tools, review workflows or language) and falls back to the catalogue when it does not
+  answer, asking at most once per identity per cache period; a provider error keeps the
+  organisation's own rows (#39 review round 1). `/v1/me` uses the provider and now leaves out
+  deleted rows.
+- Human action H-352 (Flagsmith key in the API task once H-13 is decided). Tests: the domain's
+  table-driven order (`rules.test.ts`), the provider and Flagsmith unit tests
+  (`apps/api/src/flags/provider.test.ts`) and `apps/api/test/flags-and-sessions.test.ts`.
+
+## 2026-10-13: Admin sign-out and idle timeouts per role (Lane D)
+
+- `POST /v1/members/{tenantUserId}/sessions/revoke`: a holder of `platform.user.manage`, with
+  step-up and a coded reason, signs a member out of every device (sessions are identity-level, so
+  every organisation too); audited; a location role reaches only members wholly at its homes;
+  entries waiting on the member's devices need confirming first (409 `entries_waiting`).
+- Browser sessions are signed out after their role's idle timeout from the rate table
+  (`session.idle_timeout_minutes[.<role>]`: 30 minutes, 15 for the owner and group executive;
+  the strictest of the member's roles); mobile sessions never (HZ-110). The session middleware
+  moves the expiry on hourly itself, with Better Auth's refresh off there, so a refresh never
+  counts as use. No migration: the rows are seeded from rates.md, and no new permission.
+- Hazard HZ-110; human actions H-350 and H-351. Tests: `sessions.test.ts` (domain, table-driven)
+  and `apps/api/test/flags-and-sessions.test.ts`; the API suite passes.
+
+## 2026-10-13: #40 review round 1 (Lane D)
+
+- The browser idle timeout ships off (`SESSION_IDLE_TIMEOUT`, refused in production) because
+  signing out mid-entry loses the form: new hazard HZ-111 with its planned controls, and H-353 for
+  the CSO and DPO; the security review's bypasses are listed in platform.md as prerequisites for
+  turning it on. A missing or invalid timeout figure falls back to the default and is kept between
+  a floor and a ceiling (rate table), never a 500.
+- The admin sign-out refuses a member who also works for another organisation (409, H-354),
+  writes its audit row before ending the sessions and audits every refusal by opaque id, says that
+  the phone loses its care record until the member signs in again, and for `staff_left` or
+  `suspended` chases the holds on their devices as a revocation does. HZ-110 claims only what is
+  built.
+
 ## 2026-10-13: Invitations and MFA enrolment, spec and rules (Lane D)
 
 - platform.md gains "Invitations and MFA enrolment": invite (step-up, reach, one pending link per

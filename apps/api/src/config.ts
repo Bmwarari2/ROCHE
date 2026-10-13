@@ -55,6 +55,20 @@ const Env = z.object({
   MALWARE_SCANNER: z.enum(["clamd", "mock", "none"]).default("mock"),
   CLAMD_HOST: z.string().default("127.0.0.1"),
   CLAMD_PORT: z.coerce.number().int().default(3310),
+  /**
+   * Flagsmith (ADR-0001, H-13): optional, and off unless the environment's server-side key is set
+   * (from Secrets Manager, never Git). Unreachable, every flag falls back to the catalogue default.
+   */
+  FLAGSMITH_API_URL: z.url().default("http://localhost:8000/api/v1"),
+  FLAGSMITH_ENVIRONMENT_KEY: z.string().optional(),
+  FLAGSMITH_TIMEOUT_MS: z.coerce.number().int().positive().default(500),
+  FLAGSMITH_CACHE_SECONDS: z.coerce.number().int().positive().default(60),
+  /**
+   * The browser idle timeout (platform.md, Identity): off unless set to "on". Not to be turned on
+   * until HZ-111's controls are built (a warning with "Stay signed in", and signing in again
+   * without losing a form) and the CSO and DPO have decided (H-353); production refuses it.
+   */
+  SESSION_IDLE_TIMEOUT: z.enum(["off", "on"]).default("off"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   APP_VERSION: z.string().default("0.0.0-dev"),
 });
@@ -77,6 +91,15 @@ const list = (value: string) =>
     .map((item) => item.trim())
     .filter(Boolean);
 
+/**
+ * The environment's self-hosted Flagsmith host: `flags.<domain>` beside the API's `api.<domain>`
+ * (infra/README.md), or null when the API is not served from an `api.` host.
+ */
+export function flagsmithHost(betterAuthUrl: string): string | null {
+  const host = new URL(betterAuthUrl).hostname;
+  return host.startsWith("api.") ? `flags.${host.slice("api.".length)}` : null;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const parsed = Env.parse(env);
   if (parsed.NODE_ENV === "production") {
@@ -94,6 +117,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     }
     if (parsed.MALWARE_SCANNER === "mock") {
       throw new Error("MALWARE_SCANNER cannot be mock in production");
+    }
+    // Signing a browser out mid-entry loses the form (HZ-111): off until its controls exist.
+    if (parsed.SESSION_IDLE_TIMEOUT === "on") {
+      throw new Error("SESSION_IDLE_TIMEOUT cannot be on in production until HZ-111 is controlled");
+    }
+    // Flagsmith only at the environment's own self-hosted host, over TLS (#39 review L2).
+    if (parsed.FLAGSMITH_ENVIRONMENT_KEY) {
+      const expected = flagsmithHost(parsed.BETTER_AUTH_URL);
+      const url = env.FLAGSMITH_API_URL ? new URL(parsed.FLAGSMITH_API_URL) : null;
+      if (!url || !expected || url.protocol !== "https:" || url.hostname !== expected) {
+        throw new Error(
+          "FLAGSMITH_API_URL must be https on the environment's own flags host (flags.<domain>) in production",
+        );
+      }
     }
   }
   return {
