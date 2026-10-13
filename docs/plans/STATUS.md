@@ -137,6 +137,36 @@ only when they link spec, code, tests and user documentation; no user guides exi
    channels, notifications, visit booking and the family portal policy of ADR-0061; search, the
    full export, DPIA, onboarding and sample data), then slice 14; the rest of the web record
    (slice 9) and Care mode part 2 (slice 10) alongside ([phase-1.md](phase-1.md)).
+   - Slice 11 part 1, downtime pack and outage schema (`feat/operations-downtime-schema`,
+     migrations 0050 and 0051; operations.md section 12): in review. Next, part 2: the
+     expand-only back-entry columns on `care_note`, `observation`, `body_map_mark`,
+     `activity_record` and `visit_log` (with `outage_id`), the cancel refusal once a back-entry
+     cites an outage and the reconciler check; then part 3, the API, nightly job and PDF.
+   - Follow-ups from #32 review round 1 (security and clinical):
+     - bound outage and pack times: no far-future `back_entry_due_at`, `closed_at` or
+       `generated_at`, and a start or end in the future (beyond the clock tolerance) refused in
+       the database as the domain refuses it;
+     - `downtime_pack.warnings` holds counts and opaque ids only: a CHECK or a write-side mapping
+       test (the domain's `DowntimeWarning` carries a message, which must not be stored there);
+     - outage free text (description, reconciliation statement, cancellation and correction
+       reasons) reaches assigned care workers: guidance on the forms not to write names;
+     - `outage.workflow_instance_id` is not checked to be an `operations.outage` workflow for an
+       outage at this location;
+     - a kiosk-built pack is inserted under its builder's permission when uploaded, so it is
+       refused if their role or grant has ended by then;
+     - a location-scoped Registered Manager cannot review a pre-move pack later (H-200);
+     - an open outage with no end blocks the next declaration at the location until it is closed
+       or corrected;
+     - part 3 emits the `operations.*` audit and outbox events of section 5;
+     - store an outage's start as typed with the occurrence chosen in a repeated hour (needs the
+       domain's declaration to carry the written form, as `resolvePaperTime` does);
+     - who may change the other `location` columns is still enforced only by the API.
+   - Follow-ups from #32 review round 2:
+     - a missing `care_note.late_entry_hours` rate marks every outage late without saying why:
+       audit it as a configuration gap;
+     - the database does not refuse a corrected start in the future;
+     - `rate_table` writes have no permission check, so any member could override
+       `care_note.late_entry_hours` (an existing gap).
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; admin session revoke and idle timeouts
    per role; record history PDF export; device push registration; OpenFeature provider; user
@@ -183,7 +213,10 @@ only when they link spec, code, tests and user documentation; no user guides exi
     expiry reminder lines do not say whether the reminder was sent or acted on; check the timing
     of "Today is the last day in force" against the API's `daysLeft` and the expiry job once the
     CSO answers H-250; the empty DoLS register gives no next step (who to ask, or the form once it
-    exists); the legal-change review warning does not follow the tenant flag (H-253).
+    exists); the legal-change review warning does not follow the tenant flag (H-253) and shows for
+    homes in Wales although its text points to DHSC guidance for England. From review round 2: an
+    unknown outcome or type reads as plain text, not the warning chip the hazard log describes; an
+    authorisation not yet started with a midnight end reads "In force until the end of ...".
 
 ## Human actions outstanding
 

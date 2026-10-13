@@ -222,10 +222,32 @@ describe("DoLS register (care.md rule 11)", () => {
   });
 
   it("hazard HZ-020 shows an expired authorisation that a later granted one follows as renewed, not lapsed", () => {
-    const follower = dols({ id: ASSESSMENT, precededByAuthorisationId: RECORD });
-    expect(renewedIds([follower]).has(RECORD)).toBe(true);
-    expect(renewedIds([{ ...follower, outcome: "pending" }]).has(RECORD)).toBe(false);
-    expect(renewedIds([{ ...follower, outcome: "not_granted" }]).has(RECORD)).toBe(false);
+    const expired = dols({
+      status: "expired",
+      grantedFrom: "2026-04-10T09:00:00Z",
+      grantedTo: "2026-10-10T09:00:00Z",
+      endsAt: "2026-10-10T09:00:00Z",
+    });
+    // Granted before the first ended and starting when it ends: no gap.
+    const follower = dols({
+      id: ASSESSMENT,
+      precededByAuthorisationId: RECORD,
+      grantedFrom: "2026-10-10T09:00:00Z",
+    });
+    expect(renewedIds([expired, follower]).has(RECORD)).toBe(true);
+    expect(renewedIds([expired, { ...follower, outcome: "pending" }]).has(RECORD)).toBe(false);
+    expect(renewedIds([expired, { ...follower, outcome: "not_granted" }]).has(RECORD)).toBe(false);
+    // The follower starts after the first ended: a gap with nothing in force stays "Expired".
+    const late = {
+      ...follower,
+      grantedFrom: "2026-10-15T00:00:00Z",
+      status: "not_started" as const,
+    };
+    expect(renewedIds([expired, late]).has(RECORD)).toBe(false);
+    // An unknown start or end, or a follower naming one not on the register, is not a renewal.
+    expect(renewedIds([expired, { ...follower, grantedFrom: null }]).has(RECORD)).toBe(false);
+    expect(renewedIds([{ ...expired, endsAt: null }, follower]).has(RECORD)).toBe(false);
+    expect(renewedIds([follower]).has(RECORD)).toBe(false);
     expect(dolsChip("expired", true, t)).toMatchObject({
       status: "neutral",
       icon: "refresh-cw",
