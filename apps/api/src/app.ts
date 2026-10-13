@@ -6,6 +6,7 @@ import { secureHeaders } from "hono/secure-headers";
 import { createAuth } from "./auth/better-auth";
 import { withoutSessionTokens } from "./auth/token-exposure";
 import type { Config } from "./config";
+import { createFlagService } from "./flags/provider";
 import { type AppEnv, type Services, sessionMiddleware, tenantMiddleware } from "./http/context";
 import { HttpProblem, problemResponse, problems } from "./http/problem";
 import { QuotaExceeded } from "./http/quota";
@@ -24,6 +25,7 @@ import { incidentsRouter } from "./routes/incidents";
 import { integrationsRouter, supportAccessRouter } from "./routes/integrations";
 import { mcaRouter } from "./routes/mca";
 import { membershipsRouter, meRouter } from "./routes/me";
+import { memberSessionsRouter } from "./routes/member-sessions";
 import { createRouter } from "./routes/openapi";
 import { operatorMiddleware, operatorRouter } from "./routes/operator";
 import { peopleRouter } from "./routes/people";
@@ -85,6 +87,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     authPool,
     operatorPool,
     auth: createAuth(config, authPool),
+    flags: createFlagService(config, logger),
     ...createDocumentServices(config),
     transferPackLimiter: new RateLimiter(
       "transfer_pack",
@@ -172,6 +175,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", membershipsRouter);
   app.route("/", meRouter);
   app.route("/", sessionsRouter);
+  app.route("/", memberSessionsRouter);
   app.route("/", peopleRouter);
   app.route("/", peopleLifecycleRouter);
   app.route("/", peoplePropertyRouter);

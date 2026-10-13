@@ -168,9 +168,10 @@ only when they link spec, code, tests and user documentation; no user guides exi
      - `rate_table` writes have no permission check, so any member could override
        `care_note.late_entry_hours` (an existing gap).
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
-   session; invitations and MFA enrolment flow end to end; admin session revoke and idle timeouts
-   per role; record history PDF export; device push registration; OpenFeature provider; user
-   guides per role (moves PLAT and MOB rows to `done`).
+   session; invitations and MFA enrolment flow end to end; record history PDF export; device push
+   registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature
+   provider is in feat/platform-flags-and-sessions, the admin sign-out and idle timeouts per role
+   in feat/platform-session-controls (items 16 and 17).
 7. Open engineering decisions: certificate pinning (ADR-0028), shared-device sign-in (ADR-0025,
    needs CSO and DPO), the risk rating matrix (ADR-0032, proposed).
 8. `@harbour/ui` defaults without a label prop stay English in a Welsh shell: the sidebar's expand
@@ -253,9 +254,46 @@ only when they link spec, code, tests and user documentation; no user guides exi
     IMCA warning stays on a decision whose advocate was instructed or that is finished; the
     corrections list ignores `supersededOutsideList` and `correctsHidden`; the journey's
     best-interests decision (a move) follows a bed-rails assessment, which H-255 asks about.
-17. The incident screens, the rest (slice 9, SAFE-001 to SAFE-003; the incidents list and an
+17. Flags follow-ups (feat/platform-flags-and-sessions; PLAT-003): the clinical routes' flags
+    (`flagsAt`, `flagRows`, `legalChangeReviewEnabled`) through the provider once per-role flags
+    exist (today they read the organisation's rows directly, which Flagsmith may not set, so they
+    agree with `/v1/me`); an operator kill switch for AI in Flagsmith, if wanted (today Flagsmith
+    never reads AI flags); Flagsmith wiring in the API task (H-352); the OpenFeature SDK's own
+    error log goes to the console, not the API's logger, so it bypasses pino's redaction. From
+    #39 review round 1: an AI flag is recognised only by its `ai: true` marker (consider deriving
+    it from a category of flag); the OpenFeature provider is global and set by each `createApp`,
+    so in one process the last app created wins.
+18. Session follow-ups (feat/platform-session-controls; PLAT-004, HZ-110, HZ-111): the browser
+    idle timeout ships **off** (`SESSION_IDLE_TIMEOUT`; production refuses it); the PR that turns
+    it on must close every prerequisite in platform.md (Identity): HZ-111's warning with "Stay
+    signed in" and signing in again without losing the form, Better Auth's `get-session` refresh
+    resetting idle, sessions marked web or mobile at sign-in instead of by a request header, the
+    strictest timeout across the sign-in's memberships, background reads (the 2-minute header
+    refresh, which also keeps a shared ward PC signed in as the last user) not counting as use,
+    global role rows beating an organisation's stricter default, acting-up grants adding no role
+    keys, idle sessions still working on the identity-level routes and `/api/auth/*`, and use
+    recorded before authorisation; the CSO and DPO decide the figures and when (H-353). Also from
+    #40 review round 1: timeout rates are looked up by UTC date with the nation fixed to England;
+    the 15-minute owner timeout against drafting a statutory notification; the `entries_waiting`
+    confirmation should say how old the devices' last report is; check the NIST figures in
+    rates.md against the current SP 800-63B revision; tenant-scoped sessions, so a member who works
+    for two organisations can be signed out of one (H-354). Still to build: the sign-in page saying
+    the person was signed out after a period of inactivity, and the admin sign-out screen in staff
+    management (with the member's devices). From #40 review round 2 (lows): the 409
+    `member_of_other_organisation` tells the calling organisation that the person is active
+    elsewhere (consider a generic refusal), and its advice to ask them to sign out is wrong for a
+    suspended member or suspected misuse (point to suspending the membership or withdrawing the
+    device); a member of several organisations can be signed out remotely only through Harbour
+    support, which needs a documented procedure; holds are chased only after the sessions end and
+    the audit is written, so a failure there leaves the tasks unhurried; `suspected_misuse` is not
+    in `CHASE_HELD`; `platform.user.manage` holders can now bring device holds due at once (before,
+    only `platform.device.revoke`); with nothing waiting there is no warning that the phone loses
+    its care record mid-shift (H-351); organisations can override the timeout floor and ceiling
+    (harmless while the timeout is off).
+19. The incident screens, the rest (slice 9, SAFE-001 to SAFE-003; the incidents list and an
     incident's read view are on `feat/web-incidents`, the notifications with their clocks on the
-    incident page on `feat/web-incident-notifications`): the statutory notification pages (`/notifications/statutory` with every draft's clock
+    incident page on `feat/web-incident-notifications`): the statutory notification pages
+    (`/notifications/statutory` with every draft's clock
     for `safety.incident.manage`, and `/notifications/statutory/{id}` with its deadlines, required
     content and sources, which the overdue alert already links to; the sidebar's `/notifications`
     section must not claim that path); then the forms, each offered only where `access.reaching`
