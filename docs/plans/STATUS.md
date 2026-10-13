@@ -192,11 +192,8 @@ only when they link spec, code, tests and user documentation; no user guides exi
     Measure it against the 100 ms point-of-care budget on a large organisation; if it is slow,
     evaluate the scope for all candidates at once in a database function.
 13. The consent, capacity and DoLS tab, the rest (slice 9, CARE-021 and CARE-022; consent by
-    decision and the DoLS register are on `feat/web-mca-tab`): read views of the capacity
-    assessments (the two-stage answers, the outcome in the Act's words, corrections struck
-    through), the best-interests decisions (checklist, consultations, the IMCA prompt as a warning)
-    and the consent records (whether each decides its decision now, was replaced, withdrawn or
-    expired; the representative's authority; history links); then the forms, each offered only
+    decision and the DoLS register are on `main` (#34); the capacity assessment, best-interests and
+    consent record views are on `feat/web-mca-records`): the forms, each offered only
     where `access.reaching` lists its permission and with the read-only line otherwise (ADR-0071),
     each with a client UUIDv7 kept across retries (HZ-029) and its refusals mapped in
     `refusals.ts`: record a consent or refusal (the representative and their authority, the

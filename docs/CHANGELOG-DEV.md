@@ -1167,3 +1167,18 @@ CSO; STATUS item 14 for the follow-ups.
 `e2e/capacity.spec.ts` (every warning state, the alert link, axe in both themes, keyboard to the
 history link with its focus ring, 320 px, the empty tab), run locally.
 
+## 2026-10-13: The consent, capacity and DoLS tab, part 2 (slice 9, Lane B)
+
+The rest of the tab's read views, on the API already on `main` and held to the standards of #34's
+review round 1: capacity assessments with the two-stage answers, the outcome in the Act's words,
+the review date and corrections struck through; best-interests decisions with the section 4
+checklist, the people consulted and the IMCA prompt as a warning in the catalogue's words; and
+consent records saying whether each decides its decision now, a refusal as a warning, the
+representative's authority, the capacity it was made under with the assessment's date, and a
+history link named with the decision and date (the web history page now opens consent records).
+No API, schema or permission change. The forms are next (STATUS item 13).
+
+**Tests**: `apps/web` 401 unit, `packages/i18n` 48; Playwright `e2e/capacity.spec.ts` (three
+journeys, with axe in both themes) and `e2e/care-record.spec.ts`, run locally on a fresh scratch
+database set up as the CI e2e job does.
+
