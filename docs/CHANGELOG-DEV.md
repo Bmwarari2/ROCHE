@@ -1134,6 +1134,39 @@ names no one left out, holds only the pack's own keys and warnings about its own
 care at the location. H-202 notes that a narrowing correction can drop entries from the duplicate
 review; three STATUS follow-ups.
 
+## 2026-10-12: The consent, capacity and DoLS tab, part 1 (slice 9, Lane B)
+
+The web record gains an eleventh tab, "Consent, capacity and DoLS" (`/people/{id}/capacity`,
+`care.plan.read`), on the API already on `main`: whether a valid consent is in place now for each
+decision, with the capacity found for it, and the DoLS register with each authorisation's clock in
+words and UK dates, its reminders, CQC notification and legal-change review state, and a link to
+its history (the web history page now opens DoLS authorisations). Statuses are icon and word; an
+unknown one is a warning (HZ-020, HZ-026). No API, schema or permission change. The capacity
+assessments, best-interests decisions, consent records and the forms are the next part (STATUS
+item 13); two API gaps are in care.md section 10.
+
+**Tests**: `apps/web` 378 unit (18 new in `src/lib/mca.test.ts`), `packages/i18n` 48; Playwright
+`e2e/capacity.spec.ts` (records through the API as the demo nurse, then reads the tab, with axe in
+both themes and on the DoLS history) and the existing record journeys with the new tab, run
+locally.
+
+## 2026-10-12: The consent, capacity and DoLS tab, review round 1 (#34)
+
+Accessibility and clinical review of part 1. Every reason, CQC line, type, outcome and review
+state is now in the catalogue's words (en-GB and Welsh), with no internal or roadmap names; an
+unknown value warns. Consent: "Refused" is a warning that says who refused, nothing recorded reads
+"No consent recorded" with the next step, and each decision shows the date of the capacity
+finding and its review date. DoLS: a midnight end reads as the last day in force and the days
+count to it; a renewed authorisation reads "Renewed"; one from before the June 2026 judgment with
+no review warns with the next step; each authorisation and its history link are named with the
+date; dates are in `<time>` elements; the history link is 44 px; long references wrap.
+`/people/{id}/dols` (the expiry alert's link) opens the tab. Human actions H-250 to H-253 for the
+CSO; STATUS item 14 for the follow-ups.
+
+**Tests**: `apps/web` 388 unit (31 in `src/lib/mca.test.ts`), `packages/i18n` 48; Playwright
+`e2e/capacity.spec.ts` (every warning state, the alert link, axe in both themes, keyboard to the
+history link with its focus ring, 320 px, the empty tab), run locally.
+
 ## 2026-10-12: The round and the handover on the phone, streams (slice 10 part 2, Lane C)
 
 First of three pull requests for tasks and handovers in Care mode
