@@ -290,7 +290,7 @@ only when they link spec, code, tests and user documentation; no user guides exi
     only `platform.device.revoke`); with nothing waiting there is no warning that the phone loses
     its care record mid-shift (H-351); organisations can override the timeout floor and ceiling
     (harmless while the timeout is off).
-19. Invitations and MFA enrolment (feat/platform-invitations; PLAT-004): the spec and rules are
+20. Invitations and MFA enrolment (feat/platform-invitations; PLAT-004): the spec and rules are
     built (platform.md, Invitations and MFA enrolment; `invitations.ts`), with a test that no
     one-time code is offered by SMS or email, and review round 1 of #43 folded in (the token only
     in the URL fragment and POST bodies; locked, hashing security-definer functions under their own
