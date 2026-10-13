@@ -218,8 +218,8 @@ only when they link spec, code, tests and user documentation; no user guides exi
     unknown outcome or type reads as plain text, not the warning chip the hazard log describes; an
     authorisation not yet started with a midnight end reads "In force until the end of ...".
 15. Slice 10 part 2 on the phone (Lane C), the round and the handover: the sync streams, the
-    token's handover claims and the client tables are in review (#33,
-    `feat/mobile-tasks-handover-sync`, [care.md](../specs/care.md) section 6), with migration
+    token's handover claims and the client tables are on `main` (#33,
+    [care.md](../specs/care.md) section 6), with migration
     0052, which adds `task`, `handover`, `handover_item`, `handover_note` and
     `handover_acknowledgement` to the `powersync` publication with the `sync_replication_read`
     policy and `SELECT` for `harbour_sync`, and a database test that every table the streams read
@@ -250,10 +250,14 @@ only when they link spec, code, tests and user documentation; no user guides exi
     - Offline writes for the round and the handover: the local writes (a task done or not
       done, a handover acknowledged) on `feat/mobile-offline-round-writes`, and their upload
       (each to its own route, a refusal to "needs attention") on
-      `feat/mobile-offline-round-upload`, stacked on #33; then the screens, behind the gate.
+      `feat/mobile-offline-round-upload`, after #33; then the screens, behind the gate.
     - Follow-up (#33 review round 2, low): no test yet of a carer assigned to two people at
       different homes where the person who opens a handover differs from the item's person (the
       two `person_assignment` joins in the `assigned_handovers` item and note queries).
+    - Follow-up (migration 0052 security check, low): `task` is published with every column,
+      including `details` and `status_reason`, which no stream sends; a publication column list
+      (Postgres 15 and later) would keep them out of PowerSync's storage. A forward migration
+      that sets the list must keep every column a stream reads.
 
 ## Human actions outstanding
 
