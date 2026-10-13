@@ -46,6 +46,15 @@ describe("writing a note offline", () => {
     });
   });
 
+  it("hazard HZ-029 names the round's task it is recorded for, and the upload sends it", () => {
+    const task = "0199d000-0000-7000-8000-0000000000a1";
+    const result = checkNote(draft(), { ...context, taskId: task }, NOW);
+    expect(result.ok && result.row.task_id).toBe(task);
+    expect(result.ok && CreateCareNote.parse(uploadBody(result.row)).taskId).toBe(task);
+    const without = checkNote(draft(), context, NOW);
+    expect(without.ok && "task_id" in without.row).toBe(false);
+  });
+
   it("builds an upload the API's CreateCareNote schema accepts", () => {
     const result = checkNote(draft({ tags: ["fall", "refusal"] }), context, NOW);
     if (!result.ok) throw new Error("expected a valid note");
