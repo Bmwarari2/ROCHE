@@ -285,13 +285,17 @@ last year the calendar covers, no holiday is skipped, so a deadline can only fal
   `apps/api/src/flags/provider.ts`). The caller reads the organisation's rows that are not deleted
   in its transaction and passes them in the evaluation context; the provider applies
   `resolveFlag`: the location row, then the tenant row, then Flagsmith, then the catalogue default.
-  Flagsmith is used only when `FLAGSMITH_ENVIRONMENT_KEY` is set (H-13), is told opaque ids only
-  (organisation and location), and may set only licensed modules (`remoteMaySet`): never an AI
-  flag (only the organisation's own row turns AI on), a clinical tool, a review workflow or the
-  language, so the clinical routes that read the rows directly (`flagsAt`, `flagRows`) agree with
-  `/v1/me`. Its answers, and its silence, are kept for `FLAGSMITH_CACHE_SECONDS`; unreachable
-  (`FLAGSMITH_TIMEOUT_MS`), every flag falls back to the catalogue and the API logs
-  `flags.remote_unavailable` with no ids. A provider error answers the catalogue default.
+  Flagsmith is used only when `FLAGSMITH_ENVIRONMENT_KEY` is set (H-13); in production its address
+  must be https on the environment's own `flags.<domain>` host. It is told opaque ids only
+  (organisation and location), and may set only the flags the catalogue marks `remote`
+  (`remoteMaySet`, an explicit allowlist: today the workforce module and the public site; #39
+  review M1): never an AI flag (only the organisation's own row turns AI on), a clinical or
+  data-protection module (residential, home care, supported living, eMAR, the family portal,
+  residents' money), a clinical tool, a review workflow or the language, so the clinical routes
+  that read the rows directly (`flagsAt`, `flagRows`) agree with `/v1/me`. Its answers, and its
+  silence, are kept for `FLAGSMITH_CACHE_SECONDS`; unreachable (`FLAGSMITH_TIMEOUT_MS`), every flag
+  falls back to the catalogue and the API logs `flags.remote_unavailable` with no ids. A provider
+  error answers the organisation's own rows, then the catalogue default (#39 review L1).
 - Later: per-role flags, the clinical routes through the provider, billing visibility (Phase 6).
 
 ## Localisation (PLAT-017)

@@ -256,7 +256,10 @@ only when they link spec, code, tests and user documentation; no user guides exi
     exist (today they read the organisation's rows directly, which Flagsmith may not set, so they
     agree with `/v1/me`); an operator kill switch for AI in Flagsmith, if wanted (today Flagsmith
     never reads AI flags); Flagsmith wiring in the API task (H-352); the OpenFeature SDK's own
-    error log goes to the console, not the API's logger.
+    error log goes to the console, not the API's logger, so it bypasses pino's redaction. From
+    #39 review round 1: an AI flag is recognised only by its `ai: true` marker (consider deriving
+    it from a category of flag); the OpenFeature provider is global and set by each `createApp`,
+    so in one process the last app created wins.
 17. Session follow-ups (feat/platform-session-controls; PLAT-004, HZ-110): the person record's
     header refreshes itself every 2 minutes while visible (`HeaderFreshness`), so an open record
     keeps a browser session from timing out: mark those refreshes as background and count only

@@ -85,6 +85,15 @@ const list = (value: string) =>
     .map((item) => item.trim())
     .filter(Boolean);
 
+/**
+ * The environment's self-hosted Flagsmith host: `flags.<domain>` beside the API's `api.<domain>`
+ * (infra/README.md), or null when the API is not served from an `api.` host.
+ */
+export function flagsmithHost(betterAuthUrl: string): string | null {
+  const host = new URL(betterAuthUrl).hostname;
+  return host.startsWith("api.") ? `flags.${host.slice("api.".length)}` : null;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const parsed = Env.parse(env);
   if (parsed.NODE_ENV === "production") {
@@ -103,9 +112,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     if (parsed.MALWARE_SCANNER === "mock") {
       throw new Error("MALWARE_SCANNER cannot be mock in production");
     }
-    // A key with the local default address would time out on every evaluation.
-    if (parsed.FLAGSMITH_ENVIRONMENT_KEY && !env.FLAGSMITH_API_URL) {
-      throw new Error("FLAGSMITH_API_URL must be set with FLAGSMITH_ENVIRONMENT_KEY in production");
+    // Flagsmith only at the environment's own self-hosted host, over TLS (#39 review L2).
+    if (parsed.FLAGSMITH_ENVIRONMENT_KEY) {
+      const expected = flagsmithHost(parsed.BETTER_AUTH_URL);
+      const url = env.FLAGSMITH_API_URL ? new URL(parsed.FLAGSMITH_API_URL) : null;
+      if (!url || !expected || url.protocol !== "https:" || url.hostname !== expected) {
+        throw new Error(
+          "FLAGSMITH_API_URL must be https on the environment's own flags host (flags.<domain>) in production",
+        );
+      }
     }
   }
   return {

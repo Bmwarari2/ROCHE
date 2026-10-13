@@ -12,6 +12,11 @@ export interface FlagDefinition {
   readonly licensed: boolean;
   /** An AI flag: off by default, and on only where the organisation's own row says so (section 5). */
   readonly ai?: boolean;
+  /**
+   * Flagsmith may set this flag where the organisation has no row of its own. Off unless marked:
+   * only modules with no clinical or data-protection effect are marked, never an AI flag.
+   */
+  readonly remote?: boolean;
 }
 
 export const FLAGS = {
@@ -44,6 +49,7 @@ export const FLAGS = {
     description: "Recruitment, training, rostering and pay rules",
     defaultEnabled: false,
     licensed: true,
+    remote: true,
   },
   "module.family_portal": {
     description: "Family and person portals",
@@ -60,6 +66,7 @@ export const FLAGS = {
     description: "Public website with vacancies and fees",
     defaultEnabled: false,
     licensed: true,
+    remote: true,
   },
   "locale.welsh": {
     description: "Welsh language interface and Active Offer",
@@ -106,13 +113,15 @@ export function isAiFlag(key: FlagKey): boolean {
 }
 
 /**
- * Whether Flagsmith may set the flag's value where the organisation has no row of its own:
- * licensed modules only. Never an AI flag (only the organisation's own row turns AI on), nor a
- * clinical tool, review workflow or language flag, which change only by the organisation's own
- * audited row, so the API and every screen read them the same way.
+ * Whether Flagsmith may set the flag's value where the organisation has no row of its own: only a
+ * flag marked `remote` (an explicit allowlist, #39 review M1), and never an AI flag. Clinical
+ * modules and tools, data-protection modules (the family portal, residents' money), review
+ * workflows and the language change only by the organisation's own audited row, so the API and
+ * every screen read them the same way.
  */
 export function remoteMaySet(key: FlagKey): boolean {
-  return FLAGS[key].licensed && !isAiFlag(key);
+  const definition: FlagDefinition = FLAGS[key];
+  return definition.remote === true && !isAiFlag(key);
 }
 
 /**

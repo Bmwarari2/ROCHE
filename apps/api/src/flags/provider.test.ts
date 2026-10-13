@@ -28,9 +28,12 @@ afterEach(() => vi.restoreAllMocks());
 describe("the OpenFeature provider over the flag catalogue (PLAT-003)", () => {
   it("evaluates the location row, the tenant row, Flagsmith, then the catalogue", async () => {
     const remote = remoteOf({
-      "module.finance": true,
-      "module.residential": false,
+      "module.public_site": true,
       "module.workforce": false,
+      "module.finance": true,
+      "module.emar": true,
+      "module.residential": false,
+      "module.family_portal": true,
       "module.ai": true,
       "care.tool.waterlow": true,
       "dols.post_2026_review_workflow": false,
@@ -42,17 +45,22 @@ describe("the OpenFeature provider over the flag catalogue (PLAT-003)", () => {
         { flagKey: "module.domiciliary", locationId: LOC, enabled: true },
         { flagKey: "module.domiciliary", locationId: null, enabled: false },
         { flagKey: "module.workforce", locationId: null, enabled: true },
-        { flagKey: "module.emar", locationId: "another-location", enabled: true },
+        { flagKey: "module.supported_living", locationId: "another-location", enabled: true },
       ],
     });
     expect(flags["module.domiciliary"]).toBe(true); // location row
     expect(flags["module.workforce"]).toBe(true); // tenant row over Flagsmith
-    expect(flags["module.emar"]).toBe(false); // another location's row does not apply
-    expect(flags["module.finance"]).toBe(true); // Flagsmith
-    expect(flags["module.residential"]).toBe(false); // Flagsmith
-    expect(flags["module.ai"]).toBe(false); // Flagsmith never turns AI on
-    expect(flags["care.tool.waterlow"]).toBe(false); // nor sets a clinical tool
-    expect(flags["dols.post_2026_review_workflow"]).toBe(true); // nor a review workflow
+    expect(flags["module.supported_living"]).toBe(false); // another location's row does not apply
+    expect(flags["module.public_site"]).toBe(true); // Flagsmith, a flag marked remote
+    // Flagsmith never sets a clinical or data-protection module, AI, a clinical tool or a review
+    // workflow (#39 review M1).
+    expect(flags["module.finance"]).toBe(false);
+    expect(flags["module.emar"]).toBe(false);
+    expect(flags["module.residential"]).toBe(true);
+    expect(flags["module.family_portal"]).toBe(false);
+    expect(flags["module.ai"]).toBe(false);
+    expect(flags["care.tool.waterlow"]).toBe(false);
+    expect(flags["dols.post_2026_review_workflow"]).toBe(true);
     expect(flags["locale.welsh"]).toBe(false);
   });
 
@@ -86,7 +94,7 @@ describe("the OpenFeature provider over the flag catalogue (PLAT-003)", () => {
     const input = { tenantId: TENANT, locationId: null, overrides: [] };
     const flags = await service.evaluateAll(input);
     expect(flags["module.residential"]).toBe(true);
-    expect(flags["module.finance"]).toBe(false);
+    expect(flags["module.workforce"]).toBe(false);
     await service.evaluateAll(input);
     expect(fetchFn).toHaveBeenCalledTimes(1);
     now += 61_000;
@@ -102,15 +110,44 @@ describe("the OpenFeature provider over the flag catalogue (PLAT-003)", () => {
       overrides: [],
     });
     expect(fetchSpy).not.toHaveBeenCalled();
-    const remote = remoteOf({ "module.finance": true });
+    const remote = remoteOf({ "module.workforce": true });
     const provider = new HarbourFlagProvider(remote);
-    const result = await provider.resolveBooleanEvaluation("module.finance", false, {
+    const result = await provider.resolveBooleanEvaluation("module.workforce", false, {
       tenantId: TENANT,
       locationId: null,
-      overrides: [{ flagKey: "module.finance", locationId: null, enabled: false }],
+      overrides: [{ flagKey: "module.workforce", locationId: null, enabled: false }],
     });
     expect(result).toMatchObject({ value: false, variant: "tenant", reason: "TARGETING_MATCH" });
     expect(remote.calls).toBe(0);
+  });
+
+  it("keeps the organisation's own rows when the provider fails (#39 review L1)", async () => {
+    const failing: RemoteFlags = {
+      flagsFor: () => Promise.reject(new Error("provider failure")),
+    };
+    const service = createFlagService(config, logger, domain(), failing);
+    // A context the provider refuses (no organisation): every evaluation fails inside it.
+    const flags = await service.evaluateAll({
+      tenantId: "",
+      locationId: LOC,
+      overrides: [
+        { flagKey: "module.emar", locationId: LOC, enabled: true },
+        { flagKey: "module.residential", locationId: null, enabled: false },
+        { flagKey: "module.ai", locationId: null, enabled: true },
+      ],
+    });
+    expect(flags["module.emar"]).toBe(true);
+    expect(flags["module.residential"]).toBe(false);
+    expect(flags["module.ai"]).toBe(true);
+    expect(flags["care.tool.waterlow"]).toBe(false);
+    // Flagsmith failing for a flag it may set: the catalogue default, not an error.
+    const remoteFailed = await service.evaluateAll({
+      tenantId: TENANT,
+      locationId: null,
+      overrides: [],
+    });
+    expect(remoteFailed["module.workforce"]).toBe(false);
+    expect(remoteFailed["module.residential"]).toBe(true);
   });
 
   it("answers the caller's default for an unknown flag or a context without an organisation", async () => {
@@ -142,13 +179,13 @@ describe("Flagsmith (optional, H-13)", () => {
     const fetchFn = vi.fn(
       async (_url: string, _init: RequestInit) =>
         new Response(
-          JSON.stringify({ flags: [{ enabled: true, feature: { name: "module.finance" } }] }),
+          JSON.stringify({ flags: [{ enabled: true, feature: { name: "module.workforce" } }] }),
           { status: 200 },
         ),
     );
     const remote = new FlagsmithFlags(options, logger, fetchFn as unknown as typeof fetch);
     const flags = await remote.flagsFor({ tenantId: TENANT, locationId: LOC });
-    expect(flags?.get("module.finance")).toBe(true);
+    expect(flags?.get("module.workforce")).toBe(true);
     const [url, init] = fetchFn.mock.calls[0] ?? ["", {}];
     expect(url).toBe("http://flags.invalid/api/v1/identities/");
     expect(new Headers(init.headers).get("x-environment-key")).toBe("test-key");

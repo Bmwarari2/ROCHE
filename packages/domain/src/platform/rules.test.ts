@@ -116,12 +116,20 @@ describe("feature flags", () => {
   // The OpenFeature provider's order (apps/api/src/flags): location row, tenant row, Flagsmith
   // where it may set the flag and answered, catalogue default.
   it.each([
-    ["remote sets a licensed module with no row", "module.finance", [], null, true, true, "remote"],
-    ["remote can switch a module off", "module.residential", [], null, false, false, "remote"],
+    ["remote sets a module marked remote", "module.workforce", [], null, true, true, "remote"],
+    [
+      "remote can switch a remote module off",
+      "module.public_site",
+      [],
+      null,
+      false,
+      false,
+      "remote",
+    ],
     [
       "the tenant row wins over remote",
-      "module.finance",
-      [{ flagKey: "module.finance", locationId: null, enabled: false }],
+      "module.workforce",
+      [{ flagKey: "module.workforce", locationId: null, enabled: false }],
       null,
       true,
       false,
@@ -129,14 +137,24 @@ describe("feature flags", () => {
     ],
     [
       "the location row wins over remote",
-      "module.finance",
-      [{ flagKey: "module.finance", locationId: LOC, enabled: true }],
+      "module.workforce",
+      [{ flagKey: "module.workforce", locationId: LOC, enabled: true }],
       LOC,
       false,
       true,
       "location",
     ],
-    ["remote unreachable falls back", "module.residential", [], null, undefined, true, "catalogue"],
+    ["remote unreachable falls back", "module.workforce", [], null, undefined, false, "catalogue"],
+    ["remote never switches eMAR on", "module.emar", [], null, true, false, "catalogue"],
+    [
+      "remote never switches residential off",
+      "module.residential",
+      [],
+      null,
+      false,
+      true,
+      "catalogue",
+    ],
     ["remote never turns AI on", "module.ai", [], null, true, false, "catalogue"],
     [
       "only the organisation's row turns AI on",
@@ -162,11 +180,31 @@ describe("feature flags", () => {
     expect(resolveFlag(key, rows, location, remote)).toEqual({ enabled, source });
   });
 
-  it("lets the remote provider set licensed modules only, never AI", () => {
+  // #39 review M1: Flagsmith sets only the flags marked remote, never a clinical or
+  // data-protection module, an AI flag or a clinical tool.
+  it.each(
+    (Object.keys(FLAGS) as FlagKey[]).filter(
+      (k) =>
+        isAiFlag(k) ||
+        k.startsWith("care.tool.") ||
+        [
+          "module.emar",
+          "module.residential",
+          "module.domiciliary",
+          "module.supported_living",
+          "module.family_portal",
+          "module.finance",
+          "dols.post_2026_review_workflow",
+          "locale.welsh",
+        ].includes(k),
+    ),
+  )("never lets Flagsmith set %s", (key) => {
+    expect(remoteMaySet(key)).toBe(false);
+  });
+
+  it("lets Flagsmith set only the flags marked remote", () => {
     const remote = (Object.keys(FLAGS) as FlagKey[]).filter(remoteMaySet);
-    expect(remote).toContain("module.finance");
-    expect(remote).not.toContain("module.ai");
-    for (const key of remote) expect(FLAGS[key].licensed, key).toBe(true);
+    expect(remote.sort()).toEqual(["module.public_site", "module.workforce"]);
   });
 
   it("knows the catalogue's keys", () => {
