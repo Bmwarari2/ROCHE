@@ -28,6 +28,14 @@ Demo sign-ins (password `correct horse battery staple`): `owner@example.invalid`
 `manager@example.invalid`, `nurse@example.invalid`, `carer@example.invalid`. Leave
 `HARBOUR_DEMO_MFA` unset to require TOTP or a passkey, as in every real environment.
 
+New cluster roles: when a migration needs a role your cluster does not have yet, `pnpm db:migrate`
+stops with `role "..." does not exist`. Run `pnpm db:bootstrap` again first: it is idempotent,
+creating missing roles and re-applying their memberships without touching data (it resets the
+login roles' passwords to the configured ones). Migration 0054 needs `harbour_invitation_owner`,
+the owner of the invitation functions, held by `harbour_owner` with `SET` but not `INHERIT`.
+Staging, pilot and production clusters need the same step, run by whoever holds the administrator
+credentials, before the release that carries migration 0054.
+
 ## Tests
 
 ```sh

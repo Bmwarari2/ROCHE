@@ -48,6 +48,7 @@ export type ExportRetention =
   | "serious_incident"
   | "downtime_pack"
   | "downtime_record"
+  | "invitation"
   | "tenant_configuration"
   | "as_subject"
   | "by_category"
@@ -2548,6 +2549,56 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       updated_by: "exported",
       version: "exported",
       deleted_at: "exported",
+    },
+  },
+  "public.invitation": {
+    context: "platform",
+    description:
+      "Invitations to join the organisation: who was invited, by whom, when the link lapsed and whether it was accepted or revoked (platform.md, Invitations and MFA enrolment).",
+    treatment: "tenant_rows",
+    retention: "invitation",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      tenant_user_id: { description: "The member of staff invited (tenant_user.id)." },
+      email: {
+        description:
+          "The work email address the invitation was sent to; empty once it was accepted, revoked or lapsed.",
+      },
+      token_hash: {
+        description: "SHA-256 of the invitation link's token; a credential, never exported.",
+        class: "secret",
+      },
+      created_at: "exported",
+      created_by: "exported",
+      created_by_operator: {
+        description:
+          "The Thapsus operator who sent the first owner's invitation (operator_user.id), else empty.",
+      },
+      expires_at: "exported",
+      accepted_at: "exported",
+      accepted_auth_user_id: {
+        description: "Harbour's own identifier of the sign-in the member was linked to.",
+        class: "internal",
+      },
+      claimed_auth_user_id: {
+        description: "Harbour's own identifier of the sign-in an acceptance created.",
+        class: "internal",
+      },
+      claimed_at: "exported",
+      revoked_at: "exported",
+      revoked_by: { description: "Who revoked the invitation (tenant_user.id), if anyone." },
+      revocation_reason: {
+        description: "Why it was revoked.",
+        codes: {
+          superseded: "A newer invitation replaced it.",
+          revoked: "A manager withdrew it.",
+          member_removed: "The member was suspended or removed.",
+          member_changed: "The member's address, roles or grants changed.",
+          expired: "It lapsed unused.",
+        },
+      },
     },
   },
   "public.investigation": {
