@@ -379,6 +379,13 @@
       "when": 1791862724545,
       "tag": "0053_back_entry_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1791886579360,
+      "tag": "0054_invitations",
+      "breakpoints": true
     }
   ]
 }

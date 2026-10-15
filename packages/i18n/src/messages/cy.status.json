@@ -1056,7 +1056,26 @@
     "safety.incident.bodyMapMarks",
     "safety.incidents.truncated",
     "safety.incident.locationHidden",
-    "safety.incident.notice",
-    "safety.incident.noticeHint"
+    "safety.notification.kind",
+    "safety.notification.recipient",
+    "safety.notification.clock",
+    "safety.notification.status",
+    "safety.notification.provisional",
+    "safety.notification.noLongerIndicated",
+    "safety.notification.harbourTarget",
+    "safety.notification.notice",
+    "safety.notification.noticeHint",
+    "safety.notification.pending",
+    "safety.notification.none",
+    "safety.incident.overdueChip",
+    "safety.incident.overdueLink",
+    "safety.notification.overdueFor",
+    "safety.notification.deadline",
+    "safety.notification.dueUnknown",
+    "safety.notification.waiting",
+    "safety.notification.about",
+    "safety.notification.task",
+    "safety.notification.elsewhere",
+    "safety.notification.taskPast"
   ]
 }
