@@ -41,9 +41,15 @@ The lane briefs (`lane-rules.md`, `lane-a.md` to `lane-d.md`) still describe how
   - Then round 2 on the fix commits only, and merge in order. Check this note against the
     branches: if the session stopped mid-fix, the worktree may hold staged work.
 - **3c `feat/operations-outages-api` and 3d** (Lane A): not opened yet.
-- **#50 (draft, Lane C, mobile):** parked with its round 1 fixes unfinished (1 security Medium on
-  module permissions behind `care.handover.manage`; 4 clinical Mediums on summary wording).
-  `feat/mobile-round-screen` holds unreviewed round-screen work. Leave both while mobile is paused.
+- **#50 (draft, Lane C, mobile), head 6476f23:** parked mid round 1 fixes.
+  - Done:
+    - `4c294aa`, security M1: handovers reach only where incidents, notes and the person can also be read, recorded in ADR-0071.
+    - `6476f23`, work in progress: clinical M1 to M3 (no acknowledgement in alert summaries, the trigger's reason carried, the plan action and earlier-plan flag on task summaries).
+  - Not started:
+    - clinical M4 (the shift claim's wording, operator log and HZ-018 tests);
+    - the docs for M1 to M3;
+    - every Low, including disabling the triggers during the 0056 backfill and the no-tenant guards.
+  - `feat/mobile-round-screen` (`a4ab5fe`) holds unreviewed round-screen work. Leave both while mobile is paused.
 - **Lane B:** next is the statutory notification pages; its earlier start is in `wip/`.
 - **Lane D:** next is the invitation routes and accept page, then the MFA session-factor fix.
 
