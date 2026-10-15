@@ -1,0 +1,246 @@
+diff --git a/apps/web/src/app/(shell)/incidents/[id]/page.tsx b/apps/web/src/app/(shell)/incidents/[id]/page.tsx
+index c8d2158..e0407a3 100644
+--- a/apps/web/src/app/(shell)/incidents/[id]/page.tsx
++++ b/apps/web/src/app/(shell)/incidents/[id]/page.tsx
+@@ -6,7 +6,9 @@ import Link from "next/link";
+ import { notFound } from "next/navigation";
+ import { EntryBadges } from "@/components/care/EntryBadges";
+ import { Notice } from "@/components/care/Notice";
++import { NotificationItem, SafetyWarning } from "@/components/safety/NotificationItem";
+ import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
++import { SafetyFields } from "@/components/safety/SafetyFields";
+ import { getShellContext, problemCode, tenantApi } from "@/lib/api";
+ import { can, entryAuthor } from "@/lib/care-record";
+ import { isUuid } from "@/lib/context-cookies";
+@@ -17,54 +19,32 @@ import {
+   incidentPersonLine,
+   incidentStatusChip,
+   incidentTitle,
+-  notificationClockChip,
+-  notificationKindLabel,
+   notificationsInOrder,
+   notificationsView,
+-  notificationWarnings,
+ } from "@/lib/incidents";
+ import { personNames } from "@/lib/people";
+ import { readOrFail } from "@/lib/person-record";
+ 
+ type Params = Promise<{ id: string }>;
+-type Row = readonly [field: string, value: string | null, dateTime?: string | null];
+ 
+ /** The page title says what the page is, never who was involved. */
+ export const metadata: Metadata = { title: t("safety.incident.pageTitle") };
+ 
+ const iconProps = { size: 20, strokeWidth: 1.5, "aria-hidden": true } as const;
+ 
+-/** Labelled values, empty ones left out; a moment sits in a `<time>` element. */
+-function Fields({ rows }: { readonly rows: readonly Row[] }) {
+-  const shown = rows.filter(([, value]) => Boolean(value));
+-  if (shown.length === 0) return null;
+-  return (
+-    <dl className="m-0 grid grid-cols-1 gap-3 sm:grid-cols-2">
+-      {shown.map(([field, value, dateTime]) => (
+-        <div key={field} className="min-w-0">
+-          <dt className="text-body-dense font-semibold">{t("safety.incident.field", { field })}</dt>
+-          <dd className="m-0 whitespace-pre-line break-words">
+-            {dateTime ? <time dateTime={dateTime}>{value}</time> : value}
+-          </dd>
+-        </div>
+-      ))}
+-    </dl>
+-  );
+-}
+-
+-function Warning({ text }: { readonly text: string }) {
+-  return (
+-    <p className="m-0 flex items-start gap-2 font-semibold">
+-      <TriangleAlert {...iconProps} size={18} className="mt-0.5 shrink-0" />
+-      {text}
+-    </p>
+-  );
+-}
+-
+ const when = (iso: string | null) => formatDateTime(iso) ?? null;
+ 
+-/** Whether the statutory notifications this incident needs are drafted, and when each is due. */
+-function Notifications({ classifier }: { readonly classifier: IncidentDetail["classifier"] }) {
++/**
++ * Whether the statutory notifications this incident needs are drafted, and when each is due;
++ * each opens its own page for those who may read it (`safety.incident.manage`).
++ */
++function Notifications({
++  classifier,
++  linked,
++}: {
++  readonly classifier: IncidentDetail["classifier"];
++  readonly linked: boolean;
++}) {
+   const view = notificationsView(classifier, t);
+   const items = notificationsInOrder(classifier?.notifications ?? []);
+   return (
+@@ -80,36 +60,13 @@ function Notifications({ classifier }: { readonly classifier: IncidentDetail["cl
+         </Notice>
+       ))}
+       {view.pending.map((line) => (
+-        <Warning key={line} text={line} />
++        <SafetyWarning key={line} text={line} />
+       ))}
+       {view.none ? <p className="m-0">{view.none}</p> : null}
+       {items.length > 0 ? (
+         <ul className="m-0 flex list-none flex-col gap-3 p-0">
+           {items.map((item) => (
+-            <li
+-              key={item.id}
+-              className="flex flex-col gap-1 border-b border-border pb-3 break-words"
+-              data-notification={item.kind}
+-            >
+-              <h3 className="m-0 text-body font-semibold">{notificationKindLabel(item.kind, t)}</h3>
+-              <span className="flex flex-wrap items-center gap-2">
+-                <SafetyChip chip={notificationClockChip(item, t)} />
+-                {item.clock === "done" ? null : (
+-                  <span>{t("safety.notification.status", { status: item.status })}</span>
+-                )}
+-              </span>
+-              <span className="text-body-dense">
+-                <time dateTime={item.dueAt}>
+-                  {t("safety.notification.dueBy", { dateTime: when(item.dueAt) ?? "" })}
+-                </time>
+-              </span>
+-              <span className="text-body-dense text-text-secondary">
+-                {t("safety.notification.recipient", { kind: item.kind })}
+-              </span>
+-              {notificationWarnings(item, t).map((text) => (
+-                <Warning key={text} text={text} />
+-              ))}
+-            </li>
++            <NotificationItem key={item.id} item={item} linked={linked} />
+           ))}
+         </ul>
+       ) : null}
+@@ -144,6 +101,7 @@ export default async function IncidentPage({ params }: { readonly params: Params
+     userId ? t("safety.incident.who", { who: entryAuthor(userId, me.tenantUserId) }) : null;
+   const section = (name: string) => t("safety.incident.section", { section: name });
+   const notRecorded = t("common.notRecorded");
++  const label = (field: string) => t("safety.incident.field", { field });
+ 
+   return (
+     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
+@@ -170,7 +128,8 @@ export default async function IncidentPage({ params }: { readonly params: Params
+         </Notice>
+       ) : null}
+       <Card as="section" title={section("details")} headingLevel={2} className="break-words">
+-        <Fields
++        <SafetyFields
++            label={label}
+           rows={[
+             ["occurredAt", when(incident.occurredAt), incident.occurredAt],
+             ["foundAt", when(incident.foundAt), incident.foundAt],
+@@ -198,7 +157,8 @@ export default async function IncidentPage({ params }: { readonly params: Params
+       </Card>
+       {incident.restricted ? null : (
+         <Card as="section" title={section("contacts")} headingLevel={2} className="break-words">
+-          <Fields
++          <SafetyFields
++            label={label}
+             rows={[
+               [
+                 "emergencyServices",
+@@ -244,7 +204,10 @@ export default async function IncidentPage({ params }: { readonly params: Params
+       </Card>
+       {incident.restricted ? null : (
+         <Card as="section" title={section("notifications")} headingLevel={2}>
+-          <Notifications classifier={incident.classifier} />
++          <Notifications
++            classifier={incident.classifier}
++            linked={can(me.permissions, "safety.incident.manage")}
++          />
+         </Card>
+       )}
+     </div>
+diff --git a/apps/web/src/app/(shell)/incidents/page.tsx b/apps/web/src/app/(shell)/incidents/page.tsx
+index f1ef898..b98bdaa 100644
+--- a/apps/web/src/app/(shell)/incidents/page.tsx
++++ b/apps/web/src/app/(shell)/incidents/page.tsx
+@@ -1,4 +1,4 @@
+-import { Card, EmptyState, PageHeader, StatusChip } from "@harbour/ui";
++import { ButtonLink, Card, EmptyState, PageHeader, StatusChip } from "@harbour/ui";
+ import { CircleAlert, Lock, ShieldCheck } from "lucide-react";
+ import type { Metadata } from "next";
+ import Link from "next/link";
+@@ -38,6 +38,13 @@ export default async function IncidentsPage() {
+         eyebrow={location ? location.name : me.tenant.name}
+         title={title}
+         description={t("safety.incidents.description")}
++        secondaryActions={
++          can(me.permissions, "safety.incident.manage") ? (
++            <ButtonLink href="/notifications/statutory" variant="secondary">
++              {t("safety.notifications.title")}
++            </ButtonLink>
++          ) : null
++        }
+       />
+       {data.items.length === 0 ? (
+         <Card>
+diff --git a/apps/web/src/components/shell/ShellFrame.tsx b/apps/web/src/components/shell/ShellFrame.tsx
+index a0df1e6..6e7aff0 100644
+--- a/apps/web/src/components/shell/ShellFrame.tsx
++++ b/apps/web/src/components/shell/ShellFrame.tsx
+@@ -61,7 +61,10 @@ export interface ShellFrameProps {
+ 
+ function currentSection(pathname: string): string {
+   if (pathname.startsWith("/people")) return "people";
+-  if (pathname.startsWith("/incidents")) return "incidents";
++  // Statutory notifications belong with incidents, not the notification centre.
++  if (pathname.startsWith("/incidents") || pathname.startsWith("/notifications/statutory")) {
++    return "incidents";
++  }
+   if (pathname.startsWith("/notifications")) return "notifications";
+   if (pathname.startsWith("/settings")) return "settings";
+   return "home";
+diff --git a/apps/web/src/lib/incidents.ts b/apps/web/src/lib/incidents.ts
+index a264bb2..cbd3ac9 100644
+--- a/apps/web/src/lib/incidents.ts
++++ b/apps/web/src/lib/incidents.ts
+@@ -122,6 +122,42 @@ export function notificationKindLabel(kind: string, t: Translator): string {
+   return t("safety.notification.kind", { kind });
+ }
+ 
++/** To do (overdue, due, or a clock the web does not know) and done, each in order. */
++export function notificationGroups<N extends Pick<StatutoryNotificationSummary, "clock" | "dueAt">>(
++  items: readonly N[],
++): { readonly todo: N[]; readonly done: N[] } {
++  const ordered = notificationsInOrder(items);
++  return {
++    todo: ordered.filter((n) => n.clock !== "done"),
++    done: ordered.filter((n) => n.clock === "done"),
++  };
++}
++
++/** One deadline in the catalogue's words with its time, never the API's English wording. */
++export function deadlineLine(
++  deadline: { readonly key: string; readonly dueAt: string },
++  t: Translator,
++): { readonly text: string; readonly dateTime: string } {
++  return {
++    text: t("safety.notification.deadline", {
++      deadline: deadline.key,
++      dateTime: formatDateTime(deadline.dueAt) ?? t("common.notRecorded"),
++    }),
++    dateTime: deadline.dueAt,
++  };
++}
++
++/** Where a notification comes from: its incident, the person's DoLS register, or their record. */
++export function notificationSource(
++  item: Pick<StatutoryNotificationSummary, "incidentId" | "personId" | "dolsAuthorisationId">,
++): { readonly href: string; readonly source: "incident" | "dols" | "person" } | null {
++  if (item.incidentId) return { href: `/incidents/${item.incidentId}`, source: "incident" };
++  if (!item.personId) return null;
++  return item.dolsAuthorisationId
++    ? { href: `/people/${item.personId}/capacity`, source: "dols" }
++    : { href: `/people/${item.personId}`, source: "person" };
++}
++
+ export interface SafetyNotice {
+   readonly title: string;
+   readonly body: string;
