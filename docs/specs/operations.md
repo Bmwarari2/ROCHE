@@ -379,6 +379,10 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
     H-208). A correction of an entry not from paper whose time is now outside the outage drops the
     link, as rule 13 then does not ask for it. A second correction of the same back-entry is
     refused (the unique index): the form corrects the current version.
+- Bulk export (#45 review round 1, security M2): a downtime pack holds the whole home's records,
+  so building one on request and printing one need a fresh sign-in (step-up), as any bulk export
+  does (master prompt section 5.3). Opening the pack on screen needs MFA only. Each member opens,
+  prints or builds packs at most `downtime_pack.requests_per_hour` times an hour.
 
 ## 13. As built (slice 11 part 3a, downtime pack API)
 
@@ -386,27 +390,51 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
 `apps/api/test/downtime.test.ts`.
 
 - `GET /v1/locations/{id}/downtime-pack` (`operations.downtime.read` where the location is): the
-  latest pack the reader can open, built on the spot as `server_on_demand` when it no longer names
-  exactly the people receiving care there with their status now, the location changed since (where
-  the MAR and PEEPs are kept), or it expired; so a pack hidden because someone on it moved away is
-  replaced for a holder at a reachable location. The freshness words and the four header lines are
-  worked out at the moment of the request (`downtimePackFreshness`, `downtimePageHeader`, with any
-  outage open at the location). Opening and building are audited
-  (`operations.downtime_pack.opened`, `.generated`).
-- `POST /v1/locations/{id}/downtime-pack`: builds one now.
+  latest pack the reader can open, built on the spot as `server_on_demand` when it no longer serves:
+  it does not name exactly the people receiving care there with their status now, anything it was
+  built from has changed since its information's time, or it has expired. So a pack hidden because
+  someone on it moved away is replaced for a holder at a reachable location. The freshness words
+  and the four header lines are worked out at the moment of the request (`downtimePackFreshness`,
+  `downtimePageHeader`, with any outage open at the location; during an outage, "anything recorded
+  since" is the earlier of the information's time and the outage's start). Opening and building
+  are audited (`operations.downtime_pack.opened`, `.generated`); a location out of reach reads as
+  not found and is audited as denied.
+- What a pack is built from (`sourcesChangedSince`; #45 review round 1, H1): the people (identity,
+  room, location, status, photo), their allergies, advance care records, eating and drinking
+  profile, contacts, care plans and sections, risk assessments and photo documents, and the
+  location (the places), soft deletes included. The information's time is the database's clock
+  before anything is read, and the comparison runs in the database to the microsecond, so a new
+  DNACPR, allergy or room swap after it means a new pack.
+- One build at a time per location (an advisory lock around the check and the build): a second
+  reader waits, then gets the pack just built. If a build fails, the latest pack is served with
+  `rebuildFailed` and a header line saying it could not be rebuilt and when it was made, the
+  failure is audited (outcome `error`) and logged by opaque id; with no pack at all the answer is
+  503 with what to use instead, never a bare error.
+- `POST /v1/locations/{id}/downtime-pack`: builds one now unless the latest still serves (`built`
+  says which). It needs a fresh sign-in (section 12, bulk export). Both routes count against
+  `downtime_pack.requests_per_hour` per member (429 with Retry-After beyond it).
 - Building reads only the location's own people receiving care, in the builder's view, and
   publishes `operations.downtime_pack.generated` (location and pack ids) for kiosks. While the MAR
   and PEEP places are unconfirmed, the pack prints "where it is kept is not set in Harbour: ask the
-  nurse in charge" (H-201).
+  nurse in charge" (H-201). Allergies are each person's own current ones: inactive, resolved,
+  refuted, entered in error and deleted rows never print, as on the phone (`currentAllergiesOf`,
+  shared with the hospital transfer pack; HZ-007).
 
 Part 3a-2, the printed pack (`services/downtime-pack-pdf.ts`, `services/pdf.ts`):
 
 - `GET /v1/locations/{id}/downtime-pack?format=pdf` prints the same pack with the four header
   lines, worked out at the moment of the request, on every page; a front sheet of warnings
   (safety-critical first); and a page per person, starting on a new page, whose footer names
-  them (HZ-001). The PDF is drawn per request and never stored, so it is never a `document`.
-  Photos are not printed; the page says whether one is held. Printing is audited
-  (`operations.downtime_pack.printed`).
+  them on every page, continuation pages included (HZ-001). The PDF is drawn per request and
+  never stored, so it is never a `document`.
+- After #46 review round 1: printing needs a fresh sign-in (a bulk export, section 12) and counts
+  against the per-member limit before the pack is read; it is audited as printed only once the PDF
+  is drawn; HEAD on the pack routes is refused (405). Photos are not printed (H-211): every
+  person's page says to confirm who they are with a colleague who knows them, and the front sheet
+  says photos are not printed. When an ADRT is held, the resuscitation section prints "ADRT also
+  held: read it before any decision about resuscitation", and with no ReSPECT or DNACPR it never
+  reads "not recorded" (HZ-015; wording H-212). Header times carry BST or GMT on the day the clocks
+  change (HZ-009). "1 person" is singular.
 - The in-house PDF writer (ADR-0040) gains header lines on every page, a page break before a
   block, and a footer naming whose page it is.
 

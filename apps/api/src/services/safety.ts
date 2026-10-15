@@ -11,7 +11,6 @@ import {
   location,
   notification,
   person,
-  rateTable,
   role,
   roleAssignment,
   statutoryNotification,
@@ -49,7 +48,6 @@ import {
   placesCover,
   placesHoldingPermission,
   postFallChecklist,
-  type RateRow,
   resolveDolsRates,
   resolveSafetyRates,
   SAFETY_RATE_KEYS,
@@ -62,7 +60,7 @@ import {
 import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import { publish } from "../outbox";
 import { accessRowsOf } from "./access-rows";
-import { bankHolidays, rateNumber } from "./rates";
+import { bankHolidays, rateNumber, rateRows } from "./rates";
 import { toldOf } from "./role-holders";
 import { startWorkflow } from "./workflow";
 
@@ -108,24 +106,6 @@ export async function withTenantWideScope<T>(tx: Transaction, fn: () => Promise<
 // ------------------------------------------------------------------------------------------------
 // Rate-table figures
 // ------------------------------------------------------------------------------------------------
-
-async function rateRows(tx: Transaction, keys: readonly string[]): Promise<RateRow[]> {
-  const rows = await tx
-    .select()
-    .from(rateTable)
-    .where(inArray(rateTable.key, [...keys]));
-  return rows.map((r) => ({
-    key: r.key,
-    value: r.value,
-    unit: r.unit,
-    nation: r.nation,
-    validFrom: r.validFrom,
-    validTo: r.validTo,
-    tenantId: r.tenantId,
-    verificationStatus: r.verificationStatus,
-    source: r.source,
-  }));
-}
 
 /**
  * The safety figures in force on a date. The classifier reads them for England only; outside

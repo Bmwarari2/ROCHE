@@ -195,8 +195,28 @@ only when they link spec, code, tests and user documentation; no user guides exi
      and the places route (`feat/operations-downtime-api`), and part 3c, outages and back-entry
      through the API. Follow-ups: the kiosk fetch route and photos on
      the printed pages (mobile step).
+   - Follow-ups from #45 review round 1 (security and clinical):
+     - opening a pack is audited once for the pack, not once per person on it (per-person audit
+       rows for care-record views);
+     - the HZ-001 withhold check does not run for the sections the builder stamps with the
+       person's own id (the medicines and evacuation places);
+     - a risk prints its residual band, or its initial band when no residual one is set, without
+       saying which;
+     - the pack does not leave out sample people (HZ-072) until sample data mode exists;
+     - "nothing changed since" compares change times with the information's time on the database
+       clock: a change in a transaction that began before the build and committed after it reads
+       as older than the pack, so is caught only by the next rebuild (a fingerprint column is the
+       fuller fix).
    - Slice 11 part 3a-2, the printed downtime pack (`feat/operations-downtime-pack-api`, stacked
      on part 3a-1; operations.md section 13): built, PR to follow part 3a-1.
+   - Follow-ups from #46 review round 1:
+     - render the PDF in a worker thread, so a large home's pack does not hold the API's event
+       loop;
+     - the CPR wording and its emphasis for the CSO (H-100, H-212);
+     - unconfirmed places on the front sheet (H-201, H-213);
+     - double-sided printing would put two people's pages on one sheet: a deployer control to print
+       single-sided (H-214);
+     - an out-of-date pack's header is words only; whether it needs more emphasis (H-209).
    - Slice 11 part 3b, nightly packs, rebuilds after moves and the places route
      (`feat/operations-downtime-api`, stacked on part 3a-2, migration 0054; operations.md section
      13): built, PR to follow part 3a-2.

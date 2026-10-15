@@ -4,6 +4,8 @@ import type { AdvanceCareRecordState } from "../care/advance-care";
 import { RateNotFoundError } from "../platform/rates";
 import { builtinRole } from "../platform/roles";
 import {
+  ADRT_HELD_NOTE,
+  ADRT_ONLY_NOTE,
   assembleDowntimePack,
   DEFAULT_PAPER_MAR_LOCATION,
   DEFAULT_PEEP_LOCATION,
@@ -295,7 +297,7 @@ describe("hazard HZ-021 missing safety-critical information reads not recorded, 
         resuscitation: src("p-1", [
           advance({ status: "withdrawn" }),
           advance({ id: "acr-2", status: "superseded" }),
-          advance({ id: "acr-3", kind: "adrt", cprDecision: null }),
+          advance({ id: "acr-3", kind: "adrt", cprDecision: null, status: "withdrawn" }),
         ]),
       },
       ["resuscitation"],
@@ -580,6 +582,35 @@ describe("hazard HZ-015 resuscitation status on the downtime pack", () => {
     expect(status(page, "resuscitation")).toBe("included");
   });
 
+  it.each([
+    ["an ADRT alone", [advance({ id: "acr-adrt", kind: "adrt", cprDecision: null })], "included"],
+    [
+      "an ADRT beside a DNACPR",
+      [
+        advance({ id: "acr-adrt", kind: "adrt", cprDecision: null }),
+        advance({ id: "acr-dnacpr", kind: "dnacpr" }),
+      ],
+      "included",
+    ],
+    [
+      "a withdrawn ADRT",
+      [advance({ id: "acr-adrt", kind: "adrt", cprDecision: null, status: "withdrawn" })],
+      "not_recorded",
+    ],
+  ] as const)(
+    "says an ADRT is held, and never not recorded, with %s",
+    (_label, records, expected) => {
+      const page = onlyPage(person("p-1", { resuscitation: src("p-1", [...records]) }));
+      const held = records.some((r) => r.kind === "adrt" && r.status === "active");
+      expect(page.content.adrtHeld).toBe(held);
+      expect(status(page, "resuscitation")).toBe(expected);
+      const note = section(page, "resuscitation")?.note ?? null;
+      if (held) expect(note ?? ADRT_HELD_NOTE).not.toMatch(/not recorded/);
+      if (held && page.content.resuscitation.length === 0) expect(note).toBe(ADRT_ONLY_NOTE);
+      expect(page.content.resuscitation.every((r) => r.kind !== ("adrt" as string))).toBe(true);
+    },
+  );
+
   it("puts safety-critical gaps and conflicts first on the front sheet", () => {
     const result = pack([
       person("p-1", { resuscitation: src("p-1", [advance({ reviewDueOn: "2026-01-01" })]) }),
@@ -706,6 +737,18 @@ describe("hazard HZ-021 every page says when its information is from and whether
     }
   });
 
+  it.each([
+    ["began after the pack's information", 2, "11/10/2026 01:00"],
+    ["began before the pack's information", -3, "10/10/2026 22:00"],
+  ])("during an outage that %s, says paper began at the earlier time", (_label, hours, since) => {
+    const during: DowntimeFreshnessContext = {
+      outage: { startedAt: new Date(AS_AT.getTime() + hours * HOUR) },
+      clockDriftMinutes: rates.clockDriftMinutes,
+    };
+    const freshness = downtimePackFreshness(result, new Date(AS_AT.getTime() + 4 * HOUR), during);
+    expect(freshness.notice).toContain(`Anything recorded since ${since} is on paper`);
+  });
+
   it("flags a device clock behind the pack instead of calling it current", () => {
     const behind = new Date(AS_AT.getTime() - (rates.clockDriftMinutes + 1) * 60_000);
     const freshness = downtimePackFreshness(result, behind, NO_OUTAGE);
@@ -725,6 +768,18 @@ describe("hazard HZ-021 every page says when its information is from and whether
     expect(header.lines[2]).toBe("Made 11/10/2026 01:05. Printed or shown 12/10/2026 15:00.");
     expect(header.lines[3]).toBe(DOWNTIME_BACK_ENTRY_INSTRUCTION);
     expect(downtimePageHeader(result, GENERATED, NO_OUTAGE).state).toBe("current");
+  });
+
+  it("hazard HZ-009 says BST or GMT beside a time on the day the clocks change", () => {
+    const autumn = pack([person("p-1")], {
+      generatedAt: new Date("2026-10-25T00:30:00Z"),
+      asAt: new Date("2026-10-25T00:30:00Z"),
+    });
+    const header = downtimePageHeader(autumn, new Date("2026-10-25T01:30:00Z"), NO_OUTAGE);
+    expect(header.lines[1]).toContain("Information as at 25/10/2026 01:30 BST");
+    expect(header.lines[2]).toBe(
+      "Made 25/10/2026 01:30 BST. Printed or shown 25/10/2026 01:30 GMT.",
+    );
   });
 
   it("marks a pack built on a kiosk from an old sync as out of date from the start", () => {

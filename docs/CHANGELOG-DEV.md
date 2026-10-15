@@ -1570,3 +1570,34 @@ lifecycle events (`server_rebuild`, migration 0054) at both the old and the new 
 task the nightly job keeps open while the places are unconfirmed.
 
 **Tests**: `apps/api` 2 more in `downtime.test.ts` and the places route in a third.
+
+## 2026-10-13: Slice 11 part 3a-1, review round 1 of #45 (OPS-028)
+
+- A stored pack is served only while nothing it was built from has changed since its information's
+  time, now the database's clock (H1): a new DNACPR, allergy or room swap means a new pack.
+- One build at a time per location; a POST reuses the pack when nothing changed and needs a fresh
+  sign-in; a per-member limit from `downtime_pack.requests_per_hour` (security M1, M2).
+- A failed rebuild serves the latest pack, saying so, audited (clinical M1); during an outage,
+  "anything recorded since" is the earlier of the information's time and the outage's start
+  (clinical M2).
+- A location out of reach is audited as denied; allergies are each person's own current ones, as
+  on the phone (`currentAllergiesOf`, also used by the hospital transfer pack); the four copies of
+  `rateRows` are one.
+- Docs: operations.md sections 12 and 13, rates.md, HZ-007, HZ-015 and HZ-021 rows, H-209 and
+  H-210, STATUS follow-ups.
+
+**Tests**: `apps/api` `downtime.test.ts` 11 (7 new); `packages/domain` 1 new.
+
+## 2026-10-13: Slice 11 part 3a-2, review round 1 of #46 (OPS-028)
+
+- Printing needs a fresh sign-in and counts against the per-member limit before the pack is read
+  (security M2, M3); the printed audit is written once the PDF is drawn; HEAD is refused.
+- Every person's page says to confirm who they are with a colleague who knows them, and the front
+  sheet says photos are not printed (clinical M3, H-211); an ADRT held prints "ADRT also held:
+  read it before any decision about resuscitation" and is never read as nothing recorded
+  (clinical M4, H-212).
+- Header times carry BST or GMT on a clock-change day (HZ-009); "1 person" is singular.
+- Docs: operations.md section 13, HZ-001, HZ-015 and HZ-021 rows, H-211 to H-213, STATUS.
+
+**Tests**: `apps/api` `downtime.test.ts` 3 new and printing in the step-up test; `packages/domain`
+4 new.
