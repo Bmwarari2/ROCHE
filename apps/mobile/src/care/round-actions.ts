@@ -174,6 +174,11 @@ function moveRefusal(task: TaskToMove, context: MoveContext): MessageKey | null 
   if (!context.userId) return "mobile.round.userUnknown";
   if (context.scope === null) return "mobile.round.scopeUnknown";
   if (task.assignee_tenant_user_id === context.userId) return null;
+  // The person's home decides the write scope: never guessed while their row is not here
+  // (#36 review round 2).
+  if (task.person_id !== null && context.personLocationId === null) {
+    return "mobile.round.personUnknown";
+  }
   if (
     task.required_permission === PERSON_TASK_PERMISSION &&
     task.person_id !== null &&

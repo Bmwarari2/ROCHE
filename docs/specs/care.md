@@ -1386,6 +1386,25 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
     the handover family reaches. The phone works out the expected outgoing shift with `shiftAt` and
     `previousShift`, and says "not compiled yet" when no handover for it has arrived, and "not
     final" while `locked_at` is empty.
+
+  The round screen is built (`apps/mobile/src/app/(care)/round.tsx`, `care/round-view.ts`; 3(b)).
+  It covers gate items (b), (d), (f) and (g) for the round:
+  - It lists the open tasks on the phone, overdue first, then due now, then later. Each task shows
+    the person as they are known, the due time in UK time, and its status as an icon and a word.
+  - A round from an earlier plan says so (b).
+  - Before any task, the screen says what the phone holds (the open tasks due from the window's
+    first day to the end of tomorrow), when it last synced, and that tasks due earlier and changes
+    since then are not here. An empty round says the same, never "nothing due" (d).
+  - A task whose evidence entry is saved on the phone, or that was marked here, says it is waiting
+    to upload and offers nothing more (f). A task that needs evidence offers "Record the entry",
+    which opens the person's record with the task, so the entry saved there carries `task_id`.
+  - "Not done" asks why before anything is saved.
+  - The needs-attention list sits above the tasks (g).
+  - A refusal says who to tell by role: "tell the person in charge of this shift", or, for someone
+    who manages tasks (`platform.task.manage`), that they can check and change the task on the web.
+  - A task put back by a session's end as a bare row is named from its move.
+  - `useMoveTask` reads the person's home from the synced person row itself and refuses while it
+    is not there (#36 review round 2).
 - **The round and the handover: writing offline (slice 10 part 2, second PR; no screen yet).**
   `apps/mobile/src/care/round-actions.ts` checks a task's move with the API's own rules
   (`checkTaskTransition`: done, or not done with a reason of 3 to 500 characters; a task that

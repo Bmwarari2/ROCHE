@@ -1,0 +1,55 @@
+# Hazards HZ-028 (point-of-care data on the phone mistaken for the whole record), HZ-029 (recorded
+# twice) and HZ-006 (silent sync failure), and the screens gate in STATUS item 15: the round says
+# what the phone holds and from when before any task, and an empty round never reads as nothing
+# due. With no signal, a task marked done says it is waiting to upload and offers nothing more,
+# and once the network returns it leaves the round.
+#
+# Needs the live API stack with a care plan round due for the test tenant's care worker
+# (HARBOUR_ROUND_TASK, a task title), like the other offline flows. setAirplaneMode is Android only
+# in Maestro (see the README, "End-to-end tests").
+appId: uk.co.thapsus.harbour
+name: The round on the phone, offline
+tags:
+  - offline
+env:
+  HARBOUR_ROUND_TASK: ${HARBOUR_ROUND_TASK || "Reposition"}
+---
+- runFlow: sign-in.yaml
+- extendedWaitUntil:
+    visible:
+      text: "Up to date.*"
+    timeout: 60000
+- tapOn:
+    id: "tab-round"
+- extendedWaitUntil:
+    visible:
+      id: "round-screen"
+    timeout: 30000
+# What the phone holds and from when is said first (gate item (d)).
+- assertVisible:
+    id: "round-window"
+- assertVisible:
+    text: "This phone holds the open tasks due from .*"
+- assertVisible:
+    text: ".*The whole round is in Harbour on the web.*"
+- assertNotVisible:
+    text: "Nothing due.*"
+- extendedWaitUntil:
+    visible:
+      text: "${HARBOUR_ROUND_TASK}.*"
+    timeout: 30000
+- setAirplaneMode: enabled
+- tapOn:
+    text: "Done"
+    index: 0
+- extendedWaitUntil:
+    visible:
+      text: "Waiting to upload"
+    timeout: 10000
+- assertVisible:
+    text: "Marked done on this phone.*"
+- setAirplaneMode: disabled
+- extendedWaitUntil:
+    notVisible:
+      text: "Marked done on this phone.*"
+    timeout: 90000

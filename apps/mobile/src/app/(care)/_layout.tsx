@@ -1,11 +1,12 @@
 import { useTheme } from "@harbour/ui-native";
 import { Tabs } from "expo-router";
 import CalendarDays from "lucide-react-native/icons/calendar-days";
+import ListChecks from "lucide-react-native/icons/list-checks";
 import Settings from "lucide-react-native/icons/settings";
 import Users from "lucide-react-native/icons/users";
 
 /**
- * Care mode: Today, People and Settings tabs. Tab icons are Lucide (never SF Symbols); see the
+ * Care mode: Today, Round, People and Settings tabs. Tab icons are Lucide (never SF Symbols); see the
  * README for the planned move to expo-router native tabs once they leave "unstable".
  */
 export default function CareLayout() {
@@ -32,6 +33,17 @@ export default function CareLayout() {
           tabBarAccessibilityLabel: "Today",
           tabBarIcon: ({ color, size }) => (
             <CalendarDays color={color} size={size} strokeWidth={1.5} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="round"
+        options={{
+          title: "Round",
+          tabBarButtonTestID: "tab-round",
+          tabBarAccessibilityLabel: "Round",
+          tabBarIcon: ({ color, size }) => (
+            <ListChecks color={color} size={size} strokeWidth={1.5} />
           ),
         }}
       />

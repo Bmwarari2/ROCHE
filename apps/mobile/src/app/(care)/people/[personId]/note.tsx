@@ -25,11 +25,16 @@ import { useRecordScreenProtection } from "../../../../security/use-record-prote
 export default function NoteScreen() {
   useRecordScreenProtection("note");
   const theme = useTheme();
-  const { personId, correct } = useLocalSearchParams<{ personId: string; correct?: string }>();
+  const { personId, correct, task } = useLocalSearchParams<{
+    personId: string;
+    correct?: string;
+    task?: string;
+  }>();
   const id = typeof personId === "string" ? personId : "";
   const correctId = typeof correct === "string" && correct ? correct : null;
   const tenantId = useTenantId();
-  const context = useEntryContext(id);
+  // The round's task this entry answers, when the carer came from the round (gate item (f)).
+  const context = useEntryContext(id, !correct && typeof task === "string" ? task : null);
   const { submit, saving, saveFailed } = useSaveAndReturn();
 
   const originalParams = useMemo(() => [tenantId, id, correctId ?? ""], [tenantId, id, correctId]);

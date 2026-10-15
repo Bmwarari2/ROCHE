@@ -203,9 +203,10 @@ describe("hazard HZ-029 hazard HZ-006 a move the API says the task changed for (
 
   const words = {
     changed: "This task changed after you marked it. Check it and mark it again.",
-    notFound: "We could not find this task. Check the round before recording it again.",
+    notFound:
+      "We could not find this task. Check with the person in charge of this shift, or in Harbour on the web, before recording it again.",
     unchecked:
-      "We could not check whether this was saved. Check the task on the round before recording it again.",
+      "We could not check whether this was saved. Check the task with the person in charge of this shift, or in Harbour on the web, before recording it again.",
   };
   it.each([
     ["this move, already made", {}, { kind: "made" }],

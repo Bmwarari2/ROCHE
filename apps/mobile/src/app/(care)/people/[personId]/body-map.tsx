@@ -45,11 +45,15 @@ const sideWords = (side: BodySide) => t("mobile.bodyMap.sideWords", { side });
 /** Add a body map mark offline: the side on the drawing and in words must agree (HZ-019). */
 export default function BodyMapScreen() {
   useRecordScreenProtection("body-map");
-  const params = useLocalSearchParams<{ personId: string; correct?: string }>();
+  const params = useLocalSearchParams<{ personId: string; correct?: string; task?: string }>();
   const id = typeof params.personId === "string" ? params.personId : "";
   const correctId = typeof params.correct === "string" && params.correct ? params.correct : null;
   const tenantId = useTenantId();
-  const context = useEntryContext(id);
+  // The round's task this entry answers, when the carer came from the round (gate item (f)).
+  const context = useEntryContext(
+    id,
+    !params.correct && typeof params.task === "string" ? params.task : null,
+  );
   const { submit, saving, saveFailed } = useSaveAndReturn();
 
   const [view, setView] = useState<BodyView>("front");

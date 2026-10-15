@@ -161,6 +161,18 @@ describe("moving a task on the phone (the API's own transition rules)", () => {
       { scope: null },
       "mobile.round.scopeUnknown",
     ],
+    [
+      "a person whose row is not on the phone yet (no home known; #36 review round 2)",
+      {},
+      { personLocationId: null, scope: { ...carerScope, personIds: null } },
+      "mobile.round.personUnknown",
+    ],
+    [
+      "a task given to the carer about a person whose row is not here yet",
+      { assignee_tenant_user_id: "user-carer" },
+      { personLocationId: null },
+      null,
+    ],
   ] as const)(
     "hazard HZ-006 moves a task only where the server would take it: %s (#36 review round 1, M1)",
     (_name, row, ctx, error) => {

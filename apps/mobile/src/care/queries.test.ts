@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { DEMO_TENANT_ID, demoPeople } from "../demo/demo-data";
+import { DEMO_LOCATION_ID, DEMO_TENANT_ID, demoPeople } from "../demo/demo-data";
 import { all, openLocalDatabase, type SqliteDatabase } from "../test-support/local-db";
 import { insertStatement } from "./entries";
 import { recentEntries } from "./entry-view";
@@ -32,6 +32,7 @@ import {
   UPLOAD_ISSUES_SQL,
   type UploadIssueRow,
 } from "./queries";
+import type { RoundTaskRow } from "./round-view";
 
 /**
  * Care mode SQL against a real SQLite engine with the device's tables (from the shared PowerSync
@@ -264,5 +265,71 @@ describe("hazard HZ-006 refused uploads on the device", () => {
       if (typeof sql === "string") expect(sql, name).not.toMatch(/payload\s*=\s*NULL/i);
     }
     db.prepare("DELETE FROM upload_issue").run();
+  });
+});
+
+describe("the round on this device (screens gate items (b) and (f))", () => {
+  const task = (id: string, fields: Record<string, unknown>) => {
+    const row: Record<string, unknown> = {
+      id,
+      tenant_id: DEMO_TENANT_ID,
+      person_id: ADA,
+      title: "Reposition",
+      status: "open",
+      due_at: "2026-10-11T10:30:00.000Z",
+      from_earlier_plan: 0,
+      ...fields,
+    };
+    const columns = Object.keys(row);
+    db.prepare(
+      `INSERT INTO task (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`,
+    ).run(...Object.values(row));
+  };
+
+  it("hazard HZ-029 lists the open tasks with their person, the earlier-plan flag and the evidence waiting here", () => {
+    task("t-due", { from_earlier_plan: 1 });
+    task("t-evidence", { evidence_required: 1, due_at: "2026-10-11T11:00:00.000Z" });
+    task("t-done", { status: "done" });
+    // A task put back by a session's end: a bare row holding only its move.
+    task("t-bare", { title: null, due_at: null, status: "done", queued_transition: '{"id":"m"}' });
+    task("t-other", { tenant_id: OTHER });
+    db.prepare(
+      "INSERT INTO observation (id, tenant_id, person_id, occurred_at, chart, chart_values, task_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ).run(
+      "o-evidence",
+      DEMO_TENANT_ID,
+      ADA,
+      "2026-10-11T10:55:00.000Z",
+      "repositioning",
+      "{}",
+      "t-evidence",
+    );
+    db.prepare(
+      "INSERT INTO care_note (id, tenant_id, person_id, occurred_at, category, body, task_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ).run(
+      "n-evidence",
+      DEMO_TENANT_ID,
+      ADA,
+      "2026-10-11T10:56:00.000Z",
+      "health",
+      "Turned.",
+      "t-evidence",
+    );
+    const rows = all<RoundTaskRow>(db, queries.ROUND_TASKS_SQL, [DEMO_TENANT_ID]);
+    expect(rows.map((r) => [r.id, r.evidence_waiting, r.from_earlier_plan])).toEqual([
+      ["t-bare", 0, 0],
+      ["t-due", 0, 1],
+      ["t-evidence", 2, 0],
+    ]);
+    expect(rows.find((r) => r.id === "t-due")).toMatchObject({
+      given_name: demoPeople[0]?.given_name,
+      person_location_id: DEMO_LOCATION_ID,
+    });
+    expect(all<RoundTaskRow>(db, queries.ROUND_TASKS_SQL, [OTHER]).map((r) => r.id)).toEqual([
+      "t-other",
+    ]);
+    db.prepare("DELETE FROM task").run();
+    db.prepare("DELETE FROM observation WHERE id = 'o-evidence'").run();
+    db.prepare("DELETE FROM care_note WHERE id = 'n-evidence'").run();
   });
 });

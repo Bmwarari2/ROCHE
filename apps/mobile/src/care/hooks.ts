@@ -83,8 +83,12 @@ export function useCareProfile(personId: string): CareProfileRow | null {
   return data[0] ?? null;
 }
 
-/** What a new entry for this person needs: tenant, person, location, author and a UUIDv7. */
-export function useEntryContext(personId: string): EntryContext {
+/**
+ * What a new entry for this person needs: tenant, person, location, author and a UUIDv7, and the
+ * round's task it answers when the carer came from the round to record it (`taskId`, sent with
+ * the entry so the API completes the task; screens gate item (f)).
+ */
+export function useEntryContext(personId: string, taskId: string | null = null): EntryContext {
   const tenantId = useTenantId();
   const { me } = useSession();
   const params = useMemo(() => [tenantId, personId], [tenantId, personId]);
@@ -103,8 +107,9 @@ export function useEntryContext(personId: string): EntryContext {
       windowDays,
       clockToleranceMinutes,
       newId: newEntryId,
+      taskId,
     }),
-    [tenantId, personId, locationId, userId, windowDays, clockToleranceMinutes],
+    [tenantId, personId, locationId, userId, windowDays, clockToleranceMinutes, taskId],
   );
 }
 
@@ -125,19 +130,27 @@ export function useSaveEntry(): (table: OfflineWindowTable, row: EntryRow) => Pr
 /**
  * Marks a task done or not done on this device (round-actions.ts): the problem to show, or null
  * once the move is written and waiting to upload. Only where the server would take it, from the
- * member and the write scope (never while either is unknown). A write that fails locally is thrown.
+ * member and the write scope (never while either is unknown). The person's home is read here from
+ * the synced person row, never taken from the caller, so a row still loading is refused rather
+ * than let through (#36 review round 2). A write that fails locally is thrown.
  */
 export function useMoveTask(): (
   task: TaskToMove,
   draft: { readonly to: TaskMoveTo; readonly reason: string },
-  personLocationId: string | null,
 ) => Promise<FieldError | null> {
   const db = usePowerSync();
   const { me } = useSession();
   const userId = me?.tenantUserId ?? null;
   const scope = useWriteScope();
   return useCallback(
-    async (task, draft, personLocationId) => {
+    async (task, draft) => {
+      const person = task.person_id
+        ? await db.getOptional<{ location_id: string | null }>(
+            "SELECT location_id FROM person WHERE tenant_id = ? AND id = ?",
+            [task.tenant_id, task.person_id],
+          )
+        : null;
+      const personLocationId = person?.location_id ?? null;
       const check = checkTaskMove(
         task,
         draft,

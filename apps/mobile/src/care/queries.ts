@@ -257,4 +257,26 @@ export const DELETE_UPLOAD_ISSUE_SQL =
  * "needs attention" (clinical review M2). Counted with refused entries on the banner and Today, so
  * the device never reads "Up to date" while any exist.
  */
+/**
+ * The round on this device: every open task synced here (in the tenant), with its person's names
+ * and home, and how many entries saved here answer it and wait to upload (`task_id`, device
+ * only), so the round says "evidence recorded, waiting to upload" and never offers it again
+ * (screens gate item (f); HZ-029). A task put back by a session's end as a bare row has no title or
+ * due time and sorts first; the screen names it from its move.
+ */
+export const ROUND_TASKS_SQL = `SELECT t.id, t.tenant_id, t.person_id, t.location_id, t.title,
+  t.status, t.due_at, t.window_start, t.window_end, t.priority, t.evidence_required,
+  t.required_permission, t.assignee_tenant_user_id, t.version, t.queued_transition,
+  t.from_earlier_plan, p.preferred_name, p.given_name, p.family_name,
+  p.location_id AS person_location_id,
+  (SELECT COUNT(*) FROM care_note e WHERE e.task_id = t.id)
+    + (SELECT COUNT(*) FROM observation e WHERE e.task_id = t.id)
+    + (SELECT COUNT(*) FROM body_map_mark e WHERE e.task_id = t.id)
+    + (SELECT COUNT(*) FROM activity_record e WHERE e.task_id = t.id)
+    + (SELECT COUNT(*) FROM visit_log e WHERE e.task_id = t.id) AS evidence_waiting
+FROM task t
+LEFT JOIN person p ON p.id = t.person_id AND p.tenant_id = t.tenant_id
+WHERE t.tenant_id = ? AND (t.status IN ('open', 'in_progress') OR t.queued_transition IS NOT NULL)
+ORDER BY t.due_at, t.id`;
+
 export const HELD_COUNT_SQL = "SELECT COUNT(*) AS count FROM held_entry";

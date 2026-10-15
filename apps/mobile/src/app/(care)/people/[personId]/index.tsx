@@ -42,8 +42,14 @@ export default function PersonScreen() {
   const theme = useTheme();
   const router = useRouter();
   const vault = useVault();
-  const { personId } = useLocalSearchParams<{ personId: string }>();
+  const { personId, task, taskTitle } = useLocalSearchParams<{
+    personId: string;
+    task?: string;
+    taskTitle?: string;
+  }>();
   const id = typeof personId === "string" ? personId : "";
+  // Came from the round to record the entry a task asks for: the new entry answers that task.
+  const forTask = typeof task === "string" && task ? task : null;
   const tenantId = useTenantId();
   const { person } = useCarePerson(id);
   // Recording is offered only where the user's care.note.write reaches the person, as the sync
@@ -73,8 +79,11 @@ export default function PersonScreen() {
       screen: "note" | "chart" | "body-map" | "care-plan" | "risks",
       extra: Record<string, string> = {},
     ) =>
-      router.push({ pathname: `/people/[personId]/${screen}`, params: { personId: id, ...extra } }),
-    [router, id],
+      router.push({
+        pathname: `/people/[personId]/${screen}`,
+        params: { personId: id, ...(forTask && !extra.correct ? { task: forTask } : {}), ...extra },
+      }),
+    [router, id, forTask],
   );
   const correct = useCallback(
     (item: EntryItem) => {
@@ -106,6 +115,13 @@ export default function PersonScreen() {
             {person ? (
               <>
                 <Card title={t("mobile.person.actions")}>
+                  {forTask && mayRecord ? (
+                    <Text testID="person-for-task">
+                      {t("mobile.person.forTask", {
+                        title: typeof taskTitle === "string" ? taskTitle : "",
+                      })}
+                    </Text>
+                  ) : null}
                   {mayRecord ? (
                     <>
                       <Button

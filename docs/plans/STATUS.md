@@ -260,7 +260,8 @@ only when they link spec, code, tests and user documentation; no user guides exi
       clinical M3; HZ-029); (g) the needs-attention screen ships with the round screen or before
       it, since "no care left without a prompt" depends on it (#37 confirmation check). The data
       for (a), (b) and (e) is on `feat/mobile-round-gate-data` (migration 0056, provisional
-      number; ADR-0072); the screens (3(b) the round, 3(c) the handover) close the rest.
+      number; ADR-0072); the round screen (3(b), `feat/mobile-round-screen`) closes (b), (d), (f)
+      and (g) for the round; the handover screen (3(c)) closes the rest.
     - Follow-up: whether the round on the phone should also hold unfinished tasks due before the
       window (H-301).
     - Follow-up (#33 review round 1): the streams ignore `person_assignment.valid_from`, so a
@@ -330,6 +331,16 @@ only when they link spec, code, tests and user documentation; no user guides exi
     - Follow-up (gate data): a skipped task's reason is free text staff wrote and now reaches
       the phone with the handover item (as notes already do); the CSO and DPO confirm that
       with H-300 and H-307.
+    - Done on `feat/mobile-round-screen` (3(b)), from the follow-ups above:
+      - `useMoveTask` reads the person's home itself and refuses while the person row is
+        missing (#36 round 2, (a)).
+      - The round names a bare task row from its move (#36 round 2, (b), the screen's part).
+      - "Tell the person in charge" is worded by role on the round (#36 round 2, (e)).
+      - `task_unchecked` and `task_not_found` point to the person in charge or the web, not
+        to the round, where a closed task no longer shows (#37 confirmation check).
+    - Follow-up (round screen): a task that needs evidence opens the person's record with the
+      task; it should open the form for the evidence the task asks for (`task.evidence_type`
+      is not synced yet).
     - Follow-up (#36 review round 2, low): `useMoveTask` takes the person's home
       (`personLocationId`) from the caller; while it is null (the person row still loading)
       and the token lists no person ids, `mayRecordFor` lets the move through. Look the home
