@@ -1,5 +1,5 @@
 {
-  "id": "6d9077d2-977c-4e52-aa59-4c50a037e03c",
+  "id": "6a9370a8-3148-4b50-97c2-80fba9245ec5",
   "prevId": "c46e841c-d105-4bbf-9971-53d4e830249a",
   "version": "7",
   "dialect": "postgresql",
@@ -7621,6 +7621,10 @@
         "downtime_pack_json": {
           "name": "downtime_pack_json",
           "value": "jsonb_typeof(content) = 'object' AND jsonb_typeof(warnings) = 'object'"
+        },
+        "downtime_pack_no_document": {
+          "name": "downtime_pack_no_document",
+          "value": "document_id IS NULL"
         }
       },
       "isRLSEnabled": false

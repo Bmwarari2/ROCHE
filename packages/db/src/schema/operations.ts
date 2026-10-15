@@ -111,6 +111,9 @@ export const downtimePack = pgTable(
       "downtime_pack_json",
       sql`jsonb_typeof(content) = 'object' AND jsonb_typeof(warnings) = 'object'`,
     ),
+    // A pack's PDF is drawn when asked for and never stored, so never readable through `document`
+    // (#32 review round 1, M3; #45 review round 1).
+    check("downtime_pack_no_document", sql`document_id IS NULL`),
     index("downtime_pack_location_idx").on(t.tenantId, t.locationId, t.generatedAt),
   ],
 );

@@ -6,6 +6,7 @@ import {
 } from "@harbour/contracts";
 import { location, task } from "@harbour/db";
 import {
+  checkTaskTransition,
   type DowntimePack,
   downtimePackFreshness,
   downtimePageHeader,
@@ -13,14 +14,16 @@ import {
   type Permission,
   type RateNation,
   scopeFor,
+  type TaskStatus,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { writeAudit } from "../http/audit";
 import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { RateLimiter, requireWithinLimit } from "../http/rate-limit";
+import { publish } from "../outbox";
 import {
   buildDowntimePack,
   DOWNTIME_PLACES_TASK,
@@ -35,6 +38,7 @@ import {
 import { renderDowntimePackPdf } from "../services/downtime-pack-pdf";
 import { rateNumber } from "../services/rates";
 import {
+  conflictResponse,
   createRouter,
   errorResponses,
   jsonBody,
@@ -339,6 +343,7 @@ export const operationsRouter = createRouter()
         200: jsonBody(DowntimePlaces, "The places"),
         ...errorResponses,
         ...notFoundResponse,
+        ...conflictResponse,
       },
     }),
     async (c) => {
@@ -347,25 +352,36 @@ export const operationsRouter = createRouter()
       const body = c.req.valid("json");
       await requireReach(c, access, PLACES, id, "operations.downtime_places.changed");
       const out = await withTenant(c, async (tx) => {
+        const now = new Date();
+        const [current] = await tx
+          .select({ version: location.version })
+          .from(location)
+          .where(and(eq(location.id, id), isNull(location.deletedAt)));
+        if (!current) throw problems.notFound();
+        if (current.version !== body.version) throw problems.conflict();
         const [row] = await tx
           .update(location)
           .set({
             downtimeMarLocation: body.marLocation,
             downtimePeepLocation: body.peepLocation,
             ...(body.confirm
-              ? {
-                  downtimePlacesConfirmedBy: access.tenantUserId,
-                  downtimePlacesConfirmedAt: new Date(),
-                }
+              ? { downtimePlacesConfirmedBy: access.tenantUserId, downtimePlacesConfirmedAt: now }
               : {}),
           })
-          .where(eq(location.id, id))
+          .where(
+            and(
+              eq(location.id, id),
+              eq(location.version, body.version),
+              isNull(location.deletedAt),
+            ),
+          )
           .returning();
-        if (!row) throw problems.notFound();
+        if (!row) throw problems.conflict();
         if (row.downtimePlacesConfirmedAt) {
-          await tx
-            .update(task)
-            .set({ status: "done", completedAt: new Date(), completedBy: access.tenantUserId })
+          // Through the task workflow: only an open task may be done, at the version read.
+          const open = await tx
+            .select({ id: task.id, status: task.status, version: task.version })
+            .from(task)
             .where(
               and(
                 eq(task.kind, DOWNTIME_PLACES_TASK),
@@ -373,7 +389,22 @@ export const operationsRouter = createRouter()
                 inArray(task.status, ["open", "in_progress"]),
               ),
             );
+          for (const t of open) {
+            if (!checkTaskTransition(t.status as TaskStatus, { to: "done" }).ok) continue;
+            await tx
+              .update(task)
+              .set({ status: "done", completedAt: now, completedBy: access.tenantUserId })
+              .where(and(eq(task.id, t.id), eq(task.version, t.version)));
+          }
         }
+        // The packs show the places: build them again as the system (#47 review round 1).
+        await publish(tx, {
+          context: "operations",
+          aggregateType: "location",
+          aggregateId: id,
+          type: "operations.downtime_places.changed",
+          payload: { locationId: id, confirmed: row.downtimePlacesConfirmedAt !== null },
+        });
         await audit(c, tx, access, {
           action: "operations.downtime_places.changed",
           resourceType: "location",
@@ -386,6 +417,7 @@ export const operationsRouter = createRouter()
           peepLocation: row.downtimePeepLocation,
           confirmedAt: iso(row.downtimePlacesConfirmedAt),
           confirmedBy: row.downtimePlacesConfirmedBy,
+          version: row.version,
         };
       });
       return c.json(out, 200);

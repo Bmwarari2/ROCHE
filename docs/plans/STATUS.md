@@ -220,6 +220,12 @@ only when they link spec, code, tests and user documentation; no user guides exi
    - Slice 11 part 3b, nightly packs, rebuilds after moves and the places route
      (`feat/operations-downtime-api`, stacked on part 3a-2, migration 0054; operations.md section
      13): built, PR to follow part 3a-2.
+   - Follow-ups from #47 review round 1:
+     - rebuilds run in the outbox handlers; a queue of their own, deduplicated per location, would
+       keep a slow home's rebuild from delaying other events;
+     - the nightly job covers active locations only;
+     - the kiosk route needs a location-bound branch for reads with no member before it is built;
+     - the seeded places wording still needs the CSO's confirmation (H-201).
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature

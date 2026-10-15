@@ -16741,6 +16741,9 @@
               "null"
             ],
             "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
           }
         },
         "required": [
@@ -16748,7 +16751,8 @@
           "marLocation",
           "peepLocation",
           "confirmedAt",
-          "confirmedBy"
+          "confirmedBy",
+          "version"
         ],
         "description": "Where a location keeps the paper MAR and the PEEPs (location settings downtime.mar_location and downtime.peep_location); unconfirmed places print as not set (H-201)"
       },
@@ -16769,12 +16773,17 @@
           },
           "confirm": {
             "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
           }
         },
         "required": [
           "marLocation",
           "peepLocation",
-          "confirm"
+          "confirm",
+          "version"
         ]
       },
       "RateValue": {
@@ -33828,6 +33837,16 @@
           },
           "404": {
             "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
             "content": {
               "application/problem+json": {
                 "schema": {

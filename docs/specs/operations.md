@@ -450,5 +450,23 @@ Part 3b (`jobs/tasks.ts`, migration 0054):
   with `confirm` confirms them in the caller's name and completes the `operations.downtime_places`
   task, which the nightly job keeps open for the location's Registered Manager while they are
   unconfirmed (H-201).
+- After #47 review round 1:
+  - A bed move (`POST /v1/people/{id}/bed-moves`) publishes `people.person.moved` (person, the
+    location they were at and the one they are at, room changed) in its transaction, and it is
+    one of the rebuild events, so both locations' packs are built again (H2). A places change
+    publishes `operations.downtime_places.changed`, and the system builds that location's pack
+    again.
+  - Each handler of an event runs on its own: a failed rebuild is logged for the operator by
+    opaque ids and left to the next read or the nightly job, and never holds back the death
+    notification; another handler's failure is raised again after the rebuild, so the event is
+    delivered again (both are idempotent). Rebuilds take the same per-location lock as reads.
+  - After the nightly run, a location with no pack in date gets an
+    `operations.downtime_pack_missing` task for its Registered Manager. The places task is raised
+    after the build, in its own savepoint, due at the end of the day
+    `downtime.places_confirm_due_days` from now rather than at once (HZ-008).
+  - The places route takes the location's `version` (409 when stale), refuses a deleted location,
+    and completes the task through the task workflow at its version.
+  - Migration 0054 also refuses a pack that names a stored document (`downtime_pack_no_document`):
+    the PDF is drawn per request.
 - Not yet: the kiosk's own fetch route (the mobile step; it fetches in the system's view for its
   location, section 12); printing photos on the pages.

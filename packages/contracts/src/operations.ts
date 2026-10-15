@@ -59,6 +59,8 @@ export const SetDowntimePlaces = z
     peepLocation: place.meta({ description: "Where the PEEPs are kept, worded for the page" }),
     /** Confirms both places in your name; changing a place without confirming leaves it unconfirmed. */
     confirm: z.boolean(),
+    /** The location's version you read; a stale one is refused with 409. */
+    version: z.number().int().min(1),
   })
   .meta({ id: "SetDowntimePlaces" });
 export type SetDowntimePlaces = z.infer<typeof SetDowntimePlaces>;
@@ -70,6 +72,7 @@ export const DowntimePlaces = z
     peepLocation: z.string(),
     confirmedAt: isoDateTime.nullable(),
     confirmedBy: uuid.nullable(),
+    version: z.number().int(),
   })
   .meta({
     id: "DowntimePlaces",

@@ -275,6 +275,28 @@ describe("hazard HZ-011 hazard HZ-021 a downtime pack follows its location and i
     ).rejects.toThrow(/row-level security/);
   });
 
+  it("keeps a rebuild the system's and an on-demand pack a member's, and never names a document (migration 0054)", async () => {
+    const pack = (source: string, by: string | null, documentId: string | null = null) =>
+      `INSERT INTO downtime_pack (location_id, source, generated_at, as_at, valid_until, generated_by,
+         document_id, content)
+       VALUES ('${a.locationNorth}', '${source}', now(), now(), now() + interval '1 hour',
+         ${by ? `'${by}'` : "NULL"}, ${documentId ? `'${documentId}'` : "NULL"},
+         jsonb_build_object('pages', jsonb_build_array(jsonb_build_object('personId',
+           '${a.personAda}'::uuid))))`;
+    await expect(asManager((c) => c.query(pack("server_rebuild", a.manager)))).rejects.toThrow(
+      /downtime_pack_generated_by|row-level security/,
+    );
+    await expect(asSystem((c) => c.query(pack("server_on_demand", null)))).rejects.toThrow(
+      /downtime_pack_generated_by|row-level security/,
+    );
+    await asSystem((c) => c.query(pack("server_rebuild", null)));
+    await expect(
+      asOwner(TENANT_A, (c) =>
+        c.query(pack("server_rebuild", null, "0199e000-0000-7000-8000-0000000000d9")),
+      ),
+    ).rejects.toThrow(/downtime_pack_no_document|downtime_pack_document_fk/);
+  });
+
   it("keeps a pack append-only for the application and the owner", async () => {
     await expect(
       asManager((c) =>

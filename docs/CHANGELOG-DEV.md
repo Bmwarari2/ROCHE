@@ -1601,3 +1601,18 @@ task the nightly job keeps open while the places are unconfirmed.
 
 **Tests**: `apps/api` `downtime.test.ts` 3 new and printing in the step-up test; `packages/domain`
 4 new.
+
+## 2026-10-15: Slice 11 part 3b, review round 1 of #47 (OPS-028)
+
+- A bed move publishes `people.person.moved` and rebuilds both locations' packs (H2); a places
+  change rebuilds the location's pack.
+- Outbox handlers of one event run on their own; a failed rebuild is logged by opaque ids and
+  never holds back the death notification (clinical M5); after the nightly run a location with no
+  pack in date raises a task for its Registered Manager.
+- The places task is raised after the build in its own savepoint, due at the end of the day
+  `downtime.places_confirm_due_days` from now; the places route takes the location's version,
+  refuses a deleted location and completes the task through the task workflow.
+- Migration 0054 also refuses a pack naming a stored document.
+- Docs: operations.md section 13, rates.md, HZ-021 rows, H-214, STATUS.
+
+**Tests**: `apps/api` `downtime.test.ts` 2 new and 2 rewritten; `packages/db` 1 new.

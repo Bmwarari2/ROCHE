@@ -12869,6 +12869,15 @@ export interface paths {
             "application/problem+json": components["schemas"]["ProblemDetails"];
           };
         };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
         /** @description The request did not validate */
         422: {
           headers: {
@@ -19017,6 +19026,7 @@ export interface components {
       confirmedAt: string | null;
       /** Format: uuid */
       confirmedBy: string | null;
+      version: number;
     };
     SetDowntimePlaces: {
       /** @description Where the paper MAR is kept, worded for the page */
@@ -19024,6 +19034,7 @@ export interface components {
       /** @description Where the PEEPs are kept, worded for the page */
       peepLocation: string;
       confirm: boolean;
+      version: number;
     };
     RateValue: {
       key: string;

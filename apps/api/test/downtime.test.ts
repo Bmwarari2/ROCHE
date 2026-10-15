@@ -1,6 +1,6 @@
 import { createDatabase } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
-import { DOWNTIME_PACK_SECTIONS } from "@harbour/domain";
+import { DOWNTIME_PACK_SECTIONS, ukIsoDate } from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildDowntimePacks, outboxHandlers, type TaskDeps } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
@@ -148,17 +148,41 @@ describe("hazard HZ-021 the downtime pack", () => {
     expect(after.id).not.toBe(first.id);
 
     const mar = "The MAR folder in the clinical room";
-    const set = await as("manager", `/v1/locations/${DEMO.locationId}/downtime-places`, {
-      method: "PUT",
-      body: { marLocation: mar, peepLocation: "The red fire file", confirm: true },
-    });
+    const [place] = await sql<{ version: number }>("SELECT version FROM location WHERE id = $1", [
+      DEMO.locationId,
+    ]);
+    const put = (version: number) =>
+      as("manager", `/v1/locations/${DEMO.locationId}/downtime-places`, {
+        method: "PUT",
+        body: { marLocation: mar, peepLocation: "The red fire file", confirm: true, version },
+      });
+    expect((await put((place?.version ?? 0) + 1)).status).toBe(409);
+    const set = await put(place?.version ?? 0);
     expect(set.status).toBe(200);
     expect(await set.json()).toMatchObject({
       marLocation: mar,
       confirmedBy: DEMO.users.manager.id,
+      version: (place?.version ?? 0) + 1,
     });
+    // The system builds the pack again from the places event, before anyone reads it.
+    const [changed] = await sql<{ id: string; payload: Record<string, unknown> }>(
+      `SELECT id, payload FROM outbox_event WHERE event_type = 'operations.downtime_places.changed'
+       ORDER BY occurred_at DESC LIMIT 1`,
+    );
+    await outboxHandlers(deps).get("operations.downtime_places.changed")?.({
+      id: changed?.id ?? "",
+      tenantId: DEMO.tenantId,
+      eventType: "operations.downtime_places.changed",
+      aggregateId: DEMO.locationId,
+      payload: changed?.payload ?? {},
+    });
+    const [rebuilt] = await sql<{ source: string }>(
+      "SELECT source FROM downtime_pack WHERE location_id = $1 ORDER BY generated_at DESC LIMIT 1",
+      [DEMO.locationId],
+    );
+    expect(rebuilt?.source).toBe("server_rebuild");
     const confirmed = await pack();
-    expect(confirmed.built).toBe(true);
+    expect(confirmed.built).toBe(false);
     const medicines = confirmed.pages[0]?.sections.find((s) => s.key === "medicines_due");
     expect(medicines?.note).toBe(`Not kept in Harbour yet. Use ${mar}.`);
   });
@@ -171,7 +195,7 @@ describe("hazard HZ-021 the downtime pack", () => {
     expect([403, 404]).toContain(other.status);
     const places = await as("nurse", `/v1/locations/${DEMO.locationId}/downtime-places`, {
       method: "PUT",
-      body: { marLocation: "Anywhere", peepLocation: "Anywhere", confirm: true },
+      body: { marLocation: "Anywhere", peepLocation: "Anywhere", confirm: true, version: 1 },
     });
     expect(places.status).toBe(403);
   });
@@ -201,45 +225,115 @@ describe("hazard HZ-021 nightly packs and rebuilds", () => {
     expect(nightly.filter((r) => r.location_id === LODGE.locationId)).toEqual([
       { location_id: LODGE.locationId, generated_by: null },
     ]);
-    const tasks = await sql<{ location_id: string }>(
-      "SELECT location_id FROM task WHERE kind = 'operations.downtime_places' AND status = 'open'",
+    const tasks = await sql<{ location_id: string; due_at: Date }>(
+      "SELECT location_id, due_at FROM task WHERE kind = 'operations.downtime_places' AND status = 'open'",
     );
-    // The demo home's places were confirmed above; the Lodge's never were.
+    // The demo home's places were confirmed above; the Lodge's never were. Due at the end of the
+    // next day, not at once (HZ-008).
     expect(tasks.map((t) => t.location_id)).toEqual([LODGE.locationId]);
+    expect(tasks[0]?.due_at.getTime()).toBeGreaterThan(now.getTime() + 12 * 3_600_000);
+    const missing = await sql("SELECT 1 FROM task WHERE kind = 'operations.downtime_pack_missing'");
+    expect(missing).toHaveLength(0);
+  });
+
+  it("asks the Registered Manager to act when a location is left with no pack in date", async () => {
+    const later = new Date(Date.now() + 3 * 24 * 3_600_000);
+    await sql("ALTER TABLE downtime_pack ADD CONSTRAINT lane_a_refuse_all CHECK (false) NOT VALID");
+    try {
+      expect(await buildDowntimePacks(deps, later)).toBe(0);
+    } finally {
+      await sql("ALTER TABLE downtime_pack DROP CONSTRAINT lane_a_refuse_all");
+    }
+    const missing = await sql<{ location_id: string; assignee_role_key: string }>(
+      `SELECT location_id, assignee_role_key FROM task
+       WHERE kind = 'operations.downtime_pack_missing' AND status = 'open' ORDER BY location_id`,
+    );
+    expect(missing.map((t) => t.location_id).sort()).toEqual(
+      [DEMO.locationId, LODGE.locationId].sort(),
+    );
+    expect(missing.every((t) => t.assignee_role_key === "registered_manager")).toBe(true);
   });
 
   it("hazard HZ-021 rebuilds the pack when someone on the latest one has moved", async () => {
-    const [someone] = await livePeople();
-    // Moved to the Lodge: the home's latest pack names them, so the home's holders cannot open it.
-    await sql("UPDATE person SET location_id = $2, status = 'active' WHERE id = $1", [
-      someone?.id,
-      LODGE.locationId,
-    ]);
-    const handler = outboxHandlers(deps).get("people.person.returned");
-    const event = {
-      id: "0199e000-0000-7000-8000-00000000e001",
+    const [someone] = await sql<{ id: string; version: number }>(
+      "SELECT id, version FROM person WHERE location_id = $1 AND status = 'active' ORDER BY id LIMIT 1",
+      [DEMO.locationId],
+    );
+    await pack();
+    const [room] = await sql<{ id: string }>(
+      "INSERT INTO room (location_id, label, beds) VALUES ($1, 'L1', 1) RETURNING id",
+      [LODGE.locationId],
+    );
+    // A bed move to the Lodge, through the real route (#47 review round 1, H2).
+    const moved = await as("owner", `/v1/people/${someone?.id}/bed-moves`, {
+      method: "POST",
+      body: {
+        roomId: room?.id,
+        bed: 1,
+        on: ukIsoDate(new Date()),
+        reason: "Moved to the Lodge to be nearer family",
+        version: someone?.version,
+      },
+    });
+    expect(moved.status).toBe(201);
+    const [event] = await sql<{ id: string; payload: Record<string, unknown> }>(
+      `SELECT id, payload FROM outbox_event WHERE event_type = 'people.person.moved'
+         AND aggregate_id = $1`,
+      [someone?.id],
+    );
+    expect(event?.payload).toMatchObject({
+      personId: someone?.id,
+      locationId: DEMO.locationId,
+      toLocationId: LODGE.locationId,
+    });
+    const handler = outboxHandlers(deps).get("people.person.moved");
+    const delivered = {
+      id: event?.id ?? "",
       tenantId: DEMO.tenantId,
-      eventType: "people.person.returned",
+      eventType: "people.person.moved",
       aggregateId: someone?.id ?? "",
-      payload: { personId: someone?.id, locationId: DEMO.locationId },
+      payload: event?.payload ?? {},
     };
-    await handler?.(event);
-    await handler?.(event);
-    const rebuilt = await sql<{ location_id: string; generated_by: string | null; ids: string[] }>(
-      `SELECT location_id, generated_by, person_ids::text[] AS ids FROM downtime_pack
-       WHERE source = 'server_rebuild' ORDER BY location_id`,
+    await handler?.(delivered);
+    await handler?.(delivered);
+    const rebuilt = await sql<{ location_id: string; ids: string[] }>(
+      `SELECT DISTINCT ON (location_id) location_id, person_ids::text[] AS ids FROM downtime_pack
+       WHERE source = 'server_rebuild' AND location_id = ANY ($1::uuid[])
+       ORDER BY location_id, generated_at DESC`,
+      [[DEMO.locationId, LODGE.locationId]],
     );
     expect(
-      rebuilt.map((r) => [r.location_id, r.generated_by, r.ids.includes(someone?.id ?? "")]),
+      rebuilt
+        .map((r) => [r.location_id, r.ids.includes(someone?.id ?? "")])
+        .sort((x, y) => String(x[0]).localeCompare(String(y[0]))),
     ).toEqual(
       [
-        [DEMO.locationId, null, false],
-        [LODGE.locationId, null, true],
-      ].sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+        [DEMO.locationId, false],
+        [LODGE.locationId, true],
+      ].sort((x, y) => String(x[0]).localeCompare(String(y[0]))),
     );
     const latest = await pack();
     expect(latest.built).toBe(false);
     expect(latest.pages.some((p) => p.personId === someone?.id)).toBe(false);
+  });
+
+  it("keeps a failed rebuild from holding back the event, and logs it", async () => {
+    const [someone] = await livePeople();
+    await sql("UPDATE person SET room_label = 'Room 45' WHERE id = $1", [someone?.id]);
+    await sql("ALTER TABLE downtime_pack ADD CONSTRAINT lane_a_refuse_all CHECK (false) NOT VALID");
+    try {
+      await expect(
+        outboxHandlers(deps).get("people.person.moved")?.({
+          id: "0199e000-0000-7000-8000-00000000e002",
+          tenantId: DEMO.tenantId,
+          eventType: "people.person.moved",
+          aggregateId: someone?.id ?? "",
+          payload: { personId: someone?.id, locationId: DEMO.locationId },
+        }),
+      ).resolves.toBeUndefined();
+    } finally {
+      await sql("ALTER TABLE downtime_pack DROP CONSTRAINT lane_a_refuse_all");
+    }
   });
 });
 
