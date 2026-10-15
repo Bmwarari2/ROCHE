@@ -4,8 +4,11 @@ import {
   authorise,
   BREAK_GLASS_PERMISSIONS,
   can,
+  checkGrantPermissions,
+  checkRoleDefinition,
   NO_SCOPE,
   narrowestScope,
+  PERMISSION_PREREQUISITES,
   type PermissionScope,
   permissionsAtLocation,
   placesCover,
@@ -766,5 +769,70 @@ describe("placesHoldingPermission (#26 review round 2, S1)", () => {
     const owner = placesHoldingPermission([assignment("owner")], [], "platform.tenant.manage", NOW);
     expect(placesCover(owner, null)).toBe(true);
     expect(placesCover(owner, SOUTH)).toBe(true);
+  });
+});
+
+describe("hazard HZ-011 hazard HZ-018 a permission reaches no further than what its records show (ADR-0071; #50 review round 1, S-M1)", () => {
+  const handoverOnly = (
+    locationId: string | null,
+    extra: Permission[] = [],
+  ): RoleAssignmentInput => ({
+    roleKey: "tenant_handover_reader",
+    scopeKind: locationId ? "location" : "tenant",
+    permissions: ["care.handover.manage", ...extra],
+    locationId,
+    organisationWide: locationId === null,
+    validFrom: PAST,
+    validTo: null,
+  });
+  const reads: Permission[] = ["safety.incident.read", "care.note.read", "people.person.read"];
+
+  it("names what reading handovers needs: incidents, notes and the person", () => {
+    expect(PERMISSION_PREREQUISITES["care.handover.manage"]).toEqual(reads);
+  });
+
+  it.each([
+    ["handovers alone", ["care.handover.manage"], ["prerequisite_permission_missing"]],
+    [
+      "handovers without incidents",
+      ["care.handover.manage", "care.note.read", "people.person.read"],
+      ["prerequisite_permission_missing"],
+    ],
+    ["handovers with every read", ["care.handover.manage", ...reads], []],
+    ["the reads without handovers", [...reads], []],
+  ])("refuses a role or grant carrying %s without its reads", (_label, permissions, problems) => {
+    expect(checkRoleDefinition(permissions)).toEqual(problems);
+    expect(checkGrantPermissions(permissions)).toEqual(problems);
+  });
+
+  it("lets every built-in role pass its own definition", () => {
+    for (const role of BUILTIN_ROLES) {
+      expect(checkRoleDefinition(role.permissions), role.key).toEqual([]);
+    }
+  });
+
+  it("drops handovers where a stored role carries them without incidents, notes and the person", () => {
+    const access = resolveAccess([handoverOnly(null)], [], NOW);
+    expect(can(access, "care.handover.manage")).toBe(false);
+    expect(scopeFor(access, "care.handover.manage")).toEqual(NO_SCOPE);
+  });
+
+  it("narrows handovers to where every read reaches, never wider", () => {
+    // Handovers everywhere, but incidents, notes and the person only at North (a grant).
+    const access = resolveAccess([handoverOnly(null)], [grantOf([...reads], NORTH)], NOW);
+    expect(scopeFor(access, "care.handover.manage")).toEqual(at(NORTH));
+    // With the reads everywhere too, handovers reach everywhere.
+    const whole = resolveAccess([handoverOnly(null, reads)], [], NOW);
+    expect(scopeFor(whole, "care.handover.manage")).toEqual(tenantWide);
+  });
+
+  it("leaves the built-in roles' handovers where they were", () => {
+    expect(
+      scopeFor(resolveAccess([assignment("care_worker")], [], NOW), "care.handover.manage"),
+    ).toEqual(assigned());
+    expect(
+      scopeFor(resolveAccess([assignment("clinical_lead", NORTH)], [], NOW), "care.handover.manage")
+        .locationIds,
+    ).toEqual([NORTH]);
   });
 });
