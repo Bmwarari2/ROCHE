@@ -426,8 +426,15 @@ Part 3a-2, the printed pack (`services/downtime-pack-pdf.ts`, `services/pdf.ts`)
 - `GET /v1/locations/{id}/downtime-pack?format=pdf` prints the same pack with the four header
   lines, worked out at the moment of the request, on every page; a front sheet of warnings
   (safety-critical first); and a page per person, starting on a new page, whose footer names
-  them (HZ-001). The PDF is drawn per request and never stored, so it is never a `document`.
-  Photos are not printed; the page says whether one is held. Printing is audited
-  (`operations.downtime_pack.printed`).
+  them on every page, continuation pages included (HZ-001). The PDF is drawn per request and
+  never stored, so it is never a `document`.
+- After #46 review round 1: printing needs a fresh sign-in (a bulk export, section 12) and counts
+  against the per-member limit before the pack is read; it is audited as printed only once the PDF
+  is drawn; HEAD on the pack routes is refused (405). Photos are not printed (H-211): every
+  person's page says to confirm who they are with a colleague who knows them, and the front sheet
+  says photos are not printed. When an ADRT is held, the resuscitation section prints "ADRT also
+  held: read it before any decision about resuscitation", and with no ReSPECT or DNACPR it never
+  reads "not recorded" (HZ-015; wording H-212). Header times carry BST or GMT on the day the clocks
+  change (HZ-009). "1 person" is singular.
 - The in-house PDF writer (ADR-0040) gains header lines on every page, a page break before a
   block, and a footer naming whose page it is.

@@ -1,14 +1,16 @@
-import type {
-  AllergyStatement,
-  CommunicationStatement,
-  DowntimeCarePlanLine,
-  DowntimeContact,
-  DowntimeMedicinesContent,
-  DowntimePersonPage,
-  DowntimeResuscitationRecord,
-  DowntimeRisk,
-  DowntimeWarning,
-  EvacuationPlanStatement,
+import {
+  ADRT_HELD_NOTE,
+  ADRT_ONLY_NOTE,
+  type AllergyStatement,
+  type CommunicationStatement,
+  type DowntimeCarePlanLine,
+  type DowntimeContact,
+  type DowntimeMedicinesContent,
+  type DowntimePersonPage,
+  type DowntimeResuscitationRecord,
+  type DowntimeRisk,
+  type DowntimeWarning,
+  type EvacuationPlanStatement,
 } from "@harbour/domain";
 import { type PdfLine, renderPdf } from "./pdf";
 import { ukDate, ukDateTime } from "./transfer-pack-pdf";
@@ -18,8 +20,13 @@ import { ukDate, ukDateTime } from "./transfer-pack-pdf";
  * with the pack PDF writer (ADR-0040) when it is asked for: the header worked out at that moment
  * is on every page, a front sheet lists every warning with the safety-critical ones first, and
  * each person starts a new page whose footer names them. Nothing is stored: the PDF is never a
- * `document` (#32 review round 1, M3). Photos are not printed; the page says whether one is held.
+ * `document` (#32 review round 1, M3). Photos are not printed: every person's page says to confirm
+ * who they are with a colleague who knows them, and the front sheet says photos are not printed
+ * (#46 review round 1, HZ-001). An ADRT held is printed beside the CPR decision (HZ-015).
  */
+
+/** Until photos print (H-211), every page asks for the person to be identified (HZ-001). */
+const IDENTIFY = "Confirm who the person is with a colleague who knows them.";
 
 /** A pack as stored: the domain's `DowntimePack` with its times as ISO strings. */
 interface StoredContent {
@@ -151,6 +158,16 @@ function personLines(page: Json<DowntimePersonPage>): PdfLine[] {
     lines.push({ text: section.title, bold: true, gapBefore: 6 });
     if (section.note) lines.push({ text: section.note, bold: section.critical });
     for (const text of sectionContent(section.key, page)) lines.push({ text });
+    if (section.key === "identity" && !section.note?.includes(IDENTIFY)) {
+      lines.push({ text: IDENTIFY, bold: true });
+    }
+    if (
+      section.key === "resuscitation" &&
+      page.content.adrtHeld &&
+      section.note !== ADRT_ONLY_NOTE
+    ) {
+      lines.push({ text: ADRT_HELD_NOTE, bold: true });
+    }
     if (section.asOf) lines.push({ text: `As recorded ${ukDateTime(section.asOf)}.`, size: 8 });
   }
   return lines;
@@ -163,7 +180,13 @@ export function renderDowntimePackPdf(
   const names = new Map(content.pages.map((p) => [p.personId, p.displayName]));
   const front: PdfLine[] = [
     { text: `Downtime pack: ${content.locationName}`, bold: true, size: 14 },
-    { text: `${content.pages.length} people receiving care, in room order.` },
+    {
+      text: `${content.pages.length} ${content.pages.length === 1 ? "person" : "people"} receiving care, in room order.`,
+    },
+    {
+      text: "Photos are not printed in this pack: confirm who each person is with a colleague who knows them.",
+      bold: true,
+    },
     {
       text:
         content.warnings.length === 0

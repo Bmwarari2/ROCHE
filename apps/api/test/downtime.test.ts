@@ -45,6 +45,7 @@ interface PackBody {
   freshness: { state: string };
   pages: {
     personId: string;
+    displayName: string;
     status: string;
     away: string | null;
     roomLabel: string | null;
@@ -288,6 +289,9 @@ describe("hazard HZ-021 a pack that no longer serves is built again, safely (#45
       const asked = await as("owner", url(), { method: "POST" });
       expect(asked.status).toBe(403);
       expect(((await asked.json()) as { code: string }).code).toBe("step_up_required");
+      const printed = await as("owner", `${url()}?format=pdf`);
+      expect(printed.status).toBe(403);
+      expect(((await printed.json()) as { code: string }).code).toBe("step_up_required");
       expect((await as("owner", url())).status).toBe(200);
     } finally {
       await auth().query(session, [rawToken(h.tokens.owner ?? ""), new Date()]);
@@ -313,5 +317,70 @@ describe("hazard HZ-021 a pack that no longer serves is built again, safely (#45
     } finally {
       await setPackLimit(1000);
     }
+  });
+});
+
+describe("hazard HZ-021 the printed pack (#46 review round 1)", () => {
+  const printedPages = async () => {
+    const response = await as("manager", `${url()}?format=pdf`);
+    expect(response.status).toBe(200);
+    return pdfPages(new Uint8Array(await response.arrayBuffer()));
+  };
+
+  it("hazard HZ-001 names on every page's footer the person whose content is on it, a continuation page included", async () => {
+    const [someone] = await livePeople();
+    await sql(
+      `INSERT INTO contact (person_id, role, given_name, family_name, phone)
+       SELECT $1, 'next_of_kin', 'Contact', 'Example ' || n, '01632 960' || lpad(n::text, 3, '0')
+       FROM generate_series(1, 60) AS n`,
+      [someone?.id],
+    );
+    const names = (await pack()).pages.map((p) => p.displayName);
+    const pages = await printedPages();
+    expect(pages[0]?.join(" ")).toMatch(/\d+ people receiving care, in room order\./);
+    expect(pages[0]?.join(" ")).toContain("Photos are not printed in this pack");
+    let owner: string | null = null;
+    let continuations = 0;
+    for (const lines of pages.slice(1)) {
+      const heading = lines.find((line) => names.includes(line)) ?? null;
+      if (heading) owner = heading;
+      else continuations += 1;
+      expect(owner, lines.join(" ")).not.toBeNull();
+      expect(lines.at(-1) ?? "").toContain(`${owner},`);
+      if (heading) {
+        expect(lines.join(" ")).toContain(
+          "Confirm who the person is with a colleague who knows them.",
+        );
+      }
+    }
+    expect(continuations).toBeGreaterThan(0);
+  });
+
+  it("hazard HZ-015 prints that an ADRT is held beside the CPR decision", async () => {
+    const [someone] = await livePeople();
+    await sql(
+      `INSERT INTO advance_care_record (person_id, kind, status, clinician_name, clinician_role,
+         completed_on, details)
+       VALUES ($1, 'adrt', 'active', 'Dr Ada Example', 'GP', CURRENT_DATE,
+         'Refuses mechanical ventilation')`,
+      [someone?.id],
+    );
+    const body = await pack();
+    const name = body.pages.find((p) => p.personId === someone?.id)?.displayName ?? "";
+    const pages = await printedPages();
+    const own = pages.filter((lines) => (lines.at(-1) ?? "").startsWith(`${name},`)).flat();
+    expect(own.join(" ")).toContain(
+      "ADRT also held: read it before any decision about resuscitation.",
+    );
+    expect(own.join(" ")).not.toContain("Resuscitation status not recorded");
+  });
+
+  it("refuses HEAD on the pack", async () => {
+    const head = await h.request(url(), {
+      method: "HEAD",
+      token: h.tokens.manager,
+      tenant: DEMO.tenantId,
+    });
+    expect(head.status).toBe(405);
   });
 });

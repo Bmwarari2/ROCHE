@@ -92,6 +92,9 @@ export async function requirePackLimit(c: Context<AppEnv>, access: TenantAccess)
   );
 }
 
+const notAllowed = () =>
+  new HttpProblem(405, "method_not_allowed", "Use GET to open or print the downtime pack.");
+
 export interface Read {
   readonly row: StoredPackRow;
   readonly built: boolean;
@@ -106,7 +109,8 @@ export async function readPack(
   c: Context<AppEnv>,
   access: TenantAccess,
   locationId: string,
-  options: { readonly action: string; readonly reason: "read" | "asked" },
+  /** `action` is audited in the read's transaction; null when the caller audits it later. */
+  options: { readonly action: string | null; readonly reason: "read" | "asked" },
 ): Promise<Read> {
   const now = new Date();
   return withTenant(c, async (tx) => {
@@ -166,12 +170,14 @@ export async function readPack(
     if (!row) throw problems.notFound();
     const rates = await operationsRates(tx, access.tenantId, place.nation as Nation, now);
     const context = await freshnessContext(tx, locationId, rates);
-    await audit(c, tx, access, {
-      action: options.action,
-      resourceType: "downtime_pack",
-      resourceId: row.id,
-      scope: { locationId, rebuildFailed },
-    });
+    if (options.action) {
+      await audit(c, tx, access, {
+        action: options.action,
+        resourceType: "downtime_pack",
+        resourceId: row.id,
+        scope: { locationId, rebuildFailed },
+      });
+    }
     const pack = {
       locationName: (row.content as Pick<DowntimePack, "locationName">).locationName,
       generatedAt: row.generatedAt,
@@ -223,7 +229,7 @@ export const operationsRouter = createRouter()
       tags: ["operations"],
       summary: "The location's downtime pack, with its freshness now (JSON or PDF)",
       description:
-        "The latest pack you can open, built on the spot when it no longer names exactly the people receiving care here with their status now, anything it was built from changed, or it expired (HZ-021). If that build fails, the latest pack is served and says so (`rebuildFailed`). `format=pdf` prints it with the header worked out now on every page. Opening and printing are audited.",
+        "The latest pack you can open, built on the spot when it no longer names exactly the people receiving care here with their status now, anything it was built from changed, or it expired (HZ-021). If that build fails, the latest pack is served and says so (`rebuildFailed`). `format=pdf` prints it with the header worked out now on every page, and needs a fresh sign-in (a bulk export). Opening and printing are audited. HEAD is refused.",
       security,
       request: {
         params: Params,
@@ -244,19 +250,32 @@ export const operationsRouter = createRouter()
       },
     }),
     async (c) => {
+      // A HEAD would open or build the pack and audit it for nothing (#46 review round 1).
+      if (c.req.method === "HEAD") throw notAllowed();
       const access = await requirePermission(c, READ);
       const { id } = c.req.valid("param");
       const { format } = c.req.valid("query");
-      const action =
-        format === "pdf" ? "operations.downtime_pack.printed" : "operations.downtime_pack.opened";
+      const pdf = format === "pdf";
+      const action = pdf ? "operations.downtime_pack.printed" : "operations.downtime_pack.opened";
       await requireReach(c, access, READ, id, action);
+      if (pdf) await requireStepUp(c, access, action);
       await requirePackLimit(c, access);
-      const read = await readPack(c, access, id, { action, reason: "read" });
-      if (format === "json") return c.json(packOut(read), 200);
+      if (!pdf) {
+        return c.json(packOut(await readPack(c, access, id, { action, reason: "read" })), 200);
+      }
+      const read = await readPack(c, access, id, { action: null, reason: "read" });
       const bytes = renderDowntimePackPdf(
         read.row.content as Parameters<typeof renderDowntimePackPdf>[0],
         read.header,
       );
+      // Printed only once the PDF is drawn (#46 review round 1).
+      await writeAudit(c.get("services").appPool, access, {
+        action,
+        resourceType: "downtime_pack",
+        resourceId: read.row.id,
+        scope: { locationId: id, rebuildFailed: read.rebuildFailed },
+        requestId: c.get("requestId"),
+      });
       return c.body(bytes as Uint8Array<ArrayBuffer>, 200, {
         "content-type": "application/pdf",
         "content-disposition": `attachment; filename="downtime-pack-${read.row.id}.pdf"`,
