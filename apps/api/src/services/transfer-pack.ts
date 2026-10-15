@@ -97,11 +97,54 @@ const CPR_WORDS: Record<string, string> = {
   do_not_attempt_cpr: "Not for cardiopulmonary resuscitation",
 };
 
-/** The allergy statement as recorded (HZ-007): unknown is never shown as none. */
+/**
+ * Allergy statuses that are not a current allergy, as on the phone (FHIR clinical and
+ * verification statuses; apps/mobile/src/people/queries.ts).
+ */
+export const INACTIVE_ALLERGY_STATUSES = [
+  "inactive",
+  "resolved",
+  "refuted",
+  "entered-in-error",
+] as const;
+
+/**
+ * A person's current allergies from rows that may hold other people's, deleted or past ones
+ * (HZ-007). A missing or unfamiliar status counts as current: an allergy is never hidden because a
+ * field is empty or new.
+ */
+export function currentAllergiesOf<
+  T extends { personId: string; status: string | null; deletedAt: Date | null },
+>(personId: string, rows: readonly T[]): T[] {
+  return rows.filter(
+    (a) =>
+      a.personId === personId &&
+      a.deletedAt === null &&
+      !(INACTIVE_ALLERGY_STATUSES as readonly string[]).includes(
+        (a.status ?? "active").trim().toLowerCase().replaceAll("_", "-"),
+      ),
+  );
+}
+
+/**
+ * The allergy statement as recorded (HZ-007): unknown is never shown as none, and only the
+ * person's own current allergies are listed, whatever rows the caller passes.
+ */
 export function allergyStatementOf(
-  p: Pick<PersonRecord, "allergyStatus" | "allergyStatusConfirmedBy" | "allergyStatusConfirmedAt">,
-  allergies: readonly { substance: string; reaction: string | null; severity: string }[],
+  p: Pick<
+    PersonRecord,
+    "id" | "allergyStatus" | "allergyStatusConfirmedBy" | "allergyStatusConfirmedAt"
+  >,
+  rows: readonly {
+    personId: string;
+    status: string | null;
+    deletedAt: Date | null;
+    substance: string;
+    reaction: string | null;
+    severity: string;
+  }[],
 ): AllergyStatement {
+  const allergies = currentAllergiesOf(p.id, rows);
   if (p.allergyStatus === "no_known_allergies") {
     // Who set the status and when (a trigger keeps them), never the last edit of the row.
     return {
@@ -217,13 +260,14 @@ export async function transferPackInput(
     }
   }
 
-  // Allergies (HZ-007): unknown is never shown as none.
-  const allergies = await tx
-    .select()
-    .from(allergy)
-    .where(
-      and(eq(allergy.personId, p.id), eq(allergy.status, "active"), isNull(allergy.deletedAt)),
-    );
+  // Allergies (HZ-007): unknown is never shown as none; past ones are left out as on the phone.
+  const allergies = currentAllergiesOf(
+    p.id,
+    await tx
+      .select()
+      .from(allergy)
+      .where(and(eq(allergy.personId, p.id), isNull(allergy.deletedAt))),
+  );
   const allergyStatement = allergyStatementOf(p, allergies);
   const allergiesAsOf = allergies.reduce<Date | null>(
     (latest, a) => (latest === null || a.updatedAt > latest ? a.updatedAt : latest),

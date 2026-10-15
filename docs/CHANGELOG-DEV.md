@@ -1560,3 +1560,20 @@ page per person whose footer names them; the PDF is never stored. The PDF writer
 every page, page breaks and a footer naming whose page it is (HZ-001).
 
 **Tests**: `apps/api` 1 new in `downtime.test.ts`, and printing in the audit test.
+
+## 2026-10-13: Slice 11 part 3a-1, review round 1 of #45 (OPS-028)
+
+- A stored pack is served only while nothing it was built from has changed since its information's
+  time, now the database's clock (H1): a new DNACPR, allergy or room swap means a new pack.
+- One build at a time per location; a POST reuses the pack when nothing changed and needs a fresh
+  sign-in; a per-member limit from `downtime_pack.requests_per_hour` (security M1, M2).
+- A failed rebuild serves the latest pack, saying so, audited (clinical M1); during an outage,
+  "anything recorded since" is the earlier of the information's time and the outage's start
+  (clinical M2).
+- A location out of reach is audited as denied; allergies are each person's own current ones, as
+  on the phone (`currentAllergiesOf`, also used by the hospital transfer pack); the four copies of
+  `rateRows` are one.
+- Docs: operations.md sections 12 and 13, rates.md, HZ-007, HZ-015 and HZ-021 rows, H-209 and
+  H-210, STATUS follow-ups.
+
+**Tests**: `apps/api` `downtime.test.ts` 11 (7 new); `packages/domain` 1 new.

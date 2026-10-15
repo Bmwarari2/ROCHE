@@ -860,10 +860,17 @@ export function downtimePackFreshness(
     };
   }
   if (context.outage !== null) {
+    // Paper began when the outage did, so a pack made after it began still misses what is on
+    // paper since then (#45 review round 1, clinical M2): the earlier of the two.
+    const since = formatUkDateTime(
+      context.outage.startedAt.getTime() < pack.asAt.getTime()
+        ? context.outage.startedAt
+        : pack.asAt,
+    );
     return {
       state: "outage",
       hoursOld,
-      notice: `Latest available pack: information as at ${asAt}. Anything recorded since ${asAt} is on paper or not shown here: check the downtime forms and ask the nurse in charge about changes.`,
+      notice: `Latest available pack: information as at ${asAt}. Anything recorded since ${since} is on paper or not shown here: check the downtime forms and ask the nurse in charge about changes.`,
     };
   }
   if (at.getTime() < pack.validUntil.getTime()) {

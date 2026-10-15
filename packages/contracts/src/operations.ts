@@ -35,6 +35,11 @@ export const DowntimePackOut = z
     header: z.array(z.string()),
     /** Whether this request built the pack, because none was current for the people here now. */
     built: z.boolean(),
+    /**
+     * A build was needed and failed, so this is the latest pack there was; the header says so and
+     * when it was made (#45 review round 1).
+     */
+    rebuildFailed: z.boolean(),
     pages: z.array(z.record(z.string(), z.unknown())).meta({
       description: "One page per person receiving care, in room order (DowntimePersonPage)",
     }),

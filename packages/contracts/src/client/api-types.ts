@@ -12638,7 +12638,7 @@ export interface paths {
     };
     /**
      * The location's downtime pack, with its freshness now (JSON or PDF)
-     * @description The latest pack you can open, built on the spot when it no longer names exactly the people receiving care here with their status now, the places changed, or it expired. `format=pdf` prints it with the header worked out now on every page (HZ-021). Opening and printing are audited.
+     * @description The latest pack you can open, built on the spot when it no longer names exactly the people receiving care here with their status now, anything it was built from changed, or it expired (HZ-021). If that build fails, the latest pack is served and says so (`rebuildFailed`). `format=pdf` prints it with the header worked out now on every page. Opening and printing are audited.
      */
     get: {
       parameters: {
@@ -12699,10 +12699,31 @@ export interface paths {
             "application/problem+json": components["schemas"]["ProblemDetails"];
           };
         };
+        /** @description Too many requests; wait as Retry-After says and try again */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not available just now; the problem says what to use instead */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
       };
     };
     put?: never;
-    /** Build the location's downtime pack now */
+    /**
+     * Build the location's downtime pack now, unless the latest still serves
+     * @description Needs a fresh sign-in (a whole-home pack is a bulk export). The latest pack is reused when nothing it was built from has changed (`built` says which).
+     */
     post: {
       parameters: {
         query?: never;
@@ -12714,7 +12735,7 @@ export interface paths {
       };
       requestBody?: never;
       responses: {
-        /** @description Built */
+        /** @description Built, or the latest reused */
         201: {
           headers: {
             [name: string]: unknown;
@@ -12752,6 +12773,24 @@ export interface paths {
         };
         /** @description The request did not validate */
         422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Too many requests; wait as Retry-After says and try again */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not available just now; the problem says what to use instead */
+        503: {
           headers: {
             [name: string]: unknown;
           };
@@ -18874,6 +18913,7 @@ export interface components {
       };
       header: string[];
       built: boolean;
+      rebuildFailed: boolean;
       /** @description One page per person receiving care, in room order (DowntimePersonPage) */
       pages: {
         [key: string]: unknown;
