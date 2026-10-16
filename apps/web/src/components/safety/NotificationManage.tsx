@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, TextArea, TextField } from "@harbour/ui";
+import { Info } from "lucide-react";
 import type { FormEvent } from "react";
 import {
   markNotificationNotRequired,
@@ -9,6 +10,7 @@ import {
 } from "@/app/actions/incidents";
 import { FormFeedback } from "@/components/care/FormFeedback";
 import { useFieldIds } from "@/components/care/form-state";
+import { Notice } from "@/components/care/Notice";
 import { WhenField } from "@/components/care/WhenField";
 import { characterCount, t } from "@/lib/i18n";
 import {
@@ -234,6 +236,15 @@ export function NotificationManage({
     <div className="flex flex-col gap-8">
       {view.prepare ? <PrepareForm target={target} fields={fields} content={content} /> : null}
       {view.submit ? <SubmitForm target={target} /> : null}
+      {/* Someone who may submit, on a draft: the workflow submits only a ready notification. */}
+      {!view.submit && view.notRequired ? (
+        <Notice
+          icon={<Info size={20} strokeWidth={1.5} aria-hidden="true" />}
+          title={t("safety.manage.submit.title")}
+        >
+          {t("safety.manage.submit.notReady")}
+        </Notice>
+      ) : null}
       {view.notRequired ? (
         <ReasonForm
           title={t("safety.manage.notRequired.title")}

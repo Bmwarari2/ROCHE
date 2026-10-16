@@ -1176,5 +1176,6 @@
   "safety.manage.notRequired.intro": "Only if the law does not need it. If in doubt, notify. The reason is kept with the notification and in the audit trail. Harbour asks you to sign in again if you signed in a while ago.",
   "safety.manage.notRequired.label": "Why is it not required?",
   "safety.manage.notRequired.hint": "Say which facts mean the law does not need it.",
-  "safety.manage.notRequired.submit": "Record as not required"
+  "safety.manage.notRequired.submit": "Record as not required",
+  "safety.manage.submit.notReady": "It is still a draft. Once it is prepared and marked ready to submit, and you have submitted it on the regulator's portal, record it here."
 }

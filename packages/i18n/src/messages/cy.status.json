@@ -1177,6 +1177,7 @@
     "safety.manage.notRequired.intro",
     "safety.manage.notRequired.label",
     "safety.manage.notRequired.hint",
-    "safety.manage.notRequired.submit"
+    "safety.manage.notRequired.submit",
+    "safety.manage.submit.notReady"
   ]
 }
