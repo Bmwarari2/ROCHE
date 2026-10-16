@@ -61,6 +61,7 @@ import {
 } from "./routes/platform";
 import { createRefusedEntriesRouter } from "./routes/refused-entries";
 import { roundsRouter } from "./routes/rounds";
+import { searchRouter } from "./routes/search";
 import { sessionsRouter } from "./routes/sessions";
 import { statementOfPurposeRouter } from "./routes/statement-of-purpose";
 import { statutoryNotificationsRouter } from "./routes/statutory-notifications";
@@ -214,6 +215,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", healthRouter);
   app.route("/", membershipsRouter);
   app.route("/", meRouter);
+  app.route("/", searchRouter);
   app.route("/", sessionsRouter);
   app.route("/", memberSessionsRouter);
   app.route("/", peopleRouter);

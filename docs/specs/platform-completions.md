@@ -613,6 +613,20 @@ Migration 0066 (`feat/platform-search-schema`; numbered after 0065, the sub-proc
 | Indexes | None new. The exact NHS number match uses the unique constraint on `(tenant_id, nhs_number)`. No GIN index: under forced row-level security only a leakproof condition can be an index condition ahead of the policy, and `@@` is not, so the app role could never use one (tested with `EXPLAIN`). Each search reads the tenant's rows by an existing index on `tenant_id` and filters them within the policy (ADR-0070, as built). After a Postgres upgrade the vectors are rebuilt (runbook section 2; HZ-001) |
 | Break-glass search | The `break_glass_event.kind` column and the break-glass search route follow with the API step for it |
 
+## 10g. As built (slice 13, the search route)
+
+`POST /v1/search` (`feat/platform-search-api`, stacked on the index): `apps/api/src/routes/search.ts`,
+`apps/api/src/services/search.ts`, contracts in `packages/contracts/src/search.ts`.
+
+| Piece | Built as |
+| --- | --- |
+| Request | `platform.search.use`. The words in the JSON body (never the address, so no access log holds them), the kinds asked for, and whether to include people who have left |
+| Plan | `buildSearchPlan` with the session's MFA (care record kinds need MFA on this session, ADR-0072), the end of the roles that give search, and the agency flag; rotas arrive in Phase 2, so an agency worker has no shift recorded and is refused (`no_shift_recorded`). `access.agency.post_shift_hours` from the rate table |
+| Reading | One query per kind (per document category), each in the scope of the permission it rests on (`inScopeOf`, ADR-0071) with break-glass left out, so a person opened by break-glass is found only by break-glass search (rule 9). The tenant first, then the bound prefix query; whole-word matches marked `exact`. People's own fields, colleagues' names, roles and locations (never contact details, and never a member whose roles are all portal roles), documents' titles (never contents) and notes' excerpts (160 characters) with their author; a note a correction replaced is read and dropped by the plan |
+| Results | `filterSearchResults`: the plan applied again to every row, people first, same-name warnings, counts only of what may be seen; rows the plan drops raise `security.search.dropped_by_plan` in the log with opaque counts. Names-and-rooms roles see the age, never the date of birth or NHS number. `Cache-Control: no-store` |
+| Audit | `platform.search.run` with `searchAuditEvent` (the ids shown, people shown as care-record views); refusals `platform.search.refused` with the problem; never the words typed |
+| Refusals | Query problems 422 (`invalid` with the message); no permission, nothing to search, people who have left without the permission, access ended and no shift 403 with the problem as the code; MFA 403 asking to confirm or set up a second step |
+
 ## 11. Open questions
 
 - Retention of DPIA records, export records and onboarding decisions beyond the interim

@@ -270,6 +270,373 @@
           "none"
         ]
       },
+      "SearchResults": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchResultItem"
+            }
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "person": {
+                "type": "integer"
+              },
+              "staff": {
+                "type": "integer"
+              },
+              "document": {
+                "type": "integer"
+              },
+              "note": {
+                "type": "integer"
+              }
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "omitted": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchOmission"
+            }
+          },
+          "personScope": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "tenant",
+              "locations",
+              "assigned",
+              null
+            ]
+          },
+          "staffScope": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "tenant",
+              "locations",
+              null
+            ]
+          },
+          "includeArchived": {
+            "type": "boolean"
+          },
+          "queryKind": {
+            "type": "string",
+            "enum": [
+              "text",
+              "nhs_number"
+            ]
+          },
+          "ignoredTerms": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "counts",
+          "total",
+          "hasMore",
+          "omitted",
+          "personScope",
+          "staffScope",
+          "includeArchived",
+          "queryKind",
+          "ignoredTerms"
+        ]
+      },
+      "SearchResultItem": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/SearchEntityType"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "match": {
+            "type": "string",
+            "enum": [
+              "exact",
+              "prefix"
+            ]
+          },
+          "sameName": {
+            "type": "boolean"
+          },
+          "person": {
+            "$ref": "#/components/schemas/SearchPersonResult"
+          },
+          "staff": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "roles": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "locations": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "name",
+              "roles",
+              "locations"
+            ]
+          },
+          "document": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "category": {
+                "type": "string"
+              },
+              "fileName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "personId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "personName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "title",
+              "category",
+              "fileName",
+              "createdAt",
+              "personId",
+              "personName"
+            ]
+          },
+          "note": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "personId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "personName": {
+                "type": "string"
+              },
+              "excerpt": {
+                "type": "string"
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "author": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "personId",
+              "personName",
+              "excerpt",
+              "occurredAt",
+              "author"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "match",
+          "sameName",
+          "person",
+          "staff",
+          "document",
+          "note"
+        ]
+      },
+      "SearchEntityType": {
+        "type": "string",
+        "enum": [
+          "person",
+          "staff",
+          "document",
+          "note"
+        ]
+      },
+      "SearchPersonResult": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "preferredName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dateOfBirth": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "age": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "nhsNumber": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/PersonStatus"
+          },
+          "locationName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "roomLabel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hasPhoto": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "preferredName",
+          "dateOfBirth",
+          "age",
+          "nhsNumber",
+          "status",
+          "locationName",
+          "roomLabel",
+          "hasPhoto"
+        ]
+      },
+      "PersonStatus": {
+        "type": "string",
+        "enum": [
+          "enquiry",
+          "pre_admission",
+          "active",
+          "on_leave",
+          "in_hospital",
+          "discharged",
+          "deceased",
+          "archived",
+          "not_admitted"
+        ],
+        "description": "The person lifecycle (people.md rule 1)"
+      },
+      "SearchOmission": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/SearchEntityType"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "not_permitted",
+              "no_scope",
+              "mfa_required",
+              "not_applicable"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "reason"
+        ]
+      },
+      "RunSearch": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "types": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchEntityType"
+            },
+            "maxItems": 4
+          },
+          "includeArchived": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
       "DeviceSessionList": {
         "type": "object",
         "properties": {
@@ -581,21 +948,6 @@
           "statusChangedAt",
           "version"
         ]
-      },
-      "PersonStatus": {
-        "type": "string",
-        "enum": [
-          "enquiry",
-          "pre_admission",
-          "active",
-          "on_leave",
-          "in_hospital",
-          "discharged",
-          "deceased",
-          "archived",
-          "not_admitted"
-        ],
-        "description": "The person lifecycle (people.md rule 1)"
       },
       "AllergyStatus": {
         "type": "string",
@@ -22592,6 +22944,74 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/search": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Search what you can already see",
+        "description": "People, colleagues, documents and notes, each on the permission that lets you read it and in that permission's scope (ADR-0071). The words are sent in the body and never stored; the audit event holds the opaque ids shown. People who have left need platform.search.archived. Out-of-scope matches look exactly like no match.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunSearch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResults"
                 }
               }
             }

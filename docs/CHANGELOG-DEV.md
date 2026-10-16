@@ -2480,3 +2480,14 @@ retention-and-deletion.md, H-380 for the DPO) and in records of processing; the 
 number index removed; document title tests across tenants and scopes. Tests: `search-index.test.ts`
 24.
 
+## 2026-10-17: Slice 13 search part 2, the search route (PLAT-013)
+
+- API: `POST /v1/search`: the words in the body only; `buildSearchPlan` with the session's MFA,
+  the role end and the agency flag (no shift recorded until rotas: refused); each kind read in its
+  own permission's scope (ADR-0071) with break-glass left out; `filterSearchResults` again, people
+  first with same-name warnings; a log alarm with counts only if the plan drops a row; audited with
+  the ids shown, refusals with the problem, never the words.
+- Docs: platform-completions.md section 10g, HZ-011, the register, STATUS.
+
+**Tests**: `apps/api/test/search.test.ts` (11).
+
