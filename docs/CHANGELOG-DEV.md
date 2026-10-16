@@ -1884,3 +1884,42 @@ it not required with step-up.
 
 **Tests**: `incident-forms.test.ts` (36); the e2e adds axe on the empty form and questions, and a
 refusal on an incident closed meanwhile (hosted CI).
+
+## 2026-10-16: Slice 9 part 4b, review and close incidents, prepare and submit notifications (SAFE-001 to SAFE-003)
+
+- Web: the incident page's "Review and close" for `safety.incident.manage`: start the review, send
+  it back to open or close it with a reason; close never offered to the person who raised it, and
+  what to do first (each notification linked, the open questions) while the API would refuse.
+- Web: the statutory notification page prepares it (an answer per line of required content, ready
+  only when every line is answered), records it as submitted once ready (time chosen every time,
+  the regulator's reference) and decides "not required" with a reason, each where its permission
+  reaches the person (ADR-0071), with step-up as break-glass does it. Every write sends the page's
+  version; a stale page is refused in words that do not blame anyone else. After each form the
+  page opens again at its heading and says what was done.
+- Refusals: closing (open notifications, questions, candour), the workflow's steps, a finished
+  notification and the submission evidence are mapped in `refusals.ts`; `separation_of_duties`
+  gets its own words.
+- i18n: 56 new `safety.manage.*`, `care.refusal.*` and `errors.*` entries in English and Welsh
+  (Welsh listed untranslated).
+- Docs: HZ-091 (new) and an HZ-013 row; H-265 and H-266; STATUS item 19; safety.md section 5;
+  feature register SAFE-002.
+
+**Tests**: `incident-review.test.ts` (new), `refusals.test.ts` (closing and notifications),
+`ManageForms.test.tsx` (step-up notice with axe); `e2e/incident-review.spec.ts` (4 journeys, axe on
+every state, hosted CI).
+
+**Next**: the follow-ups in STATUS item 19 (an `access` block on `IncidentDetail`, uploads for the
+submitted form, a stable key for required content).
+
+## 2026-10-16: Slice 9 part 4b, review round 1 of #58
+
+- "Not required" on a notification Harbour found needed says so, needs a reason of at least 20
+  characters and a ticked confirmation, and names the consequence; provisional drafts keep the
+  short reason (H-265).
+- The forms say nothing on success; the page announces only a status that matches, refocuses on
+  each action and drops `?done=`. The step-up notice takes focus again on a repeat. No future
+  tolerance on the submission time. The API's English labels carry `lang` (`labelLang` on
+  `TextArea`). "Questions above" links to them.
+- Tests: HZ-091 in the test names and the hazard log; clock-change, future and "needed" cases;
+  component tests with axe for the step-up and separation-of-duties refusals; the journey scopes
+  alerts to `main` and scans the "what to do first" state with its linked draft.

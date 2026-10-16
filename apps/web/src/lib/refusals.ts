@@ -53,7 +53,17 @@ export type RefusalKey =
   | "scale2Clinician"
   | "incidentClosed"
   | "incidentLocation"
-  | "classifierAnswer";
+  | "classifierAnswer"
+  | "closeNotifications"
+  | "closeQuestions"
+  | "closeCandour"
+  | "stepReason"
+  | "stepNotPossible"
+  | "stepFinished"
+  | "notificationFinished"
+  | "submittedAtMissing"
+  | "submittedInFuture"
+  | "submissionReference";
 
 export interface KnownRefusal {
   readonly key: RefusalKey;
@@ -259,6 +269,51 @@ const RULES: readonly Rule[] = [
       detail.includes(", or not sure yet.") ||
       detail.includes("Choose one of the options.") ||
       detail.includes("Choose one or more of the options"),
+  },
+  // Closing an incident (`incidentCloseProblems`, HZ-013) and the workflow's steps
+  // (`checkWorkflowTransition`), for an incident or a statutory notification.
+  {
+    key: "closeNotifications",
+    fields: [],
+    found: has("Submit or mark not required with a reason: "),
+  },
+  {
+    key: "closeQuestions",
+    fields: [],
+    found: has("Answer the notification questions before closing."),
+  },
+  {
+    key: "closeCandour",
+    fields: [],
+    found: has("Complete the duty of candour record before closing."),
+  },
+  { key: "stepReason", fields: ["reason"], found: has("Give a reason for this step.") },
+  {
+    key: "stepNotPossible",
+    fields: [],
+    found: has("That step is not possible from the record's current state."),
+  },
+  { key: "stepFinished", fields: [], found: has("This record is closed and cannot move on.") },
+  // Statutory notifications (the API's own check, and `submissionEvidenceProblems`).
+  {
+    key: "notificationFinished",
+    fields: [],
+    found: has("A submitted or not-required notification cannot be changed."),
+  },
+  {
+    key: "submittedAtMissing",
+    fields: ["submittedAt"],
+    found: has("Record when the notification was submitted."),
+  },
+  {
+    key: "submittedInFuture",
+    fields: ["submittedAt"],
+    found: has("The submission time cannot be in the future."),
+  },
+  {
+    key: "submissionReference",
+    fields: ["externalReference"],
+    found: has("Record the regulator's reference or attach the submitted form."),
   },
 ];
 
