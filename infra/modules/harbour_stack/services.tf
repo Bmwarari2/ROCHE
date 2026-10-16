@@ -50,6 +50,7 @@ locals {
     NODE_ENV                = "production"
     HARBOUR_ENV             = var.environment
     APP_VERSION             = local.image_tags["api"]
+    SAFETY_CASE_VERSION     = var.safety_case_version
     AWS_REGION              = local.region
     NODE_EXTRA_CA_CERTS     = var.rds_ca_bundle_path
     BETTER_AUTH_URL         = "https://${local.hosts.api}"

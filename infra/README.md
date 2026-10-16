@@ -209,7 +209,9 @@ API and worker environment: `NODE_ENV`, `HARBOUR_ENV`, `APP_VERSION`, `AWS_REGIO
 `BETTER_AUTH_URL`, `WEB_ORIGINS`, `PASSKEY_RP_ID`, `TRUSTED_PROXY_CIDRS` (the VPC range, so
 sign-in throttling counts each client address rather than one shared bucket), `POWERSYNC_URL`,
 `SYNC_JWT_AUDIENCE` (`harbour-powersync`), `S3_DOCUMENTS_BUCKET`, `S3_EXPORTS_BUCKET`,
-`S3_AUDIT_ARCHIVE_BUCKET`, `SES_CONFIGURATION_SET`, `EMAIL_FROM_DOMAIN`. Secrets:
+`S3_AUDIT_ARCHIVE_BUCKET`, `SES_CONFIGURATION_SET`, `EMAIL_FROM_DOMAIN`, `SAFETY_CASE_VERSION`
+(variable `safety_case_version`; CI takes the newest report in
+`docs/clinical-safety/safety-case/`, and the API refuses to start in production without it). Secrets:
 `DATABASE_APP_URL`, `DATABASE_AUTH_URL`, `DATABASE_OPERATOR_URL`, `DATABASE_WORKER_URL` (the API
 refuses to start in production without any of the four), `BETTER_AUTH_SECRET`,
 `EVIDENCE_LINK_SECRET` (the evidence pack code and link session key; refused in production if unset),

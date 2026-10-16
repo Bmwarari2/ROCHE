@@ -165,8 +165,11 @@ only when they link spec, code, tests and user documentation; no user guides exi
      organisation-wide decisions too (the onboarding roles are organisation-wide today); revisit if
      a location role ever carries them.
    - Part 2, the decision routes (`feat/platform-onboarding-decisions`): setting, retention, staff
-     file and DCB0160 decisions, audited with refusals. Next: `GET /v1/onboarding`, sub-processor
-     notices, then the web screens.
+     file and DCB0160 decisions, audited with refusals.
+   - Part 3, the checklist (`feat/platform-onboarding-checklist`): `GET /v1/onboarding` works
+     every item out from the records; the go-live check now reads the escalation policy links
+     (HZ-014). Next: sub-processor notices (rules 24 and 25), sample data mode, then the web
+     screens for the DPIA and the checklist.
    - Slice 13 part 1, the free full export's record and routes (`feat/platform-full-export`,
      migration 0062 after 0060 and 0061; platform-completions.md section 10a): `tenant_export`
      with forced RLS (owner and the worker only), one at a time, a forward-only status guard and

@@ -279,6 +279,37 @@ describe("onboarding checklist from the organisation's state", () => {
       true,
     ],
     [
+      "an accepted class whose latest decision is not one the class takes",
+      (s) => ({
+        ...s,
+        retentionDecisions: [
+          ...s.retentionDecisions,
+          {
+            recordClass: "care_record",
+            kind: "not_used",
+            decidedAt: new Date(LATER.getTime() + 60_000),
+          },
+        ],
+      }),
+      "retention_reviewed",
+      ["care_record"],
+      true,
+    ],
+    [
+      "device modes not yet recorded (fail closed)",
+      (s) => ({ ...s, devices: null }),
+      "shared_devices_enrolled",
+      [],
+      true,
+    ],
+    [
+      "sample data not yet recorded (fail closed)",
+      (s) => ({ ...s, sampleDataPresent: null }),
+      "sample_data_removed",
+      [],
+      true,
+    ],
+    [
       "a decision older than the schedule change",
       (s) => ({
         ...s,
@@ -467,7 +498,10 @@ describe("go-live clinical items worked out from state", () => {
       "an active shared device not enrolled",
       (s) => ({
         ...s,
-        devices: [...s.devices, { id: "d-9", mode: "kiosk", active: true, mdmEnrolled: false }],
+        devices: [
+          ...(s.devices ?? []),
+          { id: "d-9", mode: "kiosk", active: true, mdmEnrolled: false },
+        ],
       }),
       "shared_devices_enrolled",
       ["d-9"],

@@ -19215,6 +19215,72 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/onboarding": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The organisation's onboarding checklist
+     * @description platform.onboarding.read or .manage. Every item worked out from the organisation's records (onboardingChecklist), with its reason, what is outstanding and whether it blocks go-live; the safety case the DCB0160 assessment must cover; the staff file option and the organisation record's version.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The checklist */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["OnboardingChecklist"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/onboarding/setting-decisions": {
     parameters: {
       query?: never;
@@ -19365,7 +19431,7 @@ export interface paths {
     get?: never;
     /**
      * Choose how long staff files are kept
-     * @description platform.onboarding.manage. One of the schedule's two staff file options, for all staff files. Send the organisation record's `version` as read (409 when stale). Audited (platform.retention.decided, with the option).
+     * @description platform.onboarding.manage. One of the schedule's two staff file options, for all staff files. Send the organisation record's `version` from the checklist (409 when stale). Audited (platform.retention.decided, with the option).
      */
     put: {
       parameters: {
@@ -25731,6 +25797,37 @@ export interface components {
       /** @enum {string|null} */
       aiProvider: "bedrock_london" | "bedrock_eu" | "anthropic" | "tenant_own" | null;
       expectedVersion: number;
+    };
+    OnboardingChecklist: {
+      items: components["schemas"]["OnboardingItem"][];
+      done: number;
+      total: number;
+      readyForGoLive: boolean;
+      blockers: string[];
+      currentSafetyCaseVersion: string;
+      /** @enum {string|null} */
+      staffFileOption: "staff_file.after_leaving" | "staff_file.to_75th_birthday" | null;
+      version: number;
+    };
+    OnboardingItem: {
+      key: string;
+      title: string;
+      requiredForGoLive: boolean;
+      guide: string;
+      done: boolean;
+      reason: string;
+      outstanding: string[];
+      people?: {
+        /** Format: uuid */
+        personId: string;
+        gaps: (
+          | "photo"
+          | "allergy_status"
+          | "resuscitation"
+          | "communication_needs"
+          | "iddsi_levels"
+        )[];
+      }[];
     };
     OnboardingDecisionRecorded: {
       /** Format: uuid */
