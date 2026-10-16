@@ -98,7 +98,8 @@ and plain British English; vertical slices with tests.
 ## Working agreement (§20)
 
 1. Start each session with `docs/plans/STATUS.md` and `docs/specs/feature-register.md`; take the next
-   incomplete item. End by updating both and appending a summary to `docs/CHANGELOG-DEV.md`.
+   incomplete item. End by updating both and adding a dated file under `docs/changelog-dev/`
+   (ADR-0073; `docs/CHANGELOG-DEV.md` is frozen history).
 2. Never wait for people. Open items take the Appendix default as an ADR; sign-offs, certifications and
    submissions go in `docs/plans/human-actions.md`. If blocked, build against a contract-tested mock, log
    it, continue.
