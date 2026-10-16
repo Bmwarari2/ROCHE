@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { dpiaChip, dpiaShown, prefillOf, readDraft, readSettings } from "./dpia";
+import {
+  checkDraft,
+  dpiaChip,
+  dpiaShown,
+  maySign,
+  prefillOf,
+  readDraft,
+  readSettings,
+} from "./dpia";
 import { t } from "./i18n";
 import { problemMessage } from "./outcome";
 
@@ -95,5 +103,42 @@ describe("the DPIA page", () => {
       code: "dpia_not_signable",
       message: detail,
     });
+  });
+
+  const LEAD = "0194d000-0000-7000-8000-000000000301";
+  const OTHER = "0194d000-0000-7000-8000-000000000302";
+  it.each([
+    [
+      "the named lead, who prepared none of it",
+      "prepared",
+      LEAD,
+      [OTHER],
+      ["platform.dpia.sign"],
+      true,
+    ],
+    ["someone other than the lead", "prepared", OTHER, [LEAD], ["platform.dpia.sign"], false],
+    ["the lead, who helped prepare it", "prepared", LEAD, [LEAD], ["platform.dpia.sign"], false],
+    ["the lead, without the sign permission", "prepared", LEAD, [OTHER], [], false],
+    ["the lead, before it is ready", "draft", LEAD, [OTHER], ["platform.dpia.sign"], false],
+  ] as const)(
+    "offers the signature to %s: %s",
+    (_, status, me, preparers, permissions, offered) => {
+      expect(
+        maySign({ status, preparedBy: preparers.map((id) => ({ id })) }, LEAD, me, permissions),
+      ).toBe(offered);
+    },
+  );
+
+  it("asks for the ICO reference when a risk stays high", () => {
+    const draft = (level: "low" | "high", ico: string | null) => ({
+      answers: {},
+      residualRisk: { R1: level },
+      icoReference: ico,
+    });
+    expect(checkDraft(draft("high", null), t)).toEqual({
+      icoReference: t("dpia.draft.icoRequired"),
+    });
+    expect(checkDraft(draft("high", "ICO-0001"), t)).toEqual({});
+    expect(checkDraft(draft("low", null), t)).toEqual({});
   });
 });

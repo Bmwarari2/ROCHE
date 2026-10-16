@@ -1645,5 +1645,6 @@
   "dpia.sign.nameRequired": "Type your full name to sign",
   "dpia.sign.submit": "Sign the DPIA",
   "dpia.sign.stepUp": "Signing the DPIA needs you to confirm it is you with your passkey or a code from your authenticator app. Then come back to this page and sign again.",
-  "dpia.done": "{done, select, settings {Responsibilities saved.} saved {DPIA saved.} prepared {DPIA marked ready to sign. Ask your data protection lead to sign it.} signed {DPIA signed.} other {Done}}"
+  "dpia.done": "{done, select, settings {Responsibilities saved.} saved {DPIA saved.} prepared {DPIA marked ready to sign. Ask your data protection lead to sign it.} signed {DPIA signed.} other {Done}}",
+  "dpia.draft.icoRequired": "Record the ICO consultation reference: a risk stays high after your measures, so consult the ICO before going ahead"
 }

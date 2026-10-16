@@ -88,6 +88,7 @@ test("the Registered Manager prepares it, and is offered neither the governance 
   await page.goto(PAGE);
   await expect(region(page, "Data protection responsibilities")).toHaveCount(0);
   await expect(region(page, "Sign the DPIA")).toHaveCount(0);
+  await expectAccessible(page, "DPIA, the Registered Manager's view");
   const prepare = region(page, "Prepare the DPIA");
   // With no version open, saving starts one with Harbour's prefill.
   if ((await prepare.getByRole("textbox").count()) <= 1) {

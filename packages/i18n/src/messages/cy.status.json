@@ -1646,6 +1646,7 @@
     "dpia.sign.nameRequired",
     "dpia.sign.submit",
     "dpia.sign.stepUp",
-    "dpia.done"
+    "dpia.done",
+    "dpia.draft.icoRequired"
   ]
 }

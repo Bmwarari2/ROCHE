@@ -111,3 +111,30 @@ export function readSettings(
   }
   return { ok: false, fields };
 }
+
+/**
+ * The signing form is offered only to whoever may sign this version: a holder of
+ * platform.dpia.sign named as the lead, who prepared none of it (the API checks it all again).
+ */
+export function maySign(
+  open: {
+    readonly status: string;
+    readonly preparedBy: readonly ({ readonly id: string } | null)[];
+  } | null,
+  leadId: string | null,
+  me: string,
+  permissions: readonly string[],
+): boolean {
+  return (
+    open?.status === "prepared" &&
+    permissions.includes("platform.dpia.sign") &&
+    leadId === me &&
+    !open.preparedBy.some((p) => p?.id === me)
+  );
+}
+
+/** What the draft form says before sending: a risk that stays high needs the ICO reference. */
+export function checkDraft(draft: ReturnType<typeof readDraft>, t: Translator): FieldErrors {
+  const high = Object.values(draft.residualRisk).some((level) => level === "high");
+  return high && !draft.icoReference ? { icoReference: t("dpia.draft.icoRequired") } : {};
+}
