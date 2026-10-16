@@ -67,8 +67,9 @@ function PersonLine({ person }: { readonly person: PersonSummary }) {
         href={`/people/${person.id}`}
         className="inline-flex min-h-target items-center font-semibold underline"
       >
-        {personNames(person).full}
-        {person.roomLabel ? `, ${t("care.handover.room", { room: person.roomLabel })}` : ""}
+        {person.roomLabel
+          ? t("care.handover.room", { name: personNames(person).full, room: person.roomLabel })
+          : personNames(person).full}
       </Link>
       <dl className="m-0 flex flex-wrap items-start gap-x-2 gap-y-1">
         <dt className="text-body-dense font-semibold">{t("people.header.communicationNeeds")}</dt>

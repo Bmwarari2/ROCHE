@@ -1241,7 +1241,7 @@
   "care.handover.itemsTitle": "Items",
   "care.handover.noItems": "Nothing to hand over from this shift",
   "care.handover.noPerson": "{hidden, select, true {About someone you cannot see} other {Not about one person}}",
-  "care.handover.room": "room {room}",
+  "care.handover.room": "{name}, room {room}",
   "care.handover.kind": "{kind, select, fall {Fall} news2 {NEWS2 needing a response} incident {Incident} alert {Alert} body_map_mark {Body map mark} flagged_note {Note for handover} overdue_task {Overdue task} skipped_task {Task not done} unfinished_task {Task still open} must_follow_up {MUST follow-up} refusal {Care refused} other {Item of a kind not known: check the record}}",
   "care.handover.lateAddition": "Added since it was compiled",
   "care.handover.new": "New to you",
