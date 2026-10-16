@@ -19941,7 +19941,7 @@ export interface paths {
     };
     /**
      * Remove the sample data
-     * @description platform.onboarding.manage. Removes the loaded batch in one step through app.remove_sample_batch: every person in it or none (409 nothing_to_remove, held, referenced_by_real_records). Audit events about the sample people stay. Audited by the database (platform.onboarding.sample_removed, batch id and count), refusals here.
+     * @description platform.onboarding.manage with a fresh step-up (403 step_up_required). Removes the loaded batch in one step through app.remove_sample_batch: its people and every record made about them while practising, or nothing (409 nothing_to_remove; held while a legal hold is in place; referenced_by_other_records when an outage or downtime pack still refers to them). Audit events about the sample people stay. Audited by the database (platform.onboarding.sample_removed, batch id, people and records per table), refusals here.
      */
     delete: {
       parameters: {
