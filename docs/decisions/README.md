@@ -61,6 +61,7 @@ for an answer.
 | [0070](0070-search-on-postgres-full-text.md) | Search on Postgres full-text search, under row-level security | accepted | 2026-10-11 | Phase 1 |
 | [0071](0071-data-scope-is-per-permission.md) | Data scope is per permission | accepted | 2026-10-12 | Phase 1 |
 | [0072](0072-mfa-counts-only-for-the-session-that-used-it.md) | MFA counts only for the session that used it | accepted | 2026-10-16 | Phase 1 |
+| [0073](0073-changelog-fragments.md) | Development log entries as one file per pull request (deviation from section 20 rule 9's wording) | accepted | 2026-10-16 | All phases |
 
 ## Open items carried by these ADRs
 
