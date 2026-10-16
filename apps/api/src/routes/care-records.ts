@@ -52,6 +52,7 @@ import { auditInTx } from "../http/audit";
 import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { publish } from "../outbox";
+import { downtimeAudit, downtimeOut, entryDowntime, onDowntimeError } from "../services/back-entry";
 import {
   careRates,
   completeOpenTasks,
@@ -199,6 +200,7 @@ function activityItem(
 ): ActivityRecordItem {
   return {
     ...entryOut(row, superseded, extras),
+    ...downtimeOut(row, extras.outages),
     activity: row.activity,
     format: row.format as ActivityRecordItem["format"],
     groupSessionId: row.groupSessionId,
@@ -212,6 +214,7 @@ function activityItem(
 function visitItem(row: VisitRow, superseded: ReadonlySet<string>, extras: EntryExtras): VisitItem {
   return {
     ...entryOut(row, superseded, extras),
+    ...downtimeOut(row, extras.outages),
     kind: row.kind as VisitItem["kind"],
     contactId: row.contactId,
     visitorName: row.visitorName,
@@ -592,6 +595,7 @@ export const careRecordsRouter = createRouter()
           clientId: body.id,
           occurredAt: body.occurredAt,
           recordedBy: author,
+          payload: body,
         },
         () =>
           withTenant(c, async (tx) => {
@@ -634,6 +638,15 @@ export const careRecordsRouter = createRouter()
                 throw problems.invalid("The entry being corrected was not found.");
               }
             }
+            // Back-entry and the normal route (operations.md rules 11 to 13; HZ-017).
+            const downtime = await entryDowntime(tx, "activity_record", body, {
+              personId,
+              locationId: person.locationId,
+              occurredAt: times.occurredAt,
+              recordedAt: times.deviceTime ?? now,
+              now,
+              rates,
+            });
             const link = await planLink(
               tx,
               access,
@@ -669,9 +682,11 @@ export const careRecordsRouter = createRouter()
                 taskOutcome: link?.outcome ?? null,
                 supersedesId: body.supersedesId ?? null,
                 correctionReason: body.correctionReason ?? null,
+                ...downtime,
               })
               .onConflictDoNothing()
-              .returning();
+              .returning()
+              .catch(onDowntimeError);
             const row = replayed(
               inserted ??
                 (
@@ -708,6 +723,7 @@ export const careRecordsRouter = createRouter()
                 resourceType: "activity_record",
                 resourceId: row.id,
                 reason: body.correctionReason,
+                scope: downtimeAudit(downtime),
               });
               await auditHandedOver(tx, access, handover, {
                 resourceType: "activity_record",
@@ -819,7 +835,13 @@ export const careRecordsRouter = createRouter()
       if (!check.ok) throw problems.invalid(check.message);
       const item = await withLateEntryReview(
         c,
-        { kind: "visit_log", clientId: body.id, occurredAt: body.occurredAt, recordedBy: author },
+        {
+          kind: "visit_log",
+          clientId: body.id,
+          occurredAt: body.occurredAt,
+          recordedBy: author,
+          payload: body,
+        },
         () =>
           withTenant(c, async (tx) => {
             // A replayed upload (the same device id) returns the stored entry before anything is
@@ -870,6 +892,15 @@ export const careRecordsRouter = createRouter()
                 throw problems.invalid("The entry being corrected was not found.");
               }
             }
+            // Back-entry and the normal route (operations.md rules 11 to 13; HZ-017).
+            const downtime = await entryDowntime(tx, "visit_log", body, {
+              personId,
+              locationId: person.locationId,
+              occurredAt: new Date(body.occurredAt),
+              recordedAt: times.deviceTime ?? now,
+              now,
+              rates,
+            });
             const link = await planLink(
               tx,
               access,
@@ -906,9 +937,11 @@ export const careRecordsRouter = createRouter()
                 taskOutcome: link?.outcome ?? null,
                 supersedesId: body.supersedesId ?? null,
                 correctionReason: body.correctionReason ?? null,
+                ...downtime,
               })
               .onConflictDoNothing()
-              .returning();
+              .returning()
+              .catch(onDowntimeError);
             const row = replayed(
               inserted ??
                 (
@@ -945,7 +978,11 @@ export const careRecordsRouter = createRouter()
                 resourceType: "visit_log",
                 resourceId: row.id,
                 reason: body.correctionReason,
-                scope: { kind: row.kind, restrictionsApplied: row.restrictionsApplied },
+                scope: {
+                  kind: row.kind,
+                  restrictionsApplied: row.restrictionsApplied,
+                  ...downtimeAudit(downtime),
+                },
               });
               await auditHandedOver(tx, access, handover, {
                 resourceType: "visit_log",

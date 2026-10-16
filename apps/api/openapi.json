@@ -6869,6 +6869,12 @@
           "deviceDeletion": {
             "$ref": "#/components/schemas/DeviceDeletionFlag"
           },
+          "backEntry": {
+            "$ref": "#/components/schemas/EntryBackEntry"
+          },
+          "notFromPaper": {
+            "$ref": "#/components/schemas/EntryNotFromPaper"
+          },
           "category": {
             "$ref": "#/components/schemas/CareNoteCategory"
           },
@@ -6909,6 +6915,8 @@
           "handedOverBy",
           "handedOverByStaff",
           "deviceDeletion",
+          "backEntry",
+          "notFromPaper",
           "category",
           "body",
           "tags",
@@ -6924,6 +6932,78 @@
           "uploaded_after_deletion",
           "deleted_after_upload",
           null
+        ]
+      },
+      "EntryBackEntry": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "outageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "paperDate": {
+            "type": "string"
+          },
+          "paperTime": {
+            "type": "string"
+          },
+          "occurrence": {
+            "type": "string",
+            "enum": [
+              "only",
+              "earlier",
+              "later"
+            ]
+          },
+          "outsideOutageReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "paperReference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "outageId",
+          "paperDate",
+          "paperTime",
+          "occurrence",
+          "outsideOutageReason",
+          "paperReference",
+          "label"
+        ]
+      },
+      "EntryNotFromPaper": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "outageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "outageId",
+          "reason"
         ]
       },
       "CareNoteCategory": {
@@ -6967,6 +7047,14 @@
             "type": "string",
             "format": "uuid"
           },
+          "backEntry": {
+            "$ref": "#/components/schemas/BackEntryInput"
+          },
+          "notFromPaperReason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
           "category": {
             "$ref": "#/components/schemas/CareNoteCategory"
           },
@@ -6999,6 +7087,46 @@
           "category",
           "body"
         ]
+      },
+      "BackEntryInput": {
+        "type": "object",
+        "properties": {
+          "outageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "paperDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "paperTime": {
+            "type": "string",
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+          },
+          "occurrence": {
+            "type": "string",
+            "enum": [
+              "earlier",
+              "later"
+            ]
+          },
+          "outsideOutageReason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "paperReference": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        },
+        "required": [
+          "outageId",
+          "paperDate",
+          "paperTime"
+        ],
+        "additionalProperties": false
       },
       "CareNoteList": {
         "type": "object",
@@ -7113,6 +7241,12 @@
           "deviceDeletion": {
             "$ref": "#/components/schemas/DeviceDeletionFlag"
           },
+          "backEntry": {
+            "$ref": "#/components/schemas/EntryBackEntry"
+          },
+          "notFromPaper": {
+            "$ref": "#/components/schemas/EntryNotFromPaper"
+          },
           "chart": {
             "type": "string"
           },
@@ -7148,6 +7282,8 @@
           "handedOverBy",
           "handedOverByStaff",
           "deviceDeletion",
+          "backEntry",
+          "notFromPaper",
           "chart",
           "values",
           "flags",
@@ -7291,6 +7427,14 @@
           "taskId": {
             "type": "string",
             "format": "uuid"
+          },
+          "backEntry": {
+            "$ref": "#/components/schemas/BackEntryInput"
+          },
+          "notFromPaperReason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
           },
           "values": {
             "$ref": "#/components/schemas/ObservationValues"
@@ -7756,6 +7900,12 @@
           "deviceDeletion": {
             "$ref": "#/components/schemas/DeviceDeletionFlag"
           },
+          "backEntry": {
+            "$ref": "#/components/schemas/EntryBackEntry"
+          },
+          "notFromPaper": {
+            "$ref": "#/components/schemas/EntryNotFromPaper"
+          },
           "view": {
             "type": "string",
             "enum": [
@@ -7861,6 +8011,8 @@
           "handedOverBy",
           "handedOverByStaff",
           "deviceDeletion",
+          "backEntry",
+          "notFromPaper",
           "view",
           "region",
           "side",
@@ -7933,6 +8085,14 @@
           "taskId": {
             "type": "string",
             "format": "uuid"
+          },
+          "backEntry": {
+            "$ref": "#/components/schemas/BackEntryInput"
+          },
+          "notFromPaperReason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
           },
           "view": {
             "type": "string",
@@ -10608,6 +10768,12 @@
           "deviceDeletion": {
             "$ref": "#/components/schemas/DeviceDeletionFlag"
           },
+          "backEntry": {
+            "$ref": "#/components/schemas/EntryBackEntry"
+          },
+          "notFromPaper": {
+            "$ref": "#/components/schemas/EntryNotFromPaper"
+          },
           "activity": {
             "type": "string"
           },
@@ -10664,6 +10830,8 @@
           "handedOverBy",
           "handedOverByStaff",
           "deviceDeletion",
+          "backEntry",
+          "notFromPaper",
           "activity",
           "format",
           "groupSessionId",
@@ -10722,6 +10890,14 @@
           "taskId": {
             "type": "string",
             "format": "uuid"
+          },
+          "backEntry": {
+            "$ref": "#/components/schemas/BackEntryInput"
+          },
+          "notFromPaperReason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
           },
           "activity": {
             "type": "string",
@@ -10875,6 +11051,12 @@
           "deviceDeletion": {
             "$ref": "#/components/schemas/DeviceDeletionFlag"
           },
+          "backEntry": {
+            "$ref": "#/components/schemas/EntryBackEntry"
+          },
+          "notFromPaper": {
+            "$ref": "#/components/schemas/EntryNotFromPaper"
+          },
           "kind": {
             "$ref": "#/components/schemas/VisitKind"
           },
@@ -10940,6 +11122,8 @@
           "handedOverBy",
           "handedOverByStaff",
           "deviceDeletion",
+          "backEntry",
+          "notFromPaper",
           "kind",
           "contactId",
           "visitorName",
@@ -10986,6 +11170,14 @@
           "taskId": {
             "type": "string",
             "format": "uuid"
+          },
+          "backEntry": {
+            "$ref": "#/components/schemas/BackEntryInput"
+          },
+          "notFromPaperReason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
           },
           "kind": {
             "$ref": "#/components/schemas/VisitKind"
@@ -17747,6 +17939,14 @@
                     "type": "string",
                     "format": "uuid"
                   },
+                  "backEntry": {
+                    "$ref": "#/components/schemas/BackEntryInput"
+                  },
+                  "notFromPaperReason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
                   "category": {
                     "$ref": "#/components/schemas/CareNoteCategory"
                   },
@@ -17865,6 +18065,14 @@
                     "type": "string",
                     "format": "uuid"
                   },
+                  "backEntry": {
+                    "$ref": "#/components/schemas/BackEntryInput"
+                  },
+                  "notFromPaperReason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
                   "values": {
                     "$ref": "#/components/schemas/ObservationValues"
                   }
@@ -17958,6 +18166,14 @@
                   "taskId": {
                     "type": "string",
                     "format": "uuid"
+                  },
+                  "backEntry": {
+                    "$ref": "#/components/schemas/BackEntryInput"
+                  },
+                  "notFromPaperReason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
                   },
                   "view": {
                     "type": "string",
@@ -18133,6 +18349,14 @@
                     "type": "string",
                     "format": "uuid"
                   },
+                  "backEntry": {
+                    "$ref": "#/components/schemas/BackEntryInput"
+                  },
+                  "notFromPaperReason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
                   "activity": {
                     "type": "string",
                     "minLength": 2,
@@ -18256,6 +18480,14 @@
                   "taskId": {
                     "type": "string",
                     "format": "uuid"
+                  },
+                  "backEntry": {
+                    "$ref": "#/components/schemas/BackEntryInput"
+                  },
+                  "notFromPaperReason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
                   },
                   "kind": {
                     "$ref": "#/components/schemas/VisitKind"

@@ -16843,6 +16843,8 @@ export interface components {
       handedOverBy: string | null;
       handedOverByStaff: components["schemas"]["StaffName"];
       deviceDeletion: components["schemas"]["DeviceDeletionFlag"];
+      backEntry: components["schemas"]["EntryBackEntry"];
+      notFromPaper: components["schemas"]["EntryNotFromPaper"];
       category: components["schemas"]["CareNoteCategory"];
       body: string;
       tags: string[];
@@ -16850,6 +16852,22 @@ export interface components {
     };
     /** @enum {string|null} */
     DeviceDeletionFlag: "uploaded_after_deletion" | "deleted_after_upload" | null;
+    EntryBackEntry: {
+      /** Format: uuid */
+      outageId: string;
+      paperDate: string;
+      paperTime: string;
+      /** @enum {string} */
+      occurrence: "only" | "earlier" | "later";
+      outsideOutageReason: string | null;
+      paperReference: string | null;
+      label: string | null;
+    } | null;
+    EntryNotFromPaper: {
+      /** Format: uuid */
+      outageId: string;
+      reason: string;
+    } | null;
     /** @enum {string} */
     CareNoteCategory:
       | "personal_care"
@@ -16872,12 +16890,25 @@ export interface components {
       correctionReason?: string;
       /** Format: uuid */
       taskId?: string;
+      backEntry?: components["schemas"]["BackEntryInput"];
+      notFromPaperReason?: string;
       category: components["schemas"]["CareNoteCategory"];
       body: string;
       /** @default [] */
       tags: string[];
       /** @default [] */
       attachmentDocumentIds: string[];
+    };
+    BackEntryInput: {
+      /** Format: uuid */
+      outageId: string;
+      /** Format: date */
+      paperDate: string;
+      paperTime: string;
+      /** @enum {string} */
+      occurrence?: "earlier" | "later";
+      outsideOutageReason?: string;
+      paperReference?: string;
     };
     CareNoteList: {
       items: components["schemas"]["CareNoteItem"][];
@@ -16919,6 +16950,8 @@ export interface components {
       handedOverBy: string | null;
       handedOverByStaff: components["schemas"]["StaffName"];
       deviceDeletion: components["schemas"]["DeviceDeletionFlag"];
+      backEntry: components["schemas"]["EntryBackEntry"];
+      notFromPaper: components["schemas"]["EntryNotFromPaper"];
       chart: string;
       values: {
         [key: string]: unknown;
@@ -16967,6 +17000,8 @@ export interface components {
       correctionReason?: string;
       /** Format: uuid */
       taskId?: string;
+      backEntry?: components["schemas"]["BackEntryInput"];
+      notFromPaperReason?: string;
       values: components["schemas"]["ObservationValues"];
     };
     ObservationValues:
@@ -17094,6 +17129,8 @@ export interface components {
       handedOverBy: string | null;
       handedOverByStaff: components["schemas"]["StaffName"];
       deviceDeletion: components["schemas"]["DeviceDeletionFlag"];
+      backEntry: components["schemas"]["EntryBackEntry"];
+      notFromPaper: components["schemas"]["EntryNotFromPaper"];
       /** @enum {string} */
       view: "front" | "back";
       region: string;
@@ -17147,6 +17184,8 @@ export interface components {
       correctionReason?: string;
       /** Format: uuid */
       taskId?: string;
+      backEntry?: components["schemas"]["BackEntryInput"];
+      notFromPaperReason?: string;
       /** @enum {string} */
       view: "front" | "back";
       region: string;
@@ -17891,6 +17930,8 @@ export interface components {
       handedOverBy: string | null;
       handedOverByStaff: components["schemas"]["StaffName"];
       deviceDeletion: components["schemas"]["DeviceDeletionFlag"];
+      backEntry: components["schemas"]["EntryBackEntry"];
+      notFromPaper: components["schemas"]["EntryNotFromPaper"];
       activity: string;
       /** @enum {string} */
       format: "group" | "one_to_one";
@@ -17922,6 +17963,8 @@ export interface components {
       correctionReason?: string;
       /** Format: uuid */
       taskId?: string;
+      backEntry?: components["schemas"]["BackEntryInput"];
+      notFromPaperReason?: string;
       activity: string;
       /** @enum {string} */
       format: "group" | "one_to_one";
@@ -17972,6 +18015,8 @@ export interface components {
       handedOverBy: string | null;
       handedOverByStaff: components["schemas"]["StaffName"];
       deviceDeletion: components["schemas"]["DeviceDeletionFlag"];
+      backEntry: components["schemas"]["EntryBackEntry"];
+      notFromPaper: components["schemas"]["EntryNotFromPaper"];
       kind: components["schemas"]["VisitKind"];
       /** Format: uuid */
       contactId: string | null;
@@ -18000,6 +18045,8 @@ export interface components {
       correctionReason?: string;
       /** Format: uuid */
       taskId?: string;
+      backEntry?: components["schemas"]["BackEntryInput"];
+      notFromPaperReason?: string;
       kind: components["schemas"]["VisitKind"];
       /** Format: uuid */
       contactId?: string;
@@ -19871,6 +19918,8 @@ export interface components {
             correctionReason?: string;
             /** Format: uuid */
             taskId?: string;
+            backEntry?: components["schemas"]["BackEntryInput"];
+            notFromPaperReason?: string;
             category: components["schemas"]["CareNoteCategory"];
             body: string;
             /** @default [] */
@@ -19903,6 +19952,8 @@ export interface components {
             correctionReason?: string;
             /** Format: uuid */
             taskId?: string;
+            backEntry?: components["schemas"]["BackEntryInput"];
+            notFromPaperReason?: string;
             values: components["schemas"]["ObservationValues"];
           };
         }
@@ -19930,6 +19981,8 @@ export interface components {
             correctionReason?: string;
             /** Format: uuid */
             taskId?: string;
+            backEntry?: components["schemas"]["BackEntryInput"];
+            notFromPaperReason?: string;
             /** @enum {string} */
             view: "front" | "back";
             region: string;
@@ -19982,6 +20035,8 @@ export interface components {
             correctionReason?: string;
             /** Format: uuid */
             taskId?: string;
+            backEntry?: components["schemas"]["BackEntryInput"];
+            notFromPaperReason?: string;
             activity: string;
             /** @enum {string} */
             format: "group" | "one_to_one";
@@ -20017,6 +20072,8 @@ export interface components {
             correctionReason?: string;
             /** Format: uuid */
             taskId?: string;
+            backEntry?: components["schemas"]["BackEntryInput"];
+            notFromPaperReason?: string;
             kind: components["schemas"]["VisitKind"];
             /** Format: uuid */
             contactId?: string;

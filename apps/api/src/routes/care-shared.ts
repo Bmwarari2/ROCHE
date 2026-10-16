@@ -3,6 +3,7 @@ import {
   type DeviceDeletionFlag,
   HandoverHeaders,
   IDEMPOTENCY_KEY_HEADER,
+  type SyncRefusedEntry,
 } from "@harbour/contracts";
 import type { Transaction } from "@harbour/db";
 import type { CareTrigger, PersonRecordKind } from "@harbour/domain";
@@ -17,12 +18,19 @@ import {
   type TenantAccess,
   withTenant,
 } from "../http/context";
-import { problems } from "../http/problem";
+import { HttpProblem, problems } from "../http/problem";
+import {
+  ALREADY_CORRECTED_REVIEW,
+  BackEntryAlreadyCorrected,
+  entryOutages,
+} from "../services/back-entry";
 import { applyTaskLink, type PlannedTaskLink, planTaskLink } from "../services/care";
 import { deletionFlags, type FlaggedEntryTable } from "../services/device-holds";
 import { refuseRevokedDevice } from "../services/devices";
 import { type HeldHandover, handedOverByOf, heldHandoverOf } from "../services/held-handover";
+import type { OutageRow } from "../services/outages";
 import { CareEventAfterExit, loadPerson, raiseLateEntryReview } from "../services/people";
+import { copyRefusedEntry, refusedCopyQuota } from "../services/refused-entries";
 import { NO_STAFF, type StaffLookup, staffNames } from "../services/staff";
 
 /**
@@ -164,9 +172,11 @@ export const iso = (d: Date | null) => (d ? d.toISOString() : null);
 export interface EntryExtras {
   readonly staff: StaffLookup;
   readonly deletion: ReadonlyMap<string, DeviceDeletionFlag>;
+  /** The outages back-entries name, for their labels (operations.md rule 12). */
+  readonly outages: ReadonlyMap<string, OutageRow>;
 }
 
-export const NO_EXTRAS: EntryExtras = { staff: NO_STAFF, deletion: new Map() };
+export const NO_EXTRAS: EntryExtras = { staff: NO_STAFF, deletion: new Map(), outages: new Map() };
 
 /**
  * Reads the extras for the entries of one table a response returns, in the reader's transaction.
@@ -175,7 +185,12 @@ export const NO_EXTRAS: EntryExtras = { staff: NO_STAFF, deletion: new Map() };
 export async function entryExtras(
   tx: Transaction,
   table: FlaggedEntryTable,
-  rows: readonly { id: string; createdBy: string | null; handedOverBy?: string | null }[],
+  rows: readonly {
+    id: string;
+    createdBy: string | null;
+    handedOverBy?: string | null;
+    outageId?: string | null;
+  }[],
 ): Promise<EntryExtras> {
   if (rows.length === 0) return NO_EXTRAS;
   const staff = await staffNames(
@@ -189,6 +204,7 @@ export async function entryExtras(
       table,
       rows.map((r) => r.id),
     ),
+    outages: await entryOutages(tx, rows),
   };
 }
 
@@ -384,7 +400,11 @@ export interface RefusedEntry {
   readonly occurredAt?: string | null | undefined;
   /** Who wrote it, when not the caller (a handed-over entry's owner). */
   readonly recordedBy?: string | undefined;
+  /** The request as sent, kept on the server when a device's correction is refused. */
+  readonly payload?: unknown;
 }
+
+const copyQuota = refusedCopyQuota();
 
 /**
  * Runs a care write. A care event timed after the person left, died or went away (beyond the
@@ -400,6 +420,9 @@ export async function withLateEntryReview<T>(
   try {
     return await write();
   } catch (error) {
+    if (error instanceof BackEntryAlreadyCorrected) {
+      throw await keepRefusedCorrection(c, entry, error);
+    }
     if (error instanceof CareEventAfterExit) {
       const access = c.get("access");
       await withTenant(c, async (tx) => {
@@ -424,6 +447,48 @@ export async function withLateEntryReview<T>(
     }
     throw error;
   }
+}
+
+/**
+ * A device's second correction of the same paper record, refused because each paper record has
+ * one current version (operations.md section 12, #38 review round 2): the server keeps the entry
+ * as sent, with a review task for the nurse in charge (`copyRefusedEntry`; HZ-006), as the device
+ * would on its own, so it is never only on one phone. The web is told to correct the current
+ * version. A copy that cannot be kept leaves the refusal as it was (the device sends it again).
+ */
+async function keepRefusedCorrection(
+  c: Context<AppEnv>,
+  entry: RefusedEntry,
+  error: BackEntryAlreadyCorrected,
+): Promise<HttpProblem> {
+  const access = c.get("access");
+  if (!access.deviceId || !entry.clientId || entry.payload === undefined) return error;
+  try {
+    await copyRefusedEntry(
+      c.get("services").db,
+      access,
+      {
+        table: entry.kind,
+        entryId: entry.clientId,
+        personId: error.personId,
+        httpStatus: error.status,
+        code: error.code,
+        message: ALREADY_CORRECTED_REVIEW,
+        refusedAt: new Date().toISOString(),
+        payload: entry.payload,
+      } as SyncRefusedEntry,
+      {
+        author: entry.recordedBy ?? access.tenantUserId,
+        deviceId: access.deviceId,
+        now: new Date(),
+        requestId: c.get("requestId"),
+        quota: copyQuota,
+      },
+    );
+  } catch {
+    return error;
+  }
+  return new HttpProblem(error.status, error.code, error.title, ALREADY_CORRECTED_REVIEW);
 }
 
 /** Follow-ups that stay relevant whoever is left to act: the incident and safeguarding prompts. */
