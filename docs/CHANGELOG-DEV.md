@@ -2462,3 +2462,15 @@ CSO. Tests: `feed-publish.test.ts` 14.
 **Tests**: `onboarding.test.ts` (unknown items and the latest decision, 3 more cases);
 `apps/api/test/onboarding.test.ts` (fail closed, invited members, another organisation's
 decisions); `config.test.ts` (`SAFETY_CASE_VERSION`).
+
+## 2026-10-17: Slice 13 search part 1, the search index (PLAT-013)
+
+- Migration 0065: `app.search_terms` (equal to the domain's `searchTerms`), `app.search_vector`, the
+  `app.harbour_search` configuration, generated vectors on `person` (names, room), `tenant_user`
+  (display name), `document` (title and file name) and `care_note` (text), and an index for the
+  exact NHS number match. No GIN index: the app role could not use one under forced RLS (ADR-0070
+  as built).
+- Docs: platform-completions.md section 10f, ADR-0070, HZ-011, the register, data standards, STATUS.
+
+**Tests**: `packages/db/test/search-index.test.ts` (23).
+

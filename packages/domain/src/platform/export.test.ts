@@ -243,12 +243,15 @@ describe("hazard HZ-070 export plan reads only what may leave", () => {
   });
 
   it.each([
-    ["document", "storage_key"],
-    ["integration_connection", "secret_ref"],
-    ["tenant_user", "auth_user_id"],
-  ])("never exports %s.%s", (name, column) => {
+    ["document", "storage_key", ["storage_key", "search_title"]],
+    ["integration_connection", "secret_ref", ["secret_ref"]],
+    ["tenant_user", "auth_user_id", ["auth_user_id", "search_name"]],
+    // Search vectors (migration 0065) are rebuilt from the exported columns.
+    ["person", "search_names", ["search_names", "search_room"]],
+    ["care_note", "search_body", ["search_body"]],
+  ])("never exports %s.%s", (name, column, omitted) => {
     expect(table(name)?.columns.map((c) => c.name)).not.toContain(column);
-    expect(table(name)?.omittedColumns).toEqual([column]);
+    expect(table(name)?.omittedColumns).toEqual(omitted);
   });
 
   it("adds the UK date of the date of death beside the instant (HZ-071)", () => {

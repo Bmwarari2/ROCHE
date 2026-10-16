@@ -601,6 +601,18 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
   newest report in `docs/clinical-safety/safety-case/`), and a test checks the default names a
   report there.
 
+## 10f. As built (slice 13, the search index)
+
+Migration 0065 (`feat/platform-search-schema`), expand only:
+
+| Piece | Built as |
+| --- | --- |
+| `app.search_terms(text)` | Immutable, `SECURITY INVOKER`, not leakproof: NFKD, lower case, the `unaccent` dictionary named explicitly, apostrophes joined, every other character a separator. Equal to `searchTerms` on the domain fixtures (tested) |
+| `app.search_vector(text)` and `app.harbour_search` | The terms as an unstemmed `tsvector` (a copy of the `simple` configuration), so queries use `to_tsquery('app.harbour_search', $n)` with the bound queries from `normaliseSearchQuery` |
+| Generated columns | `person.search_names` (given, family and preferred names) and `person.search_room`; `tenant_user.search_name` (display name only); `document.search_title` (title and display file name, never contents); `care_note.search_body`. They go with their rows (retention and destruction follow the row) and are internal in the export catalogue |
+| Indexes | `person_nhs_number_idx` on `(tenant_id, nhs_number)` for the exact NHS number match. No GIN index: under forced row-level security only a leakproof condition can be an index condition ahead of the policy, and `@@` is not, so the app role could never use one (tested with `EXPLAIN`). Each search reads the tenant's rows by an existing index on `tenant_id` and filters them within the policy (ADR-0070, as built) |
+| Break-glass search | The `break_glass_event.kind` column and the break-glass search route follow with the API step for it |
+
 ## 11. Open questions
 
 - Retention of DPIA records, export records and onboarding decisions beyond the interim

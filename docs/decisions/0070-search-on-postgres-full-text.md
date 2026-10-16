@@ -121,6 +121,16 @@ against a 60-bed demo tenant.
 - Bad, because near matches on names are a wrong-person risk at the point of care (HZ-001); it can
   be added later behind a "did you mean" step that shows identity fields.
 
+### As built (slice 13, migration 0065)
+
+The composite GIN indexes in point 2 were not added. Point 4 holds: under forced row-level
+security `@@` cannot be an index condition ahead of the policy, so the app role could never use a
+GIN index on the vectors (an `EXPLAIN` test shows the tenant as the index condition and the match as
+a filter). Each search reads the tenant's rows by an existing `tenant_id` index and filters them;
+this is cheap at Harbour's per-tenant volumes and saves the write cost of a GIN index on every
+note. The timing check against a 60-bed tenant remains the trigger to revisit (for example a
+partial index per tenant, or a leakproof-safe design reviewed as a new ADR).
+
 ## More information
 
 Revisit if a tenant's search exceeds the point-of-care budget at realistic volumes, if fuzzy name
