@@ -133,3 +133,46 @@ export function templateActions(
     retire: approve && template.current !== null,
   };
 }
+
+// ------------------------------------------------------------------------------------------------
+// Letters on a person's record (rules 24 and 25)
+// ------------------------------------------------------------------------------------------------
+
+/** The details the sender types (the API's `SENDER_TYPED_FIELDS`); all else is from the record. */
+export const TYPED_FIELDS = [
+  { key: "admission.date", type: "date" },
+  { key: "fee.current_weekly", type: "money" },
+  { key: "fee.new_weekly", type: "money" },
+  { key: "fee.effective_date", type: "date" },
+] as const;
+export type TypedField = (typeof TYPED_FIELDS)[number];
+
+/** The typed details a version uses, in the catalogue's order. */
+export function typedFieldsOf(version: {
+  readonly subject: string | null;
+  readonly body: string;
+}): TypedField[] {
+  const text = `${version.subject ?? ""}\n${version.body}`;
+  return TYPED_FIELDS.filter((field) => text.includes(`{{${field.key}}}`));
+}
+
+/** Pounds and pence as typed ("1,250.50", "£980") in whole pence, or null when not a sum. */
+export function penceFrom(value: string): number | null {
+  const plain = value.trim().replace(/^£/, "").replaceAll(",", "");
+  if (!/^\d{1,7}(\.\d{1,2})?$/.test(plain)) return null;
+  const [pounds = "0", pence = ""] = plain.split(".");
+  return Number(pounds) * 100 + Number(pence.padEnd(2, "0"));
+}
+
+/** Templates a letter can be made from here: in use, and of a kind this screen can make. */
+export function templatesForLetters(
+  templates: readonly LetterTemplateItem[],
+  canUseIncidents: boolean,
+): LetterTemplateItem[] {
+  return templates.filter(
+    (template) =>
+      template.current !== null &&
+      template.kind !== "duty_of_candour" &&
+      (canUseIncidents || template.kind !== "incident_follow_up"),
+  );
+}
