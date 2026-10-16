@@ -527,6 +527,23 @@ only when they link spec, code, tests and user documentation; no user guides exi
     sending), with a test; and the routes pass the token to the definer functions only as a bound
     parameter, never interpolated into SQL or logged. Existing clusters run `pnpm db:bootstrap`
     before migration 0054 (it creates `harbour_invitation_owner`).
+    - Routes built in feat/platform-invitation-routes: send, list, withdraw (narrowed to the
+      members `platform.user.manage` reaches, with tests), lookup and accept with no session
+      (token only as a bound parameter, throttled per address and per token), the operator's
+      first-owner invitation (`app.operator_id`), the email through the organisation's
+      `comms.email` adapter, and the nightly `invitation-sweep` job (lapsed invitations, then
+      unlinked sign-ins deleted through the auth role). Next: the web accept page with the
+      password rules and the redirect to enrolment, Playwright and axe (H-355, H-357).
+      Follow-ups: count the link throttle across API instances (a Postgres table keyed by
+      address or token hash, not by member: a Lane A migration); re-check each sign-in just before
+      the sweep deletes it (a sign-in linked between the listing and the deletion would go); give
+      the email port a body so the email can carry the organisation's name and the expiry
+      (H-357).
+    - Follow-ups from #53 security review: (L1) the sweep deletes an auth user without
+      re-checking, in the same transaction, that it is still unlinked; fix with one definer
+      function, or a lock that re-checks `app.auth_user_has_membership` just before the delete.
+      (L4) a throttled 429 on the invitation link routes is not audited; audit `rate_limited`
+      with the client address and a prefix of the token's hash only.
 
 ## Human actions outstanding
 
