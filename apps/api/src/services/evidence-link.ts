@@ -108,6 +108,20 @@ export function newEvidenceCode(): string {
   );
 }
 
+/** The code email's subject: the same for everyone, so an inbox preview shows no code. */
+export const EVIDENCE_CODE_EMAIL_TITLE = "Your code to open an evidence pack";
+
+/** The code email's body (H-225): the code, what to do with it, and what to do if unexpected. */
+export function evidenceCodeEmailBody(code: string): string {
+  return [
+    `Your code is ${code}.`,
+    "",
+    "Enter it on the page where you opened the evidence pack link. It works once and only for a few minutes. If it has expired, ask for a new code on that page.",
+    "",
+    "If you did not ask for this code, you can ignore this email: nobody can open the pack without it. Do not share the code.",
+  ].join("\n");
+}
+
 /** HMAC-SHA256 (hex) of the code, bound to its link, under the server key: all that is stored. */
 export function evidenceCodeHash(secret: string, linkId: string, code: string): string {
   return createHmac("sha256", secret).update(`evidence-code:${linkId}:${code}`).digest("hex");

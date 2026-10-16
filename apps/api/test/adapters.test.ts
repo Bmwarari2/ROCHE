@@ -1,6 +1,13 @@
 import type { EmailPort, PushPort, SmsPort } from "@harbour/domain";
 import { describe, expect, it } from "vitest";
-import { createAdapter, guarded, MockEmail, MockPush, MockSms } from "../src/integrations/adapters";
+import {
+  createAdapter,
+  emailTextBody,
+  guarded,
+  MockEmail,
+  MockPush,
+  MockSms,
+} from "../src/integrations/adapters";
 
 /**
  * Port contract (section 15.3): every adapter, mock or real, must pass these. Real adapters run them
@@ -100,5 +107,19 @@ describe("adapter selection", () => {
       createAdapter("comms.push", { provider: "expo", settings: {} }, { production: true })
         .provider,
     ).toBe("expo");
+  });
+});
+
+describe("the email body (H-225)", () => {
+  const base = { idempotencyKey: "k", title: "A visit was missed", to: "x@example.invalid" };
+  it("sends the message's own body when it has one, never the link line", () => {
+    expect(emailTextBody({ ...base, link: null, body: "Your code is 123456." })).toBe(
+      "Your code is 123456.\n",
+    );
+  });
+  it("otherwise sends the title and the link into Harbour", () => {
+    expect(emailTextBody({ ...base, link: "https://app.example.invalid/x" })).toBe(
+      "A visit was missed\n\nOpen Harbour to see the details: https://app.example.invalid/x\n",
+    );
   });
 });
