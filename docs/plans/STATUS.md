@@ -163,8 +163,7 @@ only when they link spec, code, tests and user documentation; no user guides exi
      Open: the policies use `app.holds_permission_anywhere`, so a holder of
      `platform.onboarding.read` or `.manage` limited to one location reads and records the
      organisation-wide decisions too (the onboarding roles are organisation-wide today); revisit if
-     a location role ever carries them. Next: the decision routes, `GET /v1/onboarding`, sub-processor notices, then the web screens.
-
+     a location role ever carries them.
    - Part 2, the decision routes (`feat/platform-onboarding-decisions`): setting, retention, staff
      file and DCB0160 decisions, audited with refusals. Next: `GET /v1/onboarding`, sub-processor
      notices, then the web screens.
