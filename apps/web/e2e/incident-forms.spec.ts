@@ -70,9 +70,9 @@ test("hazard HZ-027 the carer records a fall from a resident's record, never ass
   await page.waitForURL((url) => url.pathname === "/incidents/new");
   await expect(page.getByRole("heading", { level: 1, name: "Record an incident" })).toBeVisible();
   // The person's communication needs beside their name, labelled in every state (AIS).
-  await expect(
-    page.getByRole("group", { name: /^About / }).getByText("Communication needs", { exact: true }),
-  ).toBeVisible();
+  const about = page.getByRole("group", { name: /^About / });
+  await expect(about.getByRole("term")).toHaveText("Communication needs");
+  await expect(about.getByRole("definition")).toContainText("Uses a hearing loop");
   await expectAccessible(page, "record an incident, empty");
 
   await page.getByLabel("What kind of incident was it?").selectOption("fall");
