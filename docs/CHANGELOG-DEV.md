@@ -1,5 +1,9 @@
 # Development log
 
+> **Frozen on 2026-10-16.** New entries are one file per pull request in
+> [docs/changelog-dev/](changelog-dev/README.md) ([ADR-0073](decisions/0073-changelog-fragments.md)).
+> Do not append here; this file is the history before that date.
+
 One entry per working session (section 20 rule 9): what changed, what is next, human actions
 logged, test status.
 
@@ -2463,6 +2467,26 @@ CSO. Tests: `feed-publish.test.ts` 14.
 `apps/api/test/onboarding.test.ts` (fail closed, invited members, another organisation's
 decisions); `config.test.ts` (`SAFETY_CASE_VERSION`).
 
+## 2026-10-17: Slice 12 part 2a, the staff family updates screen (COMMS-001)
+
+- API: `POST /v1/people/{id}/feed/preview`, the compose rule with nothing stored: the family's
+  words, or each problem with its code; audited with codes only.
+- Web: a "Family updates" tab on the record for `comms.feed.publish`: choose a recent note, activity
+  or a photo added for the family feed, write the family's words, preview with each problem at its
+  field (a hold first), publish once with the form's id, the list published, and taking one down
+  with a reason (`comms.feed.withdraw`). Strings in en-GB; Welsh copied and listed as untranslated.
+- Docs: comms.md section 11, HZ-022, the register, STATUS.
+
+**Tests**: `apps/api/test/feed-publish.test.ts` (16); `apps/web/src/lib/family-feed.test.ts`;
+`apps/web/e2e/family-updates.spec.ts` (2, axe on every state).
+
+Review round 1 of #87: publishing sends exactly the request previewed, with a new id for each
+preview, and an update already published with other words is a problem, never "published"; the API
+refuses notes and activities older than 14 days (`source_too_old`, audited); records that could not
+be read are said so; tests for a record corrected between preview and publishing, an out-of-scope
+preview, and Playwright states for words to confirm, a photo without consent, a refused publish and
+a hold, each with axe. Tests: `feed-publish.test.ts` 18; `family-updates.spec.ts` 3.
+
 ## 2026-10-17: Slice 13, sub-processor notices, organisation side (PLAT-023, rules 24 and 25)
 
 - Migration 0065: `sub_processor_notice` (Thapsus's, read by all, announced only by the operator
@@ -2484,16 +2508,3 @@ decisions); `config.test.ts` (`SAFETY_CASE_VERSION`).
 - Each notice's window uses the notice period in force on the UK date it was announced.
 - Tests: step-up, a non-lead holding `platform.dpia.sign`, another organisation's lead (API and
   database), and the operator role refused anything but a resolution.
-
-## 2026-10-17: Slice 13, sub-processor notices, Thapsus's side (PLAT-023, rules 24 and 25)
-
-- API: an admin with a fresh step-up announces a notice; the affected organisations come from
-  their configuration, the effective date respects the longest notice period
-  (`checkNoticeTiming`), and each organisation's lead (or owners) is told, with its audit trail.
-- Migration 0067: objections are read and resolved only through definer functions owned by the
-  NOLOGIN role `harbour_notice_resolver` (bootstrap adds it), which check the admin, need an open
-  objection and write the organisation's audit trail; the operator role's direct access to
-  responses is revoked.
-- Docs: platform-completions.md section 10h, feature register, STATUS.
-
-**Tests**: `apps/api/test/operator-sub-processors.test.ts` (4).

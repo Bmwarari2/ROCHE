@@ -1,5 +1,5 @@
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
-import { expectAccessible, signIn, signInManagerWithPasskey } from "./support";
+import { expectAccessible, signIn, signInWithDemoPasskey } from "./support";
 
 /**
  * The managers' team and invitation screens (PLAT-004; hazard HZ-011) against the demo tenant.
@@ -27,7 +27,7 @@ test.beforeAll(async ({ browser }, testInfo) => {
     const page = await context.newPage();
     // Inviting, sending again and withdrawing need a fresh step-up, which counts only from a
     // second factor (ADR-0072 amendment): the manager signs in with their passkey.
-    if (user === "manager") await signInManagerWithPasskey(page);
+    if (user === "manager") await signInWithDemoPasskey(page);
     else await signIn(page, `${user}@example.invalid`);
     sessions[user] = await context.cookies();
     await context.close();
