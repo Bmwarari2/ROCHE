@@ -39,14 +39,18 @@ export const operatorMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => 
     .where(eq(operatorUser.authUserId, session.authUserId));
   if (!op?.active) throw problems.forbidden();
   // As for members: only a session signed in or confirmed with a second factor (ADR-0072).
-  const { mfa, factorAt } = await sessionFactorState(authPool, session);
+  const { mfa, stepUpFresh } = await sessionFactorState(
+    authPool,
+    session,
+    c.get("services").config.STEP_UP_WINDOW_SECONDS,
+  );
   if (mfa === "enrol") throw problems.mfaRequired();
   if (mfa === "verify") throw problems.mfaVerify();
   c.set("operator", {
     id: op.id,
     authUserId: session.authUserId,
     role: op.role as "support" | "admin",
-    factorAt,
+    stepUpFresh,
   });
   await next();
 };

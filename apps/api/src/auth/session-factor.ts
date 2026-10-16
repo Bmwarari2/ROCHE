@@ -37,15 +37,15 @@ export async function recordSessionFactor(
   );
 }
 
-/** What the session has proved: the MFA state, and when it last used a second factor. */
+/** What the session has proved: the MFA state, and whether a factor's last use is fresh. */
 export interface SessionFactorState {
   readonly mfa: "satisfied" | "verify" | "enrol";
   /**
-   * When this session last proved a second factor (a sign-in completed with one, or a code or
-   * passkey confirmed on it), or null when it never has or none is enrolled. Step-up counts from
-   * this, never from a password sign-in (ADR-0072 amendment, HZ-112).
+   * True when this session proved a second factor (a sign-in completed with one, or a code or
+   * passkey confirmed on it) no more than the step-up window ago, judged on the database's clock.
+   * Step-up counts from this, never from a password sign-in (ADR-0072 amendment, HZ-112).
    */
-  readonly factorAt: Date | null;
+  readonly stepUpFresh: boolean;
 }
 
 /**
@@ -53,7 +53,8 @@ export interface SessionFactorState {
  * when the session last used it. `enrol`: neither an authenticator app nor a passkey is set up.
  * `verify`: one is, but this session did not use it (a password-only sign-in, a trusted device,
  * or a session from before this check). One query; a factor record older than the session's
- * expiry is moved on with it. Each use is its own row, so the latest `created_at` is the last use.
+ * expiry is moved on with it. Each use is its own row, so the latest `created_at` is the last use;
+ * it is fresh while `now() - created_at <= windowSeconds` (inclusive, on the database's clock).
  */
 export async function sessionFactorState(
   authPool: pg.Pool,
@@ -62,26 +63,28 @@ export async function sessionFactorState(
     readonly sessionId: string;
     readonly twoFactorEnabled: boolean;
   },
+  windowSeconds: number,
 ): Promise<SessionFactorState> {
   const { rows } = await authPool.query<{
     passkey: boolean;
     stale: boolean | null;
     factor_at: Date | null;
+    fresh: boolean | null;
   }>(
     `SELECT EXISTS (SELECT 1 FROM auth.passkey WHERE user_id = $1) AS passkey,
-            f.stale, f.factor_at
+            f.stale, f.factor_at, now() - f.factor_at <= make_interval(secs => $4) AS fresh
        FROM (SELECT bool_and(v.expires_at < s.expires_at) AS stale,
                     max(v.created_at) AS factor_at
                FROM auth.session s
                JOIN auth.verification v ON v.identifier = $3
                 AND v.value IN ('passkey', 'totp', 'backup_code')
               WHERE s.id = $2 AND s.user_id = $1) f`,
-    [session.authUserId, session.sessionId, factorIdentifier(session.sessionId)],
+    [session.authUserId, session.sessionId, factorIdentifier(session.sessionId), windowSeconds],
   );
   const row = rows[0];
-  if (!session.twoFactorEnabled && !row?.passkey) return { mfa: "enrol", factorAt: null };
+  if (!session.twoFactorEnabled && !row?.passkey) return { mfa: "enrol", stepUpFresh: false };
   if (row?.factor_at === null || row?.factor_at === undefined) {
-    return { mfa: "verify", factorAt: null };
+    return { mfa: "verify", stepUpFresh: false };
   }
   if (row.stale) {
     await authPool.query(
@@ -92,7 +95,7 @@ export async function sessionFactorState(
       [factorIdentifier(session.sessionId), session.sessionId],
     );
   }
-  return { mfa: "satisfied", factorAt: new Date(row.factor_at) };
+  return { mfa: "satisfied", stepUpFresh: row.fresh === true };
 }
 
 /** The MFA state alone (`sessionFactorState`). */
@@ -104,12 +107,7 @@ export async function sessionMfa(
     readonly twoFactorEnabled: boolean;
   },
 ): Promise<"satisfied" | "verify" | "enrol"> {
-  return (await sessionFactorState(authPool, session)).mfa;
-}
-
-/** Whether a factor used at `factorAt` is still within the step-up window at `now`. */
-export function stepUpFreshAt(factorAt: Date | null, now: Date, windowSeconds: number): boolean {
-  return factorAt !== null && now.getTime() - factorAt.getTime() <= windowSeconds * 1000;
+  return (await sessionFactorState(authPool, session, 0)).mfa;
 }
 
 /**

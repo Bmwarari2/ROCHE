@@ -361,7 +361,7 @@ describe("sub-processor change notices", () => {
       access: accessFor(role),
       actorTenantUserId: "u-1",
       designatedLeadIds: ["u-1"],
-      lastMfaSignInAt: new Date(now.getTime() - 60_000),
+      stepUpAt: new Date(now.getTime() - 60_000),
       stepUpWindowSeconds: 600,
       ...(text === undefined ? {} : { grounds: text }),
       now,
@@ -385,7 +385,7 @@ describe("sub-processor change notices", () => {
       "step_up_required",
     ],
     ["the named lead with no MFA sign-in", "u-1", null, "step_up_required"],
-  ])("refuses an answer from %s", (_label, actorTenantUserId, lastMfaSignInAt, problem) => {
+  ])("refuses an answer from %s", (_label, actorTenantUserId, stepUpAt, problem) => {
     const result = checkNoticeResponse({
       kind: "acknowledge",
       notice: notice(),
@@ -394,7 +394,7 @@ describe("sub-processor change notices", () => {
       access: accessFor("quality_lead"),
       actorTenantUserId,
       designatedLeadIds: ["u-1"],
-      lastMfaSignInAt,
+      stepUpAt,
       stepUpWindowSeconds: 600,
       now: ANNOUNCED,
       rates: RATES,

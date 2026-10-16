@@ -38,7 +38,7 @@ import {
   SESSION_EXPIRES_IN_SECONDS,
   SESSION_UPDATE_AGE_SECONDS,
 } from "../auth/better-auth";
-import { sessionFactorState, stepUpFreshAt } from "../auth/session-factor";
+import { sessionFactorState } from "../auth/session-factor";
 import type { Config } from "../config";
 import type { FlagService } from "../flags/provider";
 import type { MockEmail } from "../integrations/adapters";
@@ -130,10 +130,11 @@ export interface TenantAccess {
   /** True when a factor is enrolled (so a refusal asks the person to use it, not to set one up). */
   readonly mfaEnrolled: boolean;
   /**
-   * When this session last proved a second factor (a passkey, an authenticator code or a backup
-   * code), or null. Step-up counts from this, never from a password sign-in (ADR-0072 amendment).
+   * True when this session proved a second factor (a passkey, an authenticator code or a backup
+   * code) within the step-up window, judged on the database's clock when the request began.
+   * Step-up counts from this, never from a password sign-in (ADR-0072 amendment).
    */
-  readonly stepUpAt: Date | null;
+  readonly stepUpFresh: boolean;
   /** How long a factor's use counts as fresh for a step-up permission (`STEP_UP_WINDOW_SECONDS`). */
   readonly stepUpWindowSeconds: number;
   readonly deviceId: string | null;
@@ -150,8 +151,8 @@ export interface OperatorIdentity {
   readonly id: string;
   readonly authUserId: string;
   readonly role: "support" | "admin";
-  /** When this session last used a second factor (step-up counts from it; ADR-0072). */
-  readonly factorAt: Date | null;
+  /** True when this session used a second factor within the step-up window (ADR-0072). */
+  readonly stepUpFresh: boolean;
 }
 
 export type AppEnv = {
@@ -377,7 +378,11 @@ export const tenantMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   // A session from before this check, or signed in with a password alone, fails closed until
   // the person confirms it is them with a passkey or an authenticator code (ADR-0072). Asked even
   // when MFA is not required: step-up needs the time a factor was last used on this session.
-  const factor = await sessionFactorState(services.authPool, session);
+  const factor = await sessionFactorState(
+    services.authPool,
+    session,
+    services.config.STEP_UP_WINDOW_SECONDS,
+  );
   const mfa = mfaRequired ? factor.mfa : "satisfied";
   const access: TenantAccess = {
     tenantId: membership.tenantId,
@@ -395,7 +400,7 @@ export const tenantMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     required: [],
     mfaSatisfied: mfa === "satisfied",
     mfaEnrolled: factor.mfa !== "enrol",
-    stepUpAt: factor.factorAt,
+    stepUpFresh: factor.stepUpFresh,
     stepUpWindowSeconds: services.config.STEP_UP_WINDOW_SECONDS,
     deviceId,
     ip: clientIp(c),
@@ -471,8 +476,16 @@ type Refusal =
  * True when the session used a second factor within the step-up window (section 5.3; ADR-0072
  * amendment). A password sign-in alone never counts, however recent.
  */
-export function stepUpFresh(access: TenantAccess, now: Date = new Date()): boolean {
-  return stepUpFreshAt(access.stepUpAt, now, access.stepUpWindowSeconds);
+export function stepUpFresh(access: TenantAccess): boolean {
+  return access.stepUpFresh;
+}
+
+/**
+ * The time a domain check is given as the session's step-up (`stepUpAt`): `now` when the database
+ * judged its factor fresh, else null. Never a sign-in time.
+ */
+export function stepUpAtFor(access: TenantAccess, now: Date): Date | null {
+  return access.stepUpFresh ? now : null;
 }
 
 /**
@@ -505,7 +518,7 @@ export function refusalOf(
   const decision = authorise(
     access.effective,
     permission,
-    access.stepUpAt,
+    stepUpAtFor(access, now),
     now,
     access.stepUpWindowSeconds,
   );
@@ -670,7 +683,9 @@ export function usablePermissions(
       // A step-up permission held with no factor enrolled stays in too: its check sees no fresh
       // factor and the refusal asks the person to set one up (`stepUpRefusal`).
       const stepUpUnenrolled =
-        refused === "mfa_enrolment_required" && access.mfaSatisfied && requiresStepUp(p);
+        refused === "mfa_enrolment_required" &&
+        requiresStepUp(p) &&
+        (access.mfaSatisfied || !touchesCareRecords(p));
       return refused === null || refused === "step_up_required" || stepUpUnenrolled;
     }),
   );

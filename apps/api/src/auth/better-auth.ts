@@ -40,6 +40,10 @@ export function createAuth(config: Config, authPool: pg.Pool) {
       user: { id: string; twoFactorEnabled?: boolean | null };
     } | null>;
   } = {};
+  // Sessions confirming a code while no factor was enrolled: the code completes a first enrolment,
+  // which proves only the password, so it records no factor (#63 security review, M1). The person
+  // signs in again with the new factor before step-up or care records count it.
+  const firstEnrolments = new Set<string>();
 
   const auth = betterAuth({
     appName: "Harbour",
@@ -126,6 +130,13 @@ export function createAuth(config: Config, authPool: pg.Pool) {
             message: "Too many wrong codes. Sign in again to try more.",
             code: "TOO_MANY_ATTEMPTS",
           });
+        } else {
+          const enrolled = await sessionMfa(authPool, {
+            authUserId: found.user.id,
+            sessionId: found.session.id,
+            twoFactorEnabled: found.user.twoFactorEnabled === true,
+          });
+          if (enrolled === "enrol") firstEnrolments.add(found.session.id);
         }
       }),
       // A passkey or a verified authenticator code marks the session it signed in or confirmed, so
@@ -133,12 +144,13 @@ export function createAuth(config: Config, authPool: pg.Pool) {
       after: createAuthMiddleware(async (ctx) => {
         const factor = FACTOR_ROUTES.get(ctx.path);
         if (!factor) return;
-        if (isAPIError(ctx.context.returned)) return;
-        // A right code on an existing session gives it its attempts back.
         const existing = ctx.context.session?.session;
+        const firstEnrolment = existing ? firstEnrolments.delete(existing.id) : false;
+        if (isAPIError(ctx.context.returned)) return;
         if (existing && IN_SESSION_CODE_ROUTES.has(ctx.path)) {
           await clearCodeAttempts(authPool, existing.id);
         }
+        if (firstEnrolment) return;
         const session = ctx.context.newSession?.session ?? ctx.context.session?.session;
         if (!session) return;
         await recordSessionFactor(authPool, session.id, factor, new Date(session.expiresAt));

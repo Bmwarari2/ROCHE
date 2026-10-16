@@ -1054,7 +1054,7 @@ describe("hazard HZ-070 export request: free, MFA step-up, one at a time", () =>
   const stale = new Date(NOW.getTime() - (STEP_UP_SECONDS + 1) * 1000);
   const context = (extra: Partial<ExportRequestContext> = {}): ExportRequestContext => ({
     access: accessFor("owner"),
-    lastMfaSignInAt: fresh,
+    stepUpAt: fresh,
     now: NOW,
     stepUpWindowSeconds: STEP_UP_SECONDS,
     tenant: { status: "active", dataPurgedAt: null },
@@ -1090,8 +1090,8 @@ describe("hazard HZ-070 export request: free, MFA step-up, one at a time", () =>
       null,
     ],
     ["changes since an earlier snapshot", { since: PAST }, null],
-    ["a stale MFA sign-in", { lastMfaSignInAt: stale }, "step_up_required"],
-    ["no MFA sign-in", { lastMfaSignInAt: null }, "step_up_required"],
+    ["a stale MFA sign-in", { stepUpAt: stale }, "step_up_required"],
+    ["no MFA sign-in", { stepUpAt: null }, "step_up_required"],
     ["a Registered Manager", { access: accessFor("registered_manager") }, "missing_permission"],
     ["the quality lead", { access: accessFor("quality_lead") }, "missing_permission"],
     [
@@ -1171,7 +1171,7 @@ describe("hazard HZ-070 the export link expires and works only for the requester
       export: { id: "e1", status, requestedBy: "u1", expiresAt },
       actorTenantUserId: "u1",
       access: accessFor("owner"),
-      lastMfaSignInAt: fresh,
+      stepUpAt: fresh,
       now: NOW,
       stepUpWindowSeconds: STEP_UP_SECONDS,
       ...extra,
@@ -1184,7 +1184,7 @@ describe("hazard HZ-070 the export link expires and works only for the requester
     ["another owner", { actorTenantUserId: "u2" }, "ready", "not_requester"],
     [
       "the requester with an old MFA sign-in",
-      { lastMfaSignInAt: new Date(NOW.getTime() - 3_600_000) },
+      { stepUpAt: new Date(NOW.getTime() - 3_600_000) },
       "ready",
       "step_up_required",
     ],
@@ -1196,7 +1196,7 @@ describe("hazard HZ-070 the export link expires and works only for the requester
     ],
     [
       "after expiry",
-      { now: expiresAt, lastMfaSignInAt: new Date(expiresAt.getTime() - 60_000) },
+      { now: expiresAt, stepUpAt: new Date(expiresAt.getTime() - 60_000) },
       "ready",
       "expired",
     ],
