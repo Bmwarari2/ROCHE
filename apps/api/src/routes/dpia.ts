@@ -11,17 +11,14 @@ import { dpia, notification, type Transaction, tenant } from "@harbour/db";
 import {
   dpiaBasis as basisOf,
   checkDpiaSignOff,
-  type DpiaBasis,
   type DpiaDraft,
   type DpiaSectionKey,
   dpiaReviewDueAt,
-  dpiaState,
-  PLATFORM_RATE_KEYS,
   prefillDpia,
   type RiskLevel,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, desc, eq, max, sql } from "drizzle-orm";
+import { and, eq, max, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx, writeAudit } from "../http/audit";
 import {
@@ -34,8 +31,14 @@ import {
   withTenant,
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
-import { dpiaConfigFor, dpiaVersionItem, dpiaVersionSha256 } from "../services/dpia";
-import { rateNumber } from "../services/rates";
+import {
+  dpiaConfigFor,
+  dpiaStateFor,
+  dpiaVersionItem,
+  dpiaVersionSha256,
+  tenantFlags,
+  dpiaVersions as versions,
+} from "../services/dpia";
 import { staffNames } from "../services/staff";
 import {
   conflictResponse,
@@ -75,30 +78,9 @@ const settingsOf = (t: typeof tenant.$inferSelect) => ({
 async function currentPrefill(c: Context<AppEnv>, tx: Tx, access: TenantAccess, now: Date) {
   const [t] = await tx.select().from(tenant).where(eq(tenant.id, access.tenantId));
   if (!t) throw problems.notFound();
-  const overrides = await tx.execute<{
-    flag_key: string;
-    location_id: string | null;
-    enabled: boolean;
-  }>(sql`SELECT flag_key, location_id, enabled FROM feature_flag WHERE deleted_at IS NULL`);
-  const flags = await c.get("services").flags.evaluateAll({
-    tenantId: access.tenantId,
-    locationId: null,
-    overrides: overrides.rows.map((r) => ({
-      flagKey: r.flag_key,
-      locationId: r.location_id,
-      enabled: r.enabled,
-    })),
-  });
+  const flags = await tenantFlags(c.get("services").flags, tx, access.tenantId);
   const config = await dpiaConfigFor(tx, t, flags);
-  return { tenantRow: t, draft: prefillDpia(config, now), basis: basisOf(config) };
-}
-
-async function versions(tx: Tx) {
-  const rows = await tx.select().from(dpia).orderBy(desc(dpia.dpiaVersion));
-  return {
-    open: rows.find((r) => r.status === "draft" || r.status === "prepared") ?? null,
-    signed: rows.find((r) => r.status === "signed") ?? null,
-  };
+  return { tenantRow: t, config, draft: prefillDpia(config, now), basis: basisOf(config) };
 }
 
 const IdParam = z.object({ id: z.uuid() });
@@ -132,24 +114,13 @@ export const dpiaRouter = createRouter()
       ]);
       const now = new Date();
       const body = await withTenant(c, async (tx) => {
-        const { tenantRow, draft, basis } = await currentPrefill(c, tx, access, now);
-        const { open, signed } = await versions(tx);
-        const months = await rateNumber(
+        const { tenantRow, draft, config } = await currentPrefill(c, tx, access, now);
+        const { open, signed, months, state, triggers } = await dpiaStateFor(
           tx,
           access.tenantId,
-          PLATFORM_RATE_KEYS.dpiaReviewIntervalMonths,
+          config,
+          now,
         );
-        const view = (r: DpiaRow | null) =>
-          r
-            ? {
-                status: r.status as "draft",
-                signedAt: r.signedAt,
-                basis: r.basis as DpiaBasis | null,
-              }
-            : null;
-        const { state, triggers } = dpiaState(view(signed), view(open), basis, now, {
-          dpiaReviewIntervalMonths: months,
-        });
         const names = await staffNames(
           tx,
           [open, signed].flatMap((r) => (r ? [...r.preparedBy, r.signedBy] : [])),

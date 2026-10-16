@@ -582,8 +582,19 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
 - Default taken (section 20 rule 2): decisions, including the clinical settings and the DCB0160
   record, are made by holders of `platform.onboarding.manage` (the owner), as section 3 says;
   whether the clinical ones need the clinical lead's own permission is for the CSO (H-122).
-- Next: `GET /v1/onboarding`, which works the checklist out from these records and the rest of
-  the organisation's state.
+- `GET /v1/onboarding` (`platform.onboarding.read` or `.manage`): the checklist from
+  `onboardingChecklist`, the safety case the DCB0160 assessment must cover, the staff file option
+  and the organisation record's version. The state (`services/onboarding.ts`) reads the records:
+  locations and their Registered Managers, members' roles and second factors, the rate table's
+  tenant defaults and the retention schedule against the decisions, the DPIA state (shared with
+  the DPIA routes: `dpiaStateFor`, `tenantFlags`), sub-processors in use, escalation chains,
+  validated tools (switched on at any location counts, HZ-014) against the policy links, each
+  current person's readiness, and the latest DCB0160 record. Not yet stored, so read plainly
+  rather than guessed done: sub-processor acknowledgements (rules 24 and 25; never done until
+  then, not a go-live item), device modes (no shared or kiosk device is registered yet), the
+  sample flag (rules 29 to 32), the opt-out check date (every current person counts as not
+  checked) and a recorded "no decision in place" resuscitation statement (only an active ReSPECT
+  or DNACPR record counts, so such a person stays outstanding).
 
 ## 11. Open questions
 

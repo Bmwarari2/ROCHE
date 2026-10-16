@@ -1,5 +1,6 @@
 import {
   Dcb0160Recording,
+  OnboardingChecklist,
   OnboardingDecisionRecorded,
   RetentionDecision,
   SettingDecision,
@@ -19,19 +20,22 @@ import {
   checkRetentionDecision,
   checkSettingDecision,
   type DecisionIssue,
+  onboardingChecklist,
   tenantDefaultRateKeys,
 } from "@harbour/domain";
 import { createRoute } from "@hono/zod-openapi";
 import { and, eq, isNull } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx, writeAudit } from "../http/audit";
-import { type AppEnv, requirePermission, withTenant } from "../http/context";
+import { type AppEnv, requireAnyPermission, requirePermission, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
+import { onboardingStateFor } from "../services/onboarding";
 import { conflictResponse, createRouter, errorResponses, jsonBody, security } from "./openapi";
 
 /**
- * The decisions the onboarding checklist needs (PLAT-018; platform-completions.md rules 26 and
- * 27). Recording a decision needs `platform.onboarding.manage`. Decisions are append-only records with who and when (migration
+ * The onboarding checklist and the decisions it needs (PLAT-018; platform-completions.md rules 26
+ * and 27). Reading needs `platform.onboarding.read` or `.manage`; recording a decision
+ * `platform.onboarding.manage`. Decisions are append-only records with who and when (migration
  * 0064), and a later change by Harbour reopens them because the checklist compares times. Every
  * decision is audited, refusals too.
  */
@@ -70,6 +74,56 @@ const decisionResponses = {
 };
 
 export const onboardingRouter = createRouter()
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/onboarding",
+      tags: ["platform"],
+      summary: "The organisation's onboarding checklist",
+      description:
+        "platform.onboarding.read or .manage. Every item worked out from the organisation's records (onboardingChecklist), with its reason, what is outstanding and whether it blocks go-live; the safety case the DCB0160 assessment must cover; the staff file option and the organisation record's version.",
+      security,
+      responses: { 200: jsonBody(OnboardingChecklist, "The checklist"), ...errorResponses },
+    }),
+    async (c) => {
+      const access = await requireAnyPermission(c, [
+        "platform.onboarding.read",
+        "platform.onboarding.manage",
+      ]);
+      const services = c.get("services");
+      const now = new Date();
+      const body = await withTenant(c, async (tx) => {
+        const [t] = await tx.select().from(tenant).where(eq(tenant.id, access.tenantId));
+        if (!t) throw problems.notFound();
+        const state = await onboardingStateFor(
+          tx,
+          {
+            flags: services.flags,
+            authPool: services.authPool,
+            safetyCaseVersion: services.config.SAFETY_CASE_VERSION,
+          },
+          t,
+          now,
+        );
+        const checklist = onboardingChecklist(state);
+        return {
+          ...checklist,
+          items: checklist.items.map(({ people, outstanding, ...item }) => ({
+            ...item,
+            outstanding: [...outstanding],
+            ...(people
+              ? { people: people.map((p) => ({ personId: p.personId, gaps: [...p.gaps] })) }
+              : {}),
+          })),
+          blockers: [...checklist.blockers],
+          currentSafetyCaseVersion: state.currentSafetyCaseVersion,
+          staffFileOption: t.staffFileOption as OnboardingChecklist["staffFileOption"],
+          version: t.version,
+        };
+      });
+      return c.json(body, 200);
+    },
+  )
   .openapi(
     createRoute({
       method: "post",
@@ -178,7 +232,7 @@ export const onboardingRouter = createRouter()
       tags: ["platform"],
       summary: "Choose how long staff files are kept",
       description:
-        "platform.onboarding.manage. One of the schedule's two staff file options, for all staff files. Send the organisation record's `version` as read (409 when stale). Audited (platform.retention.decided, with the option).",
+        "platform.onboarding.manage. One of the schedule's two staff file options, for all staff files. Send the organisation record's `version` from the checklist (409 when stale). Audited (platform.retention.decided, with the option).",
       security,
       request: { body: { content: { "application/json": { schema: StaffFileOptionChoice } } } },
       responses: {

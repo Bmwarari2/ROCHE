@@ -2404,3 +2404,15 @@ refusals and a new draft. Tests: the journey's third test (stale form, stale sav
 - Docs: platform-completions.md section 10e, feature register, STATUS.
 
 **Tests**: `apps/api/test/onboarding-decisions.test.ts` (10).
+
+## 2026-10-17: Slice 13, the onboarding checklist part 3, the checklist (PLAT-018)
+
+- API: `GET /v1/onboarding` works every item out from the organisation's records
+  (`services/onboarding.ts`), including people's readiness by person and the escalation policy
+  links for validated tools switched on anywhere (HZ-014); facts not yet stored are read plainly,
+  never guessed done (platform-completions.md section 10e). The DPIA state is shared with the
+  DPIA routes (`dpiaStateFor`, `tenantFlags`).
+- Docs: platform-completions.md section 10e, hazard log (HZ-001, HZ-014), H-163, feature
+  register, STATUS.
+
+**Tests**: `apps/api/test/onboarding.test.ts` (4).
