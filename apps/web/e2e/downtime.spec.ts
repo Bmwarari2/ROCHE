@@ -28,6 +28,8 @@ test.describe.configure({ mode: "serial" });
 const sessions: Record<string, Awaited<ReturnType<BrowserContext["cookies"]>>> = {};
 
 test.beforeAll(async ({ browser }, testInfo) => {
+  // Three sign-ins one after another: give the hook room beyond one test's default.
+  test.setTimeout(180_000);
   for (const user of ["nurse", "carer", "manager"]) {
     const context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
     await signIn(await context.newPage(), `${user}@example.invalid`);
