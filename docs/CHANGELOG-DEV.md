@@ -1693,3 +1693,20 @@ task the nightly job keeps open while the places are unconfirmed.
 - Docs: operations.md section 13, rates.md, HZ-021 rows, H-214, STATUS.
 
 **Tests**: `apps/api` `downtime.test.ts` 2 new and 2 rewritten; `packages/db` 1 new.
+
+## 2026-10-16: Invitation routes, API part (PLAT-004, STATUS item 20)
+
+- `POST /v1/invitations` (step-up), `GET /v1/invitations?tenantUserId=` and
+  `POST /v1/invitations/{id}/revoke`, all narrowed to the members `platform.user.manage` reaches
+  (#48 review), audited, refusals too.
+- `POST /v1/invitations/lookup` and `/accept` with no session: throttled per client address and
+  per token hash; the token goes to the definer functions only as a bound parameter; a sign-in is
+  created only when none exists for the address and is deleted if the acceptance fails.
+- `POST /operator/tenants/{id}/owner-invitation` sets `app.operator_id` and calls
+  `app.invite_first_owner`; the link is emailed through the organisation's `comms.email` adapter,
+  never queued.
+- Worker: nightly `invitation-sweep` (lapsed invitations, then unlinked sign-ins deleted through
+  the auth role).
+- Docs: platform.md (As built), HZ-011 rows, H-356 and H-357, records of processing, STATUS item 20.
+
+**Tests**: `apps/api` `invitations.test.ts` 20 new.
