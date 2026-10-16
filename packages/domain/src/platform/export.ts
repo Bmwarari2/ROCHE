@@ -44,6 +44,8 @@ export const EXPORT_MANIFEST_FILE = "manifest.json";
 export const EXPORT_DESTROYED_FILE = "destroyed.csv";
 export const EXPORT_CURRENT_SUMMARY_FILE = "current_summary.csv";
 export const EXPORT_DOCUMENTS_FOLDER = "documents/";
+/** The archive under the export's storage prefix (`exportStoragePrefix`). */
+export const EXPORT_ARCHIVE_FILE = "export.zip";
 /**
  * How long a storage URL minted for one download lasts: a technical constant, not a policy
  * figure. The URL is minted only after `checkExportDownload` passes (HZ-070).

@@ -2245,6 +2245,92 @@ manager is linked in the demo tenant (`scripts/demo-seed-guard.ts`, `test/demo-s
 and the domain rule, isolation, writes, withdrawals, assignments, constraints); the RLS coverage
 list.
 
+## 2026-10-17: The managers' team and invitation screens (PLAT-004)
+
+- Team in the navigation for holders of `platform.user.manage`: the members reached at the
+  chosen location with their state and latest invitation as an icon and a word; invite someone
+  (name, work address, role and where, checked with `CreateMember`); a member's invitations with
+  send again (still invited only) and withdraw (pending only), each after a confirmation.
+- Strings in en-GB; Welsh copied and listed as untranslated.
+- Docs: platform.md (As built), feature register, STATUS.
+
+**Tests**: `apps/web/src/lib/team.test.ts` (24); `apps/web/e2e/team.spec.ts` (4, axe on every
+state).
+
+## 2026-10-17: Slice 12 part 1, the family feed API (COMMS-001)
+
+- A member with a `family_portal_user` link is resolved as a portal session (portal roles only,
+  scope `none`, `app.family`).
+- API: `GET /v1/family/feed` (portal sessions only, a `feed_view` per entry, audit with ids only,
+  `no-store`); portal links (`GET`/`POST /v1/people/{id}/family-portal-links`, `.../revoke`);
+  `GET /v1/people/{id}/feed`; `POST /v1/feed-items/{id}/withdraw`.
+- Docs: comms.md section 11, HZ-022, the register, STATUS.
+
+**Tests**: `apps/api/test/family-feed.test.ts` (8).
+
+Review round 1 of #75 and #76: a feed closed by discharge or death reads exactly like one with no
+decision (no paused statement; H-110 asks the CSO about a closing message); linking needs the
+account's verified email to be the contact's (422 `account_not_contact`, audited); portal sessions
+always need MFA; `app.family_item_shown` locked down; parity cases for closed records, a welfare
+attorney and best interests; follow-ups in STATUS. Tests: API 10, db 28.
+
+## 2026-10-17: Slice 13 part 1, the full export's record and routes (PLAT-015)
+
+- Migration 0062: `tenant_export` (forced RLS, the owner and the worker only, one queued or
+  running export per organisation, a forward-only status guard, the single download by the
+  requester while ready) and the `platform.data.export` to `platform.export.create` rename in
+  role copies and grants, audited per tenant. Export catalogue entry for the new table.
+- API: `POST /v1/exports` (step-up; 202, or 200 with the one in hand), `GET /v1/exports`,
+  `POST /v1/exports/{id}/revoke` and `GET /v1/exports/{id}/download` (one fetch, recorded before
+  the bytes leave, then the archive deleted); audited. Storage keys may name an export archive.
+- Docs: platform-completions.md section 10a, data standards, records of processing, hazard log
+  HZ-070, feature register, STATUS.
+
+**Tests**: `packages/db/test/tenant-export.test.ts` (13); `apps/api/test/exports.test.ts` (9).
+
+## 2026-10-17: #77 review round 1 (the full export's routes)
+
+- The download opens the archive before claiming the single fetch, streams it from the exports
+  bucket (`S3_EXPORTS_BUCKET`, never the documents bucket), and the worker deletes it from the
+  outbox event, retried; cancelling deletes it the same way. The claim also requires `ready` and
+  an unexpired link, and a miss is said as already downloaded, cancelled or expired.
+- The storage port writes and reads streams (S3 multipart, one 8 MiB part in memory at most).
+- 0062: a ready export's archive, manifest, snapshot and expiry are frozen; the rename is limited
+  to organisation-wide roles and grants (the old name dropped elsewhere), each change audited.
+
+**Tests**: `apps/api/test/exports.test.ts` 4 new (concurrent downloads, a failed read leaves the
+fetch untaken, another holder, another organisation's id); `packages/db/test/tenant-export.test.ts`
+1 new and the grant rename; `config.test.ts` (`S3_EXPORTS_BUCKET` required in production).
+
+## 2026-10-17: Slice 13 part 2, the full export's worker (PLAT-015)
+
+- `runQueuedExports` builds each queued export as `harbour_app` in the organisation's context, in
+  one `REPEATABLE READ` read-only snapshot: every planned table (CSV and JSON Lines, through
+  cursors), the documents' bytes, `destroyed.csv`, `current_summary.csv`, `schema.json` and the
+  manifest, streamed as a ZIP into the exports bucket; ready (audited, the requester told by ids
+  only) or failed (audited, archive deleted, a security alarm for a foreign row).
+- `sweepExports` deletes archives past expiry and records it; an export left running is failed.
+- `ZipWriter`: streaming deflate with data descriptors and ZIP64 end records.
+- Docs: platform-completions.md section 10b, hazard log HZ-070 and HZ-071, records of processing,
+  feature register, STATUS.
+
+**Tests**: `apps/api/test/export-worker.test.ts` (10); `apps/api/test/zip-writer.test.ts` (6).
+
+## 2026-10-17: #78 review round 1 (the full export's worker)
+
+- A failed source or upload never hangs or crashes the worker: the ZIP writer reads and drains
+  together and stops both on a failure, waits on its reader only until it drains, closes or fails,
+  and never throws an unheard 'error'; the snapshot is rolled back and its connection released on
+  every failure, with idle-in-transaction and statement timeouts as backstops.
+- A cancelled export's archive is deleted; a failure is audited only when it ended an export, and
+  the requester is told by ids only. `worker.job.failed` on an incomplete export; a CloudWatch
+  alarm on `security.export.foreign_rows` (infra/modules/observability, on-call runbook).
+- `applyRequestContext`, `isUnderLegalHold`; destroyed document tombstones listed as destroyed;
+  `destroyed.csv` written row by row.
+
+**Tests**: `zip-writer.test.ts` 2 new (a failing source, a reader that stops);
+`export-worker.test.ts` 3 new (an upload failing partway or never starting, a cancel while built).
+
 ## 2026-10-17: Slice 11 web part 1, letter and email templates (COMMS-007)
 
 - `/letters`: the templates with the version in use and any draft; a "Letters" side bar link for
@@ -2257,3 +2343,9 @@ list.
 
 **Tests**: `apps/web/src/lib/letters.test.ts` (11); `apps/web/e2e/letter-templates.spec.ts` (2, axe
 on every state).
+
+Review round 1 of #79: the draft form is keyed on the draft's version (after anyone's save it shows
+the stored words); an approver sees the stored words read-only beside Approve and edits behind "Edit
+draft"; every counted problem is listed with a link to its field (a channel problem by the fixed
+channel) and shown read-only too; `done` and `at` come off the address once said; axe after both
+refusals and a new draft. Tests: the journey's third test (stale form, stale save, stale approval).
