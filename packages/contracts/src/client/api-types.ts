@@ -19982,7 +19982,7 @@ export interface paths {
     put?: never;
     /**
      * Announce a new or replacement sub-processor (admins, fresh sign-in)
-     * @description Works out which organisations the change affects from their configuration, refuses an effective date before the longest of their notice periods (422 notice_too_short, with the earliest date), stores the notice and tells each affected organisation's data protection lead (or its owners), recording the announcement in its audit trail.
+     * @description Works out which organisations the change affects from their configuration (every organisation not closed, suspended ones included), refuses an effective date before the longest of their notice periods (422 notice_too_short, with the earliest date), then through app.announce_sub_processor_notice stores the notice and, for each affected organisation, its audit event and an outbox event the worker turns into a notification to its lead (or owners).
      */
     post: {
       parameters: {
@@ -20052,7 +20052,7 @@ export interface paths {
     put?: never;
     /**
      * Record how an organisation's objection to a notice was resolved (admins, fresh sign-in)
-     * @description Only while the organisation has an open objection to the notice (409 no_open_objection otherwise). Withdrawn lets the sub-processor process its data; not used for it, or services ended, never does (mayProcessTenantData). Append-only; the organisation's lead is told and its audit trail records it.
+     * @description Through app.resolve_sub_processor_objection, only while the organisation has an open objection to the notice (409 no_open_objection otherwise). Withdrawn lets the sub-processor process its data; not used for it, or services ended, never does (mayProcessTenantData). Append-only; the organisation's audit trail records it and the worker tells its lead.
      */
     post: {
       parameters: {
