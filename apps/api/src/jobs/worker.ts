@@ -3,6 +3,7 @@ import { PgBoss } from "pg-boss";
 import { loadConfig } from "../config";
 import { createAdapterResolver } from "../integrations/registry";
 import { createLogger, idleErrorLogger } from "../logger";
+import { sweepInvitations } from "../services/invitations";
 import { runJob } from "./run-job";
 import {
   buildDowntimePacks,
@@ -37,6 +38,8 @@ const workerPool = createPool(
   idleErrorLogger(logger, "worker"),
 );
 const appPool = createPool(config.DATABASE_APP_URL, { max: 4 }, idleErrorLogger(logger, "app"));
+// The auth role, only to delete sign-ins an invitation's acceptance left unlinked (#48 review H1).
+const authPool = createPool(config.DATABASE_AUTH_URL, { max: 1 }, idleErrorLogger(logger, "auth"));
 const deps = { workerPool, appDb: createDatabase(appPool), logger };
 
 /** Module handlers subscribe to outbox events here as modules land (Phase 1 onwards). */
@@ -64,6 +67,7 @@ const QUEUES = {
   taskEscalationRetries: "task-escalation-retries",
   unroutedReport: "unrouted-daily-report",
   downtimePacks: "downtime-packs",
+  invitations: "invitation-sweep",
 } as const;
 
 for (const name of Object.values(QUEUES)) await boss.createQueue(name);
@@ -127,6 +131,9 @@ await work(QUEUES.unroutedReport, async () => {
 await work(QUEUES.downtimePacks, async () => {
   await buildDowntimePacks(deps);
 });
+await work(QUEUES.invitations, async () => {
+  await sweepInvitations({ workerPool, appPool, authPool, logger });
+});
 
 // Every minute: escalations are measured in minutes (section 9.1, e.g. on-call after 10 minutes).
 await boss.schedule(QUEUES.outbox, "* * * * *");
@@ -161,12 +168,14 @@ await boss.schedule(QUEUES.unroutedReport, "47 6 * * *");
 // Nightly, and again every hour as a catch-up: each location gets one nightly downtime pack per UK
 // night, so a failed run is retried and a run that already built it does nothing (rule 8, HZ-021).
 await boss.schedule(QUEUES.downtimePacks, "23 * * * *");
+// Nightly: lapsed invitations are revoked (clearing the address) and unlinked sign-ins deleted.
+await boss.schedule(QUEUES.invitations, "17 3 * * *");
 
 logger.info("Harbour worker started");
 
 const shutdown = async () => {
   await boss.stop({ graceful: true });
-  await Promise.all([workerPool.end(), appPool.end()]);
+  await Promise.all([workerPool.end(), appPool.end(), authPool.end()]);
   process.exit(0);
 };
 process.on("SIGTERM", shutdown);

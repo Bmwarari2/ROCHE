@@ -11,7 +11,10 @@ import { type AppEnv, type Services, sessionMiddleware, tenantMiddleware } from 
 import { HttpProblem, problemResponse, problems } from "./http/problem";
 import { QuotaExceeded } from "./http/quota";
 import { RateLimiter } from "./http/rate-limit";
+import { MemoryThrottle } from "./http/throttle";
+import { MockEmail, MockPush, MockSms } from "./integrations/adapters";
 import { createDocumentServices } from "./integrations/documents";
+import { createAdapterResolver } from "./integrations/registry";
 import { idleErrorLogger, type Logger } from "./logger";
 import { breakGlassReportRouter } from "./routes/break-glass-report";
 import { careRouter } from "./routes/care";
@@ -23,12 +26,14 @@ import { documentsRouter } from "./routes/documents";
 import { handoversRouter } from "./routes/handovers";
 import { incidentsRouter } from "./routes/incidents";
 import { integrationsRouter, supportAccessRouter } from "./routes/integrations";
+import { invitationsRouter } from "./routes/invitations";
 import { mcaRouter } from "./routes/mca";
 import { membershipsRouter, meRouter } from "./routes/me";
 import { memberSessionsRouter } from "./routes/member-sessions";
 import { createRouter } from "./routes/openapi";
 import { operationsRouter } from "./routes/operations";
 import { operatorMiddleware, operatorRouter } from "./routes/operator";
+import { operatorInvitationsRouter } from "./routes/operator-invitations";
 import { peopleRouter } from "./routes/people";
 import { peopleExitRouter } from "./routes/people-exit";
 import { peopleLifecycleRouter } from "./routes/people-lifecycle";
@@ -57,7 +62,13 @@ const MAX_UPLOAD_BYTES = 26 * 1024 * 1024;
 export const SYNC_MAX_BODY_BYTES = 64 * 1024;
 
 /** Routes that need a session but not yet a chosen tenant, or no session at all. */
-const TENANTLESS = new Set(["/v1/memberships", "/v1/sync/jwks"]);
+const TENANTLESS = new Set([
+  "/v1/memberships",
+  "/v1/sync/jwks",
+  // An invitation link is opened and accepted before the person belongs to the organisation.
+  "/v1/invitations/lookup",
+  "/v1/invitations/accept",
+]);
 /** Identity-level routes: the person's own devices, whatever organisation they work in. */
 const isTenantless = (path: string) => TENANTLESS.has(path) || path.startsWith("/v1/me/sessions");
 
@@ -80,6 +91,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     { max: 3 },
     idleErrorLogger(logger, "operator"),
   );
+  const mocks = { email: new MockEmail(), sms: new MockSms(), push: new MockPush() };
   const services: Services = {
     config,
     logger,
@@ -100,6 +112,12 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       config.HANDOVER_COMPILE_REQUESTS_PER_MINUTE,
       60_000,
     ),
+    adapterFor: createAdapterResolver({ production: config.NODE_ENV === "production", mocks }),
+    mockEmail: mocks.email,
+    invitationThrottles: {
+      address: new MemoryThrottle(config.INVITATION_REQUESTS_PER_MINUTE_PER_ADDRESS, 60_000),
+      token: new MemoryThrottle(config.INVITATION_REQUESTS_PER_MINUTE_PER_TOKEN, 60_000),
+    },
   };
   const signer = new SyncTokenSigner(config.SYNC_SIGNING_KEY_ID, config.SYNC_SIGNING_KEY_PEM);
 
@@ -177,6 +195,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", meRouter);
   app.route("/", sessionsRouter);
   app.route("/", memberSessionsRouter);
+  app.route("/", invitationsRouter);
   app.route("/", peopleRouter);
   app.route("/", peopleLifecycleRouter);
   app.route("/", peoplePropertyRouter);
@@ -207,6 +226,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", integrationsRouter);
   app.route("/", supportAccessRouter);
   app.route("/", operatorRouter);
+  app.route("/", operatorInvitationsRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
     type: "http",

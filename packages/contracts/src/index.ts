@@ -489,6 +489,7 @@ export * from "./devices";
 export { DeviceDeletionFlag } from "./entries";
 export * from "./escalation-policy";
 export * from "./handover";
+export * from "./invitations";
 export * from "./mca";
 export * from "./operations";
 export * from "./people";
