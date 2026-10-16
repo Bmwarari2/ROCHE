@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { classifyInbound, deliveryOutcome, outboundTitleProblem } from "./ports";
+import {
+  classifyInbound,
+  deliveryOutcome,
+  outboundBodyProblem,
+  outboundTitleProblem,
+} from "./ports";
 
 describe("outboundTitleProblem (no personal data leaves Harbour)", () => {
   it.each([
@@ -56,5 +61,20 @@ describe("classifyInbound", () => {
       status: "quarantined",
       problems: [{ path: "amount", message: "Required" }],
     });
+  });
+});
+
+describe("outboundBodyProblem (an email body carries no link and no NHS number)", () => {
+  it.each([
+    ["Your code is 123456.", null],
+    ["Dear Eve Example,\n\nYour fee changes on 01/11/2026.", null],
+    ["Open https://evil.example.invalid now", "Body contains a link."],
+    ["See www.example.invalid", "Body contains a link."],
+    ["NHS number 999 123 4567", "Body looks like it contains an NHS number."],
+    ["Call the home on 01632 960000.", null],
+    ["NHS number 999-123-4567", "Body looks like it contains an NHS number."],
+    ["Write to mailto:someone@example.invalid", "Body contains a link."],
+  ])("%s", (body, expected) => {
+    expect(outboundBodyProblem(body)).toBe(expected);
   });
 });

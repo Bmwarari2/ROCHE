@@ -5,6 +5,7 @@ import {
   type EmailPort,
   type HealthResult,
   type OutboundMessage,
+  outboundBodyProblem,
   outboundTitleProblem,
   type PortMap,
   type PortName,
@@ -155,7 +156,11 @@ export function guarded<
     provider: adapter.provider,
     health: () => adapter.health(),
     send: async (message: M) => {
-      const problem = outboundTitleProblem(message.title);
+      const problem =
+        outboundTitleProblem(message.title) ??
+        ("body" in message && typeof message.body === "string"
+          ? outboundBodyProblem(message.body)
+          : null);
       if (problem) return { ok: false, retryable: false, error: `Refused: ${problem}` };
       const previous = seen.get(message.idempotencyKey);
       if (previous?.ok) return previous;
