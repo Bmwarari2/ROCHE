@@ -2446,3 +2446,19 @@ CSO. Tests: `feed-publish.test.ts` 14.
   register, STATUS.
 
 **Tests**: `apps/api/test/onboarding.test.ts` (4).
+
+## 2026-10-17: Onboarding checklist, security review of #84 to #86
+
+- Fail closed: device modes and sample data are unknown until Harbour records them, so their
+  go-live items stay open (H1); members count by their own status (an invited member has not
+  joined); the latest retention decision per class stands.
+- `SAFETY_CASE_VERSION` is required in production, passed by Terraform (CI derives it from the
+  newest safety case report), and a test checks the default names a report.
+- Docs: one row each for the onboarding decisions in the records of processing and data
+  standards; STATUS notes `holds_permission_anywhere`; H-122 keeps the interim default (the
+  owner decides the clinical settings and the DCB0160 assessment) with the suggestion of a
+  dedicated clinical permission and step-up; the staff file reopening is an open question.
+
+**Tests**: `onboarding.test.ts` (unknown items and the latest decision, 3 more cases);
+`apps/api/test/onboarding.test.ts` (fail closed, invited members, another organisation's
+decisions); `config.test.ts` (`SAFETY_CASE_VERSION`).

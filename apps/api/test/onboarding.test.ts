@@ -42,6 +42,23 @@ const checklist = async (who = "owner") =>
   (await (await h.request("/v1/onboarding", as(who))).json()) as Checklist;
 const item = async (key: string) => (await checklist()).items.find((i) => i.key === key) as Item;
 
+/** Runs SQL as the owner role within an organisation, committed. */
+async function ownerIn(tenant: string, text: string, values: unknown[] = []) {
+  const client = await h.db.pool("harbour_owner").connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT set_config('app.tenant_id', $1, true)", [tenant]);
+    const result = await client.query<{ id: string }>(text, values);
+    await client.query("COMMIT");
+    return result.rows;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 describe("rule 26 the onboarding checklist, worked out from state", () => {
   it("lists every item from the organisation's records, for those who may read it", async () => {
     const list = await checklist();
@@ -57,6 +74,53 @@ describe("rule 26 the onboarding checklist, worked out from state", () => {
     expect((await h.request("/v1/onboarding", as("manager"))).status).toBe(200);
     expect((await h.request("/v1/onboarding", as("carer"))).status).toBe(403);
     expect((await h.request("/v1/onboarding", as("owner", OTHER.tenantId))).status).toBe(403);
+  });
+
+  it("keeps open the go-live items Harbour cannot check yet (fail closed)", async () => {
+    for (const key of ["shared_devices_enrolled", "sample_data_removed"]) {
+      const open = await item(key);
+      expect(open.done).toBe(false);
+      expect(open.reason).toContain("does not record this yet");
+    }
+    expect((await checklist()).blockers).toEqual(
+      expect.arrayContaining(["shared_devices_enrolled", "sample_data_removed"]),
+    );
+  });
+
+  it("counts only members who have joined: an invited member is not staff yet", async () => {
+    const invited = await ownerIn(
+      DEMO.tenantId,
+      `UPDATE tenant_user SET status = 'invited' WHERE status = 'active' AND id <> $1 RETURNING id`,
+      [DEMO.users.owner.id],
+    );
+    try {
+      expect(invited.length).toBeGreaterThan(0);
+      const users = await item("first_users_with_mfa");
+      expect(users.done).toBe(false);
+      expect(users.reason).toBe("No one other than the owner has joined yet.");
+    } finally {
+      await ownerIn(DEMO.tenantId, "UPDATE tenant_user SET status = 'active' WHERE id = ANY($1)", [
+        invited.map((r) => r.id),
+      ]);
+    }
+  });
+
+  it("never lets another organisation's decisions close this one's items", async () => {
+    const key = (await item("rates_reviewed")).outstanding[0] ?? "";
+    await ownerIn(
+      OTHER.tenantId,
+      `INSERT INTO tenant_setting_decision (rate_key, kind, decided_by, created_by)
+       VALUES ($1, 'accepted', $2, $2)`,
+      [key, OTHER.managerId],
+    );
+    await ownerIn(
+      OTHER.tenantId,
+      `INSERT INTO dcb0160_record (safety_case_version, recorded_by, created_by)
+       VALUES ('v0.0', $1, $1)`,
+      [OTHER.managerId],
+    );
+    expect((await item("rates_reviewed")).outstanding).toContain(key);
+    expect((await item("dcb0160_recorded")).done).toBe(false);
   });
 
   it("closes each item a decision answers, and only that one", async () => {

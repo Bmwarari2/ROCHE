@@ -47,6 +47,11 @@ variable "extra_tags" {
   default     = {}
 }
 
+variable "safety_case_version" {
+  description = "Harbour's clinical safety case the release runs under (docs/clinical-safety/safety-case/)."
+  type        = string
+}
+
 variable "domain_name" {
   description = "Base domain for this environment; hosts are app., api., sync. and flags. under it."
   type        = string

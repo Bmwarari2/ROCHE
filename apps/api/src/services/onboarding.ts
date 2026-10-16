@@ -40,7 +40,8 @@ import { roleHolders, roleInForce } from "./role-holders";
  * 26 and 27; `onboardingChecklist`). Everything comes from records, never a box ticked. Where the
  * schema does not hold a fact yet, the state says so plainly rather than guessing done:
  * sub-processor acknowledgements arrive with the notices (rules 24 and 25), device modes and
- * device management with the kiosk work, the sample flag with sample data mode (rules 29 to 32),
+ * device management with the kiosk work, the sample flag with sample data mode (rules 29 to 32)
+ * (both unknown until then, so their go-live items stay open),
  * and the opt-out check date with the people module, so until then every current person counts as
  * not checked, and a recorded "no decision in place" resuscitation statement counts only once the
  * care module stores one.
@@ -214,7 +215,7 @@ export async function onboardingStateFor(
       const held = roles.filter((r) => r.tenantUserId === m.id);
       return {
         id: m.id,
-        status: m.status as "active",
+        status: m.status as OnboardingState["users"][number]["status"],
         owner: held.some((r) => r.key === "owner"),
         readsCareRecords: held.some((r) =>
           r.permissions.some((p) => touchesCareRecords(p as Permission)),
@@ -255,8 +256,9 @@ export async function onboardingStateFor(
       usesDataBeyondDirectCare: t.usesDataBeyondDirectCare,
       peopleNotChecked: people.length,
     },
-    sampleDataPresent: false,
-    devices: [],
+    // Not recorded yet: unknown, so these go-live items stay open (fail closed).
+    sampleDataPresent: null,
+    devices: null,
     escalationChains: chains.map((c) => ({ key: c.key, steps: c.steps as EscalationStep[] })),
     validatedTools: validatedToolsWithLinks(tools, await escalationLinks(tx), activeLocationIds),
     people: people.map((p) => ({
