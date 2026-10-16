@@ -230,6 +230,21 @@ only when they link spec, code, tests and user documentation; no user guides exi
      which belongs to the care correction routes. Follow-ups: the late flag still reads the
      rate in the database without saying when `care_note.late_entry_hours` is missing (#32
      round 2); the back-entry task's title is English only.
+   - Slice 11 part 3d, back-entry through the care routes (`feat/operations-back-entry-api`;
+     operations.md section 14): built, PR open. Back-entry and rule 13 on the five care write
+     routes, the refusal after reconciliation (H-204), one correction per paper record with a
+     device's second going to the refused-entry review (HZ-006), and the outside-the-outage
+     reason on a correction after the true end (H-208). The sync upload writes no care tables,
+     so needs no change. Also a test that a closed outage's end cannot be corrected past its
+     closure plus `sync.clock_drift_flag_minutes` (#51 round 2). Follow-ups:
+     - back-entry fields in the sync streams and on the phone (mobile step, Lane C), and the web
+       forms (rule 12 label on the record);
+     - an entry not from paper for a time inside a reconciled outage is refused (H-216); a
+       device's copy reaches the review only through the device;
+     - the paper time must equal `occurredAt`: a client sending a different instant is refused,
+       never moved;
+     - a correction of a back-entry about someone who has since moved is refused by the database
+       (the outage is at the old location; existing #38 follow-up).
    - Follow-ups from #51 review round 1:
      - a declared outage left open has no SLA or reminder (CSO to decide, H-215);
      - prove by a test that the reconciliation's output about people outside the reconciler's

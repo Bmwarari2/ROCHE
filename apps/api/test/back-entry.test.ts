@@ -283,17 +283,13 @@ describe("hazard HZ-017 back-entry refusals in words", () => {
 
   it("hazard HZ-017 a reconciled outage takes no new paper records, and says to give the form to the Registered Manager (H-204)", async () => {
     const earlier = await declare(ago(30 * HOUR), ago(29 * HOUR));
-    const closed = await as("manager", `/v1/outages/${earlier.id}/close`, {
-      method: "POST",
-      body: { endedAt: ago(29 * HOUR).toISOString(), version: earlier.version },
-    });
-    expect(closed.status).toBe(200);
+    // Declared after it ended, it is closed at once.
     const reconciled = await as("owner", `/v1/outages/${earlier.id}/reconcile`, {
       method: "POST",
       body: {
         statement: "No paper forms were used",
         reviewedEntryIds: [],
-        version: ((await closed.json()) as Outage).version,
+        version: earlier.version,
       },
     });
     expect(reconciled.status).toBe(200);
@@ -409,5 +405,38 @@ describe("hazard HZ-017 hazard HZ-006 corrections of paper records", () => {
     expect(((await explained.json()) as Entry).backEntry).toMatchObject({
       outsideOutageReason: "Form dated after the power came back",
     });
+  });
+});
+
+describe("hazard HZ-017 correcting a closed outage (#51 review round 2)", () => {
+  it("hazard HZ-017 cannot move a closed outage's end past its closure plus sync.clock_drift_flag_minutes", async () => {
+    const [rate] = await sql<{ value: string }>(
+      "SELECT value FROM rate_table WHERE key = 'sync.clock_drift_flag_minutes' AND tenant_id IS NULL ORDER BY valid_from DESC LIMIT 1",
+    );
+    const drift = Number(rate?.value) * MINUTE;
+    // Declared after it ended, so closed at once (the window after the H-208 test's outage).
+    const ended = await declare(ago(20 * MINUTE), ago(10 * MINUTE));
+    const [row] = await sql<{ closed_at: Date }>("SELECT closed_at FROM outage WHERE id = $1", [
+      ended.id,
+    ]);
+    const closed = new Date(row?.closed_at ?? 0).getTime();
+    const correct = (endedAt: number) =>
+      as("manager", `/v1/outages/${ended.id}/correct`, {
+        method: "POST",
+        body: {
+          startedAt: ago(20 * MINUTE).toISOString(),
+          endedAt: new Date(endedAt).toISOString(),
+          reason: "The end was typed wrongly",
+          version: ended.version,
+        },
+      });
+    const past = await correct(closed + drift + 2 * MINUTE);
+    expect(past.status).toBe(422);
+    expect(((await past.json()) as { detail: string }).detail).toMatch(
+      /The outage cannot end after it was closed/,
+    );
+    // Within the clock tolerance of the closure, a slightly fast clock's end is taken.
+    const within = await correct(closed + drift - MINUTE);
+    expect(within.status).toBe(200);
   });
 });

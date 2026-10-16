@@ -1713,3 +1713,19 @@ the closure plus the clock-drift allowance; outages are locked before each chang
 correct are published; another home's outage is not found and audited as denied; the reconciliation
 selects only the columns it needs; `withTenantWideScope` restores the scope in a `finally`. Tests:
 3 new, 2 extended.
+
+## 2026-10-16: Slice 11 part 3d, back-entry through the care routes (OPS-028)
+
+Stacked on part 3c, then merged with main after #51 (operations.md section 14): the five care write
+routes take a back-entry (outage, paper date and time as written, occurrence, outside reason,
+reference) or a reason an entry is not from paper, and return the back-entry with its label.
+
+- Rule 13 on every route; a reconciled outage refuses new paper records (H-204 words); one
+  correction per paper record, a device's second kept for the refused-entry review (HZ-006); the
+  outside-the-outage reason on a correction after the true end (H-208 words); the database's
+  refusals in words; audit events carry the outage id.
+- Contracts `BackEntryInput`, `EntryBackEntry`, `EntryNotFromPaper`; `openapi.json` and the client
+  regenerated. The refused-copy daily limit is shared (`refusedCopyQuota`).
+- Docs: operations.md section 14, HZ-017 and HZ-006 rows, H-216, STATUS.
+
+**Tests**: `apps/api` `back-entry.test.ts`, 19 new (including the #51 round 2 closure test).
