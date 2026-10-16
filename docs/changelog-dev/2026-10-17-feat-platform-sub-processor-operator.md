@@ -38,3 +38,5 @@ Branch `feat/platform-sub-processor-operator`, PR #95.
   outbox; the caller from `app.operator_id`; execute rights set before the owner change (PUBLIC
   could run the functions before); no `record_version` grant; more tests. Renumbered to 0067 for
   #91's 0066.
+- Round 2: a resolution's notification is keyed on its response id, so a second objection
+  resolved after an earlier resolution is told too (test added).

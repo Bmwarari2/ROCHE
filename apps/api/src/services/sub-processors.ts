@@ -44,8 +44,8 @@ const TOLD: Readonly<Record<string, string>> = {
 /**
  * Tells the organisation's data protection lead (its owners when none is named) about a notice
  * or a resolution, from the outbox event its definer function wrote. Idempotent: each recipient's
- * notification has a dedupe key from the event and the notice, so a retried event tells no one
- * twice. A generic title; the page says the rest.
+ * notification has a dedupe key from the event and the notice (a resolution: its response id, so
+ * a second objection's resolution is told too), so a retried event tells no one twice. A generic title; the page says the rest.
  */
 export async function tellAboutNotice(
   tx: Transaction,
@@ -53,6 +53,8 @@ export async function tellAboutNotice(
   eventType: string,
   noticeId: string,
   now: Date,
+  /** The resolution's response id: each resolution is told, a later one after an earlier one. */
+  responseId: string | null = null,
 ): Promise<void> {
   const title = TOLD[eventType];
   if (!title) return;
@@ -73,7 +75,7 @@ export async function tellAboutNotice(
         channels: ["in_app", "email"],
         sourceType: "sub_processor_notice",
         sourceId: noticeId,
-        dedupeKey: `${eventType}:${noticeId}`,
+        dedupeKey: `${eventType}:${responseId ?? noticeId}`,
       })
       .onConflictDoNothing();
   }

@@ -700,10 +700,12 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
     "platform.sub_processor.objection_resolved",
   ]) {
     handlers.set(type, async (event) => {
-      const noticeId = (event.payload as { noticeId?: unknown } | null)?.noticeId;
+      const payload = event.payload as { noticeId?: unknown; responseId?: unknown } | null;
+      const noticeId = payload?.noticeId;
       if (typeof noticeId !== "string") return;
+      const responseId = typeof payload?.responseId === "string" ? payload.responseId : null;
       await inTenant(event.tenantId, (tx) =>
-        tellAboutNotice(tx, event.tenantId, event.eventType, noticeId, new Date()),
+        tellAboutNotice(tx, event.tenantId, event.eventType, noticeId, new Date(), responseId),
       );
     });
   }

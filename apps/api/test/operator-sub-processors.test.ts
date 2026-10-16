@@ -191,6 +191,21 @@ describe("rules 24 and 25, Thapsus's side", () => {
       [noticeId],
     );
     expect(resolvedTold.map((r) => r.who)).toEqual([DEMO.users.owner.id]);
+    // A second objection, resolved after the first resolution, is told too (rule 25).
+    const again = await h.request(`/v1/sub-processor-notices/${noticeId}/object`, {
+      method: "POST",
+      body: { grounds: "We have reviewed the change again and still object to it." },
+      token: h.tokens.owner,
+      tenant: DEMO.tenantId,
+    });
+    expect(again.status).toBe(201);
+    expect((await resolve(DEMO.tenantId, "not_used_for_tenant")).status).toBe(201);
+    await relay();
+    const toldTwice = await ownerIn(
+      "SELECT count(*)::int AS n FROM notification WHERE kind = 'platform.sub_processor.objection_resolved' AND source_id = $1",
+      [noticeId],
+    );
+    expect(toldTwice[0]?.n).toBe(2);
     const state = (await (
       await h.request("/v1/sub-processors", { token: h.tokens.owner, tenant: DEMO.tenantId })
     ).json()) as { notices: { id: string; state: string }[] };
@@ -202,6 +217,7 @@ describe("rules 24 and 25, Thapsus's side", () => {
     );
     expect(trail.map((e) => e.action)).toEqual([
       "platform.sub_processor.objection_read",
+      "platform.sub_processor.objection_resolved",
       "platform.sub_processor.objection_resolved",
     ]);
     for (const e of trail) expect(String(e.scope)).not.toContain("DPIA does not cover");
