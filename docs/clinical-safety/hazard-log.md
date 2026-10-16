@@ -61,8 +61,10 @@
 | [HZ-071](#hz-071-full-tenant-export-incomplete-or-misread-when-a-provider-changes-system) | Full tenant export incomplete or misread when a provider changes system | Catastrophic / Medium / 4 | Catastrophic / Very low / 3 (4 until the CSO accepts, H-119) | Open | None (Phase 1) | Phase 1, Phase 2 |
 | [HZ-072](#hz-072-sample-data-mistaken-for-or-mixed-with-real-records) | Sample data mistaken for, or mixed with, real records | Considerable / Medium / 3 | Considerable / Low / 2 | Open | None (Phase 1) | Phase 1 |
 | [HZ-073](#hz-073-safety-work-or-essential-information-hidden-from-the-person-who-must-act-because-of-their-access-scope) | Safety work or essential information hidden from the person who must act because of their access scope | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-169) | Open | None (Phase 1) | Phase 1 |
+| [HZ-080](#hz-080-a-revised-statement-of-purpose-not-sent-to-cqc-in-time) | A revised statement of purpose not sent to CQC in time | Minor / Medium / 2 | Minor / Low / 1 | Open | None (Phase 1) | Phase 1 |
 | [HZ-090](#hz-090-an-incident-form-records-an-assumed-answer-or-asks-a-notification-question-in-other-words) | An incident form records an assumed answer, or asks a notification question in other words | Major / Low / 3 | Major / Very low / 2 (engineering proposal; the CSO rates it, H-261) | Open | None (Phase 1) | Phase 1 |
 | [HZ-091](#hz-091-an-incident-is-closed-or-a-notification-recorded-as-submitted-or-not-required-on-a-wrong-or-stale-page) | An incident is closed, or a notification recorded as submitted or not required, on a wrong or stale page | Major / Low / 3 | Major / Very low / 2 (engineering proposal; the CSO rates it, H-265) | Open | None (Phase 1) | Phase 1 |
+| [HZ-092](#hz-092-paper-records-confirmed-as-reviewed-at-reconciliation-without-being-found) | Paper records confirmed as reviewed at reconciliation without being found | Considerable / Medium / 3 | Considerable / Low / 2 (engineering proposal; the CSO rates it, H-267) | Open | None (Phase 1) | Phase 1 |
 | [HZ-110](#hz-110-a-server-side-sign-out-clears-a-carers-offline-records-during-a-shift) | A server-side sign-out clears a carer's offline records during a shift | Major / Low / 3 | Major / Very low / 2 (engineering proposal; the CSO rates it, H-351) | Open | None (Phase 1) | Phase 1 |
 | [HZ-111](#hz-111-a-browser-idle-timeout-loses-an-unsaved-care-entry) | A browser idle timeout loses an unsaved care entry | Major / Medium / 3 | Major / Very low / 2 (engineering proposal; the CSO decides, H-353) | Open | None (Phase 1) | Phase 1 |
 | [HZ-112](#hz-112-care-records-opened-without-a-second-factor-or-staff-shut-out-of-them-when-the-rule-tightens) | Care records opened without a second factor, or staff shut out of them when the rule tightens | Major / Medium / 3 | Major / Low / 3, then Very low / 2 with the mobile control (engineering proposal; the CSO decides, H-358) | Open | None (Phase 1) | Phase 1 |
@@ -1348,6 +1350,8 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | Design | In the database (`app.entry_outage_guard`, `app.outage_guard`, migration 0053; #38 review round 1): a back-entry's time is the instant its paper date and time give in UK time (the occurrence chosen in the repeated hour, never the skipped hour); a time outside the outage window `[start, end)` needs a reason, checked on every entry; a cancelled outage takes no entries and a reconciled one only corrections of entries citing it, back-entries or not from paper (#38 review round 2: a wrong value is always correctable); a back-entry is corrected once, a further correction superseding the correction, so each paper record has one current version, and the outage is locked for share so a cancel or reconciliation at the same moment waits and counts the entry; a correction stays a back-entry of the same outage, and cannot make an entry not entered from paper a back-entry; superseded entries do not count for the cancel and window checks; the reconciler entered and sent none of the original back-entries; closing may set the true end before back-entries already entered, and reconciliation then waits until each one outside the window with no reason has been reviewed (H-207); a correction of the start or end may not leave outside a back-entry that was inside | Built in Phase 1 (slice 11 part 2) |
 | Design | Possible duplicates (`possibleDuplicateBackEntries`, `checkOutageReconciliation`): entries for the same person and kind within `downtime.duplicate_match_minutes` of each other are grouped, paper against paper and paper against digital, unless their form references differ; an outage cannot be reconciled until each group is reviewed and a manager says what was checked; the reconciler cannot be anyone who entered records for that outage; the summary counts forms entered and entries without a form reference; overdue back-entry escalates after `downtime.back_entry_due_hours` (operations.md rules 10 and 14) | Phase 1 (domain rules built, slice 11) |
 | Design | A task done or not done on the phone is recorded as completed when the move reaches Harbour, not when the care was given: the phone keeps the move's device time in its own row only, which errs towards a task looking late in the meantime, never on time when it was not. Taking the time of care from the phone needs task columns for the time of care, the time received and a late flag (a migration), a late label wherever the task shows, a lower bound at the task's creation or its window, and a rule for which shift's handover the outcome belongs to (STATUS item 15 follow-up; CSO decision H-309) | Open (Phase 1 slice 10 part 2) |
+| Design | On the web (slice 11 web, `feat/web-downtime`): a back-entered note, observation, body map mark, activity or visit shows "Entered from a paper record" (icon and words) with the API's label wherever its entry badges appear (`EntryBadges`), or, when the reader cannot see the outage, the date and time written on the paper; an entry written later and not from paper shows "Written later, not from paper" with its reason, beside the late-entry flag | Built in Phase 1 (slice 11 web) |
+| Design | On the web, the outage page offers closing, correcting (with a reason), cancelling (with a reason) and reconciling only in the state the API accepts and only to holders of `operations.downtime.manage` who work at the location; nothing is chosen for the person (no time is filled in); reconciling asks the manager to tick each possible duplicate group and each back-entry outside the window with no reason, and to say what was checked, and shows the API's blockers in its words; a manager who entered or sent a paper record is told someone else must reconcile (H-203). Entries are listed by reference only, as the API returns ids (HZ-092) | Built in Phase 1 (slice 11 web) |
 
 **Target residual risk**: severity Considerable, likelihood Low, **risk 2**.
 
@@ -1377,6 +1381,8 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | `apps/api/test/back-entry.test.ts`: `hazard HZ-017 a back-entry through %s keeps the paper time and shows the label` (each of the five routes, audited with the outage id); `hazard HZ-017 through %s, an entry written later for a time inside an outage says whether it is from paper` (rule 13 on each route; written at the time offline is ordinary); `hazard HZ-017 refuses ...` (an unknown outage, a paper time outside with no reason, an entry time not the paper time, the skipped spring hour, a reason not from paper on a paper record); `hazard HZ-017 a reconciled outage takes no new paper records ... (H-204)`; `hazard HZ-017 asks for an outside-the-outage reason when correcting a paper record after the true end (H-208)`; `hazard HZ-017 cannot move a closed outage's end past its closure plus sync.clock_drift_flag_minutes` | Passing (Phase 1, slice 11 part 3d) |
 | `apps/api/test/back-entry.test.ts` (#54 review round 1): `hazard HZ-017 a reconciled outage takes no new paper records; the record is kept for the nurse in charge's review (H-204, H-216)`; `hazard HZ-017 says an alert and its tasks come from a paper record, with the time written on it`; `hazard HZ-017 resolves a paper time in the hour the clocks went back to the time chosen`; `hazard HZ-011 hazard HZ-017 refuses ... outage as unknown` (another organisation's, another home's); the audit scope kept beside the outage id on back-entries and ordinary writes | Passing (Phase 1, slice 11 part 3d) |
 | `apps/web/src/components/care/EntryBadges.test.ts`: `hazard HZ-017 says an entry was written late, with when it was recorded, in words and an icon`; `apps/web/src/lib/uk-time.test.ts`: the HZ-009 and HZ-017 entry time tests (a time later than now is refused; a note correction keeps the original instant) | Passing (Phase 1 slice 9) |
+| `apps/web/src/components/care/EntryBadges.test.ts`: `hazard HZ-017 shows a back-entry's label beside the late entry, so it never reads as contemporaneous`; `hazard HZ-017 says when the outage cannot be read, with the time written on the paper`; `hazard HZ-017 says an entry written later in an outage was not from paper, with why`; `apps/web/src/lib/downtime.test.ts`: `hazard HZ-017 a back-entered record never reads as written at the time`, the outage states and the actions offered per state | Passing (Phase 1, slice 11 web) |
+| `apps/web/e2e/downtime.spec.ts`: `hazard HZ-017 the nurse declares, corrects and reconciles an outage, every state in words` (nothing chosen by default, the error summary takes focus, axe on every state); `the nurse cancels an outage declared in error, and closes another when systems are back`; `the carer is offered no downtime page` | Written (Phase 1, slice 11 web; runs in CI) |
 
 ---
 
@@ -1566,6 +1572,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | Design | Back-entry workflow for paper records made during downtime, flagged as late entries (HZ-017) | Phase 1 (domain rules built, slice 11) |
 | Training and user documentation | Deployer control: business continuity plan says where the printed pack is kept and who prints it, and that a superseded printed pack is shredded when the new one arrives | Phase 1 |
 | Training and user documentation | Deployer control: until the eMAR and PEEPs are in Harbour, the paper MAR and the fire file are kept current and where the location settings say | Phase 1 |
+| Design | On the web (slice 11 web): the location's downtime page opens the pack (its freshness as an icon and words, the API's notice, the header lines every printed page carries, when it was made and how many pages and warnings it has) and prints it as a PDF streamed from the API and never stored by the web app (`no-store`, a download); both need a fresh sign-in and count towards the hourly limit, so the pack is never prefetched; over the limit, or when no pack can be built, the page says what to use instead (the last printed pack and the nurse in charge) | Built in Phase 1 (slice 11 web) |
 
 **Target residual risk**: severity Major, likelihood Very low, **risk 2**.
 
@@ -1588,6 +1595,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | `apps/api/test/downtime.test.ts` (#47 review round 1): `asks the Registered Manager to act when a location is left with no pack in date`; `keeps a failed rebuild from holding back the event, and logs it`; the rebuild after a bed move through the real route in `hazard HZ-021 rebuilds the pack when someone on the latest one has moved`; the places event in `builds the pack again when someone's status or the places change`; `packages/db/test/downtime.test.ts`: `keeps a rebuild the system's and an on-demand pack a member's, and never names a document (migration 0055)` | Passing (Phase 1, slice 11 part 3b) |
 | `apps/api/test/downtime.test.ts`: `builds each location's nightly pack once a night, and asks for unconfirmed places`; the places route in `builds the pack again when someone's status or the places change` | Passing (Phase 1, slice 11 part 3b) |
 | `apps/mobile` Maestro `hazard-HZ-021-kiosk-downtime-pack.yaml`: print the cached pack offline with the freshness words | Planned, Phase 1 |
+| `apps/web/src/lib/downtime.test.ts`: `the downtime pack's freshness (HZ-021)` (each state in an icon and words, an unknown state warns; a refused print goes to sign in again or back with what happened); `apps/web/e2e/downtime.spec.ts`: `hazard HZ-021 the nurse opens the pack with its freshness in words and prints it, never kept` (step-up when the session is old, axe, the PDF as an attachment with `no-store`) | Passing (unit) and written (e2e, runs in CI) (Phase 1, slice 11 web) |
 
 ---
 
@@ -2140,7 +2148,8 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 | Design | Release, and any new link, by someone who did not shape the pack (not the composer, a hand redactor or any other editor), with step-up; a new link goes to the same recipient only and revokes the old one (`evidencePackContributors`, `checkEvidencePackRelease`, `checkEvidencePackLinkReissue`; quality.md rules 6 and 9) | Phase 1 (domain rules built, slice 11) |
 | Design | One link per recipient: a hashed random token, opened only after a six-digit one-time code from a cryptographic source, stored hashed, used once and valid for at most 10 minutes, sent to the bound address; verification held in an HttpOnly session for that link, never on the link row; a failed-code count that never resets and locks the link for good; expiry at a tenant default up to a maximum; revocable at once; the bundle deleted when the link ends; every page watermarked with the recipient, purpose, time and pack id (`checkEvidencePackCode`, `evidencePackLinkAccess`, `evidencePackWatermark`, `evidencePackBundleDeletable`; quality.md rules 7, 8 and 10; ADR-0050) | Phase 1 (domain rules built, slice 11; routes with the API step) |
 | Design | `quality.evidence.read` is a care-record permission (MFA) held by the inspector role alone | Phase 1 (built, slice 11) |
-| Design | Every open, code attempt and revocation is audited | Phase 1 (API step) |
+| Design | Every open, code attempt and revocation is audited | Phase 1 (built, slice 11 parts 2a and 2c) |
+| Design | The public link routes run as a link session the database holds to that link and its pack alone (migration 0058); the token goes only in a body and is looked up by its hash; codes are an HMAC under a server key, at most three open, counted in the same transaction as the attempt and locked for good at five; the session is a signed HttpOnly, Secure, SameSite=Strict cookie for one link; the PDF is drawn from the bundle alone, with the watermark on every page, and refused once the bundle is deleted (quality.md section 15) | Phase 1 (built, slice 11 part 2c) |
 | Design | The API reads each record added to a pack in the composer's own scope (anything else is not found) and keeps only the values the pack shows; text typed inside a structured value (an observation's drink or override reason) is free text, withheld until redacted by hand; the bundle is deleted at once on revoke or discard and by the five-minute sweep when a link has ended (quality.md section 13) | Phase 1 (built, slice 11 part 2a) |
 | Design | Release re-reads every record in the pack and is refused, naming each, when one was corrected or changed since it was added; each entry says how it came to be (a correction, a back-entry from paper with the paper time and outage, the recording time, a wrong device clock); readings carry labels and units; times carry GMT or BST (#60 review round 1; H-221, H-222) | Phase 1 (built, slice 11 part 2a) |
 | Design | The database holds the same line (migration 0057): a pack is visible only to holders of compose or release at every one of its locations who can see every person in its scope; its request is fixed once composed; items are append-only and hold outcomes, never values or redacted copies (the shown values live in the bundle, and whoever changes them becomes an editor; deleted when the link ends or the pack is revoked or discarded, never restored); a hand redaction is in the redactor's name and makes them an editor; release and every link only by a member outside the composer, editors, redactors and item writers, holding release at every location; a link goes to the pack's recipient only, expires within the maximum, and a new one replaces the last, revoked first; failed code attempts never go down; a code's lifetime is worked out by the database (at most 10 minutes) and it is used once, only while the link is live | Phase 1 (schema built, slice 11) |
@@ -2165,7 +2174,9 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 | `apps/api/test/evidence-packs.test.ts`: `hazard HZ-050 release and a new link stop at what the releaser can stand behind` (a new link refused to an editor who is not the composer; release refused with `record_changed` when an incident's version moved on; release refused when the releaser cannot open a record, naming only the pack's own title; an observation's recording time and wrong device clock labelled) | Passing (#60 review round 2) |
 | `packages/domain/src/shared/time.test.ts`: `hazard HZ-050 times in an evidence pack say GMT or BST` (the repeated October hour read both ways) | Passing (#60 review round 1) |
 | `apps/api/test/evidence-packs.test.ts`: `hazard HZ-050 the bundle goes when the link ends` (a discarded draft's bundle deleted; the sweep deletes an expired link's bundle once, audited; an ended link cannot be issued again) | Passing (Phase 1, slice 11 part 2a) |
-| `apps/api`: `hazard HZ-050 the rendered pack contains no third party's name and no person outside its scope` (snapshot of a rendered fixture pack) | Planned, Phase 1 (API step) |
+| `apps/api/test/evidence-link.test.ts`: `hazard HZ-050 the rendered pack is watermarked and holds no third party's name`; `hazard HZ-050 the evidence pack link opens only for its recipient's own session` (unknown token, codes as an HMAC, wrong codes counted and never reset, the cookie's flags, the cap on open codes, revocation); `hazard HZ-050 one-time codes lock the link for good` (five wrong codes, a session for one link opens no other) | Passing (slice 11 part 2c) |
+| `packages/db/test/evidence-pack.test.ts`: `hazard HZ-050 a link session reaches its own link alone (migration 0058)` | Passing (slice 11 part 2c) |
+| `apps/api/test/evidence-link.test.ts`: `hazard HZ-050 the printed pack` (every page carries the header with the release time in GMT or BST; a correction and a paper back-entry labelled, readings with units, the correction reason withheld; refused once the bundle is gone, audited `bundle_deleted`); the rendered pack states it shows the records as they stood at release (H-222); `packages/db`: a link session reads no audit trail, staff or grants and cannot revoke its link | Passing (#66 review round 1) |
 | `packages/db/test/evidence-pack.test.ts`: `hazard HZ-050 evidence pack items, release and links in the database` (no values in items; append-only items; hand redactions in the redactor's name; no release by anyone who shaped the pack or of an empty pack; links to the recipient alone, within the maximum, replacing the last; hashed tokens and the token lookup; failed attempts never go down; codes used once; bundles changed only in a draft and deleted for good); `hazard HZ-011 evidence pack isolation and scope` | Passing (Phase 1, slice 11 schema) |
 
 ---
@@ -2594,6 +2605,87 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 | `apps/web/src/lib/incident-review.test.ts`: `hazard HZ-013 hazard HZ-091 never offers close to the manager who raised it`, `hazard HZ-091 never says someone else changed it after a conflict, which may be your own retry`, `hazard HZ-091 announces what was done only while the status still matches`, `hazard HZ-013 hazard HZ-091 needs a longer reason and the confirmation ticked`, and `hazard HZ-091 readSubmitForm (HZ-090: no time assumed)` (nothing chosen; `hazard HZ-091 allows no time after now, as the API allows none`; `hazard HZ-091 refuses a time skipped when the clocks went forward in March`; `hazard HZ-091 asks which time in the hour the clocks went back in October`); the `notificationManageView (ADR-0071)` table | Passing |
 | `apps/web/src/lib/refusals.test.ts`: `closing an incident and the notifications (HZ-013)` (every refusal run in the domain and recognised); `apps/web/src/components/safety/ManageForms.test.tsx`: `hazard HZ-091 says to sign in again and links back to the page, accessibly`, `hazard HZ-091 says the separation of duties refusal in words a manager can act on, accessibly` and `hazard HZ-091 shows the step-up notice for a step-up refusal, and nothing on success` (axe; the journey cannot reach these two states) | Passing |
 | `apps/web/e2e/incident-review.spec.ts`: `hazard HZ-013 hazard HZ-091 the nurse who raised an incident is never offered close`, `hazard HZ-013 hazard HZ-091 the manager is refused in words on a stale page, then closes it`, `hazard HZ-013 hazard HZ-091 the manager prepares a death notification and records it as submitted` and `hazard HZ-013 hazard HZ-091 what to do first, then not required on a stale page is refused` (what to do first with the draft linked, empty, error, refused and done, each checked with axe) | Hosted CI |
+
+---
+
+## HZ-080 A revised statement of purpose not sent to CQC in time
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-080 |
+| Status | Open (whether it is in DCB0129 scope at all is for the CSO, H-224) |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `quality` module (lead engineer) |
+| Source | [quality.md](../specs/quality.md) rule 15 and section 14; CQC (Registration) Regulations 2009 regulation 12(3); #61 review round 1 |
+
+**Description**: an approved revision of the statement of purpose is not sent to CQC within
+`cqc.statement_of_purpose.revision_notice_days` (28) UK days, because nobody was told, the alert
+did not say which version or by when, or the due date moved with a clock change.
+
+**Causes**: no alert when the due date passes; an alert to someone who cannot record the
+submission; an alert in vague words; the due date worked out as 28 times 24 hours across a clock
+change; the alert sent again and again, or not at all after a failed run.
+
+**Effects**: a regulatory breach for the provider; people choosing a service from an out-of-date
+statement (for example a location or registered manager that has changed). No direct harm to a
+person receiving care.
+
+**Initial risk**: severity Minor, likelihood Medium, **risk 2**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | The database sets the due date on approval in UK wall-clock days (migration 0057); the hourly job tells every active holder of `safety.notification.submit` once, urgently, through the overdue chain, naming the version and the due date, and audits the gap daily when nobody can be told; recording the submission acknowledges the alerts | Phase 1 (built, slice 11 part 2b) |
+| Training and user documentation | The words of the alert, a "due soon" reminder and who receives it (H-219) | Phase 1 |
+
+**Target residual risk**: severity Minor, likelihood Low, **risk 1**.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `apps/api/test/statement-of-purpose.test.ts`: `hazard HZ-080 tells the holders of safety.notification.submit once, naming the version and the due date, when the revision is overdue`; `pins the 28 UK days across the October clock change`; the due date at approval matches 28 UK days to the minute | Passing (#61 review round 1) |
+
+---
+
+## HZ-092 Paper records confirmed as reviewed at reconciliation without being found
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-092 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `operations` module (lead engineer) |
+| Source | Slice 11 web (`feat/web-downtime`): the reconciliation screen on `GET /v1/outages/{id}/reconciliation`, which returns entry ids, people and counts only; related to HZ-017 (back-entry), HZ-004 (the same care recorded twice) and HZ-021 |
+
+**Description**: at reconciliation, the manager must review each possible duplicate group and each back-entry with a time outside the outage and no reason. The API gives only the entries' ids, so the screen lists them by a short reference. A manager ticks them as checked without finding them in each person's record, and the outage is reconciled with the same fluid intake counted twice, or a paper record entered against the wrong time.
+
+**Causes**: no link from a reference to the entry and its person; many entries to check after a long outage; time pressure; a reference mistyped or not found in the record's history.
+
+**Effects**: a fluid or food chart double-counted, or care shown at the wrong time, after an outage (HZ-017, HZ-004); decisions taken on that chart.
+
+**Initial risk**: severity Considerable, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Each group and each entry is a separate box to tick, with what it is in words ("possibly the same care recorded twice", "a time outside the outage and no reason"), how many entries and their references; the outage cannot be reconciled until every box is ticked and the manager says what was checked, and the API refuses the same again | Built in Phase 1 (slice 11 web) |
+| Design | Someone who entered or sent any paper record from the outage is told another manager who can manage outages, such as the Registered Manager, must reconcile it, and offered no form (H-203) | Built in Phase 1 (slice 11 web) |
+| Design | Every record list shows a paper record's reference (the last 8 characters of its id, the current version's for a corrected note) beside "Entered from a paper record", the same reference the reconciliation lists; the reconciliation says to look in the care record of each person at the location, and that an entry recorded in Harbour at the time has no reference and is the one for the same person at about the same time (#62 review round 1) | Built in Phase 1 (slice 11 web) |
+| Design | The reconciliation names the person, the entry's kind and time, and links each entry to its place in the record, so it can be opened and kept or corrected from the screen | Planned (Lane A: the API returns ids only; STATUS item 21; the CSO decides whether reconciling goes live before it, H-267) |
+| Training and user documentation | Deployer control: reconcile with the paper forms in hand, find each listed entry in the person's record history before ticking it (DCB0160 template) | Phase 1 |
+
+**Target residual risk**: severity Considerable, likelihood Low, **risk 2** (an engineering proposal; the CSO rates it, H-267).
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `apps/web/src/lib/downtime.test.ts`: `hazard HZ-092 reconciling an outage` (`hazard HZ-092 lists each possible duplicate group and each back-entry outside the window`; `hazard HZ-092 sends the reviewed ids, once each, only when every item is ticked`; `hazard HZ-092 gives the short reference the record shows beside the paper label`); `apps/web/src/components/care/EntryBadges.test.ts`: `hazard HZ-092 shows the reference the outage's reconciliation lists, beside the paper label` | Passing (Phase 1, slice 11 web) |
+| `apps/web/e2e/downtime.spec.ts`: `hazard HZ-092 the nurse finds and checks each possible duplicate and late paper record before reconciling` (a duplicate pair and a record after the true end entered by the manager; the reference on the person's notes; each box by its full name; one left unticked is refused with focus on the summary; axe) | Written (Phase 1, slice 11 web; runs in CI) |
+| Playwright: each entry opened from the reconciliation screen, with the person, kind and time | Planned (with the API change above) |
 
 ---
 

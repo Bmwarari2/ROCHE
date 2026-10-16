@@ -67,7 +67,7 @@ export function createAuth(config: Config, authPool: pg.Pool) {
       window: 60,
       max: 100,
       customRules: {
-        "/sign-in/email": { window: 60, max: 10 },
+        "/sign-in/email": { window: 60, max: config.AUTH_SIGN_IN_PER_MINUTE },
         "/two-factor/verify-totp": { window: 60, max: 10 },
       },
     },
