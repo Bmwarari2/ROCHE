@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
-import { expectAccessible, signIn, signInManagerWithPasskey } from "./support";
+import { expectAccessible, signIn, signInWithDemoPasskey } from "./support";
 
 /**
  * The organisation's full export page (PLAT-015; hazard HZ-070) against the demo tenant. Only the
@@ -38,7 +38,7 @@ test.beforeAll(async ({ browser }, testInfo) => {
 
 /** The owner, signed in with their passkey: a fresh step-up. */
 async function asOwner(page: Page) {
-  await signInManagerWithPasskey(page, "owner");
+  await signInWithDemoPasskey(page, "owner");
   await page.goto("/settings/export");
   await expect(page.getByRole("heading", { level: 1, name: "Data export" })).toBeVisible();
 }

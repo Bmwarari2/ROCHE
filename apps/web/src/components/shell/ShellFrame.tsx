@@ -14,10 +14,12 @@ import {
   Bell,
   ClipboardList,
   CloudOff,
+  FileLock,
   House,
   ListChecks,
   LogOut,
   Mail,
+  Newspaper,
   ShieldCheck,
   TriangleAlert,
   UserPlus,
@@ -44,7 +46,8 @@ export interface ShellFrameLabels {
   readonly allLocations: string;
   readonly navigation: string;
   readonly home: string;
-  readonly people: string;
+  /** Shown only to people who may read the people list (people.person.read). */
+  readonly people?: string | undefined;
   /** Shown only to people who read care plans (care.plan.read), whose round it is. */
   readonly round?: string | undefined;
   /** Shown only to people who take part in the shift handover (care.handover.manage). */
@@ -53,12 +56,15 @@ export interface ShellFrameLabels {
   readonly incidents?: string | undefined;
   /** Shown only to people who open the downtime pack or manage outages. */
   readonly downtime?: string | undefined;
+  /** Shown only in a family member's portal session (comms.feed.read). */
+  readonly updates?: string | undefined;
   /** Shown only to people who write, approve or send from letter templates. */
   readonly letters?: string | undefined;
   /** Shown only to people who invite and manage staff (platform.user.manage). */
   readonly team?: string | undefined;
   /** Shown only to people who may export the organisation's data (platform.export.create). */
   readonly dataExport?: string | undefined;
+  readonly dataProtection?: string | undefined;
   readonly notifications: string;
   /** Accessible text for the unread badge, for example "3 unread". */
   readonly unreadNotifications: string;
@@ -95,8 +101,10 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/notifications")) return "notifications";
   if (pathname.startsWith("/downtime")) return "downtime";
   if (pathname.startsWith("/letters")) return "letters";
+  if (pathname.startsWith("/updates")) return "updates";
   if (pathname.startsWith("/settings/team")) return "team";
   if (pathname.startsWith("/settings/export")) return "export";
+  if (pathname.startsWith("/settings/data-protection")) return "data-protection";
   if (pathname.startsWith("/settings")) return "settings";
   return "home";
 }
@@ -175,7 +183,9 @@ export function ShellFrame({
 
   const items: SidebarItem[] = [
     { id: "home", label: labels.home, href: "/", icon: <House {...icon} /> },
-    { id: "people", label: labels.people, href: "/people", icon: <Users {...icon} /> },
+    ...(labels.people
+      ? [{ id: "people", label: labels.people, href: "/people", icon: <Users {...icon} /> }]
+      : []),
     ...(labels.round
       ? [{ id: "round", label: labels.round, href: "/round", icon: <ListChecks {...icon} /> }]
       : []),
@@ -209,6 +219,9 @@ export function ShellFrame({
           },
         ]
       : []),
+    ...(labels.updates
+      ? [{ id: "updates", label: labels.updates, href: "/updates", icon: <Newspaper {...icon} /> }]
+      : []),
     ...(labels.letters
       ? [{ id: "letters", label: labels.letters, href: "/letters", icon: <Mail {...icon} /> }]
       : []),
@@ -229,6 +242,16 @@ export function ShellFrame({
             label: labels.dataExport,
             href: "/settings/export",
             icon: <Archive {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.dataProtection
+      ? [
+          {
+            id: "data-protection",
+            label: labels.dataProtection,
+            href: "/settings/data-protection",
+            icon: <FileLock {...icon} />,
           },
         ]
       : []),

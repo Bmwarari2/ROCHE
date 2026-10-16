@@ -44,6 +44,16 @@ export function isPortalOnly(permissions: readonly string[]): boolean {
   return permissions.includes("comms.portal.family") && !permissions.includes("people.person.read");
 }
 
+/**
+ * A family member's portal session, or an account with no access at all: a family member whose
+ * link was revoked or not yet made gets a session with no permissions and no roles (portal roles
+ * come only with an open link), indistinguishable from staff not yet given a role. Either way
+ * their home is the updates page, which says how to get access, and they see no staff navigation.
+ */
+export function isFamilyMember(me: { readonly permissions: readonly string[] }): boolean {
+  return isPortalOnly(me.permissions) || me.permissions.length === 0;
+}
+
 /** The words of the update a record would carry, for the form's field names. */
 export type FeedField = "source" | "text" | "caption" | "onlyThisPerson" | "confirmationReason";
 
