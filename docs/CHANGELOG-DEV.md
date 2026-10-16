@@ -1693,3 +1693,13 @@ task the nightly job keeps open while the places are unconfirmed.
 - Docs: operations.md section 13, rates.md, HZ-021 rows, H-214, STATUS.
 
 **Tests**: `apps/api` `downtime.test.ts` 2 new and 2 rewritten; `packages/db` 1 new.
+
+## 2026-10-16: Slice 11 part 3c, the outages API (OPS-028)
+
+Stacked on part 3b (operations.md section 13): list and declare outages at a location, close one
+with the back-entry task, see what reconciling needs, reconcile after reviewing possible duplicates
+and back-entries past the true end, cancel one declared in error, and correct a start or end; each
+change versioned, audited and, where section 5 says so, published; the database's refusals in its
+own words.
+
+**Tests**: `apps/api` `outages.test.ts`, 4 new.
