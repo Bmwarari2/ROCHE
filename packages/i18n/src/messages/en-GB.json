@@ -1268,5 +1268,10 @@
   "care.handover.acknowledged": "Handover acknowledged",
   "care.handover.changed": "Items were added since you opened the handover. They are shown now: read them, then acknowledge it.",
   "care.handover.tooOften": "The handover was compiled moments ago. Try again in a minute.",
-  "care.handover.arrived": "{done, select, compiled {Handover compiled.} acknowledged {Handover acknowledged.} other {Handover saved.}}"
+  "care.handover.arrived": "{done, select, compiled {Handover compiled.} acknowledged {Handover acknowledged.} other {Handover saved.}}",
+  "care.header.iddsiNotRecorded": "{kind, select, food {Not recorded: check with the nurse in charge before giving any food} other {Not recorded: check with the nurse in charge before giving any drink}}",
+  "people.header.nameAndRoom": "{name}, room {room}",
+  "care.handover.ackNotKnown": "Incoming shift's acknowledgement not known to you",
+  "care.handover.openFor": "{source, select, task {Open {name}'s record} observation {Open {name}'s charts} incident {Open the incident} body_map_mark {Open {name}'s body map} care_note {Open {name}'s notes} notification {Open the notifications} other {Open {name}'s record}}",
+  "care.handover.addItemNoteFor": "Add a note about {name}'s item: {kind}"
 }

@@ -1,6 +1,6 @@
-import type { HandoverNoteItem, PersonSummary } from "@harbour/contracts";
-import { Card, EmptyState, PageHeader, StatusChip } from "@harbour/ui";
-import { ClipboardCheck, Lock, Sparkles } from "lucide-react";
+import type { HandoverNoteItem } from "@harbour/contracts";
+import { Card, EmptyState, PageHeader } from "@harbour/ui";
+import { ClipboardCheck, Lock } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -11,7 +11,7 @@ import {
   HandoverNoteForm,
 } from "@/components/care/HandoverActions";
 import { Notice } from "@/components/care/Notice";
-import { CommunicationStatus } from "@/components/people/CommunicationStatus";
+import { PersonHeaderCompact } from "@/components/people/PersonHeader";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
@@ -20,6 +20,7 @@ import {
   groupHandover,
   handoverChips,
   handoverShown,
+  itemFlags,
   itemKindChip,
   itemSourceHref,
   shiftTitle,
@@ -27,7 +28,7 @@ import {
 } from "@/lib/handover";
 import { t } from "@/lib/i18n";
 import { staffName } from "@/lib/mca";
-import { communicationSummary, personNames } from "@/lib/people";
+import { personNames } from "@/lib/people";
 import { firstParam } from "@/lib/record-metadata";
 
 type Params = Promise<{ locationId: string; handoverId: string }>;
@@ -59,32 +60,6 @@ function Notes({ notes }: { readonly notes: readonly HandoverNoteItem[] }) {
   );
 }
 
-/** A person's name with their communication needs beside it, labelled in every state (AIS). */
-function PersonLine({ person }: { readonly person: PersonSummary }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <Link
-        href={`/people/${person.id}`}
-        className="inline-flex min-h-target items-center font-semibold underline"
-      >
-        {person.roomLabel
-          ? t("care.handover.room", { name: personNames(person).full, room: person.roomLabel })
-          : personNames(person).full}
-      </Link>
-      <dl className="m-0 flex flex-wrap items-start gap-x-2 gap-y-1">
-        <dt className="text-body-dense font-semibold">{t("people.header.communicationNeeds")}</dt>
-        <dd className="m-0">
-          <CommunicationStatus
-            summary={communicationSummary(person, t)}
-            flagLabel={t("people.header.communicationNeeds")}
-            compact
-          />
-        </dd>
-      </dl>
-    </div>
-  );
-}
-
 /**
  * One shift handover (care.md rule 14; COMMS-006; hazards HZ-001, HZ-008, HZ-011): its items by
  * person, most urgent first, each a reference to its record with a link, the notes on each and on
@@ -103,7 +78,9 @@ export default async function HandoverPage({
   const { me } = await getShellContext();
   const listTitle = t("care.handover.title");
   if (!handoverShown(me.permissions)) return <SafetyForbidden title={listTitle} />;
-  const done = firstParam((await searchParams).done);
+  const query = await searchParams;
+  const done = firstParam(query.done);
+  const at = firstParam(query.at);
   const api = await tenantApi();
   const read = await api.GET("/v1/locations/{id}/handovers/{handoverId}", {
     params: { path: { id: locationId, handoverId } },
@@ -139,7 +116,7 @@ export default async function HandoverPage({
       </nav>
       <PageHeader eyebrow={location?.name ?? me.tenant.name} title={title} />
       {done && DONE.has(done) ? (
-        <ArrivalNotice>{t("care.handover.arrived", { done })}</ArrivalNotice>
+        <ArrivalNotice key={at ?? done}>{t("care.handover.arrived", { done })}</ArrivalNotice>
       ) : null}
       <p className="m-0 flex flex-wrap items-center gap-2">
         {handoverChips(handover, t).map((chip) => (
@@ -171,14 +148,15 @@ export default async function HandoverPage({
           <ul className="m-0 flex list-none flex-col gap-4 p-0">
             {groups.map((group) => {
               const person = group.personId ? people.get(group.personId) : undefined;
+              const name = person ? personNames(person).full : null;
               return (
                 <li key={group.personId ?? "none"} className="flex flex-col gap-3">
                   {person ? (
-                    <PersonLine person={person} />
+                    <PersonHeaderCompact person={person} />
                   ) : (
-                    <p className="m-0 font-semibold">
+                    <h3 className="m-0 text-body font-semibold">
                       {t("care.handover.noPerson", { hidden: String(group.personId !== null) })}
-                    </p>
+                    </h3>
                   )}
                   <ul className="m-0 flex list-none flex-col gap-3 p-0">
                     {group.items.map(({ item, notes }) => {
@@ -192,16 +170,9 @@ export default async function HandoverPage({
                         >
                           <p className="m-0 flex flex-wrap items-center gap-2">
                             <SafetyChip chip={chip} />
-                            {item.lateAddition ? (
-                              <StatusChip
-                                status="info"
-                                label={t("care.handover.lateAddition")}
-                                icon={Sparkles}
-                              />
-                            ) : null}
-                            {unseen.has(item.key) ? (
-                              <StatusChip status="due" label={t("care.handover.new")} />
-                            ) : null}
+                            {itemFlags(item, unseen, t).map((flag) => (
+                              <SafetyChip key={flag.label} chip={flag} />
+                            ))}
                           </p>
                           <p className="m-0 text-body-dense">
                             {t("care.handover.at", { dateTime: formatDateTime(item.at) ?? "" })}
@@ -211,7 +182,9 @@ export default async function HandoverPage({
                               href={href}
                               className="inline-flex min-h-target items-center underline"
                             >
-                              {t("care.handover.open", { source: item.sourceType })}
+                              {name
+                                ? t("care.handover.openFor", { source: item.sourceType, name })
+                                : t("care.handover.open", { source: item.sourceType })}
                             </Link>
                           ) : null}
                           <Notes notes={notes} />
@@ -220,7 +193,11 @@ export default async function HandoverPage({
                               locationId={locationId}
                               handoverId={handoverId}
                               itemKey={item.key}
-                              open={t("care.handover.addItemNote", { kind: chip.label })}
+                              open={
+                                name
+                                  ? t("care.handover.addItemNoteFor", { kind: chip.label, name })
+                                  : t("care.handover.addItemNote", { kind: chip.label })
+                              }
                             />
                           ) : null}
                         </li>

@@ -39,7 +39,9 @@ export function CompileHandover({
               const outcome = await compileHandover(locationId);
               setResult(outcome.ok ? null : outcome);
               if (outcome.ok) {
-                router.push(`/handover/${locationId}/${outcome.data.id}?done=compiled`);
+                router.push(
+                  `/handover/${locationId}/${outcome.data.id}?done=compiled&at=${Date.now()}`,
+                );
               }
             })
           }
@@ -188,7 +190,9 @@ export function AcknowledgeHandover({
               });
               setResult(outcome.ok ? null : outcome);
               if (outcome.ok) {
-                router.push(`/handover/${locationId}/${handoverId}?done=acknowledged`);
+                router.push(
+                  `/handover/${locationId}/${handoverId}?done=acknowledged&at=${Date.now()}`,
+                );
               } else if (outcome.code === "handover_changed") {
                 router.refresh();
               }

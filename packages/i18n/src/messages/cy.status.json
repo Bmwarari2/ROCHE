@@ -1269,6 +1269,11 @@
     "care.handover.acknowledged",
     "care.handover.changed",
     "care.handover.tooOften",
-    "care.handover.arrived"
+    "care.handover.arrived",
+    "care.header.iddsiNotRecorded",
+    "people.header.nameAndRoom",
+    "care.handover.ackNotKnown",
+    "care.handover.openFor",
+    "care.handover.addItemNoteFor"
   ]
 }

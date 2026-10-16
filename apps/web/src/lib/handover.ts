@@ -52,6 +52,10 @@ export function handoverChips(
           label: t("care.handover.state", { state: "locked" }),
         },
   ];
+  if (summary.unacknowledged === null) {
+    // Limited to the reader's own people: whether the incoming shift has read it is not known here.
+    chips.push({ status: "neutral", icon: "search", label: t("care.handover.ackNotKnown") });
+  }
   if (summary.unacknowledged === true) {
     chips.push({
       status: "overdue",
@@ -79,7 +83,8 @@ export function youChip(
     : { status: "due", icon: "clock", label: t("care.handover.youToAcknowledge") };
 }
 
-const URGENT = new Set<string>(["fall", "news2", "incident", "alert"]);
+// A refusal of care ranks with the urgent kinds until the CSO decides otherwise (H-269).
+const URGENT = new Set<string>(["fall", "news2", "incident", "alert", "refusal"]);
 const TASKS = new Set<string>([
   "overdue_task",
   "skipped_task",
@@ -92,10 +97,32 @@ export function itemKindChip(kind: string, t: Translator): SafetyChip {
   const label = t("care.handover.kind", { kind });
   if (URGENT.has(kind)) return { status: "overdue", icon: "triangle-alert", label };
   if (TASKS.has(kind)) return { status: "due", icon: "clock", label };
-  if (kind === "body_map_mark" || kind === "flagged_note" || kind === "refusal") {
+  if (kind === "body_map_mark" || kind === "flagged_note") {
     return { status: "info", icon: "search", label };
   }
   return { status: "overdue", icon: "circle-alert", label };
+}
+
+/** Flags beside an item: added since it was compiled, and new to the reader (HZ-018). */
+export function itemFlags(
+  item: Pick<HandoverItem, "key" | "lateAddition">,
+  unseen: ReadonlySet<string>,
+  t: Translator,
+): SafetyChip[] {
+  return [
+    ...(item.lateAddition
+      ? [
+          {
+            status: "info" as const,
+            icon: "file-pen" as const,
+            label: t("care.handover.lateAddition"),
+          },
+        ]
+      : []),
+    ...(unseen.has(item.key)
+      ? [{ status: "due" as const, icon: "clock" as const, label: t("care.handover.new") }]
+      : []),
+  ];
 }
 
 /** The record an item comes from, as a page of the web record; null when it has none here. */

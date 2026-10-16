@@ -6,6 +6,7 @@ import {
   groupHandover,
   handoverChips,
   handoverShown,
+  itemFlags,
   itemKindChip,
   itemSourceHref,
   shiftTitle,
@@ -76,6 +77,22 @@ describe("the shift handover screens (care.md rule 14)", () => {
     ]);
   });
 
+  it("says when whether the incoming shift has read it is not known to the reader", () => {
+    expect(handoverChips({ open: true, unacknowledged: null }, t)[1]).toEqual({
+      status: "neutral",
+      icon: "search",
+      label: "Incoming shift's acknowledgement not known to you",
+    });
+  });
+
+  it("hazard HZ-018 marks an item added since compiling, and one new to the reader", () => {
+    expect(itemFlags({ key: "a", lateAddition: true }, new Set(["a"]), t)).toEqual([
+      { status: "info", icon: "file-pen", label: "Added since it was compiled" },
+      { status: "due", icon: "clock", label: "New to you" },
+    ]);
+    expect(itemFlags({ key: "a", lateAddition: false }, new Set(), t)).toEqual([]);
+  });
+
   it.each([
     [{ acknowledged: false, unseenKeys: [] }, "due", "You have not acknowledged it yet"],
     [{ acknowledged: true, unseenKeys: [] }, "done", "You have acknowledged it"],
@@ -89,6 +106,7 @@ describe("the shift handover screens (care.md rule 14)", () => {
     ["news2", "overdue", "triangle-alert", "NEWS2 needing a response"],
     ["overdue_task", "due", "clock", "Overdue task"],
     ["body_map_mark", "info", "search", "Body map mark"],
+    ["refusal", "overdue", "triangle-alert", "Care refused"],
     ["something_new", "overdue", "circle-alert", "Item of a kind not known: check the record"],
   ])("says what a %s item is in an icon and words", (kind, status, icon, label) => {
     expect(itemKindChip(kind, t)).toEqual({ status, icon, label });
