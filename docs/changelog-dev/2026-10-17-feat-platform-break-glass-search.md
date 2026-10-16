@@ -16,9 +16,21 @@ Branch `feat/platform-break-glass-search`.
   reason, the passkey notice after a password sign-in, and read-only results.
 - Docs: platform-completions.md section 10s (part 4), HZ-011, the register, data standards.
 
+## Security review fixes
+
+- The weekly break-glass report lists searches by user and reason (`shown_location_ids` on the
+  record): in the report of each home whose people were shown, and in every home's report when a
+  search showed no one.
+- The data protection lead is told only while active (`toldOf`); a home shown with no Registered
+  Manager, or no active lead, is audited as unrouted, at the daily limit too.
+- An advisory lock on the user serialises the daily count and the insert; a second refusal the same
+  day no longer fails on the alert's dedupe key.
+- The count is never more than the people shown; `more` asks for another word or the NHS number.
+- Records of processing: the break-glass search purpose, recipients and the weekly report.
+
 ## What is next
 
-- The weekly break-glass report listing searches beside openings; offline search on mobile.
+- Offline search on mobile.
 
 ## Human actions logged
 
@@ -26,5 +38,6 @@ Branch `feat/platform-break-glass-search`.
 
 ## Tests
 
-- `apps/api/test/break-glass-search.test.ts` (6); `packages/db/test/search-index.test.ts` (29);
+- `apps/api/test/break-glass-search.test.ts` (8); the weekly report in
+  `apps/api/test/people-lifecycle.test.ts` and `packages/domain/src/people/break-glass-report.test.ts`; `packages/db/test/search-index.test.ts` (29);
   `apps/web/e2e/break-glass-search.spec.ts` (2, axe on every state).
