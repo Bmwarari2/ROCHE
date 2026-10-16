@@ -2085,3 +2085,16 @@ the retention class tied to the incident grade.
 
 **Tests**: `packages/db/test/letter-templates.test.ts` (8); RLS coverage lists `letter` as
 append-only.
+
+## 2026-10-16: Slice 11, letter and email template routes and the email body (COMMS-007, part 2a)
+
+- API: `GET /v1/merge-fields`; `GET`/`POST /v1/letter-templates`; `GET`/`POST
+  .../{id}/versions`; `PUT .../versions/{versionId}`; `.../approve`, `.../retire`, `.../discard`
+  (comms.md section 11), each draft checked as it is saved with its problems listed, approval never
+  by the author or an editor, audited with ids and codes only.
+- The email port gains a plain-text `body` (H-225); the evidence pack code email moves the code into
+  the body under a generic subject.
+- Docs: comms.md section 11, H-225, HZ-051 row, STATUS.
+
+**Tests**: `apps/api/test/letter-templates.test.ts` (5); `adapters.test.ts` 2 new;
+`evidence-link.test.ts` extended.
