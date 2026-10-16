@@ -25,6 +25,7 @@ import {
   packServes,
   type StoredPackRow,
 } from "../services/downtime-pack";
+import { renderDowntimePackPdf } from "../services/downtime-pack-pdf";
 import { rateNumber } from "../services/rates";
 import {
   createRouter,
@@ -91,6 +92,9 @@ export async function requirePackLimit(c: Context<AppEnv>, access: TenantAccess)
   );
 }
 
+const notAllowed = () =>
+  new HttpProblem(405, "method_not_allowed", "Use GET to open or print the downtime pack.");
+
 export interface Read {
   readonly row: StoredPackRow;
   readonly built: boolean;
@@ -105,7 +109,8 @@ export async function readPack(
   c: Context<AppEnv>,
   access: TenantAccess,
   locationId: string,
-  options: { readonly action: string; readonly reason: "read" | "asked" },
+  /** `action` is audited in the read's transaction; null when the caller audits it later. */
+  options: { readonly action: string | null; readonly reason: "read" | "asked" },
 ): Promise<Read> {
   const now = new Date();
   return withTenant(c, async (tx) => {
@@ -165,12 +170,14 @@ export async function readPack(
     if (!row) throw problems.notFound();
     const rates = await operationsRates(tx, access.tenantId, place.nation as Nation, now);
     const context = await freshnessContext(tx, locationId, rates);
-    await audit(c, tx, access, {
-      action: options.action,
-      resourceType: "downtime_pack",
-      resourceId: row.id,
-      scope: { locationId, rebuildFailed },
-    });
+    if (options.action) {
+      await audit(c, tx, access, {
+        action: options.action,
+        resourceType: "downtime_pack",
+        resourceId: row.id,
+        scope: { locationId, rebuildFailed },
+      });
+    }
     const pack = {
       locationName: (row.content as Pick<DowntimePack, "locationName">).locationName,
       generatedAt: row.generatedAt,
@@ -220,13 +227,22 @@ export const operationsRouter = createRouter()
       method: "get",
       path: "/v1/locations/{id}/downtime-pack",
       tags: ["operations"],
-      summary: "The location's downtime pack, with its freshness now",
+      summary: "The location's downtime pack, with its freshness now (JSON or PDF)",
       description:
-        "The latest pack you can open, built on the spot when it no longer names exactly the people receiving care here with their status now, anything it was built from changed, or it expired (HZ-021). If that build fails, the latest pack is served and says so (`rebuildFailed`). Needs a fresh sign-in (a whole-home pack is a bulk export). Opening is audited.",
+        "The latest pack you can open, built on the spot when it no longer names exactly the people receiving care here with their status now, anything it was built from changed, or it expired (HZ-021). If that build fails, the latest pack is served and says so (`rebuildFailed`). `format=pdf` prints it with the header worked out now on every page. Both need a fresh sign-in (a whole-home pack is a bulk export). Opening and printing are audited. HEAD is refused.",
       security,
-      request: { params: Params },
+      request: {
+        params: Params,
+        query: z.object({ format: z.enum(["json", "pdf"]).default("json") }),
+      },
       responses: {
-        200: jsonBody(DowntimePackOut, "The pack"),
+        200: {
+          content: {
+            "application/json": { schema: DowntimePackOut },
+            "application/pdf": { schema: z.string().meta({ format: "binary" }) },
+          },
+          description: "The pack",
+        },
         ...errorResponses,
         ...notFoundResponse,
         ...limitedResponse,
@@ -234,16 +250,41 @@ export const operationsRouter = createRouter()
       },
     }),
     async (c) => {
+      // A HEAD would open or build the pack and audit it for nothing (#46 review round 1).
+      if (c.req.method === "HEAD") throw notAllowed();
       const access = await requirePermission(c, READ);
       const { id } = c.req.valid("param");
-      const action = "operations.downtime_pack.opened";
+      const { format } = c.req.valid("query");
+      const pdf = format === "pdf";
+      const action = pdf ? "operations.downtime_pack.printed" : "operations.downtime_pack.opened";
       await requireReach(c, access, READ, id, action);
       // The JSON holds the same whole-home data as the PDF, so it needs the same fresh sign-in
       // (#45 review round 2): step-up on the print alone could be skipped by asking for JSON.
       await requireStepUp(c, access, action);
       await requirePackLimit(c, access);
-      const read = await readPack(c, access, id, { action, reason: "read" });
-      return c.json(packOut(read), 200);
+      if (!pdf) {
+        return c.json(packOut(await readPack(c, access, id, { action, reason: "read" })), 200);
+      }
+      const read = await readPack(c, access, id, { action: null, reason: "read" });
+      const bytes = renderDowntimePackPdf(
+        read.row.content as Parameters<typeof renderDowntimePackPdf>[0],
+        read.header,
+      );
+      // Printed only once the PDF is drawn (#46 review round 1).
+      await writeAudit(c.get("services").appPool, access, {
+        action,
+        resourceType: "downtime_pack",
+        resourceId: read.row.id,
+        scope: { locationId: id, rebuildFailed: read.rebuildFailed },
+        requestId: c.get("requestId"),
+      });
+      return c.body(bytes as Uint8Array<ArrayBuffer>, 200, {
+        "content-type": "application/pdf",
+        "content-disposition": `attachment; filename="downtime-pack-${read.row.id}.pdf"`,
+        "x-content-type-options": "nosniff",
+        "cache-control": "private, no-store",
+        "content-security-policy": "default-src 'none'; sandbox",
+      });
     },
   )
   .openapi(

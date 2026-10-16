@@ -207,6 +207,16 @@ only when they link spec, code, tests and user documentation; no user guides exi
        clock: a change in a transaction that began before the build and committed after it reads
        as older than the pack, so is caught only by the next rebuild (a fingerprint column is the
        fuller fix).
+   - Slice 11 part 3a-2, the printed downtime pack (`feat/operations-downtime-pack-api`, stacked
+     on part 3a-1; operations.md section 13): built, PR to follow part 3a-1.
+   - Follow-ups from #46 review round 1:
+     - render the PDF in a worker thread, so a large home's pack does not hold the API's event
+       loop;
+     - the CPR wording and its emphasis for the CSO (H-100, H-212);
+     - unconfirmed places on the front sheet (H-201, H-213);
+     - double-sided printing would put two people's pages on one sheet: a deployer control to print
+       single-sided (H-214);
+     - an out-of-date pack's header is words only; whether it needs more emphasis (H-209).
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature

@@ -340,9 +340,9 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
     then refused until each current back-entry outside the window with no reason for it is in
     `reviewed_entry_ids`, so the reconciler looks at each one. A correction of the start or end is
     refused only when it would leave outside a back-entry that was inside the window before.
-- Not yet: the printed pack (part 3a-2); the nightly job, rebuilds after moves and the places
-  route (part 3b); outages and back-entry through the API (part 3c); outages and packs in the
-  sync streams, and the kiosk fetch (with the mobile step).
+- Not yet: the nightly job, rebuilds after moves and the places route (part 3b); outages and
+  back-entry through the API (part 3c); outages and packs in the sync streams, and the kiosk
+  fetch (with the mobile step).
 - Part 3 requirements (#32 review round 1):
   - A pack is hidden from the location's holders once someone it names moves away (H-200). The
     API builds a fresh pack on demand whenever anyone moves into, out of or away from the
@@ -421,3 +421,21 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
   nurse in charge" (H-201). Allergies are each person's own current ones: inactive, resolved,
   refuted, entered in error and deleted rows never print, as on the phone (`currentAllergiesOf`,
   shared with the hospital transfer pack; HZ-007).
+
+Part 3a-2, the printed pack (`services/downtime-pack-pdf.ts`, `services/pdf.ts`):
+
+- `GET /v1/locations/{id}/downtime-pack?format=pdf` prints the same pack with the four header
+  lines, worked out at the moment of the request, on every page; a front sheet of warnings
+  (safety-critical first); and a page per person, starting on a new page, whose footer names
+  them on every page, continuation pages included (HZ-001). The PDF is drawn per request and
+  never stored, so it is never a `document`.
+- After #46 review round 1: printing needs a fresh sign-in (a bulk export, section 12) and counts
+  against the per-member limit before the pack is read; it is audited as printed only once the PDF
+  is drawn; HEAD on the pack routes is refused (405). Photos are not printed (H-211): every
+  person's page says to confirm who they are with a colleague who knows them, and the front sheet
+  says photos are not printed. When an ADRT is held, the resuscitation section prints "ADRT also
+  held: read it before any decision about resuscitation", and with no ReSPECT or DNACPR it never
+  reads "not recorded" (HZ-015; wording H-212). Header times carry BST or GMT on the day the clocks
+  change (HZ-009). "1 person" is singular.
+- The in-house PDF writer (ADR-0040) gains header lines on every page, a page break before a
+  block, and a footer naming whose page it is.
