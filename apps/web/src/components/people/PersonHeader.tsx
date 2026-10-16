@@ -214,3 +214,69 @@ export function PersonHeader({
     </Card>
   );
 }
+
+/** A prescribed IDDSI level from the point-of-care header, never blank (HZ-016). */
+function iddsiWords(kind: "food" | "drink", level: string): string {
+  return level === "not_recorded"
+    ? t("care.header.iddsiNotRecorded", { kind })
+    : iddsiLabel(kind, level, t);
+}
+
+/**
+ * The point-of-care header in its compact form, for a person among others on a list where care is
+ * recorded (a round stop, a handover group; HZ-001, HZ-007, HZ-015, HZ-016): photo, name as a
+ * heading linking to the record, room, allergies, the resuscitation decision in force, the
+ * prescribed IDDSI levels and communication needs, each labelled in every state.
+ */
+export function PersonHeaderCompact({
+  person,
+  headingLevel = 3,
+}: {
+  readonly person: PersonSummary;
+  readonly headingLevel?: 2 | 3 | 4;
+}) {
+  const names = personNames(person);
+  const room = roomLabel(person);
+  const Heading = `h${headingLevel}` as const;
+  return (
+    <div className="flex flex-col gap-2" data-person-header="compact">
+      <div className="flex flex-wrap items-center gap-3">
+        <PersonAvatar
+          personId={person.id}
+          initials={initials(person)}
+          hasPhoto={person.photoUrl !== null}
+          alt={t("people.header.photo", { name: names.full })}
+        />
+        <Heading className="m-0 text-body font-semibold">
+          <a
+            href={`/people/${person.id}`}
+            className="inline-flex min-h-target items-center underline"
+          >
+            {room ? t("people.header.nameAndRoom", { name: names.full, room }) : names.full}
+          </a>
+        </Heading>
+      </div>
+      <dl className="m-0 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <Detail term={t("people.header.allergiesTitle")}>
+          <AllergyChip summary={allergySummary(person, t)} />
+        </Detail>
+        <Detail term={t("care.header.resuscitation")}>
+          <ResuscitationStatus status={person.resuscitation} />
+        </Detail>
+        <Detail term={t("care.header.iddsiFood")}>
+          {iddsiWords("food", person.iddsiFoodLevel)}
+        </Detail>
+        <Detail term={t("care.header.iddsiDrink")}>
+          {iddsiWords("drink", person.iddsiDrinkLevel)}
+        </Detail>
+        <Detail term={t("people.header.communicationNeeds")}>
+          <CommunicationStatus
+            summary={communicationSummary(person, t)}
+            flagLabel={t("people.header.communicationNeeds")}
+            compact
+          />
+        </Detail>
+      </dl>
+    </div>
+  );
+}

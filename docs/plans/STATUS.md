@@ -745,6 +745,16 @@ only when they link spec, code, tests and user documentation; no user guides exi
       A: return the person, the entry's kind and time and a link per entry in
       `duplicateGroups` and `outsideWindowEntryIds`, so each can be opened from the screen
       (HZ-092); the CSO decides whether reconciling may go live before then (H-267).
+22. Slice 5 web, the round and handover screens (CARE-013, COMMS-006; HZ-001, HZ-018;
+    `feat/web-rounds-handover`). Part 1 built: Handover in the navigation for holders of
+    `care.handover.manage`; a location's page with the shift running now (compiled, or compile
+    it) and the last week's; one handover's items by person (name, room and communication needs),
+    each kind in an icon and words with a link to its record, notes on items and on the whole
+    handover, who has read it, and "I have read this handover" with the token of the handover as
+    shown (H-269). Next (part 2, its own PR): the round view (`GET /v1/locations/{id}/round`) by
+    area and room, with each task's time state and start, complete and skip where the API allows.
+    Gaps: the handover items are references only, so the reader opens each record; the location
+    page offers compiling for the permission held anywhere (no per-location `reaching`).
 
 ## Human actions outstanding
 
