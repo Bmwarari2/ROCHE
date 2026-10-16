@@ -93,7 +93,8 @@ test("hazard HZ-003 the nurse works through Ben's tasks on the round, every stat
   await expect(taskItem(check)).toHaveCount(0);
 
   await taskItem(walk)
-    .getByRole("button", { name: `Done: ${walk} for ${NAME}` })
+    // Exact: "Not done: …" also contains "Done: …".
+    .getByRole("button", { name: `Done: ${walk} for ${NAME}`, exact: true })
     .click();
   await expect(arrival(page)).toHaveText("Task done.");
   await expect(taskItem(walk)).toHaveCount(0);
