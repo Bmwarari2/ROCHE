@@ -45,6 +45,7 @@ import {
   NOTIFICATION_UNROUTED_ACTION,
 } from "../services/safety";
 import { escalateOverdueStatements } from "../services/statement-of-purpose";
+import { tellAboutNotice } from "../services/sub-processors";
 import {
   ESCALATION_UNROUTED_ACTION,
   type EscalationRun,
@@ -690,6 +691,22 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       }
       await rebuild(event);
       if (failure) throw failure;
+    });
+  }
+  // Sub-processor notices and resolutions (rules 24 and 25): the lead is told; a failure throws,
+  // so the relay retries, and the dedupe key tells no one twice.
+  for (const type of [
+    "platform.sub_processor.notice_announced",
+    "platform.sub_processor.objection_resolved",
+  ]) {
+    handlers.set(type, async (event) => {
+      const payload = event.payload as { noticeId?: unknown; responseId?: unknown } | null;
+      const noticeId = payload?.noticeId;
+      if (typeof noticeId !== "string") return;
+      const responseId = typeof payload?.responseId === "string" ? payload.responseId : null;
+      await inTenant(event.tenantId, (tx) =>
+        tellAboutNotice(tx, event.tenantId, event.eventType, noticeId, new Date(), responseId),
+      );
     });
   }
   handlers.set("operations.downtime_places.changed", async (event) => {
