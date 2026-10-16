@@ -470,6 +470,13 @@
       "when": 1792165681444,
       "tag": "0067_sub_processor_resolution",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1792167603686,
+      "tag": "0068_definer_function_acls",
+      "breakpoints": true
     }
   ]
 }
