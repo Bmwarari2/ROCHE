@@ -5,6 +5,7 @@ import {
   clockDriftMinutes,
   formatUkDate,
   formatUkDateTime,
+  formatUkDateTimeWithZone,
   formatUkTime,
   fromUkWallClock,
   hasClockDrift,
@@ -320,5 +321,19 @@ describe("hazard HZ-009 clock-change days", () => {
     ["2026-07-15T12:00:00Z", "BST"],
   ] as const)("%s is %s", (iso, abbreviation) => {
     expect(ukZoneAbbreviation(new Date(iso))).toBe(abbreviation);
+  });
+});
+
+describe("hazard HZ-050 times in an evidence pack say GMT or BST", () => {
+  it.each([
+    // The clocks go back at 02:00 BST on 25 October 2026: 01:30 happens twice.
+    ["2026-10-25T00:30:00Z", "25/10/2026 01:30 BST"],
+    ["2026-10-25T01:30:00Z", "25/10/2026 01:30 GMT"],
+    ["2026-03-29T00:59:00Z", "29/03/2026 00:59 GMT"],
+    ["2026-03-29T01:00:00Z", "29/03/2026 02:00 BST"],
+    ["2026-07-01T12:00:00Z", "01/07/2026 13:00 BST"],
+    ["2026-12-01T12:00:00Z", "01/12/2026 12:00 GMT"],
+  ])("%s reads %s", (instant, expected) => {
+    expect(formatUkDateTimeWithZone(new Date(instant))).toBe(expected);
   });
 });

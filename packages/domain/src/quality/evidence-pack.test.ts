@@ -234,6 +234,11 @@ describe("hazard HZ-050 the field-to-kind map decides how every field is treated
     ["observation", "nhs_number", "direct_identifier"],
     ["observation", "values", "care_content"],
     ["incident", "a_column_nobody_mapped", "free_text"],
+    ["care_note", "tags", "free_text"],
+    ["care_note", "correction_reason", "free_text"],
+    ["care_note", "paper_reference", "free_text"],
+    ["observation", "back_entry", "organisational"],
+    ["observation", "correction_of", "organisational"],
   ])("%s.%s is %s", (recordType, key, kind) => {
     expect(evidenceFieldKind(recordType, key)).toBe(kind);
   });
