@@ -2238,6 +2238,7 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 | `apps/api`: `hazard HZ-051 a letter's values print as text in the PDF` (as built the ADR-0040 writer takes text only, so nothing typed can run; a dedicated test with markup-like values remains) | Planned |
 | `apps/api`: `hazard HZ-051 a letter cannot be made with another person's details` | Covered by `letters.test.ts` (another person's contact, another person's incident) |
 | `apps/web/e2e/letter-templates.spec.ts`: `hazard HZ-051 a draft shows each problem at its field, and its author cannot approve it`, `hazard HZ-051 someone else approves it; a new draft is discarded and the version retired, each with a reason`, `hazard HZ-051 an approver edits only behind Edit draft, the form follows the stored words, and stale writes are refused` (axe on every state, including both refusals); `apps/web/src/lib/letters.test.ts` | Passing (Phase 1, slice 11 web part 1) |
+| `apps/web/e2e/letters.spec.ts`: `hazard HZ-051 hazard HZ-001 a letter is checked in a preview that shows who it is about, then made`, `hazard HZ-051 a letter changed since the preview is shown again to check, and email is refused in words` (axe on every state) | Passing (Phase 1, slice 11 web part 2) |
 
 ---
 

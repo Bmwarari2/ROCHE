@@ -1,6 +1,6 @@
 "use server";
 
-import type { LetterTemplateItem } from "@harbour/contracts";
+import type { LetterPreview, LetterTemplateItem } from "@harbour/contracts";
 import type { ApiClient } from "@harbour/contracts/client";
 import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
@@ -37,6 +37,11 @@ function templateProblem(error: unknown): ActionResult<never> {
       return refused(t("comms.templates.refusal.ownDraft"), "separation_of_duties");
     case "invalid_state":
       return refused(detail || t("comms.templates.refusal.state"), "invalid_state");
+    // The letter would differ from the preview the sender checked: preview it again (HZ-051).
+    case "letter_changed":
+      return refused(t("comms.letters.changed"), "letter_changed");
+    case "template_not_in_use":
+      return refused(t("comms.letters.notInUse"), "template_not_in_use");
     default:
       return { ok: false, ...problemMessage(error, t) };
   }
@@ -44,12 +49,13 @@ function templateProblem(error: unknown): ActionResult<never> {
 
 async function send<T>(
   call: (api: ApiClient) => Promise<{ data?: T; error?: unknown }>,
+  path = "/letters",
 ): Promise<ActionResult<T>> {
   try {
     const api = await tenantApi();
     const { data, error } = await call(api);
     if (data !== undefined) {
-      revalidatePath("/letters", "layout");
+      revalidatePath(path, "layout");
       return { ok: true, data };
     }
     return templateProblem(error);
@@ -140,5 +146,54 @@ export async function endVersion(
       params: { path: { id: ref.templateId, versionId: ref.versionId } },
       body: { reason: words, version: ref.version },
     }),
+  );
+}
+
+// ------------------------------------------------------------------------------------------------
+// Letters on a person's record (rules 24 and 25)
+// ------------------------------------------------------------------------------------------------
+
+export interface LetterInput {
+  readonly templateId: string;
+  readonly incidentId?: string;
+  /** The typed admission and fee details only: money in whole pence, dates yyyy-mm-dd. */
+  readonly values?: Readonly<Record<string, string | number>>;
+}
+
+/** The letter as it would be made, with who it is about; nothing is stored (audited). */
+export async function previewLetter(
+  personId: string,
+  input: LetterInput,
+): Promise<ActionResult<LetterPreview>> {
+  if (!isUuid(personId) || !isUuid(input.templateId))
+    return refused(t("errors.notFound"), "not_found");
+  return send(
+    (api) =>
+      api.POST("/v1/people/{id}/letters/preview", {
+        params: { path: { id: personId } },
+        body: { ...input, recipient: { kind: "person" } },
+      }),
+    `/people/${personId}`,
+  );
+}
+
+/**
+ * Send a posted letter exactly as previewed: the preview's version and text hash go with it, and
+ * the API refuses it (409 `letter_changed`) if anything would differ.
+ */
+export async function sendLetter(
+  personId: string,
+  input: LetterInput & { readonly templateVersionId: string; readonly textHash: string },
+): Promise<ActionResult<{ id: string }>> {
+  if (!isUuid(personId) || !isUuid(input.templateId) || !isUuid(input.templateVersionId)) {
+    return refused(t("errors.notFound"), "not_found");
+  }
+  return send(
+    (api) =>
+      api.POST("/v1/people/{id}/letters", {
+        params: { path: { id: personId } },
+        body: { ...input, recipient: { kind: "person" }, confirmed: true },
+      }),
+    `/people/${personId}`,
   );
 }

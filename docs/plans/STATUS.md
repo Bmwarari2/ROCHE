@@ -431,6 +431,10 @@ only when they link spec, code, tests and user documentation; no user guides exi
      discard and retire with a reason, earlier versions). Next, part 2 stacked on it: the person's
      letters tab (preview showing name, room and photo; send with the preview's version and hash;
      409 `letter_changed` shows the new preview; the list).
+   - Slice 11, letters web part 2, the letters tab (`feat/web-letters-send`, stacked on part 1;
+     COMMS-007, HZ-051, HZ-001): in review. Follow-ups: letters to a contact need the contacts on
+     the record (the API has no contacts list for the web yet); an incident follow-up offers the
+     person's incidents only to holders of `safety.incident.manage`.
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature

@@ -2361,3 +2361,15 @@ the stored words); an approver sees the stored words read-only beside Approve an
 draft"; every counted problem is listed with a link to its field (a channel problem by the fixed
 channel) and shown read-only too; `done` and `at` come off the address once said; axe after both
 refusals and a new draft. Tests: the journey's third test (stale form, stale save, stale approval).
+
+## 2026-10-17: Slice 11 web part 2, the letters tab (COMMS-007)
+
+- `/people/{id}/letters`: choose an approved template, type only the admission or fee details it
+  uses, preview it with the person's name, room and photo (HZ-001), tick that it was checked and
+  make it with the preview's version and text hash; a changed letter (409) shows the new preview to
+  check again; refusals in words; the letters sent, each linked to its document.
+- Docs: comms.md section 11, the register, HZ-051, STATUS.
+
+**Tests**: `apps/web/src/lib/letters.test.ts` (9 more: typed details, pounds and pence, which
+templates are offered); `apps/web/e2e/letters.spec.ts` (2, axe on every state).
+

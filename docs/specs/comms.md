@@ -693,6 +693,21 @@ says what was done (a new `at` each time). Tests: `apps/web/src/lib/letters.test
 `apps/web/e2e/letter-templates.spec.ts` (axe on every state). Next, part 2: the person's letters
 tab (preview, send, the list).
 
+Slice 11 (letters web, part 2: the letters tab; `feat/web-letters-send`):
+`/people/{id}/letters` in `apps/web`, `components/comms/LetterComposer.tsx`. A "Letters" tab on
+the record for holders of `comms.letter.manage` (MFA, as the API asks). The sender chooses a
+template in use (not duty of candour; incident follow-up only for holders of
+`safety.incident.manage`, with the person's incident chosen), types only the admission or fee
+details its words use (dates as day, month and year; money in pounds and pence, sent in whole
+pence), and previews it. The preview takes focus and shows who the letter is about (name, room,
+photo; rule 25, HZ-001), who it is to, the subject and words, and the personal details used.
+Sending needs a tick that it was checked and repeats the preview's version and text hash; a 409
+`letter_changed` shows the new preview, with the tick cleared, to check again. The API's refusals
+(email sending not available yet, an incident involving others, a template no longer in use) are
+said in words. The letters sent are listed with a link to each letter's document. Letters go to
+the person only: the record has no contacts list to choose a recipient from yet (STATUS). Tests:
+`apps/web/src/lib/letters.test.ts`, `apps/web/e2e/letters.spec.ts` (axe on every state).
+
 Slice 12 (the family feed, schema; migration 0061, after #71's 0060; `feat/comms-family-feed`):
 `packages/db/src/schema/comms.ts`.
 
