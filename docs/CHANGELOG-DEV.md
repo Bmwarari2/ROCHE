@@ -2457,3 +2457,10 @@ a hold, each with axe. Tests: `feed-publish.test.ts` 18; `family-updates.spec.ts
 
 **Tests**: `apps/web/e2e/family-feed.spec.ts` (2, axe on every state); `apps/web/src/lib/family-feed.test.ts`
 (the portal-only home).
+
+Review round 1 of #88: a family member sees no staff navigation (the people link needs
+`people.person.read`; no location switcher); an account with no access at all (such as a family member whose link was
+revoked) is sent to `/updates` and told how to get it; the MFA notice in plainer words; axe on the MFA notice and the
+not-linked page; the e2e passkey helpers renamed `addDemoPasskey` and `signInWithDemoPasskey`; the
+seed stops with an error when no contact matches. Numbered feeds stay a logged follow-up.
+

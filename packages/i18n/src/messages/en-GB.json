@@ -1645,10 +1645,10 @@
   "comms.feed.family.checkedAt": "Checked at {when}.",
   "comms.feed.family.lastUpdate": "Last update {when}. Checked at {checked}.",
   "comms.feed.family.empty": "There are no updates to show.",
-  "comms.feed.family.noLink": "Your account is not linked to anyone's updates yet. Ask the home to link it.",
+  "comms.feed.family.noLink": "Your account has no access yet. If you are a relative or friend of someone the home supports, ask the home to link your account to their updates.",
   "comms.feed.family.happened": "{kind, select, photo {Photo added {happened}} other {{happened}}}",
   "comms.feed.family.happenedAdded": "{kind, select, photo {Photo added {happened}} other {{happened}}}, written {added}",
   "comms.feed.family.withdrawnChip": "Taken down",
-  "comms.feed.family.mfa": "Updates are part of a person's care information, so you need to confirm it is you with a passkey or an authenticator app first.",
-  "comms.feed.family.mfaLink": "Set up a passkey or authenticator app"
+  "comms.feed.family.mfa": "Updates are part of a person's care information. First confirm it is you, with a passkey or with a code from an app on your phone. Harbour calls this app an authenticator app.",
+  "comms.feed.family.mfaLink": "Set up a passkey or a phone code"
 }

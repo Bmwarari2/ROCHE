@@ -155,6 +155,17 @@ async function seedFamilyMember(): Promise<string> {
        LIMIT 1`,
       [FAMILY_MEMBER.id, FAMILY_MEMBER.personId, email],
     );
+    // Say so when there is no contact to link: never claim a link that was not made.
+    const { rows: links } = await client.query(
+      `SELECT 1 FROM family_portal_user
+       WHERE tenant_user_id = $1 AND person_id = $2 AND revoked_at IS NULL AND deleted_at IS NULL`,
+      [FAMILY_MEMBER.id, FAMILY_MEMBER.personId],
+    );
+    if (links.length === 0) {
+      throw new Error(
+        `No contact on the demo person's record has the email ${email}: run the demo seed first`,
+      );
+    }
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");

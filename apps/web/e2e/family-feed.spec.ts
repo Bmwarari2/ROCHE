@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { type APIRequestContext, type Browser, expect, type Page, test } from "@playwright/test";
-import { addManagerPasskey, demoPerson, expectAccessible, signIn } from "./support";
+import { addDemoPasskey, demoPerson, expectAccessible, PASSWORD, signIn } from "./support";
 
 /**
  * The family's updates in the portal (COMMS-001; comms.md rules 1 to 5; hazards HZ-022 and
@@ -40,17 +40,34 @@ interface Decision {
 }
 
 /** The family member's contact on Ada's record, from their portal link. */
-async function familyContact(manager: Page): Promise<string> {
-  const links = await call<{
-    items: { contactId: string; tenantUserId: string; revokedAt: string | null }[];
-  }>(manager.request, `/v1/people/${ADA}/family-portal-links`);
-  const link = links.items.find((l) => l.tenantUserId === FAMILY_MEMBER && l.revokedAt === null);
+interface Link {
+  readonly id: string;
+  readonly contactId: string;
+  readonly tenantUserId: string;
+  readonly revokedAt: string | null;
+  readonly version: number;
+}
+
+/** The family member's open link on Ada's record, made again if an earlier run revoked it. */
+async function familyLink(manager: Page): Promise<Link> {
+  const read = async () =>
+    (await call<{ items: Link[] }>(manager.request, `/v1/people/${ADA}/family-portal-links`)).items
+      .filter((l) => l.tenantUserId === FAMILY_MEMBER)
+      .sort((a, b) => Number(a.revokedAt !== null) - Number(b.revokedAt !== null));
+  const [first] = await read();
   expect(
-    link,
+    first,
     "the demo family member is linked (seed-users.ts with HARBOUR_DEMO_E2E_PASSKEY=1)",
   ).toBeTruthy();
-  return link?.contactId as string;
+  if (first && first.revokedAt === null) return first;
+  await call(manager.request, `/v1/people/${ADA}/family-portal-links`, {
+    tenantUserId: FAMILY_MEMBER,
+    contactId: first?.contactId,
+  });
+  return (await read())[0] as Link;
 }
+
+const familyContact = async (manager: Page) => (await familyLink(manager)).contactId;
 
 /** Withdraws every decision for the contact still open, so the feed is closed. */
 async function closeDecisions(manager: Page, contactId: string) {
@@ -74,7 +91,7 @@ async function managerPage(browser: Browser): Promise<Page> {
 }
 
 async function signInFamily(page: Page) {
-  await addManagerPasskey(page, "family");
+  await addDemoPasskey(page, "family");
   await page.goto("/sign-in");
   await page.getByRole("button", { name: "Sign in with a passkey" }).click();
   // A family member's home is their updates.
@@ -98,6 +115,10 @@ test("hazard HZ-022 hazard HZ-061 the family sees only what a decision opens, a 
 
   await signInFamily(page);
   await expect(page.getByRole("heading", { level: 1, name: "Updates" })).toBeVisible();
+  // A portal session sees none of the staff navigation: no people list, no location switcher.
+  await expect(page.getByRole("link", { name: "Updates", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Residents", exact: true })).toHaveCount(0);
+  await expect(page.getByText("Location:", { exact: true })).toHaveCount(0);
   await expect(feed(page)).toContainText(STATEMENT);
   await expect(feed(page)).toContainText(/Checked at \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}\./);
   await expect(feed(page)).toContainText("There are no updates to show.");
@@ -158,6 +179,38 @@ test("hazard HZ-022 hazard HZ-061 the family sees only what a decision opens, a 
   await expect(feed(page)).toContainText("There are no updates to show.");
   expect(await feedWords(page)).toBe(noDecision);
   await expectAccessible(page, "decision withdrawn");
+  await manager.context().close();
+});
+
+test("a family member who has not confirmed it is them, or whose link was revoked, is told so", async ({
+  page,
+  browser,
+}) => {
+  const manager = await managerPage(browser);
+  const link = await familyLink(manager);
+  // A password alone: the feed needs a passkey or a phone code first.
+  await page.goto("/sign-in");
+  await page.getByLabel("Email address").fill("relative.example@example.invalid");
+  await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.waitForURL((url) => url.pathname === "/updates");
+  await expect(page.getByRole("link", { name: "Set up a passkey or a phone code" })).toBeVisible();
+  await expect(feed(page)).toHaveCount(0);
+  await expectAccessible(page, "MFA notice");
+
+  // The link revoked: the account has no access at all, and the page says how to get it. The
+  // next run (or the next family test) makes the link again.
+  await call(manager.request, `/v1/people/${ADA}/family-portal-links/${link.id}/revoke`, {
+    reason: `End-to-end run ${RUN}`,
+    version: link.version,
+  });
+  const family = await (await browser.newContext()).newPage();
+  await signInFamily(family);
+  await expect(family.getByText("Your account has no access yet.", { exact: false })).toBeVisible();
+  await expect(family.getByRole("link", { name: "Residents", exact: true })).toHaveCount(0);
+  await expectAccessible(family, "not linked");
+  await family.context().close();
+  await familyLink(manager);
   await manager.context().close();
 });
 

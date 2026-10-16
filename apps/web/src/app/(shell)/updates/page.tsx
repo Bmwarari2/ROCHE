@@ -5,7 +5,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
-import { familyUpdatesShown } from "@/lib/family-feed";
+import { familyUpdatesShown, isFamilyMember } from "@/lib/family-feed";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 
@@ -26,10 +26,26 @@ const MFA_CODES = new Set(["mfa_enrolment_required", "mfa_verification_required"
 export default async function FamilyUpdatesPage() {
   const { me } = await getShellContext();
   const title = t("comms.feed.family.title");
-  if (!familyUpdatesShown(me.permissions)) return <SafetyForbidden title={title} />;
+  const checkedAt = formatDateTime(new Date().toISOString()) ?? "";
+  if (!familyUpdatesShown(me.permissions)) {
+    // A family member whose link was revoked or not yet made is told so, never "no access".
+    if (!isFamilyMember(me)) return <SafetyForbidden title={title} />;
+    return (
+      <div className="mx-auto flex w-full max-w-content flex-col gap-6">
+        <PageHeader eyebrow={me.tenant.name} title={title} />
+        <Card>
+          <div className="flex flex-col gap-2">
+            <p className="m-0">{t("comms.feed.family.noLink")}</p>
+            <p className="m-0 text-body-dense text-text-secondary">
+              {t("comms.feed.family.checkedAt", { when: checkedAt })}
+            </p>
+          </div>
+        </Card>
+      </div>
+    );
+  }
   const api = await tenantApi();
   const read = await api.GET("/v1/family/feed");
-  const checkedAt = formatDateTime(new Date().toISOString()) ?? "";
   const refusal = read.data ? null : problemCode(read.error);
   if (!read.data && !(refusal && MFA_CODES.has(refusal))) {
     failWith(read.error, read.response, "/updates");
