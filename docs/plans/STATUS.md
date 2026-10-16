@@ -162,9 +162,10 @@ only when they link spec, code, tests and user documentation; no user guides exi
 
    - Slice 13, search part 1, the index (`feat/platform-search-schema`, migration 0066;
      platform-completions.md section 10s; PLAT-013, ADR-0070): `app.search_terms` equal to the
-     domain's terms, generated vectors on people, colleagues, documents and notes; no GIN index (unusable by the app role under forced RLS; ADR-0070 as built). Next: the
-     search route (plan, second filter, ranking, audit), then the web search box, then break-glass
-     search with `break_glass_event.kind`.
+     domain's terms, generated vectors on people, colleagues, documents and notes; no GIN index (unusable by the app role under forced RLS; ADR-0070 as built). Part 2, the route
+     (`feat/platform-search-api`, stacked): `POST /v1/search` with the plan, each kind in its own
+     permission's scope without break-glass, the second filter, ranking and audit without the words.
+     Next: the web search box, then break-glass search with `break_glass_event.kind`.
    - Slice 13, the DPIA in-app (`feat/platform-dpia-onboarding`, migration 0063;
      platform-completions.md section 10d): `dpia` versions with forced RLS and a guard (signed by
      the named lead who prepared none of it, never changed after), the tenant's data protection
