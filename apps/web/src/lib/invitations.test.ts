@@ -1,6 +1,7 @@
 import { type PasswordRule, passwordRuleBroken } from "@harbour/domain";
 import { describe, expect, it } from "vitest";
 import { t } from "./i18n";
+import { lookupResultFrom } from "./invitation-lookup";
 import {
   asRefusal,
   destinationAfterAccept,
@@ -8,6 +9,7 @@ import {
   type InvitationRefusal,
   isFinal,
   isInvitationToken,
+  isJsonMediaType,
   isSameOrigin,
   KEPT_TOKEN_MINUTES,
   keptToken,
@@ -172,16 +174,72 @@ describe("the kept token", () => {
 });
 
 describe("isSameOrigin", () => {
+  const web = "https://app.example.invalid";
   it.each([
-    ["https://app.example.invalid", "app.example.invalid", true],
-    ["http://localhost:3000", "localhost:3000", true],
-    ["https://app.example.invalid", "app.example.invalid, internal:3000", true],
-    ["https://evil.example.invalid", "app.example.invalid", false],
-    ["http://localhost:3001", "localhost:3000", false],
-    [null, "app.example.invalid", false],
-    ["null", "app.example.invalid", false],
+    ["https://app.example.invalid", web, true],
+    ["https://app.example.invalid/", "https://app.example.invalid/path", true],
+    ["http://localhost:3000", "http://localhost:3000", true],
+    ["http://app.example.invalid", web, false],
+    ["https://evil.example.invalid", web, false],
+    ["https://app.example.invalid.evil.example.invalid", web, false],
+    ["https://app.example.invalid:8443", web, false],
+    ["http://localhost:3001", "http://localhost:3000", false],
+    [null, web, false],
+    ["null", web, false],
     ["https://app.example.invalid", null, false],
-  ])("%s for %s is %s", (origin, host, expected) => {
-    expect(isSameOrigin(origin, host)).toBe(expected);
+    ["https://app.example.invalid", "not a url", false],
+  ])("%s against %s is %s", (origin, webOrigin, expected) => {
+    expect(isSameOrigin(origin, webOrigin)).toBe(expected);
+  });
+});
+
+describe("isJsonMediaType", () => {
+  it.each([
+    ["application/json", true],
+    ["application/json; charset=utf-8", true],
+    ["Application/JSON ;charset=UTF-8", true],
+    ["application/jsonx", false],
+    ["application/json-patch+json", false],
+    ["text/plain", false],
+    ["text/plain; application/json", false],
+    [null, false],
+  ])("%s is %s", (type, expected) => {
+    expect(isJsonMediaType(type)).toBe(expected);
+  });
+});
+
+describe("lookupResultFrom", () => {
+  const body = {
+    organisationName: "Example Care Homes",
+    emailMasked: "a…@example.invalid",
+    expiresAt: "2026-10-19T09:00:00Z",
+    refusal: null,
+    path: "create_sign_in",
+  };
+
+  it("passes on what the contract allows, the expiry in UK time", () => {
+    expect(lookupResultFrom(body)).toEqual({
+      kind: "found",
+      organisationName: "Example Care Homes",
+      emailMasked: "a…@example.invalid",
+      expiresAt: "19/10/2026 10:00",
+      path: "create_sign_in",
+    });
+  });
+
+  it("passes on a refusal", () => {
+    expect(lookupResultFrom({ ...body, refusal: "invitation_expired" })).toEqual({
+      kind: "refused",
+      refusal: "invitation_expired",
+    });
+  });
+
+  it.each([
+    ["an unknown path", { ...body, path: "make_admin" }],
+    ["an unknown refusal", { ...body, refusal: "something_else" }],
+    ["a missing organisation", { ...body, organisationName: undefined }],
+    ["no body", null],
+  ])("reads %s as unavailable", (_, value) => {
+    expect(lookupResultFrom(value)).toEqual({ kind: "unavailable" });
   });
 });

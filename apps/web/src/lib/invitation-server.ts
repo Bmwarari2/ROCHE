@@ -1,9 +1,10 @@
 import "server-only";
+import { InvitationAccepted } from "@harbour/contracts";
 import { passwordRuleBroken } from "@harbour/domain";
 import { cookies } from "next/headers";
 import { isSecureRequest, problemCode, serverApi } from "@/lib/api";
 import { contextCookieOptions, LOCATION_COOKIE, TENANT_COOKIE } from "@/lib/context-cookies";
-import { formatDateTime } from "@/lib/format";
+import { lookupResultFrom } from "@/lib/invitation-lookup";
 import {
   type AcceptResult,
   asRefusal,
@@ -44,14 +45,7 @@ export async function lookupInvitation(token: string): Promise<LookupResult> {
       body: { token },
     });
     if (!data) return failure(response.status, error, response);
-    if (data.refusal) return { kind: "refused", refusal: asRefusal(data.refusal) };
-    return {
-      kind: "found",
-      organisationName: data.organisationName,
-      emailMasked: data.emailMasked,
-      expiresAt: formatDateTime(data.expiresAt) ?? "",
-      path: data.path,
-    };
+    return lookupResultFrom(data);
   } catch {
     return { kind: "unavailable" };
   }
@@ -92,11 +86,18 @@ export async function acceptInvitation(input: AcceptInput): Promise<AcceptResult
       // The checks above match the API's, so a 422 here is a link that does not work.
       return failure(response.status, error, response);
     }
+    const accepted = InvitationAccepted.safeParse(data);
+    if (!accepted.success) return { kind: "unavailable" };
     // Start in the organisation just joined; the API still decides what the person may see.
     const jar = await cookies();
-    jar.set(TENANT_COOKIE, data.tenantId, contextCookieOptions("tenant", await isSecureRequest()));
+    jar.set(
+      TENANT_COOKIE,
+      accepted.data.tenantId,
+      contextCookieOptions("tenant", await isSecureRequest()),
+    );
     jar.delete(LOCATION_COOKIE);
-    return { kind: "accepted", next: data.next, destination: destinationAfterAccept(data.next) };
+    const { next } = accepted.data;
+    return { kind: "accepted", next, destination: destinationAfterAccept(next) };
   } catch {
     return { kind: "unavailable" };
   }

@@ -1,4 +1,15 @@
-import { isSameOrigin } from "@/lib/invitations";
+import { isJsonMediaType, isSameOrigin } from "@/lib/invitations";
+
+/**
+ * This site's origin from configuration (`PUBLIC_WEB_URL`, set per environment by Terraform). In
+ * development the local web server's address; in production without it, nothing matches.
+ */
+function webOrigin(): string | null {
+  return (
+    process.env.PUBLIC_WEB_URL ??
+    (process.env.NODE_ENV === "production" ? null : "http://localhost:3000")
+  );
+}
 
 /**
  * The invitation page's two calls (POST, JSON, same origin only). The browser reaches the API only
@@ -9,13 +20,10 @@ export async function invitationRequest<T>(
   answer: (body: Record<string, unknown>) => Promise<T>,
 ): Promise<Response> {
   const headers = { "cache-control": "no-store" };
-  // A cross-site form cannot post JSON with this origin, so another site cannot accept for someone.
+  // Only this site, posting JSON: a cross-site form cannot accept an invitation for someone.
   if (
-    !isSameOrigin(
-      request.headers.get("origin"),
-      request.headers.get("x-forwarded-host") ?? request.headers.get("host"),
-    ) ||
-    !request.headers.get("content-type")?.startsWith("application/json")
+    !isSameOrigin(request.headers.get("origin"), webOrigin()) ||
+    !isJsonMediaType(request.headers.get("content-type"))
   ) {
     return Response.json({ kind: "forbidden" }, { status: 403, headers });
   }

@@ -43,16 +43,23 @@ export function forgetKeptToken(): void {
 }
 
 /**
- * Whether a request's Origin is this site (the invitation route handlers accept nothing else).
- * `host` is the host the person reached: X-Forwarded-Host behind the load balancer, else Host.
+ * Whether a request's Origin is exactly this site's configured origin (`PUBLIC_WEB_URL`), scheme
+ * and port included. Nothing from the request itself decides what "this site" is.
  */
-export function isSameOrigin(origin: string | null, host: string | null): boolean {
-  if (!origin || !host) return false;
+export function isSameOrigin(origin: string | null, webOrigin: string | null): boolean {
+  if (!origin || !webOrigin) return false;
   try {
-    return new URL(origin).host === host.split(",")[0]?.trim();
+    return new URL(origin).origin === new URL(webOrigin).origin;
   } catch {
     return false;
   }
+}
+
+/** Whether a Content-Type is JSON (`application/json`, with or without parameters). */
+export function isJsonMediaType(contentType: string | null): boolean {
+  if (!contentType) return false;
+  const [type] = contentType.split(";");
+  return type?.trim().toLowerCase() === "application/json";
 }
 
 /** The token's shape (`InvitationToken` in @harbour/contracts): 43 base64url characters. */

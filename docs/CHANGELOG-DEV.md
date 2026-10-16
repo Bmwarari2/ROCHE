@@ -1808,3 +1808,10 @@ summary), sign-in ready, sign in first, expired, withdrawn, used and throttled, 
 kept token carries its time and is dropped after 30 minutes, on sign-out and on the create path;
 an existing sign-in also lands on enrolment; headings take focus, "Sending" is announced, the
 form checks the NCSC rules before sending. Tests: 14 new unit tests, 7 new journeys.
+
+After #59 review round 2: the invitation route handlers accept only an Origin exactly equal to
+`PUBLIC_WEB_URL` (scheme and port included) and a parsed `application/json` media type; the
+lookup and accept answers are checked against the contract (`InvitationLookup`,
+`InvitationAccepted`) before the page sees them; `serverApi` forwards only the right-most
+X-Forwarded-For hop outside `TRUSTED_PROXY_CIDRS` (`clientAddress`, mirroring the API's
+`throttleAddress`; the web task now gets `TRUSTED_PROXY_CIDRS` from Terraform). Tests: 40 new.
