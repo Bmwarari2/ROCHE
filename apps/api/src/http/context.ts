@@ -40,12 +40,15 @@ import {
 import { sessionMfa } from "../auth/session-factor";
 import type { Config } from "../config";
 import type { FlagService } from "../flags/provider";
+import type { MockEmail } from "../integrations/adapters";
+import type { ChannelAdapter } from "../integrations/registry";
 import type { Logger } from "../logger";
 import { accessRowsOfMember } from "../services/access-rows";
 import { bindSession, sessionOnRevokedDevice } from "../services/devices";
 import { writeAudit } from "./audit";
 import { HttpProblem, problems } from "./problem";
 import type { RateLimiter } from "./rate-limit";
+import type { MemoryThrottle } from "./throttle";
 
 // The device id is the PowerSync client id, a UUID. Anything else is not trusted into the audit
 // trail or a task, and reads as no device (security review round 4; #21 S-L6).
@@ -71,6 +74,19 @@ export interface Services {
   readonly transferPackLimiter: RateLimiter;
   /** Per-user limit on compiling a handover through the API. */
   readonly handoverCompileLimiter: RateLimiter;
+  /** A tenant's adapter for a channel: its configured provider, else the mock (or, in production, none). */
+  readonly adapterFor: (
+    tenantId: string,
+    channel: "email" | "sms" | "push",
+    tx: Transaction,
+  ) => Promise<ChannelAdapter>;
+  /** What the email mock was handed (development and tests; never used in production). */
+  readonly mockEmail: MockEmail;
+  /** Invitation links opened or accepted: per client address and per token hash. */
+  readonly invitationThrottles: {
+    readonly address: MemoryThrottle;
+    readonly token: MemoryThrottle;
+  };
 }
 
 export interface SessionInfo {

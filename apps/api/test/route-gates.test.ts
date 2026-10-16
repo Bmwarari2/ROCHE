@@ -35,6 +35,8 @@ const UNGATED: Readonly<Record<string, string>> = {
   "POST /v1/sync/upload": "refuses every operation (no writable synced tables); audits the count",
   "POST /operator/tenants": "an operator route behind the operator middleware, not a tenant route",
   "POST /operator/tenants/{tenantId}/support-access": "an operator route (support access request)",
+  "POST /operator/tenants/{tenantId}/owner-invitation":
+    "an operator route (the first owner's invitation, through app.invite_first_owner)",
 };
 
 const SRC = fileURLToPath(new URL("../src", import.meta.url));

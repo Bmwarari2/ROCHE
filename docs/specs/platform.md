@@ -159,8 +159,9 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
 ## Invitations and MFA enrolment (PLAT-004)
 
 Status: the rules are built (`packages/domain/src/platform/invitations.ts`, table-driven tests),
-and the store (migration 0054, the schema below; `packages/db/test/invitations.test.ts`); the
-routes and the screens follow. Built already
+the store (migration 0054, the schema below; `packages/db/test/invitations.test.ts`) and the
+routes and the sweep (As built, below; `apps/api/test/invitations.test.ts`); the accept page
+follows. Built already
 and relied on: NCSC password rules at sign-up (`passwordProblem`: 12 to 128 characters, a
 deny-list, no expiry, throttling not lockout), passkeys and authenticator apps (TOTP) with the
 set-up screen (`/settings/security`), `mfa_enrolment_required` on every permission that touches
@@ -330,6 +331,50 @@ Schema, as built in migration 0054 (`packages/db/drizzle/0054_invitations.sql`):
   before migration 0054 (`docs/runbooks/local-development.md`).
 - Retention: `invitation` rows take their own class (`invitation`, retention.md); the address is
   gone once the invitation is closed, and the audit trail keeps who was given access and when.
+
+
+As built, the routes (`apps/api/src/routes/invitations.ts`, `operator-invitations.ts`,
+`services/invitations.ts`):
+
+- `POST /v1/invitations` (`platform.user.manage`, step-up): only a member the permission reaches
+  (`memberReached`, the admin sign-out's rule; anyone else is 404), still invited
+  (`inviteRefusal`, 409 with its code) and within the sender's permissions (`app.may_invite`, 403
+  `beyond_inviter`); supersedes the open invitation (audited `platform.invitation.revoked`,
+  `superseded`), stores the hash with the expiry from `app.invitation_rate` through
+  `invitationExpiresAt`, audits `platform.invitation.sent`, then emails the link. The token is 32
+  random bytes, base64url; the SHA-256 of its UTF-8 bytes is what `app.invitation_token_hash`
+  computes. Refusals are audited.
+- `GET /v1/invitations?tenantUserId=` and `POST /v1/invitations/{id}/revoke`
+  (`platform.user.manage`): narrowed to members the permission reaches, as sending is (#48
+  review), so a location role cannot read or withdraw an invitation for another home's staff or
+  the owner; states, times and the reason only. Withdrawing is in the member's own name, as
+  `revoked`; a closed invitation is 409 `invitation_closed`.
+- `POST /v1/invitations/lookup` and `/accept` need no session (no organisation is chosen); each is
+  throttled per client address and per token's SHA-256 (`MemoryThrottle`, per API instance,
+  `INVITATION_REQUESTS_PER_MINUTE_PER_ADDRESS` 20 and `_PER_TOKEN` 10; across instances needs a
+  table keyed by something other than a member, a Lane A follow-up). The token goes to
+  `app.invitation_for_token`, `app.claim_invitation`, `app.record_invitation_sign_in` and
+  `app.accept_invitation` only as a bound parameter; it is never logged, audited or returned.
+  Lookup reads the address through `claim_invitation` in a transaction rolled back at once, to
+  choose `acceptancePath`. Accepting signed in links that sign-in (`next: enrol`); not signed in,
+  it creates a sign-in only when none exists for the address (else 409 `sign_in_first`), with the
+  NCSC rules and the address marked verified, records it, then accepts in one transaction; if the
+  acceptance is refused or fails, the new sign-in is deleted (`platform.invitation.sign_in_removed`,
+  a platform event) and `next: sign_in` is returned only on success. An unknown token is 404 and a
+  platform audit event; refusals are audited in the organisation's chain with the client address.
+- `POST /operator/tenants/{tenantId}/owner-invitation`: operator admins with a sign-in inside the
+  step-up window; sets `app.operator_id` for the transaction and calls `app.invite_first_owner`;
+  its refusals (`organisation_has_members`, `no_invited_owner`, `organisation_not_active`) are
+  409s audited in the organisation's chain.
+- The email goes straight to the organisation's `comms.email` adapter (the mock unless one is
+  configured; in production none means not sent, `emailSent: false`, audited
+  `platform.invitation.email_failed`; H-356), never through `notification_delivery`, which would
+  store the link. Subject "You have been invited to Harbour", the link only (H-357).
+- The worker's nightly `invitation-sweep` (03:17) runs `app.sweep_expired_invitations` and deletes
+  each sign-in `app.unlinked_invitation_sign_ins` lists through the auth role, each audited as
+  `platform.invitation.sign_in_removed`. Known gap, logged in STATUS: a sign-in linked between the
+  listing and the deletion would be deleted; the window is milliseconds once a night, and only for
+  a sign-in already 24 hours unlinked.
 
 ## Audit trail and history (PLAT-007)
 

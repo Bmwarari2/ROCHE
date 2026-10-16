@@ -1743,6 +1743,23 @@ selects only the columns it needs; `withTenantWideScope` restores the scope in a
 **Tests**: `apps/web` `statutory-notifications.test.ts` 9 new; e2e names, axe on every page and
 the needs of demo person 3 (hosted CI).
 
+## 2026-10-16: Invitation routes, API part (PLAT-004, STATUS item 20)
+
+- `POST /v1/invitations` (step-up), `GET /v1/invitations?tenantUserId=` and
+  `POST /v1/invitations/{id}/revoke`, all narrowed to the members `platform.user.manage` reaches
+  (#48 review), audited, refusals too.
+- `POST /v1/invitations/lookup` and `/accept` with no session: throttled per client address and
+  per token hash; the token goes to the definer functions only as a bound parameter; a sign-in is
+  created only when none exists for the address and is deleted if the acceptance fails.
+- `POST /operator/tenants/{id}/owner-invitation` sets `app.operator_id` and calls
+  `app.invite_first_owner`; the link is emailed through the organisation's `comms.email` adapter,
+  never queued.
+- Worker: nightly `invitation-sweep` (lapsed invitations, then unlinked sign-ins deleted through
+  the auth role).
+- Docs: platform.md (As built), HZ-011 rows, H-356 and H-357, records of processing, STATUS item 20.
+
+**Tests**: `apps/api` `invitations.test.ts` 20 new.
+
 ## 2026-10-16: MFA counts only for the session that used it (#43 review M5)
 
 - API: care records (and the operator console) need a session that signed in, or confirmed a

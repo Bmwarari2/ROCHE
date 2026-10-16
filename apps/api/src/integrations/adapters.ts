@@ -180,7 +180,11 @@ export function createAdapter<K extends PortName>(
   };
   const provider = connection?.provider ?? (options.production ? "unconfigured" : "mock");
   let adapter: EmailPort | SmsPort | PushPort;
-  if (provider === "mock") {
+  // The mock never runs in production, even when a connection names it (#53 review L3): it would
+  // report sent and keep what it was handed (an invitation's link) in the API's memory.
+  if (provider === "mock" && options.production) {
+    adapter = new Unconfigured(port);
+  } else if (provider === "mock") {
     adapter = port === "comms.email" ? mocks.email : port === "comms.sms" ? mocks.sms : mocks.push;
   } else if (port === "comms.email" && provider === "ses") {
     adapter = new SesEmail(String(connection?.settings.from ?? ""));
