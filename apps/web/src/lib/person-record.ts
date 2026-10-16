@@ -1,6 +1,8 @@
 import "server-only";
+import type { OutageItem } from "@harbour/contracts";
 import { cache } from "react";
 import { failWith, problemCode, tenantApi } from "./api";
+import { paperOutages } from "./back-entry";
 import { isUuid } from "./context-cookies";
 import {
   type CareProfileLoad,
@@ -61,3 +63,28 @@ export function readOrFail<T>(
   if (problemCode(result.error) === "missing_permission") return null;
   return failWith(result.error, result.response, path);
 }
+
+/**
+ * The outages at the person's location a paper record can still be entered against (open or
+ * closed), for the care record forms (operations.md section 14; HZ-017). Empty when they cannot
+ * be read: the forms then offer no paper choice, and the API still refuses an entry for a time in
+ * an outage without its details, in words the form shows.
+ */
+export const getEntryOutages = cache(async (locationId: string): Promise<OutageItem[]> => {
+  if (!isUuid(locationId)) return [];
+  const api = await tenantApi();
+  const { data } = await api.GET("/v1/locations/{id}/outages", {
+    params: { path: { id: locationId } },
+  });
+  if (!data) return [];
+  // Reconciled or cancelled in the last week: no paper choice, but a hint to tell the nurse in
+  // charge (a convenience window for the hint, not a rule).
+  const recent = Date.now() - 7 * 24 * 3_600_000;
+  return [
+    ...paperOutages(data.items),
+    ...data.items.filter(
+      (o) =>
+        (o.state === "reconciled" || o.state === "cancelled") && Date.parse(o.startedAt) >= recent,
+    ),
+  ];
+});

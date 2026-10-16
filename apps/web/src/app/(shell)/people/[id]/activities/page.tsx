@@ -19,7 +19,7 @@ import {
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
-import { getPerson, readOrFail } from "@/lib/person-record";
+import { getEntryOutages, getPerson, readOrFail } from "@/lib/person-record";
 import { recordMetadata } from "@/lib/record-metadata";
 import { formatUkTime } from "@/lib/uk-time";
 
@@ -63,6 +63,7 @@ async function ActivitiesTab({
   const names = personNames(person);
   // The forms only where the viewer's care.note.write reaches the person (review round 3, C3-M1).
   const { canWrite, readOnlyNotice } = writeAccess(person, me.permissions, "care.note.write");
+  const outages = canWrite ? await getEntryOutages(person.locationId) : [];
   const by = (recordedBy: string | null) =>
     t("care.entry.recordedBy", { who: entryAuthor(recordedBy, me.tenantUserId) });
 
@@ -83,7 +84,7 @@ async function ActivitiesTab({
           </h3>
           {canWrite ? (
             <Card as="section" title={t("care.activities.form.title")} headingLevel={4}>
-              <ActivityForm personId={id} name={names.preferred} />
+              <ActivityForm personId={id} outages={outages} name={names.preferred} />
             </Card>
           ) : null}
           {activities.items.length === 0 ? (
@@ -137,7 +138,7 @@ async function ActivitiesTab({
           </h3>
           {canWrite ? (
             <Card as="section" title={t("care.visits.form.title")} headingLevel={4}>
-              <VisitForm personId={id} name={names.preferred} />
+              <VisitForm personId={id} outages={outages} name={names.preferred} />
             </Card>
           ) : null}
           {visits.items.length === 0 ? (
