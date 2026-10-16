@@ -290,6 +290,11 @@ only when they link spec, code, tests and user documentation; no user guides exi
      Follow-ups: the other seven record types of the field map; staff shown as their role from the
      closed list (as built every staff name prints "[member of staff]", H-218); a superseded
      incident version cannot be added after it changes, only a new pack.
+   - Slice 11 part 2b, the statement of purpose routes and the notification-overdue job
+     (`feat/quality-statement-of-purpose-api`, stacked on part 2a; quality.md section 14): built,
+     PR open. Follow-ups: the overdue alert's words and who receives it (every active holder of
+     `safety.notification.submit` anywhere, H-219); the CQC notification wording or template
+     itself is not generated (the record holds the reference or how it was sent).
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature

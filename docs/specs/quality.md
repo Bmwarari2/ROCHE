@@ -337,3 +337,24 @@ Tests: `apps/api/test/evidence-packs.test.ts`.
 
 Still to come: the statement of purpose routes and its overdue job (part 2b), the public link
 routes with codes, the session cookie and the PDF (part 2c), and the remaining record types.
+
+## 14. As built (slice 11, API part 2b: the statement of purpose)
+
+`apps/api/src/routes/statement-of-purpose.ts`, `apps/api/src/services/statement-of-purpose.ts`
+(`feat/quality-statement-of-purpose-api`, stacked on part 2a).
+
+| Route | Built as |
+| --- | --- |
+| `GET /v1/statement-of-purpose/versions` | Holders of `quality.statement_of_purpose.write` or `.approve` or `safety.notification.submit`; newest first, each with the Schedule 3 gaps in words, the warnings and where a revision stands against the regulation 12(3) clock (`not_required`, `due`, `overdue`, `notified` with `late`), read from the times the database set |
+| `POST .../versions` | Write: the first version is the baseline and needs its content; later drafts are revisions starting from the current version unless content is given; one draft at a time (409); `.drafted` |
+| `PUT .../{id}`, `POST .../{id}/discard` | Write, drafts only, against the loaded version; an editor joins the contributors; `.edited`, `.discarded` |
+| `POST .../{id}/approve` | Approve: `checkStatementOfPurposeApproval` (not the author or an editor, complete, changed) with `cqc.statement_of_purpose.revision_notice_days`, then the database's guard; the change summary and registration prompts stored; `.approved` and the outbox `quality.statement_of_purpose.approved` (version, kind, due date) |
+| `POST .../{id}/notification` | `safety.notification.submit` with step-up: `checkStatementOfPurposeNotificationRecord`, never a time in the future; once; a submission after the due date shows as late; acknowledges the overdue alerts; `.notified` |
+| `GET .../{id}/changes` | A draft against the current version, an approved one against the version it superseded, with the registration prompts |
+
+The worker's `statement-of-purpose-overdue` queue (hourly) tells every active holder of
+`safety.notification.submit` anywhere once, urgently, through the tenant's overdue escalation
+chain, about an approved or superseded revision past its due date with no notification recorded,
+and publishes `quality.statement_of_purpose.notification_overdue` once; with nobody to tell it
+audits `quality.statement_of_purpose.unrouted` at most daily and tries again. Tests:
+`apps/api/test/statement-of-purpose.test.ts`.
