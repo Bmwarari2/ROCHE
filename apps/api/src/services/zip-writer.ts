@@ -81,20 +81,34 @@ export class ZipWriter {
     let size = 0;
     let compressed = 0;
     const input = typeof source === "string" || source instanceof Uint8Array ? [source] : source;
-    // Read the source and drain the deflater together: if either fails, the other is stopped
-    // (`deflate.destroy`), so a failed source or a closed archive never leaves a wait hanging.
+    const iterator =
+      Symbol.asyncIterator in input
+        ? (input as AsyncIterable<Uint8Array | string>)[Symbol.asyncIterator]()
+        : (input as Iterable<Uint8Array | string>)[Symbol.iterator]();
+    // Read the source and drain the deflater together. If either fails, the other is stopped
+    // (`deflate.destroy`) and the source is pulled no more: both are waited for, and the source is
+    // closed (`return`), before `add` rejects, so nothing it reads from (a cursor on a pooled
+    // connection) runs after the caller has given up.
+    let stopped = false;
+    const stop = (error: unknown) => {
+      stopped = true;
+      deflate.destroy(error instanceof Error ? error : new Error("The archive stopped."));
+    };
     const feed = async () => {
       try {
-        for await (const part of input) {
+        for (;;) {
+          const next = await iterator.next();
+          if (next.done || stopped) break;
+          const part = next.value;
           const chunk = typeof part === "string" ? Buffer.from(part, "utf8") : part;
           crc = crc32(chunk, crc);
           size += chunk.length;
           hash.update(chunk);
           if (!deflate.write(chunk)) await drained(deflate);
         }
-        deflate.end();
+        if (!stopped) deflate.end();
       } catch (error) {
-        deflate.destroy(error as Error);
+        stop(error);
         throw error;
       }
     };
@@ -105,11 +119,20 @@ export class ZipWriter {
           await this.write(out);
         }
       } catch (error) {
-        deflate.destroy(error as Error);
+        stop(error);
         throw error;
       }
     };
-    await Promise.all([feed(), drain()]);
+    const settled = await Promise.allSettled([feed(), drain()]);
+    const failure = settled.find((r): r is PromiseRejectedResult => r.status === "rejected");
+    if (failure || stopped) {
+      try {
+        await iterator.return?.();
+      } catch {
+        // The source could not close itself; the caller's rollback ends what it was reading.
+      }
+      throw failure?.reason ?? new Error("The archive stopped.");
+    }
     if (size >= LIMIT || compressed >= LIMIT) {
       throw new RangeError("A single file in the export is too large for the archive.");
     }
@@ -179,6 +202,10 @@ export class ZipWriter {
 
 /** Waits for a stream to drain, or rejects when it closes or fails first. */
 function drained(stream: Writable): Promise<void> {
+  // Already gone: a write to it would never drain.
+  if (stream.destroyed || stream.writableEnded) {
+    return Promise.reject(new Error("The stream has closed."));
+  }
   return new Promise((resolve, reject) => {
     const done = () => {
       stream.off("close", closed);

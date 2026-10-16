@@ -89,4 +89,36 @@ describe("the streaming ZIP writer", () => {
     writer.output.on("error", () => undefined);
     await expect(writer.add("big.bin", inParts(randomBytes(4_000_000), 16_384))).rejects.toThrow();
   });
+
+  it("pulls nothing more from the source once the reader has died mid-pull, and closes it first", async () => {
+    const writer = new ZipWriter();
+    const pulls: number[] = [];
+    let closed = false;
+    async function* slow(): AsyncGenerator<Uint8Array> {
+      try {
+        for (let i = 0; i < 100; i += 1) {
+          pulls.push(i);
+          // A cursor FETCH: the source is mid-await when the reader dies.
+          await new Promise((resolve) => setTimeout(resolve, 20));
+          yield randomBytes(200_000);
+        }
+      } finally {
+        closed = true;
+      }
+    }
+    writer.output.once("data", () => {
+      setTimeout(() => writer.output.destroy(new Error("upload failed")), 5);
+    });
+    await expect(writer.add("slow.bin", slow())).rejects.toThrow();
+    const after = pulls.length;
+    expect(closed).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(pulls.length).toBe(after);
+  });
+
+  it("refuses at once to wait on a stream that has already closed", async () => {
+    const writer = new ZipWriter();
+    writer.abort(new Error("gone"));
+    await expect(writer.add("x.csv", "a,b\n")).rejects.toThrow();
+  });
 });
