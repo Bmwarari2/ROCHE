@@ -8,18 +8,21 @@ import {
   WithdrawFeedItem,
 } from "@harbour/contracts";
 import {
+  contact,
   familyPortalUser,
   feedItem,
   feedItemWithdrawal,
   feedView,
   person,
   type Transaction,
+  tenantUser,
   withRequestContext,
 } from "@harbour/db";
 import {
   buildFamilyFeed,
   checkFeedWithdrawal,
   FEED_ITEM_SECTIONS,
+  FEED_NOT_FULL_RECORD_STATEMENT,
   type FeedItem,
   type FeedItemKind,
   type FeedWithdrawalReason,
@@ -29,8 +32,9 @@ import {
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { Context } from "hono";
+import { AuditedRefusal, withAuditedRefusal } from "../http/audit";
 import { type AppEnv, requireAnyPermission, requirePermission, withTenant } from "../http/context";
-import { problems } from "../http/problem";
+import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
 import { accessRowsOf } from "../services/access-rows";
 import { loadPerson, requireVersion, requireWrite } from "../services/people";
@@ -85,7 +89,9 @@ const linkOut = (row: LinkRow) => ({
  * What the sharing rules need about each linked person: the status, every decision with its
  * suspension periods, and the capacity finding now. A family session cannot read these (no person
  * scope, ADR-0061), so they are read in the system's view; they decide what is shown and are never
- * returned.
+ * returned. The person ids come only from the caller's own `family_portal_user` links, read in the
+ * family session, never from the request: the system's view is never pointed at a person the
+ * caller chose (a test sends another person's id and finds nothing of them).
  */
 async function viewerContexts(c: Context<AppEnv>, personIds: readonly string[], now: Date) {
   const { tenantId } = c.get("access");
@@ -111,6 +117,62 @@ async function viewerContextOf(tx: Transaction, personId: string, now: Date) {
     capacityNow: context.capacityNow,
     decisions: await decisionsWithLinks(tx, personId, context),
   };
+}
+
+/**
+ * Binding a portal account to a person rests on more than a member of staff's choice: the
+ * account's verified email must be the contact's own email, or the link is refused and the refusal
+ * audited (ids only). An invitation the contact accepts replaces this later (STATUS).
+ */
+async function requireAccountIsContact(
+  c: Context<AppEnv>,
+  tx: Transaction,
+  personId: string,
+  body: { readonly tenantUserId: string; readonly contactId: string },
+) {
+  const [member] = await tx
+    .select({ authUserId: tenantUser.authUserId })
+    .from(tenantUser)
+    .where(eq(tenantUser.id, body.tenantUserId));
+  const [holder] = await tx
+    .select({ email: contact.email })
+    .from(contact)
+    .where(
+      and(
+        eq(contact.id, body.contactId),
+        eq(contact.personId, personId),
+        isNull(contact.deletedAt),
+      ),
+    );
+  const account = member?.authUserId
+    ? (
+        await c
+          .get("services")
+          .authPool.query<{ email: string; email_verified: boolean }>(
+            'SELECT email, email_verified FROM auth."user" WHERE id = $1',
+            [member.authUserId],
+          )
+      ).rows[0]
+    : undefined;
+  const same = (a: string | null | undefined, b: string | null | undefined) =>
+    !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
+  if (!account?.email_verified || !same(account.email, holder?.email)) {
+    throw new AuditedRefusal(
+      new HttpProblem(
+        422,
+        "account_not_contact",
+        "This account's confirmed email is not the contact's email. Check the contact's details, or ask the family member to sign up with that email.",
+      ),
+      {
+        action: "comms.portal_link.create",
+        outcome: "denied",
+        resourceType: "person",
+        resourceId: personId,
+        reason: "account_not_contact",
+        scope: { contactId: body.contactId, tenantUserId: body.tenantUserId },
+      },
+    );
+  }
 }
 
 const FEED_PERMISSIONS = ["comms.feed.publish", "comms.feed.withdraw"] as const;
@@ -162,6 +224,9 @@ export const familyFeedRouter = createRouter()
         now,
       );
       const withdrawn = new Map(read.withdrawals.map((w) => [w.feedItemId, w]));
+      // A feed closed by the person's status (discharge, death, archive) reads exactly like one
+      // with no decision: no paused statement and nothing else that says why, so the portal never
+      // tells a family about a death or a discharge before the home does (comms.md rule 3, H-110).
       const seen = new Set(read.seen.map((s) => s.itemId));
       const feeds = read.links.map((link) => {
         const viewer = contexts.get(link.personId);
@@ -201,7 +266,11 @@ export const familyFeedRouter = createRouter()
             action: "comms.feed.viewed",
             resourceType: "person",
             resourceId: link.personId,
-            scope: { contactId: link.contactId, state: feed.state, entries: feed.entries.length },
+            scope: {
+              contactId: link.contactId,
+              closed: feed.state === "paused",
+              entries: feed.entries.length,
+            },
           });
         }
       });
@@ -211,10 +280,13 @@ export const familyFeedRouter = createRouter()
           items: feeds.map(({ link, feed }) => ({
             personId: link.personId,
             contactId: link.contactId,
-            state: feed.state,
-            statement: feed.statement,
-            lastUpdateAt: feed.lastUpdateAt?.toISOString() ?? null,
-            entries: feed.entries.map(({ decisionId: _staffOnly, ...entry }) => entry),
+            statement: FEED_NOT_FULL_RECORD_STATEMENT,
+            lastUpdateAt:
+              feed.state === "paused" ? null : (feed.lastUpdateAt?.toISOString() ?? null),
+            entries:
+              feed.state === "paused"
+                ? []
+                : feed.entries.map(({ decisionId: _staffOnly, ...entry }) => entry),
           })),
         },
         200,
@@ -262,7 +334,7 @@ export const familyFeedRouter = createRouter()
       tags: ["comms"],
       summary: "Link a family portal account to one of the person's contacts",
       description:
-        "The account must hold portal roles only, and never a person assignment (the database refuses one). What it sees is still decided by the sharing decisions for that contact.",
+        "The account must hold portal roles only, never a person assignment (the database refuses one), and its verified email must be the contact's email; otherwise 422 account_not_contact, audited. What it sees is still decided by the sharing decisions for that contact.",
       security,
       request: {
         params: PersonParam,
@@ -279,39 +351,42 @@ export const familyFeedRouter = createRouter()
       const access = await requirePermission(c, "people.sharing.manage");
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
-      const out = await withTenant(c, async (tx) => {
-        const p = await loadPerson(tx, id);
-        requireWrite(p, "sharing_decision");
-        const held = (await accessRowsOf(tx, [body.tenantUserId])).get(body.tenantUserId);
-        const roles = held?.assignments ?? [];
-        if (
-          roles.length === 0 ||
-          roles.some((r) => rolePermissionMix(r.permissions) !== "portal")
-        ) {
-          throw problems.invalid(
-            "A family member needs a portal account holding the family role only, not a staff account.",
-          );
-        }
-        const [row] = await tx
-          .insert(familyPortalUser)
-          .values({ personId: id, contactId: body.contactId, tenantUserId: body.tenantUserId })
-          .returning()
-          .catch((error: unknown) => {
-            if (dbCode(error) === "23505") throw problems.conflict();
-            if (dbCode(error) === "23514") {
-              throw problems.invalid("A family portal account cannot be assigned to people.");
-            }
-            return invalidOnForeignKey("contact or account")(error);
+      const out = await withAuditedRefusal(c, access, () =>
+        withTenant(c, async (tx) => {
+          const p = await loadPerson(tx, id);
+          requireWrite(p, "sharing_decision");
+          await requireAccountIsContact(c, tx, id, body);
+          const held = (await accessRowsOf(tx, [body.tenantUserId])).get(body.tenantUserId);
+          const roles = held?.assignments ?? [];
+          if (
+            roles.length === 0 ||
+            roles.some((r) => rolePermissionMix(r.permissions) !== "portal")
+          ) {
+            throw problems.invalid(
+              "A family member needs a portal account holding the family role only, not a staff account.",
+            );
+          }
+          const [row] = await tx
+            .insert(familyPortalUser)
+            .values({ personId: id, contactId: body.contactId, tenantUserId: body.tenantUserId })
+            .returning()
+            .catch((error: unknown) => {
+              if (dbCode(error) === "23505") throw problems.conflict();
+              if (dbCode(error) === "23514") {
+                throw problems.invalid("A family portal account cannot be assigned to people.");
+              }
+              return invalidOnForeignKey("contact or account")(error);
+            });
+          if (!row) throw problems.conflict();
+          await audit(c, tx, access, {
+            action: "comms.portal_link.create",
+            resourceType: "family_portal_user",
+            resourceId: row.id,
+            scope: { personId: id, contactId: body.contactId },
           });
-        if (!row) throw problems.conflict();
-        await audit(c, tx, access, {
-          action: "comms.portal_link.create",
-          resourceType: "family_portal_user",
-          resourceId: row.id,
-          scope: { personId: id, contactId: body.contactId },
-        });
-        return linkOut(row);
-      });
+          return linkOut(row);
+        }),
+      );
       return c.json(out, 201);
     },
   )

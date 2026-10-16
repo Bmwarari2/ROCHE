@@ -40,7 +40,7 @@ export const FamilyFeed = z
   .object({
     personId: uuid,
     contactId: uuid,
-    state: z.enum(["showing", "paused"]),
+    /** The same words whether the feed is open or closed, so it never says why it is closed. */
     statement: z.string(),
     lastUpdateAt: isoDateTime.nullable(),
     entries: z.array(FamilyFeedEntry),

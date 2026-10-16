@@ -395,7 +395,8 @@ export const tenantMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   }
   // A session from before this check, or signed in with a password alone, fails closed until
   // the person confirms it is them with a passkey or an authenticator code (ADR-0072).
-  const mfa = mfaRequired ? await sessionMfa(services.authPool, session) : "satisfied";
+  // A portal session always needs it: the feed is care-record data (comms.md section 3).
+  const mfa = mfaRequired || family ? await sessionMfa(services.authPool, session) : "satisfied";
   const access: TenantAccess = {
     tenantId: membership.tenantId,
     tenantUserId: membership.tenantUserId,

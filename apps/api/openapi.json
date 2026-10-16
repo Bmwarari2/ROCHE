@@ -18999,13 +18999,6 @@
             "type": "string",
             "format": "uuid"
           },
-          "state": {
-            "type": "string",
-            "enum": [
-              "showing",
-              "paused"
-            ]
-          },
           "statement": {
             "type": "string"
           },
@@ -19026,7 +19019,6 @@
         "required": [
           "personId",
           "contactId",
-          "state",
           "statement",
           "lastUpdateAt",
           "entries"
@@ -39880,7 +39872,7 @@
           "comms"
         ],
         "summary": "Link a family portal account to one of the person's contacts",
-        "description": "The account must hold portal roles only, and never a person assignment (the database refuses one). What it sees is still decided by the sharing decisions for that contact.",
+        "description": "The account must hold portal roles only, never a person assignment (the database refuses one), and its verified email must be the contact's email; otherwise 422 account_not_contact, audited. What it sees is still decided by the sharing decisions for that contact.",
         "security": [
           {
             "bearerAuth": []

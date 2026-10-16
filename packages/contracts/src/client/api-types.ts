@@ -15847,7 +15847,7 @@ export interface paths {
     put?: never;
     /**
      * Link a family portal account to one of the person's contacts
-     * @description The account must hold portal roles only, and never a person assignment (the database refuses one). What it sees is still decided by the sharing decisions for that contact.
+     * @description The account must hold portal roles only, never a person assignment (the database refuses one), and its verified email must be the contact's email; otherwise 422 account_not_contact, audited. What it sees is still decided by the sharing decisions for that contact.
      */
     post: {
       parameters: {
@@ -23338,8 +23338,6 @@ export interface components {
       personId: string;
       /** Format: uuid */
       contactId: string;
-      /** @enum {string} */
-      state: "showing" | "paused";
       statement: string;
       /** Format: date-time */
       lastUpdateAt: string | null;

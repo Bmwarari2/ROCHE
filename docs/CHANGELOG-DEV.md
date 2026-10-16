@@ -2156,3 +2156,9 @@ list.
 - Docs: comms.md section 11, HZ-022, the register, STATUS.
 
 **Tests**: `apps/api/test/family-feed.test.ts` (8).
+
+Review round 1 of #75 and #76: a feed closed by discharge or death reads exactly like one with no
+decision (no paused statement; H-110 asks the CSO about a closing message); linking needs the
+account's verified email to be the contact's (422 `account_not_contact`, audited); portal sessions
+always need MFA; `app.family_item_shown` locked down; parity cases for closed records, a welfare
+attorney and best interests; follow-ups in STATUS. Tests: API 10, db 28.

@@ -57,7 +57,8 @@ const addItem = async (text: string, hoursAgo: number) =>
 interface Feed {
   items: {
     personId: string;
-    state: string;
+    statement: string;
+    lastUpdateAt: string | null;
     entries: { itemId: string; display: string; text: string }[];
   }[];
 }
@@ -79,7 +80,7 @@ beforeAll(async () => {
   const [user] = await h.db
     .pool("harbour_auth")
     .query<{ id: string }>(
-      "UPDATE auth.user SET two_factor_enabled = true WHERE email = $1 RETURNING id",
+      "UPDATE auth.user SET two_factor_enabled = true, email_verified = true WHERE email = $1 RETURNING id",
       [email],
     )
     .then((r) => r.rows);
@@ -105,6 +106,7 @@ afterAll(async () => {
 describe("hazard HZ-022 the family feed through the API", () => {
   let first = "";
   let decisionId = "";
+  let noDecision = "";
 
   it("links only a portal account, by a holder of people.sharing.manage", async () => {
     const carer = await staff("manager", `/v1/people/${ADA}/family-portal-links`, {
@@ -112,6 +114,18 @@ describe("hazard HZ-022 the family feed through the API", () => {
       body: { tenantUserId: DEMO.users.carer.id, contactId },
     });
     expect(carer.status).toBe(422);
+    // The account's verified email is not the contact's: refused, and the refusal audited.
+    const stranger = await staff("manager", `/v1/people/${ADA}/family-portal-links`, {
+      method: "POST",
+      body: { tenantUserId: familyUserId, contactId },
+    });
+    expect(stranger.status).toBe(422);
+    expect(((await stranger.json()) as { code: string }).code).toBe("account_not_contact");
+    const [refusal] = await sql<{ outcome: string }>(
+      "SELECT outcome FROM audit_event WHERE action = 'comms.portal_link.create' AND reason = 'account_not_contact'",
+    );
+    expect(refusal?.outcome).toBe("denied");
+    await sql("UPDATE contact SET email = 'Fay.Family@example.invalid' WHERE id = $1", [contactId]);
     expect(
       (
         await staff("carer", `/v1/people/${ADA}/family-portal-links`, {
@@ -134,7 +148,8 @@ describe("hazard HZ-022 the family feed through the API", () => {
     const response = await as(family, "/v1/family/feed");
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
-    const body = (await response.json()) as Feed;
+    noDecision = await response.text();
+    const body = JSON.parse(noDecision) as Feed;
     expect(body.items).toHaveLength(1);
     expect(body.items[0]?.entries).toEqual([]);
   });
@@ -225,6 +240,36 @@ describe("hazard HZ-022 the family feed through the API", () => {
     );
     expect(suspended.status).toBe(200);
     expect((await feed()).items[0]?.entries).toEqual([]);
+  });
+
+  it("hazard HZ-022 a feed closed by a discharge or death reads exactly as one with no decision", async () => {
+    const reopened = await staff("manager", `/v1/people/${ADA}/sharing-decisions`, {
+      method: "POST",
+      body: {
+        recipient: { kind: "family", contactId },
+        sections: ["daily_updates"],
+        basis: "consent",
+        consentGivenBy: "person",
+        validFrom: new Date(Date.now() - 2 * DAY).toISOString(),
+        validTo: new Date(Date.now() + 30 * DAY).toISOString(),
+      },
+    });
+    expect(reopened.status).toBe(201);
+    expect((await feed()).items[0]?.entries.length).toBeGreaterThan(0);
+    for (const status of ["discharged", "deceased"]) {
+      await sql("UPDATE person SET status = $2 WHERE id = $1", [ADA, status]);
+      expect(await (await as(family, "/v1/family/feed")).text()).toBe(noDecision);
+    }
+    await sql("UPDATE person SET status = 'active' WHERE id = $1", [ADA]);
+  });
+
+  it("never takes the people it reads from the request", async () => {
+    const asked = await as(
+      family,
+      `/v1/family/feed?personId=${LODGE.personId}&contactId=${contactId}`,
+    );
+    const body = (await asked.json()) as Feed;
+    expect(body.items.map((i) => i.personId)).toEqual([ADA]);
   });
 
   it("denies out-of-scope and cross-tenant requests", async () => {
