@@ -15,7 +15,7 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { and, count, eq, isNull, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { Context, MiddlewareHandler } from "hono";
-import { sessionMfa } from "../auth/session-factor";
+import { sessionFactorState } from "../auth/session-factor";
 import type { AppEnv } from "../http/context";
 import { problems } from "../http/problem";
 import { createRouter, errorResponses, jsonBody, security } from "./openapi";
@@ -39,13 +39,18 @@ export const operatorMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => 
     .where(eq(operatorUser.authUserId, session.authUserId));
   if (!op?.active) throw problems.forbidden();
   // As for members: only a session signed in or confirmed with a second factor (ADR-0072).
-  const mfa = await sessionMfa(authPool, session);
+  const { mfa, stepUpFresh } = await sessionFactorState(
+    authPool,
+    session,
+    c.get("services").config.STEP_UP_WINDOW_SECONDS,
+  );
   if (mfa === "enrol") throw problems.mfaRequired();
   if (mfa === "verify") throw problems.mfaVerify();
   c.set("operator", {
     id: op.id,
     authUserId: session.authUserId,
     role: op.role as "support" | "admin",
+    stepUpFresh,
   });
   await next();
 };

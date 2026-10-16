@@ -15,6 +15,7 @@ import {
   type AppEnv,
   permissionsReaching,
   requirePermission,
+  stepUpFresh,
   type TenantAccess,
   withTenant,
 } from "../http/context";
@@ -327,9 +328,7 @@ export async function planLink(
         // sign-in counts only while it is fresh (review round 2).
         await permissionsReaching(tx, access, personId, { freshOnly: true }),
     occurredAt,
-    stepUpFresh:
-      handedOver ||
-      Date.now() - access.session.sessionCreatedAt.getTime() <= access.stepUpWindowSeconds * 1000,
+    stepUpFresh: handedOver || stepUpFresh(access),
   });
 }
 

@@ -145,7 +145,7 @@ describe("an authenticator app holder", () => {
   let enrolling = "";
   let signedIn = "";
 
-  it("hazard HZ-112 confirms a code when enrolling: the session that replaces the enrolling one opens care records", async () => {
+  it("hazard HZ-112 a first enrolment proves only the password: the replacing session counts no factor until the person signs in with it", async () => {
     const signIn = await passwordSignIn();
     enrolling = signIn.headers.get("set-auth-token") ?? "";
     expect((await get(enrolling, notes)).status).toBe(403);
@@ -181,6 +181,21 @@ describe("an authenticator app holder", () => {
     expect(replaced).not.toBe("");
     expect((await get(enrolling, notes)).status).toBe(401);
     enrolling = replaced;
+    // The code that completes a first enrolment records no factor (#63 security review, M1):
+    // someone holding only the password could otherwise enrol their own app and use it at once.
+    const refused = await get(enrolling, notes);
+    expect(refused.status).toBe(403);
+    expect(await code(refused)).toBe("mfa_verification_required");
+    const { rows } = await auth().query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM auth.verification WHERE identifier = $1",
+      [factorIdentifier(await sessionIdOf(enrolling))],
+    );
+    expect(rows[0]?.n).toBe(0);
+    // Once enrolled, a code confirmed on the session counts.
+    const confirmed = await authCall(enrolling, "/api/auth/two-factor/verify-totp", {
+      code: totpFrom(totpUri),
+    });
+    expect(confirmed.status).toBe(200);
     expect((await get(enrolling, notes)).status).toBe(200);
   });
 

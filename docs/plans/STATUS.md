@@ -717,6 +717,23 @@ only when they link spec, code, tests and user documentation; no user guides exi
     step-up) needs a members list route and a team page, neither of which exists yet; an e2e hook
     to read the API's email outbox so the journey can create a sign-in end to end; the lookup does
     not name the inviter, so the page names only the organisation.
+    - Members routes (`feat/platform-members-api`): `GET /v1/members` (members within the reach
+      of `platform.user.manage`, their roles, and the roles the manager may give and where) and
+      `POST /v1/members` (an invited member with one role, step-up, `app.may_assign_role` then
+      `app.may_invite`, idempotent on the client id, 409 `email_in_use`), with migration 0060
+      (row-level security on adding members and role assignments; numbered after #69's 0059, so
+      it merges after #69). Next: the managers' invitation screens in apps/web
+      (`feat/web-invitation-screens`, stacked). #71 security review: (M1, fixed) giving a role
+      counts only the giver's own roles, never an access grant (`app.holds_role_permission_at`),
+      so acting up never becomes a lasting role. Follow-ups: (1) the members list is narrowed in
+      the application only (`membersReached`), as the invitation routes are; the database lets
+      any `tenant_user` row be read in the organisation's view; (2) within one organisation, 409
+      `email_in_use` tells a manager an address belongs to someone they cannot see (an
+      organisation-wide probe; accepted, as the address must be unique, but logged); (3) no
+      restrictive UPDATE policy yet on `tenant_user` or `role_assignment` for the application
+      role (no route changes either); add them, with `app.may_assign_role`, before any role or
+      member editing route; (4) a giver whose own role assignment ends (`valid_to`) can still give
+      a role with no end; decide whether a given role may outlive the giver's.
     - Routes built in feat/platform-invitation-routes: send, list, withdraw (narrowed to the
       members `platform.user.manage` reaches, with tests), lookup and accept with no session
       (token only as a bound parameter, throttled per address and per token), the operator's
@@ -750,6 +767,21 @@ only when they link spec, code, tests and user documentation; no user guides exi
       should need a session factor recorded within `STEP_UP_WINDOW_SECONDS`, not only a recent
       password sign-in. When mobile resumes: add `mfa_verification_required` to
       `SESSION_PROBLEM_CODES` (`apps/mobile/src/sync/session-signals.ts`).
+    - `fix/platform-step-up-factor` (ADR-0072 amendment, HZ-112, H-359): built. Step-up counts from
+      the second factor the session last used (its `auth.verification` row's `created_at`, no
+      migration) within `STEP_UP_WINDOW_SECONDS`, never from a password sign-in; a holder with no
+      factor enrolled gets `mfa_enrolment_required`; an in-session code or a passkey sign-in
+      refreshes it. Covers every `requirePermission` of a step-up permission, workflow moves
+      (notification submit, exits), `requireStepUp` (downtime pack, invitations, session revoke,
+      About me links), task links and the operator's owner invitation; table-driven tests over
+      every step-up permission and route family. Follow-ups: the domain checks that take
+      `lastMfaSignInAt` (export, DPIA sign-off, sub-processor notices, break-glass search) must be
+      given `stepUpAt` when their routes are built; the web could offer an in-place code prompt
+      instead of a full sign-in; mobile (paused) must send step-up actions through the same
+      confirmation.
+    - #63 security review round 1: the code completing a first enrolment records no factor (M1);
+      step-up freshness is judged in SQL on the database's clock (L1); the domain inputs are
+      `stepUpAt` and a source test checks every `authorise` call (L2); more HTTP tests (L3).
 
 21. Slice 11 web, the downtime screens (OPS-028; HZ-017, HZ-021, HZ-092; `feat/web-downtime`).
     PR A built: `/downtime` (Downtime in the navigation for holders of `operations.downtime.read`
@@ -787,8 +819,11 @@ only when they link spec, code, tests and user documentation; no user guides exi
     it) and the last week's; one handover's items by person (name, room and communication needs),
     each kind in an icon and words with a link to its record, notes on items and on the whole
     handover, who has read it, and "I have read this handover" with the token of the handover as
-    shown (H-269). Next (part 2, its own PR): the round view (`GET /v1/locations/{id}/round`) by
-    area and room, with each task's time state and start, complete and skip where the API allows.
+    shown (H-269). Part 2 built (`feat/web-round-view`, stacked on part 1): the round by area and
+    room, each person's name, room and communication needs, each task's time state in an icon
+    and words, start, done and not done with a reason (H-270), one person's tasks on request.
+    Gap: the round view does not say which permission each task names, so the actions are
+    offered to those who record care (`care.note.write`) and the API refuses the rest in words.
     Gaps: the handover items are references only, so the reader opens each record; the location
     page offers compiling for the permission held anywhere (no per-location `reaching`).
 

@@ -7,7 +7,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { writeAudit } from "../http/audit";
 import { membershipsFor, requirePermission, type TenantAccess } from "../http/context";
 import { type HttpProblem, problems } from "../http/problem";
-import { accessRowsOfMember } from "../services/access-rows";
+import { accessRowsOf } from "../services/access-rows";
 import { hurryRevokedHold, lastReportedWaiting } from "../services/device-holds";
 import { inSystemView, memberLocations } from "../services/devices";
 import {
@@ -48,23 +48,43 @@ export async function memberReached(
   memberId: string,
   now: Date,
 ): Promise<boolean> {
+  return (await membersReached(tx, access, [memberId], now)).has(memberId);
+}
+
+/** `memberReached` for several members at once: the ones the manager's permission reaches. */
+export async function membersReached(
+  tx: Transaction,
+  access: TenantAccess,
+  memberIds: readonly string[],
+  now: Date,
+): Promise<Set<string>> {
   const { scope, locationIds } = scopeFor(access.effective, PERMISSION);
-  if (scope === "tenant") return true;
-  if (scope !== "locations") return false;
-  const rows = await accessRowsOfMember(tx, memberId);
-  const places = [
-    ...rows.assignments.filter((a) => live(a.validFrom, a.validTo, now)).map((a) => a.locationId),
-    ...rows.grants
-      .filter((g) => g.revokedAt === null && live(g.validFrom, g.validTo, now))
-      .map((g) => g.locationId),
-  ];
-  if (places.includes(null)) return false;
-  const where =
-    places.length > 0
-      ? (places as string[])
-      : ((await memberLocations(tx, [memberId], now)).get(memberId) ?? []);
+  if (scope === "tenant") return new Set(memberIds);
+  if (scope !== "locations" || memberIds.length === 0) return new Set();
+  const rows = await accessRowsOf(tx, memberIds);
+  const places = new Map<string, (string | null)[]>();
+  for (const id of memberIds) {
+    const member = rows.get(id) ?? { assignments: [], grants: [] };
+    places.set(id, [
+      ...member.assignments
+        .filter((a) => live(a.validFrom, a.validTo, now))
+        .map((a) => a.locationId),
+      ...member.grants
+        .filter((g) => g.revokedAt === null && live(g.validFrom, g.validTo, now))
+        .map((g) => g.locationId),
+    ]);
+  }
+  const unplaced = memberIds.filter((id) => places.get(id)?.length === 0);
+  const lastWorked = await memberLocations(tx, unplaced, now);
   const mine = new Set(locationIds);
-  return where.length > 0 && where.every((l) => mine.has(l));
+  const reached = new Set<string>();
+  for (const id of memberIds) {
+    const at = places.get(id) ?? [];
+    if (at.includes(null)) continue;
+    const where = at.length > 0 ? (at as string[]) : (lastWorked.get(id) ?? []);
+    if (where.length > 0 && where.every((l) => mine.has(l))) reached.add(id);
+  }
+  return reached;
 }
 
 export const memberSessionsRouter = createRouter().openapi(

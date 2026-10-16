@@ -63,8 +63,12 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   did not use it gets `mfa_verification_required` and is sent to sign in with it. Sessions from
   before this rule fail closed.
 - Step-up: controlled drugs, residents' money approval, data export, break-glass, statutory
-  notifications, support-access approval and revoking a Care mode device need a sign-in within 10
-  minutes.
+  notifications, support-access approval and revoking a Care mode device need a second factor (a
+  passkey, an authenticator code or a backup code) used on the session within the step-up window
+  (`STEP_UP_WINDOW_SECONDS`, 10 minutes by default): a sign-in completed with one, or a code or
+  passkey confirmed on the session. A password sign-in alone never counts, however recent; a member
+  holding a step-up permission with no factor enrolled gets `mfa_enrolment_required` (ADR-0072
+  amendment).
 - Break-glass: `POST /v1/people/break-glass` with a justification of at least 20 characters and an
   optional `reasonCode`; access lapses after 60 minutes; the Registered Manager for the location and
   quality leads are notified; the reason is audited. It opens the record for reading only
@@ -161,8 +165,8 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
 Status: the rules are built (`packages/domain/src/platform/invitations.ts`, table-driven tests),
 the store (migration 0054, the schema below; `packages/db/test/invitations.test.ts`) and the
 routes and the sweep (As built, below; `apps/api/test/invitations.test.ts`) and the accept page
-(`apps/web/src/app/(auth)/invitation`, As built below); the managers' list and invite form
-follow. Built already
+(`apps/web/src/app/(auth)/invitation`, As built below) and the members routes the managers'
+screens use (As built below); the managers' list and invite form follow. Built already
 and relied on: NCSC password rules at sign-up (`passwordProblem`: 12 to 128 characters, a
 deny-list, no expiry, throttling not lockout), passkeys and authenticator apps (TOTP) with the
 set-up screen (`/settings/security`), `mfa_enrolment_required` on every permission that touches
@@ -376,6 +380,32 @@ As built, the routes (`apps/api/src/routes/invitations.ts`, `operator-invitation
   `platform.invitation.sign_in_removed`. Known gap, logged in STATUS: a sign-in linked between the
   listing and the deletion would be deleted; the window is milliseconds once a night, and only for
   a sign-in already 24 hours unlinked.
+
+As built, members for managers (`apps/api/src/routes/members.ts`, contracts `members.ts`,
+migration 0060), the routes the managers' invitation screens use:
+
+- `GET /v1/members` (`platform.user.manage`): the invited, active and suspended members the
+  permission reaches (`membersReached`, the batch form of the admin sign-out's `memberReached`: a
+  location role only members whose every role and grant in force is at its locations), each with
+  their roles in force or to come and where; optionally only those with a role at one location.
+  With them, each role the manager may give and where (`app.may_assign_role`). Never an address.
+- `POST /v1/members` (`platform.user.manage`, step-up): adds a member as invited, required to use a
+  second factor, with a name, a work address (stored in lower case) and one role at a location or
+  across the organisation (a location role across the organisation is marked organisation-wide).
+  Refused with 403 `beyond_inviter` unless `app.may_assign_role` (the manager holds
+  `platform.user.manage` and every permission of the role where it would apply through their own
+  roles, never an access grant, so acting up never becomes a lasting role; never the portal role
+  of a person receiving care), then checked again with `app.may_invite` on the new member;
+  409 `email_in_use` for an address already in the organisation, in any case. Idempotent on the
+  client's id: the same manager's retry with the same name, address and role answers 200; anything else with that
+  id is 409 `member_id_conflict`. Audited as `platform.member.created` with the role and location
+  ids, refusals too; never the address. The manager then invites them with `POST /v1/invitations`.
+- Migration 0060 (after 0059, letter templates, #69) enforces the same in row-level security: the
+  application role may insert a `tenant_user` only as invited, with no sign-in and a second factor
+  required, by a member whose own roles carry `platform.user.manage` somewhere
+  (`app.holds_role_permission_somewhere`),
+  and a `role_assignment` only where `app.may_assign_role` allows. Changing an existing role
+  assignment is not covered yet (no route does it): logged in STATUS.
 
 As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handlers
 `app/api/invitations/lookup` and `/accept` (same origin and JSON only), `lib/invitation-server.ts`,
