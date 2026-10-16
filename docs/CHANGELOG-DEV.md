@@ -2244,3 +2244,15 @@ manager is linked in the demo tenant (`scripts/demo-seed-guard.ts`, `test/demo-s
 **Tests**: `packages/db/test/family-feed.test.ts` (28: 22 table-driven parity cases between the SQL
 and the domain rule, isolation, writes, withdrawals, assignments, constraints); the RLS coverage
 list.
+
+## 2026-10-17: The managers' team and invitation screens (PLAT-004)
+
+- Team in the navigation for holders of `platform.user.manage`: the members reached at the
+  chosen location with their state and latest invitation as an icon and a word; invite someone
+  (name, work address, role and where, checked with `CreateMember`); a member's invitations with
+  send again (still invited only) and withdraw (pending only), each after a confirmation.
+- Strings in en-GB; Welsh copied and listed as untranslated.
+- Docs: platform.md (As built), feature register, STATUS.
+
+**Tests**: `apps/web/src/lib/team.test.ts` (24); `apps/web/e2e/team.spec.ts` (4, axe on every
+state).
