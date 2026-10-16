@@ -155,8 +155,7 @@ only when they link spec, code, tests and user documentation; no user guides exi
 
    - Slice 13, search part 1, the index (`feat/platform-search-schema`, migration 0066;
      platform-completions.md section 10f; PLAT-013, ADR-0070): `app.search_terms` equal to the
-     domain's terms, generated vectors on people, colleagues, documents and notes, the NHS number
-     index; no GIN index (unusable by the app role under forced RLS; ADR-0070 as built). Next: the
+     domain's terms, generated vectors on people, colleagues, documents and notes; no GIN index (unusable by the app role under forced RLS; ADR-0070 as built). Next: the
      search route (plan, second filter, ranking, audit), then the web search box, then break-glass
      search with `break_glass_event.kind`.
    - Slice 13, the DPIA in-app (`feat/platform-dpia-onboarding`, migration 0063;

@@ -10,6 +10,17 @@
 -- index on the vectors could never be used by the app role (the match cannot be an index condition
 -- ahead of the policy), so there is none: each search reads the tenant's rows by an existing index
 -- on `tenant_id` and filters them. Revisit with ADR-0070 if a tenant's search exceeds the budget.
+-- The exact NHS number match uses the existing unique constraint on (tenant_id, nhs_number).
+--
+-- Locks (#91 review): each stored generated column rewrites its table under an ACCESS EXCLUSIVE
+-- lock, so care_note, person, document and tenant_user are blocked for reads and writes while
+-- this runs. That is accepted before go-live, when the tables are small. On a database with live
+-- tenants it runs only in a maintenance window, with devices told to keep working offline, as
+-- docs/runbooks/search-index.md says; that runbook also gives the batched alternative. The lock
+-- timeout makes the migration fail fast, rather than queue behind a long transaction and block
+-- every request behind it.
+SET LOCAL lock_timeout = '5s';
+--> statement-breakpoint
 
 CREATE EXTENSION IF NOT EXISTS unaccent;
 --> statement-breakpoint
@@ -46,7 +57,4 @@ ALTER TABLE "care_note" ADD COLUMN "search_body" "tsvector" GENERATED ALWAYS AS 
 ALTER TABLE "person" ADD COLUMN "search_names" "tsvector" GENERATED ALWAYS AS (app.search_vector(given_name || ' ' || family_name || ' ' || coalesce(preferred_name, ''))) STORED;--> statement-breakpoint
 ALTER TABLE "person" ADD COLUMN "search_room" "tsvector" GENERATED ALWAYS AS (app.search_vector(room_label)) STORED;--> statement-breakpoint
 ALTER TABLE "document" ADD COLUMN "search_title" "tsvector" GENERATED ALWAYS AS (app.search_vector(title || ' ' || coalesce(file_name, ''))) STORED;--> statement-breakpoint
-ALTER TABLE "tenant_user" ADD COLUMN "search_name" "tsvector" GENERATED ALWAYS AS (app.search_vector(display_name)) STORED;--> statement-breakpoint
-
--- The exact NHS number match (equality on text can be an index condition under the policy).
-CREATE INDEX person_nhs_number_idx ON person (tenant_id, nhs_number) WHERE nhs_number IS NOT NULL;
+ALTER TABLE "tenant_user" ADD COLUMN "search_name" "tsvector" GENERATED ALWAYS AS (app.search_vector(display_name)) STORED;

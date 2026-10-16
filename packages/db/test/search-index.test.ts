@@ -36,13 +36,23 @@ beforeAll(async () => {
   db = await createTestDatabase();
   await seedTwoTenants(db.pool("harbour_owner"));
   // Another provider has a resident with the same name as Ada.
-  await inContext(db.pool("harbour_owner"), ctx(TENANT_B, null, "tenant"), (c) =>
-    c.query(
+  await inContext(db.pool("harbour_owner"), ctx(TENANT_B, null, "tenant"), async (c) => {
+    await c.query(
       `INSERT INTO person (location_id, status, given_name, family_name, room_label)
        VALUES ($1, 'active', 'Ada', 'Example', '12')`,
       [ids.b.location],
-    ),
-  );
+    );
+    // And documents with the same titles as the first provider's.
+    await c.query(
+      `INSERT INTO document (category, title, retention_class, storage_key, content_type,
+         size_bytes, sha256, person_id, file_name)
+       VALUES ('person_document', 'Hospital passport', 'care_record', 'k', 'application/pdf', 1,
+               repeat('0', 64), $1, 'passport.pdf'),
+              ('organisation_document', 'Fire policy', 'policy', 'k', 'application/pdf', 1,
+               repeat('0', 64), NULL, NULL)`,
+      [ids.b.personDev],
+    );
+  });
   await inContext(db.pool("harbour_owner"), ctx(TENANT_A, null, "tenant"), async (c) => {
     await c.query(
       "UPDATE person SET room_label = 'Room 12', preferred_name = 'Addie' WHERE id = $1",
@@ -54,8 +64,33 @@ beforeAll(async () => {
               ($3, $4, now(), 'activity', 'Garden walk')`,
       [a.personAda, a.locationNorth, a.personCara, a.locationSouth],
     );
+    // Ada (north) and Cara (south) each have a hospital passport; the provider has a fire policy.
+    await c.query(
+      `INSERT INTO document (category, title, retention_class, storage_key, content_type,
+         size_bytes, sha256, person_id, file_name)
+       VALUES ('person_document', 'Hospital passport', 'care_record', 'k', 'application/pdf', 1,
+               repeat('0', 64), $1, 'passport-ada.pdf'),
+              ('person_document', 'Hospital passport', 'care_record', 'k', 'application/pdf', 1,
+               repeat('0', 64), $2, 'passport-cara.pdf'),
+              ('organisation_document', 'Fire policy', 'policy', 'k', 'application/pdf', 1,
+               repeat('0', 64), NULL, NULL)`,
+      [a.personAda, a.personCara],
+    );
   });
 }, 120_000);
+
+/** Documents whose title or file name matches, as the API asks: the tenant first. */
+const documents = (context: ReturnType<typeof ctx>, query: string, tenant = context.tenantId) =>
+  as(context, (c) =>
+    c
+      .query<{ title: string; person_id: string | null }>(
+        `SELECT title, person_id FROM document
+         WHERE tenant_id = $1 AND search_title @@ to_tsquery('app.harbour_search', $2)
+         ORDER BY title, person_id`,
+        [tenant, query],
+      )
+      .then((r) => r.rows),
+  );
 
 afterAll(async () => {
   await db?.drop();
@@ -96,6 +131,23 @@ describe("hazard HZ-011 search stays inside the tenant and the caller's scope", 
   it("finds nothing from another tenant, even when the tenant id in the query is another's", async () => {
     expect(await people(asManager, "ada:*", TENANT_B)).toEqual([]);
     expect(await people(ctx(TENANT_B, ids.b.manager, "tenant"), "ada:*")).toEqual(["Ada"]);
+  });
+
+  it("finds document titles only in this tenant and, about people, only in scope", async () => {
+    // The tenant's own documents: both passports and the policy, never the other provider's.
+    expect(await documents(asManager, "hospital:* | fire:*")).toEqual([
+      { title: "Fire policy", person_id: null },
+      ...[a.personAda, a.personCara]
+        .sort()
+        .map((id) => ({ title: "Hospital passport", person_id: id })),
+    ]);
+    expect(await documents(asManager, "passport:*", TENANT_B)).toEqual([]);
+    // By file name too, and only Ada's at the north location; Cara's is at the south.
+    expect(
+      await documents(ctx(TENANT_A, a.northManager, "locations", [a.locationNorth]), "passport:*"),
+    ).toEqual([{ title: "Hospital passport", person_id: a.personAda }]);
+    expect(await documents(ctx(TENANT_A, a.carer, "assigned"), "cara:*")).toEqual([]);
+    expect(await documents(ctx(TENANT_A, a.manager, "none"), "passport:*")).toEqual([]);
   });
 
   it("finds nothing outside scope: assigned people, other locations, or no scope", async () => {

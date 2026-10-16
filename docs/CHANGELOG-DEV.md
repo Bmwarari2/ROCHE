@@ -2467,10 +2467,16 @@ decisions); `config.test.ts` (`SAFETY_CASE_VERSION`).
 
 - Migration 0066: `app.search_terms` (equal to the domain's `searchTerms`), `app.search_vector`, the
   `app.harbour_search` configuration, generated vectors on `person` (names, room), `tenant_user`
-  (display name), `document` (title and file name) and `care_note` (text), and an index for the
-  exact NHS number match. No GIN index: the app role could not use one under forced RLS (ADR-0070
+  (display name), `document` (title and file name) and `care_note` (text). No GIN index: the app role could not use one under forced RLS (ADR-0070
   as built).
 - Docs: platform-completions.md section 10f, ADR-0070, HZ-011, the register, data standards, STATUS.
 
 **Tests**: `packages/db/test/search-index.test.ts` (23).
+
+Review round 1 of #91: a lock note and `lock_timeout` in the migration, and a search-index runbook
+(maintenance window for live tenants, the batched alternative, rebuilding the vectors after a
+Postgres upgrade); the vectors recorded as plain-text copies beyond crypto-shredding (ADR-0070,
+retention-and-deletion.md, H-380 for the DPO) and in records of processing; the redundant NHS
+number index removed; document title tests across tenants and scopes. Tests: `search-index.test.ts`
+24.
 
