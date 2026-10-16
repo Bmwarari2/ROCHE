@@ -9,6 +9,7 @@ export const PROBLEM_CODES = [
   "not_a_member",
   "missing_permission",
   "mfa_enrolment_required",
+  "mfa_verification_required",
   "step_up_required",
   "not_found",
 ] as const;
@@ -53,6 +54,9 @@ export function redirectForProblem(code: string | undefined, nextPath?: string):
       return withNext("/choose-organisation", nextPath);
     case "mfa_enrolment_required":
       return "/settings/security?reason=mfa";
+    // A second factor is set up but this session did not use it (ADR-0072): sign in again with it.
+    case "mfa_verification_required":
+      return withNext("/sign-in", nextPath, { reason: "mfa" });
     default:
       return null;
   }

@@ -11,6 +11,8 @@ describe("redirectForProblem", () => {
     ["tenant_required", undefined, "/choose-organisation"],
     ["not_a_member", "/people", "/choose-organisation?next=%2Fpeople"],
     ["mfa_enrolment_required", "/people", "/settings/security?reason=mfa"],
+    ["mfa_verification_required", "/people/123", "/sign-in?reason=mfa&next=%2Fpeople%2F123"],
+    ["mfa_verification_required", undefined, "/sign-in?reason=mfa"],
     ["missing_permission", "/people", null],
     ["not_found", "/people/123", null],
     ["internal", undefined, null],

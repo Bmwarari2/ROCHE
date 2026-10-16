@@ -98,6 +98,8 @@ export function problemMessage(error: unknown, t: Translator): Problem {
       return { code, message: t("errors.forbidden") };
     case "step_up_required":
       return { code, message: t("errors.stepUpRequired") };
+    case "mfa_verification_required":
+      return { code, message: t("errors.mfaVerifyRequired") };
     case "not_found":
       return { code, message: t("errors.notFound") };
     default:

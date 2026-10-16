@@ -1092,6 +1092,9 @@
     "safety.notification.noOutcome",
     "safety.notification.citation",
     "safety.notification.englishOnly",
-    "safety.notifications.submitterHint"
+    "safety.notifications.submitterHint",
+    "auth.mfaVerify.title",
+    "auth.mfaVerify.body",
+    "errors.mfaVerifyRequired"
   ]
 }
