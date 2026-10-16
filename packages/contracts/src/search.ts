@@ -89,7 +89,7 @@ export const SearchResults = z
   .object({
     items: z.array(SearchResultItem),
     /** Per kind, counted only over what the user may see. */
-    counts: z.record(SearchEntityType, z.number().int()),
+    counts: z.record(z.string(), z.number().int()),
     total: z.number().int(),
     hasMore: z.boolean(),
     /** Some kind matched more rows than are read (`readLimit`): ask for another word. */

@@ -21,6 +21,7 @@ import {
   LogOut,
   Mail,
   Newspaper,
+  Search,
   ShieldCheck,
   TriangleAlert,
   UserPlus,
@@ -59,6 +60,8 @@ export interface ShellFrameLabels {
   readonly downtime?: string | undefined;
   /** Shown only in a family member's portal session (comms.feed.read). */
   readonly updates?: string | undefined;
+  /** Shown only to people who may search (platform.search.use). */
+  readonly search?: string | undefined;
   /** Shown only to people who write, approve or send from letter templates. */
   readonly letters?: string | undefined;
   /** Shown only to people who invite and manage staff (platform.user.manage). */
@@ -103,6 +106,7 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/notifications")) return "notifications";
   if (pathname.startsWith("/downtime")) return "downtime";
   if (pathname.startsWith("/letters")) return "letters";
+  if (pathname.startsWith("/search")) return "search";
   if (pathname.startsWith("/updates")) return "updates";
   if (pathname.startsWith("/settings/team")) return "team";
   if (pathname.startsWith("/settings/export")) return "export";
@@ -188,6 +192,9 @@ export function ShellFrame({
     { id: "home", label: labels.home, href: "/", icon: <House {...icon} /> },
     ...(labels.people
       ? [{ id: "people", label: labels.people, href: "/people", icon: <Users {...icon} /> }]
+      : []),
+    ...(labels.search
+      ? [{ id: "search", label: labels.search, href: "/search", icon: <Search {...icon} /> }]
       : []),
     ...(labels.round
       ? [{ id: "round", label: labels.round, href: "/round", icon: <ListChecks {...icon} /> }]

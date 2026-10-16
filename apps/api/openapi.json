@@ -281,19 +281,8 @@
           },
           "counts": {
             "type": "object",
-            "properties": {
-              "person": {
-                "type": "integer"
-              },
-              "staff": {
-                "type": "integer"
-              },
-              "document": {
-                "type": "integer"
-              },
-              "note": {
-                "type": "integer"
-              }
+            "additionalProperties": {
+              "type": "integer"
             }
           },
           "total": {

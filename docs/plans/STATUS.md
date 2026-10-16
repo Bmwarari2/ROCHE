@@ -165,7 +165,9 @@ only when they link spec, code, tests and user documentation; no user guides exi
      domain's terms, generated vectors on people, colleagues, documents and notes; no GIN index (unusable by the app role under forced RLS; ADR-0070 as built). Part 2, the route
      (`feat/platform-search-api`, stacked): `POST /v1/search` with the plan, each kind in its own
      permission's scope without break-glass, the second filter, ranking and audit without the words.
-     Next: the web search box, then break-glass search with `break_glass_event.kind`.
+     Part 3, the page (`feat/web-search`, stacked): `/search` with the scope said, same-name
+     warnings and keyboard use, and a Playwright journey. Next: break-glass search with
+     `break_glass_event.kind`, then offline search on mobile.
    - Slice 13, the DPIA in-app (`feat/platform-dpia-onboarding`, migration 0063;
      platform-completions.md section 10d): `dpia` versions with forced RLS and a guard (signed by
      the named lead who prepared none of it, never changed after), the tenant's data protection
