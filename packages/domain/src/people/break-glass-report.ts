@@ -29,6 +29,33 @@ export interface BreakGlassEventView {
   readonly reviewedAt: Date | null;
 }
 
+/**
+ * A break-glass search (platform-completions.md rule 9): it names no one person, so it is reported
+ * by the searcher and by reason, in the report of each home whose people it showed (the service
+ * also puts a search that showed no one in every home's report, so none goes unreported).
+ */
+export interface BreakGlassSearchView {
+  readonly id: string;
+  readonly tenantUserId: string;
+  readonly reasonCode: BreakGlassReasonCode | null;
+  readonly openedAt: Date;
+}
+
+export interface BreakGlassSearchUserLine {
+  readonly tenantUserId: string;
+  readonly searches: number;
+  /** `repeated_use` when the user searched at least the threshold number of times. */
+  readonly flags: readonly BreakGlassFlag[];
+  readonly eventIds: readonly string[];
+}
+
+export interface BreakGlassSearchSection {
+  readonly total: number;
+  readonly distinctUsers: number;
+  readonly byUser: readonly BreakGlassSearchUserLine[];
+  readonly byReason: readonly BreakGlassReasonLine[];
+}
+
 export interface BreakGlassWeek {
   readonly start: Date;
   readonly end: Date;
@@ -98,6 +125,8 @@ export interface BreakGlassWeeklyReport {
   readonly byPerson: readonly BreakGlassPersonLine[];
   readonly byReason: readonly BreakGlassReasonLine[];
   readonly flagged: readonly BreakGlassFlagLine[];
+  /** Break-glass searches in the week (master prompt section 4: break-glass is reported weekly). */
+  readonly searches: BreakGlassSearchSection;
 }
 
 function group<T>(items: readonly T[], key: (item: T) => string): Map<string, T[]> {
@@ -124,6 +153,7 @@ export function breakGlassWeeklyReport(
   events: readonly BreakGlassEventView[],
   week: BreakGlassWeek,
   repeatThreshold: number,
+  searches: readonly BreakGlassSearchView[] = [],
 ): BreakGlassWeeklyReport {
   if (!Number.isInteger(repeatThreshold) || repeatThreshold < 2) {
     throw new RangeError("The repeat threshold must be a whole number of 2 or more.");
@@ -224,5 +254,36 @@ export function breakGlassWeeklyReport(
     byPerson: byPerson.sort(byCountThenId((l) => l.personId)),
     byReason,
     flagged,
+    searches: searchSection(searches, week, repeatThreshold),
   };
+}
+
+function searchSection(
+  searches: readonly BreakGlassSearchView[],
+  week: BreakGlassWeek,
+  repeatThreshold: number,
+): BreakGlassSearchSection {
+  const inWeek = searches
+    .filter(
+      (e) =>
+        e.openedAt.getTime() >= week.start.getTime() && e.openedAt.getTime() < week.end.getTime(),
+    )
+    .sort((a, b) => a.openedAt.getTime() - b.openedAt.getTime() || a.id.localeCompare(b.id));
+  const byUser: BreakGlassSearchUserLine[] = [...group(inWeek, (e) => e.tenantUserId)]
+    .map(([tenantUserId, list]) => ({
+      tenantUserId,
+      searches: list.length,
+      flags: list.length >= repeatThreshold ? (["repeated_use"] as const) : [],
+      eventIds: list.map((e) => e.id),
+    }))
+    .sort((a, b) => b.searches - a.searches || a.tenantUserId.localeCompare(b.tenantUserId));
+  const byReason: BreakGlassReasonLine[] = [
+    ...group(inWeek, (e) => e.reasonCode ?? "not_categorised"),
+  ]
+    .map(([reason, list]) => ({
+      reason: reason as BreakGlassReasonLine["reason"],
+      events: list.length,
+    }))
+    .sort(byCountThenId((l) => l.reason));
+  return { total: inWeek.length, distinctUsers: byUser.length, byUser, byReason };
 }

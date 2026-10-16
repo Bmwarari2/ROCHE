@@ -17,6 +17,7 @@ import { createDocumentServices } from "./integrations/documents";
 import { createAdapterResolver } from "./integrations/registry";
 import { idleErrorLogger, type Logger } from "./logger";
 import { breakGlassReportRouter } from "./routes/break-glass-report";
+import { breakGlassSearchRouter } from "./routes/break-glass-search";
 import { careRouter } from "./routes/care";
 import { carePlansRouter } from "./routes/care-plans";
 import { careRecordsRouter } from "./routes/care-records";
@@ -219,6 +220,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", membershipsRouter);
   app.route("/", meRouter);
   app.route("/", searchRouter);
+  app.route("/", breakGlassSearchRouter);
   app.route("/", sessionsRouter);
   app.route("/", memberSessionsRouter);
   app.route("/", peopleRouter);
