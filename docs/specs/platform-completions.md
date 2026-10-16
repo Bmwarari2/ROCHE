@@ -603,7 +603,7 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
 
 ## 10f. As built (slice 13, the search index)
 
-Migration 0065 (`feat/platform-search-schema`), expand only:
+Migration 0066 (`feat/platform-search-schema`; numbered after 0065, the sub-processor notices, which merges first), expand only:
 
 | Piece | Built as |
 | --- | --- |

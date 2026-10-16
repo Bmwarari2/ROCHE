@@ -6,7 +6,7 @@ import { ctx, ids, inContext, seedTwoTenants, TENANT_A, TENANT_B } from "./suppo
 
 /**
  * The search index (PLAT-013; platform-completions.md rule 2 and section 6; ADR-0070; migration
- * 0065; hazards HZ-001 and HZ-011): `app.search_terms` gives the domain's terms for the same text;
+ * 0066; hazards HZ-001 and HZ-011): `app.search_terms` gives the domain's terms for the same text;
  * every search runs under forced row-level security, so it finds nothing in another tenant or
  * outside the caller's scope; each kind uses its composite index with the tenant as the index
  * condition; and no search function is LEAKPROOF or SECURITY DEFINER.

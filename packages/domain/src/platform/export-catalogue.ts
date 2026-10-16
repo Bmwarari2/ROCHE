@@ -1029,7 +1029,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       body: { description: "The note text." },
       search_body: {
         description:
-          "Search index of the note text (derived from the columns above; migration 0065); not exported.",
+          "Search index of the note text (derived from the columns above; migration 0066); not exported.",
         class: "internal",
       },
       tags: { description: "Tags on the note." },
@@ -1647,7 +1647,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       file_name: { description: "Display file name, made safe on upload (may name a person)." },
       search_title: {
         description:
-          "Search index of the title and file name (derived from the columns above; migration 0065); not exported.",
+          "Search index of the title and file name (derived from the columns above; migration 0066); not exported.",
         class: "internal",
       },
       status: {
@@ -3471,12 +3471,12 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       search_names: {
         description:
-          "Search index of the names (derived from the columns above; migration 0065); not exported.",
+          "Search index of the names (derived from the columns above; migration 0066); not exported.",
         class: "internal",
       },
       search_room: {
         description:
-          "Search index of the room (derived from the columns above; migration 0065); not exported.",
+          "Search index of the room (derived from the columns above; migration 0066); not exported.",
         class: "internal",
       },
       communication_needs: {
@@ -4704,7 +4704,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       display_name: { description: "The user's name." },
       search_name: {
         description:
-          "Search index of the display name (derived from the columns above; migration 0065); not exported.",
+          "Search index of the display name (derived from the columns above; migration 0066); not exported.",
         class: "internal",
       },
       email: { description: "Work email address." },

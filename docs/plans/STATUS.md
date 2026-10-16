@@ -153,7 +153,7 @@ only when they link spec, code, tests and user documentation; no user guides exi
      (`tenant_user`, `location`, roles) are readable by any member including a portal session,
      as for staff with scope `none`, and need a review before the portal goes live.
 
-   - Slice 13, search part 1, the index (`feat/platform-search-schema`, migration 0065;
+   - Slice 13, search part 1, the index (`feat/platform-search-schema`, migration 0066;
      platform-completions.md section 10f; PLAT-013, ADR-0070): `app.search_terms` equal to the
      domain's terms, generated vectors on people, colleagues, documents and notes, the NHS number
      index; no GIN index (unusable by the app role under forced RLS; ADR-0070 as built). Next: the

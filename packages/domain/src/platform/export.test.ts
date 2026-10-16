@@ -246,7 +246,7 @@ describe("hazard HZ-070 export plan reads only what may leave", () => {
     ["document", "storage_key", ["storage_key", "search_title"]],
     ["integration_connection", "secret_ref", ["secret_ref"]],
     ["tenant_user", "auth_user_id", ["auth_user_id", "search_name"]],
-    // Search vectors (migration 0065) are rebuilt from the exported columns.
+    // Search vectors (migration 0066) are rebuilt from the exported columns.
     ["person", "search_names", ["search_names", "search_room"]],
     ["care_note", "search_body", ["search_body"]],
   ])("never exports %s.%s", (name, column, omitted) => {

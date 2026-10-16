@@ -40,28 +40,13 @@ AS $$
 $$;
 --> statement-breakpoint
 
--- People: one vector for the names (a break-glass search matches these alone) and one for the room.
-ALTER TABLE person
-  ADD COLUMN search_names tsvector GENERATED ALWAYS AS (
-    app.search_vector(given_name || ' ' || family_name || ' ' || coalesce(preferred_name, ''))
-  ) STORED,
-  ADD COLUMN search_room tsvector GENERATED ALWAYS AS (app.search_vector(room_label)) STORED;
---> statement-breakpoint
+-- The vectors (generated from the Drizzle schema): people's names and room, colleagues' display
+-- names, documents' titles and file names, and note text.
+ALTER TABLE "care_note" ADD COLUMN "search_body" "tsvector" GENERATED ALWAYS AS (app.search_vector(body)) STORED;--> statement-breakpoint
+ALTER TABLE "person" ADD COLUMN "search_names" "tsvector" GENERATED ALWAYS AS (app.search_vector(given_name || ' ' || family_name || ' ' || coalesce(preferred_name, ''))) STORED;--> statement-breakpoint
+ALTER TABLE "person" ADD COLUMN "search_room" "tsvector" GENERATED ALWAYS AS (app.search_vector(room_label)) STORED;--> statement-breakpoint
+ALTER TABLE "document" ADD COLUMN "search_title" "tsvector" GENERATED ALWAYS AS (app.search_vector(title || ' ' || coalesce(file_name, ''))) STORED;--> statement-breakpoint
+ALTER TABLE "tenant_user" ADD COLUMN "search_name" "tsvector" GENERATED ALWAYS AS (app.search_vector(display_name)) STORED;--> statement-breakpoint
+
+-- The exact NHS number match (equality on text can be an index condition under the policy).
 CREATE INDEX person_nhs_number_idx ON person (tenant_id, nhs_number) WHERE nhs_number IS NOT NULL;
---> statement-breakpoint
-
--- Colleagues: the display name only, never contact details.
-ALTER TABLE tenant_user
-  ADD COLUMN search_name tsvector GENERATED ALWAYS AS (app.search_vector(display_name)) STORED;
---> statement-breakpoint
-
--- Documents: the title and display file name, never the file's contents.
-ALTER TABLE document
-  ADD COLUMN search_title tsvector GENERATED ALWAYS AS (
-    app.search_vector(title || ' ' || coalesce(file_name, ''))
-  ) STORED;
---> statement-breakpoint
-
--- Notes: the text.
-ALTER TABLE care_note
-  ADD COLUMN search_body tsvector GENERATED ALWAYS AS (app.search_vector(body)) STORED;

@@ -121,7 +121,7 @@ against a 60-bed demo tenant.
 - Bad, because near matches on names are a wrong-person risk at the point of care (HZ-001); it can
   be added later behind a "did you mean" step that shows identity fields.
 
-### As built (slice 13, migration 0065)
+### As built (slice 13, migration 0066)
 
 The composite GIN indexes in point 2 were not added. Point 4 holds: under forced row-level
 security `@@` cannot be an index condition ahead of the policy, so the app role could never use a
