@@ -2425,3 +2425,12 @@ corrected note or activity is refused; a photo leaves the family feed when conse
 `care_note_share` removed from the spec (publishing is the marking, H-370); H-370 and H-371 for the
 CSO. Tests: `feed-publish.test.ts` 14.
 
+## 2026-10-17: Slice 13, the onboarding checklist part 2, decision routes (PLAT-018)
+
+- API (`platform.onboarding.manage`): record a setting decision, a retention decision, the staff
+  file option (with the organisation record's version) and the DCB0160 assessment against the
+  release's safety case (`SAFETY_CASE_VERSION`); each audited, refusals as 422
+  `decision_not_recordable` and audited too.
+- Docs: platform-completions.md section 10e, feature register, STATUS.
+
+**Tests**: `apps/api/test/onboarding-decisions.test.ts` (10).

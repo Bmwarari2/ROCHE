@@ -44,6 +44,11 @@ const Env = z.object({
   /** PKCS#8 PEM for the ES256 key that signs PowerSync tokens; generated per process when absent locally. */
   SYNC_SIGNING_KEY_PEM: z.string().optional(),
   SYNC_SIGNING_KEY_ID: z.string().default("harbour-sync-1"),
+  /**
+   * Harbour's clinical safety case for the release this API runs (docs/clinical-safety/
+   * safety-case/), which an organisation's DCB0160 assessment must cover to go live.
+   */
+  SAFETY_CASE_VERSION: z.string().trim().min(1).max(40).default("v0.0"),
   /** Seconds a sign-in counts as fresh for step-up actions (section 5.3). */
   STEP_UP_WINDOW_SECONDS: z.coerce.number().int().positive().default(600),
   /** Transfer pack previews, creations and prints per user a minute, per API instance (S2). */
