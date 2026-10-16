@@ -195,7 +195,6 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", meRouter);
   app.route("/", sessionsRouter);
   app.route("/", memberSessionsRouter);
-  app.route("/", invitationsRouter);
   app.route("/", peopleRouter);
   app.route("/", peopleLifecycleRouter);
   app.route("/", peoplePropertyRouter);
@@ -226,6 +225,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", integrationsRouter);
   app.route("/", supportAccessRouter);
   app.route("/", operatorRouter);
+  app.route("/", invitationsRouter);
   app.route("/", operatorInvitationsRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
