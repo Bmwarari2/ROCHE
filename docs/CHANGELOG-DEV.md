@@ -1619,3 +1619,29 @@ round's follow-ups.
   requirement change revokes; deleted members refused; callers' settings restored; no address
   update grant; narrower column grants for the definer owner; the SET-not-INHERIT membership
   asserted. Database 470, API 737, domain 4,159 passing.
+
+## 2026-10-13: Slice 11 part 3a-1, downtime pack API (OPS-028)
+
+Stacked on part 2. `GET` and `POST /v1/locations/{id}/downtime-pack` (operations.md section 13):
+the latest pack the reader can open, built again on the spot when it no longer serves the people
+receiving care there, with the freshness words and header lines worked out now; shared allergy,
+communication and rate helpers; unconfirmed MAR and PEEP places print as not set.
+
+**Tests**: `apps/api` 4 new in `downtime.test.ts`; HZ-021's planned API test now passes.
+
+## 2026-10-13: Slice 11 part 3a-1, review round 1 of #45 (OPS-028)
+
+- A stored pack is served only while nothing it was built from has changed since its information's
+  time, now the database's clock (H1): a new DNACPR, allergy or room swap means a new pack.
+- One build at a time per location; a POST reuses the pack when nothing changed and needs a fresh
+  sign-in; a per-member limit from `downtime_pack.requests_per_hour` (security M1, M2).
+- A failed rebuild serves the latest pack, saying so, audited (clinical M1); during an outage,
+  "anything recorded since" is the earlier of the information's time and the outage's start
+  (clinical M2).
+- A location out of reach is audited as denied; allergies are each person's own current ones, as
+  on the phone (`currentAllergiesOf`, also used by the hospital transfer pack); the four copies of
+  `rateRows` are one.
+- Docs: operations.md sections 12 and 13, rates.md, HZ-007, HZ-015 and HZ-021 rows, H-209 and
+  H-210, STATUS follow-ups.
+
+**Tests**: `apps/api` `downtime.test.ts` 11 (7 new); `packages/domain` 1 new.

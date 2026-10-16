@@ -12629,6 +12629,180 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/locations/{id}/downtime-pack": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The location's downtime pack, with its freshness now
+     * @description The latest pack you can open, built on the spot when it no longer names exactly the people receiving care here with their status now, anything it was built from changed, or it expired (HZ-021). If that build fails, the latest pack is served and says so (`rebuildFailed`). Needs a fresh sign-in (a whole-home pack is a bulk export). Opening is audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The pack */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DowntimePackOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Too many requests; wait as Retry-After says and try again */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not available just now; the problem says what to use instead */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Build the location's downtime pack now, unless the latest still serves
+     * @description Needs a fresh sign-in (a whole-home pack is a bulk export). The latest pack is reused when nothing it was built from has changed (`built` says which).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Built, or the latest reused */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DowntimePackOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Too many requests; wait as Retry-After says and try again */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not available just now; the problem says what to use instead */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/rates/{key}": {
     parameters: {
       query?: never;
@@ -18704,6 +18878,51 @@ export interface components {
       reason: string;
       version: number;
     };
+    /** @description A location's downtime pack, with its freshness worked out now (HZ-021) */
+    DowntimePackOut: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      locationId: string;
+      source: components["schemas"]["DowntimePackSource"];
+      /** Format: date-time */
+      generatedAt: string;
+      /**
+       * Format: date-time
+       * @description When its information was read
+       */
+      asAt: string;
+      /**
+       * Format: date-time
+       * @description After this the pack says it is out of date
+       */
+      validUntil: string;
+      /**
+       * Format: uuid
+       * @description Null for the nightly job
+       */
+      generatedBy: string | null;
+      freshness: {
+        state: components["schemas"]["DowntimeFreshnessState"];
+        /** @description The words at the top of every page, now */
+        notice: string;
+        hoursOld: number;
+      };
+      header: string[];
+      built: boolean;
+      rebuildFailed: boolean;
+      /** @description One page per person receiving care, in room order (DowntimePersonPage) */
+      pages: {
+        [key: string]: unknown;
+      }[];
+      warnings: {
+        [key: string]: unknown;
+      }[];
+    };
+    /** @enum {string} */
+    DowntimePackSource: "server_nightly" | "server_on_demand" | "kiosk_cache";
+    /** @enum {string} */
+    DowntimeFreshnessState: "current" | "out_of_date" | "outage" | "clock_behind";
     RateValue: {
       key: string;
       value: number;

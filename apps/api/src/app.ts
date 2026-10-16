@@ -27,6 +27,7 @@ import { mcaRouter } from "./routes/mca";
 import { membershipsRouter, meRouter } from "./routes/me";
 import { memberSessionsRouter } from "./routes/member-sessions";
 import { createRouter } from "./routes/openapi";
+import { operationsRouter } from "./routes/operations";
 import { operatorMiddleware, operatorRouter } from "./routes/operator";
 import { peopleRouter } from "./routes/people";
 import { peopleExitRouter } from "./routes/people-exit";
@@ -198,6 +199,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", mcaRouter);
   app.route("/", incidentsRouter);
   app.route("/", statutoryNotificationsRouter);
+  app.route("/", operationsRouter);
   app.route("/", ratesRouter);
   app.route("/", createSyncRouter(signer));
   app.route("/", devicesRouter);

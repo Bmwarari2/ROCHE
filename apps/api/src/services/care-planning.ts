@@ -8,7 +8,6 @@ import {
   notification,
   person,
   placement,
-  rateTable,
   riskAssessment,
   type Transaction,
   task,
@@ -26,7 +25,6 @@ import {
   firstCarePlanDue,
   LIVE_PERSON_STATUSES,
   type RateNation,
-  type RateRow,
   resolveBedRailLimits,
   resolveCarePlanRates,
   resuscitationStatus,
@@ -35,7 +33,7 @@ import {
 } from "@harbour/domain";
 import { and, desc, eq, inArray, isNull, lt } from "drizzle-orm";
 import { nurseInChargeSeeing } from "./care";
-import { bankHolidays } from "./rates";
+import { bankHolidays, rateRows } from "./rates";
 
 /**
  * Care planning rules wired to the database (docs/specs/care.md rules 1, 2 and 5; hazards HZ-008,
@@ -45,24 +43,6 @@ import { bankHolidays } from "./rates";
  */
 
 type Nation = Exclude<RateNation, "uk" | "all">;
-
-async function rateRows(tx: Transaction, keys: readonly string[]): Promise<RateRow[]> {
-  const rows = await tx
-    .select()
-    .from(rateTable)
-    .where(inArray(rateTable.key, [...keys]));
-  return rows.map((r) => ({
-    key: r.key,
-    value: r.value,
-    unit: r.unit,
-    nation: r.nation,
-    validFrom: r.validFrom,
-    validTo: r.validTo,
-    tenantId: r.tenantId,
-    verificationStatus: r.verificationStatus,
-    source: r.source,
-  }));
-}
 
 export async function carePlanRates(
   tx: Transaction,

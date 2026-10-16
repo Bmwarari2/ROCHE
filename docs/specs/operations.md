@@ -340,8 +340,9 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
     then refused until each current back-entry outside the window with no reason for it is in
     `reviewed_entry_ids`, so the reconciler looks at each one. A correction of the start or end is
     refused only when it would leave outside a back-entry that was inside the window before.
-- Not yet: the API, nightly job and PDF (part 3); outages and packs in the sync streams (with the
-  mobile step).
+- Not yet: the printed pack (part 3a-2); the nightly job, rebuilds after moves and the places
+  route (part 3b); outages and back-entry through the API (part 3c); outages and packs in the
+  sync streams, and the kiosk fetch (with the mobile step).
 - Part 3 requirements (#32 review round 1):
   - A pack is hidden from the location's holders once someone it names moves away (H-200). The
     API builds a fresh pack on demand whenever anyone moves into, out of or away from the
@@ -379,3 +380,44 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
     H-208). A correction of an entry not from paper whose time is now outside the outage drops the
     link, as rule 13 then does not ask for it. A second correction of the same back-entry is
     refused (the unique index): the form corrects the current version.
+- Bulk export (#45 review round 1, security M2): a downtime pack holds the whole home's records,
+  so opening it, building one on request and printing one all need a fresh sign-in (step-up), as
+  any bulk export does (master prompt section 5.3; the JSON holds the same data as the PDF, #45
+  review round 2). The kiosk's own unlock is separate. Each member opens,
+  prints or builds packs at most `downtime_pack.requests_per_hour` times an hour.
+
+## 13. As built (slice 11 part 3a, downtime pack API)
+
+`apps/api/src/routes/operations.ts`, `services/downtime-pack.ts`; tests in
+`apps/api/test/downtime.test.ts`.
+
+- `GET /v1/locations/{id}/downtime-pack` (`operations.downtime.read` where the location is): the
+  latest pack the reader can open, built on the spot as `server_on_demand` when it no longer serves:
+  it does not name exactly the people receiving care there with their status now, anything it was
+  built from has changed since its information's time, or it has expired. So a pack hidden because
+  someone on it moved away is replaced for a holder at a reachable location. The freshness words
+  and the four header lines are worked out at the moment of the request (`downtimePackFreshness`,
+  `downtimePageHeader`, with any outage open at the location; during an outage, "anything recorded
+  since" is the earlier of the information's time and the outage's start). Opening and building
+  are audited (`operations.downtime_pack.opened`, `.generated`); a location out of reach reads as
+  not found and is audited as denied.
+- What a pack is built from (`sourcesChangedSince`; #45 review round 1, H1): the people (identity,
+  room, location, status, photo), their allergies, advance care records, eating and drinking
+  profile, contacts, care plans and sections, risk assessments and photo documents, and the
+  location (the places), soft deletes included. The information's time is the database's clock
+  before anything is read, and the comparison runs in the database to the microsecond, so a new
+  DNACPR, allergy or room swap after it means a new pack.
+- One build at a time per location (an advisory lock around the check and the build): a second
+  reader waits, then gets the pack just built. If a build fails, the latest pack is served with
+  `rebuildFailed` and a header line saying it could not be rebuilt and when it was made, the
+  failure is audited (outcome `error`) and logged by opaque id; with no pack at all the answer is
+  503 with what to use instead, never a bare error.
+- `POST /v1/locations/{id}/downtime-pack`: builds one now unless the latest still serves (`built`
+  says which). It needs a fresh sign-in (section 12, bulk export). Both routes count against
+  `downtime_pack.requests_per_hour` per member (429 with Retry-After beyond it).
+- Building reads only the location's own people receiving care, in the builder's view, and
+  publishes `operations.downtime_pack.generated` (location and pack ids) for kiosks. While the MAR
+  and PEEP places are unconfirmed, the pack prints "where it is kept is not set in Harbour: ask the
+  nurse in charge" (H-201). Allergies are each person's own current ones: inactive, resolved,
+  refuted, entered in error and deleted rows never print, as on the phone (`currentAllergiesOf`,
+  shared with the hospital transfer pack; HZ-007).

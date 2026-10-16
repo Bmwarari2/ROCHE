@@ -189,6 +189,24 @@ only when they link spec, code, tests and user documentation; no user guides exi
      - part 3 must ask for an outside-the-outage reason when someone corrects a reviewed
        back-entry whose time is after the true end, because the database refuses such a correction
        without one (wording H-208).
+   - Slice 11 part 3a-1, downtime pack API (`feat/operations-downtime-pack-read`, stacked on
+     part 2; operations.md section 13): built, PR to follow part 2. Then part 3a-2, the printed
+     pack (`feat/operations-downtime-pack-api`), part 3b, the nightly job, rebuilds after moves
+     and the places route (`feat/operations-downtime-api`), and part 3c, outages and back-entry
+     through the API. Follow-ups: the kiosk fetch route and photos on
+     the printed pages (mobile step).
+   - Follow-ups from #45 review round 1 (security and clinical):
+     - opening a pack is audited once for the pack, not once per person on it (per-person audit
+       rows for care-record views);
+     - the HZ-001 withhold check does not run for the sections the builder stamps with the
+       person's own id (the medicines and evacuation places);
+     - a risk prints its residual band, or its initial band when no residual one is set, without
+       saying which;
+     - the pack does not leave out sample people (HZ-072) until sample data mode exists;
+     - "nothing changed since" compares change times with the information's time on the database
+       clock: a change in a transaction that began before the build and committed after it reads
+       as older than the pack, so is caught only by the next rebuild (a fingerprint column is the
+       fuller fix).
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature
