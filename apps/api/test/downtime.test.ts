@@ -4,7 +4,7 @@ import { DOWNTIME_PACK_SECTIONS, ukIsoDate } from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildDowntimePacks, outboxHandlers, type TaskDeps } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
-import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
+import { ageSession, createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 import { pdfPages } from "./support/pdf-text";
 
 /**
@@ -448,8 +448,7 @@ describe("hazard HZ-021 a pack that no longer serves is built again, safely (#45
   });
 
   it("needs a fresh sign-in to build on request and to read", async () => {
-    const session = "UPDATE auth.session SET created_at = $2 WHERE token = $1";
-    await auth().query(session, [rawToken(h.tokens.owner ?? ""), new Date(Date.now() - 3_600_000)]);
+    await ageSession(auth(), rawToken(h.tokens.owner ?? "") ?? "", 3600);
     try {
       const asked = await as("owner", url(), { method: "POST" });
       expect(asked.status).toBe(403);
@@ -461,7 +460,7 @@ describe("hazard HZ-021 a pack that no longer serves is built again, safely (#45
       expect(read.status).toBe(403);
       expect(((await read.json()) as { code: string }).code).toBe("step_up_required");
     } finally {
-      await auth().query(session, [rawToken(h.tokens.owner ?? ""), new Date()]);
+      await ageSession(auth(), rawToken(h.tokens.owner ?? "") ?? "", 0);
     }
   });
 

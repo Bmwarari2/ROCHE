@@ -499,10 +499,10 @@ describe("hazard HZ-011 break-glass search", () => {
   };
   const who = (
     role: string,
-    lastMfaSignInAt: Date | null = fresh,
+    stepUpAt: Date | null = fresh,
     mfaEnrolled = true,
     searchesInLast24Hours = 0,
-  ) => ({ access: accessFor(role, NORTH), lastMfaSignInAt, mfaEnrolled, searchesInLast24Hours });
+  ) => ({ access: accessFor(role, NORTH), stepUpAt, mfaEnrolled, searchesInLast24Hours });
   const plan = (request = base, by = who("registered_manager")) =>
     buildBreakGlassSearchPlan(request, by, NOW, STEP_UP_SECONDS, RATES);
 
@@ -803,7 +803,7 @@ describe("hazard HZ-011 search results and counts stay in scope", () => {
       },
       {
         access: accessFor("registered_manager", NORTH),
-        lastMfaSignInAt: NOW,
+        stepUpAt: NOW,
         mfaEnrolled: true,
         searchesInLast24Hours: 0,
       },
@@ -1100,7 +1100,7 @@ describe("hazard HZ-011 search audit events record what was shown, never the wor
       { rawQuery: "Ada Example", reason, reasonCode: "emergency_care" },
       {
         access: accessFor("registered_manager", NORTH),
-        lastMfaSignInAt: NOW,
+        stepUpAt: NOW,
         mfaEnrolled: true,
         searchesInLast24Hours: 0,
       },

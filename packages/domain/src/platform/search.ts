@@ -664,8 +664,8 @@ export interface BreakGlassSearchRequest {
 export interface BreakGlassSearchActor {
   readonly access: EffectiveAccess;
   readonly mfaEnrolled: boolean;
-  /** The last sign-in completed with the second step (TOTP or passkey); step-up needs one. */
-  readonly lastMfaSignInAt: Date | null;
+  /** When the session last used a second factor (passkey, authenticator or backup code), never a sign-in time (ADR-0072 amendment): step-up needs one within the window. */
+  readonly stepUpAt: Date | null;
   /** Break-glass searches this user ran in the 24 hours before now. */
   readonly searchesInLast24Hours: number;
 }
@@ -691,7 +691,7 @@ export function buildBreakGlassSearchPlan(
   const decision = authorise(
     access,
     "people.person.break_glass",
-    actor.lastMfaSignInAt,
+    actor.stepUpAt,
     now,
     stepUpWindowSeconds,
   );

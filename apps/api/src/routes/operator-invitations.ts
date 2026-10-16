@@ -62,14 +62,11 @@ export const operatorInvitationsRouter = createRouter().openapi(
   }),
   async (c) => {
     const operator = c.get("operator");
-    const session = c.get("session");
     const services = c.get("services");
     const requestId = c.get("requestId");
     const { tenantId } = c.req.valid("param");
-    const fresh =
-      session !== null &&
-      Date.now() - session.sessionCreatedAt.getTime() <=
-        services.config.STEP_UP_WINDOW_SECONDS * 1000;
+    // Step-up counts from the second factor this session last used, never a password sign-in.
+    const fresh = operator.stepUpFresh;
     if (operator.role !== "admin" || !fresh) {
       throw operator.role !== "admin" ? problems.forbidden() : problems.stepUp();
     }
