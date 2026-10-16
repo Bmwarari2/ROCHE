@@ -18942,6 +18942,233 @@
           "legalForm",
           "owner"
         ]
+      },
+      "InvitationSent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "emailSent": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "expiresAt",
+          "emailSent"
+        ]
+      },
+      "SendInvitation": {
+        "type": "object",
+        "properties": {
+          "tenantUserId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "tenantUserId"
+        ],
+        "description": "Invite a member of staff who is still invited"
+      },
+      "InvitationList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvitationSummary"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "InvitationSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "$ref": "#/components/schemas/InvitationState"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "acceptedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "revokedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "revocationReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "superseded",
+              "revoked",
+              "member_removed",
+              "member_changed",
+              "expired",
+              null
+            ]
+          },
+          "sentByOperator": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "createdAt",
+          "expiresAt",
+          "acceptedAt",
+          "revokedAt",
+          "revocationReason",
+          "sentByOperator"
+        ]
+      },
+      "InvitationState": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "accepted",
+          "revoked",
+          "expired"
+        ]
+      },
+      "InvitationLookup": {
+        "type": "object",
+        "properties": {
+          "organisationName": {
+            "type": "string"
+          },
+          "emailMasked": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "refusal": {
+            "$ref": "#/components/schemas/InvitationRefusal"
+          },
+          "path": {
+            "type": "string",
+            "enum": [
+              "create_sign_in",
+              "sign_in_first",
+              "link_signed_in"
+            ]
+          }
+        },
+        "required": [
+          "organisationName",
+          "emailMasked",
+          "expiresAt",
+          "refusal",
+          "path"
+        ]
+      },
+      "InvitationRefusal": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "invitation_expired",
+          "invitation_used",
+          "invitation_revoked",
+          "organisation_not_active",
+          "member_not_invited",
+          "email_mismatch",
+          "already_member",
+          null
+        ]
+      },
+      "InvitationTokenRequest": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "$ref": "#/components/schemas/InvitationToken"
+          }
+        },
+        "required": [
+          "token"
+        ]
+      },
+      "InvitationToken": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_-]{43}$",
+        "description": "The token from the link's fragment"
+      },
+      "InvitationAccepted": {
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "next": {
+            "type": "string",
+            "enum": [
+              "sign_in",
+              "enrol"
+            ]
+          }
+        },
+        "required": [
+          "tenantId",
+          "next"
+        ]
+      },
+      "AcceptInvitation": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "$ref": "#/components/schemas/InvitationToken"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "token"
+        ]
       }
     },
     "parameters": {}
@@ -36816,6 +37043,484 @@
           },
           "422": {
             "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/invitations": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Invite a member of staff",
+        "description": "Sends a single-use link to a member who is still invited, has no sign-in and must use a second factor (platform.user.manage, step-up), only within the member's reach and where the sender holds every permission of the member's roles (app.may_invite). Revokes the member's open invitation (superseded). The address is the member's own; the link is emailed and never returned. Audited, refusals too.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendInvitation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationSent"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "A member's invitations: states and times",
+        "description": "platform.user.manage, for a member within its reach only (anyone else reads as not found). Never a token, a hash or an address.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "tenantUserId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invitations, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/invitations/{id}/revoke": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Withdraw an open invitation",
+        "description": "platform.user.manage, for a member within its reach only (anyone else reads as not found). The link stops working at once. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Withdrawn"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/invitations/lookup": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "What an invitation link is for (no sign-in needed)",
+        "description": "The token from the link's fragment, in the body. The organisation's name, the address masked, the expiry, why it cannot be accepted, and whether to create a sign-in or sign in first. Changes nothing. Throttled per client address and per token; an unknown token is 404 and audited.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationTokenRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The invitation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationLookup"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; wait as Retry-After says and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/invitations/accept": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Accept an invitation (no sign-in needed to create one)",
+        "description": "Signed in: links that sign-in, if its address is the invitation's. Not signed in: creates a sign-in for the invited address with a password meeting the NCSC rules, only when none exists (otherwise 409 sign_in_first, so a link never sets an existing account's password); the new sign-in is recorded on the invitation before the acceptance, and deleted if the acceptance fails. Then sign in (next: sign_in) and enrol a passkey or an authenticator app. Throttled like the lookup; refusals are audited.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInvitation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationAccepted"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; wait as Retry-After says and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/operator/tenants/{tenantId}/owner-invitation": {
+      "post": {
+        "tags": [
+          "operator"
+        ],
+        "summary": "Invite an organisation's first owner (admins, fresh sign-in)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "tenantId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationSent"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not available just now; the problem says what to use instead",
             "content": {
               "application/problem+json": {
                 "schema": {

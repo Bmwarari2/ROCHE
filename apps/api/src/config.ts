@@ -47,6 +47,12 @@ const Env = z.object({
    * reads a shift's records at a location (the worker compiles every handover anyway).
    */
   HANDOVER_COMPILE_REQUESTS_PER_MINUTE: z.coerce.number().int().positive().default(12),
+  /**
+   * Invitation links opened or accepted (no one signed in yet), per minute per API instance: per
+   * client address, and per token (counted by its SHA-256).
+   */
+  INVITATION_REQUESTS_PER_MINUTE_PER_ADDRESS: z.coerce.number().int().positive().default(20),
+  INVITATION_REQUESTS_PER_MINUTE_PER_TOKEN: z.coerce.number().int().positive().default(10),
   /** Where document bytes live: local disk (development and tests) or S3 (AWS). */
   DOCUMENT_STORAGE: z.enum(["local", "s3"]).default("local"),
   LOCAL_DOCUMENTS_DIR: z.string().default(".data/documents"),
