@@ -1937,3 +1937,13 @@ submitted form, a stable key for required content).
   are shown; one written later and not from paper shows its reason (HZ-017).
 - API gaps logged in STATUS item 21: no read of the places, no per-location `reaching`, and the
   reconciliation returns ids only.
+
+## 2026-10-17: Slice 11 web part A, review round 1 of #62
+
+- A paper record's reference shows beside its label on every record list, the same one the
+  reconciliation lists, and the reconciliation says where to look (HZ-092); its tests carry
+  HZ-092, with a Playwright journey over a duplicate pair and a record after the true end.
+- Cancel says what it does and is dismissed with "Keep the outage"; the declare and correct forms
+  list every problem at once; refused prints say why in words that take focus, with when the
+  pack can be opened again; "Download the pack to print (PDF)", described by the step-up hint;
+  breadcrumbs carry `aria-current`; axe on each open form and refusal.

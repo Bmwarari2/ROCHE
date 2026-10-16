@@ -587,7 +587,10 @@ Part 3c, outages (`routes/outages.ts`, `services/outages.ts`; tests in
   (each with the version; a reason where the API needs one; no time filled in), and for a closed
   outage the reconciliation: counts, the API's blockers in its words, a box per possible
   duplicate group and per back-entry outside the window, and the statement. A reconciler who
-  entered or sent a paper record is told someone else must reconcile.
+  entered or sent a paper record is told another manager must reconcile. Entries are listed by a
+  short reference (the last 8 characters of the id), which every record list shows beside
+  "Entered from a paper record"; the screen says to look in each person's record at the location
+  (#62 review round 1; HZ-092).
 - Actions are offered for the permission held where the viewer works; `/v1/me` has no
   per-location `reaching` yet, so the API's refusal is the final word (STATUS item 21).
 - Not yet: the places form (no read route with the location's version) and the back-entry

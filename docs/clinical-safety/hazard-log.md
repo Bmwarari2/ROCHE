@@ -2614,8 +2614,9 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 | Type | Control | When |
 | --- | --- | --- |
 | Design | Each group and each entry is a separate box to tick, with what it is in words ("possibly the same care recorded twice", "a time outside the outage and no reason"), how many entries and their references; the outage cannot be reconciled until every box is ticked and the manager says what was checked, and the API refuses the same again | Built in Phase 1 (slice 11 web) |
-| Design | Someone who entered or sent any paper record from the outage is told someone else must reconcile it, and offered no form (H-203) | Built in Phase 1 (slice 11 web) |
-| Design | The reconciliation names the person and links each entry to its place in the record, so it can be opened and kept or corrected from the screen | Planned (an API gap logged in docs/plans/STATUS.md: the reconciliation returns ids only) |
+| Design | Someone who entered or sent any paper record from the outage is told another manager who can manage outages, such as the Registered Manager, must reconcile it, and offered no form (H-203) | Built in Phase 1 (slice 11 web) |
+| Design | Every record list shows a paper record's reference (the last 8 characters of its id, the current version's for a corrected note) beside "Entered from a paper record", the same reference the reconciliation lists; the reconciliation says to look in the care record of each person at the location, and that an entry recorded in Harbour at the time has no reference and is the one for the same person at about the same time (#62 review round 1) | Built in Phase 1 (slice 11 web) |
+| Design | The reconciliation names the person, the entry's kind and time, and links each entry to its place in the record, so it can be opened and kept or corrected from the screen | Planned (Lane A: the API returns ids only; STATUS item 21; the CSO decides whether reconciling goes live before it, H-267) |
 | Training and user documentation | Deployer control: reconcile with the paper forms in hand, find each listed entry in the person's record history before ticking it (DCB0160 template) | Phase 1 |
 
 **Target residual risk**: severity Considerable, likelihood Low, **risk 2** (an engineering proposal; the CSO rates it, H-267).
@@ -2624,9 +2625,9 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 
 | Test | Status |
 | --- | --- |
-| `apps/web/src/lib/downtime.test.ts`: `reconciling an outage` (`lists each possible duplicate group and each back-entry outside the window`; `sends the reviewed ids, once each, only when every item is ticked`) | Passing (Phase 1, slice 11 web) |
-| `apps/web/e2e/downtime.spec.ts`: `hazard HZ-017 the nurse declares, corrects and reconciles an outage, every state in words` (the statement is required; reconciled is final) | Written (Phase 1, slice 11 web; runs in CI) |
-| Playwright: an outage with a possible duplicate, each entry opened from the screen and the box ticked | Planned (with the API change above) |
+| `apps/web/src/lib/downtime.test.ts`: `hazard HZ-092 reconciling an outage` (`hazard HZ-092 lists each possible duplicate group and each back-entry outside the window`; `hazard HZ-092 sends the reviewed ids, once each, only when every item is ticked`; `hazard HZ-092 gives the short reference the record shows beside the paper label`); `apps/web/src/components/care/EntryBadges.test.ts`: `hazard HZ-092 shows the reference the outage's reconciliation lists, beside the paper label` | Passing (Phase 1, slice 11 web) |
+| `apps/web/e2e/downtime.spec.ts`: `hazard HZ-092 the nurse finds and checks each possible duplicate and late paper record before reconciling` (a duplicate pair and a record after the true end entered by the manager; the reference on the person's notes; each box by its full name; one left unticked is refused with focus on the summary; axe) | Written (Phase 1, slice 11 web; runs in CI) |
+| Playwright: each entry opened from the reconciliation screen, with the person, kind and time | Planned (with the API change above) |
 
 ---
 

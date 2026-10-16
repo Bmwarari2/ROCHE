@@ -665,8 +665,11 @@ only when they link spec, code, tests and user documentation; no user guides exi
       location page offers an action where the permission is held anywhere and the person works at
       the location; the API refuses it in words where it does not reach (ADR-0071). Add a
       `reaching` list per location to `/v1/me` or a `GET /v1/locations/{id}` with `access`.
-    - The reconciliation returns entry ids only, so the screen lists references; it should name
-      the person and the entry's kind and time, so each can be opened from the screen (HZ-092).
+    - The reconciliation returns entry ids only, so the screen lists short references, which
+      every record list now shows beside "Entered from a paper record" (#62 review round 1). Lane
+      A: return the person, the entry's kind and time and a link per entry in
+      `duplicateGroups` and `outsideWindowEntryIds`, so each can be opened from the screen
+      (HZ-092); the CSO decides whether reconciling may go live before then (H-267).
 
 ## Human actions outstanding
 
