@@ -87,6 +87,15 @@ Column defaults use the same functions: `id` defaults to `app.uuid_v7()`, `tenan
 
 No Harbour role is a superuser or has BYPASSRLS (tested).
 
+Security-definer functions run with their owner's rights, so their execute rights are their whole
+access control. Each is owned by a NOLOGIN role that holds only what it needs, and its ACL is set
+before the ownership changes (`REVOKE ALL ... FROM PUBLIC`, then the intended `GRANT EXECUTE`, then
+`ALTER FUNCTION ... OWNER TO`), or later as the owner (`SET ROLE <owner>; ...; RESET ROLE;`,
+`harbour_owner` holding the owner roles with SET only). A REVOKE run by `harbour_owner` after the
+owner change does nothing, because the default PUBLIC right then belongs to the new owner (found in
+#95; migration 0068 corrects 0061). `packages/db/test/definer-acls.test.ts` checks that PUBLIC can
+execute no definer function and each only the roles listed there.
+
 ### Identity and tenant selection
 
 Better Auth owns identity (users, sessions, passwords, TOTP, passkeys) in the `auth` schema. Tenant
