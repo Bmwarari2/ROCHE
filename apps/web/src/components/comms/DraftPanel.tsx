@@ -38,6 +38,8 @@ export function DraftPanel({
   const [editing, setEditing] = useState(canEdit && !canApprove);
   const editButton = useRef<HTMLButtonElement>(null);
   const reopened = useRef(false);
+  // True once "Edit draft" opened the form: its button is gone, so the form takes focus.
+  const [openedHere, setOpenedHere] = useState(false);
   // Closing the form puts focus back on the button that opened it (WCAG 2.4.3).
   useEffect(() => {
     if (!editing && reopened.current) editButton.current?.focus();
@@ -56,6 +58,7 @@ export function DraftPanel({
           channel,
           words,
           issues,
+          focusOnOpen: openedHere,
           ...(canApprove
             ? {
                 onCancel: () => {
@@ -77,7 +80,10 @@ export function DraftPanel({
             ref={editButton}
             variant="secondary"
             icon={<PencilLine size={20} strokeWidth={1.5} aria-hidden="true" />}
-            onClick={() => setEditing(true)}
+            onClick={() => {
+              setOpenedHere(true);
+              setEditing(true);
+            }}
           >
             {t("comms.templates.editDraft")}
           </Button>

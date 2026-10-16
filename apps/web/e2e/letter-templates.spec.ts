@@ -174,6 +174,8 @@ test("hazard HZ-051 an approver edits only behind Edit draft, the form follows t
   await expect(draftCard).toContainText("Version 2");
   await expect(draftCard.getByRole("button", { name: "Approve this draft" })).toBeVisible();
   await draftCard.getByRole("button", { name: "Edit draft" }).click();
+  // The button is gone once the form opens: focus moves into the form (WCAG 2.4.3).
+  await expect(draftCard.getByLabel("Template name")).toBeFocused();
   await expect(draftCard.getByRole("button", { name: "Approve this draft" })).toHaveCount(0);
   await expect(draftCard.getByLabel("Text")).toHaveValue(/Version 2/);
 

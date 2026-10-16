@@ -511,6 +511,25 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
   current summary loads the organisation's people, allergies, advance care records and care
   profiles at once (bounded by the number of people); the tables never are.
 
+## 10c. As built (slice 13 part 3, the export page)
+
+- `/settings/export` (`apps/web/src/app/(shell)/settings/export`, `lib/exports.ts`), in the
+  navigation as "Data export" for holders of `platform.export.create` only; anyone else is told in
+  words. Every export route needs a step-up with a second factor, so the page sends the person to
+  confirm it is you before it lists anything; an action whose step-up lapsed shows the step-up
+  notice in words naming the passkey and the authenticator code, with the way back.
+- Ask for an export (offered while none is being made); each export's state as an icon and a word
+  (waiting to start, being prepared, ready to download, downloaded, expired, failed, cancelled;
+  an unknown state warns), when its link expires, its size and the manifest's warnings.
+- Download (the requester's own, ready and not yet fetched) opens a sheet first: the file can be
+  downloaded only once and holds the records of everyone the organisation supports and employs, so
+  it is saved straight away somewhere only authorised people can open. The file streams through a
+  same-origin route handler (`/settings/export/{id}/download`), never cached; a refusal returns to
+  the page with what happened in words that take focus, or to signing in again.
+- Cancel after a confirmation. Arrivals carry `at`, so the same outcome twice is said twice.
+- `pnpm --filter @harbour/api exports:run` runs the worker's job once for local journeys; the demo
+  owner gets the end-to-end passkey alongside the manager (`HARBOUR_DEMO_E2E_PASSKEY=1`).
+
 ## 11. Open questions
 
 - Retention of DPIA records, export records and onboarding decisions beyond the interim

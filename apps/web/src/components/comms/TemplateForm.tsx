@@ -3,7 +3,7 @@
 import { Button, RadioGroup, SelectField, TextArea, TextField } from "@harbour/ui";
 import { CircleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useState, useTransition } from "react";
+import { type FormEvent, useEffect, useState, useTransition } from "react";
 import { createTemplate, editDraft } from "@/app/actions/letters";
 import { useFieldIds } from "@/components/care/form-state";
 import { ManageFeedback } from "@/components/safety/ManageForms";
@@ -41,6 +41,11 @@ type Mode =
       readonly issues: readonly { readonly problem: string; readonly message: string }[];
       /** Closes the form without saving, for an approver who opened it with "Edit draft". */
       readonly onCancel?: () => void;
+      /**
+       * Opened from a button that is now gone: focus moves to the problems' heading, or to the
+       * first field when there are none, never left on the page body (WCAG 2.4.3).
+       */
+      readonly focusOnOpen?: boolean;
     };
 
 /**
@@ -58,6 +63,13 @@ export function TemplateForm({ mode, path }: { readonly mode: Mode; readonly pat
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const [pending, startTransition] = useTransition();
   const saved: FieldErrors = mode.kind === "edit" ? issuesByField(mode.issues) : {};
+  const focusOnOpen = mode.kind === "edit" && mode.focusOnOpen === true;
+  const hasProblems = mode.kind === "edit" && mode.issues.length > 0;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only when the form first opens.
+  useEffect(() => {
+    if (!focusOnOpen) return;
+    document.getElementById(hasProblems ? `${ids.body}-problems` : ids.name)?.focus();
+  }, []);
   // A refusal from this attempt wins at its field; otherwise the saved draft's problems show.
   const fieldError = (field: string) => errorFor(result, field) ?? saved[field];
 
@@ -202,7 +214,7 @@ function SavedProblems({
 }) {
   return (
     <section aria-labelledby={`${ids.body}-problems`} className="flex flex-col gap-1">
-      <h3 id={`${ids.body}-problems`} className="m-0 text-body font-semibold">
+      <h3 id={`${ids.body}-problems`} tabIndex={-1} className="m-0 text-body font-semibold">
         {t("comms.templates.problemsTitle")}
       </h3>
       <ul className="m-0 ps-5">

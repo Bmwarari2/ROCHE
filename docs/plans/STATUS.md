@@ -159,7 +159,9 @@ only when they link spec, code, tests and user documentation; no user guides exi
      list, cancel and the one-time download, step-up and audited. Part 2 (`feat/platform-full-export-worker`, stacked on #77): the worker builds
      each queued export in one snapshot into a streamed ZIP in the exports bucket (tables,
      documents, current summary, schema, manifest), tells the requester, and the sweep deletes
-     archives past expiry; platform-completions.md section 10b. Next: the web export page (part 3);
+     archives past expiry; platform-completions.md section 10b. Part 3 (`feat/web-full-export`, stacked): the export page
+     (section 10c) with a Playwright journey that runs the worker's job once (`exports:run`) and
+     downloads with the owner's end-to-end passkey;
      sample data rows join the export when the sample flag exists. The archive lives in the
      exports bucket (`S3_EXPORTS_BUCKET`), streamed both ways; the worker deletes it after the
      download or a cancel (outbox, retried). Interim: the tenant has no `data_purged_at` yet, so
