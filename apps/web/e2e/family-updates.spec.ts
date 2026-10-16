@@ -36,7 +36,9 @@ async function post<T>(request: APIRequestContext, path: string, data: object): 
 
 const recordNote = (request: APIRequestContext, body: string, person = ADA) =>
   post<{ id: string; occurredAt: string }>(request, `/v1/people/${person}/notes`, {
-    occurredAt: new Date(Date.now() - 60_000).toISOString(),
+    // Hours before the run: the downtime journey leaves an outage open from a minute before it
+    // ran, and anything recorded inside an outage must be entered as a back-entry.
+    occurredAt: new Date(Date.now() - 4 * 3_600_000).toISOString(),
     category: "activity",
     body,
   });
@@ -184,7 +186,7 @@ test("hazard HZ-061 words to confirm, a photo without consent, a record correcte
   // An open incident about the person whose family is not yet told holds their updates.
   await post(page.request, "/v1/incidents", {
     locationId: DEMO_LOCATION,
-    occurredAt: new Date(Date.now() - 30 * 60_000).toISOString(),
+    occurredAt: new Date(Date.now() - 4.5 * 3_600_000).toISOString(),
     type: "fall",
     description: `Found on the floor of his room (${RUN}).`,
     emergencyServicesCalled: false,
