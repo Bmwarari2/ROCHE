@@ -434,7 +434,12 @@ export function ChartEntryForm({
           id={ids.occurredAt}
           error={errorFor(result, "occurredAt")}
           errorParts={partsFor(result, "occurredAt")}
-          paper={{ outages, ids, result, notice: t("care.paper.readingBefore") }}
+          paper={{
+            outages,
+            ids,
+            result,
+            ...(chart === "vitals" ? { notice: t("care.paper.readingBefore") } : {}),
+          }}
         />
         <div>
           <Button type="submit" disabled={pending}>

@@ -88,7 +88,14 @@ export function WhenField({
     <div className="flex flex-col gap-4">
       <RadioGroup<Mode>
         legend={legend}
-        hint={explicit?.hint ?? t("care.entry.whenHint")}
+        // A recent reconciled or cancelled outage is said in the question's own hint, so it is
+        // read with it (aria-describedby).
+        hint={[
+          explicit?.hint ?? t("care.entry.whenHint"),
+          closedOff ? t("care.paper.closedOff") : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
         name={`${name}-mode`}
         layout={outages.length > 0 ? "stack" : "inline"}
         value={mode}
@@ -121,9 +128,6 @@ export function WhenField({
             : []),
         ]}
       />
-      {closedOff ? (
-        <p className="m-0 text-body-dense text-text-secondary">{t("care.paper.closedOff")}</p>
-      ) : null}
       {mode === "earlier" ? (
         <DateTimeInput
           legend={t("care.when.enter")}

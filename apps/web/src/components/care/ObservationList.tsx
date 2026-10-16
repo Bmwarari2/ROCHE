@@ -1,6 +1,7 @@
 import type { ObservationItem } from "@harbour/contracts";
 import { StatusChip } from "@harbour/ui";
 import { Activity, History, TriangleAlert } from "lucide-react";
+import { paperWritten } from "@/lib/back-entry";
 import { entryAuthor } from "@/lib/care-record";
 import {
   alertRouteMessage,
@@ -15,6 +16,7 @@ import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { EntryBadges } from "./EntryBadges";
 import { EscalationPolicyLine } from "./EscalationPolicyLine";
+import { PaperReading } from "./News2Result";
 import { Workings } from "./Workings";
 
 /**
@@ -85,6 +87,7 @@ export function ObservationList({
                     icon={Activity}
                   />
                 </p>
+                {item.backEntry ? <PaperReading time={paperWritten(item.backEntry)} /> : null}
                 <p className="m-0 font-semibold">
                   {t("care.news2.response", { response: news2.response })}
                 </p>

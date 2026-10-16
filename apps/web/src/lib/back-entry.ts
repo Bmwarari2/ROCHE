@@ -38,10 +38,18 @@ export function keptForReview(result: { readonly ok: boolean; readonly code?: st
   return !result.ok && result.code === "outage_reconciled";
 }
 
-/** "16/10/2026 09:15": the date and time written on a paper record. */
-export function paperWritten(entry: Pick<EntryBackEntry, "paperDate" | "paperTime">): string {
+/**
+ * "16/10/2026 09:15": the date and time written on a paper record. In the repeated autumn hour
+ * it says which, BST (the first) or GMT (the second), as times on clock-change days do (HZ-009).
+ */
+export function paperWritten(
+  entry: Pick<EntryBackEntry, "paperDate" | "paperTime"> & {
+    readonly occurrence?: EntryBackEntry["occurrence"];
+  },
+): string {
   const [year, month, day] = entry.paperDate.split("-");
-  return `${day}/${month}/${year} ${entry.paperTime}`;
+  const zone = entry.occurrence === "earlier" ? " BST" : entry.occurrence === "later" ? " GMT" : "";
+  return `${day}/${month}/${year} ${entry.paperTime}${zone}`;
 }
 
 /** Whether a recent outage here is reconciled or cancelled and none takes paper records now. */

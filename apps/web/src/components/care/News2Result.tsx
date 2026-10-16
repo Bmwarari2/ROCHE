@@ -9,6 +9,19 @@ import { EscalationPolicyLine } from "./EscalationPolicyLine";
 import { Workings } from "./Workings";
 
 /**
+ * Beside a NEWS2 response for a reading entered from paper (HZ-017): the advice is for the
+ * reading's own time, written on the form, never for now. An icon and words.
+ */
+export function PaperReading({ time }: { readonly time: string }) {
+  return (
+    <p className="m-0 flex gap-2 font-semibold" data-paper-reading="">
+      <TriangleAlert size={18} strokeWidth={1.5} aria-hidden="true" className="mt-0.5 shrink-0" />
+      <span>{t("care.paper.readingFrom", { time })}</span>
+    </p>
+  );
+}
+
+/**
  * A NEWS2 result as the API calculated and stored it (hazard HZ-014): the score, the RCP's
  * clinical risk, response and monitoring wording, the workings, and the organisation's escalation
  * policy for the result when the API returned one (HZ-012; #26 review round 3), so the result shown
@@ -50,17 +63,7 @@ export function News2Result({
           icon={Activity}
         />
       </div>
-      {paperAt ? (
-        <p className="m-0 flex gap-2 font-semibold" data-paper-reading="">
-          <TriangleAlert
-            size={18}
-            strokeWidth={1.5}
-            aria-hidden="true"
-            className="mt-0.5 shrink-0"
-          />
-          <span>{t("care.paper.readingFrom", { time: paperAt })}</span>
-        </p>
-      ) : null}
+      {paperAt ? <PaperReading time={paperAt} /> : null}
       <p className="m-0 font-semibold">{t("care.news2.response", { response: news2.response })}</p>
       {news2.monitoring ? (
         <p className="m-0">{t("care.news2.monitoring", { frequency: news2.monitoring })}</p>
