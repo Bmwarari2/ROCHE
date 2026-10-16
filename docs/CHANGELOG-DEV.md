@@ -2256,3 +2256,20 @@ list.
 
 **Tests**: `apps/web/src/lib/team.test.ts` (24); `apps/web/e2e/team.spec.ts` (4, axe on every
 state).
+
+## 2026-10-17: Slice 12 part 1, the family feed API (COMMS-001)
+
+- A member with a `family_portal_user` link is resolved as a portal session (portal roles only,
+  scope `none`, `app.family`).
+- API: `GET /v1/family/feed` (portal sessions only, a `feed_view` per entry, audit with ids only,
+  `no-store`); portal links (`GET`/`POST /v1/people/{id}/family-portal-links`, `.../revoke`);
+  `GET /v1/people/{id}/feed`; `POST /v1/feed-items/{id}/withdraw`.
+- Docs: comms.md section 11, HZ-022, the register, STATUS.
+
+**Tests**: `apps/api/test/family-feed.test.ts` (8).
+
+Review round 1 of #75 and #76: a feed closed by discharge or death reads exactly like one with no
+decision (no paused statement; H-110 asks the CSO about a closing message); linking needs the
+account's verified email to be the contact's (422 `account_not_contact`, audited); portal sessions
+always need MFA; `app.family_item_shown` locked down; parity cases for closed records, a welfare
+attorney and best interests; follow-ups in STATUS. Tests: API 10, db 28.

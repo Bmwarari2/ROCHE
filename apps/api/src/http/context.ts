@@ -3,6 +3,7 @@ import {
   authSession,
   type Database,
   deviceSession,
+  familyPortalUser,
   person,
   type RequestContext,
   rateTable,
@@ -29,7 +30,7 @@ import {
   touchesCareRecords,
   widestScope,
 } from "@harbour/domain";
-import { and, eq, like, lt, sql } from "drizzle-orm";
+import { and, eq, isNull, like, lt, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { Context, MiddlewareHandler } from "hono";
 import type pg from "pg";
@@ -250,7 +251,26 @@ async function loadAccess(
       .from(tenantUser)
       .where(eq(tenantUser.id, tenantUserId));
     const rows = await accessRowsOfMember(tx, tenantUserId);
-    const effective = resolveAccess(rows.assignments, rows.grants, now);
+    // A member linked to a family contact is a portal session: portal roles only, no grants, no
+    // person scope, and the family policies in the database (ADR-0061).
+    const [link] = await tx
+      .select({ id: familyPortalUser.id })
+      .from(familyPortalUser)
+      .where(
+        and(
+          eq(familyPortalUser.tenantUserId, tenantUserId),
+          isNull(familyPortalUser.revokedAt),
+          isNull(familyPortalUser.deletedAt),
+        ),
+      )
+      .limit(1);
+    const family = link !== undefined;
+    const effective = resolveAccess(
+      rows.assignments,
+      rows.grants,
+      now,
+      family ? "portal" : "staff",
+    );
     // A session bound to a device a manager has since revoked is refused whatever device it names
     // (care.md section 6, Device integrity part 2; #25 review round 2, M1).
     const onRevokedDevice = await sessionOnRevokedDevice(tx, sessionId);
@@ -275,6 +295,7 @@ async function loadAccess(
       : null;
     return {
       effective,
+      family,
       mfaRequired: user?.mfaRequired ?? true,
       onRevokedDevice,
       sessionBound: bound !== undefined,
@@ -365,15 +386,16 @@ export const tenantMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   const deviceId = deviceIdOf(c.req.header(DEVICE_HEADER));
   // The idle timeout is off unless the environment turns it on (HZ-111, H-353).
   const browser = services.config.SESSION_IDLE_TIMEOUT === "on" && !bearerRequest(c);
-  const { effective, mfaRequired, onRevokedDevice, sessionBound, idleMinutes } = await loadAccess(
-    services.db,
-    membership.tenantId,
-    membership.tenantUserId,
-    session.sessionId,
-    deviceId,
-    now,
-    browser,
-  );
+  const { effective, family, mfaRequired, onRevokedDevice, sessionBound, idleMinutes } =
+    await loadAccess(
+      services.db,
+      membership.tenantId,
+      membership.tenantUserId,
+      session.sessionId,
+      deviceId,
+      now,
+      browser,
+    );
   // A session bound to a device a manager has revoked is refused whatever it names (#25 review
   // rounds 2 and 3, M1 and M2), except its device's report, so the server still hears what the
   // device holds. Its sessions are never ended: a device given a 401 could not tell it was revoked.
@@ -388,19 +410,22 @@ export const tenantMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     session,
     services.config.STEP_UP_WINDOW_SECONDS,
   );
-  const mfa = mfaRequired ? factor.mfa : "satisfied";
+  // A portal session always needs it: the feed is care-record data (comms.md section 3).
+  const mfa = mfaRequired || family ? factor.mfa : "satisfied";
   const access: TenantAccess = {
     tenantId: membership.tenantId,
     tenantUserId: membership.tenantUserId,
     session,
     memberships,
     effective,
-    // No one until the route requires a permission (ADR-0071).
+    // No one until the route requires a permission (ADR-0071); a portal session never reaches
+    // anyone through the person scope, only through the family policies (ADR-0061).
     context: {
       tenantId: membership.tenantId,
       userId: membership.tenantUserId,
       scope: "none",
       locationIds: [],
+      ...(family ? { family: true } : {}),
     },
     required: [],
     mfaSatisfied: mfa === "satisfied",
