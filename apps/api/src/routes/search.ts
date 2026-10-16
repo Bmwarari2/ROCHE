@@ -212,6 +212,7 @@ export const searchRouter = createRouter().openapi(
                     roomLabel: person.roomLabel,
                     hasPhoto: person.hasPhoto,
                     communicationNeeds: person.communicationNeeds,
+                    sample: person.sample,
                   }
                 : null,
               staff: hit.entityType === "staff" ? (detail.staff ?? null) : null,

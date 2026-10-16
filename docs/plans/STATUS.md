@@ -243,8 +243,8 @@ screens gate; leave draft PR #50 and `feat/mobile-round-screen` alone.
      new NOLOGIN role `harbour_sample_owner` (run `pnpm db:bootstrap` before migrating); the
      `person_sample_guard` trigger keeps real and sample people apart whichever role writes; the
      checklist item reads the records; the full export leaves sample people out. Open: the web
-     badge, banner and load and remove buttons (the people streams now carry `is_sample` for the
-     badge; mobile sync is paused); sample flags on records about sample people for the other
+     mobile badge and banner (the people streams carry `is_sample`; mobile sync is paused; the web
+     badge, banner and controls are in `feat/web-sample-data`); sample flags on records about sample people for the other
      surfaces (removal already takes those records with the people); the downtime pack and other
      surfaces calling `forSurface`; the stored files of a removed sample person's documents stay in
      the documents bucket until a sweep for files with no row exists.

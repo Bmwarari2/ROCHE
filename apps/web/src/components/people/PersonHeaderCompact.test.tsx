@@ -36,6 +36,7 @@ const ada: PersonSummary = {
     reviewDueOn: null,
     reviewOverdue: false,
   },
+  sample: false,
   version: 1,
 };
 
@@ -65,5 +66,21 @@ describe("PersonHeaderCompact", () => {
       rules: { "color-contrast": { enabled: false } },
     });
     expect(results.violations.map((v) => v.id)).toEqual([]);
+  });
+
+  it("hazard HZ-072 shows the Sample badge, an icon and a word, beside a sample person only", async () => {
+    document.body.innerHTML = `<main><h1>Round</h1><h2>Ground floor</h2>${renderToStaticMarkup(
+      <PersonHeaderCompact person={{ ...ada, sample: true }} />,
+    )}</main>`;
+    const badge = document.querySelector("[data-sample-badge]");
+    expect(badge?.textContent).toBe("Sample");
+    expect(badge?.querySelector("svg")).not.toBeNull();
+    const results = await axe.run(document.body, {
+      runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"] },
+      rules: { "color-contrast": { enabled: false } },
+    });
+    expect(results.violations.map((v) => v.id)).toEqual([]);
+    document.body.innerHTML = renderToStaticMarkup(<PersonHeaderCompact person={ada} />);
+    expect(document.querySelector("[data-sample-badge]")).toBeNull();
   });
 });

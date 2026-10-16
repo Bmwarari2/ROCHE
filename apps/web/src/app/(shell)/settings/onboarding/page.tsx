@@ -1,5 +1,6 @@
-import { isClinicalSetting } from "@harbour/domain";
-import { Card, PageHeader } from "@harbour/ui";
+import { isClinicalSetting, SAMPLE_PEOPLE } from "@harbour/domain";
+import { Card, PageHeader, StatusChip } from "@harbour/ui";
+import { CircleCheck, FlaskConical } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -9,6 +10,7 @@ import {
   RetentionDecision,
   StaffFileOption,
 } from "@/components/onboarding/OnboardingDecisions";
+import { LoadSampleData, RemoveSampleData } from "@/components/onboarding/SampleData";
 import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, tenantApi } from "@/lib/api";
@@ -40,7 +42,15 @@ export default async function OnboardingPage({
   const listed = await api.GET("/v1/onboarding");
   if (!listed.data) failWith(listed.error, listed.response, ONBOARDING_PAGE);
   const list = listed.data;
-  const done = firstParam((await searchParams).done) === "decided";
+  const doneParam = firstParam((await searchParams).done);
+  const arrival =
+    doneParam === "decided"
+      ? t("onboarding.decided")
+      : doneParam === "sampleLoaded"
+        ? t("onboarding.sample.loaded")
+        : doneParam === "sampleRemoved"
+          ? t("onboarding.sample.removed")
+          : null;
   // Who may be named as having reviewed a clinical setting or made the DCB0160 assessment: the
   // organisation's active members (the API checks again; their roles are the CSO's to confirm).
   const members = mayDecide ? await api.GET("/v1/members") : null;
@@ -106,7 +116,7 @@ export default async function OnboardingPage({
         title={title}
         description={t("onboarding.description")}
       />
-      {done ? <RecordedArrival message={t("onboarding.decided")} param="done" /> : null}
+      {arrival ? <RecordedArrival message={arrival} param="done" /> : null}
       <Card as="section" title={t("onboarding.progress.title")} headingLevel={2}>
         <div className="flex flex-col gap-2">
           <p className="m-0">{t("onboarding.progress", { done: list.done, total: list.total })}</p>
@@ -115,6 +125,39 @@ export default async function OnboardingPage({
               ? t("onboarding.ready")
               : t("onboarding.blocked", { count: list.blockers.length })}
           </p>
+        </div>
+      </Card>
+      <Card as="section" id="sample-data" title={t("onboarding.sample.title")} headingLevel={2}>
+        <div className="flex flex-col gap-3">
+          <p className="m-0">{t("onboarding.sample.intro")}</p>
+          <p className="m-0">
+            {list.sampleData.present ? (
+              <StatusChip
+                status="info"
+                icon={FlaskConical}
+                label={t("onboarding.sample.present")}
+              />
+            ) : (
+              <StatusChip
+                status="neutral"
+                icon={CircleCheck}
+                label={t("onboarding.sample.absent")}
+              />
+            )}
+          </p>
+          {mayDecide ? (
+            list.sampleData.present ? (
+              <div>
+                <RemoveSampleData />
+              </div>
+            ) : list.sampleData.mayLoad ? (
+              <div>
+                <LoadSampleData count={SAMPLE_PEOPLE.length} />
+              </div>
+            ) : (
+              <p className="m-0 text-body-dense">{t("onboarding.sample.unavailable")}</p>
+            )
+          ) : null}
         </div>
       </Card>
       <Card as="section" title={t("onboarding.items.title")} headingLevel={2}>

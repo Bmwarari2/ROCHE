@@ -240,6 +240,7 @@ describe("reading the header data with the API's schemas (hazards HZ-001 and HZ-
     iddsiFoodLevel: "not_recorded",
     iddsiDrinkLevel: "not_recorded",
     statusChangedAt: "2026-09-01T10:00:00.000Z",
+    sample: false,
     resuscitation: {
       status: "do_not_attempt_cpr",
       conflicting: false,
@@ -447,6 +448,7 @@ describe("hazard HZ-011 hazard HZ-073 every write form is offered only where the
       iddsiFoodLevel: "not_recorded",
       iddsiDrinkLevel: "not_recorded",
       statusChangedAt: "2026-09-01T10:00:00.000Z",
+      sample: false,
       resuscitation: { status: "not_recorded" },
       version: 1,
       access: breakGlass,

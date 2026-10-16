@@ -24,7 +24,23 @@ const MEWS_PERSON = "0194d000-0000-7000-8600-000000000150";
 const MEWS_TWIN_A = "0194d000-0000-7000-8600-000000000151";
 const MEWS_TWIN_B = "0194d000-0000-7000-8600-000000000152";
 
-type PasskeyHolder = "manager" | "owner" | "family";
+type PasskeyHolder = "manager" | "owner" | "family" | "starter";
+
+/**
+ * A second, empty organisation and its own owner, for the sample data journey
+ * (platform-completions.md rules 29 to 32; HZ-072): sample data loads only where no real person
+ * has ever been added, which the demo organisation is not. Its own sign-in, so the demo owner
+ * keeps one organisation. Local testing only, with HARBOUR_DEMO_E2E_PASSKEY=1. Invented names,
+ * an example.invalid address and no people.
+ */
+const STARTER = {
+  email: "starter.owner@example.invalid",
+  name: "Sol Starter",
+  tenantId: "0194f000-0000-7000-8000-0000000000e2",
+  locationId: "0194f000-0000-7000-8000-0000000001e2",
+  memberId: "0194f000-0000-7000-8000-0000000003e2",
+  roleId: "0194f000-0000-7000-8000-0000000004e2",
+} as const;
 
 /**
  * The family portal account for the end-to-end journeys (comms.md section 2.1): the invented
@@ -113,6 +129,65 @@ async function managerTenant(authUserId: string): Promise<string | null> {
   } finally {
     client.release();
   }
+}
+
+/** The starter organisation, its location and its owner's sign-in and membership; rerunnable. */
+async function seedStarterOrganisation(): Promise<string> {
+  const { email, name } = STARTER;
+  try {
+    await services.auth.api.signUpEmail({ body: { email, password, name } });
+  } catch {
+    // Already there from an earlier run.
+  }
+  const { rows } = await services.authPool.query<{ id: string }>(
+    "UPDATE auth.user SET email_verified = true WHERE email = $1 RETURNING id",
+    [email],
+  );
+  const authUserId = rows[0]?.id;
+  if (!authUserId) throw new Error("Could not create or find the starter owner");
+  const client = await owner.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+      [STARTER.tenantId],
+    );
+    await client.query(
+      `INSERT INTO tenant (id, name, legal_name, legal_form, status)
+       VALUES ($1, 'Starter Example Care', 'Starter Example Care Ltd', 'limited_company',
+               'onboarding')
+       ON CONFLICT (id) DO NOTHING`,
+      [STARTER.tenantId],
+    );
+    await client.query(
+      "INSERT INTO location (id, name) VALUES ($1, 'Starter House') ON CONFLICT (id) DO NOTHING",
+      [STARTER.locationId],
+    );
+    await client.query(
+      `INSERT INTO tenant_user (id, auth_user_id, display_name, email, status, mfa_required)
+       VALUES ($1, $2, $3, $4, 'active', false)
+       ON CONFLICT (id) DO NOTHING`,
+      [STARTER.memberId, authUserId, name, email],
+    );
+    await client.query(
+      `INSERT INTO role (id, key, name, scope_kind, permissions)
+       VALUES ($1, 'starter_owner', 'Owner', 'tenant',
+               '{platform.onboarding.manage,platform.onboarding.read,people.person.read}')
+       ON CONFLICT (id) DO NOTHING`,
+      [STARTER.roleId],
+    );
+    await client.query(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, reason)
+       SELECT $1, $2, 'Demo seed'
+        WHERE NOT EXISTS (SELECT 1 FROM role_assignment WHERE tenant_user_id = $1)`,
+      [STARTER.memberId, STARTER.roleId],
+    );
+    await client.query("COMMIT");
+    console.log("Starter Example Care is in place for the sample data journey");
+  } finally {
+    client.release();
+  }
+  return authUserId;
 }
 
 /** The family member's sign-in, verified email, portal-only membership and link; rerunnable. */
@@ -214,6 +289,7 @@ try {
   }
   if (process.env.HARBOUR_DEMO_E2E_PASSKEY === "1") {
     passkeyHolders.push(["family", await seedFamilyMember()]);
+    passkeyHolders.push(["starter", await seedStarterOrganisation()]);
   }
   for (const [key, authUserId] of passkeyHolders) {
     const passkey = e2ePasskey(key);

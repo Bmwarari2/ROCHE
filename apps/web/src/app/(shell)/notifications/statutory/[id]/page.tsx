@@ -28,7 +28,7 @@ import {
   notificationStatusChip,
   notificationWarnings,
 } from "@/lib/incidents";
-import { personNames } from "@/lib/people";
+import { personNames, sampleName } from "@/lib/people";
 import { getPerson, readOrFail } from "@/lib/person-record";
 import {
   citationLine,
@@ -147,7 +147,9 @@ export default async function StatutoryNotificationPage({
   const manage = notificationManageView(item, me.permissions, reaching);
   const fields = contentFields(item.requiredContent);
   const shownDone = doneToShow(done, item.status);
-  const names = new Map(person ? [[person.id, personNames(person).full]] : []);
+  const names = new Map(
+    person ? [[person.id, sampleName(person, personNames(person).full, t)]] : [],
+  );
   const title = notificationKindLabel(item.kind, t, threshold?.data?.value);
   const location = me.locations.find((l) => l.id === item.locationId);
   const subject = notificationSubject(item, names, t);

@@ -79,6 +79,22 @@ const send = (method: string, who = "owner", tenant = NEW.tenantId) =>
   h.request("/v1/onboarding/sample-data", { method, ...as(who, tenant) });
 const codeOf = async (res: Response) => ((await res.json()) as { code: string }).code;
 
+/** What the screens read: the banner flag, the checklist's sample state, and each person's badge. */
+async function screens() {
+  const me = (await (await h.request("/v1/me", as("owner"))).json()) as { sampleData: boolean };
+  const onboarding = (await (await h.request("/v1/onboarding", as("owner"))).json()) as {
+    sampleData: { present: boolean; mayLoad: boolean };
+  };
+  const people = (await (await h.request("/v1/people", as("owner"))).json()) as {
+    items: { sample: boolean }[];
+  };
+  return {
+    banner: me.sampleData,
+    checklist: onboarding.sampleData,
+    badges: people.items.map((p) => p.sample),
+  };
+}
+
 const audits = (action: string) =>
   ownerSql<{ outcome: string; reason: string | null; scope: unknown }>(
     "SELECT outcome, reason, scope FROM audit_event WHERE action = $1 ORDER BY seq",
@@ -108,6 +124,11 @@ describe("hazard HZ-072 sample data mode (rules 29 to 32)", () => {
 
   it("loads once, keeps real people out, and removes the batch with what was practised on it", async () => {
     expect(await codeOf(await send("DELETE"))).toBe("nothing_to_remove");
+    expect(await screens()).toEqual({
+      banner: false,
+      checklist: { present: false, mayLoad: true },
+      badges: [],
+    });
 
     const loaded = await send("POST");
     expect(loaded.status).toBe(200);
@@ -122,6 +143,11 @@ describe("hazard HZ-072 sample data mode (rules 29 to 32)", () => {
       true,
     );
     expect(await codeOf(await send("POST"))).toBe("already_loaded");
+    expect(await screens()).toEqual({
+      banner: true,
+      checklist: { present: true, mayLoad: false },
+      badges: SAMPLE_PEOPLE.map(() => true),
+    });
 
     const checklist = (await (await h.request("/v1/onboarding", as("owner"))).json()) as {
       items: { key: string; done: boolean }[];
@@ -194,12 +220,22 @@ describe("hazard HZ-072 sample data mode (rules 29 to 32)", () => {
     ]);
     expect(await codeOf(await send("DELETE"))).toBe("nothing_to_remove");
 
-    // Once it has gone, a real person may be added.
+    expect(await screens()).toEqual({
+      banner: false,
+      checklist: { present: false, mayLoad: true },
+      badges: [],
+    });
+    // Once it has gone, a real person may be added, and sample data may no longer be loaded.
     await ownerSql(
       `INSERT INTO person (location_id, status, nhs_number, given_name, family_name,
                            date_of_birth, allergy_status)
        VALUES ($1, 'active', '9990000999', 'Rae', 'Example', '1945-05-05', 'unknown')`,
       [NEW.locationId],
     );
+    expect(await screens()).toEqual({
+      banner: false,
+      checklist: { present: false, mayLoad: false },
+      badges: [false],
+    });
   });
 });

@@ -126,6 +126,11 @@ export const Me = z
     roleKeys: z.array(z.string()),
     scope: DataScope,
     flags: z.record(z.string(), z.boolean()),
+    /**
+     * HZ-072: true while the organisation has sample data in place, so every screen shows the
+     * sample data banner (platform-completions.md rules 29 to 32).
+     */
+    sampleData: z.boolean(),
   })
   .meta({ id: "Me", description: "The signed-in user, their active tenant and effective access" });
 export type Me = z.infer<typeof Me>;

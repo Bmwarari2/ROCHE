@@ -9,6 +9,7 @@ import { runSearch } from "@/app/actions/search";
 import { FormFeedback } from "@/components/care/FormFeedback";
 import { useFieldIds } from "@/components/care/form-state";
 import { PersonAvatar } from "@/components/people/PersonAvatar";
+import { SampleBadge } from "@/components/people/SampleBadge";
 import { formatDate, formatDateTime, formatNhsNumber } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { type ActionResult, errorFor, refused } from "@/lib/outcome";
@@ -213,6 +214,7 @@ function ResultRow({ item }: { readonly item: SearchResultItem }) {
               .join(" · ")}
           </p>
           <div className="flex flex-wrap items-center gap-2">
+            <SampleBadge sample={p.sample} />
             <StatusChip
               status="neutral"
               label={t("platform.search.status", { status: p.status })}

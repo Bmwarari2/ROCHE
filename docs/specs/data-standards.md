@@ -448,6 +448,9 @@ assurance pack.
 | `pre_admission_assessment.sections` | Harbour; content aligned to the PRSB personalised care and support plan headings where they exist | JSON keyed by `PRE_ADMISSION_SECTIONS` (`personal_details_and_contacts`, `views_and_wishes`, `health_and_medical_history`, `medicines`, `allergies`, `communication`, `mobility_and_falls`, `eating_drinking_and_swallowing`, `skin_integrity`, `continence_and_personal_care`, `cognition_and_mental_health`, `capacity_and_legal_status`, `resuscitation_and_advance_care`, `infection_status`, `equipment`, `risks`, `dependency`, `funding`, `social_cultural_and_spiritual`, `hospital_passport`) with `status` (`in_progress`, `complete`, `not_applicable`), reason, completed by and at | Allergies follow the `allergy` mapping; IDDSI levels the care profile; communication needs the AIS mapping above. |
 | `pre_admission_assessment.sources` | Harbour | `person`, `family_or_representative`, `hospital`, `gp`, `social_worker`, `previous_provider`, `other` | At least one. |
 | `admission_decision.can_meet_needs` | Harbour | `yes`, `yes_with_conditions`, `no` | With reasons, conditions, decided by and at. |
+| `admission_condition` | Harbour | `condition` (free text, never blank), `position` (from 0); met by and at, both or neither | One row per condition of a "yes, with conditions" decision, confirmed as met before admission. |
+| `welcome_checklist_item.status` | Harbour | `pending`, `done`, `not_applicable` (with a reason, only where the item allows it); `required`, `safety_critical` flags | Copied from `welcome_checklist_template` at admission; item keys stay as the template set them. |
+| `key_issue.issued_to` | Harbour | `person`, `representative`; `issued_on`, then `returned_on` or `reported_lost_on` (`YYYY-MM-DD`, never both, never before issue) | A key neither returned nor reported lost blocks the exit. |
 | `placement.start_date` | MODS admission date (concept) | `YYYY-MM-DD` | The admission date of the current placement. |
 | `bed_occupancy.from_date`, `to_date` | Harbour | `YYYY-MM-DD`, `to_date` exclusive | The person's room and bed over time; `person.room_label` is a display cache of the current one. |
 | `property_item.category` | Harbour | `clothing`, `jewellery`, `watch`, `electronics`, `mobility_aid`, `sensory_aid`, `dentures`, `documents`, `furniture`, `ornament_or_picture`, `toiletries`, `other` | Cash is never an inventory item (residents' money ledger). |
@@ -539,6 +542,7 @@ tenant export with these names.
 | `evidence_pack_bundle` | Harbour | `content` (JSON: the shown value of each included field, hand-redacted copies included, by item id and field key), `deleted_at`, `deletion_reason` `link_ended`, `pack_revoked`, `pack_discarded` | Migration 0057. The PDF is drawn from it on request and never stored; not exported (a temporary copy of records exported in their own tables) |
 | `evidence_pack_link` and `evidence_pack_link_code` (migration 0057) | Harbour | link: `revocation_reason` `pack_revoked`, `reissued`; `last_opened_at`; code: `valid_until` (the issue plus `evidence_pack.code_valid_minutes`, at most 10 minutes, worked out by the database) | Token and code hashes are SHA-256 hex; secret in the export |
 | `letter_template.kind`, `channel` | Harbour | kind `admission`, `fee_review`, `incident_follow_up`, `duty_of_candour`, `general`; channel `letter`, `email` | |
+| `letter_template_version.state` | Harbour (`TEMPLATE_WORKFLOW`) | `draft`, `approved`, `superseded`, `retired` (with a reason), `discarded` (with a reason); `version_number` per template; author, contributors, approved by and at | Approved never by its author or a contributor; subject for email only. |
 | Merge fields | Harbour (`MERGE_FIELDS` in `packages/domain/src/comms/templates.ts`) | `{{field.name}}`; types `text`, `date` (`YYYY-MM-DD`), `datetime` (ISO 8601), `money` (whole pence), `number`; data classes `none`, `personal`, `special_category`; flags `multiLine` (never in a subject), `notInEmail` (NHS number, date of birth), `allowsResultsToFollow` (`candour.results` only) | ADR-0051 |
 | `letter` | Harbour | template version, person, recipient (`recipient_kind` `person` or `contact` with `contact_id`, one of the person's own contacts), channel, `personal_fields` (the merge field keys used that hold personal data), `special_category` (letters only), `results_to_follow` (candour), `incident_id` and `incident_serious`, `document_id` (a letter's PDF) or `delivery_reference` (an email), sent by and at | The rendered letter is a document about the person; never an email's content; retention by `letterRetentionClass` (`retention_class`, migration 0059) |
 | Candour relevant person | Harbour; Health and Social Care Act 2008 (Regulated Activities) Regulations 2014 regulation 20(7) | `service_user`, or `representative` with contact id and basis `death`, `under_16_not_competent`, `lacks_capacity` | Held on the candour record ([safety.md](safety.md)); the letter goes to this person |
@@ -633,7 +637,13 @@ that held it, its owner, who sent it, the table and entry id and when it was acc
 the care API follow-ups `device_discard_record` (one row per stage of each deletion record, with
 its coded reason), `discard_reason` (the organisation's coded reasons) and `escalation_policy_link`
 (the escalation policy each validated tool's result links), all described in the table above;
-`entry_device_deletion_flag` is exported with the care record.
+`entry_device_deletion_flag` is exported with the care record. The Phase 1 engines add
+`document_signature` (signer capacity `staff`, `person` or `representative`; the name as typed; the
+statement; the SHA-256 of the bytes signed; append-only), `legal_hold` (a person, or a subject type
+and id; the reason; placed, and released by and at with a reason), `workflow_instance` and
+`workflow_transition` (definition key and version, subject type and id, the person where there is
+one, state, when it entered it and the SLA due time; each move with who and why) and
+`notification_preference` (quiet hours as UK `HH:MM`, channels per notification kind).
 `request_quota` (the recent request times of each member under each per-user limit) is
 operational and not exported, and `device_session` (the sign-in session ids bound to each device,
 so the API refuses them once the device is revoked; read by their member and by jobs, never by a
