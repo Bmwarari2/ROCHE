@@ -595,3 +595,23 @@ Part 3c, outages (`routes/outages.ts`, `services/outages.ts`; tests in
   per-location `reaching` yet, so the API's refusal is the final word (STATUS item 21).
 - Not yet: the places form (no read route with the location's version) and the back-entry
   fields on the care record forms (part B).
+
+## 16. As built (slice 11 web part B, paper records on the care record forms)
+
+`apps/web/src/lib/back-entry.ts`, `apps/web/src/components/care/WhenField.tsx`; tests in
+`apps/web/src/lib/back-entry.test.ts` and `apps/web/e2e/back-entry.spec.ts`.
+
+- The notes, chart entry, body map, activity and visit forms (shown only where the person's
+  `access.reaching` lists `care.note.write`) read the outages at the person's location; while
+  one is open or closed, "When" offers "From a paper downtime form": which outage (nothing
+  chosen), the date and time written on the form (UK time, nothing filled in; the repeated
+  autumn hour asks which, the skipped spring hour and a time ahead are refused), the form's
+  reference, and why when the time is outside the outage (`MIN_BACK_ENTRY_REASON_LENGTH`). The
+  entry's `occurredAt` is the paper instant; `backEntry` carries the rest.
+- When the API answers `back_entry_details_required`, the form asks why the entry is not from
+  paper and sends `notFromPaperReason`. Correcting a paper note whose time the API now finds
+  outside the outage (`outside_outage_reason_required`, H-208) asks why and sends the paper
+  details again with it. `outage_reconciled` and `back_entry_refused` are said in the API's
+  words (the record kept for the nurse in charge's review, H-216); a second correction of a
+  paper record says to reload and correct the current version.
+- Not yet: a correction form for chart entries, marks, activities and visits on the web.

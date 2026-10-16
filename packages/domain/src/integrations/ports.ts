@@ -22,6 +22,12 @@ export interface OutboundMessage {
 
 export interface EmailMessage extends OutboundMessage {
   readonly to: string;
+  /**
+   * Plain-text body, for an email that must say more than a title (an evidence pack code with its
+   * guidance, a letter sent by email under ADR-0051). Without one the body is the title and the
+   * link. Never logged.
+   */
+  readonly body?: string;
 }
 
 export interface SmsMessage extends OutboundMessage {

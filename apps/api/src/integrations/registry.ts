@@ -7,7 +7,10 @@ import { type AdapterFactoryOptions, createAdapter } from "./adapters";
 /** What the delivery job needs from any communication adapter. */
 export interface ChannelAdapter {
   readonly provider: string;
-  send(message: OutboundMessage & { readonly to: string }): Promise<SendResult>;
+  /** `body` is read by the email port only (H-225). */
+  send(
+    message: OutboundMessage & { readonly to: string; readonly body?: string },
+  ): Promise<SendResult>;
 }
 
 const PORT_FOR_CHANNEL: Record<"email" | "sms" | "push", PortName> = {

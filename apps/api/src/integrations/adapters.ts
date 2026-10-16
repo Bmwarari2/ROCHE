@@ -54,7 +54,17 @@ class Unconfigured<M extends OutboundMessage> {
   }
 }
 
-/** Amazon SES in eu-west-2 (London). Plain text only: a generic title and a link. */
+/**
+ * The plain-text body SES sends: the message's own body when it has one, otherwise the title and
+ * the link into Harbour (H-225).
+ */
+export function emailTextBody(message: EmailMessage): string {
+  if (message.body !== undefined)
+    return message.body.endsWith("\n") ? message.body : `${message.body}\n`;
+  return `${message.title}\n\n${message.link ? `Open Harbour to see the details: ${message.link}` : "Open Harbour to see the details."}\n`;
+}
+
+/** Amazon SES in eu-west-2 (London). Plain text only: a title, and a body or a link. */
 export class SesEmail implements EmailPort {
   readonly provider = "ses";
   private readonly client: SESv2Client;
@@ -75,7 +85,7 @@ export class SesEmail implements EmailPort {
               Subject: { Data: message.title, Charset: "UTF-8" },
               Body: {
                 Text: {
-                  Data: `${message.title}\n\n${message.link ? `Open Harbour to see the details: ${message.link}` : "Open Harbour to see the details."}\n`,
+                  Data: emailTextBody(message),
                   Charset: "UTF-8",
                 },
               },

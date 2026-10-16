@@ -93,6 +93,21 @@ export function problemMessage(error: unknown, t: Translator): Problem {
     // it and enters the change again, never told someone else changed the record.
     case "already_saved_differently":
       return { code, message: t("care.errors.alreadySavedDifferently") };
+    // Paper records from an outage (operations.md section 14; HZ-017): the API's own words,
+    // which say what to do and, for a reconciled outage, that the record is kept for review.
+    case "back_entry_details_required": {
+      const message = detail || t("care.paper.detailsRequired");
+      return { code, message, fields: { notFromPaperReason: message } };
+    }
+    case "outside_outage_reason_required": {
+      const message = detail || t("care.paper.outsideReasonAgain");
+      return { code, message, fields: { outsideOutageReason: message } };
+    }
+    case "outage_reconciled":
+    case "back_entry_refused":
+      return { code, message: detail || t("care.errors.invalid") };
+    case "back_entry_already_corrected":
+      return { code, message: t("care.paper.alreadyCorrected") };
     case "missing_permission":
     case "mfa_enrolment_required":
       return { code, message: t("errors.forbidden") };
