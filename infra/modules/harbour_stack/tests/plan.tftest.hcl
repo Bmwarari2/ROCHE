@@ -42,6 +42,7 @@ mock_provider "random" {}
 variables {
   environment          = "dev"
   domain_name          = "dev.harbour.example.invalid"
+  safety_case_version  = "v0.0"
   state_bucket_name    = "harbour-tfstate-000000000000"
   budget_monthly_limit = 600
 }

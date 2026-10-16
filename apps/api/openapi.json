@@ -22311,6 +22311,240 @@
           "aiProvider",
           "expectedVersion"
         ]
+      },
+      "OnboardingChecklist": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OnboardingItem"
+            }
+          },
+          "done": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "readyForGoLive": {
+            "type": "boolean"
+          },
+          "blockers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "currentSafetyCaseVersion": {
+            "type": "string"
+          },
+          "staffFileOption": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "staff_file.after_leaving",
+              "staff_file.to_75th_birthday",
+              null
+            ]
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "done",
+          "total",
+          "readyForGoLive",
+          "blockers",
+          "currentSafetyCaseVersion",
+          "staffFileOption",
+          "version"
+        ]
+      },
+      "OnboardingItem": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "requiredForGoLive": {
+            "type": "boolean"
+          },
+          "guide": {
+            "type": "string"
+          },
+          "done": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "outstanding": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "personId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "gaps": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "photo",
+                      "allergy_status",
+                      "resuscitation",
+                      "communication_needs",
+                      "iddsi_levels"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "personId",
+                "gaps"
+              ]
+            }
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "requiredForGoLive",
+          "guide",
+          "done",
+          "reason",
+          "outstanding"
+        ]
+      },
+      "OnboardingDecisionRecorded": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decidedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "decidedAt"
+        ]
+      },
+      "SettingDecision": {
+        "type": "object",
+        "properties": {
+          "rateKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "set"
+            ]
+          }
+        },
+        "required": [
+          "rateKey",
+          "kind"
+        ]
+      },
+      "RetentionDecision": {
+        "type": "object",
+        "properties": {
+          "recordClass": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "lengthened",
+              "period_set",
+              "not_used"
+            ]
+          }
+        },
+        "required": [
+          "recordClass",
+          "kind"
+        ]
+      },
+      "StaffFileOptionChosen": {
+        "type": "object",
+        "properties": {
+          "option": {
+            "type": "string",
+            "enum": [
+              "staff_file.after_leaving",
+              "staff_file.to_75th_birthday"
+            ]
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "option",
+          "version"
+        ]
+      },
+      "StaffFileOptionChoice": {
+        "type": "object",
+        "properties": {
+          "option": {
+            "type": "string",
+            "enum": [
+              "staff_file.after_leaving",
+              "staff_file.to_75th_birthday"
+            ]
+          },
+          "expectedVersion": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "option",
+          "expectedVersion"
+        ]
+      },
+      "Dcb0160Recording": {
+        "type": "object",
+        "properties": {
+          "safetyCaseVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          }
+        },
+        "required": [
+          "safetyCaseVersion"
+        ]
       }
     },
     "parameters": {}
@@ -44864,6 +45098,347 @@
           },
           "409": {
             "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/onboarding": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "The organisation's onboarding checklist",
+        "description": "platform.onboarding.read or .manage. Every item worked out from the organisation's records (onboardingChecklist), with its reason, what is outstanding and whether it blocks go-live; the safety case the DCB0160 assessment must cover; the staff file option and the organisation record's version.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The checklist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingChecklist"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/onboarding/setting-decisions": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Record a decision on a setting Harbour chose",
+        "description": "platform.onboarding.manage. Accepts Harbour's default for a tenant-default setting, or records that the organisation set its own (which needs its own figure in the rate table first; 422 decision_not_recordable otherwise). Append-only; a later change by Harbour reopens it. Audited (platform.setting.decided, with the key and kind), refusals too.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingDecision"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingDecisionRecorded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/onboarding/retention-decisions": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Record a decision on how long a kind of record is kept",
+        "description": "platform.onboarding.manage. Accepts or lengthens a class with a default, or sets the period of, or marks not used, a class the organisation's policy sets (checkRetentionDecision: lengthening or setting needs the organisation's own period first, longer than the default when lengthened; 422 decision_not_recordable otherwise). The staff file option is chosen on its own route. Append-only. Audited (platform.retention.decided, with the class and kind), refusals too.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetentionDecision"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingDecisionRecorded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/onboarding/staff-file-option": {
+      "put": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Choose how long staff files are kept",
+        "description": "platform.onboarding.manage. One of the schedule's two staff file options, for all staff files. Send the organisation record's `version` from the checklist (409 when stale). Audited (platform.retention.decided, with the option).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffFileOptionChoice"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Chosen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffFileOptionChosen"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/onboarding/dcb0160": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Record the organisation's DCB0160 assessment",
+        "description": "platform.onboarding.manage. Records that the organisation's CSO or clinical lead has assessed the deployment (DCB0160) against Harbour's safety case for this release; the version sent must be the current one (422 decision_not_recordable otherwise). Append-only. Audited (platform.dcb0160.recorded, with the version), refusals too.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Dcb0160Recording"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingDecisionRecorded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
             "content": {
               "application/problem+json": {
                 "schema": {

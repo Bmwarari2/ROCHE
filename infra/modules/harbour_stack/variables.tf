@@ -12,6 +12,11 @@ variable "environment" {
   }
 }
 
+variable "safety_case_version" {
+  description = "Harbour's clinical safety case the release runs under (a report in docs/clinical-safety/safety-case/, for example v0.0). The API refuses to start without it; organisations' DCB0160 assessments must cover it."
+  type        = string
+}
+
 variable "domain_name" {
   description = "Base domain for this environment, for example dev.harbour.example. Hosts are app., api., sync. and flags. under it."
   type        = string

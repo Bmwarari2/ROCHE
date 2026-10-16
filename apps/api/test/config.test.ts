@@ -1,3 +1,5 @@
+import { readdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { loadConfig } from "../src/config";
 
@@ -14,6 +16,7 @@ const PRODUCTION = {
   S3_DOCUMENTS_BUCKET: "harbour-dev-documents",
   S3_EXPORTS_BUCKET: "harbour-dev-exports",
   MALWARE_SCANNER: "clamd",
+  SAFETY_CASE_VERSION: "v0.0",
 } as const;
 
 describe("loadConfig", () => {
@@ -31,6 +34,7 @@ describe("loadConfig", () => {
     "DATABASE_WORKER_URL",
     "S3_DOCUMENTS_BUCKET",
     "S3_EXPORTS_BUCKET",
+    "SAFETY_CASE_VERSION",
   ])("refuses to start in production without %s", (key) => {
     const env: Record<string, string> = { ...PRODUCTION };
     delete env[key];
@@ -105,5 +109,15 @@ describe("loadConfig", () => {
       "https://admin.example.invalid",
     ]);
     expect(config.trustedProxies).toEqual(["10.20.0.0/16", "192.0.2.0/24"]);
+  });
+});
+
+describe("SAFETY_CASE_VERSION", () => {
+  it("names a safety case report that exists, by default", () => {
+    const dir = fileURLToPath(
+      new URL("../../../docs/clinical-safety/safety-case/", import.meta.url),
+    );
+    const version = loadConfig({}).SAFETY_CASE_VERSION;
+    expect(readdirSync(dir).some((f) => f.startsWith(`safety-case-${version}-`))).toBe(true);
   });
 });

@@ -39,6 +39,7 @@ import { mcaRouter } from "./routes/mca";
 import { membershipsRouter, meRouter } from "./routes/me";
 import { memberSessionsRouter } from "./routes/member-sessions";
 import { membersRouter } from "./routes/members";
+import { onboardingRouter } from "./routes/onboarding";
 import { createRouter } from "./routes/openapi";
 import { operationsRouter } from "./routes/operations";
 import { operatorMiddleware, operatorRouter } from "./routes/operator";
@@ -257,6 +258,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", membersRouter);
   app.route("/", exportsRouter);
   app.route("/", dpiaRouter);
+  app.route("/", onboardingRouter);
   app.route("/", operatorInvitationsRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
