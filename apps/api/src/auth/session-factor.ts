@@ -55,7 +55,7 @@ export async function sessionMfa(
     `SELECT EXISTS (SELECT 1 FROM auth.passkey WHERE user_id = $1) AS passkey,
             (SELECT v.expires_at < s.expires_at
                FROM auth.verification v JOIN auth.session s ON s.id = $2 AND s.user_id = $1
-              WHERE v.identifier = $3
+              WHERE v.identifier = $3 AND v.value IN ('passkey', 'totp', 'backup_code')
               ORDER BY v.expires_at DESC LIMIT 1) AS stale`,
     [session.authUserId, session.sessionId, factorIdentifier(session.sessionId)],
   );
@@ -65,9 +65,62 @@ export async function sessionMfa(
   if (row.stale) {
     await authPool.query(
       `UPDATE auth.verification v SET expires_at = s.expires_at, updated_at = now()
-         FROM auth.session s WHERE v.identifier = $1 AND s.id = $2 AND v.expires_at < s.expires_at`,
+         FROM auth.session s
+        WHERE v.identifier = $1 AND s.id = $2 AND v.expires_at < s.expires_at
+          AND v.value IN ('passkey', 'totp', 'backup_code')`,
       [factorIdentifier(session.sessionId), session.sessionId],
     );
   }
   return "satisfied";
+}
+
+/**
+ * Routes that add, reveal or remove a second factor (#57 security review round 1, HZ-112). Once a
+ * member has a factor, these need a session that used one; otherwise a password alone could enrol
+ * the attacker's own authenticator or passkey, or remove the member's, and then sign in with it.
+ * Only a first enrolment (nothing enrolled yet) goes ahead on a password session.
+ */
+export const FACTOR_CHANGE_ROUTES: ReadonlySet<string> = new Set([
+  "/two-factor/enable",
+  "/two-factor/disable",
+  "/two-factor/get-totp-uri",
+  "/two-factor/generate-backup-codes",
+  "/two-factor/view-backup-codes",
+  "/passkey/generate-register-options",
+  "/passkey/verify-registration",
+  "/passkey/delete-passkey",
+]);
+
+/** Routes that check a code on a session that already exists (Better Auth skips its lockout). */
+export const IN_SESSION_CODE_ROUTES: ReadonlySet<string> = new Set([
+  "/two-factor/verify-totp",
+  "/two-factor/verify-backup-code",
+]);
+
+/** Wrong codes one session may send before it is refused (it signs in again to try more). */
+export const IN_SESSION_CODE_ATTEMPTS = 5;
+
+function failureIdentifier(sessionId: string): string {
+  return `session-factor-failure:${sessionId}`;
+}
+
+/** Counts a wrong code sent on an existing session; the count lapses with the session. */
+export async function recordCodeFailure(
+  authPool: pg.Pool,
+  sessionId: string,
+  expiresAt: Date,
+): Promise<void> {
+  await authPool.query(
+    `INSERT INTO auth.verification (id, identifier, value, expires_at) VALUES ($1, $2, 'failure', $3)`,
+    [randomUUID(), failureIdentifier(sessionId), expiresAt],
+  );
+}
+
+/** How many wrong codes this session has sent. */
+export async function codeFailures(authPool: pg.Pool, sessionId: string): Promise<number> {
+  const { rows } = await authPool.query<{ n: number }>(
+    "SELECT count(*)::int AS n FROM auth.verification WHERE identifier = $1",
+    [failureIdentifier(sessionId)],
+  );
+  return rows[0]?.n ?? 0;
 }

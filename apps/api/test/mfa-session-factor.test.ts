@@ -46,6 +46,18 @@ async function sessionIdOf(token: string): Promise<string> {
   return rows[0]?.id ?? "";
 }
 
+/** A Better Auth call as the mobile app makes it: POST with a body, GET without. */
+function authCall(token: string, path: string, body?: unknown): Promise<Response> {
+  return h.request(path, {
+    method: body === undefined ? "GET" : "POST",
+    token,
+    origin: MOBILE_APP_ORIGIN,
+    ...(body === undefined ? {} : { body }),
+  });
+}
+
+const authCode = async (response: Response) => ((await response.json()) as { code?: string }).code;
+
 /** RFC 6238 with Better Auth's defaults (SHA-1, 6 digits, 30 seconds), from an otpauth URI. */
 function totpFrom(uri: string): string {
   const secret = new URL(uri).searchParams.get("secret") ?? "";
@@ -85,6 +97,29 @@ describe("a passkey holder", () => {
     expect((await get(token, "/v1/me")).status).toBe(200);
   });
 
+  it("hazard HZ-112 cannot enrol its own authenticator app or passkey, or remove the member's, on a password-only session", async () => {
+    const enable = await authCall(token, "/api/auth/two-factor/enable", { password: PASSWORD });
+    expect(enable.status).toBe(403);
+    expect(await authCode(enable)).toBe("MFA_VERIFICATION_REQUIRED");
+    const options = await authCall(token, "/api/auth/passkey/generate-register-options");
+    expect(options.status).toBe(403);
+    expect(await authCode(options)).toBe("MFA_VERIFICATION_REQUIRED");
+    const register = await authCall(token, "/api/auth/passkey/verify-registration", {
+      response: {},
+    });
+    expect(register.status).toBe(403);
+    const remove = await authCall(token, "/api/auth/passkey/delete-passkey", { id: "pk-test" });
+    expect(remove.status).toBe(403);
+    // Nothing changed: no authenticator app, the passkey still there, care records still refused.
+    const { rows } = await auth().query<{ n: number }>(
+      `SELECT (SELECT count(*) FROM auth.two_factor WHERE user_id = $1)::int
+            + (SELECT count(*) FROM auth.passkey WHERE user_id = $1 AND id <> 'pk-test')::int AS n`,
+      [h.authIds.nurse],
+    );
+    expect(rows[0]?.n).toBe(0);
+    expect(await code(await get(token, notes))).toBe("mfa_verification_required");
+  });
+
   it("hazard HZ-112 opens care records once the session signed in with the passkey", async () => {
     const id = await sessionIdOf(token);
     await auth().query(
@@ -93,6 +128,8 @@ describe("a passkey holder", () => {
       [factorIdentifier(id)],
     );
     expect((await get(token, notes)).status).toBe(200);
+    // A session that used its passkey may add another.
+    expect((await authCall(token, "/api/auth/passkey/generate-register-options")).status).toBe(200);
   });
 
   it("hazard HZ-112 refuses again once the passkey is removed, even on that session", async () => {
@@ -106,6 +143,7 @@ describe("a passkey holder", () => {
 describe("an authenticator app holder", () => {
   let totpUri = "";
   let enrolling = "";
+  let signedIn = "";
 
   it("hazard HZ-112 confirms a code when enrolling: the session that replaces the enrolling one opens care records", async () => {
     const signIn = await passwordSignIn();
@@ -191,5 +229,22 @@ describe("an authenticator app holder", () => {
       [factorIdentifier(await sessionIdOf(token))],
     );
     expect(rows.map((r) => r.value)).toEqual(["totp"]);
+    signedIn = token;
+  });
+
+  it("hazard HZ-112 refuses a code on a session after five wrong ones", async () => {
+    await auth().query("DELETE FROM auth.verification WHERE identifier = $1", [
+      factorIdentifier(await sessionIdOf(signedIn)),
+    ]);
+    const right = totpFrom(totpUri);
+    const wrong = right === "000000" ? "111111" : "000000";
+    for (let i = 0; i < 5; i++) {
+      expect(
+        (await authCall(signedIn, "/api/auth/two-factor/verify-totp", { code: wrong })).status,
+      ).toBe(401);
+    }
+    const blocked = await authCall(signedIn, "/api/auth/two-factor/verify-totp", { code: right });
+    expect(blocked.status).toBe(429);
+    expect(await code(await get(signedIn, notes))).toBe("mfa_verification_required");
   });
 });
