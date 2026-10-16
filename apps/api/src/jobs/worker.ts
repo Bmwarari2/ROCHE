@@ -1,10 +1,11 @@
 import { createDatabase, createPool } from "@harbour/db";
 import { PgBoss } from "pg-boss";
 import { loadConfig } from "../config";
-import { createExportStorage } from "../integrations/documents";
+import { createDocumentServices, createExportStorage } from "../integrations/documents";
 import { createAdapterResolver } from "../integrations/registry";
 import { createLogger, idleErrorLogger } from "../logger";
 import { sweepInvitations } from "../services/invitations";
+import { runQueuedExports, sweepExports } from "./exports";
 import { runJob } from "./run-job";
 import {
   buildDowntimePacks,
@@ -77,6 +78,8 @@ const QUEUES = {
   downtimePacks: "downtime-packs",
   invitations: "invitation-sweep",
   evidenceBundles: "evidence-bundle-sweep",
+  fullExports: "full-exports",
+  exportExpiry: "export-expiry",
   statementOverdue: "statement-of-purpose-overdue",
 } as const;
 
@@ -148,6 +151,19 @@ await work(QUEUES.invitations, async () => {
 await work(QUEUES.evidenceBundles, async () => {
   await sweepEvidenceBundlesJob(deps);
 });
+// The full export (PLAT-015): reads the documents bucket, writes the exports bucket.
+const exportDeps = {
+  ...deps,
+  appPool,
+  storage: createDocumentServices(config).storage,
+  exportStorage: deps.exportStorage,
+};
+await work(QUEUES.fullExports, async () => {
+  await runQueuedExports(exportDeps);
+});
+await work(QUEUES.exportExpiry, async () => {
+  await sweepExports(exportDeps);
+});
 await work(QUEUES.statementOverdue, async () => {
   await escalateStatementsOfPurpose(deps);
 });
@@ -192,6 +208,9 @@ await boss.schedule(QUEUES.invitations, "17 3 * * *");
 await boss.schedule(QUEUES.evidenceBundles, "*/5 * * * *");
 // Hourly: a revision is due at CQC by the day (regulation 12(3)); each is alerted once.
 await boss.schedule(QUEUES.statementOverdue, "11 * * * *");
+// Every minute: an export asked for starts at once; every 15 minutes, archives past expiry go.
+await boss.schedule(QUEUES.fullExports, "* * * * *");
+await boss.schedule(QUEUES.exportExpiry, "*/15 * * * *");
 
 logger.info("Harbour worker started");
 

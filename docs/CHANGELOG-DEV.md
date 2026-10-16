@@ -2272,3 +2272,17 @@ list.
 **Tests**: `apps/api/test/exports.test.ts` 4 new (concurrent downloads, a failed read leaves the
 fetch untaken, another holder, another organisation's id); `packages/db/test/tenant-export.test.ts`
 1 new and the grant rename; `config.test.ts` (`S3_EXPORTS_BUCKET` required in production).
+
+## 2026-10-17: Slice 13 part 2, the full export's worker (PLAT-015)
+
+- `runQueuedExports` builds each queued export as `harbour_app` in the organisation's context, in
+  one `REPEATABLE READ` read-only snapshot: every planned table (CSV and JSON Lines, through
+  cursors), the documents' bytes, `destroyed.csv`, `current_summary.csv`, `schema.json` and the
+  manifest, streamed as a ZIP into the exports bucket; ready (audited, the requester told by ids
+  only) or failed (audited, archive deleted, a security alarm for a foreign row).
+- `sweepExports` deletes archives past expiry and records it; an export left running is failed.
+- `ZipWriter`: streaming deflate with data descriptors and ZIP64 end records.
+- Docs: platform-completions.md section 10b, hazard log HZ-070 and HZ-071, records of processing,
+  feature register, STATUS.
+
+**Tests**: `apps/api/test/export-worker.test.ts` (10); `apps/api/test/zip-writer.test.ts` (6).
