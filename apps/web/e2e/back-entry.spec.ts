@@ -1,26 +1,70 @@
-import { expect, type Page, test } from "@playwright/test";
+import { type APIRequestContext, expect, type Page, test } from "@playwright/test";
 import { demoPerson, expectAccessible, signIn } from "./support";
 
 /**
  * Slice 11 web part B: entering a paper record from an outage on the care record forms
- * (operations.md section 14; hazards HZ-017, HZ-009) against the demo tenant. The nurse declares
- * an outage that ended three hours ago through the API, then enters notes for Ben (resident 2) on
- * the screen: from a paper form inside the outage, from a form dated after it (with the reason
- * asked for), and from memory for a time in it (the API asks why it is not from paper). Its
- * window ends before the downtime journey's, which runs later against the same database, so
- * outages never overlap. Every state is checked with axe.
+ * (operations.md section 14; hazards HZ-017, HZ-009, HZ-006) against the demo tenant. The nurse
+ * declares an outage through the API, open from ten minutes before a base time laid out after
+ * every outage already at the location (so a retry, or another journey, never overlaps), then
+ * enters notes for Ben (resident 2) on the screen: from paper inside the outage; on the chart,
+ * body map, activity and visit forms the paper choice is opened and scanned; the outage is closed
+ * with a true end before one paper note (H-207); a form dated after the end asks why; an entry
+ * from memory for a time in the outage asks why it is not from paper; and correcting the paper
+ * note now outside the outage asks why (H-208). Every state is checked with axe.
  */
 
 const API_URL = process.env.API_URL ?? "http://localhost:4000";
 const DEMO_TENANT = "0194d000-0000-7000-8000-000000000001";
 const DEMO_LOCATION = "0194d000-0000-7000-8000-000000000101";
 const RUN = `run ${Date.now().toString(36)}`;
-const T0 = Date.now();
+const MINUTE = 60_000;
+const SPAN_MINUTES = 10;
 const BEN = demoPerson(2);
+const headers = { "x-harbour-tenant": DEMO_TENANT };
+let BASE = Math.floor(Date.now() / MINUTE) * MINUTE;
 
 test.describe.configure({ mode: "serial" });
 
-/** A moment `minutes` from the start of the run, as the UK wall clock the boxes ask for. */
+/** BASE after every outage at the location, so this journey's window overlaps none of them. */
+async function layOutAfterExistingOutages(request: APIRequestContext) {
+  const url = `${API_URL}/v1/locations/${DEMO_LOCATION}/outages`;
+  type Item = {
+    id: string;
+    state: string;
+    startedAt: string;
+    endedAt: string | null;
+    version: number;
+  };
+  const read = async () =>
+    ((await (await request.get(url, { headers })).json()) as { items: Item[] }).items;
+  for (const o of (await read()).filter((x) => x.state === "declared")) {
+    const cancelled = await request.post(`${API_URL}/v1/outages/${o.id}/cancel`, {
+      headers,
+      data: { reason: "Left open by an earlier test attempt.", version: o.version },
+    });
+    if (cancelled.ok()) continue;
+    await request.post(`${API_URL}/v1/outages/${o.id}/close`, {
+      headers,
+      data: {
+        endedAt: new Date(Date.parse(o.startedAt) + MINUTE).toISOString(),
+        version: o.version,
+      },
+    });
+  }
+  const latest = Math.max(
+    0,
+    ...(await read())
+      .filter((o) => o.state !== "cancelled" && o.endedAt)
+      .map((o) => Date.parse(o.endedAt as string)),
+  );
+  const earliest = Math.ceil(latest / MINUTE) * MINUTE + SPAN_MINUTES * MINUTE;
+  while (Math.floor(Date.now() / MINUTE) * MINUTE < earliest) {
+    await new Promise((resolve) => setTimeout(resolve, 5_000));
+  }
+  BASE = Math.floor(Date.now() / MINUTE) * MINUTE;
+}
+
+/** A moment `minutes` from BASE, as the UK wall clock the boxes ask for. */
 function ukParts(minutes: number) {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat("en-GB", {
@@ -32,7 +76,7 @@ function ukParts(minutes: number) {
       minute: "2-digit",
       hourCycle: "h23",
     })
-      .formatToParts(new Date(T0 + minutes * 60_000))
+      .formatToParts(new Date(BASE + minutes * MINUTE))
       .map((p) => [p.type, p.value]),
   );
   return [
@@ -53,90 +97,151 @@ async function fillWhen(page: Page, legend: string, minutes: number) {
 
 const main = (page: Page) => page.getByRole("main");
 const alertIn = (page: Page) => main(page).getByRole("alert");
+const PAPER = /^From a paper downtime form/;
 const PAPER_TIME = "Date and time written on the paper form";
+const OUTAGE = "Which outage was it written in?";
+
+/** Writes a note from a paper form at `minutes`, inside the outage chosen. */
+async function paperNote(page: Page, text: string, minutes: number) {
+  const form = page.getByRole("region", { name: "Write a note" });
+  await form.getByLabel("Note", { exact: true }).fill(text);
+  await form.getByRole("radio", { name: PAPER }).check();
+  await form.getByRole("group", { name: OUTAGE }).getByRole("radio").first().check();
+  await fillWhen(page, PAPER_TIME, minutes);
+  await form.getByRole("button", { name: "Save note" }).click();
+}
+
+const noteSaved = (page: Page) =>
+  expect(page.getByRole("region", { name: "Write a note" }).getByRole("status")).toHaveText(
+    "Note saved",
+  );
+const noteIn = (page: Page, text: string) =>
+  page
+    .getByRole("list", { name: /^Notes about / })
+    .getByRole("listitem")
+    .filter({ hasText: text })
+    .first();
 
 test("hazard HZ-017 the nurse enters paper records from an outage, each labelled, every state in words", async ({
   page,
 }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(900_000);
   await signIn(page, "nurse@example.invalid");
-  const response = await page.request.post(`${API_URL}/v1/locations/${DEMO_LOCATION}/outages`, {
-    headers: { "x-harbour-tenant": DEMO_TENANT },
+  await layOutAfterExistingOutages(page.request);
+  const declared = await page.request.post(`${API_URL}/v1/locations/${DEMO_LOCATION}/outages`, {
+    headers,
     data: {
       kind: "power",
       description: `Power cut in the evening (${RUN}).`,
-      startedAt: new Date(Math.floor((T0 - 200 * 60_000) / 60_000) * 60_000).toISOString(),
-      endedAt: new Date(Math.floor((T0 - 170 * 60_000) / 60_000) * 60_000).toISOString(),
+      startedAt: new Date(BASE - 10 * MINUTE).toISOString(),
     },
   });
-  expect(response.status(), await response.text()).toBe(201);
+  expect(declared.status(), await declared.text()).toBe(201);
+  const outage = (await declared.json()) as { id: string; version: number };
 
   await page.goto(`/people/${BEN}/notes`);
-  const when = page.getByRole("group", { name: "When did it happen?" });
-  await expect(when.getByRole("radio", { name: /^From a paper downtime form/ })).toBeVisible();
+  const form = page.getByRole("region", { name: "Write a note" });
+  await expect(form.getByRole("radio", { name: PAPER })).toBeVisible();
   await expectAccessible(page, "note form with the paper choice");
 
   // The paper choice asks for the outage and the time written, with nothing filled in.
-  await page.getByLabel("Note", { exact: true }).fill(`Settled after a warm drink (${RUN}).`);
-  await when.getByRole("radio", { name: /^From a paper downtime form/ }).check();
-  const outage = page.getByRole("group", { name: "Which outage was it written in?" });
-  await expect(outage.getByRole("radio", { name: /^Power cut, from / })).not.toBeChecked();
+  await form.getByLabel("Note", { exact: true }).fill(`Settled after a warm drink (${RUN}).`);
+  await form.getByRole("radio", { name: PAPER }).check();
   await expect(
-    page.getByRole("group", { name: PAPER_TIME }).getByLabel("Hour", { exact: true }),
+    form.getByRole("group", { name: OUTAGE }).getByRole("radio").first(),
+  ).not.toBeChecked();
+  await expect(
+    form.getByRole("group", { name: PAPER_TIME }).getByLabel("Hour", { exact: true }),
   ).toHaveValue("");
   await expectAccessible(page, "paper fields");
-  await page.getByRole("button", { name: "Save note" }).click();
+  await form.getByRole("button", { name: "Save note" }).click();
   await expect(alertIn(page)).toBeFocused();
   await expect(alertIn(page)).toContainText("Choose the outage the paper form was written in");
   await expect(alertIn(page)).toContainText("The date and time written on the paper form");
   await expectAccessible(page, "paper record refused");
 
-  await outage.getByRole("radio", { name: /^Power cut, from / }).check();
-  await fillWhen(page, PAPER_TIME, -185);
-  await page.getByLabel("Form reference (optional)").fill("DT-1");
-  await page.getByRole("button", { name: "Save note" }).click();
-  await expect(main(page).getByRole("status").getByText("Note saved")).toBeVisible();
-  const saved = page
-    .getByRole("listitem")
-    .filter({ hasText: `Settled after a warm drink (${RUN}).` })
-    .first();
+  await form.getByRole("group", { name: OUTAGE }).getByRole("radio").first().check();
+  await fillWhen(page, PAPER_TIME, -9);
+  await form.getByLabel("Form reference (optional)").fill("DT-1");
+  await form.getByRole("button", { name: "Save note" }).click();
+  await noteSaved(page);
+  const saved = noteIn(page, `Settled after a warm drink (${RUN}).`);
   await expect(saved.getByText("Entered from a paper record", { exact: true })).toBeVisible();
   await expect(saved.locator("[data-back-entry]")).toContainText("Reference ");
   await expectAccessible(page, "paper record saved");
 
+  // A second paper note, later corrected after the outage's true end is set before it (H-207).
+  await paperNote(page, `Repositioned on the left (${RUN}).`, -3);
+  await noteSaved(page);
+
+  // The other forms offer the same choice: opened and scanned on each.
+  await page.goto(`/people/${BEN}/charts`);
+  await main(page).getByRole("radio", { name: PAPER }).check();
+  await expect(main(page).getByRole("group", { name: OUTAGE })).toBeVisible();
+  await expect(
+    main(page).getByText("A reading from a paper form is from the time written on it.", {
+      exact: false,
+    }),
+  ).toBeVisible();
+  await expectAccessible(page, "chart entry from paper");
+  await page.goto(`/people/${BEN}/body-map`);
+  await main(page).getByRole("radio", { name: PAPER }).check();
+  await expect(main(page).getByRole("group", { name: OUTAGE })).toBeVisible();
+  await expectAccessible(page, "body map mark from paper");
+  await page.goto(`/people/${BEN}/activities`);
+  await main(page).getByRole("radio", { name: PAPER }).first().check();
+  await main(page).getByRole("radio", { name: PAPER }).last().check();
+  await expect(main(page).getByRole("group", { name: OUTAGE })).toHaveCount(2);
+  await expectAccessible(page, "activity and visit from paper");
+
+  // Systems are back: the true end is set before the second note (H-207).
+  const closed = await page.request.post(`${API_URL}/v1/outages/${outage.id}/close`, {
+    headers,
+    data: { endedAt: new Date(BASE - 5 * MINUTE).toISOString(), version: outage.version },
+  });
+  expect(closed.status(), await closed.text()).toBe(200);
+
   // A form dated after the outage ended: the reason is asked for, then sent.
-  await page.getByLabel("Note", { exact: true }).fill(`Night check done (${RUN}).`);
-  await when.getByRole("radio", { name: /^From a paper downtime form/ }).check();
-  await outage.getByRole("radio", { name: /^Power cut, from / }).check();
-  await fillWhen(page, PAPER_TIME, -160);
-  await page.getByRole("button", { name: "Save note" }).click();
+  await page.goto(`/people/${BEN}/notes`);
+  await paperNote(page, `Night check done (${RUN}).`, -4);
   await expect(alertIn(page)).toBeFocused();
   await expect(alertIn(page)).toContainText("The time on the form is outside the outage");
   await expectAccessible(page, "outside the outage refused");
-  await page
-    .getByLabel("If the time on the form is outside the outage, why? (optional)")
+  await form
+    .getByLabel("Why is the time outside the outage? (only if it is)")
     .fill("Form dated after the power came back");
-  await page.getByRole("button", { name: "Save note" }).click();
-  await expect(main(page).getByRole("status").getByText("Note saved")).toBeVisible();
+  await form.getByRole("button", { name: "Save note" }).click();
+  await noteSaved(page);
 
   // Written later from memory for a time in the outage: the API asks why it is not from paper.
-  await page.getByLabel("Note", { exact: true }).fill(`Mouth care given (${RUN}).`);
-  await when.getByRole("radio", { name: "Earlier" }).check();
-  await fillWhen(page, "Date and time it happened", -190);
-  await page.getByRole("button", { name: "Save note" }).click();
+  await form.getByLabel("Note", { exact: true }).fill(`Mouth care given (${RUN}).`);
+  await form.getByRole("radio", { name: /^Earlier/ }).check();
+  await fillWhen(page, "Date and time it happened", -8);
+  await form.getByRole("button", { name: "Save note" }).click();
   await expect(alertIn(page)).toBeFocused();
   await expect(alertIn(page)).toContainText("This time falls in the outage from");
-  const why = page.getByLabel("Why was this not written on paper during the outage?");
+  const why = form.getByLabel("Why was this not written on paper during the outage?");
   await expect(why).toBeVisible();
   await expectAccessible(page, "not from paper asked");
   await why.fill("Remembered at handover");
-  await page.getByRole("button", { name: "Save note" }).click();
-  await expect(main(page).getByRole("status").getByText("Note saved")).toBeVisible();
-  const memory = page
-    .getByRole("listitem")
-    .filter({ hasText: `Mouth care given (${RUN}).` })
-    .first();
+  await form.getByRole("button", { name: "Save note" }).click();
+  await noteSaved(page);
+  const memory = noteIn(page, `Mouth care given (${RUN}).`);
   await expect(memory.getByText("Written later, not from paper", { exact: true })).toBeVisible();
   await expect(memory.getByText(/^Reason: Remembered at handover/)).toBeVisible();
   await expectAccessible(page, "not from paper saved");
+
+  // Correcting the paper note now after the true end: the API asks why it is outside (H-208).
+  const repositioned = noteIn(page, `Repositioned on the left (${RUN}).`);
+  await repositioned.getByRole("button", { name: "Correct this note" }).click();
+  await repositioned.getByLabel("Corrected note").fill(`Repositioned on the right (${RUN}).`);
+  await repositioned.getByLabel("Reason for the correction").fill("Wrong side written");
+  await repositioned.getByRole("button", { name: "Save correction" }).click();
+  await expect(alertIn(page)).toBeFocused();
+  const outside = repositioned.getByLabel("Why is the time outside the outage?");
+  await expect(outside).toBeVisible();
+  await expectAccessible(page, "correction asks why outside");
+  await outside.fill("Form written after the power came back");
+  await repositioned.getByRole("button", { name: "Save correction" }).click();
+  await expect(main(page).getByText(`Repositioned on the right (${RUN}).`)).toBeVisible();
 });

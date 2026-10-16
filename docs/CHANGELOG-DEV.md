@@ -1990,3 +1990,8 @@ X-Forwarded-For hop outside `TRUSTED_PROXY_CIDRS` (`clientAddress`, mirroring th
 - The API's refusals at their fields: why an entry in an outage is not from paper, the H-208
   reason on correcting a paper note, a reconciled outage's record kept for review (HZ-006), and
   one correction only.
+- Review round 1 of #64: a NEWS2 reading from paper says it is from the paper's time, before
+  saving and on its result; a record kept for review starts the form again; a recent reconciled
+  or cancelled outage is said; a malformed outage id is refused; spring-gap and autumn tests; the
+  journey scans the chart, body map, activity and visit forms and a correction outside the
+  outage; the journeys lay their outages after any already there, so a retry never overlaps.
