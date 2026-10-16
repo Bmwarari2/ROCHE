@@ -78,14 +78,15 @@ CREATE POLICY link_session_none ON public.statement_of_purpose_version AS RESTRI
 --> statement-breakpoint
 
 -- Nothing else a link request has no business reading (#66 security review L1): the audit trail,
--- staff, alerts, tasks, documents, roles and grants. It may still write its own audit rows (an
+-- staff, alerts, tasks, documents, roles and grants, and every earlier version of any record
+-- (`record_version`, round 2). It may still write its own audit rows (an
 -- insert reads nothing back; the chain trigger is a definer) and read the organisation's email
 -- connection and the rate table, which its code needs.
 DO $$
 DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY['audit_event', 'tenant_user', 'notification', 'task', 'document',
-      'role_assignment', 'access_grant', 'outbox_event'] LOOP
+      'role_assignment', 'access_grant', 'outbox_event', 'record_version'] LOOP
     EXECUTE format(
       'CREATE POLICY link_session_no_read ON public.%I AS RESTRICTIVE FOR SELECT '
       'TO harbour_app, harbour_owner USING (NOT app.is_link_session())', t);

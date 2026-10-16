@@ -827,7 +827,7 @@ describe("hazard HZ-050 a link session reaches its own link alone (migration 005
     );
   });
 
-  it("reads none of the audit trail, staff, alerts, tasks or grants, yet writes its own audit rows", async () => {
+  it("reads none of the audit trail, staff, alerts, tasks, grants or record history, yet writes its own audit rows", async () => {
     await asLink(async (c) => {
       await c.query(
         "INSERT INTO audit_event (tenant_id, action, resource_type, resource_id) VALUES ($1, 'quality.evidence_pack.opened', 'evidence_pack_link', $2)",
@@ -838,12 +838,18 @@ describe("hazard HZ-050 a link session reaches its own link alone (migration 005
         "tenant_user",
         "notification",
         "task",
+        "document",
         "role_assignment",
+        "access_grant",
+        "outbox_event",
+        "record_version",
       ]) {
         expect(await count(c, table)).toBe(0);
       }
     });
     expect(await asSystem((c) => count(c, "tenant_user"))).toBeGreaterThan(0);
+    // The history is there to hide: earlier versions of this organisation's records.
+    expect(await asSystem((c) => count(c, "record_version"))).toBeGreaterThan(0);
   });
 
   it("never revokes its own link", async () => {
