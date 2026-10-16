@@ -59,6 +59,20 @@ const Env = z.object({
    */
   INVITATION_REQUESTS_PER_MINUTE_PER_ADDRESS: z.coerce.number().int().positive().default(20),
   INVITATION_REQUESTS_PER_MINUTE_PER_TOKEN: z.coerce.number().int().positive().default(10),
+  /**
+   * The server key for evidence pack links (ADR-0050): one-time codes are stored as an HMAC under
+   * it, and the link session cookie is signed with it. From Secrets Manager in deployed
+   * environments; the local default is refused in production.
+   */
+  EVIDENCE_LINK_SECRET: z
+    .string()
+    .min(32)
+    .default("local-development-evidence-link-secret-0123456789"),
+  /** Evidence pack link requests (codes, verification, opens) per minute per API instance. */
+  EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_ADDRESS: z.coerce.number().int().positive().default(20),
+  EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_LINK: z.coerce.number().int().positive().default(10),
+  /** How long a verified link session lasts in the browser (never past the link's own expiry). */
+  EVIDENCE_LINK_SESSION_MINUTES: z.coerce.number().int().positive().max(240).default(60),
   /** Where document bytes live: local disk (development and tests) or S3 (AWS). */
   DOCUMENT_STORAGE: z.enum(["local", "s3"]).default("local"),
   LOCAL_DOCUMENTS_DIR: z.string().default(".data/documents"),
@@ -117,6 +131,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (parsed.NODE_ENV === "production") {
     if (parsed.BETTER_AUTH_SECRET.startsWith("local-development")) {
       throw new Error("BETTER_AUTH_SECRET must be set in production");
+    }
+    if (parsed.EVIDENCE_LINK_SECRET.startsWith("local-development")) {
+      throw new Error("EVIDENCE_LINK_SECRET must be set in production");
     }
     if (!parsed.SYNC_SIGNING_KEY_PEM)
       throw new Error("SYNC_SIGNING_KEY_PEM must be set in production");
