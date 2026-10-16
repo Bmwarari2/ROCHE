@@ -492,6 +492,7 @@ export const invitationsRouter = createRouter()
           throw problems.invalid(weak ?? "Enter your name.");
         }
         const ctx = await services.auth.$context;
+        const hashed = await ctx.password.hash(password);
         const user = await ctx.internalAdapter.createUser(
           {
             email: found.email,
@@ -501,16 +502,23 @@ export const invitationsRouter = createRouter()
           },
           { method: "email-password" },
         );
-        await ctx.internalAdapter.linkAccount({
-          userId: user.id,
-          providerId: "credential",
-          accountId: user.id,
-          password: await ctx.password.hash(password),
-        });
         authUserId = user.id;
         created = true;
-        // Recorded and committed before the acceptance, so the sweep can find it if this stops.
-        if (!(await recordSignIn(services.appPool, token, authUserId))) {
+        let recorded = false;
+        try {
+          await ctx.internalAdapter.linkAccount({
+            userId: user.id,
+            providerId: "credential",
+            accountId: user.id,
+            password: hashed,
+          });
+          // Recorded and committed before the acceptance, so the sweep can find it if this stops.
+          recorded = await recordSignIn(services.appPool, token, authUserId);
+        } catch (error) {
+          await removeSignIn(services, authUserId, "not_recorded", requestId);
+          throw error;
+        }
+        if (!recorded) {
           await removeSignIn(services, authUserId, "not_recorded", requestId);
           throw await refuse("invitation_closed");
         }
