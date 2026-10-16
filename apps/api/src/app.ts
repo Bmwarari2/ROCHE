@@ -23,6 +23,7 @@ import { careRecordsRouter } from "./routes/care-records";
 import { careSettingsRouter } from "./routes/care-settings";
 import { devicesRouter } from "./routes/devices";
 import { documentsRouter } from "./routes/documents";
+import { evidenceLinkRouter } from "./routes/evidence-link";
 import { evidencePacksRouter } from "./routes/evidence-packs";
 import { handoversRouter } from "./routes/handovers";
 import { incidentsRouter } from "./routes/incidents";
@@ -116,6 +117,10 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     ),
     adapterFor: createAdapterResolver({ production: config.NODE_ENV === "production", mocks }),
     mockEmail: mocks.email,
+    evidenceLinkThrottles: {
+      address: new MemoryThrottle(config.EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_ADDRESS, 60_000),
+      link: new MemoryThrottle(config.EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_LINK, 60_000),
+    },
     invitationThrottles: {
       address: new MemoryThrottle(config.INVITATION_REQUESTS_PER_MINUTE_PER_ADDRESS, 60_000),
       token: new MemoryThrottle(config.INVITATION_REQUESTS_PER_MINUTE_PER_TOKEN, 60_000),
@@ -180,6 +185,11 @@ export function createApp(config: Config, logger: Logger): AppHandle {
         problemResponse(c, new HttpProblem(413, "too_large", "The request is too large.")),
     }),
   );
+  // The public evidence pack link routes (ADR-0050): no session, never cached.
+  app.use("/p/*", async (c, next) => {
+    await next();
+    c.header("cache-control", "no-store");
+  });
   app.use("/v1/*", sessionMiddleware);
   app.use("/operator/*", async (c, next) => {
     await next();
@@ -222,6 +232,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", operationsRouter);
   app.route("/", outagesRouter);
   app.route("/", evidencePacksRouter);
+  app.route("/", evidenceLinkRouter);
   app.route("/", ratesRouter);
   app.route("/", createSyncRouter(signer));
   app.route("/", devicesRouter);

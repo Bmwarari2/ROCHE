@@ -14203,6 +14203,255 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/p/evidence/code": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Send a one-time code to the link's recipient
+     * @description No sign-in. The token goes in the body. Sends a six-digit code to the address the link is bound to, never with the link; at most three codes open at once for a link; each lasts evidence_pack.code_valid_minutes (at most 10). Throttled per client address and per link. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["EvidenceLinkCodeRequest"];
+        };
+      };
+      responses: {
+        /** @description Asked for */
+        202: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["EvidenceLinkCodeSent"];
+          };
+        };
+        /** @description No such link */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The link no longer opens: withdrawn, expired or locked */
+        410: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate, or the code was wrong */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Too many requests; wait as Retry-After says */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/p/evidence/verify": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Check a one-time code and open a session for this link
+     * @description No sign-in. A code that is not six digits is refused before it is compared and not counted. A right code is marked used and sets an HttpOnly, Secure, SameSite=Strict cookie for this link alone (never past the link's expiry). A wrong code adds one to the link's failed attempts in the same transaction; at the limit the link locks for good. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["EvidenceLinkVerify"];
+        };
+      };
+      responses: {
+        /** @description Verified; the session cookie is set */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description No such link */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The link no longer opens: withdrawn, expired or locked */
+        410: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate, or the code was wrong */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Too many requests; wait as Retry-After says */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/p/evidence/bundle": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Open the evidence pack (needs this link's session)
+     * @description No sign-in and no token: the session cookie set by /p/evidence/verify for this link. The link must still be open (released, not revoked, not expired, not locked) and the session's address the recipient's. Streams the watermarked PDF drawn from the bundle (never stored; no-store; attachment); refused once the bundle is deleted. Every open is audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The pack */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/pdf": string;
+          };
+        };
+        /** @description No session for this link: enter the code first */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The session is for someone else */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description No such link */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The link no longer opens: withdrawn, expired or locked */
+        410: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate, or the code was wrong */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Too many requests; wait as Retry-After says */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/rates/{key}": {
     parameters: {
       query?: never;
@@ -21145,6 +21394,17 @@ export interface components {
     EndEvidencePack: {
       reason: string;
       version: number;
+    };
+    /** @description Whether the email with the code was sent */
+    EvidenceLinkCodeSent: {
+      sent: boolean;
+    };
+    EvidenceLinkCodeRequest: {
+      token: string;
+    };
+    EvidenceLinkVerify: {
+      token: string;
+      code: string;
     };
     RateValue: {
       key: string;
