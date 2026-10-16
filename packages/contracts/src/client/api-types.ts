@@ -16875,6 +16875,146 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/members": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Members of staff a manager reaches, and the roles they may give
+     * @description platform.user.manage: the invited, active and suspended members it reaches (a location role only members wholly at its locations), with their roles in force or to come, and each role the manager may give with where (app.may_assign_role). Never an address or a sign-in.
+     */
+    get: {
+      parameters: {
+        query?: {
+          locationId?: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Members, by name */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MemberList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Add a member of staff as invited, with one role
+     * @description platform.user.manage with step-up. Adds the member as invited, required to use a second factor, with one role at a location or across the organisation, only where the manager may give that role (app.may_assign_role; 403 beyond_inviter). Idempotent on the client's id: a retry by the same manager with the same details answers 200 with the same id; other details 409 member_id_conflict. An address already in the organisation is 409 email_in_use. Invite them next with POST /v1/invitations. Audited by opaque id, refusals too; the address never.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateMember"];
+        };
+      };
+      responses: {
+        /** @description Already added by this request's earlier attempt */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MemberCreated"];
+          };
+        };
+        /** @description Added */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MemberCreated"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/operator/tenants/{tenantId}/owner-invitation": {
     parameters: {
       query?: never;
@@ -22626,6 +22766,48 @@ export interface components {
       token: components["schemas"]["InvitationToken"];
       password?: string;
       name?: string;
+    };
+    MemberList: {
+      items: components["schemas"]["MemberSummary"][];
+      assignableRoles: components["schemas"]["AssignableRole"][];
+    };
+    MemberSummary: {
+      /** Format: uuid */
+      id: string;
+      displayName: string;
+      state: components["schemas"]["MemberState"];
+      roles: components["schemas"]["MemberRole"][];
+    };
+    /** @enum {string} */
+    MemberState: "invited" | "active" | "suspended";
+    MemberRole: {
+      /** Format: uuid */
+      roleId: string;
+      roleName: string;
+      /** Format: uuid */
+      locationId: string | null;
+    };
+    AssignableRole: {
+      /** Format: uuid */
+      id: string;
+      name: string;
+      locationIds: (string | null)[];
+    };
+    MemberCreated: {
+      /** Format: uuid */
+      id: string;
+    };
+    /** @description Add a member of staff as invited, with one role */
+    CreateMember: {
+      /** Format: uuid */
+      id: string;
+      displayName: string;
+      /** Format: email */
+      email: string;
+      /** Format: uuid */
+      roleId: string;
+      /** Format: uuid */
+      locationId: string | null;
     };
   };
   responses: never;

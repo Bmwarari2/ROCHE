@@ -666,6 +666,15 @@ only when they link spec, code, tests and user documentation; no user guides exi
     step-up) needs a members list route and a team page, neither of which exists yet; an e2e hook
     to read the API's email outbox so the journey can create a sign-in end to end; the lookup does
     not name the inviter, so the page names only the organisation.
+    - Members routes (`feat/platform-members-api`): `GET /v1/members` (members within the reach
+      of `platform.user.manage`, their roles, and the roles the manager may give and where) and
+      `POST /v1/members` (an invited member with one role, step-up, `app.may_assign_role` then
+      `app.may_invite`, idempotent on the client id, 409 `email_in_use`), with migration 0060
+      (row-level security on adding members and role assignments; numbered after #69's 0059, so
+      it merges after #69). Next: the managers' invitation screens in apps/web
+      (`feat/web-invitation-screens`, stacked). Follow-up: no restrictive policy yet on
+      updating a `role_assignment` (no route changes one); add one, with `app.may_assign_role`,
+      when the role editing screens come.
     - Routes built in feat/platform-invitation-routes: send, list, withdraw (narrowed to the
       members `platform.user.manage` reaches, with tests), lookup and accept with no session
       (token only as a bound parameter, throttled per address and per token), the operator's

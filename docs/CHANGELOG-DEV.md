@@ -2076,3 +2076,18 @@ deleted bundle, the cookie); `packages/db/test/evidence-pack.test.ts` 2 new.
   each a reference in words with an icon and a link to its record; notes on items and on the
   whole handover (UUIDv7 per note); who has read it; acknowledging it as shown, with the page
   reloading when items were added since (HZ-018, H-269).
+
+## 2026-10-17: Members routes for managers (PLAT-004)
+
+- `GET /v1/members`: the invited, active and suspended members `platform.user.manage` reaches
+  (`membersReached`, the batch form of `memberReached`), their roles and where, and the roles the
+  manager may give and where. Never an address.
+- `POST /v1/members`: adds an invited member with one role, with step-up; `app.may_assign_role`
+  and then `app.may_invite` refuse a role beyond the manager's (403 `beyond_inviter`); 409
+  `email_in_use` and `member_id_conflict`; a retry with the same client id answers 200. Audited
+  as `platform.member.created` with ids only, refusals too.
+- Migration 0060 (after #69's 0059): restrictive insert policies on `tenant_user` and
+  `role_assignment` for the application role.
+- Docs: platform.md (As built, members), hazard log HZ-011 row, records of processing, STATUS.
+
+**Tests**: `apps/api/test/members.test.ts` (13).

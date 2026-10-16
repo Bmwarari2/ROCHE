@@ -32,6 +32,7 @@ import { invitationsRouter } from "./routes/invitations";
 import { mcaRouter } from "./routes/mca";
 import { membershipsRouter, meRouter } from "./routes/me";
 import { memberSessionsRouter } from "./routes/member-sessions";
+import { membersRouter } from "./routes/members";
 import { createRouter } from "./routes/openapi";
 import { operationsRouter } from "./routes/operations";
 import { operatorMiddleware, operatorRouter } from "./routes/operator";
@@ -243,6 +244,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", supportAccessRouter);
   app.route("/", operatorRouter);
   app.route("/", invitationsRouter);
+  app.route("/", membersRouter);
   app.route("/", operatorInvitationsRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {

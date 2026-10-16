@@ -491,6 +491,7 @@ export * from "./escalation-policy";
 export * from "./handover";
 export * from "./invitations";
 export * from "./mca";
+export * from "./members";
 export * from "./operations";
 export * from "./people";
 export * from "./person-summary";
