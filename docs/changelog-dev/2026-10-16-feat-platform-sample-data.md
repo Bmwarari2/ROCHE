@@ -47,3 +47,13 @@ Branch `feat/platform-sample-data`, PR #98. Migration 0069, after #95 (0067) and
   lock relies on a fresh snapshot after the lock.
 - Removal needs a fresh step-up. The people streams carry `is_sample` for the badge.
 - Open: a removed sample person's stored document files stay in the bucket.
+
+## Review round 2
+
+- The removal list now lives in one place, `app.sample_removal_tables()`. `app.remove_sample_batch`
+  deletes from it, and the migration grants `harbour_sample_owner` DELETE from the same list.
+- A db test fails when a table that refers to a person (by foreign key or a `person_id` column),
+  or that refers to a listed table, is neither listed nor named as stopping removal
+  (`downtime_pack`, `escalation_policy_link`, `outage`). It also checks that the list runs
+  children before parents and matches the role's DELETE grants exactly.
+- Only a released legal hold is deleted, so a hold placed after the check is never removed.

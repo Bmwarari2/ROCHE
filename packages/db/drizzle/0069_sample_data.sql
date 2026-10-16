@@ -117,6 +117,31 @@ END
 $$;
 --> statement-breakpoint
 
+-- The tables of records about a person that go with a removed sample person, children before
+-- parents (worked out from the foreign keys). The one list: app.remove_sample_batch deletes from
+-- these, harbour_sample_owner is granted DELETE on exactly these, and a test fails when a table
+-- that refers to a person is in neither this list nor the test's list of tables that stop removal.
+CREATE OR REPLACE FUNCTION app.sample_removal_tables() RETURNS text[]
+LANGUAGE sql IMMUTABLE SET search_path = pg_catalog AS $$
+  SELECT ARRAY[
+    'about_me', 'about_me_share_link', 'activity_record', 'admission_condition',
+    'advance_care_record', 'allergy', 'assessment', 'bed_occupancy', 'body_map_mark',
+    'break_glass_event', 'candour_record', 'care_note', 'care_plan_action', 'care_plan_change',
+    'consent_record', 'document_signature', 'dols_legal_change_review',
+    'entry_device_deletion_flag', 'exit_checklist_item', 'family_portal_user',
+    'feed_item_withdrawal', 'feed_view', 'handover_note', 'incident_person', 'key_issue',
+    'legal_hold', 'letter', 'notification_delivery', 'observation', 'person_assignment',
+    'person_care_profile', 'property_item', 'refused_entry', 'sharing_decision_suspension',
+    'statutory_notification', 'visit_log', 'welcome_checklist_item', 'workflow_transition',
+    'care_plan_section', 'dols_authorisation', 'exit_record', 'feed_item', 'handover_item',
+    'hospital_transfer', 'notification', 'placement', 'review_record', 'risk_assessment',
+    'sharing_decision', 'task', 'admission_decision', 'best_interests_decision', 'care_plan',
+    'document', 'task_series', 'workflow_instance', 'capacity_assessment', 'contact',
+    'pre_admission_assessment'
+  ]::text[]
+$$;
+--> statement-breakpoint
+
 -- Removes a whole batch or nothing (rule 32): a holder of platform.onboarding.manage, a batch of
 -- this organisation still in place, none of its people under an active legal hold. The people are
 -- invented, so everything recorded about them while practising goes too: the tables below, children
@@ -164,29 +189,17 @@ BEGIN
     IF v_count > 0 THEN
       v_records := v_records || jsonb_build_object('notification_delivery', v_count);
     END IF;
-    FOREACH v_table IN ARRAY ARRAY[
-    'about_me', 'about_me_share_link', 'activity_record', 'admission_condition',
-    'advance_care_record', 'allergy', 'assessment', 'bed_occupancy', 'body_map_mark',
-    'break_glass_event', 'candour_record', 'care_note', 'care_plan_action', 'care_plan_change',
-    'consent_record', 'document_signature', 'dols_legal_change_review',
-    'entry_device_deletion_flag', 'exit_checklist_item', 'family_portal_user',
-    'feed_item_withdrawal', 'feed_view', 'handover_note', 'incident_person', 'key_issue',
-    'legal_hold', 'letter', 'notification_delivery', 'observation', 'person_assignment',
-    'person_care_profile', 'property_item', 'refused_entry', 'sharing_decision_suspension',
-    'statutory_notification', 'visit_log', 'welcome_checklist_item', 'workflow_transition',
-    'care_plan_section', 'dols_authorisation', 'exit_record', 'feed_item', 'handover_item',
-    'hospital_transfer', 'notification', 'placement', 'review_record', 'risk_assessment',
-    'sharing_decision', 'task', 'admission_decision', 'best_interests_decision', 'care_plan',
-    'document', 'task_series', 'workflow_instance', 'capacity_assessment', 'contact',
-    'pre_admission_assessment'
-    ] LOOP
+    FOREACH v_table IN ARRAY app.sample_removal_tables() LOOP
       CONTINUE WHEN v_table = 'notification_delivery';
       IF v_table = 'document' THEN
         -- A person's photo is one of their documents: let go of it first.
         UPDATE public.person p SET photo_document_id = NULL
          WHERE p.tenant_id = v_tenant AND p.id = ANY (v_people) AND p.photo_document_id IS NOT NULL;
       END IF;
-      EXECUTE format('DELETE FROM public.%I WHERE tenant_id = $1 AND person_id = ANY ($2)', v_table)
+      -- Only a released hold goes: one placed after the check above is never deleted, and the
+      -- person it holds then stops the removal.
+      EXECUTE format('DELETE FROM public.%I WHERE tenant_id = $1 AND person_id = ANY ($2)%s',
+        v_table, CASE WHEN v_table = 'legal_hold' THEN ' AND released_at IS NOT NULL' ELSE '' END)
         USING v_tenant, v_people;
       GET DIAGNOSTICS v_count = ROW_COUNT;
       IF v_count > 0 THEN
@@ -222,25 +235,14 @@ GRANT INSERT ON public.record_version TO harbour_sample_owner;
 GRANT SELECT (tenant_id, id, removed_at), UPDATE (removed_at, removed_by)
   ON public.sample_batch TO harbour_sample_owner;
 --> statement-breakpoint
-GRANT SELECT, DELETE ON
-  public.about_me, public.about_me_share_link, public.activity_record, public.admission_condition,
-  public.advance_care_record, public.allergy, public.assessment, public.bed_occupancy,
-  public.body_map_mark, public.break_glass_event, public.candour_record, public.care_note,
-  public.care_plan_action, public.care_plan_change, public.consent_record,
-  public.document_signature, public.dols_legal_change_review, public.entry_device_deletion_flag,
-  public.exit_checklist_item, public.family_portal_user, public.feed_item_withdrawal,
-  public.feed_view, public.handover_note, public.incident_person, public.key_issue,
-  public.legal_hold, public.letter, public.notification_delivery, public.observation,
-  public.person_assignment, public.person_care_profile, public.property_item,
-  public.refused_entry, public.sharing_decision_suspension, public.statutory_notification,
-  public.visit_log, public.welcome_checklist_item, public.workflow_transition,
-  public.care_plan_section, public.dols_authorisation, public.exit_record, public.feed_item,
-  public.handover_item, public.hospital_transfer, public.notification, public.placement,
-  public.review_record, public.risk_assessment, public.sharing_decision, public.task,
-  public.admission_decision, public.best_interests_decision, public.care_plan, public.document,
-  public.task_series, public.workflow_instance, public.capacity_assessment, public.contact,
-  public.pre_admission_assessment
-  TO harbour_sample_owner;
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY app.sample_removal_tables() LOOP
+    EXECUTE format('GRANT SELECT, DELETE ON public.%I TO harbour_sample_owner', t);
+  END LOOP;
+END
+$$;
 --> statement-breakpoint
 GRANT SELECT ON public.role_assignment, public.role, public.location TO harbour_sample_owner;
 --> statement-breakpoint

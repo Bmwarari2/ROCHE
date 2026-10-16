@@ -370,3 +370,75 @@ describe("hazard HZ-072 sample data is never mixed with real people (migration 0
     await expect(asOwner((c) => loadBatch(c))).rejects.toThrow(/real_people_exist/);
   });
 });
+
+/**
+ * Tables that refer to people but stop a removal rather than go with it: records outside a
+ * person's own (an organisation's escalation policy, a downtime pack, an outage) and the sample
+ * batch itself. A new table that refers to a person must be added to app.sample_removal_tables()
+ * or here, deliberately.
+ */
+const BLOCKS_REMOVAL = ["downtime_pack", "escalation_policy_link", "outage"];
+
+describe("hazard HZ-072 the removal list keeps in step with the schema (migration 0069)", () => {
+  const owner = () => db.pool("harbour_owner");
+  const listed = async () =>
+    (await owner().query<{ t: string[] }>("SELECT app.sample_removal_tables() AS t")).rows[0]?.t ??
+    [];
+
+  it("covers every table that refers to a person, or says it stops removal", async () => {
+    const allow = new Set(await listed());
+    const { rows } = await owner().query<{ name: string }>(
+      `SELECT DISTINCT c.relname AS name
+         FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relname <> 'person'
+          AND (EXISTS (SELECT 1 FROM pg_constraint f
+                        WHERE f.contype = 'f' AND f.conrelid = c.oid
+                          AND f.confrelid = 'public.person'::regclass)
+               OR EXISTS (SELECT 1 FROM pg_attribute a
+                           WHERE a.attrelid = c.oid AND a.attname = 'person_id'
+                             AND NOT a.attisdropped))
+        ORDER BY 1`,
+    );
+    expect(
+      rows.map((r) => r.name).filter((t) => !allow.has(t) && !BLOCKS_REMOVAL.includes(t)),
+    ).toEqual([]);
+    // And whatever refers to a listed table is listed too, or stops removal.
+    const refs = await owner().query<{ child: string; parent: string }>(
+      `SELECT f.conrelid::regclass::text AS child, f.confrelid::regclass::text AS parent
+         FROM pg_constraint f WHERE f.contype = 'f' AND f.conrelid <> f.confrelid`,
+    );
+    expect(
+      refs.rows
+        .filter((r) => allow.has(r.parent) && !allow.has(r.child) && r.child !== "person")
+        .filter((r) => !BLOCKS_REMOVAL.includes(r.child)),
+    ).toEqual([]);
+  });
+
+  it("lists children before parents, and only tables that exist", async () => {
+    const order = await listed();
+    const refs = await owner().query<{ child: string; parent: string }>(
+      `SELECT f.conrelid::regclass::text AS child, f.confrelid::regclass::text AS parent
+         FROM pg_constraint f WHERE f.contype = 'f' AND f.conrelid <> f.confrelid`,
+    );
+    const late = refs.rows.filter(
+      (r) =>
+        order.includes(r.child) &&
+        order.includes(r.parent) &&
+        order.indexOf(r.child) > order.indexOf(r.parent),
+    );
+    expect(late).toEqual([]);
+    const { rows } = await owner().query<{ name: string }>(
+      "SELECT relname AS name FROM pg_class WHERE relnamespace = 'public'::regnamespace AND relname = ANY ($1)",
+      [order],
+    );
+    expect(rows.map((r) => r.name).sort()).toEqual([...order].sort());
+  });
+
+  it("grants harbour_sample_owner DELETE on exactly the listed tables and person", async () => {
+    const { rows } = await owner().query<{ name: string }>(
+      `SELECT table_name AS name FROM information_schema.role_table_grants
+        WHERE grantee = 'harbour_sample_owner' AND privilege_type = 'DELETE' ORDER BY 1`,
+    );
+    expect(rows.map((r) => r.name)).toEqual([...(await listed()), "person"].sort());
+  });
+});
