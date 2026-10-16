@@ -4,9 +4,10 @@ import type { ApiClient } from "@harbour/contracts/client";
 import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { tenantApi } from "@/lib/api";
+import { isUuid } from "@/lib/context-cookies";
 import { t } from "@/lib/i18n";
 import { ONBOARDING_PAGE } from "@/lib/onboarding";
-import { type ActionResult, problemMessage } from "@/lib/outcome";
+import { type ActionResult, problemMessage, refused } from "@/lib/outcome";
 
 /**
  * The onboarding decisions (PLAT-018; rule 27), as the signed-in holder of
@@ -28,11 +29,17 @@ async function send(
   }
 }
 
-/** Accepts the setting Harbour chose. */
-export async function acceptSetting(rateKey: string): Promise<ActionResult<null>> {
+/** Accepts the setting Harbour chose; a clinical one names who reviewed it (a member id). */
+export async function acceptSetting(
+  rateKey: string,
+  reviewedBy?: string,
+): Promise<ActionResult<null>> {
+  if (reviewedBy !== undefined && !isUuid(reviewedBy)) {
+    return refused(t("onboarding.reviewer.required"), "invalid", ["reviewer"]);
+  }
   return send(async (api) => {
     const { response, error } = await api.POST("/v1/onboarding/setting-decisions", {
-      body: { rateKey, kind: "accepted" },
+      body: { rateKey, kind: "accepted", ...(reviewedBy ? { reviewedBy } : {}) },
     });
     return { ok: response.ok, error };
   });
@@ -65,10 +72,16 @@ export async function chooseStaffFileOption(
 }
 
 /** Records the DCB0160 assessment against the release's safety case, as shown. */
-export async function recordDcb0160(safetyCaseVersion: string): Promise<ActionResult<null>> {
+export async function recordDcb0160(
+  safetyCaseVersion: string,
+  assessedBy: string,
+): Promise<ActionResult<null>> {
+  if (!isUuid(assessedBy)) {
+    return refused(t("onboarding.reviewer.assessorRequired"), "invalid", ["reviewer"]);
+  }
   return send(async (api) => {
     const { response, error } = await api.POST("/v1/onboarding/dcb0160", {
-      body: { safetyCaseVersion },
+      body: { safetyCaseVersion, assessedBy },
     });
     return { ok: response.ok, error };
   });

@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, RadioGroup } from "@harbour/ui";
+import { Button, RadioGroup, SelectField } from "@harbour/ui";
 import { Ban, Check, FileCheck, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState, useTransition } from "react";
@@ -10,10 +10,11 @@ import {
   decideRetention,
   recordDcb0160,
 } from "@/app/actions/onboarding";
+import { useFieldIds } from "@/components/care/form-state";
 import { ManageFeedback } from "@/components/safety/ManageForms";
 import { t } from "@/lib/i18n";
 import { ONBOARDING_PAGE, STAFF_FILE_OPTIONS } from "@/lib/onboarding";
-import type { ActionResult } from "@/lib/outcome";
+import { type ActionResult, errorFor, fieldErrors } from "@/lib/outcome";
 
 const icon = { size: 18, strokeWidth: 1.5, "aria-hidden": true } as const;
 
@@ -30,27 +31,89 @@ function useDecision() {
         router.replace(`${ONBOARDING_PAGE}?done=decided&at=${Date.now()}`, { scroll: false });
       }
     });
-  return { result, pending, send };
+  return { result, setResult, pending, send };
 }
 
-/** Accepts a setting Harbour chose; a later change by Harbour reopens it. */
-export function AcceptSetting({ rateKey }: { readonly rateKey: string }) {
-  const { result, pending, send } = useDecision();
+export type Reviewer = { readonly id: string; readonly name: string };
+
+/** "Reviewed by the clinical lead or CSO": an active member, named before the decision is sent. */
+function ReviewerField({
+  id,
+  label,
+  reviewers,
+  result,
+}: {
+  readonly id: string;
+  readonly label: string;
+  readonly reviewers: readonly Reviewer[];
+  readonly result: ActionResult<unknown> | null;
+}) {
   return (
-    <div className="flex flex-col gap-2">
+    <SelectField
+      id={id}
+      name="reviewer"
+      label={label}
+      emptyOption={t("onboarding.reviewer.empty")}
+      options={reviewers.map((r) => ({ value: r.id, label: r.name }))}
+      error={errorFor(result, "reviewer")}
+    />
+  );
+}
+
+/**
+ * Accepts a setting Harbour chose, showing the figure accepted; a later change by Harbour reopens
+ * it. A clinical setting is confirmed with the clinical lead or CSO who reviewed it (HZ-027).
+ */
+export function AcceptSetting({
+  rateKey,
+  value,
+  clinical,
+  reviewers,
+}: {
+  readonly rateKey: string;
+  readonly value: { readonly value: number; readonly unit: string } | null;
+  readonly clinical: boolean;
+  readonly reviewers: readonly Reviewer[];
+}) {
+  const { result, setResult, pending, send } = useDecision();
+  const ids = useFieldIds(["reviewer"] as const);
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const reviewer = String(new FormData(event.currentTarget).get("reviewer") ?? "");
+    if (clinical && !reviewer) {
+      setResult(fieldErrors({ reviewer: t("onboarding.reviewer.required") }));
+      return;
+    }
+    send(() => acceptSetting(rateKey, clinical ? reviewer : undefined));
+  };
+  return (
+    <form className="flex flex-col gap-2" onSubmit={submit} noValidate>
+      <p className="m-0">
+        {value
+          ? t("onboarding.setting.value", { value: value.value, unit: value.unit })
+          : t("onboarding.setting.noValue")}
+      </p>
+      {clinical ? (
+        <ReviewerField
+          id={ids.reviewer}
+          label={t("onboarding.reviewer.setting")}
+          reviewers={reviewers}
+          result={result}
+        />
+      ) : null}
       <div>
         <Button
+          type="submit"
           variant="secondary"
           disabled={pending}
           icon={<Check {...icon} />}
           aria-label={t("onboarding.setting.acceptFor", { key: rateKey })}
-          onClick={() => send(() => acceptSetting(rateKey))}
         >
           {t("onboarding.setting.accept")}
         </Button>
       </div>
-      <ManageFeedback result={result} path={ONBOARDING_PAGE} />
-    </div>
+      <ManageFeedback result={result} path={ONBOARDING_PAGE} fieldIds={ids} />
+    </form>
   );
 }
 
@@ -125,22 +188,43 @@ export function StaffFileOption({
   );
 }
 
-/** Records that the CSO or clinical lead assessed the deployment against this safety case. */
-export function RecordDcb0160({ safetyCaseVersion }: { readonly safetyCaseVersion: string }) {
-  const { result, pending, send } = useDecision();
+/**
+ * Records that the CSO or clinical lead assessed the deployment against this safety case, naming
+ * who made the assessment before it is sent.
+ */
+export function RecordDcb0160({
+  safetyCaseVersion,
+  reviewers,
+}: {
+  readonly safetyCaseVersion: string;
+  readonly reviewers: readonly Reviewer[];
+}) {
+  const { result, setResult, pending, send } = useDecision();
+  const ids = useFieldIds(["reviewer"] as const);
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const assessor = String(new FormData(event.currentTarget).get("reviewer") ?? "");
+    if (!assessor) {
+      setResult(fieldErrors({ reviewer: t("onboarding.reviewer.assessorRequired") }));
+      return;
+    }
+    send(() => recordDcb0160(safetyCaseVersion, assessor));
+  };
   return (
-    <div className="flex flex-col gap-2">
+    <form className="flex flex-col gap-2" onSubmit={submit} noValidate>
       <p className="m-0">{t("onboarding.dcb0160.about", { version: safetyCaseVersion })}</p>
+      <ReviewerField
+        id={ids.reviewer}
+        label={t("onboarding.reviewer.dcb0160")}
+        reviewers={reviewers}
+        result={result}
+      />
       <div>
-        <Button
-          disabled={pending}
-          icon={<FileCheck {...icon} />}
-          onClick={() => send(() => recordDcb0160(safetyCaseVersion))}
-        >
+        <Button type="submit" disabled={pending} icon={<FileCheck {...icon} />}>
           {t("onboarding.dcb0160.record", { version: safetyCaseVersion })}
         </Button>
       </div>
-      <ManageFeedback result={result} path={ONBOARDING_PAGE} />
-    </div>
+      <ManageFeedback result={result} path={ONBOARDING_PAGE} fieldIds={ids} />
+    </form>
   );
 }

@@ -1671,6 +1671,13 @@
     "onboarding.staffFile.save",
     "onboarding.dcb0160.about",
     "onboarding.dcb0160.record",
-    "onboarding.decided"
+    "onboarding.decided",
+    "onboarding.setting.value",
+    "onboarding.setting.noValue",
+    "onboarding.reviewer.empty",
+    "onboarding.reviewer.setting",
+    "onboarding.reviewer.dcb0160",
+    "onboarding.reviewer.required",
+    "onboarding.reviewer.assessorRequired"
   ]
 }

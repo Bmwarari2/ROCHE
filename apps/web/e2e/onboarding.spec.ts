@@ -64,6 +64,7 @@ test("the owner records the decisions, and each closes what it answers", async (
   await expectAccessible(page, "onboarding checklist");
 
   const settings = item(page, "Other settings Harbour chose for you are reviewed");
+  await expect(settings.getByText(/^Harbour's setting: /).first()).toBeVisible();
   const accept = settings.getByRole("button", { name: /^Accept Harbour's setting / }).first();
   const key = ((await accept.getAttribute("aria-label")) ?? "").replace(
     "Accept Harbour's setting ",
@@ -110,9 +111,36 @@ test("the owner records the decisions, and each closes what it answers", async (
     retention().getByRole("group", { name: "How long do you keep staff files?" }),
   ).toHaveCount(0);
 
+  // HZ-027: a clinical setting is accepted only naming the clinical lead or CSO who reviewed it.
+  const clinical = () => item(page, "Your clinical lead has reviewed the clinical settings");
+  const first = clinical().getByRole("listitem").first();
+  await first.getByRole("button", { name: /^Accept Harbour's setting / }).click();
+  await expect(
+    first
+      .getByText("Choose the clinical lead or Clinical Safety Officer who reviewed this setting")
+      .first(),
+  ).toBeVisible();
+  await expectAccessible(page, "clinical setting without its reviewer");
+  const clinicalKey = (
+    (await first
+      .getByRole("button", { name: /^Accept Harbour's setting / })
+      .getAttribute("aria-label")) ?? ""
+  ).replace("Accept Harbour's setting ", "");
+  await first
+    .getByLabel("Reviewed by the clinical lead or Clinical Safety Officer")
+    .selectOption({ label: "Nell Nurse" });
+  await first.getByRole("button", { name: /^Accept Harbour's setting / }).click();
+  await recorded(page);
+  await expect(
+    clinical().getByRole("button", { name: `Accept Harbour's setting ${clinicalKey}` }),
+  ).toHaveCount(0);
+
   const dcb = item(page, "Your DCB0160 clinical safety assessment is recorded");
   const record = dcb.getByRole("button", { name: /^Record the DCB0160 assessment for / });
   if ((await record.count()) > 0) {
+    await dcb
+      .getByLabel("Assessed by the Clinical Safety Officer or clinical lead")
+      .selectOption({ label: "Nell Nurse" });
     await record.click();
     await recorded(page);
   }

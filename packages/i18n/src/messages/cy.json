@@ -1670,5 +1670,12 @@
   "onboarding.staffFile.save": "Save the staff file choice",
   "onboarding.dcb0160.about": "Your Clinical Safety Officer or clinical lead assesses how you deploy Harbour (DCB0160) against Harbour's clinical safety case {version}. Record it here once they have.",
   "onboarding.dcb0160.record": "Record the DCB0160 assessment for {version}",
-  "onboarding.decided": "Decision recorded."
+  "onboarding.decided": "Decision recorded.",
+  "onboarding.setting.value": "Harbour's setting: {value} {unit}",
+  "onboarding.setting.noValue": "Harbour's setting could not be read. Try again later.",
+  "onboarding.reviewer.empty": "Choose who",
+  "onboarding.reviewer.setting": "Reviewed by the clinical lead or Clinical Safety Officer",
+  "onboarding.reviewer.dcb0160": "Assessed by the Clinical Safety Officer or clinical lead",
+  "onboarding.reviewer.required": "Choose the clinical lead or Clinical Safety Officer who reviewed this setting",
+  "onboarding.reviewer.assessorRequired": "Choose the Clinical Safety Officer or clinical lead who made the assessment"
 }

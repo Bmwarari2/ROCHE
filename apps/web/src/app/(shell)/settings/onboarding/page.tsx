@@ -1,3 +1,4 @@
+import { isClinicalSetting } from "@harbour/domain";
 import { Card, PageHeader } from "@harbour/ui";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -40,6 +41,13 @@ export default async function OnboardingPage({
   if (!listed.data) failWith(listed.error, listed.response, ONBOARDING_PAGE);
   const list = listed.data;
   const done = firstParam((await searchParams).done) === "decided";
+  // Who may be named as having reviewed a clinical setting or made the DCB0160 assessment: the
+  // organisation's active members (the API checks again; their roles are the CSO's to confirm).
+  const members = mayDecide ? await api.GET("/v1/members") : null;
+  const reviewers = (members?.data?.items ?? [])
+    .filter((m) => m.state === "active")
+    .map((m) => ({ id: m.id, name: m.displayName }));
+  const settingValue = (key: string) => list.settings.find((s) => s.key === key) ?? null;
 
   const outstanding = (item: (typeof list.items)[number]): ReactNode => {
     if (item.key === "people_ready" && item.people && item.people.length > 0) {
@@ -47,7 +55,7 @@ export default async function OnboardingPage({
         <ul className="m-0 flex flex-col gap-1 ps-5">
           {item.people.map((p, index) => (
             <li key={p.personId}>
-              <Link href={`/people/${p.personId}`}>
+              <Link href={`/people/${p.personId}`} className="inline-flex min-h-11 items-center">
                 {t("onboarding.person", {
                   number: index + 1,
                   gaps: p.gaps.map((gap) => t("onboarding.gap", { gap })).join(", "),
@@ -60,7 +68,9 @@ export default async function OnboardingPage({
     }
     const kind = mayDecide ? decisionFor(item.key) : null;
     if (kind === "dcb0160")
-      return <RecordDcb0160 safetyCaseVersion={list.currentSafetyCaseVersion} />;
+      return (
+        <RecordDcb0160 safetyCaseVersion={list.currentSafetyCaseVersion} reviewers={reviewers} />
+      );
     if (!kind || item.outstanding.length === 0) return null;
     return (
       <ul className="m-0 flex list-none flex-col gap-3 p-0">
@@ -72,7 +82,12 @@ export default async function OnboardingPage({
               <>
                 <p className="m-0 font-mono text-body-dense">{entry}</p>
                 {kind === "setting" ? (
-                  <AcceptSetting rateKey={entry} />
+                  <AcceptSetting
+                    rateKey={entry}
+                    value={settingValue(entry)}
+                    clinical={isClinicalSetting(entry)}
+                    reviewers={reviewers}
+                  />
                 ) : (
                   <RetentionDecision recordClass={entry} />
                 )}

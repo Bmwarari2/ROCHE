@@ -623,7 +623,11 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
   `platform.onboarding.manage` records the decisions on the page: accept a setting Harbour chose;
   keep Harbour's period for a kind of record or say the organisation does not keep it (the API
   says which a class takes); choose the staff file option; record the DCB0160 assessment for the
-  release's safety case. A refused decision shows the API's words.
+  release's safety case. A refused decision shows the API's words. Each setting shows the figure
+  being accepted (`settings` in the checklist response). Accepting a clinical setting names the
+  clinical lead or CSO who reviewed it (`reviewedBy`), and recording DCB0160 names who made the
+  assessment (`assessedBy`): an active member, refused otherwise (`reviewer_required`,
+  `reviewer_not_member`), kept as a member id in the audit event (HZ-027).
 - Gaps: the reasons come from the domain in English (not yet through the Welsh catalogue), and
   settings and record classes show their keys until the settings and retention screens give
   them names; setting the organisation's own figure or period waits for those screens.
