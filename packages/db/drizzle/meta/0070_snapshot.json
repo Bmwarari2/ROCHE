@@ -1,6 +1,6 @@
 {
-  "id": "29918033-4f63-4887-bc99-fe3198f11775",
-  "prevId": "4d1bc097-5754-40b3-8e22-40dc13ae6760",
+  "id": "5f0846c1-1a1f-41e1-943b-e11897236f7e",
+  "prevId": "f0e6382c-74ee-46cf-8e80-917dee0852e1",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -11365,6 +11365,13 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
+        },
+        "shown_location_ids": {
+          "name": "shown_location_ids",
+          "type": "uuid[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::uuid[]"
         },
         "justification": {
           "name": "justification",
