@@ -676,6 +676,23 @@ rule 21); sending email (the worker-based send above); a family-facing incident 
 incidents involving several people. Tests:
 `apps/api/test/letters.test.ts`.
 
+Slice 11 (letters web, part 1: template management; `feat/web-letters`): `/letters`,
+`/letters/new` and `/letters/{id}` in `apps/web`, with `apps/web/src/lib/letters.ts`,
+`app/actions/letters.ts` and `components/comms/`. A "Letters" link in the side bar for holders
+of `comms.template.write`, `.approve` or `comms.letter.manage`. The list shows each template with
+the version in use and any draft (with its number of problems). Drafts are written and changed with
+each problem the API found shown at its field (subject, channel or text) and the plain-English
+suggestions listed; the merge fields are listed with what each holds and where it may not go. An
+approver who wrote or edited the draft is not offered approval and is told why; someone else
+approves it, seeing the stored words read-only beside Approve (editing is behind "Edit draft", and
+Approve is not offered while the form is open). The form is keyed on the draft's version, so it
+always shows the words now stored; the saved draft's problems are also listed as links to their
+fields, a channel problem shown by the fixed channel. A new draft starts from the version in use; a draft is discarded, and the version in
+use retired, each with a reason. Every write sends the version the page showed, and the page then
+says what was done (a new `at` each time). Tests: `apps/web/src/lib/letters.test.ts`,
+`apps/web/e2e/letter-templates.spec.ts` (axe on every state). Next, part 2: the person's letters
+tab (preview, send, the list).
+
 Slice 12 (the family feed, schema; migration 0061, after #71's 0060; `feat/comms-family-feed`):
 `packages/db/src/schema/comms.ts`.
 

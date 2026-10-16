@@ -2343,3 +2343,21 @@ fetch untaken, another holder, another organisation's id); `packages/db/test/ten
 **Tests**: `apps/web/src/lib/exports.test.ts`; `apps/web/e2e/export.spec.ts` (3, axe on every
 state).
 
+## 2026-10-17: Slice 11 web part 1, letter and email templates (COMMS-007)
+
+- `/letters`: the templates with the version in use and any draft; a "Letters" side bar link for
+  holders of the template or letter permissions.
+- `/letters/new` and `/letters/{id}`: drafts saved with each problem the API found at its field,
+  the merge fields listed, approval only by someone who did not write or edit the draft (the author
+  is told why), a new draft from the version in use, discard and retire with a reason, earlier
+  versions; each write sends the version the page showed and the page says what was done.
+- Docs: comms.md section 11, the register, HZ-051, STATUS.
+
+**Tests**: `apps/web/src/lib/letters.test.ts` (11); `apps/web/e2e/letter-templates.spec.ts` (2, axe
+on every state).
+
+Review round 1 of #79: the draft form is keyed on the draft's version (after anyone's save it shows
+the stored words); an approver sees the stored words read-only beside Approve and edits behind "Edit
+draft"; every counted problem is listed with a link to its field (a channel problem by the fixed
+channel) and shown read-only too; `done` and `at` come off the address once said; axe after both
+refusals and a new draft. Tests: the journey's third test (stale form, stale save, stale approval).

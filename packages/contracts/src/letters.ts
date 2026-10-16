@@ -176,3 +176,8 @@ export const LetterItem = z
   .meta({ id: "LetterItem" });
 
 export const LetterList = z.object({ items: z.array(LetterItem) }).meta({ id: "LetterList" });
+
+export type LetterTemplateItem = z.infer<typeof LetterTemplateItem>;
+export type LetterTemplateVersionItem = z.infer<typeof LetterTemplateVersionItem>;
+export type LetterPreview = z.infer<typeof LetterPreview>;
+export type LetterItem = z.infer<typeof LetterItem>;

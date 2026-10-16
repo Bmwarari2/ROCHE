@@ -425,6 +425,12 @@ only when they link spec, code, tests and user documentation; no user guides exi
      - a family-facing incident summary, written for the family and approved, so incidents
        involving several people can be written about without the internal account;
      - letters after a death (to the next of kin or the estate), with the template kinds they need.
+   - Slice 11, letters web part 1, template management (`feat/web-letters`; COMMS-007, HZ-051):
+     in review. `/letters` (list), `/letters/new`, `/letters/{id}` (draft with each problem at its
+     field, approval by someone else with the reason shown to the author or an editor, a new draft,
+     discard and retire with a reason, earlier versions). Next, part 2 stacked on it: the person's
+     letters tab (preview showing name, room and photo; send with the preview's version and hash;
+     409 `letter_changed` shows the new preview; the list).
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature
