@@ -24,6 +24,7 @@ import { passwordProblem } from "../auth/password-policy";
 import { auditInTx, writeAudit } from "../http/audit";
 import { type AppEnv, clientIp, requirePermission, type TenantAccess } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
+import { throttleAddress } from "../http/throttle";
 import { inSystemView } from "../services/devices";
 import {
   acceptInvitation,
@@ -102,8 +103,12 @@ async function reachedMember(tx: Transaction, access: TenantAccess, memberId: st
 
 /** Throttles a link request per client address, then per token (counted by its hash). */
 function throttle(c: Context<AppEnv>, token: string): void {
-  const { address, token: perToken } = c.get("services").invitationThrottles;
-  const wait = address.take(clientIp(c) ?? "unknown") ?? perToken.take(invitationTokenHash(token));
+  const services = c.get("services");
+  const { address, token: perToken } = services.invitationThrottles;
+  const from = throttleAddress(c.req.header("x-forwarded-for"), services.config.trustedProxies);
+  // No address: per token only, never one bucket every such client shares (#53 review L2).
+  const wait =
+    (from === null ? null : address.take(from)) ?? perToken.take(invitationTokenHash(token));
   if (wait === null) return;
   const problem = new HttpProblem(
     429,

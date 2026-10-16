@@ -492,6 +492,11 @@ only when they link spec, code, tests and user documentation; no user guides exi
       the sweep deletes it (a sign-in linked between the listing and the deletion would go); give
       the email port a body so the email can carry the organisation's name and the expiry
       (H-357).
+    - Follow-ups from #53 security review: (L1) the sweep deletes an auth user without
+      re-checking, in the same transaction, that it is still unlinked; fix with one definer
+      function, or a lock that re-checks `app.auth_user_has_membership` just before the delete.
+      (L4) a throttled 429 on the invitation link routes is not audited; audit `rate_limited`
+      with the client address and a prefix of the token's hash only.
 
 ## Human actions outstanding
 

@@ -1,6 +1,7 @@
 import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { MemoryThrottle } from "../src/http/throttle";
+import { MemoryThrottle, throttleAddress } from "../src/http/throttle";
+import { createAdapter, MockEmail, MockPush, MockSms } from "../src/integrations/adapters";
 import { createLogger } from "../src/logger";
 import {
   definerRefusal,
@@ -102,6 +103,46 @@ describe("table-driven: what the definer functions raise", () => {
     const db = await owner().query("SELECT app.invitation_token_hash($1) AS h", [token]);
     expect(db.rows[0].h).toBe(hash);
     expect(invitationTokenHash(token)).toBe(hash);
+  });
+
+  it("never hands anything to the mock email in production, even when a connection names it", async () => {
+    const email = new MockEmail();
+    const mocks = { email, sms: new MockSms(), push: new MockPush() };
+    const message = {
+      idempotencyKey: "k",
+      title: INVITATION_EMAIL_TITLE,
+      link: null,
+      to: "a@example.invalid",
+    };
+    const live = createAdapter(
+      "comms.email",
+      { provider: "mock", settings: {} },
+      { production: true, mocks },
+    );
+    expect((await live.send(message)).ok).toBe(false);
+    expect(email.sent).toHaveLength(0);
+    const dev = createAdapter(
+      "comms.email",
+      { provider: "mock", settings: {} },
+      { production: false, mocks },
+    );
+    expect((await dev.send(message)).ok).toBe(true);
+  });
+
+  it.each([
+    ["one client hop", "203.0.113.7", [], "203.0.113.7"],
+    ["a forged left entry", "198.51.100.1, 203.0.113.7", [], "203.0.113.7"],
+    [
+      "the trusted proxy skipped",
+      "198.51.100.1, 203.0.113.7, 10.0.0.5",
+      ["10.0.0.0/8"],
+      "203.0.113.7",
+    ],
+    ["only trusted hops", "10.0.0.5", ["10.0.0.0/8"], null],
+    ["no header", undefined, [], null],
+    ["garbage on the right", "203.0.113.7, nonsense", [], null],
+  ] as const)("throttles by the right-most untrusted hop: %s", (_, header, trusted, expected) => {
+    expect(throttleAddress(header, trusted)).toBe(expected);
   });
 
   it("throttles per key in a sliding window", () => {

@@ -1,4 +1,38 @@
+import { BlockList, isIP } from "node:net";
 import { slideWindow } from "./quota";
+
+function trustedList(cidrs: readonly string[]): BlockList {
+  const list = new BlockList();
+  for (const cidr of cidrs) {
+    const [address, bits] = cidr.split("/");
+    if (!address || isIP(address) === 0) continue;
+    const family = isIP(address) === 6 ? "ipv6" : "ipv4";
+    if (bits === undefined) list.addAddress(address, family);
+    else list.addSubnet(address, Number(bits), family);
+  }
+  return list;
+}
+
+/**
+ * The client address to throttle by (#53 review L2): the right-most X-Forwarded-For entry that is
+ * not a trusted proxy (`TRUSTED_PROXY_CIDRS`, as Better Auth reads it), because entries to its left
+ * are whatever the client sent. Null when there is none: the caller then counts per token only,
+ * never in one bucket every such client would share.
+ */
+export function throttleAddress(
+  forwardedFor: string | undefined,
+  trustedCidrs: readonly string[],
+): string | null {
+  const trusted = trustedList(trustedCidrs);
+  const hops = (forwardedFor ?? "").split(",").map((h) => h.trim());
+  for (let i = hops.length - 1; i >= 0; i -= 1) {
+    const hop = hops[i] ?? "";
+    const family = isIP(hop);
+    if (family === 0) return null;
+    if (!trusted.check(hop, family === 6 ? "ipv6" : "ipv4")) return hop.toLowerCase();
+  }
+  return null;
+}
 
 /**
  * A sliding-window limit for routes with no member to count against (an invitation link opened or
