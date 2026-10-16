@@ -44,6 +44,13 @@ const Env = z.object({
   /** PKCS#8 PEM for the ES256 key that signs PowerSync tokens; generated per process when absent locally. */
   SYNC_SIGNING_KEY_PEM: z.string().optional(),
   SYNC_SIGNING_KEY_ID: z.string().default("harbour-sync-1"),
+  /**
+   * Harbour's clinical safety case for the release this API runs (docs/clinical-safety/
+   * safety-case/), which an organisation's DCB0160 assessment must cover to go live. Production
+   * must name it (the release pipeline sets it from the report signed for the release); the API
+   * image carries no docs, so a test checks the named report exists rather than the server.
+   */
+  SAFETY_CASE_VERSION: z.string().trim().min(1).max(40).default("v0.0"),
   /** Seconds a sign-in counts as fresh for step-up actions (section 5.3). */
   STEP_UP_WINDOW_SECONDS: z.coerce.number().int().positive().default(600),
   /** Transfer pack previews, creations and prints per user a minute, per API instance (S2). */
@@ -140,6 +147,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     }
     if (!parsed.SYNC_SIGNING_KEY_PEM)
       throw new Error("SYNC_SIGNING_KEY_PEM must be set in production");
+    // A live organisation's DCB0160 assessment must cover the release it runs (HZ-014 and the
+    // clinical risk management plan section 7), so the local default is never assumed.
+    if (!env.SAFETY_CASE_VERSION) throw new Error("SAFETY_CASE_VERSION must be set in production");
     // The local defaults point at localhost; a deployed task without its secret must not start.
     for (const key of DATABASE_URL_KEYS) {
       if (!env[key]) throw new Error(`${key} must be set in production`);

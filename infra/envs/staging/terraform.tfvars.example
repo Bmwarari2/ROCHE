@@ -4,6 +4,9 @@
 aws_account_id    = "000000000000"
 domain_name       = "staging.harbour.example.invalid"
 route53_zone_id   = null
+
+# The signed safety case report this release runs under (docs/clinical-safety/safety-case/).
+safety_case_version = "v0.0"
 state_bucket_name = "harbour-tfstate-000000000000"
 state_kms_key_arn = "arn:aws:kms:eu-west-2:000000000000:key/00000000-0000-0000-0000-000000000000"
 

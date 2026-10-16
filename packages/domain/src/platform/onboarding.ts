@@ -238,13 +238,17 @@ export interface OnboardingState {
     /** Current people whose opt-out status has not been checked. */
     readonly peopleNotChecked: number;
   };
-  readonly sampleDataPresent: boolean;
-  readonly devices: readonly {
-    readonly id: string;
-    readonly mode: "personal" | "shared" | "kiosk";
-    readonly active: boolean;
-    readonly mdmEnrolled: boolean;
-  }[];
+  /** Null while Harbour does not record sample data yet: never read as "none". */
+  readonly sampleDataPresent: boolean | null;
+  /** Null while Harbour does not record device modes yet: never read as "no shared devices". */
+  readonly devices:
+    | readonly {
+        readonly id: string;
+        readonly mode: "personal" | "shared" | "kiosk";
+        readonly active: boolean;
+        readonly mdmEnrolled: boolean;
+      }[]
+    | null;
   readonly escalationChains: readonly {
     readonly key: string;
     readonly steps: readonly EscalationStep[];
@@ -412,7 +416,11 @@ function clinicalSettingsItem(state: OnboardingState): Outcome {
       };
 }
 
+/** A fact Harbour does not record yet is not known, so the item cannot be done (fail closed). */
+const NOT_YET_RECORDED = "Harbour does not record this yet, so it cannot be checked.";
+
 function devicesItem(state: OnboardingState): Outcome {
+  if (state.devices === null) return { done: false, reason: NOT_YET_RECORDED, outstanding: [] };
   const shared = state.devices.filter((d) => d.active && d.mode !== "personal");
   const missing = shared.filter((d) => !d.mdmEnrolled).map((d) => d.id);
   if (shared.length === 0) {
@@ -506,12 +514,17 @@ function retentionItem(state: OnboardingState): Outcome {
     if (c.recordClass.startsWith(STAFF_FILE_PREFIX)) continue;
     const allowed: readonly RetentionDecisionKind[] =
       c.trigger === "tenant_policy" ? ["period_set", "not_used"] : ["accepted", "lengthened"];
-    const decided = state.retentionDecisions.some(
-      (d) =>
-        d.recordClass === c.recordClass &&
-        allowed.includes(d.kind) &&
-        d.decidedAt.getTime() >= c.changedAt.getTime(),
-    );
+    // The latest decision for the class stands; an earlier one never counts once overtaken.
+    const latest = state.retentionDecisions
+      .filter((d) => d.recordClass === c.recordClass)
+      .reduce<OnboardingState["retentionDecisions"][number] | null>(
+        (last, d) => (last === null || d.decidedAt.getTime() > last.decidedAt.getTime() ? d : last),
+        null,
+      );
+    const decided =
+      latest !== null &&
+      allowed.includes(latest.kind) &&
+      latest.decidedAt.getTime() >= c.changedAt.getTime();
     if (!decided) pending.push(c.recordClass);
   }
   const staffOptions = state.retentionClasses.filter((c) =>
@@ -610,6 +623,9 @@ function optOutItem(state: OnboardingState): Outcome {
 }
 
 function sampleItem(state: OnboardingState): Outcome {
+  if (state.sampleDataPresent === null) {
+    return { done: false, reason: NOT_YET_RECORDED, outstanding: [] };
+  }
   return state.sampleDataPresent
     ? { done: false, reason: "Remove the sample data before you add real people.", outstanding: [] }
     : { done: true, reason: "There is no sample data.", outstanding: [] };

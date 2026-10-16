@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   deviceBinding,
-  type dpia,
+  dpia,
   integrationConnection,
   location,
   person,
@@ -11,8 +11,17 @@ import {
   type tenant,
   tenantUser,
 } from "@harbour/db";
-import type { AiProvider, DpiaConfig, FlagKey } from "@harbour/domain";
-import { and, count, eq, inArray, isNotNull, isNull, max } from "drizzle-orm";
+import {
+  type AiProvider,
+  type DpiaBasis,
+  type DpiaConfig,
+  dpiaBasis,
+  dpiaState,
+  type FlagKey,
+  PLATFORM_RATE_KEYS,
+} from "@harbour/domain";
+import { and, count, desc, eq, inArray, isNotNull, isNull, max, sql } from "drizzle-orm";
+import type { FlagService } from "../flags/provider";
 import { OFFLINE_WINDOW_RATE_KEY } from "./handover";
 import { rateNumber } from "./rates";
 import type { StaffLookup } from "./staff";
@@ -25,6 +34,60 @@ import type { StaffLookup } from "./staff";
 
 type DpiaRow = typeof dpia.$inferSelect;
 type TenantRow = typeof tenant.$inferSelect;
+
+/** The organisation's feature flags in force, with its own rows (organisation-wide). */
+export async function tenantFlags(
+  flags: FlagService,
+  tx: Transaction,
+  tenantId: string,
+): Promise<Record<FlagKey, boolean>> {
+  const overrides = await tx.execute<{
+    flag_key: string;
+    location_id: string | null;
+    enabled: boolean;
+  }>(sql`SELECT flag_key, location_id, enabled FROM feature_flag WHERE deleted_at IS NULL`);
+  return flags.evaluateAll({
+    tenantId,
+    locationId: null,
+    overrides: overrides.rows.map((r) => ({
+      flagKey: r.flag_key,
+      locationId: r.location_id,
+      enabled: r.enabled,
+    })),
+  });
+}
+
+/** The DPIA's open and signed versions. */
+export async function dpiaVersions(tx: Transaction) {
+  const rows = await tx.select().from(dpia).orderBy(desc(dpia.dpiaVersion));
+  return {
+    open: rows.find((r) => r.status === "draft" || r.status === "prepared") ?? null,
+    signed: rows.find((r) => r.status === "signed") ?? null,
+  };
+}
+
+/** Where the DPIA stands for this configuration now, and the review interval in months. */
+export async function dpiaStateFor(
+  tx: Transaction,
+  tenantId: string,
+  config: DpiaConfig,
+  now: Date,
+) {
+  const { open, signed } = await dpiaVersions(tx);
+  const months = await rateNumber(tx, tenantId, PLATFORM_RATE_KEYS.dpiaReviewIntervalMonths);
+  const view = (r: DpiaRow | null) =>
+    r
+      ? { status: r.status as "draft", signedAt: r.signedAt, basis: r.basis as DpiaBasis | null }
+      : null;
+  return {
+    open,
+    signed,
+    months,
+    ...dpiaState(view(signed), view(open), dpiaBasis(config), now, {
+      dpiaReviewIntervalMonths: months,
+    }),
+  };
+}
 
 /** JSON with its object keys sorted, so the same content always hashes the same. */
 function canonical(value: unknown): string {

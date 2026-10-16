@@ -573,8 +573,33 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
   `checkRetentionDecision` (rule 26's kinds per class; lengthening or setting needs the
   organisation's own period, a lengthened one longer than the default; the staff file option on
   its own) and `checkDcb0160Recording` (the current safety case only), table-driven.
-- Next: the decision routes, then `GET /v1/onboarding`, which works the checklist out from these
-  records and the rest of the organisation's state.
+- Decision routes (`apps/api/src/routes/onboarding.ts`, `platform.onboarding.manage`): `POST
+  /v1/onboarding/setting-decisions`, `POST /v1/onboarding/retention-decisions`, `PUT
+  /v1/onboarding/staff-file-option` (the organisation record's `expectedVersion`) and `POST
+  /v1/onboarding/dcb0160`, each audited (`platform.setting.decided`, `platform.retention.decided`,
+  `platform.dcb0160.recorded`), refusals as 422 `decision_not_recordable` and audited too.
+  `SAFETY_CASE_VERSION` in the API's configuration names the safety case for the release.
+- Default taken (section 20 rule 2): decisions, including the clinical settings and the DCB0160
+  record, are made by holders of `platform.onboarding.manage` (the owner), as section 3 says;
+  whether the clinical ones need the clinical lead's own permission is for the CSO (H-122).
+- `GET /v1/onboarding` (`platform.onboarding.read` or `.manage`): the checklist from
+  `onboardingChecklist`, the safety case the DCB0160 assessment must cover, the staff file option
+  and the organisation record's version. The state (`services/onboarding.ts`) reads the records:
+  locations and their Registered Managers, members' roles and second factors, the rate table's
+  tenant defaults and the retention schedule against the decisions, the DPIA state (shared with
+  the DPIA routes: `dpiaStateFor`, `tenantFlags`), sub-processors in use, escalation chains,
+  validated tools (switched on at any location counts, HZ-014) against the policy links, each
+  current person's readiness, and the latest DCB0160 record. Not yet stored, so read plainly
+  rather than guessed done: sub-processor acknowledgements (rules 24 and 25; never done until
+  then, not a go-live item), device modes and the sample flag (rules 29 to 32; both unknown, so
+  `shared_devices_enrolled` and `sample_data_removed` stay open and block go-live, "Harbour does
+  not record this yet"; #86 security review H1), the opt-out check date (every current person counts as not
+  checked) and a recorded "no decision in place" resuscitation statement (only an active ReSPECT
+  or DNACPR record counts, so such a person stays outstanding). Members count by their own
+  status, so an invited member has not joined. For each retention class the latest decision
+  stands. `SAFETY_CASE_VERSION` must be set in production (Terraform passes it; CI takes the
+  newest report in `docs/clinical-safety/safety-case/`), and a test checks the default names a
+  report there.
 
 ## 11. Open questions
 
@@ -583,6 +608,9 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
   `security_log` class (H-121).
 - Whether a one-person organisation whose owner is the only possible signer needs an exception to
   rule 21 (H-115).
+- The staff file option is not reopened when Harbour changes the staff file rows of the schedule:
+  the tenant row does not keep when the option was chosen. Record the choice as a
+  `retention_decision` (or keep its time) when the retention screens are built.
 - Which onboarding items block go-live, and the person-readiness items (H-122).
 - Whether the export controls bring HZ-071 to the target residual rating; until the Clinical Safety
   Officer accepts it, the residual stays 4 and blocks release (H-119).
