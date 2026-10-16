@@ -8,6 +8,7 @@ import type {
 import type { Translator } from "@harbour/i18n";
 import { formatDate, formatDateTime } from "./format";
 import type { SafetyChip } from "./incidents";
+import { formatUkTime } from "./uk-time";
 
 /**
  * View logic for the downtime screens (docs/specs/operations.md sections 12 to 14; OPS-028;
@@ -172,10 +173,34 @@ export function entryReference(id: string): string {
 }
 
 /** Why printing came back to the location page instead of downloading. */
-export type PrintProblem = "limited" | "unavailable" | "failed";
+export type PrintProblem = "limited" | "unavailable" | "forbidden" | "failed";
+
+const PRINT_PROBLEMS: readonly PrintProblem[] = ["limited", "unavailable", "forbidden", "failed"];
 
 export function printProblem(value: string | undefined): PrintProblem | null {
-  return value === "limited" || value === "unavailable" || value === "failed" ? value : null;
+  return PRINT_PROBLEMS.find((p) => p === value) ?? null;
+}
+
+/** When the pack can be opened again, from the API's Retry-After (seconds); null when not said. */
+export function retryAt(retryAfter: string | null, now: Date = new Date()): string | null {
+  const seconds = Number(retryAfter);
+  if (!retryAfter || !Number.isFinite(seconds) || seconds < 0 || seconds > 86_400) return null;
+  return new Date(now.getTime() + Math.ceil(seconds) * 1000).toISOString();
+}
+
+/** The words for a refused print or open, with when it can be opened again over the limit. */
+export function printProblemWords(
+  problem: PrintProblem,
+  from: string | null,
+  t: Translator,
+): { readonly title: string; readonly hint: string } {
+  const time = problem === "limited" ? formatUkTime(from) : null;
+  return {
+    title: t("operations.pack.printProblem", { problem }),
+    hint: time
+      ? t("operations.pack.limitedUntil", { time })
+      : t("operations.pack.printProblemHint", { problem }),
+  };
 }
 
 /** Where the print route sends the person when the API does not give a PDF. */
@@ -183,6 +208,8 @@ export function printFailureTarget(
   locationId: string,
   status: number,
   code: string | undefined,
+  retryAfter: string | null = null,
+  now: Date = new Date(),
 ): string {
   const page = `/downtime/${locationId}`;
   if (code === "step_up_required") {
@@ -191,8 +218,12 @@ export function printFailureTarget(
   if (code === "unauthenticated") {
     return `/sign-in?${new URLSearchParams({ next: page }).toString()}`;
   }
+  if (status === 429) {
+    const from = retryAt(retryAfter, now);
+    return `${page}?${new URLSearchParams({ print: "limited", ...(from ? { from } : {}) }).toString()}`;
+  }
   const problem: PrintProblem =
-    status === 429 ? "limited" : status === 503 ? "unavailable" : "failed";
+    status === 503 ? "unavailable" : status === 403 || status === 404 ? "forbidden" : "failed";
   return `${page}?print=${problem}`;
 }
 

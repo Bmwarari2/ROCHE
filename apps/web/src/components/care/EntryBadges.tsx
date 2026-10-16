@@ -1,7 +1,7 @@
 import type { DeviceDeletionFlag, EntryBackEntry, EntryNotFromPaper } from "@harbour/contracts";
 import { StatusChip } from "@harbour/ui";
 import { Clock, Copy, FileText, History } from "lucide-react";
-import { backEntryLabel } from "@/lib/downtime";
+import { backEntryLabel, entryReference } from "@/lib/downtime";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { EntryLifecycleBadges, type TaskOutcome } from "./LifecycleBadges";
@@ -29,6 +29,8 @@ export function EntryBadges({
     deviceDeletion?: DeviceDeletionFlag | null;
     backEntry?: EntryBackEntry | null;
     notFromPaper?: EntryNotFromPaper | null;
+    /** The entry's id: its short reference is shown beside the paper label for reconciliation. */
+    id?: string;
   };
 }) {
   const lifecycle = {
@@ -42,6 +44,10 @@ export function EntryBadges({
   const backEntry = entry.backEntry ?? null;
   const notFromPaper = entry.notFromPaper ?? null;
   const downtime = backEntry !== null || notFromPaper !== null;
+  // The same reference the outage's reconciliation lists, so the manager can find it (HZ-092).
+  const reference = entry.id
+    ? ` · ${t("care.entry.reference", { reference: entryReference(entry.id) })}`
+    : "";
   if (!entry.lateEntry && !entry.clockDrift && !hasLifecycle && deletion === null && !downtime) {
     return null;
   }
@@ -52,14 +58,16 @@ export function EntryBadges({
           <StatusChip status="info" label={t("care.entry.backEntry")} icon={FileText} />
           <span className="text-body-dense text-text-secondary" data-back-entry="">
             {backEntryLabel(backEntry, t)}
+            {reference}
           </span>
         </>
       ) : null}
       {notFromPaper ? (
         <>
           <StatusChip status="info" label={t("care.entry.notFromPaper")} icon={FileText} />
-          <span className="text-body-dense text-text-secondary">
+          <span className="text-body-dense text-text-secondary" data-not-from-paper="">
             {t("care.entry.notFromPaperReason", { reason: notFromPaper.reason })}
+            {reference}
           </span>
         </>
       ) : null}

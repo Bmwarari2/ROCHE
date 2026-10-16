@@ -23,7 +23,14 @@ export async function GET(_request: Request, context: { params: Promise<{ locati
   });
   const type = response.headers.get("content-type")?.split(";")[0]?.trim() ?? "";
   if (!response.ok || type !== "application/pdf" || !response.body) {
-    redirect(printFailureTarget(locationId, response.status, problemCode(error)));
+    redirect(
+      printFailureTarget(
+        locationId,
+        response.status,
+        problemCode(error),
+        response.headers.get("retry-after"),
+      ),
+    );
   }
   const disposition = response.headers.get("content-disposition") ?? "attachment";
   return new Response(response.body, {

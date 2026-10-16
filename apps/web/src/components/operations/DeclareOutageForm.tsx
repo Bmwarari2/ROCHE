@@ -9,7 +9,13 @@ import { FormFeedback } from "@/components/care/FormFeedback";
 import { useFieldIds } from "@/components/care/form-state";
 import { OUTAGE_KINDS } from "@/lib/downtime";
 import { characterCount, t } from "@/lib/i18n";
-import { type ActionResult, errorFor, partsFor, partsRefusal, refused } from "@/lib/outcome";
+import {
+  type ActionResult,
+  collectedRefusal,
+  errorFor,
+  type FieldProblem,
+  partsFor,
+} from "@/lib/outcome";
 import { boxesOf, dateTimeLabels, readDateTimeField, ukRepeatedTime } from "@/lib/uk-time";
 
 type Kind = OutageItem["kind"];
@@ -31,25 +37,22 @@ export function DeclareOutageForm({ locationId }: { readonly locationId: string 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const problems: FieldProblem[] = [];
     const kind = String(form.get("kind") ?? "") as Kind | "";
-    if (!kind) {
-      setResult(refused(t("operations.outage.form.kindRequired"), "invalid", ["kind"]));
-      return;
-    }
+    if (!kind) problems.push({ field: "kind", message: t("operations.outage.form.kindRequired") });
     const description = String(form.get("description") ?? "");
     if (!description.trim()) {
-      setResult(
-        refused(t("operations.outage.form.descriptionRequired"), "invalid", ["description"]),
-      );
-      return;
+      problems.push({
+        field: "description",
+        message: t("operations.outage.form.descriptionRequired"),
+      });
     }
     const started = readDateTimeField(form, "startedAt", {
       subject: t("operations.outage.startSubject"),
       t,
     });
     if (!started.ok) {
-      setResult(partsRefusal("startedAt", started));
-      return;
+      problems.push({ field: "startedAt", message: started.message, parts: started.parts });
     }
     const ended = readDateTimeField(form, "endedAt", {
       subject: t("operations.outage.endSubject"),
@@ -57,7 +60,11 @@ export function DeclareOutageForm({ locationId }: { readonly locationId: string 
       t,
     });
     if (!ended.ok) {
-      setResult(partsRefusal("endedAt", ended));
+      problems.push({ field: "endedAt", message: ended.message, parts: ended.parts });
+    }
+    const refusal = collectedRefusal(problems);
+    if (refusal || !kind || !started.ok || !ended.ok) {
+      setResult(refusal);
       return;
     }
     startTransition(async () => {

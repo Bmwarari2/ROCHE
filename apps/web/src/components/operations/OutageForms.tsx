@@ -9,7 +9,15 @@ import { FormFeedback } from "@/components/care/FormFeedback";
 import { useFieldIds, useInlineForm } from "@/components/care/form-state";
 import { formatDateTime } from "@/lib/format";
 import { characterCount, t } from "@/lib/i18n";
-import { type ActionResult, errorFor, partsFor, partsRefusal, refused } from "@/lib/outcome";
+import {
+  type ActionResult,
+  collectedRefusal,
+  errorFor,
+  type FieldProblem,
+  partsFor,
+  partsRefusal,
+  refused,
+} from "@/lib/outcome";
 import { boxesOf, dateTimeLabels, readDateTimeField, ukRepeatedTime } from "@/lib/uk-time";
 
 /**
@@ -96,10 +104,13 @@ function Actions({
   form,
   submit,
   destructive = false,
+  dismiss = t("common.cancel"),
 }: {
   readonly form: ReturnType<typeof useOutageForm>;
   readonly submit: string;
   readonly destructive?: boolean;
+  /** The button that closes the form without changing anything. */
+  readonly dismiss?: string;
 }) {
   return (
     <div className="flex flex-wrap gap-2">
@@ -117,7 +128,7 @@ function Actions({
           form.inline.hide();
         }}
       >
-        {t("common.cancel")}
+        {dismiss}
       </Button>
     </div>
   );
@@ -212,7 +223,12 @@ export function CancelOutageForm(props: OutageRef) {
           formatCount={(remaining) => characterCount(remaining)}
           error={errorFor(form.result, "reason")}
         />
-        <Actions form={form} submit={t("operations.outage.cancel.submit")} destructive />
+        <Actions
+          form={form}
+          submit={t("operations.outage.cancel.submit")}
+          dismiss={t("operations.outage.cancel.keep")}
+          destructive
+        />
       </form>
     </InlineAction>
   );
@@ -233,13 +249,13 @@ export function CorrectOutageForm(
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
+    const problems: FieldProblem[] = [];
     const started = readDateTimeField(data, "startedAt", {
       subject: t("operations.outage.startSubject"),
       t,
     });
     if (!started.ok) {
-      form.setResult(partsRefusal("startedAt", started));
-      return;
+      problems.push({ field: "startedAt", message: started.message, parts: started.parts });
     }
     let endedAt: string | null = null;
     if (!open) {
@@ -247,15 +263,16 @@ export function CorrectOutageForm(
         subject: t("operations.outage.endSubject"),
         t,
       });
-      if (!ended.ok) {
-        form.setResult(partsRefusal("endedAt", ended));
-        return;
-      }
-      endedAt = ended.instant;
+      if (ended.ok) endedAt = ended.instant;
+      else problems.push({ field: "endedAt", message: ended.message, parts: ended.parts });
     }
     const reason = String(data.get("reason") ?? "");
     if (!reason.trim()) {
-      form.setResult(refused(t("operations.outage.correct.reasonRequired"), "invalid", ["reason"]));
+      problems.push({ field: "reason", message: t("operations.outage.correct.reasonRequired") });
+    }
+    const refusal = collectedRefusal(problems);
+    if (refusal || !started.ok) {
+      form.setResult(refusal);
       return;
     }
     form.run(() =>

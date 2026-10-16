@@ -1,10 +1,10 @@
 import { buttonClassName, Card, EmptyState, PageHeader, StatusChip } from "@harbour/ui";
-import { CircleCheck, Clock, FileDown, FileText, TriangleAlert } from "lucide-react";
+import { CircleCheck, Clock, FileDown, FileText } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Notice } from "@/components/care/Notice";
 import { DeclareOutageForm } from "@/components/operations/DeclareOutageForm";
+import { PrintRefusal } from "@/components/operations/PrintRefusal";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
@@ -14,6 +14,7 @@ import {
   outageTitle,
   outageWindow,
   printProblem,
+  printProblemWords,
 } from "@/lib/downtime";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -23,8 +24,6 @@ type Params = Promise<{ locationId: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export const metadata: Metadata = { title: t("operations.downtime.title") };
-
-const iconProps = { size: 20, strokeWidth: 1.5, "aria-hidden": true } as const;
 
 /**
  * A location's downtime page (OPS-028; hazards HZ-017 and HZ-021): the downtime pack, opened or
@@ -47,7 +46,9 @@ export default async function DowntimePage({
   if (!access) notFound();
   if (!access.pack && !access.manage) return <SafetyForbidden title={title} />;
   const location = me.locations.find((l) => l.id === locationId);
-  const print = printProblem(firstParam((await searchParams).print));
+  const query = await searchParams;
+  const print = printProblem(firstParam(query.print));
+  const hintId = `pack-hint-${locationId}`;
 
   const api = await tenantApi();
   const listed = access.outages
@@ -65,27 +66,21 @@ export default async function DowntimePage({
         description={t("operations.downtime.description")}
       />
       {print ? (
-        <div role="alert">
-          <Notice
-            tone="warning"
-            icon={<TriangleAlert {...iconProps} />}
-            title={t("operations.pack.printProblem", { problem: print })}
-          >
-            {t("operations.pack.printProblemHint", { problem: print })}
-          </Notice>
-        </div>
+        <PrintRefusal {...printProblemWords(print, firstParam(query.from) ?? null, t)} />
       ) : null}
       {access.pack ? (
         <Card as="section" title={t("operations.pack.title")} headingLevel={2}>
           <div className="flex flex-col gap-3">
             <p className="m-0">{t("operations.pack.about")}</p>
-            <p className="m-0 text-body-dense text-text-secondary">
+            <p id={hintId} className="m-0 text-body-dense text-text-secondary">
               {t("operations.pack.stepUpHint")}
             </p>
+            <p className="m-0 text-body-dense">{t("operations.pack.printedFreshness")}</p>
             <div className="flex flex-wrap gap-2">
               <Link
                 href={`/downtime/${locationId}/pack`}
                 prefetch={false}
+                aria-describedby={hintId}
                 className={buttonClassName({ variant: "primary" })}
               >
                 <FileText size={18} strokeWidth={1.5} aria-hidden="true" />
@@ -94,6 +89,7 @@ export default async function DowntimePage({
               {/* A native link: the browser downloads the PDF; nothing is kept by the web app. */}
               <a
                 href={`/downtime/${locationId}/pack/print`}
+                aria-describedby={hintId}
                 className={buttonClassName({ variant: "secondary" })}
               >
                 <FileDown size={18} strokeWidth={1.5} aria-hidden="true" />

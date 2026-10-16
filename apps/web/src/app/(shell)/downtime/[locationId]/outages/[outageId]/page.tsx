@@ -105,13 +105,16 @@ export default async function OutagePage({
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
       <nav aria-label={t("common.breadcrumb")} className="text-body-dense">
-        <Link href={`/downtime/${locationId}`} className="underline">
+        <Link
+          href={`/downtime/${locationId}`}
+          className="inline-flex min-h-target items-center underline"
+        >
           {t("operations.downtime.title")}
         </Link>
         <span aria-hidden="true" className="px-2 text-text-secondary">
           ›
         </span>
-        <span>{title}</span>
+        <span aria-current="page">{title}</span>
       </nav>
       <PageHeader
         eyebrow={me.locations.find((l) => l.id === locationId)?.name ?? me.tenant.name}

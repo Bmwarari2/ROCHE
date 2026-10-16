@@ -1272,6 +1272,11 @@
     "operations.reconcile.statement",
     "operations.reconcile.statementHint",
     "operations.reconcile.statementRequired",
-    "operations.reconcile.submit"
+    "operations.reconcile.submit",
+    "care.entry.reference",
+    "operations.outage.cancel.keep",
+    "operations.pack.printedFreshness",
+    "operations.pack.countsHint",
+    "operations.pack.limitedUntil"
   ]
 }

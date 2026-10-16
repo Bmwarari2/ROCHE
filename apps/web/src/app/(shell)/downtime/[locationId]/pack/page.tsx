@@ -5,10 +5,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Notice } from "@/components/care/Notice";
+import { PrintRefusal } from "@/components/operations/PrintRefusal";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
-import { downtimeAccess, packFreshnessChip } from "@/lib/downtime";
+import { downtimeAccess, packFreshnessChip, printProblemWords, retryAt } from "@/lib/downtime";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 
@@ -48,13 +49,13 @@ export default async function DowntimePackPage({ params }: { readonly params: Pa
 
   const breadcrumb = (
     <nav aria-label={t("common.breadcrumb")} className="text-body-dense">
-      <Link href={page} className="underline">
+      <Link href={page} className="inline-flex min-h-target items-center underline">
         {t("operations.downtime.title")}
       </Link>
       <span aria-hidden="true" className="px-2 text-text-secondary">
         ›
       </span>
-      <span>{title}</span>
+      <span aria-current="page">{title}</span>
     </nav>
   );
 
@@ -64,19 +65,12 @@ export default async function DowntimePackPage({ params }: { readonly params: Pa
       failWith(error, response, `${page}/pack`);
     }
     const problem = response.status === 429 ? "limited" : "unavailable";
+    const from = retryAt(response.headers.get("retry-after"));
     return (
       <div className="mx-auto flex w-full max-w-content flex-col gap-6">
         {breadcrumb}
         <PageHeader eyebrow={location?.name ?? me.tenant.name} title={title} />
-        <div role="alert">
-          <Notice
-            tone="warning"
-            icon={<TriangleAlert {...iconProps} />}
-            title={t("operations.pack.printProblem", { problem })}
-          >
-            {t("operations.pack.printProblemHint", { problem })}
-          </Notice>
-        </div>
+        <PrintRefusal {...printProblemWords(problem, from, t)} />
       </div>
     );
   }
@@ -136,8 +130,15 @@ export default async function DowntimePackPage({ params }: { readonly params: Pa
           {pack.built ? (
             <p className="m-0 text-body-dense text-text-secondary">{t("operations.pack.built")}</p>
           ) : null}
+          <p id="pack-print-hint" className="m-0 text-body-dense">
+            {t("operations.pack.printedFreshness")} {t("operations.pack.countsHint")}
+          </p>
           <div>
-            <a href={`${page}/pack/print`} className={buttonClassName({ variant: "primary" })}>
+            <a
+              href={`${page}/pack/print`}
+              aria-describedby="pack-print-hint"
+              className={buttonClassName({ variant: "primary" })}
+            >
               <FileDown size={18} strokeWidth={1.5} aria-hidden="true" />
               {t("operations.pack.print")}
             </a>

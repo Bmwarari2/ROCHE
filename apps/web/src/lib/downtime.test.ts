@@ -13,6 +13,8 @@ import {
   packFreshnessChip,
   printFailureTarget,
   printProblem,
+  printProblemWords,
+  retryAt,
   reviewedEntryIds,
   reviewItems,
 } from "./downtime";
@@ -112,25 +114,42 @@ describe("the downtime pack's freshness (HZ-021)", () => {
     [401, "unauthenticated", `/sign-in?next=%2Fdowntime%2F${HOME}`],
     [429, "rate_limited", `/downtime/${HOME}?print=limited`],
     [503, "downtime_pack_unavailable", `/downtime/${HOME}?print=unavailable`],
-    [404, "not_found", `/downtime/${HOME}?print=failed`],
+    [404, "not_found", `/downtime/${HOME}?print=forbidden`],
+    [403, "missing_permission", `/downtime/${HOME}?print=forbidden`],
+    [500, "internal", `/downtime/${HOME}?print=failed`],
   ])("a print refused with %i %s goes where the person can act", (status, code, target) => {
     expect(printFailureTarget(HOME, status, code)).toBe(target);
   });
 
+  it("says when the pack can be opened again over the hourly limit, without blame", () => {
+    const now = new Date("2026-10-16T13:00:00Z");
+    const target = printFailureTarget(HOME, 429, "rate_limited", "600", now);
+    expect(target).toBe(`/downtime/${HOME}?print=limited&from=2026-10-16T13%3A10%3A00.000Z`);
+    expect(retryAt("600", now)).toBe("2026-10-16T13:10:00.000Z");
+    expect(retryAt("soon", now)).toBeNull();
+    expect(retryAt(null, now)).toBeNull();
+    expect(printProblemWords("limited", "2026-10-16T13:10:00.000Z", t)).toEqual({
+      title: "The pack has been opened the most times allowed this hour",
+      hint: "You can open it again from 14:10. Until then, use the last printed pack and ask the nurse in charge about any change since.",
+    });
+    expect(printProblemWords("forbidden", null, t).title).toBe("You cannot print the pack here");
+  });
+
   it("reads only the print problems it knows from the address", () => {
     expect(printProblem("limited")).toBe("limited");
+    expect(printProblem("forbidden")).toBe("forbidden");
     expect(printProblem("<script>")).toBeNull();
     expect(printProblem(undefined)).toBeNull();
   });
 });
 
-describe("reconciling an outage (operations.md section 12, #38 review round 2)", () => {
+describe("hazard HZ-092 reconciling an outage (operations.md section 12, #38 review round 2)", () => {
   const reconciliation = {
     duplicateGroups: [["a1", "a2"], [], ["b1", "b2", "b3"]],
     outsideWindowEntryIds: ["c1", "a1"],
   };
 
-  it("lists each possible duplicate group and each back-entry outside the window", () => {
+  it("hazard HZ-092 lists each possible duplicate group and each back-entry outside the window", () => {
     expect(reviewItems(reconciliation).map((i) => [i.key, i.kind, i.entryIds])).toEqual([
       ["duplicate-0", "duplicate", ["a1", "a2"]],
       ["duplicate-1", "duplicate", ["b1", "b2", "b3"]],
@@ -139,7 +158,7 @@ describe("reconciling an outage (operations.md section 12, #38 review round 2)",
     ]);
   });
 
-  it("sends the reviewed ids, once each, only when every item is ticked", () => {
+  it("hazard HZ-092 sends the reviewed ids, once each, only when every item is ticked", () => {
     const items = reviewItems(reconciliation);
     expect(reviewedEntryIds(items, new Set(["duplicate-0", "outside-c1"]))).toBeNull();
     expect(reviewedEntryIds(items, new Set(items.map((i) => i.key)))).toEqual([
@@ -153,7 +172,7 @@ describe("reconciling an outage (operations.md section 12, #38 review round 2)",
     expect(reviewedEntryIds([], new Set())).toEqual([]);
   });
 
-  it("gives a short reference for an entry", () => {
+  it("hazard HZ-092 gives the short reference the record shows beside the paper label", () => {
     expect(entryReference("0194d000-0000-7000-8600-0000abcdef12")).toBe("ABCDEF12");
   });
 });

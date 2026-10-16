@@ -103,6 +103,17 @@ describe("EntryBadges for a record entered during or after an outage (operations
     expect(html).toContain("<svg");
   });
 
+  it("hazard HZ-092 shows the reference the outage's reconciliation lists, beside the paper label", () => {
+    const html = render({
+      id: "0194d000-0000-7000-8600-0000abcdef12",
+      lateEntry: false,
+      clockDrift: false,
+      recordedAt: "2026-10-16T13:00:00Z",
+      backEntry,
+    });
+    expect(words(html)).toBe(`Entered from a paper record ${backEntry.label} · Reference ABCDEF12`);
+  });
+
   it("hazard HZ-017 says when the outage cannot be read, with the time written on the paper", () => {
     const html = render({
       lateEntry: false,
