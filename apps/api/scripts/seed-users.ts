@@ -99,6 +99,7 @@ async function managerTenant(authUserId: string): Promise<string | null> {
 }
 
 try {
+  const passkeyHolders: ["manager" | "owner", string][] = [];
   for (const key of Object.keys(DEMO.users) as DemoUserKey[]) {
     const user = DEMO.users[key];
     const email =
@@ -125,18 +126,22 @@ try {
       if (refusal) throw new Error(refusal);
     }
     // The owner too: only the owner holds platform.export.create, whose routes need a step-up.
+    // Written after every user, so the manager's tenant check runs before any key (#80 review).
     if ((key === "manager" || key === "owner") && process.env.HARBOUR_DEMO_E2E_PASSKEY === "1") {
-      const passkey = e2ePasskey(key);
-      await services.authPool.query(
-        `INSERT INTO auth.passkey (id, name, public_key, user_id, credential_id, counter,
-                                   device_type, backed_up, transports, created_at)
-         VALUES ($4, 'End-to-end test passkey', $1, $2, $3, 0,
-                 'singleDevice', false, 'internal', now())
-         ON CONFLICT (id) DO NOTHING`,
-        [passkey.publicKey, authUserId, passkey.credentialId, `e2e-demo-${key}-passkey`],
-      );
-      console.log(`The demo ${key} has the end-to-end passkey (local testing only)`);
+      passkeyHolders.push([key, authUserId]);
     }
+  }
+  for (const [key, authUserId] of passkeyHolders) {
+    const passkey = e2ePasskey(key);
+    await services.authPool.query(
+      `INSERT INTO auth.passkey (id, name, public_key, user_id, credential_id, counter,
+                                 device_type, backed_up, transports, created_at)
+       VALUES ($4, 'End-to-end test passkey', $1, $2, $3, 0,
+               'singleDevice', false, 'internal', now())
+       ON CONFLICT (id) DO NOTHING`,
+      [passkey.publicKey, authUserId, passkey.credentialId, `e2e-demo-${key}-passkey`],
+    );
+    console.log(`The demo ${key} has the end-to-end passkey (local testing only)`);
   }
   // A second home with one invented resident nobody at Harbour House can see, so the web
   // journeys can open a record by break-glass and see it is for reading only (ADR-0071 review

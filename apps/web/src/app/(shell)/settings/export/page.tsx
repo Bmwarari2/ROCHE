@@ -1,9 +1,9 @@
 import { Card, EmptyState, PageHeader } from "@harbour/ui";
 import { Archive } from "lucide-react";
 import type { Metadata } from "next";
-import { ArrivalNotice } from "@/components/care/ArrivalNotice";
 import { CancelExport, DownloadExport, RequestExport } from "@/components/exports/ExportActions";
 import { PrintRefusal } from "@/components/operations/PrintRefusal";
+import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, tenantApi } from "@/lib/api";
 import {
@@ -24,7 +24,7 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export const metadata: Metadata = { title: t("export.title") };
 
-const DONE = new Set(["requested", "cancelled"]);
+const DONE = new Set(["requested", "cancelled", "downloaded"]);
 
 /**
  * The organisation's full export (PLAT-015; platform-completions.md rules 12 to 15; HZ-070), for
@@ -55,7 +55,7 @@ export default async function ExportPage({
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
       <PageHeader eyebrow={me.tenant.name} title={title} description={t("export.description")} />
       {done && DONE.has(done) ? (
-        <ArrivalNotice key={`${done}-${at}`}>{t("export.done", { done })}</ArrivalNotice>
+        <RecordedArrival message={t("export.done", { done })} param="done" />
       ) : null}
       {problem ? (
         <PrintRefusal

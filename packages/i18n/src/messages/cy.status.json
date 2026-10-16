@@ -1502,6 +1502,7 @@
     "export.cancel.title",
     "export.cancel.body",
     "export.cancel.confirm",
+    "export.cancel.keep",
     "export.stepUp",
     "export.done",
     "export.problem.title",

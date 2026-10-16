@@ -1499,10 +1499,11 @@
   "export.download.confirm": "Download now",
   "export.cancel.open": "Cancel export",
   "export.cancel.title": "Cancel this export?",
-  "export.cancel.body": "It stops being prepared, or its file is deleted. You can ask for a new one at any time.",
+  "export.cancel.body": "This cannot be undone: the export stops being prepared, or its file is deleted. You can ask for a new export at any time; it is free.",
   "export.cancel.confirm": "Cancel export",
+  "export.cancel.keep": "Keep export",
   "export.stepUp": "You signed in a while ago, so Harbour needs you to confirm it is you with your passkey or a code from your authenticator app before you export the organisation's data. Then come back to this page and try again.",
-  "export.done": "{done, select, requested {Export asked for. You will be told when it is ready.} cancelled {Export cancelled.} other {Done}}",
+  "export.done": "{done, select, requested {Export asked for. You will be told when it is ready.} cancelled {Export cancelled.} downloaded {Export downloaded. Its file has been deleted from Harbour.} other {Done}}",
   "export.problem.title": "The export could not be downloaded",
   "export.problem": "{problem, select, export_already_downloaded {It has already been downloaded, and its file deleted. Ask for a new export: it is free.} export_expired {Its link has expired, and its file deleted. Ask for a new export: it is free.} export_revoked {It was cancelled. Ask for a new export if you need one.} export_not_ready {It is still being prepared. You will be told when it is ready.} export_failed {It could not be completed. Ask for a new export.} not_requester {Only the person who asked for it can download it. Ask for your own: it is free.} other {Something went wrong. Try again in a moment.}}"
 }

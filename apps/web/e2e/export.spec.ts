@@ -17,9 +17,11 @@ const API_DIR = fileURLToPath(new URL("../../api", import.meta.url));
 test.describe.configure({ mode: "serial" });
 
 const main = (page: Page) => page.getByRole("main");
-/** The arrival notice, which takes focus once an action is done. */
-const arrived = (page: Page, words: string | RegExp) =>
-  main(page).getByRole("status").filter({ hasText: words });
+/** The arrival: focus on the page's heading, and a status saying what was done. */
+async function arrived(page: Page, words: string | RegExp) {
+  await expect(page.getByRole("heading", { level: 1, name: "Data export" })).toBeFocused();
+  await expect(main(page).getByRole("status").filter({ hasText: words })).toBeVisible();
+}
 const exportsList = (page: Page) =>
   page.getByRole("region", { name: "Exports" }).getByRole("listitem");
 
@@ -49,7 +51,7 @@ async function cancelInHand(page: Page) {
     .first();
   await inHand.getByRole("button", { name: "Cancel export" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Cancel export" }).click();
-  await expect(arrived(page, "Export cancelled.")).toBeFocused();
+  await arrived(page, "Export cancelled.");
 }
 
 test("the manager is offered no export", async ({ page, context }) => {
@@ -72,7 +74,7 @@ test("hazard HZ-070 the owner asks for an export and downloads it once, after th
   await expectAccessible(page, "export page");
 
   await main(page).getByRole("button", { name: "Ask for an export" }).click();
-  await expect(arrived(page, "Export asked for. You will be told when it is ready.")).toBeFocused();
+  await arrived(page, "Export asked for. You will be told when it is ready.");
   const latest = exportsList(page).first();
   await expect(latest).toContainText("Waiting to start");
   await expectAccessible(page, "export asked for");
@@ -94,7 +96,8 @@ test("hazard HZ-070 the owner asks for an export and downloads it once, after th
   expect(download.suggestedFilename()).toMatch(/^harbour-export-[0-9a-f-]{36}\.zip$/);
   expect((await download.createReadStream()).readable).toBe(true);
 
-  await page.reload();
+  // The page then says it was downloaded, and offers it no more.
+  await arrived(page, "Export downloaded.");
   await expect(latest).toContainText("Downloaded");
   await expect(latest.getByRole("button", { name: "Download" })).toHaveCount(0);
   await expectAccessible(page, "export downloaded");
@@ -106,15 +109,16 @@ test("the owner cancels an export after confirming, and a refused download says 
   await asOwner(page);
   await cancelInHand(page);
   await main(page).getByRole("button", { name: "Ask for an export" }).click();
-  await expect(arrived(page, /^Export asked for\./)).toBeFocused();
+  await arrived(page, /^Export asked for\./);
 
   const latest = exportsList(page).first();
   await latest.getByRole("button", { name: "Cancel export" }).click();
   const sheet = page.getByRole("dialog", { name: "Cancel this export?" });
-  await expect(sheet).toBeVisible();
+  await expect(sheet).toContainText("This cannot be undone");
+  await expect(sheet.getByRole("button", { name: "Keep export" })).toBeVisible();
   await expectAccessible(page, "cancel confirmation");
   await sheet.getByRole("button", { name: "Cancel export" }).click();
-  await expect(arrived(page, "Export cancelled.")).toBeFocused();
+  await arrived(page, "Export cancelled.");
   await expect(latest).toContainText("Cancelled");
   await expectAccessible(page, "export cancelled");
 

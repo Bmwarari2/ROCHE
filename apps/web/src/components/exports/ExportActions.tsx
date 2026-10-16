@@ -1,9 +1,9 @@
 "use client";
 
-import { Button, buttonClassName, Sheet, SheetClose } from "@harbour/ui";
+import { Button, ButtonLink, Sheet, SheetClose } from "@harbour/ui";
 import { Ban, FileDown, PackagePlus, TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { type ReactNode, useState, useTransition } from "react";
+import { type ReactNode, useEffect, useRef, useState, useTransition } from "react";
 import { cancelExport, requestExport } from "@/app/actions/exports";
 import { ManageFeedback } from "@/components/safety/ManageForms";
 import { EXPORT_PAGE } from "@/lib/exports";
@@ -11,6 +11,8 @@ import { t } from "@/lib/i18n";
 import type { ActionResult } from "@/lib/outcome";
 
 const icon = { size: 18, strokeWidth: 1.5, "aria-hidden": true } as const;
+/** How long after "Download now" the page refreshes to show the export as downloaded. */
+const DOWNLOAD_SETTLE_MS = 2_000;
 
 /** Sends an action and, once done, opens the page again saying what was done (a new `at`). */
 function useExportSend() {
@@ -55,6 +57,7 @@ export function RequestExport() {
 
 function Confirm({
   open: label,
+  keep = t("common.cancel"),
   variant,
   buttonIcon,
   title,
@@ -62,6 +65,8 @@ function Confirm({
   footer,
 }: {
   readonly open: string;
+  /** The words of the button that closes the sheet doing nothing. */
+  readonly keep?: string;
   readonly variant: "primary" | "secondary";
   readonly buttonIcon: ReactNode;
   readonly title: string;
@@ -85,7 +90,7 @@ function Confirm({
         {children}
         <div className="flex flex-wrap justify-end gap-2">
           <SheetClose asChild>
-            <Button variant="secondary">{t("common.cancel")}</Button>
+            <Button variant="secondary">{keep}</Button>
           </SheetClose>
           {footer(() => setOpen(false))}
         </div>
@@ -99,6 +104,14 @@ function Confirm({
  * once, so it is saved somewhere safe straight away (HZ-070).
  */
 export function DownloadExport({ id }: { readonly id: string }) {
+  const router = useRouter();
+  const later = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (later.current) clearTimeout(later.current);
+    },
+    [],
+  );
   return (
     <Confirm
       open={t("export.download.open")}
@@ -106,14 +119,20 @@ export function DownloadExport({ id }: { readonly id: string }) {
       buttonIcon={<FileDown {...icon} />}
       title={t("export.download.title")}
       footer={(close) => (
-        <a
+        <ButtonLink
           href={`${EXPORT_PAGE}/${id}/download`}
-          className={buttonClassName({ variant: "primary" })}
-          onClick={close}
+          icon={<FileDown {...icon} />}
+          onClick={() => {
+            close();
+            // Once the download has started, the page says so and shows it as downloaded.
+            later.current = setTimeout(() => {
+              router.replace(`${EXPORT_PAGE}?done=downloaded&at=${Date.now()}`, { scroll: false });
+              router.refresh();
+            }, DOWNLOAD_SETTLE_MS);
+          }}
         >
-          <FileDown {...icon} />
           {t("export.download.confirm")}
-        </a>
+        </ButtonLink>
       )}
     >
       <div role="note" className="flex gap-3">
@@ -133,11 +152,16 @@ export function CancelExport({ id }: { readonly id: string }) {
   return (
     <Confirm
       open={t("export.cancel.open")}
+      keep={t("export.cancel.keep")}
       variant="secondary"
       buttonIcon={<Ban {...icon} />}
       title={t("export.cancel.title")}
       footer={(close) => (
-        <Button disabled={pending} onClick={() => send("cancelled", () => cancelExport(id), close)}>
+        <Button
+          variant="destructive"
+          disabled={pending}
+          onClick={() => send("cancelled", () => cancelExport(id), close)}
+        >
           {pending ? t("common.saving") : t("export.cancel.confirm")}
         </Button>
       )}
