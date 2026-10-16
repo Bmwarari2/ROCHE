@@ -2462,3 +2462,16 @@ CSO. Tests: `feed-publish.test.ts` 14.
 **Tests**: `onboarding.test.ts` (unknown items and the latest decision, 3 more cases);
 `apps/api/test/onboarding.test.ts` (fail closed, invited members, another organisation's
 decisions); `config.test.ts` (`SAFETY_CASE_VERSION`).
+
+## 2026-10-17: Slice 13 web, the DPIA page (PLAT-023)
+
+- Web: `/settings/data-protection` shows where the DPIA stands (icon and word), what Harbour still
+  needs and why a review is due; the owner sets the governance and names the lead; the Registered
+  Manager answers, rates the risks and marks it ready to sign; the named lead signs with a typed
+  name bound to the version's SHA-256. Step-up notices for naming a different lead and for
+  signing. All strings through i18n (Welsh pending).
+- Seed: the demo organisation has a CQC provider ID, so its DPIA can be signed.
+- Docs: platform-completions.md section 10f, feature register, STATUS.
+
+**Tests**: `apps/web/src/lib/dpia.test.ts` (9), `components/dpia/DpiaFeedback.test.tsx` (2),
+`apps/web/e2e/dpia.spec.ts` (3, with axe on each state).

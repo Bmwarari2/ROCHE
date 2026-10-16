@@ -1,0 +1,89 @@
+import { describe, expect, it } from "vitest";
+import { dpiaChip, dpiaShown, prefillOf, readDraft, readSettings } from "./dpia";
+import { t } from "./i18n";
+
+const form = (values: Record<string, string>) => ({ get: (name: string) => values[name] ?? null });
+
+describe("the DPIA page", () => {
+  it.each([
+    [["platform.dpia.read"], true],
+    [["platform.dpia.sign"], true],
+    [["platform.export.create"], false],
+  ] as const)("shows the page to %j: %s", (permissions, shown) => {
+    expect(dpiaShown(permissions)).toBe(shown);
+  });
+
+  it.each([
+    ["signed", "done", "Signed"],
+    ["review_due", "overdue", "Review due"],
+    ["prepared", "due", "Ready to sign"],
+    ["something_new", "overdue", "Unknown: check with Harbour support"],
+  ])(
+    "says %s as an icon and a word, warning for a state it does not know",
+    (state, status, label) => {
+      expect(dpiaChip(state, t)).toMatchObject({ status, label });
+    },
+  );
+
+  it("reads the answers and ratings the prefill asks for, and nothing else", () => {
+    const prefill = prefillOf({
+      sections: [
+        { key: "context", title: "Context", tenantFields: ["prior_concerns"] },
+        { key: "scope", title: "Scope", tenantFields: [] },
+      ],
+      risks: [
+        { id: "R1", risk: "Unauthorised access" },
+        { id: "R2", risk: "Device loss" },
+      ],
+    });
+    const draft = readDraft(
+      form({
+        "answer.context.prior_concerns": "  None raised  ",
+        "answer.scope.extra": "ignored",
+        "risk.R1": "low",
+        "risk.R2": "severe",
+        icoReference: "",
+      }),
+      prefill,
+    );
+    expect(draft).toEqual({
+      answers: { context: { prior_concerns: "None raised" } },
+      residualRisk: { R1: "low", R2: null },
+      icoReference: null,
+    });
+  });
+
+  it("checks the governance settings with the API's own schema", () => {
+    const read = readSettings(
+      form({
+        leadId: "0194d000-0000-7000-8000-000000000301",
+        dpoEmail: "not an address",
+        privacyNoticeUrl: "http://example.invalid/privacy",
+        usesDataBeyondDirectCare: "no",
+      }),
+      { expectedVersion: 3, dpaSignedOn: null },
+      t,
+    );
+    expect(read.ok).toBe(false);
+    if (!read.ok) {
+      expect(Object.keys(read.fields).sort()).toEqual(["dpoEmail", "privacyNoticeUrl"]);
+    }
+    const good = readSettings(
+      form({ sector: "public", usesDataBeyondDirectCare: "yes", marketingEnabled: "on" }),
+      { expectedVersion: 3, dpaSignedOn: "2026-09-01" },
+      t,
+    );
+    expect(good).toMatchObject({
+      ok: true,
+      value: {
+        leadId: null,
+        sector: "public",
+        usesDataBeyondDirectCare: true,
+        marketingEnabled: true,
+        aiFreeTextEnabled: false,
+        dpaSignedOn: "2026-09-01",
+        expectedVersion: 3,
+      },
+    });
+  });
+});

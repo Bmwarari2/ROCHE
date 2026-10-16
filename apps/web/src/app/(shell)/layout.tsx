@@ -4,6 +4,7 @@ import { OfflineBanner } from "@/components/shell/OfflineBanner";
 import { ShellFrame } from "@/components/shell/ShellFrame";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { downtimeNavShown } from "@/lib/downtime";
+import { dpiaShown } from "@/lib/dpia";
 import { exportShown } from "@/lib/exports";
 import { handoverShown } from "@/lib/handover";
 import { peopleLabel, t } from "@/lib/i18n";
@@ -58,6 +59,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         letters: templatesNavShown(me.permissions) ? t("shell.nav.letters") : undefined,
         team: teamShown(me.permissions) ? t("shell.nav.team") : undefined,
         dataExport: exportShown(me.permissions) ? t("shell.nav.export") : undefined,
+        dataProtection: dpiaShown(me.permissions) ? t("shell.nav.dataProtection") : undefined,
         notifications: t("shell.nav.notifications"),
         unreadNotifications: t("shell.nav.unread", { count: unread }),
         settings: t("shell.nav.settings"),
