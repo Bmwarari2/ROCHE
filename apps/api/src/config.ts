@@ -34,6 +34,12 @@ const Env = z.object({
    * without them every sign-in shares one throttle bucket.
    */
   TRUSTED_PROXY_CIDRS: z.string().default(""),
+  /**
+   * Sign-in attempts allowed per client address per minute. The end-to-end run raises it: its
+   * servers sit behind no proxy, so every journey's sign-in shares one address. Never above 10 in
+   * production.
+   */
+  AUTH_SIGN_IN_PER_MINUTE: z.coerce.number().int().min(1).max(1000).default(10),
   POWERSYNC_URL: z.url().default("http://localhost:8080"),
   /** PKCS#8 PEM for the ES256 key that signs PowerSync tokens; generated per process when absent locally. */
   SYNC_SIGNING_KEY_PEM: z.string().optional(),
@@ -120,6 +126,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     }
     if (parsed.DOCUMENT_STORAGE !== "s3" || !parsed.S3_DOCUMENTS_BUCKET) {
       throw new Error("DOCUMENT_STORAGE must be s3 with S3_DOCUMENTS_BUCKET set in production");
+    }
+    if (parsed.AUTH_SIGN_IN_PER_MINUTE > 10) {
+      throw new Error("AUTH_SIGN_IN_PER_MINUTE cannot be above 10 in production");
     }
     if (parsed.MALWARE_SCANNER === "mock") {
       throw new Error("MALWARE_SCANNER cannot be mock in production");
