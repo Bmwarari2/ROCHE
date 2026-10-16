@@ -40,3 +40,7 @@ Branch `feat/platform-sub-processor-operator`, PR #95.
   #91's 0066.
 - Round 2: a resolution's notification is keyed on its response id, so a second objection
   resolved after an earlier resolution is told too (test added).
+
+Docs gate: records of processing now say that Thapsus's operator admins read an organisation's
+objection grounds, only to resolve the objection and only through the definer functions, and that
+each read and resolution is audited in the organisation's own trail with opaque ids only.

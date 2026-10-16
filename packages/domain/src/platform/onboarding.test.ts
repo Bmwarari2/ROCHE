@@ -973,8 +973,46 @@ describe("rule 26 the DCB0160 assessment covers this release", () => {
     ["an earlier safety case", "v0.0", "safety_case_not_current"],
   ] as const)("%s", (_, safetyCaseVersion, expected) => {
     expect(
-      checkDcb0160Recording({ safetyCaseVersion, currentSafetyCaseVersion: "v0.1" })?.problem ??
-        null,
+      checkDcb0160Recording({
+        safetyCaseVersion,
+        currentSafetyCaseVersion: "v0.1",
+        assessor: "active_member",
+      })?.problem ?? null,
+    ).toBe(expected);
+  });
+});
+
+describe("HZ-027 clinical decisions name who reviewed them", () => {
+  it.each([
+    ["a clinical setting with its reviewer", "active_member", null],
+    ["a clinical setting with no reviewer", null, "reviewer_required"],
+    [
+      "a clinical setting reviewed by someone not in the organisation",
+      "not_member",
+      "reviewer_not_member",
+    ],
+  ] as const)("setting: %s", (_, reviewer, expected) => {
+    expect(
+      checkSettingDecision({
+        kind: "accepted",
+        isTenantDefault: true,
+        hasOwnSetting: false,
+        clinical: { reviewer },
+      })?.problem ?? null,
+    ).toBe(expected);
+  });
+
+  it.each([
+    ["with its assessor", "active_member", null],
+    ["with no assessor", null, "reviewer_required"],
+    ["by someone not in the organisation", "not_member", "reviewer_not_member"],
+  ] as const)("DCB0160 assessment %s", (_, assessor, expected) => {
+    expect(
+      checkDcb0160Recording({
+        safetyCaseVersion: "v0.1",
+        currentSafetyCaseVersion: "v0.1",
+        assessor,
+      })?.problem ?? null,
     ).toBe(expected);
   });
 });

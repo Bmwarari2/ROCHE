@@ -644,6 +644,51 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
   application roles cannot execute the functions.
 - Next: the web screens.
 
+## 10f. As built (slice 13 web, the DPIA page)
+
+- `/settings/data-protection` (any DPIA permission; "Data protection" in the module menu): where
+  the DPIA stands as an icon and a word, why a review is due and what Harbour still needs; the
+  governance form for `platform.tenant.manage` (the lead from the active members, the DPO, sector,
+  privacy notice, DPA date in day, month and year boxes, use beyond direct care, the optional
+  processing; the AI provider is kept as it is); the open version's answers and residual risk
+  ratings with the ICO reference, and "Mark ready to sign", for `platform.dpia.prepare`; and the
+  prepared version's signature for `platform.dpia.sign`, showing the version's SHA-256 the typed
+  name binds to. Naming a different lead and signing say how to step up (`StepUpNotice`), with
+  the way back. The demo organisation now has a CQC provider ID (`1-DEMO000000`), so its DPIA can
+  be signed in the journey.
+
+## 10g. As built (slice 13 web, the onboarding checklist page)
+
+- `/settings/onboarding` ("Getting started" in the module menu, `platform.onboarding.read` or
+  `.manage`): progress, whether anything blocks go-live, and each item done or not as an icon and
+  words ("Not done: blocks go-live" for a go-live item), with the API's reason and, for people
+  readiness, each person (a link to their record) with what they lack. A holder of
+  `platform.onboarding.manage` records the decisions on the page: accept a setting Harbour chose;
+  keep Harbour's period for a kind of record or say the organisation does not keep it (the API
+  says which a class takes); choose the staff file option; record the DCB0160 assessment for the
+  release's safety case. A refused decision shows the API's words. Each setting shows the figure
+  being accepted (`settings` in the checklist response). Accepting a clinical setting names the
+  clinical lead or CSO who reviewed it (`reviewedBy`), and recording DCB0160 names who made the
+  assessment (`assessedBy`): an active member, refused otherwise (`reviewer_required`,
+  `reviewer_not_member`), kept as a member id in the audit event (HZ-027).
+- Gaps: the reasons come from the domain in English (not yet through the Welsh catalogue), and
+  settings and record classes show their keys until the settings and retention screens give
+  them names; setting the organisation's own figure or period waits for those screens.
+
+## 10s. As built (slice 13, search)
+
+### Part 1, the index
+
+Migration 0066 (`feat/platform-search-schema`; numbered after 0065, the sub-processor notices, which merges first), expand only:
+
+| Piece | Built as |
+| --- | --- |
+| `app.search_terms(text)` | Immutable, `SECURITY INVOKER`, not leakproof: NFKD, lower case, the `unaccent` dictionary named explicitly, apostrophes joined, every other character a separator. Equal to `searchTerms` on the domain fixtures (tested) |
+| `app.search_vector(text)` and `app.harbour_search` | The terms as an unstemmed `tsvector` (a copy of the `simple` configuration), so queries use `to_tsquery('app.harbour_search', $n)` with the bound queries from `normaliseSearchQuery` |
+| Generated columns | `person.search_names` (given, family and preferred names) and `person.search_room`; `tenant_user.search_name` (display name only); `document.search_title` (title and display file name, never contents); `care_note.search_body`. Plain-text copies of their columns: purged with the row, internal in the export catalogue, and beyond crypto-shredding if their source is later encrypted (H-380). Adding them rewrites the four tables under an exclusive lock: before go-live with the release, then only in a maintenance window or by the batched alternative ([search-index runbook](../runbooks/search-index.md)) |
+| Indexes | None new. The exact NHS number match uses the unique constraint on `(tenant_id, nhs_number)`. No GIN index: under forced row-level security only a leakproof condition can be an index condition ahead of the policy, and `@@` is not, so the app role could never use one (tested with `EXPLAIN`). Each search reads the tenant's rows by an existing index on `tenant_id` and filters them within the policy (ADR-0070, as built). After a Postgres upgrade the vectors are rebuilt (runbook section 2; HZ-001) |
+| Break-glass search | The `break_glass_event.kind` column and the break-glass search route follow with the API step for it |
+
 ## 11. Open questions
 
 - Retention of DPIA records, export records and onboarding decisions beyond the interim

@@ -1,6 +1,6 @@
 {
-  "id": "13dcd021-6dbc-41eb-99bb-0c88420b6048",
-  "prevId": "bb64abad-dfa0-472e-9d45-23a358cdbcae",
+  "id": "d73258a7-17a3-4e00-bbce-fdf584ff3e79",
+  "prevId": "61c640cc-0346-47f4-bcc8-1b1480b66e15",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2271,6 +2271,16 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "search_body": {
+          "name": "search_body",
+          "type": "tsvector",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "as": "app.search_vector(body)",
+            "type": "stored"
+          }
         },
         "tags": {
           "name": "tags",
@@ -11884,6 +11894,26 @@
           "primaryKey": false,
           "notNull": false
         },
+        "search_names": {
+          "name": "search_names",
+          "type": "tsvector",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "as": "app.search_vector(given_name || ' ' || family_name || ' ' || coalesce(preferred_name, ''))",
+            "type": "stored"
+          }
+        },
+        "search_room": {
+          "name": "search_room",
+          "type": "tsvector",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "as": "app.search_vector(room_label)",
+            "type": "stored"
+          }
+        },
         "communication_needs": {
           "name": "communication_needs",
           "type": "jsonb",
@@ -17533,6 +17563,16 @@
           "primaryKey": false,
           "notNull": false
         },
+        "search_title": {
+          "name": "search_title",
+          "type": "tsvector",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "as": "app.search_vector(title || ' ' || coalesce(file_name, ''))",
+            "type": "stored"
+          }
+        },
         "status": {
           "name": "status",
           "type": "text",
@@ -20269,6 +20309,16 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "search_name": {
+          "name": "search_name",
+          "type": "tsvector",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "as": "app.search_vector(display_name)",
+            "type": "stored"
+          }
         },
         "email": {
           "name": "email",
@@ -23934,6 +23984,149 @@
       },
       "isRLSEnabled": false
     },
+    "public.sample_batch": {
+      "name": "sample_batch",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "loaded_by": {
+          "name": "loaded_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_user_id()"
+        },
+        "loaded_at": {
+          "name": "loaded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "people": {
+          "name": "people",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "removed_by": {
+          "name": "removed_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "removed_at": {
+          "name": "removed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        }
+      },
+      "indexes": {
+        "sample_batch_one_open_key": {
+          "name": "sample_batch_one_open_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "removed_at IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "sample_batch_tenant_id_tenant_id_fk": {
+          "name": "sample_batch_tenant_id_tenant_id_fk",
+          "tableFrom": "sample_batch",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "sample_batch_loaded_by_fk": {
+          "name": "sample_batch_loaded_by_fk",
+          "tableFrom": "sample_batch",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "loaded_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "sample_batch_removed_by_fk": {
+          "name": "sample_batch_removed_by_fk",
+          "tableFrom": "sample_batch",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "removed_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "sample_batch_tenant_id_id_key": {
+          "name": "sample_batch_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.sub_processor_notice": {
       "name": "sub_processor_notice",
       "schema": "",
@@ -26731,149 +26924,6 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.sample_batch": {
-      "name": "sample_batch",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "app.uuid_v7()"
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "app.current_tenant_id()"
-        },
-        "loaded_by": {
-          "name": "loaded_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "app.current_user_id()"
-        },
-        "loaded_at": {
-          "name": "loaded_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "people": {
-          "name": "people",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "removed_by": {
-          "name": "removed_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "removed_at": {
-          "name": "removed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "app.current_user_id()"
-        }
-      },
-      "indexes": {
-        "sample_batch_one_open_key": {
-          "name": "sample_batch_one_open_key",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "removed_at IS NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "sample_batch_tenant_id_tenant_id_fk": {
-          "name": "sample_batch_tenant_id_tenant_id_fk",
-          "tableFrom": "sample_batch",
-          "tableTo": "tenant",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "sample_batch_loaded_by_fk": {
-          "name": "sample_batch_loaded_by_fk",
-          "tableFrom": "sample_batch",
-          "tableTo": "tenant_user",
-          "columnsFrom": [
-            "tenant_id",
-            "loaded_by"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "sample_batch_removed_by_fk": {
-          "name": "sample_batch_removed_by_fk",
-          "tableFrom": "sample_batch",
-          "tableTo": "tenant_user",
-          "columnsFrom": [
-            "tenant_id",
-            "removed_by"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "sample_batch_tenant_id_id_key": {
-          "name": "sample_batch_tenant_id_id_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
-        }
-      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

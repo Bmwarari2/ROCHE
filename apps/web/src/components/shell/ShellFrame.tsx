@@ -14,8 +14,10 @@ import {
   Bell,
   ClipboardList,
   CloudOff,
+  FileLock,
   House,
   ListChecks,
+  ListTodo,
   LogOut,
   Mail,
   Newspaper,
@@ -63,6 +65,8 @@ export interface ShellFrameLabels {
   readonly team?: string | undefined;
   /** Shown only to people who may export the organisation's data (platform.export.create). */
   readonly dataExport?: string | undefined;
+  readonly dataProtection?: string | undefined;
+  readonly onboarding?: string | undefined;
   readonly notifications: string;
   /** Accessible text for the unread badge, for example "3 unread". */
   readonly unreadNotifications: string;
@@ -102,6 +106,8 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/updates")) return "updates";
   if (pathname.startsWith("/settings/team")) return "team";
   if (pathname.startsWith("/settings/export")) return "export";
+  if (pathname.startsWith("/settings/data-protection")) return "data-protection";
+  if (pathname.startsWith("/settings/onboarding")) return "onboarding";
   if (pathname.startsWith("/settings")) return "settings";
   return "home";
 }
@@ -239,6 +245,26 @@ export function ShellFrame({
             label: labels.dataExport,
             href: "/settings/export",
             icon: <Archive {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.onboarding
+      ? [
+          {
+            id: "onboarding",
+            label: labels.onboarding,
+            href: "/settings/onboarding",
+            icon: <ListTodo {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.dataProtection
+      ? [
+          {
+            id: "data-protection",
+            label: labels.dataProtection,
+            href: "/settings/data-protection",
+            icon: <FileLock {...icon} />,
           },
         ]
       : []),

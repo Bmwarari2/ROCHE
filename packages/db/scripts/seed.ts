@@ -18,6 +18,11 @@ if (overlaps.length > 0)
 const retention = parseRetention(readFileSync(`${specs}retention.md`, "utf8"));
 const bankHolidays = parseBankHolidays(readFileSync(`${specs}calendar.md`, "utf8"));
 
+// The demo tenant (invented people, a known CQC provider ID) is never seeded where real
+// organisations live: production seeds reference data only, and must say so.
+if (process.env.NODE_ENV === "production" && process.env.HARBOUR_SEED_DEMO !== "0")
+  throw new Error("The demo tenant is never seeded in production: set HARBOUR_SEED_DEMO=0");
+
 const pool = new pg.Pool({ connectionString: ownerUrl(), max: 2 });
 try {
   const reference = await seedReferenceData(pool, rates, retention, bankHolidays);

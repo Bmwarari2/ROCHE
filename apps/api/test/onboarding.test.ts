@@ -128,6 +128,10 @@ describe("rule 26 the onboarding checklist, worked out from state", () => {
   it("closes each item a decision answers, and only that one", async () => {
     const rates = await item("rates_reviewed");
     const key = rates.outstanding[0] ?? "";
+    // The figure in force is given for each setting still to decide.
+    const values = ((await checklist()) as unknown as { settings: { key: string; unit: string }[] })
+      .settings;
+    expect(values.find((v) => v.key === key)?.unit).toBeTruthy();
     expect(
       (
         await send("POST", "/v1/onboarding/setting-decisions", "owner", {
@@ -161,6 +165,7 @@ describe("rule 26 the onboarding checklist, worked out from state", () => {
     expect((await item("dcb0160_recorded")).done).toBe(false);
     await send("POST", "/v1/onboarding/dcb0160", "owner", {
       safetyCaseVersion: chosen.currentSafetyCaseVersion,
+      assessedBy: DEMO.users.nurse.id,
     });
     const recorded = await checklist();
     expect(recorded.items.find((i) => i.key === "dcb0160_recorded")?.done).toBe(true);
