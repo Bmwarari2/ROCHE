@@ -52,33 +52,30 @@ Read `HANDOVER.md` in this folder for PR-by-PR detail. In short:
 
 - Merged on 13/10 to 16/10: #32 to #44 (downtime schema, phone sync and offline actions, the web
   consent/capacity/DoLS tab, flags, admin sign-out and idle timeouts, back-entry columns,
-  invitation rules, shared pack helpers), #48 (invitation store, migration 0054) and #49
-  (statutory notifications on the incident page).
-- Migrations on main end at 0054. The downtime API stack takes 0055; draft #50 holds 0056.
+  invitation rules, shared pack helpers), #45 to #47 (the downtime pack API, migration 0055), #48
+  (invitation store, migration 0054) and #49 (statutory notifications on the incident page).
+- Migrations on main end at 0055; draft #50 holds 0056.
 - Human actions run to H-260 (Lane B used H-250 to H-260; Lane A H-200 to H-2xx; Lane C H-300 to
   H-310; Lane D H-350 to H-355). Hazards: reserved ranges HZ-080 to HZ-119 by lane.
 - STATUS items run to 20 (19 incidents, 20 invitations); take the next free number.
 
 ## What to do next, in order
 
-1. If the downtime stack (#45 to #47, Lane A) is not yet merged, finish it: confirm the round 1
-   fixes landed (see `HANDOVER.md`), run round 2 on the fix commits with one security and one
-   clinical reviewer, merge #45, retarget and merge #46 then #47 (renumbering its migration to
-   0055 if not done).
-2. Then the downtime outages API (3c, `feat/operations-outages-api`, work in progress) and the
-   back-entry on the care routes (3d, including sending a refused second correction to the
+1. Lane A: the downtime outages API (3c, `feat/operations-outages-api`, work in progress at
+   0736fff with no PR: merge main in, finish it, open the PR), then the back-entry on the care
+   routes (3d, including sending a refused second correction to the
    refused-entry review, HZ-006).
-3. Web, Lane B: the statutory notification pages (`/notifications/statutory` and
+2. Web, Lane B: the statutory notification pages (`/notifications/statutory` and
    `/notifications/statutory/{id}`, which the overdue alert links to), then the incident forms
    (record, answer the classifier's questions, review and close, prepare, submit or mark not
    required with step-up). Lane B's earlier, unreviewed start on the pages is archived in
    `docs/plans/handover/wip/` (a tar of the new files and a patch against an old base); reuse
    what still fits, then delete the folder in that PR.
-4. Platform, Lane D: the invitation routes and accept page (STATUS item 20), then
+3. Platform, Lane D: the invitation routes and accept page (STATUS item 20), then
    `fix/platform-mfa-session-factor` (MFA counts only when the session used a passkey or a
    verified TOTP code; a test that a password-only session of a passkey holder is refused care
    records).
-5. Then the remaining web and API items in STATUS and the feature register, the non-mobile parts
+4. Then the remaining web and API items in STATUS and the feature register, the non-mobile parts
    of the Phase 1 gate (inspector pack renders, WCAG scans clean, every hazard has a test, safety
    case v0.1), and Phase 2 without the mobile work.
 

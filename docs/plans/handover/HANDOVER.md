@@ -24,23 +24,14 @@ The lane briefs (`lane-rules.md`, `lane-a.md` to `lane-d.md`) still describe how
 | #42, #49 | Web incidents list and read view; statutory notifications on the incident page |
 | #43, #48 | Invitation and MFA enrolment rules; the invitation store (0054) |
 | #44 | Shared allergy, communication and rate helpers; commitlint ignores "Merge " commits |
+| #45, #46, #47 | Downtime pack API: rebuilt when anything it shows changes or someone moves, a PDF never stored, step-up and an hourly limit on whole-home access, nightly packs and the paper places (0055) |
 
 ## Open work
 
-- **#45, #46, #47 (Lane A, the downtime pack and API, stacked: #45 on main, #46 on #45, #47 on
-  #46).** Round 1 found 2 Highs and 9 Mediums; the full fix list was sent to Lane A:
-  - #45: H1, rebuild when any source changed (a source fingerprint against `as_at`); a limiter,
-    an advisory lock and reuse when nothing changed; step-up on POST; a fallback to the latest
-    pack if a rebuild fails; outage wording uses the earlier of `as_at` and the outage start.
-  - #46: step-up and a limiter on `?format=pdf`; the identity instruction for everyone until
-    photos print; "ADRT also held"; header times with the BST/GMT marker; audit "printed" after
-    rendering.
-  - #47: H2, `bed-moves` publishes `people.person.moved` and the pack rebuilds for both homes
-    (test through the real route); each outbox handler in its own try/catch; a task for the
-    Registered Manager when a home has no in-date pack; renumber the migration to 0055.
-  - Then round 2 on the fix commits only, and merge in order. Check this note against the
-    branches: if the session stopped mid-fix, the worktree may hold staged work.
-- **3c `feat/operations-outages-api` and 3d** (Lane A): not opened yet.
+- **3c `feat/operations-outages-api` (Lane A), head 0736fff:** the outage routes, tests, OpenAPI
+  and docs, marked work in progress, with no PR. Merge main in, finish it and open the PR, then 3d
+  (back-entry on the care routes, sending a refused second correction to the refused-entry review,
+  HZ-006).
 - **#50 (draft, Lane C, mobile), head 6476f23:** parked mid round 1 fixes.
   - Done:
     - `4c294aa`, security M1: handovers reach only where incidents, notes and the person can also be read, recorded in ADR-0071.
@@ -55,11 +46,11 @@ The lane briefs (`lane-rules.md`, `lane-a.md` to `lane-d.md`) still describe how
 
 ## Ids in use
 
-Migrations to 0054 on main (0055 for #47, 0056 for #50). Human actions to H-260. STATUS items to
+Migrations to 0055 on main (0056 for draft #50). Human actions to H-260. STATUS items to
 20. Hazards: lanes take HZ-080 to HZ-119 by range.
 
 ## Build tracker
 
 https://claude.ai/artifact/7c8zgg7CZYHZSh3WY32qtV (ArtifactData; read, then write with
-`if_version`). `meta/status` is at version 26 or later; step `p1-b10` (Offline Care mode) says
+`if_version`). `meta/status` is at version 27 or later; step `p1-b10` (Offline Care mode) says
 paused.
