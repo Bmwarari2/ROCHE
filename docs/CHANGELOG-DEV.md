@@ -2188,6 +2188,24 @@ manager is linked in the demo tenant (`scripts/demo-seed-guard.ts`, `test/demo-s
 - Start, done, and not done with a reason, for those who record care; a task that needs a record
   links to where it is made; the round opens again saying what was done (HZ-003, H-270).
 
+## 2026-10-17: Members routes for managers (PLAT-004)
+
+- `GET /v1/members`: the invited, active and suspended members `platform.user.manage` reaches
+  (`membersReached`, the batch form of `memberReached`), their roles and where, and the roles the
+  manager may give and where. Never an address.
+- `POST /v1/members`: adds an invited member with one role, with step-up; `app.may_assign_role`
+  and then `app.may_invite` refuse a role beyond the manager's (403 `beyond_inviter`); 409
+  `email_in_use` and `member_id_conflict`; a retry with the same client id answers 200. Audited
+  as `platform.member.created` with ids only, refusals too.
+- Migration 0060 (after 0059): restrictive insert policies on `tenant_user` and
+  `role_assignment` for the application role.
+- Docs: platform.md (As built, members), hazard log HZ-011 row, records of processing, STATUS.
+
+- #71 security review: giving a role counts only the giver's own roles, never an access grant
+  (M1); a retry with another name is 409; follow-ups logged in STATUS.
+
+**Tests**: `apps/api/test/members.test.ts` (16); `packages/db/test/members.test.ts` (4).
+
 ## 2026-10-16: Slice 11, letters: preview, sending and the list (COMMS-007, part 2b)
 
 - API: `POST /v1/people/{id}/letters/preview`, `POST /v1/people/{id}/letters`, `GET
