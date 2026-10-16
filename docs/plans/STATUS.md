@@ -221,9 +221,15 @@ only when they link spec, code, tests and user documentation; no user guides exi
      (`feat/operations-downtime-api`, stacked on part 3a-2, migration 0055; operations.md section
      13): built, PR to follow part 3a-2.
    - Slice 11 part 3c, the outages API (`feat/operations-outages-api`, stacked on part 3b;
-     operations.md section 13): built. Next, part 3d: back-entry on the care routes and the sync
-     upload, with rule 13, the refusal after reconciliation, and a second offline correction of
-     a back-entry going to the refused-entry review (HZ-006).
+     operations.md section 13): built, PR open. Carries the #32 round 1 requirement that part 3
+     emits the `operations.outage.*` audit and outbox events of section 5 (plus
+     `.reconciliation_viewed` and `.corrected` audits). Next, part 3d: back-entry on the care
+     routes and the sync upload, with rule 13, the refusal after reconciliation, a second offline
+     correction of a back-entry going to the refused-entry review (HZ-006), and the #38 round 2
+     outside-the-outage reason when correcting a reviewed back-entry after the true end (H-208),
+     which belongs to the care correction routes. Follow-ups: the late flag still reads the
+     rate in the database without saying when `care_note.late_entry_hours` is missing (#32
+     round 2); the back-entry task's title is English only.
    - Follow-ups from #47 review round 1:
      - rebuilds run in the outbox handlers; a queue of their own, deduplicated per location, would
        keep a slow home's rebuild from delaying other events;

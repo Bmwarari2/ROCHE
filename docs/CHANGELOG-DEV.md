@@ -1700,6 +1700,9 @@ Stacked on part 3b (operations.md section 13): list and declare outages at a loc
 with the back-entry task, see what reconciling needs, reconcile after reviewing possible duplicates
 and back-entries past the true end, cancel one declared in error, and correct a start or end; each
 change versioned, audited and, where section 5 says so, published; the database's refusals in its
-own words.
+own words. Merged with main; `openapi.json` and the client regenerated (the outage paths only).
 
-**Tests**: `apps/api` `outages.test.ts`, 4 new.
+- Docs: operations.md section 13, the HZ-017 test row, H-215, STATUS (the outside-the-outage
+  reason on a back-entry correction moves to part 3d, with the care routes).
+
+**Tests**: `apps/api` `outages.test.ts`, 5 new.

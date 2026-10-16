@@ -264,4 +264,60 @@ describe("hazard HZ-017 outages at a location", () => {
     expect(cancelled.status).toBe(200);
     expect(((await cancelled.json()) as OutageBody).state).toBe("cancelled");
   });
+
+  it("refuses a correction that ends an open outage, one to a reconciled outage, a stale version and a cancel once closed", async () => {
+    const correct = (id: string, body: Record<string, unknown>) =>
+      as("manager", `/v1/outages/${id}/correct`, { method: "POST", body });
+    const reconciled = await correct(open.id, {
+      startedAt: ago(40 * MINUTE).toISOString(),
+      endedAt: ago(5 * MINUTE).toISOString(),
+      reason: "Started earlier than declared",
+      version: 99,
+    });
+    expect(reconciled.status).toBe(422);
+    expect(JSON.stringify(await reconciled.json())).toMatch(/final/);
+
+    const declared = await declare("manager", {
+      kind: "device_failure",
+      description: "Tablets will not start",
+      startedAt: ago(2 * MINUTE).toISOString(),
+    });
+    expect(declared.status).toBe(201);
+    const running = (await declared.json()) as OutageBody;
+    const ended = await correct(running.id, {
+      startedAt: ago(2 * MINUTE).toISOString(),
+      endedAt: ago(MINUTE).toISOString(),
+      reason: "Back on within the minute",
+      version: running.version,
+    });
+    expect(ended.status).toBe(422);
+    expect(JSON.stringify(await ended.json())).toMatch(/close it to give its end/);
+    const stale = await correct(running.id, {
+      startedAt: ago(3 * MINUTE).toISOString(),
+      endedAt: null,
+      reason: "Started a minute earlier",
+      version: running.version + 1,
+    });
+    expect(stale.status).toBe(409);
+
+    const closed = await as("manager", `/v1/outages/${running.id}/close`, {
+      method: "POST",
+      body: { endedAt: ago(MINUTE).toISOString(), version: running.version },
+    });
+    expect(closed.status).toBe(200);
+    const after = (await closed.json()) as OutageBody;
+    const cancel = await as("manager", `/v1/outages/${running.id}/cancel`, {
+      method: "POST",
+      body: { reason: "Declared in error", version: after.version },
+    });
+    expect(cancel.status).toBe(422);
+    const audited = await sql<{ action: string }>(
+      "SELECT action FROM audit_event WHERE resource_id = $1 AND action LIKE 'operations.outage.%'",
+      [running.id],
+    );
+    expect(audited.map((a) => a.action).sort()).toEqual([
+      "operations.outage.closed",
+      "operations.outage.declared",
+    ]);
+  });
 });

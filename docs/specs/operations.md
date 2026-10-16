@@ -503,5 +503,7 @@ Part 3c, outages (`routes/outages.ts`, `services/outages.ts`; tests in
 - A stale `version` is 409, as is an overlap found by the exclusion constraint at the same moment;
   the database's other refusals come back as 422 in its words. A location out of reach is not
   found, and audited as denied.
-- Not yet: back-entry on the care routes and the sync upload (part 3d); the notification centre's
-  handling of `operations.outage.declared` (the comms step).
+- The blockers' words and the task's assignee wait for the CSO (H-215).
+- Not yet: back-entry on the care routes and the sync upload (part 3d), with the outside-the-outage
+  reason when a reviewed back-entry after the true end is corrected (H-208); the notification
+  centre's handling of `operations.outage.declared` (the comms step).
