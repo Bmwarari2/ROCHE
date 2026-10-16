@@ -61,7 +61,10 @@ export interface ShellFrameProps {
 
 function currentSection(pathname: string): string {
   if (pathname.startsWith("/people")) return "people";
-  if (pathname.startsWith("/incidents")) return "incidents";
+  // Statutory notifications belong with incidents, never the notification centre.
+  if (pathname.startsWith("/incidents") || /^\/notifications\/statutory(\/|$)/.test(pathname)) {
+    return "incidents";
+  }
   if (pathname.startsWith("/notifications")) return "notifications";
   if (pathname.startsWith("/settings")) return "settings";
   return "home";

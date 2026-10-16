@@ -180,10 +180,15 @@ const CLOCK_ORDER: Record<string, number> = { overdue: 0, due: 1, done: 2 };
 export function notificationsInOrder<
   N extends Pick<StatutoryNotificationSummary, "clock" | "dueAt">,
 >(items: readonly N[]): N[] {
+  // A due time that cannot be read sorts first within its clock: a warning, never lost to NaN.
+  const due = (n: N) => {
+    const time = Date.parse(n.dueAt);
+    return Number.isNaN(time) ? Number.NEGATIVE_INFINITY : time;
+  };
+  const compare = (a: number, b: number) => (a === b ? 0 : a < b ? -1 : 1);
   return [...items].sort(
     (a, b) =>
-      (CLOCK_ORDER[a.clock] ?? -1) - (CLOCK_ORDER[b.clock] ?? -1) ||
-      Date.parse(a.dueAt) - Date.parse(b.dueAt),
+      (CLOCK_ORDER[a.clock] ?? -1) - (CLOCK_ORDER[b.clock] ?? -1) || compare(due(a), due(b)),
   );
 }
 
@@ -212,15 +217,21 @@ export function notificationDueLines(
   const deadlines = output?.deadlines.length
     ? output.deadlines
     : [{ key: "due", dueAt: item.dueAt }];
-  return deadlines.map((deadline) => {
-    const dateTime = formatDateTime(deadline.dueAt);
-    return dateTime
-      ? {
-          text: t("safety.notification.deadline", { deadline: deadline.key, dateTime }),
-          dateTime: deadline.dueAt,
-        }
-      : { text: t("safety.notification.dueUnknown"), dateTime: null };
-  });
+  return deadlines.map((deadline) => deadlineLine(deadline, t));
+}
+
+/** One deadline in the law's terms from the catalogue; a time that cannot be read warns. */
+export function deadlineLine(
+  deadline: { readonly key: string; readonly dueAt: string },
+  t: Translator,
+): TimeLine {
+  const dateTime = formatDateTime(deadline.dueAt);
+  return dateTime
+    ? {
+        text: t("safety.notification.deadline", { deadline: deadline.key, dateTime }),
+        dateTime: deadline.dueAt,
+      }
+    : { text: t("safety.notification.dueUnknown"), dateTime: null };
 }
 
 /** Kinds Harbour sets a time for that should still be made as soon as possible. */

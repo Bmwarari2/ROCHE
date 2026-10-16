@@ -1,6 +1,8 @@
 import type { IncidentDetail } from "@harbour/contracts";
 import { TriangleAlert } from "lucide-react";
+import Link from "next/link";
 import { Notice } from "@/components/care/Notice";
+import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import {
   notificationClockChip,
@@ -33,8 +35,22 @@ export function SafetyWarning({
   );
 }
 
+/**
+ * When the clocks on the page were worked out (#49 review): they are counted when the page is
+ * drawn and do not move on by themselves.
+ */
+export function ClocksAsOf({ now }: { readonly now: Date }) {
+  return (
+    <p className="m-0 text-body-dense text-text-secondary">
+      <time dateTime={now.toISOString()}>
+        {t("safety.notification.asOf", { dateTime: formatDateTime(now.toISOString()) ?? "" })}
+      </time>
+    </p>
+  );
+}
+
 /** A moment in words, in a `<time>` element; a time that cannot be read is a warning. */
-function When({ line }: { readonly line: TimeLine }) {
+export function When({ line }: { readonly line: TimeLine }) {
   return line.dateTime ? (
     <span className="text-body-dense">
       <time dateTime={line.dateTime}>{line.text}</time>
@@ -57,6 +73,7 @@ export function IncidentNotifications({
   riddorDays,
   closed,
   now,
+  linked = false,
 }: {
   readonly classifier: IncidentDetail["classifier"];
   readonly access: { readonly canSubmit: boolean; readonly canManage: boolean };
@@ -68,6 +85,8 @@ export function IncidentNotifications({
   readonly riddorDays?: number;
   /** When the page was drawn, which the clocks are counted to. */
   readonly now: Date;
+  /** The reader may open each notification's own page (`safety.incident.manage`). */
+  readonly linked?: boolean;
 }) {
   const view = notificationsView(classifier, { ...access, closed, now }, t, riddorDays);
   const items = notificationsInOrder(classifier?.notifications ?? []);
@@ -89,6 +108,7 @@ export function IncidentNotifications({
         <SafetyWarning key={line.text} text={line.text} dateTime={line.dateTime} />
       ))}
       {view.none ? <p className="m-0">{view.none}</p> : null}
+      {items.length > 0 ? <ClocksAsOf now={now} /> : null}
       {items.length > 0 ? (
         <ul className="m-0 flex list-none flex-col gap-3 p-0">
           {items.map((item) => {
@@ -101,16 +121,31 @@ export function IncidentNotifications({
                 data-notification={item.kind}
               >
                 <h3 className="m-0 text-body font-semibold">
-                  {notificationKindLabel(item.kind, t, riddorDays)}
+                  {linked ? (
+                    // Described by who and when, so two links of the same kind are told apart.
+                    <Link
+                      href={`/notifications/statutory/${item.id}`}
+                      aria-describedby={
+                        subject ? `about-${item.id} due-${item.id}` : `due-${item.id}`
+                      }
+                      className="inline-flex min-h-target items-center underline"
+                    >
+                      {notificationKindLabel(item.kind, t, riddorDays)}
+                    </Link>
+                  ) : (
+                    notificationKindLabel(item.kind, t, riddorDays)
+                  )}
                 </h3>
-                {subject ? <span>{subject}</span> : null}
+                {subject ? <span id={`about-${item.id}`}>{subject}</span> : null}
                 <span className="flex flex-wrap items-center gap-2">
                   <SafetyChip chip={notificationClockChip(item, now, t)} />
                   {status ? <SafetyChip chip={status} /> : null}
                 </span>
-                {notificationDueLines(item, classifier?.outputs ?? [], t).map((line) => (
-                  <When key={line.text} line={line} />
-                ))}
+                <span id={`due-${item.id}`} className="flex flex-col gap-1">
+                  {notificationDueLines(item, classifier?.outputs ?? [], t).map((line) => (
+                    <When key={line.text} line={line} />
+                  ))}
+                </span>
                 <span className="text-body-dense text-text-secondary">
                   {t("safety.notification.recipient", { kind: item.kind })}
                 </span>

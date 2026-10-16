@@ -230,6 +230,7 @@ export default async function IncidentPage({ params }: { readonly params: Params
               {...(threshold?.data ? { riddorDays: threshold.data.value } : {})}
               closed={incident.status === "closed"}
               now={new Date()}
+              linked={can(me.permissions, "safety.incident.manage")}
             />
           </div>
         </Card>
