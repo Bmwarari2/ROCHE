@@ -19,11 +19,23 @@ export async function sendForPerson<T>(
   call: (api: ApiClient) => Promise<{ data?: T; error?: unknown }>,
 ): Promise<ActionResult<T>> {
   if (!isUuid(personId)) return refused(t("errors.notFound"), "not_found");
+  return sendAndRevalidate([`/people/${personId}`], call);
+}
+
+/**
+ * Runs one write through the API as the signed-in person and, on success, revalidates the pages
+ * under each path given (their layouts), so every page that shows the change reads it again. On
+ * refusal the form gets words that say what to do next.
+ */
+export async function sendAndRevalidate<T>(
+  paths: readonly string[],
+  call: (api: ApiClient) => Promise<{ data?: T; error?: unknown }>,
+): Promise<ActionResult<T>> {
   try {
     const api = await tenantApi();
     const { data, error } = await call(api);
     if (data !== undefined) {
-      revalidatePath(`/people/${personId}`, "layout");
+      for (const path of paths) revalidatePath(path, "layout");
       return { ok: true, data };
     }
     return { ok: false, ...problemMessage(error, t) };

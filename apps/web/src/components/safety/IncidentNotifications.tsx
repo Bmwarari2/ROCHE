@@ -1,6 +1,7 @@
 import type { IncidentDetail } from "@harbour/contracts";
 import { TriangleAlert } from "lucide-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { Notice } from "@/components/care/Notice";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -63,8 +64,8 @@ export function When({ line }: { readonly line: TimeLine }) {
 /**
  * The statutory notifications on an incident (HZ-013): the notices and what is waiting before
  * Harbour can say, then each notification with its kind, who it is about, its clock and status as
- * icons and words, its deadlines in the law's terms, its recipient and its warnings. Read only;
- * the forms follow (docs/plans/STATUS.md).
+ * icons and words, its deadlines in the law's terms, its recipient and its warnings. The
+ * questions form, when the reader may answer, sits after the notice that asks for it.
  */
 export function IncidentNotifications({
   classifier,
@@ -74,6 +75,8 @@ export function IncidentNotifications({
   closed,
   now,
   linked = false,
+  answerable = 0,
+  children,
 }: {
   readonly classifier: IncidentDetail["classifier"];
   readonly access: { readonly canSubmit: boolean; readonly canManage: boolean };
@@ -87,8 +90,12 @@ export function IncidentNotifications({
   readonly now: Date;
   /** The reader may open each notification's own page (`safety.incident.manage`). */
   readonly linked?: boolean;
+  /** How many open questions the form below offers the reader. */
+  readonly answerable?: number;
+  /** The questions form, shown after the notices that ask for it. */
+  readonly children?: ReactNode;
 }) {
-  const view = notificationsView(classifier, { ...access, closed, now }, t, riddorDays);
+  const view = notificationsView(classifier, { ...access, closed, now, answerable }, t, riddorDays);
   const items = notificationsInOrder(classifier?.notifications ?? []);
   const subjects = notificationSubjects(items, names, t);
   const waitingFor = new Map((classifier?.pending ?? []).map((p) => [p.kind, p.waitingFor.length]));
@@ -104,6 +111,7 @@ export function IncidentNotifications({
           {notice.body}
         </Notice>
       ))}
+      {children}
       {view.waiting.map((line) => (
         <SafetyWarning key={line.text} text={line.text} dateTime={line.dateTime} />
       ))}
