@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sweepEvidenceBundlesJob } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
 import { observationReading, sweepEvidenceBundles } from "../src/services/evidence-pack";
-import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
+import { ageSession, createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 
 /**
  * Inspector evidence packs through the API (quality.md rules 1 to 10 and section 5; QUAL-003;
@@ -46,13 +46,13 @@ const today = () => new Date().toISOString().slice(0, 10);
 /** Runs `fn` with `who`'s sign-in an hour old, past the step-up window, then puts it back. */
 async function withStaleSignIn<T>(who: string, fn: () => Promise<T>): Promise<T> {
   const auth = h.db.pool("harbour_auth");
-  const token = (h.tokens[who] ?? "").split(".")[0];
-  const update = "UPDATE auth.session SET created_at = $2 WHERE token = $1";
-  await auth.query(update, [token, new Date(Date.now() - 3_600_000)]);
+  const token = (h.tokens[who] ?? "").split(".")[0] ?? "";
+  // Step-up counts from the factor the session used, so both the sign-in and the factor age.
+  await ageSession(auth, token, 3_600);
   try {
     return await fn();
   } finally {
-    await auth.query(update, [token, new Date()]);
+    await ageSession(auth, token, 0);
   }
 }
 

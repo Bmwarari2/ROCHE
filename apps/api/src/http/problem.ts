@@ -31,7 +31,11 @@ export const problems = {
       "You do not have access to this. Ask your manager if you need it.",
     ),
   stepUp: () =>
-    new HttpProblem(403, "step_up_required", "Please confirm it is you before continuing."),
+    new HttpProblem(
+      403,
+      "step_up_required",
+      "Confirm with your passkey or authenticator code before continuing.",
+    ),
   mfaRequired: () =>
     new HttpProblem(
       403,

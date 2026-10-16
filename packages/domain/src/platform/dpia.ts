@@ -425,8 +425,8 @@ export interface DpiaSignOffInput {
   readonly icoConsultationReference: string | null;
   readonly versionSha256: string;
   readonly actor: { readonly tenantUserId: string; readonly access: EffectiveAccess };
-  /** The signer's last sign-in with the second step: signing needs one within the window. */
-  readonly lastMfaSignInAt: Date | null;
+  /** When the session last used a second factor (passkey, authenticator or backup code), never a sign-in time (ADR-0072 amendment): step-up needs one within the window. */
+  readonly stepUpAt: Date | null;
   readonly now: Date;
   readonly stepUpWindowSeconds: number;
   /** The tenant's designated DPO or named data protection lead(s), from governance settings. */
@@ -485,7 +485,7 @@ export function checkDpiaSignOff(input: DpiaSignOffInput): DpiaSignOffCheck {
   const decision = authorise(
     input.actor.access,
     "platform.dpia.sign",
-    input.lastMfaSignInAt,
+    input.stepUpAt,
     input.now,
     input.stepUpWindowSeconds,
   );

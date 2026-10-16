@@ -1,5 +1,5 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
-import { expectAccessible, MEWS_PERSON, signIn } from "./support";
+import { addManagerPasskey, expectAccessible, MEWS_PERSON, signIn } from "./support";
 
 /**
  * Hazards HZ-011 and HZ-073 (ADR-0071 review rounds 2 and 3, C2-M2 and C3-M1): a record opened
@@ -46,19 +46,38 @@ const TABS: readonly (readonly [string, (page: Page) => Locator[]])[] = [
 test("hazard HZ-073 a record opened by break-glass offers no form to record in on any tab", async ({
   page,
 }) => {
+  // A password alone never steps up (ADR-0072 amendment, HZ-112): the manager is asked to confirm
+  // with their passkey, does, and comes back to the record.
+  await addManagerPasskey(page);
   await signIn(page, "manager@example.invalid");
 
-  await page.goto(`/people/${MEWS_PERSON}`);
-  await expect(
-    page.getByRole("heading", { level: 1, name: "We could not find that." }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Open a record outside your access" }).click();
-  const sheet = page.getByRole("dialog", { name: "Open a record outside your access" });
-  await expect(sheet.getByText("The record opens for reading only")).toBeVisible();
-  await sheet
-    .getByLabel("Reason")
-    .fill("Covering an emergency at Harbour Mews tonight while its manager is away");
-  await sheet.getByRole("button", { name: "Open record" }).click();
+  const openByBreakGlass = async () => {
+    await page.goto(`/people/${MEWS_PERSON}`);
+    await expect(
+      page.getByRole("heading", { level: 1, name: "We could not find that." }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Open a record outside your access" }).click();
+    const sheet = page.getByRole("dialog", { name: "Open a record outside your access" });
+    await expect(sheet.getByText("The record opens for reading only")).toBeVisible();
+    await sheet
+      .getByLabel("Reason")
+      .fill("Covering an emergency at Harbour Mews tonight while its manager is away");
+    await sheet.getByRole("button", { name: "Open record" }).click();
+    return sheet;
+  };
+
+  const sheet = await openByBreakGlass();
+  const stepUp = sheet.getByRole("alert");
+  await expect(stepUp.getByText("Confirm it is you")).toBeVisible();
+  await expect(stepUp).toContainText("confirm with your passkey or authenticator code");
+  await stepUp.getByRole("link", { name: "Sign in again" }).click();
+  await page.waitForURL((url) => url.pathname === "/sign-in");
+  await expect(page.getByRole("status").getByText("Confirm it is you")).toBeVisible();
+  await expectAccessible(page, "sign in again to confirm it is you");
+  await page.getByRole("button", { name: "Sign in with a passkey" }).click();
+  await page.waitForURL((url) => url.pathname === `/people/${MEWS_PERSON}`);
+
+  await openByBreakGlass();
   await expect(page.getByRole("heading", { level: 1, name: /Una/ })).toBeVisible();
 
   for (const [tab, controls] of TABS) {

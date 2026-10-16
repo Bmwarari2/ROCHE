@@ -4,7 +4,7 @@ import { addUkDays, toUkWallClock } from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { escalateStatementsOfPurpose } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
-import { createHarness, type Harness } from "./support/harness";
+import { ageSession, createHarness, type Harness } from "./support/harness";
 
 /**
  * The statement of purpose through the API (quality.md rules 11 to 15; QUAL-009): the baseline,
@@ -211,9 +211,9 @@ describe("statement of purpose versions", () => {
       (await as("carer", `${URL}/${revision.id}/notification`, { method: "POST", body })).status,
     ).toBe(403);
     const auth = h.db.pool("harbour_auth");
-    const token = (h.tokens.manager ?? "").split(".")[0];
-    const update = "UPDATE auth.session SET created_at = $2 WHERE token = $1";
-    await auth.query(update, [token, new Date(Date.now() - 3_600_000)]);
+    const token = (h.tokens.manager ?? "").split(".")[0] ?? "";
+    // Step-up counts from the factor the session used, so both the sign-in and the factor age.
+    await ageSession(auth, token, 3_600);
     try {
       const stale = await as("manager", `${URL}/${revision.id}/notification`, {
         method: "POST",
@@ -221,7 +221,7 @@ describe("statement of purpose versions", () => {
       });
       expect(((await stale.json()) as { code: string }).code).toBe("step_up_required");
     } finally {
-      await auth.query(update, [token, new Date()]);
+      await ageSession(auth, token, 0);
     }
     const future = await as("manager", `${URL}/${revision.id}/notification`, {
       method: "POST",
