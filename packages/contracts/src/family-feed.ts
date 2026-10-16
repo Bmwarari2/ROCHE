@@ -101,5 +101,41 @@ export const RevokeFamilyPortalLink = z
   .object({ reason: z.string().trim().min(1).max(500), version: z.number().int().min(1) })
   .meta({ id: "RevokeFamilyPortalLink" });
 
+/**
+ * Publish one update from one record (comms.md rules 7 to 12). `id` is the update's own UUIDv7,
+ * made by the form and sent with every attempt, so a retry never publishes twice.
+ */
+export const PublishFeedItem = z
+  .object({
+    id: uuid,
+    source: z.discriminatedUnion("kind", [
+      z.object({
+        kind: z.literal("shared_note"),
+        noteId: uuid,
+        /** The words written for the family; the note itself never passes through (rule 8). */
+        text: z.string().trim().min(1).max(1000),
+      }),
+      z.object({ kind: z.literal("activity"), activityId: uuid }),
+      z.object({
+        kind: z.literal("photo"),
+        documentId: uuid,
+        caption: z.string().trim().max(1000).nullable(),
+        /** The publisher checked that nobody else can be recognised in it (rule 6). */
+        onlyThisPerson: z.boolean(),
+      }),
+    ]),
+    /** For staff words that announce an event or claim how the person is (rule 12). */
+    confirmationReason: z.string().trim().min(1).max(500).optional(),
+  })
+  .meta({ id: "PublishFeedItem" });
+
+export const PublishedFeedItem = z
+  .object({
+    item: StaffFeedItem,
+    /** Plain-English suggestions on the words (reading age); nothing is blocked (rule 11). */
+    lint: z.array(z.string()),
+  })
+  .meta({ id: "PublishedFeedItem" });
+
 export type FamilyFeedList = z.infer<typeof FamilyFeedList>;
 export type StaffFeedItem = z.infer<typeof StaffFeedItem>;

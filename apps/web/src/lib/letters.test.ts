@@ -4,10 +4,13 @@ import { t } from "./i18n";
 import {
   issueField,
   issuesByField,
+  penceFrom,
   readDraft,
   templateActions,
   templateName,
+  templatesForLetters,
   templatesNavShown,
+  typedFieldsOf,
   versionChip,
 } from "./letters";
 
@@ -118,5 +121,44 @@ describe("hazard HZ-051 letter templates on the web", () => {
     expect(templatesNavShown(["comms.letter.manage"])).toBe(true);
     expect(templateName(template({ draft: null }), t)).toBe("General letter, no version in use");
     expect(templatesNavShown(["care.note.read"])).toBe(false);
+  });
+});
+
+describe("hazard HZ-051 making a letter on the web", () => {
+  it("asks only for the typed details the version uses", () => {
+    expect(
+      typedFieldsOf({
+        subject: null,
+        body: "From {{fee.effective_date}} the fee is {{fee.new_weekly}} for {{person.full_name}}.",
+      }).map((f) => f.key),
+    ).toEqual(["fee.new_weekly", "fee.effective_date"]);
+  });
+
+  it.each([
+    ["1,250.50", 125050],
+    ["£980", 98000],
+    ["12.5", 1250],
+    ["", null],
+    ["12.345", null],
+    ["-5", null],
+    ["ten pounds", null],
+  ] as const)("reads %s as %s pence", (typed, pence) => {
+    expect(penceFrom(typed)).toBe(pence);
+  });
+
+  it("offers only templates in use, never candour, and incident letters only to incident managers", () => {
+    const inUse = (kind: LetterTemplateItem["kind"]) =>
+      template({ kind, current: version({ state: "approved" }), draft: null });
+    const all = [
+      inUse("general"),
+      inUse("duty_of_candour"),
+      inUse("incident_follow_up"),
+      template(),
+    ];
+    expect(templatesForLetters(all, false).map((x) => x.kind)).toEqual(["general"]);
+    expect(templatesForLetters(all, true).map((x) => x.kind)).toEqual([
+      "general",
+      "incident_follow_up",
+    ]);
   });
 });
