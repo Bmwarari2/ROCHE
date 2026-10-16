@@ -17,6 +17,7 @@ import {
   House,
   ListChecks,
   LogOut,
+  Mail,
   ShieldCheck,
   TriangleAlert,
   UserPlus,
@@ -52,6 +53,8 @@ export interface ShellFrameLabels {
   readonly incidents?: string | undefined;
   /** Shown only to people who open the downtime pack or manage outages. */
   readonly downtime?: string | undefined;
+  /** Shown only to people who write, approve or send from letter templates. */
+  readonly letters?: string | undefined;
   /** Shown only to people who invite and manage staff (platform.user.manage). */
   readonly team?: string | undefined;
   /** Shown only to people who may export the organisation's data (platform.export.create). */
@@ -91,6 +94,7 @@ function currentSection(pathname: string): string {
   }
   if (pathname.startsWith("/notifications")) return "notifications";
   if (pathname.startsWith("/downtime")) return "downtime";
+  if (pathname.startsWith("/letters")) return "letters";
   if (pathname.startsWith("/settings/team")) return "team";
   if (pathname.startsWith("/settings/export")) return "export";
   if (pathname.startsWith("/settings")) return "settings";
@@ -204,6 +208,9 @@ export function ShellFrame({
             icon: <CloudOff {...icon} />,
           },
         ]
+      : []),
+    ...(labels.letters
+      ? [{ id: "letters", label: labels.letters, href: "/letters", icon: <Mail {...icon} /> }]
       : []),
     ...(labels.team
       ? [
