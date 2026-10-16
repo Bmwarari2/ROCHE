@@ -1998,3 +1998,11 @@ re-issue, `no-store`, the sweep sparing a live bundle and staying in its organis
   each a reference in words with an icon and a link to its record; notes on items and on the
   whole handover (UUIDv7 per note); who has read it; acknowledging it as shown, with the page
   reloading when items were added since (HZ-018, H-269).
+
+## 2026-10-17: Slice 5 web part 2, the round view (CARE-013)
+
+- Round in the navigation for those who read care plans; the location's open tasks for the shift
+  by area and room, each person's name, room and communication needs, each task's time state in
+  an icon and words, the plan action as its plan words it, and the actions that are not rounds.
+- Start, done, and not done with a reason, for those who record care; a task that needs a record
+  links to where it is made; the round opens again saying what was done (HZ-003, H-270).
