@@ -2438,3 +2438,10 @@ CSO. Tests: `feed-publish.test.ts` 14.
 **Tests**: `apps/api/test/feed-publish.test.ts` (16); `apps/web/src/lib/family-feed.test.ts`;
 `apps/web/e2e/family-updates.spec.ts` (2, axe on every state).
 
+Review round 1 of #87: publishing sends exactly the request previewed, with a new id for each
+preview, and an update already published with other words is a problem, never "published"; the API
+refuses notes and activities older than 14 days (`source_too_old`, audited); records that could not
+be read are said so; tests for a record corrected between preview and publishing, an out-of-scope
+preview, and Playwright states for words to confirm, a photo without consent, a refused publish and
+a hold, each with axe. Tests: `feed-publish.test.ts` 18; `family-updates.spec.ts` 3.
+

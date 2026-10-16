@@ -1636,6 +1636,8 @@
     "comms.feed.withdraw.reasonOption",
     "comms.feed.withdraw.reasonError",
     "comms.feed.withdraw.submit",
-    "comms.feed.withdraw.already"
+    "comms.feed.withdraw.already",
+    "comms.feed.publish.textDiffers",
+    "comms.feed.publish.sourcesUnavailable"
   ]
 }

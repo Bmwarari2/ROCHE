@@ -58,6 +58,12 @@ async function FamilyUpdatesTab({
   ]);
   // The updates and the records hold care details: the API asks for MFA first.
   const refusal = published.data ? null : problemCode(published.error);
+  // A list that could not be read is said so, never shown as "there are none".
+  const unreadable = [
+    ...(notes.data ? [] : (["shared_note"] as const)),
+    ...(activities.data ? [] : (["activity"] as const)),
+    ...(photos.data ? [] : (["photo"] as const)),
+  ];
   const sources = sourceOptions(
     {
       notes: notes.data?.items ?? [],
@@ -87,7 +93,7 @@ async function FamilyUpdatesTab({
         {refusal && MFA_CODES.has(refusal) ? (
           <p className="m-0">{t("errors.mfaVerifyRequired")}</p>
         ) : (
-          <FeedPublisher personId={id} path={path} sources={sources} />
+          <FeedPublisher personId={id} path={path} sources={sources} unreadable={unreadable} />
         )}
       </Card>
       <Card as="section" title={t("comms.feed.staff.listTitle")} headingLevel={3}>

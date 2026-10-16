@@ -1,4 +1,5 @@
 import type { FeedPreview } from "@harbour/contracts";
+import { FEED_SOURCE_MAX_AGE_DAYS } from "@harbour/domain";
 import type { ActionResult, FieldProblem } from "./outcome";
 import { collectedRefusal } from "./outcome";
 
@@ -27,8 +28,8 @@ export type FeedWithdrawalReason = (typeof FEED_WITHDRAWAL_REASONS)[number];
 /** Limits the API checks; the form checks them first so the person is told at the field. */
 export const FEED_TEXT_MAX = 1000;
 export const CONFIRMATION_MAX = 500;
-/** Records older than this are not offered: an update is about something recent. */
-export const RECENT_DAYS = 14;
+/** Records older than this are not offered, and the API refuses them (HZ-061). */
+export const RECENT_DAYS = FEED_SOURCE_MAX_AGE_DAYS;
 
 /** The "Updates" link in the side bar: for a family member's portal session. */
 export function familyUpdatesShown(permissions: readonly string[]): boolean {

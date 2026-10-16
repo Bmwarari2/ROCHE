@@ -1635,5 +1635,7 @@
   "comms.feed.withdraw.reasonOption": "{reason, select, source_corrected {The record was corrected} published_in_error {Published in error} person_asked {The person asked} photo_consent_withdrawn {Consent to photos withdrawn} other {Other}}",
   "comms.feed.withdraw.reasonError": "Choose why the update is being taken down.",
   "comms.feed.withdraw.submit": "Take the update down",
-  "comms.feed.withdraw.already": "This update has already been taken down."
+  "comms.feed.withdraw.already": "This update has already been taken down.",
+  "comms.feed.publish.textDiffers": "An update with different words was already published from this form. Check it in the list of updates published, and take it down if it is not right.",
+  "comms.feed.publish.sourcesUnavailable": "{kind, select, shared_note {We could not load the person's notes just now, so none can be chosen. Try again later.} activity {We could not load the person's activities just now, so none can be chosen. Try again later.} other {We could not load the photos added for the family feed just now, so none can be chosen. Try again later.}}"
 }

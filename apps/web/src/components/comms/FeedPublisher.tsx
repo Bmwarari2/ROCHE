@@ -22,7 +22,13 @@ import {
 } from "@/lib/family-feed";
 import { formatDateTime } from "@/lib/format";
 import { characterCount, t } from "@/lib/i18n";
-import { type ActionResult, collectedRefusal, errorFor, outcomeUnknown } from "@/lib/outcome";
+import {
+  type ActionResult,
+  collectedRefusal,
+  errorFor,
+  outcomeUnknown,
+  refused,
+} from "@/lib/outcome";
 
 const EMPTY: Omit<FeedDraft, "kind" | "sourceId"> = {
   text: "",
@@ -43,10 +49,13 @@ export function FeedPublisher({
   personId,
   path,
   sources,
+  unreadable,
 }: {
   readonly personId: string;
   readonly path: string;
   readonly sources: Readonly<Record<FeedSourceKind, readonly SourceOption[]>>;
+  /** The kinds of record that could not be read: said so, never "there are none". */
+  readonly unreadable: readonly FeedSourceKind[];
 }) {
   const router = useRouter();
   const ids = useFieldIds([
@@ -61,9 +70,14 @@ export function FeedPublisher({
   const [sourceId, setSourceId] = useState("");
   const [words, setWords] = useState(EMPTY);
   const [askReason, setAskReason] = useState(false);
-  // One id per update: kept for every attempt, new once the record changes or it is published.
-  const [id, setId] = useState(uuidv7);
-  const [preview, setPreview] = useState<FeedPreview | null>(null);
+  // The request previewed, with its own id: publishing sends exactly this, so the words published
+  // are the words checked (HZ-061). Each new preview gets a new id; a retry after an unknown
+  // outcome sends the same request and id, so it cannot publish twice.
+  const [bound, setBound] = useState<{
+    readonly request: FeedRequest;
+    readonly preview: FeedPreview;
+  } | null>(null);
+  const preview = bound?.preview ?? null;
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const [pending, startTransition] = useTransition();
   const previewHeading = useRef<HTMLHeadingElement>(null);
@@ -74,7 +88,7 @@ export function FeedPublisher({
 
   const draft: FeedDraft = { kind, sourceId, ...words };
   const request = (): FeedRequest => ({
-    id,
+    id: uuidv7(),
     source: publishSource(draft),
     ...(askReason && words.confirmationReason.trim()
       ? { confirmationReason: words.confirmationReason.trim() }
@@ -84,15 +98,14 @@ export function FeedPublisher({
   /** Anything typed after a preview makes it out of date: preview again before publishing. */
   const edit = (change: Partial<typeof EMPTY>) => {
     setWords((current) => ({ ...current, ...change }));
-    setPreview(null);
+    setBound(null);
   };
   const choose = (nextKind: FeedSourceKind, nextSource: string) => {
     setKind(nextKind);
     setSourceId(nextSource);
-    setPreview(null);
+    setBound(null);
     setResult(null);
     setAskReason(false);
-    setId(uuidv7());
   };
 
   const onPreview = (event: FormEvent<HTMLFormElement>) => {
@@ -106,32 +119,41 @@ export function FeedPublisher({
     );
     if (found) {
       setResult(found);
-      setPreview(null);
+      setBound(null);
       return;
     }
+    const sent = request();
     startTransition(async () => {
-      const outcome = await previewFeedItem(personId, request());
+      const outcome = await previewFeedItem(personId, sent);
       if (!outcome.ok) {
         setResult(outcome);
-        setPreview(null);
+        setBound(null);
         return;
       }
       if (needsConfirmation(outcome.data)) setAskReason(true);
       setResult(previewRefusal(outcome.data, kind));
-      setPreview(outcome.data.ok ? outcome.data : null);
+      setBound(outcome.data.ok ? { request: sent, preview: outcome.data } : null);
     });
   };
 
   const onPublish = () => {
+    if (!bound) return;
     startTransition(async () => {
-      const outcome = await publishFeedItem(personId, request());
-      if (outcome.ok) {
+      const outcome = await publishFeedItem(personId, bound.request);
+      if (outcome.ok && outcome.data.text === bound.preview.text) {
         router.replace(`${path}?done=published&at=${Date.now()}`, { scroll: false });
         return;
       }
+      if (outcome.ok) {
+        // An update already published with this id carries other words: never say "published".
+        setResult(refused(t("comms.feed.publish.textDiffers"), "text_differs"));
+        setBound(null);
+        router.refresh();
+        return;
+      }
       setResult(outcome);
-      // The outcome is unknown: keep the id so publishing again cannot make a second update.
-      if (!outcomeUnknown(outcome)) setPreview(null);
+      // The outcome is unknown: keep the request and id so publishing again cannot make a second.
+      if (!outcomeUnknown(outcome)) setBound(null);
     });
   };
 
@@ -153,7 +175,11 @@ export function FeedPublisher({
           onValueChange={(value) => choose(value, "")}
           layout="inline"
         />
-        {options.length === 0 ? (
+        {unreadable.includes(kind) ? (
+          <p className="m-0" id={ids.source}>
+            {t("comms.feed.publish.sourcesUnavailable", { kind })}
+          </p>
+        ) : options.length === 0 ? (
           <p className="m-0" id={ids.source}>
             {t("comms.feed.publish.noSources", { kind })}
           </p>
