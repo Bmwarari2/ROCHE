@@ -42,6 +42,7 @@ export async function openBreakGlass(
   }
   switch (problemCode(error)) {
     case "step_up_required":
+    case "mfa_verification_required":
       return { ok: false, reason: "step-up" };
     case "missing_permission":
     case "mfa_enrolment_required":

@@ -206,6 +206,8 @@ export function readDateTimeField(
     readonly t: Translator;
     /** This device's clock; a time later than this (beyond the tolerance) is refused. */
     readonly now?: Date;
+    /** Minutes a time may be ahead of `now`; the clock-drift tolerance unless the API allows none. */
+    readonly futureToleranceMinutes?: number;
   },
 ): { readonly ok: true; readonly instant: string | null } | TimeProblem {
   const values = {
@@ -227,7 +229,7 @@ export function readDateTimeField(
     const date = `${pad(wall.day)}/${pad(wall.month)}/${wall.year}`;
     const resolved = resolveRecordedUkTime(wall, {
       now: options.now ?? new Date(),
-      futureToleranceMinutes: FUTURE_TOLERANCE_MINUTES,
+      futureToleranceMinutes: options.futureToleranceMinutes ?? FUTURE_TOLERANCE_MINUTES,
     });
     switch (resolved.kind) {
       case "exact":

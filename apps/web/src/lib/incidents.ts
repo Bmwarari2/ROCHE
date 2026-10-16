@@ -361,11 +361,13 @@ export function notificationsView(
     readonly closed: boolean;
     /** When the page was drawn. */
     readonly now: Date;
+    /** How many of the open questions the page offers the reader to answer (default none). */
+    readonly answerable?: number;
   },
   t: Translator,
   riddorDays?: number,
 ): NotificationsView {
-  const notice = (notice: string, self: boolean, count = 0) => ({
+  const notice = (notice: string, self: boolean | "answer" | "some", count = 0) => ({
     title: t("safety.notification.notice", { notice, count }),
     body: t("safety.notification.noticeHint", { notice, self: String(self) }),
   });
@@ -402,7 +404,7 @@ export function notificationsView(
     }));
   const waiting = [...pending, ...tasks, ...elsewhere];
   return {
-    notices: count > 0 ? [notice("questions", context.canManage, count)] : [],
+    notices: count > 0 ? [notice("questions", questionsHint(count, context), count)] : [],
     waiting,
     none:
       count === 0 &&
@@ -412,6 +414,21 @@ export function notificationsView(
         ? t("safety.notification.none")
         : null,
   };
+}
+
+/**
+ * Who answers the open questions: the reader, below ("answer"); the reader some of them and the
+ * nurse in charge or Registered Manager the rest ("some"); or, with no form, the reader checks the
+ * law themselves (a manager) or tells someone who can.
+ */
+function questionsHint(
+  count: number,
+  context: { readonly canManage: boolean; readonly answerable?: number },
+): boolean | "answer" | "some" {
+  const answerable = context.answerable ?? 0;
+  if (answerable >= count) return "answer";
+  if (answerable > 0) return "some";
+  return context.canManage;
 }
 
 /** What was recorded about someone on an incident, beyond their name and role. */

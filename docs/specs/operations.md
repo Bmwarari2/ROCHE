@@ -564,3 +564,31 @@ Part 3c, outages (`routes/outages.ts`, `services/outages.ts`; tests in
     paper record at the same moment get the same 409; an outage in another organisation or out of
     reach reads as not found.
 - Not yet: back-entry fields in the sync streams and on the phone (mobile step); the web forms.
+
+## 15. As built (slice 11 web part A, the downtime screens)
+
+`apps/web/src/app/(shell)/downtime`, `apps/web/src/components/operations`,
+`apps/web/src/lib/downtime.ts`, `apps/web/src/app/actions/downtime.ts`; tests in
+`apps/web/src/lib/downtime.test.ts`, `apps/web/src/components/care/EntryBadges.test.ts` and
+`apps/web/e2e/downtime.spec.ts`.
+
+- `/downtime` goes to the chosen location, or lists the locations the viewer works at.
+  Downtime is in the navigation for holders of `operations.downtime.read` or `.manage`.
+- `/downtime/{location}`: the pack's card (open, print), the outages newest first with their
+  state as an icon and words (open; closed, paper records to enter, with the due time;
+  reconciled; cancelled; an unknown state warns), and the declare form while no outage is open.
+- `/downtime/{location}/pack` reads the pack (a fresh sign-in, the hourly limit, audited as
+  opened) and shows its freshness, the API's notice, the header lines and when it was made; it
+  names no one, so it gives the number of pages and warnings. `/downtime/{location}/pack/print`
+  streams the PDF from the API as an attachment with `no-store`; a refusal goes to sign in again
+  (step-up) or back to the location's page with what happened. Links to both are never
+  prefetched, as each read counts and is audited.
+- `/downtime/{location}/outages/{outage}`: the outage's details, then close, correct and cancel
+  (each with the version; a reason where the API needs one; no time filled in), and for a closed
+  outage the reconciliation: counts, the API's blockers in its words, a box per possible
+  duplicate group and per back-entry outside the window, and the statement. A reconciler who
+  entered or sent a paper record is told someone else must reconcile.
+- Actions are offered for the permission held where the viewer works; `/v1/me` has no
+  per-location `reaching` yet, so the API's refusal is the final word (STATUS item 21).
+- Not yet: the places form (no read route with the location's version) and the back-entry
+  fields on the care record forms (part B).
