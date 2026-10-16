@@ -70,19 +70,28 @@ afterAll(async () => {
 
 describe("hazard HZ-011 adding members (migration 0060)", () => {
   it("lets a manager give a role they hold through their own role", async () => {
-    await as(TENANT_A, a.northManager)(async (c) => {
+    await as(
+      TENANT_A,
+      a.northManager,
+    )(async (c) => {
       expect(await mayAssign(c)).toBe(true);
       await addReader(c);
     });
   });
 
   it("never counts an acting-up grant (#71 security review M1)", async () => {
-    await as(TENANT_A, a.carer)(async (c) => {
+    await as(
+      TENANT_A,
+      a.carer,
+    )(async (c) => {
       expect(await mayAssign(c)).toBe(false);
     });
     await expect(as(TENANT_A, a.carer)(addReader)).rejects.toThrow(/row-level security/);
     await expect(
-      as(TENANT_A, a.carer)((c) =>
+      as(
+        TENANT_A,
+        a.carer,
+      )((c) =>
         c.query(
           "INSERT INTO tenant_user (display_name, email) VALUES ('Bo Example', 'bo@example.invalid')",
         ),
@@ -97,7 +106,10 @@ describe("hazard HZ-011 adding members (migration 0060)", () => {
       "'invited', NULL, false",
     ]) {
       await expect(
-        as(TENANT_A, a.northManager)((c) =>
+        as(
+          TENANT_A,
+          a.northManager,
+        )((c) =>
           c.query(
             `INSERT INTO tenant_user (display_name, email, status, auth_user_id, mfa_required)
              VALUES ('Cy Example', 'cy@example.invalid', ${values})`,
@@ -109,7 +121,10 @@ describe("hazard HZ-011 adding members (migration 0060)", () => {
   });
 
   it("never finds another organisation's role", async () => {
-    await as(TENANT_B, ids.b.manager)(async (c) => {
+    await as(
+      TENANT_B,
+      ids.b.manager,
+    )(async (c) => {
       expect(await mayAssign(c)).toBe(false);
     });
   });
