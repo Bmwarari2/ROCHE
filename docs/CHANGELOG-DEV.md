@@ -2205,3 +2205,29 @@ manager is linked in the demo tenant (`scripts/demo-seed-guard.ts`, `test/demo-s
   (M1); a retry with another name is 409; follow-ups logged in STATUS.
 
 **Tests**: `apps/api/test/members.test.ts` (16); `packages/db/test/members.test.ts` (4).
+
+## 2026-10-16: Slice 11, letters: preview, sending and the list (COMMS-007, part 2b)
+
+- API: `POST /v1/people/{id}/letters/preview`, `POST /v1/people/{id}/letters`, `GET
+  /v1/people/{id}/letters` (comms.md section 11): comms.letter.manage with MFA, safety.incident.manage
+  for incident letters, values from the record except typed admission and fee details, ADR-0051 on
+  the rendered output, letters as PDF documents about the person, emails through the port with a
+  body, field keys and the provider's message id only.
+- Domain: `outboundBodyProblem`; the email port's guard checks bodies (no link, no NHS number).
+- Docs: comms.md section 11, HZ-051 rows, H-228, records of processing, feature register, STATUS.
+
+**Tests**: `apps/api/test/letters.test.ts` (7); domain `ports.test.ts` 6 new.
+
+## 2026-10-16: Letters, review round 1 of #72 (HZ-051)
+
+- The send repeats the preview's version and text hash and is refused (409) if the letter would
+  differ; the preview shows the person (name, room, photo).
+- Only current contacts; an incident involving anyone else is refused; a person who has died is
+  refused; the list shows incidents only to holders of safety.incident.manage; `sender.role` is
+  chosen in a fixed order.
+- Email sending is refused (422) until the worker-based send exists (STATUS); previews still render.
+- The email body guard also catches hyphenated or spaced NHS numbers and `mailto:`.
+- Docs: comms.md rule 24 (the ADR-0040 writer, plain-text SES) and section 11, HZ-051 causes and
+  rows, STATUS.
+
+**Tests**: `apps/api/test/letters.test.ts` 5 new and 3 changed; domain `ports.test.ts` 2 new.
