@@ -23,6 +23,7 @@ import {
   narrowestScope,
   type Permission,
   type PermissionScope,
+  requiresStepUp,
   resolveAccess,
   scopeFor,
   touchesCareRecords,
@@ -37,7 +38,7 @@ import {
   SESSION_EXPIRES_IN_SECONDS,
   SESSION_UPDATE_AGE_SECONDS,
 } from "../auth/better-auth";
-import { sessionMfa } from "../auth/session-factor";
+import { sessionFactorState, stepUpFreshAt } from "../auth/session-factor";
 import type { Config } from "../config";
 import type { FlagService } from "../flags/provider";
 import type { MockEmail } from "../integrations/adapters";
@@ -126,9 +127,14 @@ export interface TenantAccess {
    * or an authenticator code (#43 review M5, ADR-0072); having one enrolled is not enough.
    */
   readonly mfaSatisfied: boolean;
-  /** When MFA is not satisfied: true if a factor is enrolled and only this session lacks it. */
+  /** True when a factor is enrolled (so a refusal asks the person to use it, not to set one up). */
   readonly mfaEnrolled: boolean;
-  /** How long a sign-in counts as fresh for a step-up permission (`STEP_UP_WINDOW_SECONDS`). */
+  /**
+   * When this session last proved a second factor (a passkey, an authenticator code or a backup
+   * code), or null. Step-up counts from this, never from a password sign-in (ADR-0072 amendment).
+   */
+  readonly stepUpAt: Date | null;
+  /** How long a factor's use counts as fresh for a step-up permission (`STEP_UP_WINDOW_SECONDS`). */
   readonly stepUpWindowSeconds: number;
   readonly deviceId: string | null;
   readonly ip: string | null;
@@ -144,6 +150,8 @@ export interface OperatorIdentity {
   readonly id: string;
   readonly authUserId: string;
   readonly role: "support" | "admin";
+  /** When this session last used a second factor (step-up counts from it; ADR-0072). */
+  readonly factorAt: Date | null;
 }
 
 export type AppEnv = {
@@ -367,8 +375,10 @@ export const tenantMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     throw problems.deviceRevoked();
   }
   // A session from before this check, or signed in with a password alone, fails closed until
-  // the person confirms it is them with a passkey or an authenticator code (ADR-0072).
-  const mfa = mfaRequired ? await sessionMfa(services.authPool, session) : "satisfied";
+  // the person confirms it is them with a passkey or an authenticator code (ADR-0072). Asked even
+  // when MFA is not required: step-up needs the time a factor was last used on this session.
+  const factor = await sessionFactorState(services.authPool, session);
+  const mfa = mfaRequired ? factor.mfa : "satisfied";
   const access: TenantAccess = {
     tenantId: membership.tenantId,
     tenantUserId: membership.tenantUserId,
@@ -384,7 +394,8 @@ export const tenantMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     },
     required: [],
     mfaSatisfied: mfa === "satisfied",
-    mfaEnrolled: mfa !== "enrol",
+    mfaEnrolled: factor.mfa !== "enrol",
+    stepUpAt: factor.factorAt,
     stepUpWindowSeconds: services.config.STEP_UP_WINDOW_SECONDS,
     deviceId,
     ip: clientIp(c),
@@ -456,6 +467,22 @@ type Refusal =
   | "missing_permission"
   | "step_up_required";
 
+/**
+ * True when the session used a second factor within the step-up window (section 5.3; ADR-0072
+ * amendment). A password sign-in alone never counts, however recent.
+ */
+export function stepUpFresh(access: TenantAccess, now: Date = new Date()): boolean {
+  return stepUpFreshAt(access.stepUpAt, now, access.stepUpWindowSeconds);
+}
+
+/**
+ * The refusal for a step-up the session has not met: confirm the factor enrolled, or set one up
+ * first when there is none (a password can never step up; ADR-0072 amendment).
+ */
+export function stepUpRefusal(access: TenantAccess): HttpProblem {
+  return access.mfaEnrolled ? problems.stepUp() : problems.mfaRequired();
+}
+
 /** The refusal for a session whose MFA is not satisfied: enrol a factor, or use the one enrolled. */
 export function mfaRefusal(access: TenantAccess): HttpProblem {
   return access.mfaEnrolled ? problems.mfaVerify() : problems.mfaRequired();
@@ -470,10 +497,15 @@ export function refusalOf(
   if (touchesCareRecords(permission) && !access.mfaSatisfied) {
     return access.mfaEnrolled ? "mfa_verification_required" : "mfa_enrolment_required";
   }
+  // Step-up needs a second factor used on this session within the window; a member who holds the
+  // permission but has none enrolled is asked to set one up (ADR-0072 amendment, HZ-112).
+  if (requiresStepUp(permission) && can(access.effective, permission) && !access.mfaEnrolled) {
+    return "mfa_enrolment_required";
+  }
   const decision = authorise(
     access.effective,
     permission,
-    access.session.sessionCreatedAt,
+    access.stepUpAt,
     now,
     access.stepUpWindowSeconds,
   );
@@ -624,9 +656,9 @@ export async function inScopeOf<T>(
 
 /**
  * The permissions the session may use for the domain's own checks (review round 1, L7): those it
- * holds whose MFA it meets, as `requirePermission` judges them. One that needs a fresh sign-in
- * stays in: every domain check given these is also given the session's freshness and refuses it
- * as `step_up_required`, so the person is asked to sign in again rather than told they lack it.
+ * holds whose MFA it meets, as `requirePermission` judges them. One that needs step-up stays in:
+ * every domain check given these is also given the session's freshness and refuses it as
+ * `step_up_required`, so the person is asked to confirm their factor rather than told they lack it.
  */
 export function usablePermissions(
   access: TenantAccess,
@@ -635,7 +667,11 @@ export function usablePermissions(
   return new Set(
     [...access.effective.permissions].filter((p) => {
       const refused = refusalOf(access, p, now);
-      return refused === null || refused === "step_up_required";
+      // A step-up permission held with no factor enrolled stays in too: its check sees no fresh
+      // factor and the refusal asks the person to set one up (`stepUpRefusal`).
+      const stepUpUnenrolled =
+        refused === "mfa_enrolment_required" && access.mfaSatisfied && requiresStepUp(p);
+      return refused === null || refused === "step_up_required" || stepUpUnenrolled;
     }),
   );
 }

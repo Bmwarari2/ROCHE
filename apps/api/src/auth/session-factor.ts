@@ -37,31 +37,52 @@ export async function recordSessionFactor(
   );
 }
 
+/** What the session has proved: the MFA state, and when it last used a second factor. */
+export interface SessionFactorState {
+  readonly mfa: "satisfied" | "verify" | "enrol";
+  /**
+   * When this session last proved a second factor (a sign-in completed with one, or a code or
+   * passkey confirmed on it), or null when it never has or none is enrolled. Step-up counts from
+   * this, never from a password sign-in (ADR-0072 amendment, HZ-112).
+   */
+  readonly factorAt: Date | null;
+}
+
 /**
- * Whether the member must enrol a second factor, must confirm it on this session, or has.
- * `enrol`: neither an authenticator app nor a passkey is set up. `verify`: one is, but this session
- * did not use it (a password-only sign-in, a trusted device, or a session from before this check).
- * One query; a factor record older than the session's expiry is moved on with it.
+ * Whether the member must enrol a second factor, must confirm it on this session, or has, and
+ * when the session last used it. `enrol`: neither an authenticator app nor a passkey is set up.
+ * `verify`: one is, but this session did not use it (a password-only sign-in, a trusted device,
+ * or a session from before this check). One query; a factor record older than the session's
+ * expiry is moved on with it. Each use is its own row, so the latest `created_at` is the last use.
  */
-export async function sessionMfa(
+export async function sessionFactorState(
   authPool: pg.Pool,
   session: {
     readonly authUserId: string;
     readonly sessionId: string;
     readonly twoFactorEnabled: boolean;
   },
-): Promise<"satisfied" | "verify" | "enrol"> {
-  const { rows } = await authPool.query<{ passkey: boolean; stale: boolean | null }>(
+): Promise<SessionFactorState> {
+  const { rows } = await authPool.query<{
+    passkey: boolean;
+    stale: boolean | null;
+    factor_at: Date | null;
+  }>(
     `SELECT EXISTS (SELECT 1 FROM auth.passkey WHERE user_id = $1) AS passkey,
-            (SELECT v.expires_at < s.expires_at
-               FROM auth.verification v JOIN auth.session s ON s.id = $2 AND s.user_id = $1
-              WHERE v.identifier = $3 AND v.value IN ('passkey', 'totp', 'backup_code')
-              ORDER BY v.expires_at DESC LIMIT 1) AS stale`,
+            f.stale, f.factor_at
+       FROM (SELECT bool_and(v.expires_at < s.expires_at) AS stale,
+                    max(v.created_at) AS factor_at
+               FROM auth.session s
+               JOIN auth.verification v ON v.identifier = $3
+                AND v.value IN ('passkey', 'totp', 'backup_code')
+              WHERE s.id = $2 AND s.user_id = $1) f`,
     [session.authUserId, session.sessionId, factorIdentifier(session.sessionId)],
   );
   const row = rows[0];
-  if (!session.twoFactorEnabled && !row?.passkey) return "enrol";
-  if (row?.stale === null || row?.stale === undefined) return "verify";
+  if (!session.twoFactorEnabled && !row?.passkey) return { mfa: "enrol", factorAt: null };
+  if (row?.factor_at === null || row?.factor_at === undefined) {
+    return { mfa: "verify", factorAt: null };
+  }
   if (row.stale) {
     await authPool.query(
       `UPDATE auth.verification v SET expires_at = s.expires_at, updated_at = now()
@@ -71,7 +92,24 @@ export async function sessionMfa(
       [factorIdentifier(session.sessionId), session.sessionId],
     );
   }
-  return "satisfied";
+  return { mfa: "satisfied", factorAt: new Date(row.factor_at) };
+}
+
+/** The MFA state alone (`sessionFactorState`). */
+export async function sessionMfa(
+  authPool: pg.Pool,
+  session: {
+    readonly authUserId: string;
+    readonly sessionId: string;
+    readonly twoFactorEnabled: boolean;
+  },
+): Promise<"satisfied" | "verify" | "enrol"> {
+  return (await sessionFactorState(authPool, session)).mfa;
+}
+
+/** Whether a factor used at `factorAt` is still within the step-up window at `now`. */
+export function stepUpFreshAt(factorAt: Date | null, now: Date, windowSeconds: number): boolean {
+  return factorAt !== null && now.getTime() - factorAt.getTime() <= windowSeconds * 1000;
 }
 
 /**

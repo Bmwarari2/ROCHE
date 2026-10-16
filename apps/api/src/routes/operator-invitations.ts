@@ -1,5 +1,6 @@
 import { InvitationSent } from "@harbour/contracts";
 import { createRoute, z } from "@hono/zod-openapi";
+import { stepUpFreshAt } from "../auth/session-factor";
 import { HttpProblem, problems } from "../http/problem";
 import { audit, newInvitationToken, sendInvitationEmail } from "../services/invitations";
 import {
@@ -62,14 +63,15 @@ export const operatorInvitationsRouter = createRouter().openapi(
   }),
   async (c) => {
     const operator = c.get("operator");
-    const session = c.get("session");
     const services = c.get("services");
     const requestId = c.get("requestId");
     const { tenantId } = c.req.valid("param");
-    const fresh =
-      session !== null &&
-      Date.now() - session.sessionCreatedAt.getTime() <=
-        services.config.STEP_UP_WINDOW_SECONDS * 1000;
+    // Step-up counts from the second factor this session last used, never a password sign-in.
+    const fresh = stepUpFreshAt(
+      operator.factorAt,
+      new Date(),
+      services.config.STEP_UP_WINDOW_SECONDS,
+    );
     if (operator.role !== "admin" || !fresh) {
       throw operator.role !== "admin" ? problems.forbidden() : problems.stepUp();
     }
