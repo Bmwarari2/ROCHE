@@ -2014,3 +2014,34 @@ re-issue, `no-store`, the sweep sparing a live bundle and staying in its organis
 
 **Tests**: `apps/api/test/statement-of-purpose.test.ts` 1 new and 3 extended (the 28 UK days across
 the October clock change, the alert's words, step-up on recording the notification).
+
+## 2026-10-16: Slice 11, evidence pack link routes and the PDF (QUAL-003, part 2c)
+
+- Migration 0058: the link session (`app.link_id`, `app.link_pack_id`, `app.is_link_session()`)
+  and restrictive policies holding it to its own link, pack, items, bundle and codes, read only
+  except the link and codes, and none of the statement of purpose. `RequestContext.evidenceLink`.
+- API: `POST /p/evidence/code`, `POST /p/evidence/verify`, `GET /p/evidence/bundle` (quality.md
+  section 15): the token in a body only, looked up by its SHA-256; codes as an HMAC under
+  `EVIDENCE_LINK_SECRET`, at most three open; a wrong code counted in the same transaction and a
+  lock at five; a signed HttpOnly, Secure, SameSite=Strict session cookie for one link; the
+  watermarked PDF from the bundle through the ADR-0040 writer, `no-store`; throttles per address
+  and per link; every step audited with ids only.
+- Infra: `EVIDENCE_LINK_SECRET` from the `api` secret; the seed script creates it.
+- Docs: quality.md section 15, HZ-050 rows, H-225 to H-227, records of processing, data
+  standards, infra README, STATUS.
+
+**Tests**: `apps/api/test/evidence-link.test.ts` (11); `packages/db/test/evidence-pack.test.ts` 4 new
+(the link session); `config.test.ts` 1 new.
+
+## 2026-10-16: Evidence pack link routes, review round 1 of #66
+
+- The printed pack gives its composing and release times with GMT or BST and says it shows the
+  records as they stood at release (H-222 open); a field with no value says it is not available.
+- 0058: link sessions read none of the audit trail, staff, alerts, tasks, documents, roles, grants
+  or outbox, and a trigger refuses them revoking their link.
+- The per-address throttle falls back to a shared bucket; audit rows take the trusted hop's
+  address; the session cookie is `__Host-`, path `/`, encrypted and signed.
+- Docs: quality.md section 15, HZ-050 rows, records of processing, data standards, STATUS.
+
+**Tests**: `apps/api/test/evidence-link.test.ts` 2 new and 3 extended (the multi-page pack, the
+deleted bundle, the cookie); `packages/db/test/evidence-pack.test.ts` 2 new.

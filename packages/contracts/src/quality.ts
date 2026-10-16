@@ -96,6 +96,21 @@ export const EvidencePackLinkIssued = z
   })
   .meta({ id: "EvidencePackLinkIssued" });
 
+/** The link's token: only ever in a request body, never in a URL Harbour serves. */
+const linkToken = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
+
+export const EvidenceLinkCodeRequest = z
+  .object({ token: linkToken })
+  .meta({ id: "EvidenceLinkCodeRequest" });
+
+export const EvidenceLinkVerify = z
+  .object({ token: linkToken, code: z.string().trim().max(12) })
+  .meta({ id: "EvidenceLinkVerify" });
+
+export const EvidenceLinkCodeSent = z
+  .object({ sent: z.boolean() })
+  .meta({ id: "EvidenceLinkCodeSent", description: "Whether the email with the code was sent" });
+
 export const EvidencePackField = z
   .object({
     key: z.string(),

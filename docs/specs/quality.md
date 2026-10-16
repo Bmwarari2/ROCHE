@@ -373,3 +373,36 @@ audits `quality.statement_of_purpose.unrouted` at most daily and tries again. Th
 version and the due date ("Statement of purpose version 2 is overdue at CQC"; "It was due at CQC
 by 13/11/2026. ..."; H-219), hazard HZ-080 (DCB0129 scope for the CSO, H-224). Tests:
 `apps/api/test/statement-of-purpose.test.ts`.
+
+## 15. As built (slice 11, API part 2c: the public link routes and the PDF)
+
+`apps/api/src/routes/evidence-link.ts`, `apps/api/src/services/evidence-link.ts`,
+`apps/api/src/services/evidence-pack-pdf.ts`, migration 0058 (`feat/quality-evidence-pack-public`).
+A deviation from section 5's paths, on #56's security review: the token is never in a URL Harbour
+serves; it goes only in a request body (as invitation links do), and opening the pack needs only
+the session cookie.
+
+| Route | Built as |
+| --- | --- |
+| `POST /p/evidence/code` `{ token }` | The token's SHA-256 looked up with `app.evidence_pack_link_for_token`; an unknown token is 404 (a platform audit event). In the link session: a link that no longer opens says why (410); at most `MAX_LIVE_CODES_PER_LINK` (3) codes open at once (429); a six-digit code from the cryptographic source is stored as HMAC-SHA256 of the link and code under `EVIDENCE_LINK_SECRET`, its lifetime worked out by the database; the code alone is emailed to the bound address, with no link; `.code_sent` |
+| `POST /p/evidence/verify` `{ token, code }` | Not six digits: 422, not counted. With the link row locked, the code is compared in constant time with the link's open codes; a right one is marked used (`.code_verified`) and sets the signed session cookie (HttpOnly, Secure, SameSite=Strict, path `/p/evidence`, at most `EVIDENCE_LINK_SESSION_MINUTES` and never past the link's expiry); a wrong one adds one to `failed_code_attempts` in the same transaction (`.code_failed`), and at `EVIDENCE_LINK_MAX_CODE_ATTEMPTS` (5) the link locks for good (`.link_locked`, 410) |
+| `GET /p/evidence/bundle` | The cookie alone (its signature, its expiry); `evidencePackLinkAccess` on every request (released, not revoked, not expired, not locked, the session's address the recipient's); refused once the bundle is deleted; the watermarked PDF drawn from the manifest and bundle through the ADR-0040 writer (included items only; withheld and redacted fields say why; the watermark on every page), `no-store`, attachment, never stored; `last_opened_at` and `.opened` |
+
+Every request runs as the link session (migration 0058: `app.link_id` and `app.link_pack_id`, no
+member, scope 'none'), which reaches that link, its pack, items, bundle and codes alone, reads the
+pack, items and bundle only, and nothing of the statement of purpose, whatever scope it claims.
+Throttled per client address (the trusted-proxy hop, `throttleAddress`) and per link, in each API
+instance's memory. `/p/*` responses are `no-store`. `EVIDENCE_LINK_SECRET` comes from Secrets
+Manager (the `api` secret's `evidence_link_secret`) and the API refuses to start in production
+without it. Tests: `apps/api/test/evidence-link.test.ts`, `packages/db/test/evidence-pack.test.ts`
+(the link session). Human actions H-225 to H-227.
+
+After #66 review round 1: the printed pack's header gives the composing and release times with GMT
+or BST, and its first page says it shows the records as they stood when it was released (H-222);
+a field the bundle has no value for prints "Withheld: not available in this pack". A link session
+reads none of `audit_event`, `tenant_user`, `notification`, `task`, `document`,
+`role_assignment`, `access_grant` or `outbox_event`, and a trigger refuses it revoking its link.
+The per-address throttle uses one shared bucket when no client address is known, audit rows take
+the address from the trusted hop, and the cookie is `__Host-harbour_evidence_session` (path `/`),
+its content encrypted with AES-256-GCM and signed, so the recipient's address is not readable in
+it.
