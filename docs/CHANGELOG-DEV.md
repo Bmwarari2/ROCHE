@@ -2273,3 +2273,31 @@ decision (no paused statement; H-110 asks the CSO about a closing message); link
 account's verified email to be the contact's (422 `account_not_contact`, audited); portal sessions
 always need MFA; `app.family_item_shown` locked down; parity cases for closed records, a welfare
 attorney and best interests; follow-ups in STATUS. Tests: API 10, db 28.
+
+## 2026-10-17: Slice 13 part 1, the full export's record and routes (PLAT-015)
+
+- Migration 0062: `tenant_export` (forced RLS, the owner and the worker only, one queued or
+  running export per organisation, a forward-only status guard, the single download by the
+  requester while ready) and the `platform.data.export` to `platform.export.create` rename in
+  role copies and grants, audited per tenant. Export catalogue entry for the new table.
+- API: `POST /v1/exports` (step-up; 202, or 200 with the one in hand), `GET /v1/exports`,
+  `POST /v1/exports/{id}/revoke` and `GET /v1/exports/{id}/download` (one fetch, recorded before
+  the bytes leave, then the archive deleted); audited. Storage keys may name an export archive.
+- Docs: platform-completions.md section 10a, data standards, records of processing, hazard log
+  HZ-070, feature register, STATUS.
+
+**Tests**: `packages/db/test/tenant-export.test.ts` (13); `apps/api/test/exports.test.ts` (9).
+
+## 2026-10-17: #77 review round 1 (the full export's routes)
+
+- The download opens the archive before claiming the single fetch, streams it from the exports
+  bucket (`S3_EXPORTS_BUCKET`, never the documents bucket), and the worker deletes it from the
+  outbox event, retried; cancelling deletes it the same way. The claim also requires `ready` and
+  an unexpired link, and a miss is said as already downloaded, cancelled or expired.
+- The storage port writes and reads streams (S3 multipart, one 8 MiB part in memory at most).
+- 0062: a ready export's archive, manifest, snapshot and expiry are frozen; the rename is limited
+  to organisation-wide roles and grants (the old name dropped elsewhere), each change audited.
+
+**Tests**: `apps/api/test/exports.test.ts` 4 new (concurrent downloads, a failed read leaves the
+fetch untaken, another holder, another organisation's id); `packages/db/test/tenant-export.test.ts`
+1 new and the grant rename; `config.test.ts` (`S3_EXPORTS_BUCKET` required in production).

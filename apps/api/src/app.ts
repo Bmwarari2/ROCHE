@@ -25,6 +25,7 @@ import { devicesRouter } from "./routes/devices";
 import { documentsRouter } from "./routes/documents";
 import { evidenceLinkRouter } from "./routes/evidence-link";
 import { evidencePacksRouter } from "./routes/evidence-packs";
+import { exportsRouter } from "./routes/exports";
 import { familyFeedRouter } from "./routes/family-feed";
 import { handoversRouter } from "./routes/handovers";
 import { incidentsRouter } from "./routes/incidents";
@@ -251,6 +252,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", operatorRouter);
   app.route("/", invitationsRouter);
   app.route("/", membersRouter);
+  app.route("/", exportsRouter);
   app.route("/", operatorInvitationsRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {

@@ -443,6 +443,37 @@ normalisers (people) that the current summary reuses. 2,486 tests in the domain 
 than before the slice), 99.7% line coverage; 3 catalogue tests in `packages/db`. Five rate-table
 rows added, all to verify. No schema, migration, API, web or mobile change in this slice.
 
+## 10a. As built (slice 13 part 1, the export's record and routes)
+
+- `tenant_export` (migration 0062, numbered after #71's 0060 and the family feed's 0061; merge
+  after both): forced RLS with the tenant policy; only holders of `platform.export.create` across
+  the organisation, and the export worker (no member, the organisation's view), see or change a
+  row; a request is queued in the requester's own name; the partial unique index allows one queued
+  or running export per organisation; a guard keeps who asked and what, moves the status forward
+  only (`queued` to `running`, `failed` or `revoked`; `running` to `ready`, `failed` or `revoked`;
+  `ready` to `expired` or `revoked`; the rest final), revokes in the reviser's own name and never
+  soft-deletes; the single download is set once, by the requester, while ready and unexpired. The
+  data migration renames `platform.data.export` to `platform.export.create` in role copies and
+  grants, audited per tenant. The other new slice 13 permissions are left to their own steps.
+- Routes (`apps/api/src/routes/exports.ts`): `POST /v1/exports` (step-up; 202 queued, or 200 with
+  the export already in hand; `sinceExportId` for the changes since an earlier snapshot),
+  `GET /v1/exports` (step-up, as every export route), `POST /v1/exports/{id}/revoke` (step-up;
+  deletes the archive) and `GET /v1/exports/{id}/download` (step-up; `checkExportDownload`; the
+  download recorded before the bytes leave, then the archive deleted by the worker; a second fetch is 410
+  `export_already_downloaded`). The API streams the archive itself rather than minting a storage
+  URL, so the one-time fetch holds. Requested, revoked and downloaded are audited, refusals too.
+- Storage: the exports bucket (`S3_EXPORTS_BUCKET`; eu-west-2, SSE-KMS, lifecycle expiry) at
+  `tenants/<tenant>/exports/<export>/export.zip`, through the storage port, which now writes and
+  reads streams (multipart upload, at most one 8 MiB part in memory). The download opens the
+  archive before claiming the single fetch (a failed read leaves it untaken), streams it, and the
+  worker deletes it from the outbox event (`platform.export.downloaded`, `.revoked`), retried
+  until it is gone. #77 review: a ready export's archive, manifest, snapshot and expiry are frozen;
+  the rename is limited to organisation-wide roles and grants, the old name dropped elsewhere,
+  every change audited.
+- Next (part 2): the worker job that builds the archive (one `REPEATABLE READ` snapshot as
+  `harbour_app`, the table files, documents, current summary, `schema.json` and the manifest,
+  `ready` or `failed`, audited), the expiry sweep that deletes the archive, and the notification.
+
 ## 11. Open questions
 
 - Retention of DPIA records, export records and onboarding decisions beyond the interim

@@ -151,6 +151,24 @@ only when they link spec, code, tests and user documentation; no user guides exi
      part 2 needs a name the decision allows (HZ-001); tables with only the tenant policy
      (`tenant_user`, `location`, roles) are readable by any member including a portal session,
      as for staff with scope `none`, and need a review before the portal goes live.
+
+   - Slice 13 part 1, the free full export's record and routes (`feat/platform-full-export`,
+     migration 0062 after 0060 and 0061; platform-completions.md section 10a): `tenant_export`
+     with forced RLS (owner and the worker only), one at a time, a forward-only status guard and
+     the single download; the `platform.data.export` rename in role copies and grants; request,
+     list, cancel and the one-time download, step-up and audited. Next, part 2: the worker job that
+     builds the archive in one snapshot (tables, documents, current summary, schema and manifest),
+     the expiry sweep and the notification; then the web export page. The archive lives in the
+     exports bucket (`S3_EXPORTS_BUCKET`), streamed both ways; the worker deletes it after the
+     download or a cancel (outbox, retried). Interim: the tenant has no `data_purged_at` yet, so
+     `checkExportRequest` is given none.
+   - Slice 12 part 1, the family feed schema (`feat/comms-family-feed`, migration 0061, after
+     #71's 0060; COMMS-001, ADR-0061, HZ-022): in review. `family_portal_user`, `feed_item`,
+     `feed_item_withdrawal`, `feed_view`; family sessions (`app.family`, scope `none`);
+     `app.family_can_see` (definer, `harbour_family_reader`, a new NOLOGIN role: run
+     `pnpm db:bootstrap` before migrating) mirrors `checkFeedItemVisibility`, with a parity test.
+     Next, the API part stacked on it (`feat/comms-family-feed-api`), then part 1b, publishing
+     from source records, then part 2, the web.
    - Follow-ups from the #75 and #76 review (no code yet):
      - linking a family account rests on a verified email matching the contact's; replace it with
        an invitation sent to the contact that the family member accepts (the invitation store of
