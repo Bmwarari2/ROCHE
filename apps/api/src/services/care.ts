@@ -21,6 +21,7 @@ import {
   checkTaskLink,
   checkTaskTransition,
   entryPermissionTime,
+  formatUkDateTime,
   hasClockDrift,
   isClosedRecord,
   isMedicinesTask,
@@ -381,6 +382,27 @@ export interface TriggerSource {
   readonly sourceId: string;
   /** UK date of the result, from which a weight schedule runs; defaults to today. */
   readonly occurredOn?: string;
+  /**
+   * Set when the result was entered from a paper downtime form (operations.md rule 12; HZ-017):
+   * alerts and tasks say so, with the time written on the paper, so nobody reads an old reading
+   * as current.
+   */
+  readonly paper?: PaperSource | undefined;
+}
+
+/** A back-entered result, as alerts and tasks name it. */
+export interface PaperSource {
+  /** The back-entry label (`paperLabel`). */
+  readonly label: string;
+  /** The time written on the paper form. */
+  readonly paperAt: Date;
+}
+
+/** A task's title, saying when it comes from a paper record and the time written on it. */
+function fromPaper(title: string, source: TriggerSource): string {
+  return source.paper
+    ? `${title} (from a paper record written ${formatUkDateTime(source.paper.paperAt)})`
+    : title;
 }
 
 /** Repeat screenings scheduled from a result (care.md rule 5): generic titles, never the person. */
@@ -499,10 +521,15 @@ export async function raiseCareTriggers(
               recipientTenantUserId: recipient,
               kind: "care.urgent_result",
               severity: "urgent",
-              title: home
-                ? `An observation at ${home.name} needs a response now`
-                : "An observation needs a response now",
-              body: "Open the person's record to see the result and the response to take.",
+              title: source.paper
+                ? `An observation from a paper record${home ? ` at ${home.name}` : ""} needs a response now`
+                : home
+                  ? `An observation at ${home.name} needs a response now`
+                  : "An observation needs a response now",
+              // A back-entered reading says it came from paper, and when (HZ-017).
+              body: source.paper
+                ? `${source.paper.label} Open the person's record to see the result and the response to take.`
+                : "Open the person's record to see the result and the response to take.",
               link: `/people/${source.personId}`,
               channels: ["in_app", "push"],
               sourceType: source.sourceType,
@@ -525,7 +552,7 @@ export async function raiseCareTriggers(
     } else if (trigger.kind === "task") {
       await tx.insert(task).values({
         kind: `care.${trigger.task}`,
-        title: TASK_TITLES[trigger.task],
+        title: fromPaper(TASK_TITLES[trigger.task], source),
         requiredPermission: TASK_PERMISSIONS[trigger.task],
         personId: source.personId,
         locationId: source.locationId,
@@ -549,10 +576,12 @@ export async function raiseCareTriggers(
           : new Date(now.getTime() + frequency.longestHours * 3_600_000);
       await tx.insert(task).values({
         kind: "care.repeat_observations",
-        title:
+        title: fromPaper(
           frequency.kind === "continuous"
             ? "Monitor observations continuously"
             : "Repeat observations",
+          source,
+        ),
         requiredPermission: "care.note.write",
         personId: source.personId,
         locationId: source.locationId,
