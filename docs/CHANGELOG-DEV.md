@@ -2179,3 +2179,11 @@ After the security check of 13f170b (Medium): `seed-users` refuses `HARBOUR_DEMO
 `HARBOUR_DEMO_MFA=off` unless `NODE_ENV` is development or test, `HARBOUR_ENV` is not dev, staging
 or pilot, every database URL is local (or the CI `postgres` service container) and the demo
 manager is linked in the demo tenant (`scripts/demo-seed-guard.ts`, `test/demo-seed-guard.test.ts`).
+
+## 2026-10-17: Slice 5 web part 2, the round view (CARE-013)
+
+- Round in the navigation for those who read care plans; the location's open tasks for the shift
+  by area and room, each person's name, room and communication needs, each task's time state in
+  an icon and words, the plan action as its plan words it, and the actions that are not rounds.
+- Start, done, and not done with a reason, for those who record care; a task that needs a record
+  links to where it is made; the round opens again saying what was done (HZ-003, H-270).

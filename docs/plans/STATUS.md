@@ -781,8 +781,11 @@ only when they link spec, code, tests and user documentation; no user guides exi
     it) and the last week's; one handover's items by person (name, room and communication needs),
     each kind in an icon and words with a link to its record, notes on items and on the whole
     handover, who has read it, and "I have read this handover" with the token of the handover as
-    shown (H-269). Next (part 2, its own PR): the round view (`GET /v1/locations/{id}/round`) by
-    area and room, with each task's time state and start, complete and skip where the API allows.
+    shown (H-269). Part 2 built (`feat/web-round-view`, stacked on part 1): the round by area and
+    room, each person's name, room and communication needs, each task's time state in an icon
+    and words, start, done and not done with a reason (H-270), one person's tasks on request.
+    Gap: the round view does not say which permission each task names, so the actions are
+    offered to those who record care (`care.note.write`) and the API refuses the rest in words.
     Gaps: the handover items are references only, so the reader opens each record; the location
     page offers compiling for the permission held anywhere (no per-location `reaching`).
 

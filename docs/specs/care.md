@@ -1453,6 +1453,21 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   handover" sends `you.seenToken` with a UUIDv7; `handover_changed` reloads the page and says
   what to do. Compiling again adds anything new; too many compiles a minute is said in words.
 
+### Web: the round view (slice 5 web part 2)
+
+`apps/web/src/app/(shell)/round`, `apps/web/src/components/care/RoundTaskActions.tsx`,
+`apps/web/src/lib/round.ts`; tests in `apps/web/src/lib/round.test.ts` and
+`apps/web/e2e/round.spec.ts`.
+
+- `/round/{location}` reads `GET /v1/locations/{id}/round` (the shift running now) and lists it by
+  area, then room: each person's name, room and communication needs; each task's plan action or
+  title, time state in an icon and words, due time, urgent, started and catch-up chips, the
+  earlier-plan notice, and the person's actions that are not rounds. `?person=` shows one person's
+  stops. A view that is not complete says so.
+- Start (`in_progress`), Done and Not done (`skipped`, with a reason of at least 3 characters) go
+  to `POST /v1/tasks/{id}/transition` with the task's version; a task that needs a record links to
+  the person's charts instead. The round opens again saying what was done, with focus there.
+
 ## 7. Clinical safety
 
 Hazards touched: HZ-001 (header on every screen), HZ-002 and HZ-006 (stale data and sync state on
