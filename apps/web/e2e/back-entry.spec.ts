@@ -175,7 +175,8 @@ test("hazard HZ-017 the nurse enters paper records from an outage, each labelled
   await noteSaved(page);
 
   // The other forms offer the same choice: opened and scanned on each.
-  await page.goto(`/people/${BEN}/charts`);
+  // The before-saving notice is for vital signs (NEWS2) readings only.
+  await page.goto(`/people/${BEN}/charts?record=vitals`);
   await main(page).getByRole("radio", { name: PAPER }).check();
   await expect(main(page).getByRole("group", { name: OUTAGE })).toBeVisible();
   await expect(
