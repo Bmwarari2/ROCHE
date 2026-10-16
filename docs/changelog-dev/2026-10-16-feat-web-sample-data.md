@@ -1,6 +1,6 @@
 # Sample data on the web (PLAT-018, HZ-072)
 
-Branch `feat/web-sample-data`, PR #NN. No migration.
+Branch `feat/web-sample-data`, PR #102. No migration.
 
 ## What changed
 
