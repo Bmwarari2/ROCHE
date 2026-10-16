@@ -86,6 +86,7 @@ const ADA = {
   allergies: [{ substance: "Penicillin", severity: "severe", reaction: null }],
   communicationNeeds: [{ code: "fixture-large-print", display: "Requires large print" }],
   communicationNeedsStatus: "recorded",
+  sample: false,
   communicationNeedsConfirmedBy: null,
   communicationNeedsConfirmedAt: null,
   iddsiFoodLevel: "not_recorded",
