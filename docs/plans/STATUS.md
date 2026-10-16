@@ -57,7 +57,8 @@ screens gate; leave draft PR #50 and `feat/mobile-round-screen` alone.
   notifications centre and the evidence pack; the onboarding copy says sample people are left out
   of notifications, but the "a sample incident drafts no statutory notification" test is still
   planned (soften the copy or add the test); the stored files of a removed sample person's
-  documents stay in the bucket; the mobile badge (paused).
+  documents stay in the bucket; after a step-up the onboarding page should return to its
+  sample data section; the mobile badge (paused).
 - `evidence-link.test.ts` "a session for one link opens no other" failed once on #87 and passed on
   re-run with no related change: make it robust.
 - The person-linked family feed is numbered ("1 of 2") until the API can name the person.
