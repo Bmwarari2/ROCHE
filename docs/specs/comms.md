@@ -657,3 +657,15 @@ Audit rows hold ids and codes only, never typed reasons (H-223). The email port 
 has a generic subject ("Your code to open an evidence pack") with the code and guidance in the
 body. Tests: `apps/api/test/letter-templates.test.ts`, `adapters.test.ts`, `evidence-link.test.ts`.
 Next, part 2b: preview, sending and the letters list, with the PDF writer.
+
+Slice 12 (the family feed, schema; migration 0061, after #71's 0060; `feat/comms-family-feed`):
+`packages/db/src/schema/comms.ts`.
+
+| Table or function | Built as |
+| --- | --- |
+| `family_portal_user` | Mutable. A portal account, a person and the contact the decisions name; one open link per account and contact; revoked with a reason, never reopened or deleted. A member always reads their own links; staff read and write them in the person's scope with `people.sharing.manage`. The database refuses a person assignment for a linked account, and a link for an assigned one |
+| `feed_item`, `feed_item_withdrawal`, `feed_view` | Append-only, with the section 2 CHECK constraints. Staff follow the person scope; a family session (`app.family` with a member and scope `none`) sees an update only when `app.family_can_see` allows it and, once taken down, only if it saw it before (`app.family_item_shown`); it writes only its own views, for its own contacts and updates it can see. Updates are published by holders of `comms.feed.publish` and taken down by holders of `comms.feed.withdraw` in their own name where the person lives; the database stamps the times |
+| `app.family_can_see` | Section 2.1, as a definer function owned by `harbour_family_reader` (a new NOLOGIN role; `pnpm db:bootstrap` before migrating), fixed search path, reading only the columns the rule needs. `packages/db/test/family-feed.test.ts` runs it and `checkFeedItemVisibility` over the same table of cases |
+
+Next, the API (`feat/comms-family-feed-api`): portal sessions, `GET /v1/family/feed`, the portal
+links, the staff list and withdrawal; then part 1b, publishing from source records.

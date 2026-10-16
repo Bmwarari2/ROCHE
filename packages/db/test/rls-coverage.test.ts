@@ -38,6 +38,9 @@ const APPEND_ONLY_TABLES = [
   "downtime_pack",
   "evidence_pack_item",
   "letter",
+  "feed_item",
+  "feed_item_withdrawal",
+  "feed_view",
 ];
 /** Audit and history rows may be written before a tenant is chosen. */
 const NULLABLE_TENANT_TABLES = ["audit_event", "record_version"];

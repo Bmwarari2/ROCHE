@@ -559,8 +559,8 @@ family feed; addresses follow the internet and telephone standards named below.
 | `feed_item` confirmation | Harbour | Confirmed by (tenant user id) and reason (plain text, at least `FEED_CONFIRMATION_MIN_REASON_LENGTH` characters) | Only when staff words carry an event or wellbeing term (comms.md rule 12); both set or both empty. |
 | `feed_item.photoDocumentId` | Harbour | Document id | Only for `kind = 'photo'` (CHECK constraint). |
 | `feed_item_withdrawal.reason` | Harbour | `source_corrected`, `published_in_error`, `person_asked`, `photo_consent_withdrawn` | |
-| `feed_view` | Harbour | Item, contact, decision, section, care plan domain, person status, capacity for sharing (`presumed`, `assessed_has_capacity`, `assessed_lacks_capacity`), `viewed_at` (UTC) | The exposure history (comms.md rule 4). |
-| `family_portal_user` | Harbour | Tenant user id and contact id, unique together | The link a portal session is resolved from (ADR-0061); never paired with a `person_assignment`. |
+| `feed_view` | Harbour | Item, contact, decision, section, care plan domain, person status, capacity for sharing (`presumed`, `assessed_has_capacity`, `assessed_lacks_capacity`), `viewed_by` (the portal account), `viewed_at` (UTC) | The exposure history (comms.md rule 4). Section and domain are copied from the update by the database (migration 0061). |
+| `family_portal_user` | Harbour | Tenant user id, person id and contact id (one open link per account and contact); revoked at, by and reason | The link a portal session is resolved from (ADR-0061); never paired with a `person_assignment` (refused by the database both ways); revoked, never deleted (migration 0061). |
 | `family_channel.kind` | Harbour | `email`, `sms`, `push` | |
 | `family_channel.address` | Email: RFC 5321 and 5322 (at most 254 characters); SMS: ITU-T E.164 (`+` and 8 to 15 digits); push: the Expo push token | Text | Proof of the address is the verification, not the format check. |
 | `family_channel.opted_out_via` | Harbour | `sms_reply`, `email_link`, `portal` | SMS replies STOP, STOPALL, UNSUBSCRIBE, CANCEL, END, QUIT opt out; START or UNSTOP opt back in. |

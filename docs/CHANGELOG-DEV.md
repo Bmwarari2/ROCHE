@@ -2132,3 +2132,16 @@ append-only.
 
 **Tests**: `apps/api/test/letter-templates.test.ts` 3 new (the race, an incident follow-up as
 email, cross-tenant).
+
+## 2026-10-17: Slice 12 part 1, the family feed schema (COMMS-001)
+
+- Migration 0061 (after #71's 0060): `family_portal_user`, `feed_item`, `feed_item_withdrawal` and
+  `feed_view` with forced RLS; family sessions (`app.family`, scope `none`); `app.family_can_see`,
+  a definer function owned by the new NOLOGIN role `harbour_family_reader`, mirroring
+  `checkFeedItemVisibility`; an update taken down shows only to a viewer who saw it; no person
+  assignment for a portal account; append-only feed rows (ADR-0061, comms.md section 2.1).
+- Docs: comms.md section 11, HZ-022, records of processing, data standards, the register, STATUS.
+
+**Tests**: `packages/db/test/family-feed.test.ts` (23: 17 table-driven parity cases between the SQL
+and the domain rule, isolation, writes, withdrawals, assignments, constraints); the RLS coverage
+list.
