@@ -126,19 +126,23 @@ test("hazard HZ-008 the nurse compiles this shift's handover, adds a note and ac
   await expectAccessible(page, "handover changed since opened");
   expect(new URL(page.url()).pathname.endsWith(handoverId)).toBe(true);
 
-  // A note on one item, named for what it is about.
-  const itemNote = page
-    .getByRole("region", { name: "Items" })
-    .getByRole("button", { name: /^Add a note about / })
-    .first();
-  if (await itemNote.isVisible()) {
-    await itemNote.click();
-    const items = page.getByRole("region", { name: "Items" });
-    await items.getByLabel("Note", { exact: true }).fill(`Checked by the night nurse (${RUN}).`);
-    await items.getByRole("button", { name: "Save note" }).click();
-    await expect(items.getByText(`Checked by the night nurse (${RUN}).`)).toBeVisible();
-    await expectAccessible(page, "item note added");
-  }
+  // A note on the incident the carer recorded, named for what it is about. It joined the handover
+  // as a late addition, so it is the last incident item.
+  const incidentItem = page
+    .locator('[data-handover-item="incident"]')
+    .filter({ has: page.getByText("Added since it was compiled", { exact: true }) })
+    .last();
+  const itemNote = incidentItem.getByRole("button", {
+    name: "Add a note about this item (Incident)",
+  });
+  await expect(itemNote).toBeVisible();
+  await itemNote.click();
+  await incidentItem
+    .getByLabel("Note", { exact: true })
+    .fill(`Checked by the night nurse (${RUN}).`);
+  await incidentItem.getByRole("button", { name: "Save note" }).click();
+  await expect(incidentItem.getByText(`Checked by the night nurse (${RUN}).`)).toBeVisible();
+  await expectAccessible(page, "item note added");
 
   // Acknowledged as shown: the page says so and where the nurse now stands.
   await read.getByRole("button", { name: "I have read this handover" }).click();
