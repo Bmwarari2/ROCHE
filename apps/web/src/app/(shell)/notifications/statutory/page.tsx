@@ -64,14 +64,14 @@ function Item({
         <SafetyChip chip={notificationClockChip(item, now, t)} />
         {status ? <SafetyChip chip={status} /> : null}
       </span>
-      <span id={describedBy} className="flex flex-col gap-1">
+      <div id={describedBy} className="flex flex-col gap-1">
         {subject ? <span>{subject}</span> : null}
         {person ? <PersonNeeds person={person} /> : null}
         {lines.map((line) => (
           <When key={line.text} line={line} />
         ))}
         <span className="text-body-dense text-text-secondary">{location}</span>
-      </span>
+      </div>
       <span className="text-body-dense text-text-secondary">
         {t("safety.notification.recipient", { kind: item.kind })}
       </span>
