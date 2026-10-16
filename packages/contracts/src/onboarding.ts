@@ -102,3 +102,12 @@ export const Dcb0160Recording = z
 export const OnboardingDecisionRecorded = z
   .object({ id: z.uuid(), decidedAt: isoDateTime })
   .meta({ id: "OnboardingDecisionRecorded" });
+
+/** A sample data batch loaded or removed (platform-completions.md rules 29 to 32). */
+export const SampleDataBatch = z
+  .object({
+    batchId: z.uuid(),
+    people: z.number().int().min(0),
+  })
+  .meta({ id: "SampleDataBatch" });
+export type SampleDataBatch = z.infer<typeof SampleDataBatch>;

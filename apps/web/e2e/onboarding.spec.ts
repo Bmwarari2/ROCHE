@@ -48,7 +48,13 @@ test("the Registered Manager reads the checklist and is offered no decision", as
     0,
   );
   // A go-live item Harbour cannot check yet says so, and blocks.
-  await expect(item(page, "Sample data is removed")).toContainText("Not done: blocks go-live");
+  await expect(
+    item(page, "Shared and kiosk devices are enrolled in device management"),
+  ).toContainText("Not done: blocks go-live");
+  // Sample data is read from the records: the demo organisation has none in place, so it is done
+  // (the sample data journey shows it blocking while a batch is loaded).
+  await expect(item(page, "Sample data is removed")).toContainText("Done");
+  await expect(item(page, "Sample data is removed")).not.toContainText("Not done");
   await expectAccessible(page, "onboarding checklist, read only");
 });
 

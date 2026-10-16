@@ -1,6 +1,6 @@
 {
-  "id": "5f0846c1-1a1f-41e1-943b-e11897236f7e",
-  "prevId": "f0e6382c-74ee-46cf-8e80-917dee0852e1",
+  "id": "a63b808b-5261-4530-b6c8-b2781dbcfc03",
+  "prevId": "d417ed7b-2294-4e99-ad95-b44ab360d418",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -12004,6 +12004,19 @@
           "notNull": true,
           "default": "now()"
         },
+        "is_sample": {
+          "name": "is_sample",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "sample_batch_id": {
+          "name": "sample_batch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -12104,6 +12117,21 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
+        "person_sample_batch_fk": {
+          "name": "person_sample_batch_fk",
+          "tableFrom": "person",
+          "tableTo": "sample_batch",
+          "columnsFrom": [
+            "tenant_id",
+            "sample_batch_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "person_location_fk": {
           "name": "person_location_fk",
           "tableFrom": "person",
@@ -12186,6 +12214,10 @@
       },
       "policies": {},
       "checkConstraints": {
+        "person_sample": {
+          "name": "person_sample",
+          "value": "is_sample = (sample_batch_id IS NOT NULL)"
+        },
         "person_communication_needs_status": {
           "name": "person_communication_needs_status",
           "value": "communication_needs_status IN ('not_recorded', 'none_identified', 'recorded')"
@@ -23968,6 +24000,149 @@
           "value": "retention_class IN ('serious_incident', 'riddor_report')"
         }
       },
+      "isRLSEnabled": false
+    },
+    "public.sample_batch": {
+      "name": "sample_batch",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "loaded_by": {
+          "name": "loaded_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_user_id()"
+        },
+        "loaded_at": {
+          "name": "loaded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "people": {
+          "name": "people",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "removed_by": {
+          "name": "removed_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "removed_at": {
+          "name": "removed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        }
+      },
+      "indexes": {
+        "sample_batch_one_open_key": {
+          "name": "sample_batch_one_open_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "removed_at IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "sample_batch_tenant_id_tenant_id_fk": {
+          "name": "sample_batch_tenant_id_tenant_id_fk",
+          "tableFrom": "sample_batch",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "sample_batch_loaded_by_fk": {
+          "name": "sample_batch_loaded_by_fk",
+          "tableFrom": "sample_batch",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "loaded_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "sample_batch_removed_by_fk": {
+          "name": "sample_batch_removed_by_fk",
+          "tableFrom": "sample_batch",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "removed_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "sample_batch_tenant_id_id_key": {
+          "name": "sample_batch_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.sub_processor_notice": {

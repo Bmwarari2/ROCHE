@@ -24,7 +24,8 @@ export type LoginRole = (typeof LOGIN_ROLES)[number];
  * 0054), `harbour_evidence_link_reader` (an evidence pack link found by its token; migration 0057),
  * `harbour_family_reader` (whether a family session may see a feed update, `app.family_can_see`;
  * migration 0061), `harbour_notice_resolver` (Thapsus reading and resolving objections to
- * sub-processor notices; migration 0067).
+ * sub-processor notices; migration 0067), `harbour_sample_owner` (counting sample and real people
+ * and removing a sample batch; migration 0069).
  */
 export const NOLOGIN_ROLES = [
   "harbour_membership_reader",
@@ -32,6 +33,7 @@ export const NOLOGIN_ROLES = [
   "harbour_evidence_link_reader",
   "harbour_family_reader",
   "harbour_notice_resolver",
+  "harbour_sample_owner",
 ] as const;
 
 export type RolePasswords = Record<LoginRole, string>;
@@ -78,6 +80,7 @@ export async function bootstrapRoles(client: Client, passwords: RolePasswords): 
   );
   await client.query("GRANT harbour_family_reader TO harbour_owner WITH INHERIT FALSE, SET TRUE");
   await client.query("GRANT harbour_notice_resolver TO harbour_owner WITH INHERIT FALSE, SET TRUE");
+  await client.query("GRANT harbour_sample_owner TO harbour_owner WITH INHERIT FALSE, SET TRUE");
   // PowerSync needs logical replication. RDS does not allow the REPLICATION attribute and uses
   // the rds_replication role instead.
   try {

@@ -223,7 +223,8 @@ async function writeTable(
               certificateId: certificates.get(String(row.id)) ?? null,
             }
           : null,
-        sample: false,
+        // Sample people are not the organisation's data (rule 31): left out and counted.
+        sample: isPerson ? row.is_sample === true : false,
       });
       if (format === "csv" && decision.action === "list_as_destroyed") {
         destroyed.push({
@@ -237,6 +238,7 @@ async function writeTable(
         if (decision.action !== "include") {
           if (decision.action === "exclude" && decision.reason === "soft_deleted")
             counts.softDeleted += 1;
+          if (decision.action === "exclude" && decision.reason === "sample") counts.sample += 1;
           continue;
         }
         counts.included += 1;

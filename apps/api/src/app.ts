@@ -63,6 +63,7 @@ import {
 } from "./routes/platform";
 import { createRefusedEntriesRouter } from "./routes/refused-entries";
 import { roundsRouter } from "./routes/rounds";
+import { sampleDataRouter } from "./routes/sample-data";
 import { searchRouter } from "./routes/search";
 import { sessionsRouter } from "./routes/sessions";
 import { statementOfPurposeRouter } from "./routes/statement-of-purpose";
@@ -266,6 +267,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", dpiaRouter);
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
+  app.route("/", sampleDataRouter);
   app.route("/", operatorInvitationsRouter);
   app.route("/", operatorSubProcessorsRouter);
 

@@ -180,6 +180,18 @@ only when they link spec, code, tests and user documentation; no user guides exi
      the timing check and tell each affected organisation; read and resolve objections only
      through definer functions owned by the new NOLOGIN role `harbour_notice_resolver` (run
      `pnpm db:bootstrap` before migrating). Next: sample data mode, then the web screens.
+   - Sample data mode for people (`feat/platform-sample-data`, migration 0069 after #95's 0067
+     and #97's 0068; rules 29 to 32, HZ-072): `sample_batch` and the person sample flag;
+     `POST` and `DELETE /v1/onboarding/sample-data` load one batch of invented people before any
+     real person exists and remove it in one step through `app.remove_sample_batch`, owned by the
+     new NOLOGIN role `harbour_sample_owner` (run `pnpm db:bootstrap` before migrating); the
+     `person_sample_guard` trigger keeps real and sample people apart whichever role writes; the
+     checklist item reads the records; the full export leaves sample people out. Open: the web
+     badge, banner and load and remove buttons (the people streams now carry `is_sample` for the
+     badge; mobile sync is paused); sample flags on records about sample people for the other
+     surfaces (removal already takes those records with the people); the downtime pack and other
+     surfaces calling `forSurface`; the stored files of a removed sample person's documents stay in
+     the documents bucket until a sweep for files with no row exists.
    - Slice 13, the onboarding checklist, part 1 (`feat/platform-onboarding-records`, migration
      0064 after #81's 0063; platform-completions.md section 10e): append-only setting, retention
      and DCB0160 decision records with forced RLS, the staff file option, and the decision rules.

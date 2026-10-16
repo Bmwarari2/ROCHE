@@ -43,8 +43,9 @@ import { roleHolders, roleInForce } from "./role-holders";
  * The organisation's state as the onboarding checklist reads it (platform-completions.md rules
  * 26 and 27; `onboardingChecklist`). Everything comes from records, never a box ticked. Where the
  * schema does not hold a fact yet, the state says so plainly rather than guessing done: device
- * modes and device management arrive with the kiosk work, the sample flag with sample data mode
- * (rules 29 to 32; both unknown until then, so their go-live items stay open), and the opt-out check date with the people module, so until then every current person counts as
+ * modes and device management arrive with the kiosk work (unknown until then, so their go-live
+ * items stay open), and the opt-out check date with the people module, so until then every current
+ * real person counts as
  * not checked, and a recorded "no decision in place" resuscitation statement counts only once the
  * care module stores one.
  */
@@ -52,6 +53,19 @@ import { roleHolders, roleInForce } from "./role-holders";
 type TenantRow = typeof tenant.$inferSelect;
 
 const PERSON_STATUSES_READ: readonly PersonStatus[] = ["active", "on_leave", "in_hospital"];
+
+/**
+ * Whether the whole organisation has sample data in place and whether it has any real person
+ * (soft-deleted too), read as app.sample_people: yes or no only, whatever the reader's scope.
+ */
+export async function sampleDataState(
+  tx: Transaction,
+): Promise<{ hasSample: boolean; hasReal: boolean }> {
+  const { rows } = await tx.execute<{ has_sample: boolean; has_real: boolean }>(
+    sql`SELECT has_sample, has_real FROM app.sample_people()`,
+  );
+  return { hasSample: rows[0]?.has_sample === true, hasReal: rows[0]?.has_real === true };
+}
 
 /** Whether each member has a second factor: an authenticator app or a passkey. */
 async function mfaEnrolled(authPool: pg.Pool, authUserIds: readonly string[]) {
@@ -166,6 +180,7 @@ export async function onboardingStateFor(
       status: person.status,
       photoDocumentId: person.photoDocumentId,
       allergyStatus: person.allergyStatus,
+      isSample: person.isSample,
       communicationNeedsStatus: person.communicationNeedsStatus,
       iddsiFoodLevel: personCareProfile.iddsiFoodLevel,
       iddsiDrinkLevel: personCareProfile.iddsiDrinkLevel,
@@ -276,17 +291,18 @@ export async function onboardingStateFor(
     ),
     dataOptOut: {
       usesDataBeyondDirectCare: t.usesDataBeyondDirectCare,
-      peopleNotChecked: people.length,
+      peopleNotChecked: people.filter((p) => !p.isSample).length,
     },
-    // Not recorded yet: unknown, so these go-live items stay open (fail closed).
-    sampleDataPresent: null,
+    // The whole organisation, whatever the reader's scope (rule 30; app.sample_people).
+    sampleDataPresent: (await sampleDataState(tx)).hasSample,
+    // Not recorded yet: unknown, so this go-live item stays open (fail closed).
     devices: null,
     escalationChains: chains.map((c) => ({ key: c.key, steps: c.steps as EscalationStep[] })),
     validatedTools: validatedToolsWithLinks(tools, await escalationLinks(tx), activeLocationIds),
     people: people.map((p) => ({
       id: p.id,
       status: p.status,
-      sample: false,
+      sample: p.isSample,
       hasPhoto: p.photoDocumentId !== null,
       allergyStatus: p.allergyStatus,
       resuscitation: resuscitation.has(p.id) ? "recorded" : "not_recorded",
