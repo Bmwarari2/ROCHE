@@ -2077,6 +2077,23 @@ deleted bundle, the cookie); `packages/db/test/evidence-pack.test.ts` 2 new.
   whole handover (UUIDv7 per note); who has read it; acknowledging it as shown, with the page
   reloading when items were added since (HZ-018, H-269).
 
+
+## 2026-10-16: Slice 11, letter and email template schema (COMMS-007, part 1)
+
+Migration 0059 adds `letter_template`, `letter_template_version` and `letter` (comms.md section 11)
+with forced RLS and the tenant policy: templates for holders of the template or letter
+permissions; versions along `TEMPLATE_WORKFLOW`, fixed once approved and approved never by their
+author or an editor, superseding the version in use; letters append-only, in the person's scope,
+only from an approved version on its channel, to the person or one of their own contacts, with
+the retention class tied to the incident grade.
+
+- Domain: export catalogue entries for the three tables.
+- Docs: comms.md section 11, retention.md, data standards, records of processing, HZ-051 rows,
+  feature register, STATUS.
+
+**Tests**: `packages/db/test/letter-templates.test.ts` (8); RLS coverage lists `letter` as
+append-only.
+
 ## 2026-10-17: Slice 5 web part 2, the round view (CARE-013)
 
 - Round in the navigation for those who read care plans; the location's open tasks for the shift
