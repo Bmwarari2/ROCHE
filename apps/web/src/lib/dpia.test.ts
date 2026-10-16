@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { dpiaChip, dpiaShown, prefillOf, readDraft, readSettings } from "./dpia";
 import { t } from "./i18n";
+import { problemMessage } from "./outcome";
 
 const form = (values: Record<string, string>) => ({ get: (name: string) => values[name] ?? null });
 
@@ -84,6 +85,15 @@ describe("the DPIA page", () => {
         dpaSignedOn: "2026-09-01",
         expectedVersion: 3,
       },
+    });
+  });
+
+  it("says a refused signature in the API's own words, every problem at once", () => {
+    const detail =
+      "Only the data protection lead can sign the DPIA. Some sections still need your answers.";
+    expect(problemMessage({ code: "dpia_not_signable", detail }, t)).toEqual({
+      code: "dpia_not_signable",
+      message: detail,
     });
   });
 });
