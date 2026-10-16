@@ -23,8 +23,16 @@ Branch `fix/db-definer-function-acls`.
 
 ## Human actions logged
 
-- None.
+- H-372: confirm Supabase's `anon` and `authenticated` roles never had USAGE on schema `app` in dev
+  and staging.
 
 ## Tests
 
 - `definer-acls.test.ts` (3), failing without 0068 and passing with it; db suite.
+
+## Review rounds
+
+- Round 1: `migration-journal.test.ts` (idx and `when` strictly increase, tags match their idx,
+  files exist; 0068's entry given idx 68); a STATUS security note; an HZ-011 control and test row;
+  H-372. After #95 lands: a check that every listed function exists and is SECURITY DEFINER, by
+  full signature.

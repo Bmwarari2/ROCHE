@@ -28,7 +28,6 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   "app.sweep_expired_invitations": ["harbour_worker"],
   "app.unlinked_invitation_sign_ins": ["harbour_worker"],
   // Sub-processor notices (#95, migration 0067).
-  "app.notice_resolver_admin": [],
   "app.announce_sub_processor_notice": ["harbour_operator"],
   "app.sub_processor_objections": ["harbour_operator"],
   "app.resolve_sub_processor_objection": ["harbour_operator"],
