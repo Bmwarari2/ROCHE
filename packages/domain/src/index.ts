@@ -66,6 +66,7 @@ export * from "./platform/forms";
 export * from "./platform/invitations";
 export * from "./platform/notifications";
 export * from "./platform/onboarding";
+export * from "./platform/passwords";
 export * from "./platform/permissions";
 export * from "./platform/processing-register";
 export * from "./platform/rates";
