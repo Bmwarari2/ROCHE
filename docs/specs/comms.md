@@ -695,6 +695,14 @@ contracts in `packages/contracts/src/family-feed.ts`.
 | `GET`/`POST /v1/people/{id}/family-portal-links`, `.../{linkId}/revoke` | `people.sharing.manage`: only an account holding portal roles alone, whose verified email is the contact's email, can be linked (otherwise 422 `account_not_contact`, audited); `comms.portal_link.create`, `.revoke`, `.list`. The sharing decisions themselves are the people-sharing routes |
 | `GET /v1/people/{id}/feed`, `POST /v1/feed-items/{id}/withdraw` | `comms.feed.publish` or `.withdraw` to list (with any withdrawal); `.withdraw` to take one down (`checkFeedWithdrawal`, once, 409 after); `comms.feed.item_withdrawn` audit and outbox event |
 
-Next, part 1b: `POST /v1/people/{id}/feed` (compose and publish from a source record with
-`composeFeedItem`, `care_note_share`, the publishing holds and the photo basis) and
-`GET /v1/people/{id}/feed/exposure`. Then part 2, the web feed and staff screens.
+Slice 12 (the family feed, part 1b, publishing; `feat/comms-feed-publish`):
+`apps/api/src/routes/feed-publish.ts`, `apps/api/src/services/feed-publish.ts`.
+
+| Route | Built as |
+| --- | --- |
+| `POST /v1/people/{id}/feed` | `comms.feed.publish` where the person lives (the database checks it again). One update from one of the person's own records: a care note shared in words written for the family (publishing them is the marking of rule 8, by the publisher, now; the note's own words never pass through, so `care_note_share` is not needed), an activity in approved phrasing, or a photo document of the person (an image, available) chosen by the publisher, who says nobody else can be recognised. `composeFeedItem` with the residents at the location, the staff (first names only until the tenant setting, H-107), the publishing holds (an open incident whose family is not recorded as told holds publishing until safety exposes the next-of-kin step; open candour steps) and the photo basis, all read in the system's view and never returned. A photo needs the person's consent to photos (rule 6; master prompt 5.1); a best-interests basis waits for its schema (H-106). Event and wellbeing words need `confirmationReason`. The id is the form's UUID: a retry returns the update (200). Audited `comms.feed.item_published` and `comms.feed.publish_refused` with ids and problem codes only; outbox `comms.feed.item_published` |
+| `GET /v1/family/feed` | Now reads the photo basis, so photo updates show only while the consent holds |
+
+Who sees an update is still decided by the sharing decisions (`app.family_can_see`, then
+`buildFamilyFeed`). Next: `GET /v1/people/{id}/feed/exposure`, visits and care plan updates as
+sources, then part 2, the web feed and staff screens.

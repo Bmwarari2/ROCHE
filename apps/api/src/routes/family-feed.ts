@@ -37,6 +37,7 @@ import { type AppEnv, requireAnyPermission, requirePermission, withTenant } from
 import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
 import { accessRowsOf } from "../services/access-rows";
+import { photoBasisOf } from "../services/feed-publish";
 import { loadPerson, requireVersion, requireWrite } from "../services/people";
 import { decisionsWithLinks, sharingContext } from "../services/sharing";
 import {
@@ -116,6 +117,8 @@ async function viewerContextOf(tx: Transaction, personId: string, now: Date) {
     status: (row?.status ?? "archived") as PersonStatus,
     capacityNow: context.capacityNow,
     decisions: await decisionsWithLinks(tx, personId, context),
+    // Photos are shown only while the person's consent to them holds (rule 6).
+    photoBasis: await photoBasisOf(tx, personId, now),
   };
 }
 
@@ -239,8 +242,7 @@ export const familyFeedRouter = createRouter()
             contactId: link.contactId,
             decisions: viewer?.decisions ?? [],
             capacityForSharingNow: viewer?.capacityNow ?? "presumed",
-            // Photos stay closed until their basis is read here (part 1b).
-            photoBasis: null,
+            photoBasis: viewer?.photoBasis ?? null,
             now,
           },
           seen,

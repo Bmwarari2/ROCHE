@@ -2343,3 +2343,14 @@ fetch untaken, another holder, another organisation's id); `packages/db/test/ten
 **Tests**: `apps/web/src/lib/exports.test.ts`; `apps/web/e2e/export.spec.ts` (3, axe on every
 state).
 
+## 2026-10-17: Slice 12 part 1b, publishing family updates (COMMS-001)
+
+- API: `POST /v1/people/{id}/feed` publishes one update from a care note (in words written for the
+  family), an activity (approved phrasing) or a photo (with the person's consent to photos, and
+  nobody else recognisable), through `composeFeedItem` with the residents, staff, publishing holds
+  and photo basis read in the system's view; the form's UUID makes a retry return the update;
+  audit and outbox with ids and codes only. `GET /v1/family/feed` reads the photo basis.
+- Docs: comms.md section 11, HZ-022, records of processing, data standards, STATUS.
+
+**Tests**: `apps/api/test/feed-publish.test.ts` (6).
+
