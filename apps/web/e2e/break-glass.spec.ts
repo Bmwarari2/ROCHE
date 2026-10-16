@@ -1,5 +1,5 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
-import { addManagerPasskey, expectAccessible, MEWS_PERSON, signIn } from "./support";
+import { addDemoPasskey, expectAccessible, MEWS_PERSON, signIn } from "./support";
 
 /**
  * Hazards HZ-011 and HZ-073 (ADR-0071 review rounds 2 and 3, C2-M2 and C3-M1): a record opened
@@ -48,7 +48,7 @@ test("hazard HZ-073 a record opened by break-glass offers no form to record in o
 }) => {
   // A password alone never steps up (ADR-0072 amendment, HZ-112): the manager is asked to confirm
   // with their passkey, does, and comes back to the record.
-  await addManagerPasskey(page);
+  await addDemoPasskey(page);
   await signIn(page, "manager@example.invalid");
 
   const openByBreakGlass = async () => {

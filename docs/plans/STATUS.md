@@ -150,8 +150,12 @@ only when they link spec, code, tests and user documentation; no user guides exi
      "family not recorded as told"; the staff-name tenant setting (H-107). Part 2a
      (`feat/web-family-feed`, stacked on part 1b): the preview route and the staff "Family updates"
      tab (choose a record, words for the family, problems at each field, preview, publish once,
-     take down with a reason), with a Playwright journey. Next, part 2b, the family's portal page;
-     then channels, notifications and visit booking. Open: the portal feed names no person (a family session cannot read `person`), so
+     take down with a reason), with a Playwright journey. Part 2b (`feat/web-family-portal`,
+     stacked on 2a): the family's `/updates` page (statement, time checked, updates, taken-down
+     notices; a closed feed reads as no decision), a family member's home, and a demo portal
+     account for the journeys. Follow-up: name the person on each feed once the API returns a
+     name the decision allows (numbered for now; HZ-001). Then channels, notifications and visit
+     booking. Open: the portal feed names no person (a family session cannot read `person`), so
      part 2 needs a name the decision allows (HZ-001); tables with only the tenant policy
      (`tenant_user`, `location`, roles) are readable by any member including a portal session,
      as for staff with scope `none`, and need a review before the portal goes live.
@@ -160,6 +164,10 @@ only when they link spec, code, tests and user documentation; no user guides exi
      platform-completions.md section 10d): `dpia` versions with forced RLS and a guard (signed by
      the named lead who prepared none of it, never changed after), the tenant's data protection
      governance, and the prepare, save, sign and settings routes.
+   - Slice 13, sub-processor notices, organisation side (`feat/platform-sub-processor-notices`,
+     migration 0065; platform-completions.md section 10h): notices and append-only responses with
+     forced RLS; the named lead acknowledges or objects within the window; the checklist reads
+     the acknowledgements. Next: the operator side, then sample data mode.
    - Slice 13, the onboarding checklist, part 1 (`feat/platform-onboarding-records`, migration
      0064 after #81's 0063; platform-completions.md section 10e): append-only setting, retention
      and DCB0160 decision records with forced RLS, the staff file option, and the decision rules.

@@ -13,12 +13,15 @@ import {
   mayProcessTenantData,
   type NoticeResponse,
   type NoticeState,
+  noticeResponseFrom,
   noticeStateFor,
   objectionWindowEndsAt,
+  type StoredNoticeResponse,
   SUB_PROCESSORS,
   type SubProcessorConfig,
   type SubProcessorKey,
   type SubProcessorNotice,
+  subProcessorAcknowledgementsFrom,
   subProcessorsInUse,
 } from "./sub-processors";
 
@@ -400,5 +403,77 @@ describe("sub-processor change notices", () => {
       rates: RATES,
     });
     expect(result).toMatchObject({ ok: false, problem });
+  });
+});
+
+describe("rules 24 and 25 responses as stored, append-only", () => {
+  const at = (day: number) => new Date(Date.UTC(2026, 9, day, 9));
+  const row = (
+    kind: StoredNoticeResponse["kind"],
+    day: number,
+    extra: Partial<StoredNoticeResponse> = {},
+  ): StoredNoticeResponse => ({
+    subProcessorKey: "sentry",
+    noticeId: "n1",
+    kind,
+    grounds: kind === "objected" ? "Outside the UK without our agreement" : null,
+    resolution: null,
+    respondedAt: at(day),
+    ...extra,
+  });
+
+  it.each<[string, StoredNoticeResponse[], ReturnType<typeof noticeResponseFrom>]>([
+    ["no response", [], { acknowledgedAt: null, objection: null }],
+    [
+      "the latest acknowledgement",
+      [row("acknowledged", 2), row("acknowledged", 5), row("acknowledged", 3, { noticeId: "n2" })],
+      { acknowledgedAt: at(5), objection: null },
+    ],
+    [
+      "an open objection",
+      [row("objected", 4)],
+      {
+        acknowledgedAt: null,
+        objection: {
+          at: at(4),
+          grounds: "Outside the UK without our agreement",
+          resolvedAt: null,
+          resolution: null,
+        },
+      },
+    ],
+    [
+      "an objection resolved after it was made",
+      [
+        row("objection_resolved", 1, { resolution: "services_ended" }),
+        row("objected", 4),
+        row("objection_resolved", 6, { resolution: "objection_withdrawn" }),
+      ],
+      {
+        acknowledgedAt: null,
+        objection: {
+          at: at(4),
+          grounds: "Outside the UK without our agreement",
+          resolvedAt: at(6),
+          resolution: "objection_withdrawn",
+        },
+      },
+    ],
+  ])("reads %s", (_, rows, expected) => {
+    expect(noticeResponseFrom("n1", rows)).toEqual(expected);
+  });
+
+  it("gives the checklist the latest acknowledgement of each sub-processor, from any notice or the register", () => {
+    expect(
+      subProcessorAcknowledgementsFrom([
+        row("acknowledged", 2, { noticeId: null }),
+        row("acknowledged", 7),
+        row("objected", 9),
+        row("acknowledged", 3, { subProcessorKey: "aws_hosting", noticeId: null }),
+      ]),
+    ).toEqual([
+      { key: "sentry", acknowledgedAt: at(7) },
+      { key: "aws_hosting", acknowledgedAt: at(3) },
+    ]);
   });
 });

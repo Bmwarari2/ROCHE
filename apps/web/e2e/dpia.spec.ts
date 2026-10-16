@@ -1,5 +1,5 @@
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
-import { expectAccessible, signIn, signInManagerWithPasskey } from "./support";
+import { expectAccessible, signIn, signInWithDemoPasskey } from "./support";
 
 /**
  * The DPIA in-app (PLAT-023; platform-completions.md rules 17 to 22) against the demo tenant. The
@@ -33,7 +33,7 @@ test.beforeAll(async ({ browser }, testInfo) => {
 });
 
 async function asOwner(page: Page) {
-  await signInManagerWithPasskey(page, "owner");
+  await signInWithDemoPasskey(page, "owner");
   await page.goto(PAGE);
   await expect(page.getByRole("heading", { level: 1, name: "Data protection" })).toBeVisible();
 }

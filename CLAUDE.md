@@ -8,7 +8,8 @@ Multi-tenant platform for UK adult social care (Thapsus Cargo Ltd). The master s
 ## Start of every session
 
 Read `docs/plans/STATUS.md` and `docs/specs/feature-register.md`, pick the next incomplete item, and
-at the end update both and append a summary to `docs/CHANGELOG-DEV.md` (section 20 rule 9).
+at the end update both and add a dated file under `docs/changelog-dev/` (section 20 rule 9, as
+[ADR-0073](docs/decisions/0073-changelog-fragments.md) applies it; `docs/CHANGELOG-DEV.md` is frozen).
 
 ## Run and test
 

@@ -1,7 +1,7 @@
 /**
  * Where the demo seed's test-only switches may run (#63 security review of 13f170b).
  *
- * `HARBOUR_DEMO_E2E_PASSKEY=1` gives manager@example.invalid and owner@example.invalid each a passkey whose private key anyone can
+ * `HARBOUR_DEMO_E2E_PASSKEY=1` gives manager@example.invalid, owner@example.invalid and the family member relative.example@example.invalid each a passkey whose private key anyone can
  * derive from a published phrase, and that passkey passes MFA and step-up (break-glass, statutory
  * notifications, export). `HARBOUR_DEMO_MFA=off` lets every demo user open care records with a
  * password alone. Both are for a throwaway local or CI database only: never dev, staging or a

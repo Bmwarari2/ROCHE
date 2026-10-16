@@ -1,5 +1,5 @@
 import { type APIRequestContext, expect, type Page, test } from "@playwright/test";
-import { demoPerson, expectAccessible, signIn, signInManagerWithPasskey } from "./support";
+import { demoPerson, expectAccessible, signIn, signInWithDemoPasskey } from "./support";
 
 /**
  * Phase 1 slice 9: reviewing and closing an incident, and preparing and submitting its statutory
@@ -158,7 +158,7 @@ test("hazard HZ-013 hazard HZ-091 the manager is refused in words on a stale pag
 test("hazard HZ-013 hazard HZ-091 the manager prepares a death notification and records it as submitted", async ({
   page,
 }) => {
-  await signInManagerWithPasskey(page);
+  await signInWithDemoPasskey(page);
   const incident = await call(page.request, "/v1/incidents", {
     locationId: DEMO_LOCATION,
     type: "fall",
@@ -247,7 +247,7 @@ test("hazard HZ-013 hazard HZ-091 what to do first, then not required on a stale
   const path = `/v1/notifications/statutory/${police?.id}`;
 
   // The incident page lists what to do first, the draft linked, and offers no close form.
-  await signInManagerWithPasskey(page);
+  await signInWithDemoPasskey(page);
   await page.goto(`/incidents/${incident.id}`);
   const manage = card(page, "Review and close");
   await expect(manage.getByText("Before it can close")).toBeVisible();
@@ -282,7 +282,7 @@ test("hazard HZ-013 hazard HZ-091 what to do first, then not required on a stale
 test("hazard HZ-013 not required on a notification Harbour found needed asks for more", async ({
   page,
 }) => {
-  await signInManagerWithPasskey(page);
+  await signInWithDemoPasskey(page);
   const incident = await call(page.request, "/v1/incidents", {
     locationId: DEMO_LOCATION,
     type: "fall",

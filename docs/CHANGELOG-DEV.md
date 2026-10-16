@@ -1,5 +1,9 @@
 # Development log
 
+> **Frozen on 2026-10-16.** New entries are one file per pull request in
+> [docs/changelog-dev/](changelog-dev/README.md) ([ADR-0073](decisions/0073-changelog-fragments.md)).
+> Do not append here; this file is the history before that date.
+
 One entry per working session (section 20 rule 9): what changed, what is next, human actions
 logged, test status.
 
@@ -2483,50 +2487,24 @@ be read are said so; tests for a record corrected between preview and publishing
 preview, and Playwright states for words to confirm, a photo without consent, a refused publish and
 a hold, each with axe. Tests: `feed-publish.test.ts` 18; `family-updates.spec.ts` 3.
 
-## 2026-10-17: Slice 13 web, the DPIA page (PLAT-023)
+## 2026-10-17: Slice 13, sub-processor notices, organisation side (PLAT-023, rules 24 and 25)
 
-- Web: `/settings/data-protection` shows where the DPIA stands (icon and word), what Harbour still
-  needs and why a review is due; the owner sets the governance and names the lead; the Registered
-  Manager answers, rates the risks and marks it ready to sign; the named lead signs with a typed
-  name bound to the version's SHA-256. Step-up notices for naming a different lead and for
-  signing. All strings through i18n (Welsh pending).
-- Seed: the demo organisation has a CQC provider ID, so its DPIA can be signed.
-- Docs: platform-completions.md section 10f, feature register, STATUS.
+- Migration 0065: `sub_processor_notice` (Thapsus's, read by all, announced only by the operator
+  role, never changed) and `sub_processor_response` (append-only; only the named data protection
+  lead holding `platform.dpia.sign` acknowledges or objects; Thapsus records resolutions).
+- Domain: `noticeResponseFrom` and `subProcessorAcknowledgementsFrom`, table-driven.
+- API: the sub-processors in use with their notices and states; acknowledge (register or notice)
+  and object within the window, step-up, audited without the grounds. The onboarding checklist
+  reads the acknowledgements, and a later notice reopens one.
+- Docs: platform-completions.md section 10h, records of processing, data standards, retention,
+  feature register, STATUS.
 
-**Tests**: `apps/web/src/lib/dpia.test.ts` (9), `components/dpia/DpiaFeedback.test.tsx` (2),
-`apps/web/e2e/dpia.spec.ts` (3, with axe on each state).
+**Tests**: `apps/api/test/sub-processors.test.ts` (6), `sub-processors.test.ts` stored responses (5).
 
-## 2026-10-17: The DPIA page, review of #89
+## 2026-10-17: Sub-processor notices, review of #92
 
-- The signing form is offered only to the named lead who prepared none of the version; the draft
-  form says each refusal at its field (a risk that stays high needs the ICO reference); the
-  status card is its own component, checked with axe when not started with details missing and
-  when a review is due; axe on the Registered Manager's view in the journey.
-- `db:seed` refuses to seed the demo tenant in production unless `HARBOUR_SEED_DEMO=0`.
-- Logged: the typed name is not checked against the signer's account.
-
-**Tests**: `lib/dpia.test.ts` (7 more), `components/dpia/DpiaStatus.test.tsx` (2).
-
-## 2026-10-17: Slice 13 web, the onboarding checklist page (PLAT-018)
-
-- Web: `/settings/onboarding` ("Getting started") shows progress, what blocks go-live and each
-  item as an icon and words with its reason; people still outstanding link to their records with
-  what they lack. The owner accepts settings, decides retention, chooses the staff file option
-  and records the DCB0160 assessment on the page; refusals show the API's words (also for a
-  refused DPIA signature).
-- Docs: platform-completions.md section 10g, feature register, STATUS.
-
-**Tests**: `apps/web/src/lib/onboarding.test.ts` (13), `apps/web/e2e/onboarding.spec.ts` (2, with
-axe on each state).
-
-## 2026-10-17: The onboarding checklist page, review of #90
-
-- Each setting shows the figure being accepted (the checklist response gains `settings`).
-- A clinical setting is accepted, and DCB0160 recorded, only naming the clinical lead or CSO who
-  reviewed or assessed it (`reviewedBy`, `assessedBy`: active members, in the audit event;
-  `reviewer_required`, `reviewer_not_member`; HZ-027), with a confirmation step on the page.
-- People links meet the 44 px target. Logged: raw keys and English reasons before Welsh or a
-  pilot; the reviewer is kept in the audit event, not yet in the decision tables.
-
-**Tests**: domain reviewer tables (6), `onboarding-decisions.test.ts` (clinical reviewer, DCB0160
-assessor), the journey (a clinical setting refused without its reviewer, then accepted).
+- Responses are read through roles only; objection grounds go to DPIA permission holders only.
+- No register acknowledgement while a notice about the sub-processor has an open objection.
+- Each notice's window uses the notice period in force on the UK date it was announced.
+- Tests: step-up, a non-lead holding `platform.dpia.sign`, another organisation's lead (API and
+  database), and the operator role refused anything but a resolution.
