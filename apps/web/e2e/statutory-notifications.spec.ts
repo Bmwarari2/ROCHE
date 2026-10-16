@@ -120,7 +120,9 @@ test("hazard HZ-013 the nurse finds an overdue notification and reads its deadli
   await expect(section(page, "Submitted or not required")).toBeVisible();
   const link = todo.locator(`a[href="/notifications/statutory/${id}"]`);
   await expect(link).toHaveText("Incident reported to or investigated by the police");
-  const item = todo.getByRole("listitem").filter({ has: link });
+  const item = todo
+    .getByRole("listitem")
+    .filter({ has: page.locator(`a[href="/notifications/statutory/${id}"]`) });
   await expect(item.getByText(/^Overdue for \d+ (minute|minutes|hour|hours)$/)).toBeVisible();
   await expect(item.getByText("Draft", { exact: true })).toBeVisible();
   await expect(item.getByText(/^Due by \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/)).toBeVisible();
@@ -129,7 +131,7 @@ test("hazard HZ-013 the nurse finds an overdue notification and reads its deadli
   // Who a notification is about, with her communication needs beside her name (AIS).
   const about = todo
     .getByRole("listitem")
-    .filter({ has: todo.locator(`a[href="/notifications/statutory/${death}"]`) });
+    .filter({ has: page.locator(`a[href="/notifications/statutory/${death}"]`) });
   await expect(about.getByText("About Cara Placeholder")).toBeVisible();
   await expect(about.getByRole("term")).toHaveText("Communication needs");
   await expect(about.getByRole("definition")).toContainText("Uses a hearing loop");
