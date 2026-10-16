@@ -7,6 +7,7 @@ import {
   type AppEnv,
   permissionsReaching,
   requireAnyPermission,
+  stepUpRefusal,
   type TenantAccess,
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
@@ -107,7 +108,7 @@ export async function requireStepUp(
     reason: "step_up_required",
     requestId: c.get("requestId"),
   });
-  throw problems.stepUp();
+  throw stepUpRefusal(access);
 }
 
 /** A foreign key that points nowhere (another person's contact or document) reads as invalid. */
@@ -143,7 +144,7 @@ export async function refusal(
     case "missing_permission":
       throw problems.forbidden();
     case "step_up_required":
-      throw problems.stepUp();
+      throw stepUpRefusal(c.get("access"));
     case "separation_of_duties":
       throw new HttpProblem(403, "separation_of_duties", error.message);
     default:

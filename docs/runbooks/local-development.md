@@ -26,7 +26,16 @@ pnpm --filter @harbour/web dev  # web on http://localhost:3000
 
 Demo sign-ins (password `correct horse battery staple`): `owner@example.invalid`,
 `manager@example.invalid`, `nurse@example.invalid`, `carer@example.invalid`. Leave
-`HARBOUR_DEMO_MFA` unset to require TOTP or a passkey, as in every real environment.
+`HARBOUR_DEMO_MFA` unset to require TOTP or a passkey, as in every real environment. For the web
+journeys add `HARBOUR_DEMO_E2E_PASSKEY=1`: it gives the demo manager a passkey whose key is derived
+from a published phrase, which `apps/web/e2e/support.ts` loads into Chromium's virtual
+authenticator so step-up journeys confirm with a second factor (ADR-0072). Local tests only: that
+key is public and grants MFA and step-up (break-glass, statutory notifications, export) as the
+manager, and `HARBOUR_DEMO_MFA=off` opens care records with a password alone. So `seed-users`
+refuses both unless `NODE_ENV` is `development` or `test`, `HARBOUR_ENV` is not `dev`, `staging` or
+`pilot`, every database URL points at `localhost`, `127.0.0.1` or `::1` (or the `postgres` service
+container when `CI=true`), and the demo manager is linked in the demo tenant
+(`apps/api/scripts/demo-seed-guard.ts`). Never point it at a dev, staging or pilot database.
 
 New cluster roles: when a migration needs a role your cluster does not have yet, `pnpm db:migrate`
 stops with `role "..." does not exist`. Run `pnpm db:bootstrap` again first: it is idempotent,
