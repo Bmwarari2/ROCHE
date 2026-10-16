@@ -18,6 +18,63 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## Paused on 16/10/2026: where to pick up
+
+The owner paused the build on 16/10/2026 until the organisation's usage limits are raised. Nothing
+is half-built on a branch: every pull request was merged or is listed here.
+
+**Merged on 16/10/2026** (#51 to #102, mobile excepted): outages and back-entry, statutory
+notification pages, invitations, members and the Team screens, step-up only from a recently used
+second factor, evidence packs and public inspector links, statement of purpose (API), downtime
+screens, the shift handover and round screens, letter templates and letters (API and screens), the
+family feed end to end (schema, API, publishing, staff tab, family page), the free full export end
+to end, in-app DPIA sign-off and its page, the onboarding checklist and its page, sub-processor
+notices (organisation and operator sides), search and break-glass search, sample data mode, a fix
+for definer functions left executable by PUBLIC (#97), the Phase 1 gate gap report (#100) and
+ADR-0073 (one development-log file per pull request).
+
+**Mobile** stays paused by the owner: do not work on `apps/mobile`, the phone sync streams or the
+screens gate; leave draft PR #50 and `feat/mobile-round-screen` alone.
+
+**Next, in order** (from [phase-1-gate.md](phase-1-gate.md), the gate's gap report):
+
+1. Small gate gaps still open: the axe journey for `/people/[id]/history`.
+2. Clinical safety case v0.1 (only v0.0 exists).
+3. Web screens for the API-only Phase 1 rows: people lifecycle (PEOP-001, 003, 005, 007 to 010,
+   013); documents, tasks and retention (PLAT-009, 011, 012, with HZ-006's `tasks.spec.ts`); the
+   weekly break-glass report (PLAT-006); candour, medical examiner and investigations (SAFE-007,
+   008, 010); evidence pack composing and statement of purpose (QUAL-003, QUAL-009).
+4. White-label branding (PLAT-002) and role dashboards (INSI-001).
+5. The DPIA template's Phase 1 risks and measures.
+6. User guides per role and `docs/demo/` with the Phase 1 walkthrough (every register row needs
+   its user guide before it can be `done`).
+7. A second demo tenant with a shared user, for the choose-organisation journey; Lighthouse CI.
+8. When Phase 1 is complete: run the Cloudflare security-audit skill read-only, then fix what it
+   finds; then Phase 2 (non-mobile).
+
+**Follow-ups logged on 16/10/2026 that are not yet in the items below**:
+- Sample data (HZ-072): mark sample people on the downtime pack, letters, family updates, the
+  notifications centre and the evidence pack; the onboarding copy says sample people are left out
+  of notifications, but the "a sample incident drafts no statutory notification" test is still
+  planned (soften the copy or add the test); the stored files of a removed sample person's
+  documents stay in the bucket; after a step-up the onboarding page should return to its
+  sample data section; the mobile badge (paused).
+- `evidence-link.test.ts` "a session for one link opens no other" failed once on #87 and passed on
+  re-run with no related change: make it robust.
+- The person-linked family feed is numbered ("1 of 2") until the API can name the person.
+
+**Ways of working that saved time** (keep them):
+- Migrations merge in number order; after each lands, the next pull request merges `main` and
+  regenerates its journal entry and snapshot with drizzle-kit (`migration-journal.test.ts` fails
+  otherwise). The next free number is 0071.
+- Definer functions: set the ACL before the ownership change, or as the owner
+  (`definer-acls.test.ts`, ADR-0002).
+- Development log entries are one file per pull request in `docs/changelog-dev/` (ADR-0073), so
+  open pull requests no longer conflict over the log.
+- E2E journeys that record something should date it hours back: the downtime journey leaves an
+  outage open, and anything inside it needs back-entry details.
+- Step-up in journeys needs a passkey (`signInWithDemoPasskey`); a password alone never counts.
+
 ## Next items (in order)
 
 1. Data scope per permission is merged (#27, with the round 5 check's alarm fix;
