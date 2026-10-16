@@ -60,7 +60,9 @@ export default async function DowntimePackPage({ params }: { readonly params: Pa
 
   if (!pack) {
     // Over the hourly limit, or no pack could be built: say so and what to use instead.
-    if (response.status !== 429 && response.status !== 503) failWith(error, response, page);
+    if (response.status !== 429 && response.status !== 503) {
+      failWith(error, response, `${page}/pack`);
+    }
     const problem = response.status === 429 ? "limited" : "unavailable";
     return (
       <div className="mx-auto flex w-full max-w-content flex-col gap-6">
