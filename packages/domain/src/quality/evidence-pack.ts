@@ -352,13 +352,17 @@ export function checkEvidencePackRequest(
 // Minimisation and redaction
 // ------------------------------------------------------------------------------------------------
 
-export type EvidenceExclusionReason =
-  | "restricted_record"
-  | "outside_date_range"
-  | "location_not_requested"
-  | "not_tagged"
-  | "statement_not_requested"
-  | "person_not_in_scope";
+/** Why an item is left out of a pack (internal manifest only; `evidence_pack_item`). */
+export const EVIDENCE_EXCLUSION_REASONS = [
+  "restricted_record",
+  "outside_date_range",
+  "location_not_requested",
+  "not_tagged",
+  "statement_not_requested",
+  "person_not_in_scope",
+] as const;
+
+export type EvidenceExclusionReason = (typeof EVIDENCE_EXCLUSION_REASONS)[number];
 
 export type EvidenceFieldOutcome = "included" | "redacted" | "withheld";
 
