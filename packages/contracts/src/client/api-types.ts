@@ -19894,199 +19894,219 @@ export interface components {
       replay: boolean;
     };
     SyncRefusedEntry:
-      | {
-          /** Format: uuid */
-          entryId: string;
-          /** Format: uuid */
-          personId: string | null;
-          httpStatus: number | null;
-          code: string;
-          message: string | null;
-          /** Format: date-time */
-          refusedAt: string;
-          /** @enum {string} */
-          table: "care_note";
-          payload: {
-            /** Format: uuid */
-            id?: string;
-            /** Format: date-time */
-            occurredAt: string;
-            /** Format: date-time */
-            deviceTime?: string;
-            /** Format: uuid */
-            supersedesId?: string;
-            correctionReason?: string;
-            /** Format: uuid */
-            taskId?: string;
-            backEntry?: components["schemas"]["BackEntryInput"];
-            notFromPaperReason?: string;
-            category: components["schemas"]["CareNoteCategory"];
-            body: string;
-            /** @default [] */
-            tags: string[];
-            /** @default [] */
-            attachmentDocumentIds: string[];
-          };
-        }
-      | {
-          /** Format: uuid */
-          entryId: string;
-          /** Format: uuid */
-          personId: string | null;
-          httpStatus: number | null;
-          code: string;
-          message: string | null;
-          /** Format: date-time */
-          refusedAt: string;
-          /** @enum {string} */
-          table: "observation";
-          payload: {
-            /** Format: uuid */
-            id?: string;
-            /** Format: date-time */
-            occurredAt: string;
-            /** Format: date-time */
-            deviceTime?: string;
-            /** Format: uuid */
-            supersedesId?: string;
-            correctionReason?: string;
-            /** Format: uuid */
-            taskId?: string;
-            backEntry?: components["schemas"]["BackEntryInput"];
-            notFromPaperReason?: string;
-            values: components["schemas"]["ObservationValues"];
-          };
-        }
-      | {
-          /** Format: uuid */
-          entryId: string;
-          /** Format: uuid */
-          personId: string | null;
-          httpStatus: number | null;
-          code: string;
-          message: string | null;
-          /** Format: date-time */
-          refusedAt: string;
-          /** @enum {string} */
-          table: "body_map_mark";
-          payload: {
-            /** Format: uuid */
-            id?: string;
-            /** Format: date-time */
-            occurredAt: string;
-            /** Format: date-time */
-            deviceTime?: string;
-            /** Format: uuid */
-            supersedesId?: string;
-            correctionReason?: string;
-            /** Format: uuid */
-            taskId?: string;
-            backEntry?: components["schemas"]["BackEntryInput"];
-            notFromPaperReason?: string;
-            /** @enum {string} */
-            view: "front" | "back";
-            region: string;
-            drawnAt?: components["schemas"]["BodyMapPoint"];
-            drawnZone?: components["schemas"]["BodyMapViewerZone"];
-            /** @enum {string} */
-            drawnSide?: "left" | "right" | "midline";
-            /** @enum {string} */
-            side: "left" | "right" | "midline";
-            markType: components["schemas"]["BodyMarkType"];
-            pressureCategory?: components["schemas"]["PressureUlcerCategory"];
-            deviceRelated?: boolean;
-            bruiseExplained?: boolean;
-            lengthMm?: number;
-            widthMm?: number;
-            depthMm?: number;
-            description?: string;
-            /** Format: uuid */
-            photoDocumentId?: string;
-            /**
-             * @default present
-             * @enum {string}
-             */
-            status: "present" | "healed";
-            /** Format: uuid */
-            incidentId?: string;
-          };
-        }
-      | {
-          /** Format: uuid */
-          entryId: string;
-          /** Format: uuid */
-          personId: string | null;
-          httpStatus: number | null;
-          code: string;
-          message: string | null;
-          /** Format: date-time */
-          refusedAt: string;
-          /** @enum {string} */
-          table: "activity_record";
-          payload: {
-            /** Format: uuid */
-            id?: string;
-            /** Format: date-time */
-            occurredAt: string;
-            /** Format: date-time */
-            deviceTime?: string;
-            /** Format: uuid */
-            supersedesId?: string;
-            correctionReason?: string;
-            /** Format: uuid */
-            taskId?: string;
-            backEntry?: components["schemas"]["BackEntryInput"];
-            notFromPaperReason?: string;
-            activity: string;
-            /** @enum {string} */
-            format: "group" | "one_to_one";
-            /** Format: uuid */
-            groupSessionId?: string;
-            attendance: components["schemas"]["ActivityAttendance"];
-            engagement?: components["schemas"]["ActivityEngagement"];
-            durationMinutes?: number;
-            notes?: string;
-          };
-        }
-      | {
-          /** Format: uuid */
-          entryId: string;
-          /** Format: uuid */
-          personId: string | null;
-          httpStatus: number | null;
-          code: string;
-          message: string | null;
-          /** Format: date-time */
-          refusedAt: string;
-          /** @enum {string} */
-          table: "visit_log";
-          payload: {
-            /** Format: uuid */
-            id?: string;
-            /** Format: date-time */
-            occurredAt: string;
-            /** Format: date-time */
-            deviceTime?: string;
-            /** Format: uuid */
-            supersedesId?: string;
-            correctionReason?: string;
-            /** Format: uuid */
-            taskId?: string;
-            backEntry?: components["schemas"]["BackEntryInput"];
-            notFromPaperReason?: string;
-            kind: components["schemas"]["VisitKind"];
-            /** Format: uuid */
-            contactId?: string;
-            visitorName?: string;
-            visitorRelationship?: string;
-            /** Format: date-time */
-            endedAt?: string;
-            /** @default false */
-            restrictionsApplied: boolean;
-            restrictionReason?: string;
-            notes?: string;
-          };
-        };
+      | components["schemas"]["SyncRefusedCareNote"]
+      | components["schemas"]["SyncRefusedObservation"]
+      | components["schemas"]["SyncRefusedBodyMapMark"]
+      | components["schemas"]["SyncRefusedActivityRecord"]
+      | components["schemas"]["SyncRefusedVisit"];
+    SyncRefusedCareNote: {
+      /** Format: uuid */
+      entryId: string;
+      /** Format: uuid */
+      personId: string | null;
+      httpStatus: number | null;
+      code: string;
+      message: string | null;
+      /** Format: date-time */
+      refusedAt: string;
+      /**
+       * @description discriminator enum property added by openapi-typescript
+       * @enum {string}
+       */
+      table: "care_note";
+      payload: {
+        /** Format: uuid */
+        id?: string;
+        /** Format: date-time */
+        occurredAt: string;
+        /** Format: date-time */
+        deviceTime?: string;
+        /** Format: uuid */
+        supersedesId?: string;
+        correctionReason?: string;
+        /** Format: uuid */
+        taskId?: string;
+        backEntry?: components["schemas"]["BackEntryInput"];
+        notFromPaperReason?: string;
+        category: components["schemas"]["CareNoteCategory"];
+        body: string;
+        /** @default [] */
+        tags: string[];
+        /** @default [] */
+        attachmentDocumentIds: string[];
+      };
+    };
+    SyncRefusedObservation: {
+      /** Format: uuid */
+      entryId: string;
+      /** Format: uuid */
+      personId: string | null;
+      httpStatus: number | null;
+      code: string;
+      message: string | null;
+      /** Format: date-time */
+      refusedAt: string;
+      /**
+       * @description discriminator enum property added by openapi-typescript
+       * @enum {string}
+       */
+      table: "observation";
+      payload: {
+        /** Format: uuid */
+        id?: string;
+        /** Format: date-time */
+        occurredAt: string;
+        /** Format: date-time */
+        deviceTime?: string;
+        /** Format: uuid */
+        supersedesId?: string;
+        correctionReason?: string;
+        /** Format: uuid */
+        taskId?: string;
+        backEntry?: components["schemas"]["BackEntryInput"];
+        notFromPaperReason?: string;
+        values: components["schemas"]["ObservationValues"];
+      };
+    };
+    SyncRefusedBodyMapMark: {
+      /** Format: uuid */
+      entryId: string;
+      /** Format: uuid */
+      personId: string | null;
+      httpStatus: number | null;
+      code: string;
+      message: string | null;
+      /** Format: date-time */
+      refusedAt: string;
+      /**
+       * @description discriminator enum property added by openapi-typescript
+       * @enum {string}
+       */
+      table: "body_map_mark";
+      payload: {
+        /** Format: uuid */
+        id?: string;
+        /** Format: date-time */
+        occurredAt: string;
+        /** Format: date-time */
+        deviceTime?: string;
+        /** Format: uuid */
+        supersedesId?: string;
+        correctionReason?: string;
+        /** Format: uuid */
+        taskId?: string;
+        backEntry?: components["schemas"]["BackEntryInput"];
+        notFromPaperReason?: string;
+        /** @enum {string} */
+        view: "front" | "back";
+        region: string;
+        drawnAt?: components["schemas"]["BodyMapPoint"];
+        drawnZone?: components["schemas"]["BodyMapViewerZone"];
+        /** @enum {string} */
+        drawnSide?: "left" | "right" | "midline";
+        /** @enum {string} */
+        side: "left" | "right" | "midline";
+        markType: components["schemas"]["BodyMarkType"];
+        pressureCategory?: components["schemas"]["PressureUlcerCategory"];
+        deviceRelated?: boolean;
+        bruiseExplained?: boolean;
+        lengthMm?: number;
+        widthMm?: number;
+        depthMm?: number;
+        description?: string;
+        /** Format: uuid */
+        photoDocumentId?: string;
+        /**
+         * @default present
+         * @enum {string}
+         */
+        status: "present" | "healed";
+        /** Format: uuid */
+        incidentId?: string;
+      };
+    };
+    SyncRefusedActivityRecord: {
+      /** Format: uuid */
+      entryId: string;
+      /** Format: uuid */
+      personId: string | null;
+      httpStatus: number | null;
+      code: string;
+      message: string | null;
+      /** Format: date-time */
+      refusedAt: string;
+      /**
+       * @description discriminator enum property added by openapi-typescript
+       * @enum {string}
+       */
+      table: "activity_record";
+      payload: {
+        /** Format: uuid */
+        id?: string;
+        /** Format: date-time */
+        occurredAt: string;
+        /** Format: date-time */
+        deviceTime?: string;
+        /** Format: uuid */
+        supersedesId?: string;
+        correctionReason?: string;
+        /** Format: uuid */
+        taskId?: string;
+        backEntry?: components["schemas"]["BackEntryInput"];
+        notFromPaperReason?: string;
+        activity: string;
+        /** @enum {string} */
+        format: "group" | "one_to_one";
+        /** Format: uuid */
+        groupSessionId?: string;
+        attendance: components["schemas"]["ActivityAttendance"];
+        engagement?: components["schemas"]["ActivityEngagement"];
+        durationMinutes?: number;
+        notes?: string;
+      };
+    };
+    SyncRefusedVisit: {
+      /** Format: uuid */
+      entryId: string;
+      /** Format: uuid */
+      personId: string | null;
+      httpStatus: number | null;
+      code: string;
+      message: string | null;
+      /** Format: date-time */
+      refusedAt: string;
+      /**
+       * @description discriminator enum property added by openapi-typescript
+       * @enum {string}
+       */
+      table: "visit_log";
+      payload: {
+        /** Format: uuid */
+        id?: string;
+        /** Format: date-time */
+        occurredAt: string;
+        /** Format: date-time */
+        deviceTime?: string;
+        /** Format: uuid */
+        supersedesId?: string;
+        correctionReason?: string;
+        /** Format: uuid */
+        taskId?: string;
+        backEntry?: components["schemas"]["BackEntryInput"];
+        notFromPaperReason?: string;
+        kind: components["schemas"]["VisitKind"];
+        /** Format: uuid */
+        contactId?: string;
+        visitorName?: string;
+        visitorRelationship?: string;
+        /** Format: date-time */
+        endedAt?: string;
+        /** @default false */
+        restrictionsApplied: boolean;
+        restrictionReason?: string;
+        notes?: string;
+      };
+    };
     RefusedEntryList: {
       items: components["schemas"]["RefusedEntryItem"][];
       /** Format: uuid */
