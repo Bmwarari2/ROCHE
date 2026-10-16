@@ -685,5 +685,16 @@ Slice 12 (the family feed, schema; migration 0061, after #71's 0060; `feat/comms
 | `feed_item`, `feed_item_withdrawal`, `feed_view` | Append-only, with the section 2 CHECK constraints. Staff follow the person scope; a family session (`app.family` with a member and scope `none`) sees an update only when `app.family_can_see` allows it and, once taken down, only if it saw it before (`app.family_item_shown`); it writes only its own views, for its own contacts and updates it can see. Updates are published by holders of `comms.feed.publish` and taken down by holders of `comms.feed.withdraw` in their own name where the person lives; the database stamps the times |
 | `app.family_can_see` | Section 2.1, as a definer function owned by `harbour_family_reader` (a new NOLOGIN role; `pnpm db:bootstrap` before migrating), fixed search path, reading only the columns the rule needs. `packages/db/test/family-feed.test.ts` runs it and `checkFeedItemVisibility` over the same table of cases |
 
-Next, the API (`feat/comms-family-feed-api`): portal sessions, `GET /v1/family/feed`, the portal
-links, the staff list and withdrawal; then part 1b, publishing from source records.
+Slice 12 (the family feed, API part 1; `feat/comms-family-feed-api`): `apps/api/src/routes/family-feed.ts`,
+contracts in `packages/contracts/src/family-feed.ts`.
+
+| Route | Built as |
+| --- | --- |
+| Portal sessions | A member with an open link is resolved as a portal session (`resolveAccess(..., "portal")`): portal roles only, no grants, scope `none`, `app.family` set |
+| `GET /v1/family/feed` | Portal sessions with `comms.feed.read` (MFA). Per linked person: the updates the database shows, judged again by `buildFamilyFeed` with the decisions, suspension periods, status and capacity finding read in the system's view (never returned); photos stay closed until part 1b reads their basis; a feed closed by the person's status reads exactly like one with no decision (same statement, no entries, no `lastUpdateAt`); the people read come only from the caller's links, never the request; MFA always, whatever `mfa_required` says; one `feed_view` per entry and a `comms.feed.viewed` audit event with ids and counts; `no-store` |
+| `GET`/`POST /v1/people/{id}/family-portal-links`, `.../{linkId}/revoke` | `people.sharing.manage`: only an account holding portal roles alone, whose verified email is the contact's email, can be linked (otherwise 422 `account_not_contact`, audited); `comms.portal_link.create`, `.revoke`, `.list`. The sharing decisions themselves are the people-sharing routes |
+| `GET /v1/people/{id}/feed`, `POST /v1/feed-items/{id}/withdraw` | `comms.feed.publish` or `.withdraw` to list (with any withdrawal); `.withdraw` to take one down (`checkFeedWithdrawal`, once, 409 after); `comms.feed.item_withdrawn` audit and outbox event |
+
+Next, part 1b: `POST /v1/people/{id}/feed` (compose and publish from a source record with
+`composeFeedItem`, `care_note_share`, the publishing holds and the photo basis) and
+`GET /v1/people/{id}/feed/exposure`. Then part 2, the web feed and staff screens.
