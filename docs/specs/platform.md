@@ -63,8 +63,12 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   did not use it gets `mfa_verification_required` and is sent to sign in with it. Sessions from
   before this rule fail closed.
 - Step-up: controlled drugs, residents' money approval, data export, break-glass, statutory
-  notifications, support-access approval and revoking a Care mode device need a sign-in within 10
-  minutes.
+  notifications, support-access approval and revoking a Care mode device need a second factor (a
+  passkey, an authenticator code or a backup code) used on the session within the step-up window
+  (`STEP_UP_WINDOW_SECONDS`, 10 minutes by default): a sign-in completed with one, or a code or
+  passkey confirmed on the session. A password sign-in alone never counts, however recent; a member
+  holding a step-up permission with no factor enrolled gets `mfa_enrolment_required` (ADR-0072
+  amendment).
 - Break-glass: `POST /v1/people/break-glass` with a justification of at least 20 characters and an
   optional `reasonCode`; access lapses after 60 minutes; the Registered Manager for the location and
   quality leads are notified; the reason is audited. It opens the record for reading only

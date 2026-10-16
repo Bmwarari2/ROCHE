@@ -2692,6 +2692,8 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 | Design | A person with a factor enrolled is told `mfa_verification_required` and the web sends them straight to sign in with it (`/sign-in?reason=mfa`, keeping where they were going), not to the enrolment page; anything that is not a care record keeps working | Built in Phase 1 (`apps/web/src/lib/problems.ts`, sign-in page) |
 | Process | The release note says every signed-in person will be asked to sign in again with their passkey or code before opening care records; deploy outside shift handover and tell staff beforehand (H-358) | Before the first real tenant |
 | Design | The mobile app reads `mfa_verification_required` as a session code (signs in again, keeping unsent entries under the hold rules) rather than as withdrawn access | Planned (mobile lane, STATUS item 20 follow-up) |
+| Design | Step-up (controlled drugs, residents' money, export, break-glass, statutory notifications, downtime pack, evidence pack release and every other step-up permission) counts from the second factor the session last used, within `STEP_UP_WINDOW_SECONDS`, never from a password sign-in; a holder with no factor enrolled is told `mfa_enrolment_required`; confirming a code on the session refreshes it (ADR-0072 amendment) | Built in Phase 1 (`fix/platform-step-up-factor`) |
+| Process | Owners make sure every member holding a step-up permission has a passkey or authenticator app before go-live, and staff are told step-up actions now ask for it (H-359) | Before the first real tenant |
 
 **Target residual risk**: severity Major, likelihood Low, **risk 3** until the mobile control is built, then Very low, **risk 2** (an engineering proposal; the CSO decides, H-358).
 
@@ -2703,6 +2705,7 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 | `apps/web/src/lib/problems.test.ts` (`mfa_verification_required` goes to `/sign-in?reason=mfa` with the next path) and `apps/web/src/lib/outcome.test.ts` | Passing (Phase 1) |
 | `apps/api/test/mfa-session-factor.test.ts`: a password-only session cannot enrol TOTP or a passkey or delete the passkey; a session that used its passkey may add one; a session is refused after five wrong codes; `apps/web/src/lib/problems.test.ts` (`factorChangeRedirect`) | Passing (Phase 1) |
 | Mobile: a 403 `mfa_verification_required` on the sync token is treated as a session code | Planned |
+| `apps/api/test/step-up-factor.test.ts`: `hazard HZ-112` table over every step-up permission (password-only, factor inside and outside the window, none enrolled), each step-up route over HTTP, an in-session code refreshing step-up, and no API source reading the sign-in time for step-up; `apps/web/src/components/safety/ManageForms.test.tsx` (the step-up notice asks for the passkey or authenticator code) | Passing (Phase 1) |
 
 ---
 

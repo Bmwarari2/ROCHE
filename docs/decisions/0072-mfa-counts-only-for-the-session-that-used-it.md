@@ -83,3 +83,36 @@ refused; a passkey session is allowed; removing the passkey refuses again; a wro
 nothing; a code confirmed when enrolling, on an existing session, or at a new sign-in is allowed;
 a session with no record is refused. `apps/web/src/lib/problems.test.ts` and `outcome.test.ts`
 cover the web's handling.
+
+## Amendment (2026-10-16): step-up needs a factor used within the window
+
+Section 5.3 asks for step-up on controlled drugs, residents' money, export and break-glass. Until
+now a step-up permission passed with any sign-in inside `STEP_UP_WINDOW_SECONDS`, so a fresh
+password sign-in counted, and for a member who needs no MFA a password alone stepped up.
+
+**Decision.** Step-up counts from the latest second factor this session used (a passkey, a verified
+authenticator code or a backup code), never from the sign-in time:
+
+- Each use of a factor is its own row in `auth.verification` (`session-factor:<session id>`), and
+  its `created_at` is when it was used, so no column or migration is needed. `sessionFactorState`
+  returns the MFA state and that time (`factorAt`); the tenant middleware carries it as
+  `TenantAccess.stepUpAt` and the operator middleware as `OperatorIdentity.factorAt`.
+- Every step-up check reads it: `refusalOf` (each `requirePermission` of a step-up permission),
+  `stepUpFresh` (workflow moves, `requireStepUp`, task links) and the operator's owner invitation.
+- A member who holds a step-up permission with no factor enrolled is refused with
+  `mfa_enrolment_required`, whether or not their roles need MFA for care records.
+- Confirming a code on an existing session (`/two-factor/verify-totp`, `/verify-backup-code`, under
+  the five-attempt limit) or signing in again with a passkey adds a row and so refreshes the time.
+- The web flows (break-glass, statutory notification submit and "not required", the downtime pack)
+  keep sending the person to `/sign-in?reason=step-up` and back; the words now say "confirm with
+  your passkey or authenticator code".
+
+**Consequences.** Good: a stolen password never steps up. Bad: a person who signed in with a code
+more than 10 minutes ago confirms it again before a step-up action (as before with a sign-in);
+members holding a step-up permission without a factor must enrol one first (H-359). Neutral: Better
+Auth's own `freshAge` is unchanged and governs only its own endpoints.
+
+**Confirmation.** `apps/api/test/step-up-factor.test.ts` (HZ-112): every step-up permission in the
+catalogue against a password-only session, a factor inside and outside the window and no factor;
+each step-up route family over HTTP; an in-session authenticator code refreshes the step-up; no API
+source reads the sign-in time for step-up.

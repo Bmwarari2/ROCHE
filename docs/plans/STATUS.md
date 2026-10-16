@@ -643,6 +643,18 @@ only when they link spec, code, tests and user documentation; no user guides exi
       should need a session factor recorded within `STEP_UP_WINDOW_SECONDS`, not only a recent
       password sign-in. When mobile resumes: add `mfa_verification_required` to
       `SESSION_PROBLEM_CODES` (`apps/mobile/src/sync/session-signals.ts`).
+    - `fix/platform-step-up-factor` (ADR-0072 amendment, HZ-112, H-359): built. Step-up counts from
+      the second factor the session last used (its `auth.verification` row's `created_at`, no
+      migration) within `STEP_UP_WINDOW_SECONDS`, never from a password sign-in; a holder with no
+      factor enrolled gets `mfa_enrolment_required`; an in-session code or a passkey sign-in
+      refreshes it. Covers every `requirePermission` of a step-up permission, workflow moves
+      (notification submit, exits), `requireStepUp` (downtime pack, invitations, session revoke,
+      About me links), task links and the operator's owner invitation; table-driven tests over
+      every step-up permission and route family. Follow-ups: the domain checks that take
+      `lastMfaSignInAt` (export, DPIA sign-off, sub-processor notices, break-glass search) must be
+      given `stepUpAt` when their routes are built; the web could offer an in-place code prompt
+      instead of a full sign-in; mobile (paused) must send step-up actions through the same
+      confirmation.
 
 ## Human actions outstanding
 

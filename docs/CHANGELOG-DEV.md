@@ -1923,3 +1923,26 @@ submitted form, a stable key for required content).
 - Tests: HZ-091 in the test names and the hazard log; clock-change, future and "needed" cases;
   component tests with axe for the step-up and separation-of-duties refusals; the journey scopes
   alerts to `main` and scans the "what to do first" state with its linked draft.
+
+## 2026-10-16: Step-up needs a second factor used within the window (PLAT-004, STATUS item 20)
+
+- Step-up counts from the second factor (passkey, authenticator code or backup code) the session
+  last used, read from the per-use rows in `auth.verification` (no migration), within
+  `STEP_UP_WINDOW_SECONDS`; a fresh password sign-in no longer counts. A member holding a step-up
+  permission with no factor enrolled gets `mfa_enrolment_required`. An in-session code (under the
+  five-attempt limit) or a passkey sign-in refreshes it.
+- Every step-up path reads it: `refusalOf`, `stepUpFresh` (workflow moves, `requireStepUp`, task
+  links) and the operator's owner invitation. `ageSession` in the test harness ages the sign-in
+  and the factor together.
+- Web: the step-up wording (sign-in page, break-glass, the notification forms, the API's problem
+  detail) now says "confirm with your passkey or authenticator code"; the flows are unchanged.
+- Docs: ADR-0072 amendment; HZ-112 control and verification rows; H-359; platform.md; STATUS item 20.
+
+**Release note**: controlled-drug, residents' money, export, break-glass, statutory notification
+and other step-up actions now ask you to confirm with your passkey or authenticator code if you
+have not used it in the last 10 minutes, even if you signed in recently with your password. If you
+hold one of these permissions and have not set up a passkey or authenticator app, Harbour asks you
+to set one up first.
+
+**Tests**: `step-up-factor.test.ts` (new, 65), and the step-up cases in `api`, `incidents`,
+`downtime`, `flags-and-sessions`, `device-integrity` and `people-lifecycle` now age the factor too.
