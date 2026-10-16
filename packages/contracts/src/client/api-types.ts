@@ -20111,6 +20111,247 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/operator/sub-processor-notices": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Announce a new or replacement sub-processor (admins, fresh sign-in)
+     * @description Works out which organisations the change affects from their configuration (every organisation not closed, suspended ones included), refuses an effective date before the longest of their notice periods (422 notice_too_short, with the earliest date), then through app.announce_sub_processor_notice stores the notice and, for each affected organisation, its audit event and an outbox event the worker turns into a notification to its lead (or owners).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["AnnounceSubProcessorNotice"];
+        };
+      };
+      responses: {
+        /** @description Announced */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SubProcessorNoticeAnnounced"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/operator/tenants/{tenantId}/sub-processor-notices/{id}/resolution": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record how an organisation's objection to a notice was resolved (admins, fresh sign-in)
+     * @description Through app.resolve_sub_processor_objection, only while the organisation has an open objection to the notice (409 no_open_objection otherwise). Withdrawn lets the sub-processor process its data; not used for it, or services ended, never does (mayProcessTenantData). Append-only; the organisation's audit trail records it and the worker tells its lead.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          tenantId: string;
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ResolveSubProcessorObjection"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              /** Format: uuid */
+              id: string;
+            };
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/operator/sub-processor-notices/{id}/objections": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The organisations' objections to a notice (admins, fresh sign-in)
+     * @description Through app.sub_processor_objections: each organisation's objection with the grounds it gave Thapsus and how it was resolved; every read is recorded in that organisation's audit trail.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Objections */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SubProcessorObjections"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -26487,6 +26728,52 @@ export interface components {
       safetyCaseVersion: string;
       /** Format: uuid */
       assessedBy?: string;
+    };
+    SubProcessorNoticeAnnounced: {
+      /** Format: uuid */
+      id: string;
+      affectedOrganisations: number;
+    };
+    AnnounceSubProcessorNotice: {
+      subProcessorKey: string;
+      /** @enum {string} */
+      kind: "new" | "replacement";
+      use:
+        | {
+            /** @enum {string} */
+            kind: "always";
+          }
+        | {
+            /** @enum {string} */
+            kind: "capability";
+            /** @enum {string} */
+            capability: "mobile_push" | "sms";
+          }
+        | {
+            /** @enum {string} */
+            kind: "ai_provider";
+            /** @enum {string} */
+            provider: "bedrock_london" | "bedrock_eu" | "anthropic" | "tenant_own";
+          };
+      /** Format: date-time */
+      effectiveFrom: string;
+    };
+    ResolveSubProcessorObjection: {
+      /** @enum {string} */
+      resolution: "objection_withdrawn" | "not_used_for_tenant" | "services_ended";
+    };
+    SubProcessorObjections: {
+      items: {
+        /** Format: uuid */
+        tenantId: string;
+        /** Format: date-time */
+        objectedAt: string;
+        grounds: string;
+        /** Format: date-time */
+        resolvedAt: string | null;
+        /** @enum {string|null} */
+        resolution: "objection_withdrawn" | "not_used_for_tenant" | "services_ended" | null;
+      }[];
     };
   };
   responses: never;

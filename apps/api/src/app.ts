@@ -45,6 +45,7 @@ import { createRouter } from "./routes/openapi";
 import { operationsRouter } from "./routes/operations";
 import { operatorMiddleware, operatorRouter } from "./routes/operator";
 import { operatorInvitationsRouter } from "./routes/operator-invitations";
+import { operatorSubProcessorsRouter } from "./routes/operator-sub-processors";
 import { outagesRouter } from "./routes/outages";
 import { peopleRouter } from "./routes/people";
 import { peopleExitRouter } from "./routes/people-exit";
@@ -266,6 +267,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
   app.route("/", operatorInvitationsRouter);
+  app.route("/", operatorSubProcessorsRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
     type: "http",
