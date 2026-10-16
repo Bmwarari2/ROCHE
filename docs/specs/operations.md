@@ -340,8 +340,8 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
     then refused until each current back-entry outside the window with no reason for it is in
     `reviewed_entry_ids`, so the reconciler looks at each one. A correction of the start or end is
     refused only when it would leave outside a back-entry that was inside the window before.
-- Not yet: outages and back-entry through the API (part 3c); outages and packs in the sync
-  streams, and the kiosk fetch (with the mobile step).
+- Not yet: back-entry through the care routes and the sync upload (part 3d); outages and packs
+  in the sync streams, and the kiosk fetch (with the mobile step).
 - Part 3 requirements (#32 review round 1):
   - A pack is hidden from the location's holders once someone it names moves away (H-200). The
     API builds a fresh pack on demand whenever anyone moves into, out of or away from the
@@ -471,3 +471,47 @@ Part 3b (`jobs/tasks.ts`, migration 0055, numbered after #48's 0054):
     the PDF is drawn per request.
 - Not yet: the kiosk's own fetch route (the mobile step; it fetches in the system's view for its
   location, section 12); printing photos on the pages.
+
+Part 3c, outages (`routes/outages.ts`, `services/outages.ts`; tests in
+`apps/api/test/outages.test.ts`):
+
+- `GET /v1/locations/{id}/outages` (`people.person.read`): the location's outages, newest first,
+  for anyone who can see someone there (`app.outage_visible`), so a care worker can enter a paper
+  record against one.
+- `POST /v1/locations/{id}/outages` (`operations.downtime.manage` where the location is): checked
+  with `checkOutageDeclaration` against the location's outages, declared now in the caller's name
+  with its `operations.outage` workflow; audited, and `operations.outage.declared` (location,
+  outage, late flag) is published for the notification centre.
+- `POST /v1/outages/{id}/close` (`endedAt`, `version`): `checkOutageClosure`; the back-entry
+  deadline is the closure plus `downtime.back_entry_due_hours`; the workflow moves, an
+  `operations.outage_back_entry` task falls due for the Registered Manager then; audited, and
+  `operations.outage.closed` is published.
+- `GET /v1/outages/{id}/reconciliation`: in the organisation's view and current versions only,
+  the counts, the possible duplicates, the back-entries outside the window with no reason
+  (`outsideWindowEntryIds`), whether the caller entered or sent any paper record
+  (`enteredByYou`, as the database counts them, H-203) and what stops reconciling, in words;
+  audited as viewed.
+- `POST /v1/outages/{id}/reconcile` (`statement`, `reviewedEntryIds`, `version`): refused with
+  those words until each possible duplicate and each back-entry outside the window with no reason
+  is reviewed, and for anyone who entered or sent a paper record; stores the reviewed ids and the
+  forms entered, moves the workflow, completes the task; audited, and `operations.outage.reconciled`
+  is published.
+- `POST /v1/outages/{id}/cancel` (`reason`, `version`): an open outage only; the database refuses
+  once a paper record cites it. `POST /v1/outages/{id}/correct` (`startedAt`, `endedAt`,
+  `reason`, `version`): before reconciliation, an open outage staying open, checked as a
+  declaration against the others. Both audited.
+- A stale `version` is 409, as is an overlap found by the exclusion constraint at the same moment;
+  the database's other refusals come back as 422 in its words. A location out of reach is not
+  found, and audited as denied.
+- After #51 review round 1: an outage declared with its end is closed in the same transaction
+  (the back-entry task raised, `.closed` audited and published); an outage may run at most
+  `downtime.max_outage_hours` (168) to its end or to now, checked on declaring, closing and
+  correcting; a correction may not move the end past the closure plus
+  `sync.clock_drift_flag_minutes`; the outage is locked `FOR UPDATE` before each change;
+  `operations.outage.cancelled` and `.corrected` are published too; an outage at a location the
+  caller's permission does not reach is not found, and audited as denied; the reconciliation reads
+  only the columns it needs.
+- The blockers' words, the task's assignee and the longest outage wait for the CSO (H-215).
+- Not yet: back-entry on the care routes and the sync upload (part 3d), with the outside-the-outage
+  reason when a reviewed back-entry after the true end is corrected (H-208); the notification
+  centre's handling of `operations.outage.declared` (the comms step).

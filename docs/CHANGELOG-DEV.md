@@ -1693,3 +1693,23 @@ task the nightly job keeps open while the places are unconfirmed.
 - Docs: operations.md section 13, rates.md, HZ-021 rows, H-214, STATUS.
 
 **Tests**: `apps/api` `downtime.test.ts` 2 new and 2 rewritten; `packages/db` 1 new.
+
+## 2026-10-16: Slice 11 part 3c, the outages API (OPS-028)
+
+Stacked on part 3b (operations.md section 13): list and declare outages at a location, close one
+with the back-entry task, see what reconciling needs, reconcile after reviewing possible duplicates
+and back-entries past the true end, cancel one declared in error, and correct a start or end; each
+change versioned, audited and, where section 5 says so, published; the database's refusals in its
+own words. Merged with main; `openapi.json` and the client regenerated (the outage paths only).
+
+- Docs: operations.md section 13, the HZ-017 test row, H-215, STATUS (the outside-the-outage
+  reason on a back-entry correction moves to part 3d, with the care routes).
+
+**Tests**: `apps/api` `outages.test.ts`, 5 new.
+
+After #51 review round 1: an outage declared with its end closes at once with the back-entry task;
+`downtime.max_outage_hours` (168, rates.md) bounds an outage's length; corrections stay within
+the closure plus the clock-drift allowance; outages are locked before each change; cancel and
+correct are published; another home's outage is not found and audited as denied; the reconciliation
+selects only the columns it needs; `withTenantWideScope` restores the scope in a `finally`. Tests:
+3 new, 2 extended.

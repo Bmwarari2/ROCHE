@@ -95,12 +95,14 @@ export async function withTenantWideScope<T>(tx: Transaction, fn: () => Promise<
   await tx.execute(
     sql`SELECT set_config('app.scope', 'tenant', true), set_config('app.location_ids', '', true)`,
   );
-  const result = await fn();
-  await tx.execute(
-    sql`SELECT set_config('app.scope', ${previous?.scope || "none"}, true),
-               set_config('app.location_ids', ${previous?.locations ?? ""}, true)`,
-  );
-  return result;
+  try {
+    return await fn();
+  } finally {
+    await tx.execute(
+      sql`SELECT set_config('app.scope', ${previous?.scope || "none"}, true),
+                 set_config('app.location_ids', ${previous?.locations ?? ""}, true)`,
+    );
+  }
 }
 
 // ------------------------------------------------------------------------------------------------
