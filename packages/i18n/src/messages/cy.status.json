@@ -1636,6 +1636,19 @@
     "comms.feed.withdraw.reasonOption",
     "comms.feed.withdraw.reasonError",
     "comms.feed.withdraw.submit",
-    "comms.feed.withdraw.already"
+    "comms.feed.withdraw.already",
+    "shell.nav.updates",
+    "comms.feed.family.title",
+    "comms.feed.family.feedTitle",
+    "comms.feed.family.feedTitleOf",
+    "comms.feed.family.checkedAt",
+    "comms.feed.family.lastUpdate",
+    "comms.feed.family.empty",
+    "comms.feed.family.noLink",
+    "comms.feed.family.happened",
+    "comms.feed.family.happenedAdded",
+    "comms.feed.family.withdrawnChip",
+    "comms.feed.family.mfa",
+    "comms.feed.family.mfaLink"
   ]
 }

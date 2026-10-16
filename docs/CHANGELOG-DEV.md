@@ -2424,3 +2424,16 @@ CSO. Tests: `feed-publish.test.ts` 14.
 **Tests**: `apps/api/test/feed-publish.test.ts` (16); `apps/web/src/lib/family-feed.test.ts`;
 `apps/web/e2e/family-updates.spec.ts` (2, axe on every state).
 
+## 2026-10-17: Slice 12 part 2b, the family's updates page (COMMS-001)
+
+- Web: `/updates` for a family member's portal session (their home, and "Updates" in the side bar):
+  the statement that these are not the full care record, the time checked and the last update,
+  each update and a "Taken down" notice for one they saw; a closed feed reads exactly as no
+  decision; an MFA notice with the way to set it up.
+- Local end-to-end: `seed-users.ts` adds Ada Example's invented next of kin as a portal account with
+  the end-to-end passkey (`HARBOUR_DEMO_E2E_PASSKEY=1` only).
+- Docs: comms.md section 11, HZ-061 (the web row now passing), the register, STATUS.
+
+**Tests**: `apps/web/e2e/family-feed.spec.ts` (2, axe on every state); `apps/web/src/lib/family-feed.test.ts`
+(the portal-only home).
+

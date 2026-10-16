@@ -2338,7 +2338,7 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 | `packages/domain/src/comms/feed-text-review.test.ts`: `hazards HZ-060 and HZ-061 events and wellbeing claims need a manager's confirmation` (and ordinary words that are not flagged: falling asleep, happy birthday, hospitality) | Passing (Phase 1, slice 12) |
 | `packages/domain/src/comms/feed-visibility.test.ts`: `hazard HZ-061 pauses the feed with a neutral statement when the person is ..., never an empty feed` (discharged, deceased) | Passing (Phase 1, slice 12) |
 | `apps/api/test/feed-publish.test.ts`: `hazard HZ-061 publishing waits while the family must hear from a person first` (the real holds query: an open incident naming the person with the family not recorded as told holds, and stops holding once they are; a closed incident never holds; an open duty of candour step holds and a terminal one does not; a hospital stay holds) | Passing (Phase 1, slice 12 part 1b) |
-| `apps/web`: `hazard HZ-061 the family feed shows the statement, the last update time and each entry's times` (Playwright with axe) | Planned, Phase 1 (slice 12 web step) |
+| `apps/web/e2e/family-feed.spec.ts`: `hazard HZ-022 hazard HZ-061 the family sees only what a decision opens, a taken-down notice, and a closed feed like no decision` (the statement and the time checked on an empty feed; an update under a decision with the last update time; the taken-down notice in place of an update seen; after the decision is withdrawn the page reads word for word as with no decision; Playwright with axe on every state) | Passing (Phase 1, slice 12 part 2b) |
 
 ---
 

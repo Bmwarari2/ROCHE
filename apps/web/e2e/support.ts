@@ -69,11 +69,14 @@ export async function signIn(page: Page, email: string) {
  * derivation as the seed). Step-up counts only from a second factor used in the last few minutes
  * (ADR-0072 amendment), so journeys that step up confirm with this, as a person would.
  */
-export async function addManagerPasskey(page: Page, who: "manager" | "owner" = "manager") {
-  // The manager's labels are the original ones; the owner's are prefixed (seed-users.ts).
+export async function addManagerPasskey(
+  page: Page,
+  who: "manager" | "owner" | "family" = "manager",
+) {
+  // The manager's labels are the original ones; the others are prefixed (seed-users.ts).
   const digest = (label: string) =>
     createHash("sha256")
-      .update(`harbour e2e demo passkey: ${who === "owner" ? `owner ${label}` : label}`)
+      .update(`harbour e2e demo passkey: ${who === "manager" ? label : `${who} ${label}`}`)
       .digest();
   // PKCS#8 for a P-256 private key, the scalar appended (RFC 5915, public key omitted).
   const privateKey = Buffer.concat([
@@ -107,7 +110,10 @@ export async function addManagerPasskey(page: Page, who: "manager" | "owner" = "
 }
 
 /** Signs the demo manager (or owner) in with their passkey: a session whose step-up is fresh. */
-export async function signInManagerWithPasskey(page: Page, who: "manager" | "owner" = "manager") {
+export async function signInManagerWithPasskey(
+  page: Page,
+  who: "manager" | "owner" | "family" = "manager",
+) {
   await addManagerPasskey(page, who);
   await page.goto("/sign-in");
   await page.getByRole("button", { name: "Sign in with a passkey" }).click();

@@ -5,6 +5,7 @@ import { ShellFrame } from "@/components/shell/ShellFrame";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { downtimeNavShown } from "@/lib/downtime";
 import { exportShown } from "@/lib/exports";
+import { familyUpdatesShown } from "@/lib/family-feed";
 import { handoverShown } from "@/lib/handover";
 import { peopleLabel, t } from "@/lib/i18n";
 import { incidentsNavLabel } from "@/lib/incidents";
@@ -55,6 +56,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         handover: handoverShown(me.permissions) ? t("shell.nav.handover") : undefined,
         incidents: incidentsNavLabel(me.permissions, t),
         downtime: downtimeNavShown(me.permissions) ? t("shell.nav.downtime") : undefined,
+        updates: familyUpdatesShown(me.permissions) ? t("shell.nav.updates") : undefined,
         letters: templatesNavShown(me.permissions) ? t("shell.nav.letters") : undefined,
         team: teamShown(me.permissions) ? t("shell.nav.team") : undefined,
         dataExport: exportShown(me.permissions) ? t("shell.nav.export") : undefined,

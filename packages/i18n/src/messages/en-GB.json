@@ -1635,5 +1635,18 @@
   "comms.feed.withdraw.reasonOption": "{reason, select, source_corrected {The record was corrected} published_in_error {Published in error} person_asked {The person asked} photo_consent_withdrawn {Consent to photos withdrawn} other {Other}}",
   "comms.feed.withdraw.reasonError": "Choose why the update is being taken down.",
   "comms.feed.withdraw.submit": "Take the update down",
-  "comms.feed.withdraw.already": "This update has already been taken down."
+  "comms.feed.withdraw.already": "This update has already been taken down.",
+  "shell.nav.updates": "Updates",
+  "comms.feed.family.title": "Updates",
+  "comms.feed.family.feedTitle": "Updates from the home",
+  "comms.feed.family.feedTitleOf": "Updates from the home ({n, number} of {of, number})",
+  "comms.feed.family.checkedAt": "Checked at {when}.",
+  "comms.feed.family.lastUpdate": "Last update {when}. Checked at {checked}.",
+  "comms.feed.family.empty": "There are no updates to show.",
+  "comms.feed.family.noLink": "Your account is not linked to anyone's updates yet. Ask the home to link it.",
+  "comms.feed.family.happened": "{kind, select, photo {Photo added {happened}} other {{happened}}}",
+  "comms.feed.family.happenedAdded": "{kind, select, photo {Photo added {happened}} other {{happened}}}, written {added}",
+  "comms.feed.family.withdrawnChip": "Taken down",
+  "comms.feed.family.mfa": "Updates are part of a person's care information, so you need to confirm it is you with a passkey or an authenticator app first.",
+  "comms.feed.family.mfaLink": "Set up a passkey or authenticator app"
 }
