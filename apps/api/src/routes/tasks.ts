@@ -27,6 +27,7 @@ import { AuditedRefusal, auditInTx, withAuditedRefusal, writeAudit } from "../ht
 import {
   type AppEnv,
   inScopeOf,
+  mfaRefusal,
   requirePermission,
   type TenantAccess,
   useScopeOf,
@@ -136,7 +137,7 @@ async function findTask(tx: Transaction, id: string) {
 }
 
 function requireMfaFor(access: TenantAccess, personId: string | null) {
-  if (personId && !access.mfaSatisfied) throw problems.mfaRequired();
+  if (personId && !access.mfaSatisfied) throw mfaRefusal(access);
 }
 
 function asTaskStatus(value: string): TaskStatus {

@@ -2,12 +2,13 @@ import { passkey } from "@better-auth/passkey";
 import { betterAuthSchema } from "@harbour/db";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { APIError, createAuthMiddleware } from "better-auth/api";
+import { APIError, createAuthMiddleware, isAPIError } from "better-auth/api";
 import { bearer, twoFactor } from "better-auth/plugins";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type pg from "pg";
 import type { Config } from "../config";
 import { passwordProblem } from "./password-policy";
+import { FACTOR_ROUTES, recordSessionFactor } from "./session-factor";
 import { MOBILE_APP_ORIGIN } from "./token-exposure";
 
 /** A session lasts 12 hours from its last refresh (platform.md, Identity). */
@@ -76,6 +77,15 @@ export function createAuth(config: Config, authPool: pg.Pool) {
               throw new APIError("BAD_REQUEST", { message: problem, code: "WEAK_PASSWORD" });
           }
         }
+      }),
+      // A passkey or a verified authenticator code marks the session it signed in or confirmed, so
+      // care records open only for a session that used a second factor (#43 review M5, ADR-0072).
+      after: createAuthMiddleware(async (ctx) => {
+        const factor = FACTOR_ROUTES.get(ctx.path);
+        if (!factor || isAPIError(ctx.context.returned)) return;
+        const session = ctx.context.newSession?.session ?? ctx.context.session?.session;
+        if (!session) return;
+        await recordSessionFactor(authPool, session.id, factor, new Date(session.expiresAt));
       }),
     },
     plugins: [

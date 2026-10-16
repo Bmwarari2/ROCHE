@@ -1,6 +1,5 @@
 import { DEVICE_HEADER, HANDOVER_OWNER_HEADER, TENANT_HEADER } from "@harbour/contracts";
 import {
-  authPasskey,
   authSession,
   type Database,
   deviceSession,
@@ -29,7 +28,7 @@ import {
   touchesCareRecords,
   widestScope,
 } from "@harbour/domain";
-import { and, count, eq, like, lt, sql } from "drizzle-orm";
+import { and, eq, like, lt, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { Context, MiddlewareHandler } from "hono";
 import type pg from "pg";
@@ -38,6 +37,7 @@ import {
   SESSION_EXPIRES_IN_SECONDS,
   SESSION_UPDATE_AGE_SECONDS,
 } from "../auth/better-auth";
+import { sessionMfa } from "../auth/session-factor";
 import type { Config } from "../config";
 import type { FlagService } from "../flags/provider";
 import type { Logger } from "../logger";
@@ -105,7 +105,13 @@ export interface TenantAccess {
   readonly context: RequestContext;
   /** The scopes of the permissions this request has required so far, narrowed into `context`. */
   readonly required: readonly PermissionScope[];
+  /**
+   * True when the member needs no MFA, or this session was signed in or confirmed with a passkey
+   * or an authenticator code (#43 review M5, ADR-0072); having one enrolled is not enough.
+   */
   readonly mfaSatisfied: boolean;
+  /** When MFA is not satisfied: true if a factor is enrolled and only this session lacks it. */
+  readonly mfaEnrolled: boolean;
   /** How long a sign-in counts as fresh for a step-up permission (`STEP_UP_WINDOW_SECONDS`). */
   readonly stepUpWindowSeconds: number;
   readonly deviceId: string | null;
@@ -190,15 +196,6 @@ export async function membershipsFor(appPool: pg.Pool, authUserId: string): Prom
     tenantUserId: r.tenant_user_id,
     tenantName: r.tenant_name,
   }));
-}
-
-async function hasPasskey(authPool: pg.Pool, authUserId: string): Promise<boolean> {
-  const db = drizzle(authPool);
-  const [row] = await db
-    .select({ n: count() })
-    .from(authPasskey)
-    .where(eq(authPasskey.userId, authUserId));
-  return (row?.n ?? 0) > 0;
 }
 
 async function loadAccess(
@@ -353,10 +350,9 @@ export const tenantMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   if (onRevokedDevice && !(c.req.method === "POST" && c.req.path === DEVICE_REPORT_PATH)) {
     throw problems.deviceRevoked();
   }
-  const mfaSatisfied =
-    !mfaRequired ||
-    session.twoFactorEnabled ||
-    (await hasPasskey(services.authPool, session.authUserId));
+  // A session from before this check, or signed in with a password alone, fails closed until
+  // the person confirms it is them with a passkey or an authenticator code (ADR-0072).
+  const mfa = mfaRequired ? await sessionMfa(services.authPool, session) : "satisfied";
   const access: TenantAccess = {
     tenantId: membership.tenantId,
     tenantUserId: membership.tenantUserId,
@@ -371,7 +367,8 @@ export const tenantMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
       locationIds: [],
     },
     required: [],
-    mfaSatisfied,
+    mfaSatisfied: mfa === "satisfied",
+    mfaEnrolled: mfa !== "enrol",
     stepUpWindowSeconds: services.config.STEP_UP_WINDOW_SECONDS,
     deviceId,
     ip: clientIp(c),
@@ -437,7 +434,16 @@ export function contextOf(
   };
 }
 
-type Refusal = "mfa_enrolment_required" | "missing_permission" | "step_up_required";
+type Refusal =
+  | "mfa_enrolment_required"
+  | "mfa_verification_required"
+  | "missing_permission"
+  | "step_up_required";
+
+/** The refusal for a session whose MFA is not satisfied: enrol a factor, or use the one enrolled. */
+export function mfaRefusal(access: TenantAccess): HttpProblem {
+  return access.mfaEnrolled ? problems.mfaVerify() : problems.mfaRequired();
+}
 
 /** Why the session may not use a permission now (MFA, held, step-up), or null when it may. */
 export function refusalOf(
@@ -445,7 +451,9 @@ export function refusalOf(
   permission: Permission,
   now: Date = new Date(),
 ): Refusal | null {
-  if (touchesCareRecords(permission) && !access.mfaSatisfied) return "mfa_enrolment_required";
+  if (touchesCareRecords(permission) && !access.mfaSatisfied) {
+    return access.mfaEnrolled ? "mfa_verification_required" : "mfa_enrolment_required";
+  }
   const decision = authorise(
     access.effective,
     permission,
@@ -464,7 +472,9 @@ function refusal(c: Context<AppEnv>, permission: Permission): Refusal | null {
 async function authoriseOrRefuse(c: Context<AppEnv>, permission: Permission): Promise<void> {
   const reason = refusal(c, permission);
   if (reason === null) return;
-  if (reason === "mfa_enrolment_required") throw problems.mfaRequired();
+  if (reason === "mfa_enrolment_required" || reason === "mfa_verification_required") {
+    throw mfaRefusal(c.get("access"));
+  }
   await writeAudit(c.get("services").appPool, c.get("access"), {
     action: permission,
     outcome: "denied",
