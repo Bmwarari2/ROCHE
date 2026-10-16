@@ -1,5 +1,9 @@
 # Development log
 
+> **Frozen on 2026-10-16.** New entries are one file per pull request in
+> [docs/changelog-dev/](changelog-dev/README.md) ([ADR-0073](decisions/0073-changelog-fragments.md)).
+> Do not append here; this file is the history before that date.
+
 One entry per working session (section 20 rule 9): what changed, what is next, human actions
 logged, test status.
 
