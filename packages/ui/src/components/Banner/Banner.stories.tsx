@@ -38,3 +38,7 @@ export const Stale: Story = {
     detail: "Last updated 03/10/2026 09:15",
   },
 };
+
+export const Sample: Story = {
+  args: { variant: "sample" },
+};

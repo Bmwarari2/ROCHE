@@ -27,7 +27,7 @@ import {
   notificationKindLabel,
   overdueCount,
 } from "@/lib/incidents";
-import { communicationSummary, personNames } from "@/lib/people";
+import { communicationSummary, personNames, sampleName } from "@/lib/people";
 import { readOrFail } from "@/lib/person-record";
 import { ukToday } from "@/lib/uk-time";
 
@@ -104,7 +104,9 @@ export default async function IncidentPage({
   const api = await tenantApi();
   const list = await api.GET("/v1/people", { params: { query: {} } });
   const people = new Map((list.data?.items ?? []).map((p) => [p.id, p]));
-  const names = new Map([...people].map(([key, p]) => [key, personNames(p).full]));
+  const names = new Map(
+    [...people].map(([key, p]) => [key, sampleName(p, personNames(p).full, t)]),
+  );
   const title = incidentTitle(incident, t);
   const location = me.locations.find((l) => l.id === incident.locationId);
   const author = (userId: string | null) =>

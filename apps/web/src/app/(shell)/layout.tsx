@@ -1,6 +1,7 @@
 import type { LocationSummary } from "@harbour/contracts";
 import type { ReactNode } from "react";
 import { OfflineBanner } from "@/components/shell/OfflineBanner";
+import { SampleDataBanner } from "@/components/shell/SampleDataBanner";
 import { ShellFrame } from "@/components/shell/ShellFrame";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { downtimeNavShown } from "@/lib/downtime";
@@ -11,7 +12,7 @@ import { handoverShown } from "@/lib/handover";
 import { peopleLabel, t } from "@/lib/i18n";
 import { incidentsNavLabel } from "@/lib/incidents";
 import { templatesNavShown } from "@/lib/letters";
-import { onboardingShown } from "@/lib/onboarding";
+import { MANAGE, onboardingShown } from "@/lib/onboarding";
 import { roundShown } from "@/lib/round";
 import { searchShown } from "@/lib/search";
 import { teamShown } from "@/lib/team";
@@ -78,6 +79,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
       }}
     >
       <OfflineBanner />
+      <SampleDataBanner present={me.sampleData} mayManage={me.permissions.includes(MANAGE)} />
       {children}
     </ShellFrame>
   );

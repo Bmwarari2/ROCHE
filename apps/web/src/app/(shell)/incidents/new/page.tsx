@@ -10,7 +10,12 @@ import { getShellContext } from "@/lib/api";
 import { can, writeAccess } from "@/lib/care-record";
 import { isUuid } from "@/lib/context-cookies";
 import { t } from "@/lib/i18n";
-import { type CommunicationSummary, communicationSummary, personNames } from "@/lib/people";
+import {
+  type CommunicationSummary,
+  communicationSummary,
+  personNames,
+  sampleName,
+} from "@/lib/people";
 import { getPerson } from "@/lib/person-record";
 
 /** The page title says what the page is for, never who the incident is about. */
@@ -42,7 +47,11 @@ export default async function NewIncidentPage({
     if (typeof param !== "string" || !isUuid(param)) notFound();
     const { person } = await getPerson(param);
     if (!person) notFound();
-    about = { id: person.id, name: personNames(person).preferred, locationId: person.locationId };
+    about = {
+      id: person.id,
+      name: sampleName(person, personNames(person).preferred, t),
+      locationId: person.locationId,
+    };
     readOnly = !writeAccess(person, me.permissions, "safety.incident.report").canWrite;
     needs = communicationSummary(person, t);
   }

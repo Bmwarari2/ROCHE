@@ -21,6 +21,14 @@ describe("Banner", () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
+  it("says politely, with its own icon and words, that sample data is in use", () => {
+    render(<Banner variant="sample" />);
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("Sample data is in use");
+    expect(status).toHaveAttribute("data-variant", "sample");
+    expect(status.querySelector("svg")).not.toBeNull();
+  });
+
   it("uses an alert for stale data and shows when it was last updated", () => {
     render(<Banner variant="stale" detail="Last updated 03/10/2026 09:15" />);
     const alert = screen.getByRole("alert");

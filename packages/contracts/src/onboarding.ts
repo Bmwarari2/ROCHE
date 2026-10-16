@@ -54,6 +54,11 @@ export const OnboardingChecklist = z
     version: z.number().int(),
     /** The figure in force for each setting still to decide, shown with the decision. */
     settings: z.array(z.object({ key: z.string(), value: z.number(), unit: z.string() })),
+    /**
+     * Sample data mode (rules 29 to 32; HZ-072): whether a batch is in place, and whether sample
+     * data may be loaded now (no batch and the organisation has never had a real person).
+     */
+    sampleData: z.object({ present: z.boolean(), mayLoad: z.boolean() }),
   })
   .meta({ id: "OnboardingChecklist" });
 export type OnboardingChecklist = z.infer<typeof OnboardingChecklist>;

@@ -66,6 +66,11 @@ export const PersonSummary = z
     iddsiDrinkLevel: z.enum(["0", "1", "2", "3", "4", "not_recorded"]),
     /** When the current status began (for a discharge or death, when the person left or died). */
     statusChangedAt: isoDateTime,
+    /**
+     * HZ-072: an invented person loaded as sample data, shown with the "Sample" badge wherever
+     * they are named (platform-completions.md rule 29).
+     */
+    sample: z.boolean(),
     version: z.number().int(),
     /**
      * What the caller may do about this person, on `GET /v1/people/{id}` only (ADR-0071 review

@@ -11,6 +11,7 @@ import {
   justificationProblem,
   type PersonRow,
   personNames,
+  sampleName,
   toPersonListItem,
 } from "./people";
 
@@ -50,6 +51,7 @@ const ada: PersonSummary = {
     reviewDueOn: null,
     reviewOverdue: false,
   },
+  sample: false,
   version: 1,
 };
 
@@ -194,5 +196,17 @@ describe("justificationProblem", () => {
     ["a".repeat(BREAK_GLASS_MAX_LENGTH + 1), "too-long"],
   ])("%j is %s", (justification, expected) => {
     expect(justificationProblem(justification)).toBe(expected);
+  });
+});
+
+describe("hazard HZ-072 a sample person is marked wherever they are named", () => {
+  it("marks the name in words, and leaves a real person's alone", () => {
+    expect(sampleName({ sample: true }, "Ada Example", t)).toBe("Ada Example (Sample)");
+    expect(sampleName({ sample: false }, "Ada Example", t)).toBe("Ada Example");
+  });
+
+  it("carries the flag to the people list for the badge", () => {
+    expect(toPersonListItem({ ...ada, sample: true }, t, new Map()).sample).toBe(true);
+    expect(toPersonListItem(ada, t, new Map()).sample).toBe(false);
   });
 });

@@ -39,6 +39,8 @@ export interface SearchDetail {
     readonly hasPhoto: boolean;
     /** Accessible Information Standard needs, by their display words. */
     readonly communicationNeeds: string[];
+    /** HZ-072: an invented sample person. */
+    readonly sample: boolean;
   };
   readonly staff?: {
     readonly name: string;
@@ -145,7 +147,7 @@ export async function searchRows(
           SELECT p.id, p.given_name, p.family_name, p.preferred_name, p.date_of_birth::text AS dob,
                  p.nhs_number, p.status, p.location_id, l.name AS location_name, p.room_label,
                  p.photo_document_id IS NOT NULL AS has_photo, p.communication_needs,
-                 ${isExact} AS exact,
+                 p.is_sample, ${isExact} AS exact,
                  ${query.kind === "text" ? rank(sql`p.search_names`) : sql`1`} AS rank,
                  ${assignedTo(actor, sql`p.id`)} AS assigned
           FROM person p
@@ -179,6 +181,7 @@ export async function searchRows(
             roomLabel: text(r.room_label),
             hasPhoto: Boolean(r.has_photo),
             communicationNeeds: needsOf(r.communication_needs),
+            sample: r.is_sample === true,
           },
         });
       }

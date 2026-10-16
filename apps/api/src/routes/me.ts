@@ -6,6 +6,7 @@ import { eq, isNull } from "drizzle-orm";
 import { membershipsFor, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { accessRowsOfMember, workLocationIds } from "../services/access-rows";
+import { sampleDataState } from "../services/onboarding";
 import { createRouter, errorResponses, jsonBody, security } from "./openapi";
 
 export const membershipsRouter = createRouter().openapi(
@@ -100,6 +101,8 @@ export const meRouter = createRouter().openapi(
         roleKeys: [...access.effective.roleKeys],
         // Whose records the user may open (ADR-0071): each permission has its own scope.
         scope: scopeFor(access.effective, "people.person.read").scope,
+        // The sample data banner (HZ-072): the whole organisation, yes or no only.
+        sampleData: (await sampleDataState(tx)).hasSample,
         overrides,
       };
     });

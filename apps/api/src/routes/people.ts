@@ -179,6 +179,7 @@ async function summaries(tx: Transaction, personIds?: readonly string[]) {
       iddsiDrinkLevel: (iddsi.get(p.id)?.drink ??
         "not_recorded") as PersonSummary["iddsiDrinkLevel"],
       statusChangedAt: p.statusChangedAt.toISOString(),
+      sample: p.isSample,
       version: p.version,
     }),
   );
