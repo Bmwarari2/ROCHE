@@ -305,6 +305,7 @@ module "svc_web" {
     HOSTNAME                = "0.0.0.0"
     API_BASE_URL            = "https://${local.hosts.api}"
     PUBLIC_WEB_URL          = "https://${local.hosts.web}"
+    TRUSTED_PROXY_CIDRS     = join(",", local.trusted_proxy_cidrs)
     NEXT_TELEMETRY_DISABLED = "1"
   }
   secrets_kms_key_arn = module.kms.key_arns["secrets"]
