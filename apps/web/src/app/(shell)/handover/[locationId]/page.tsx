@@ -87,7 +87,7 @@ export default async function LocationHandoverPage({ params }: { readonly params
           <ul className="m-0 flex list-none flex-col gap-3 p-0">
             {earlier.map((h) => (
               <li key={h.id} className="flex flex-col gap-1 border-b border-border pb-3">
-                <span className="font-semibold">{link(h.id, shiftTitle(h, t))}</span>
+                <h3 className="m-0 text-body font-semibold">{link(h.id, shiftTitle(h, t))}</h3>
                 <span className="flex flex-wrap items-center gap-2">
                   {handoverChips(h, t).map((chip) => (
                     <SafetyChip key={chip.label} chip={chip} />

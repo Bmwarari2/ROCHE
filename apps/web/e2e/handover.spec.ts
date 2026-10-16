@@ -9,6 +9,8 @@ import { expectAccessible, signIn } from "./support";
  * state is checked with axe.
  */
 
+const API_URL = process.env.API_URL ?? "http://localhost:4000";
+const DEMO_TENANT = "0194d000-0000-7000-8000-000000000001";
 const DEMO_LOCATION = "0194d000-0000-7000-8000-000000000101";
 const RUN = `run ${Date.now().toString(36)}`;
 
@@ -44,7 +46,7 @@ async function openThisShift(page: Page) {
   if (await compile.isVisible()) {
     await expectAccessible(page, "handover not compiled");
     await compile.click();
-    await page.waitForURL(/\/handover\/[^/]+\/[^/?]+\?done=compiled$/);
+    await page.waitForURL(/\/handover\/[^/]+\/[^/?]+\?done=compiled&at=\d+$/);
     await expect(page.locator("[data-arrival-notice]")).toHaveText("Handover compiled.");
   } else {
     await thisShift
@@ -59,6 +61,7 @@ async function openThisShift(page: Page) {
 test("hazard HZ-008 the nurse compiles this shift's handover, adds a note and acknowledges it", async ({
   page,
   context,
+  playwright,
 }) => {
   await as(context, "nurse");
   await page.goto("/");
@@ -69,6 +72,14 @@ test("hazard HZ-008 the nurse compiles this shift's handover, adds a note and ac
   await page.waitForURL((url) => url.pathname.startsWith("/handover"));
   await openThisShift(page);
   await expectAccessible(page, "handover");
+  // The location's list, with this shift compiled.
+  await page.goto(`/handover/${DEMO_LOCATION}`);
+  await expect(
+    page.getByRole("region", { name: "This shift" }).getByRole("heading", { level: 3 }),
+  ).toBeVisible();
+  await expectAccessible(page, "handover list compiled");
+  await page.goBack();
+  await expect(page.getByRole("region", { name: "Items" })).toBeVisible();
 
   // A note on the whole handover: an empty one is refused, the summary takes focus.
   const general = page.getByRole("region", { name: "Notes on the whole handover" });
@@ -83,10 +94,55 @@ test("hazard HZ-008 the nurse compiles this shift's handover, adds a note and ac
   await expect(general.getByText(`Ada slept well (${RUN}).`)).toBeVisible();
   await expectAccessible(page, "handover note added");
 
-  // Acknowledged as shown: the page says so and where the nurse now stands.
+  // HZ-018: an incident recorded and compiled after the page was opened makes the page stale;
+  // acknowledging it is refused, the page reloads with the item marked new and says so.
+  const handoverId = new URL(page.url()).pathname.split("/").at(-1) ?? "";
+  // The carer records it and compiles again (compiling is limited per member a minute).
+  const carer = await playwright.request.newContext({
+    baseURL: API_URL,
+    storageState: { cookies: sessions.carer ?? [], origins: [] },
+  });
+  const incident = await carer.post(`${API_URL}/v1/incidents`, {
+    headers: { "x-harbour-tenant": DEMO_TENANT },
+    data: {
+      locationId: DEMO_LOCATION,
+      occurredAt: new Date(Date.now() - 60_000).toISOString(),
+      type: "environmental",
+      description: `A light in the corridor failed (${RUN}).`,
+    },
+  });
+  expect(incident.status(), await incident.text()).toBe(201);
+  const compiled = await carer.post(`${API_URL}/v1/locations/${DEMO_LOCATION}/handovers`, {
+    headers: { "x-harbour-tenant": DEMO_TENANT },
+    data: {},
+  });
+  expect(compiled.status(), await compiled.text()).toBe(200);
+  await carer.dispose();
   const read = page.getByRole("region", { name: "Who has read it" });
   await read.getByRole("button", { name: "I have read this handover" }).click();
-  await page.waitForURL(/\?done=acknowledged$/);
+  await expect(alertIn(page)).toBeFocused();
+  await expect(alertIn(page)).toContainText("Items were added since you opened the handover.");
+  await expect(main(page).getByText("New to you", { exact: true }).first()).toBeVisible();
+  await expectAccessible(page, "handover changed since opened");
+  expect(new URL(page.url()).pathname.endsWith(handoverId)).toBe(true);
+
+  // A note on one item, named for what it is about.
+  const itemNote = page
+    .getByRole("region", { name: "Items" })
+    .getByRole("button", { name: /^Add a note about / })
+    .first();
+  if (await itemNote.isVisible()) {
+    await itemNote.click();
+    const items = page.getByRole("region", { name: "Items" });
+    await items.getByLabel("Note", { exact: true }).fill(`Checked by the night nurse (${RUN}).`);
+    await items.getByRole("button", { name: "Save note" }).click();
+    await expect(items.getByText(`Checked by the night nurse (${RUN}).`)).toBeVisible();
+    await expectAccessible(page, "item note added");
+  }
+
+  // Acknowledged as shown: the page says so and where the nurse now stands.
+  await read.getByRole("button", { name: "I have read this handover" }).click();
+  await page.waitForURL(/\?done=acknowledged&at=\d+$/);
   await expect(page.locator("[data-arrival-notice]")).toHaveText("Handover acknowledged.");
   await expect(main(page).getByText("You have acknowledged it", { exact: true })).toBeVisible();
   await expect(read.getByText(/^Nell Nurse/)).toBeVisible();
