@@ -263,7 +263,7 @@ only when they link spec, code, tests and user documentation; no user guides exi
      migration 0057; quality.md section 12): six tables with forced RLS, the workflow guards,
      separation of duties in the database, hashed tokens and codes, bundle deletion and the
      definer token lookup (new NOLOGIN role `harbour_evidence_link_reader`: run `pnpm
-     db:bootstrap` first, H-216; storage split for the DPO, H-217). Next, part 2, the API: the
+     db:bootstrap` first, H-220, numbered H-216 until #60 review round 1; storage split for the DPO, H-217). Next, part 2, the API: the
      routes, public link routes and audit and outbox events of section 5, the PDF through the
      downtime pack writer (ADR-0040), the bundle deletion sweep at link end and the
      notification-overdue job. Follow-ups: an inspector with a Harbour account
@@ -290,6 +290,13 @@ only when they link spec, code, tests and user documentation; no user guides exi
      Follow-ups: the other seven record types of the field map; staff shown as their role from the
      closed list (as built every staff name prints "[member of staff]", H-218); a superseded
      incident version cannot be added after it changes, only a new pack.
+   - #60 review round 1 (clinical and security), fixed in #60: release re-reads every record and
+     is refused, saying which, when one was corrected or changed since it was added; corrections,
+     back-entries from paper (paper time, outage, reference), the recording time and a wrong
+     device clock are labelled in the pack; observation readings have a label and unit per chart
+     field and only the chart schema's own values count as codes; care-note tags are free text;
+     times carry GMT or BST; the token responses say `no-store` (the API logs no request bodies).
+     For the CSO and DPO: H-221 to H-223. Follow-up: reason codes in audit rows (H-223).
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature

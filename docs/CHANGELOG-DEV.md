@@ -1800,7 +1800,7 @@ the new NOLOGIN role `harbour_evidence_link_reader`.
 - Domain: `EVIDENCE_EXCLUSION_REASONS`; export catalogue entries for the six tables (bundle not
   exported; token and code hashes secret).
 - Docs: quality.md section 12, retention.md, data-standards.md, HZ-050 control and test rows,
-  H-216 and H-217, STATUS, feature register.
+  H-216 (now H-220, a number used twice) and H-217, STATUS, feature register.
 
 **Tests**: `packages/db` `evidence-pack.test.ts`, 13 new; RLS coverage lists the new append-only
 table.
@@ -1938,3 +1938,22 @@ ended.
 - Docs: quality.md section 13, HZ-050 rows, H-218, STATUS.
 
 **Tests**: `apps/api/test/evidence-packs.test.ts`, 12 new.
+
+## 2026-10-16: Evidence pack routes, review round 1 of #60 (HZ-050)
+
+- Release re-reads each record in the pack and is refused (409 `record_changed`, naming each) when
+  one was corrected or changed since it was added, or the releaser cannot open it.
+- A pack labels how each entry came to be: a correction of an earlier entry (reason withheld until
+  redacted), a back-entry from paper with the paper time and the outage (reference withheld until
+  redacted), the time recorded in Harbour and a wrong device clock. Domain: the field map gains
+  these keys; care-note tags are free text.
+- Observation readings: a label and unit per chart field, IDDSI levels, and only the chart
+  schema's own enum values as codes; any other text goes to hand review.
+- Domain: `formatUkDateTimeWithZone` (GMT or BST), used for every time in a pack.
+- The token responses set `Cache-Control: no-store`.
+- Docs: quality.md sections 4 and 13, HZ-050 rows, H-220 (renumbered H-216), H-221 to H-223,
+  STATUS.
+
+**Tests**: `apps/api/test/evidence-packs.test.ts` 4 new and 4 extended (step-up on release and
+re-issue, `no-store`, the sweep sparing a live bundle and staying in its organisation); domain
+`time.test.ts` 6 new (the October repeated hour), `evidence-pack.test.ts` 5 new map rows.
