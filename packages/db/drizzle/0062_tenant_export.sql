@@ -50,7 +50,7 @@ CREATE UNIQUE INDEX "tenant_export_one_running_key" ON "tenant_export" USING btr
 CREATE INDEX "tenant_export_requested_idx" ON "tenant_export" USING btree ("tenant_id","requested_at");--> statement-breakpoint
 
 -- The free full export (PLAT-015; platform-completions.md rules 12 to 15; hazards HZ-011 and
--- HZ-070). Numbered 0062 after 0060 (#71, members) and 0061 (family feed): merge after both.
+-- HZ-070). Follows 0060 (#71, members) and 0061 (#75, family feed).
 -- The ADR-0002 patterns, then: only holders of platform.export.create across the organisation
 -- (the owner) see or change an export, and the export worker (no member, the organisation's view);
 -- a request is queued in the requester's own name; the guard keeps who asked and what was asked,

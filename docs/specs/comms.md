@@ -187,11 +187,13 @@ by the caller.
    (`LIVE_PERSON_STATUSES`: active, on leave, in hospital, from people/lifecycle.ts). Discharge and
    death close sharing (people.md rules 2 and 13, the `close_sharing` effect); a correction of a
    discharge or death recorded in error does not reopen it until a manager reinstates the decision.
-   Nothing new is composed for a closed record. A family member who had a decision then sees
-   "Updates are paused. The home will be in touch." (`FEED_PAUSED_STATEMENT`, wording for the CSO,
-   H-110), never a feed that is suddenly empty; someone who never had a decision sees no change. A
-   death or a discharge is never announced through the feed or a notification: staff tell the
-   family in person or by phone.
+   Nothing new is composed for a closed record. A feed closed by the person's status looks exactly
+   like a feed with no decision in force: the same statement, no entries and no status-specific
+   notice, so the portal can never tell a family about a death or discharge before the home does
+   (#75 and #76 review; the domain's `FEED_PAUSED_STATEMENT` is not shown). A death or a discharge
+   is never announced through the feed or a notification: staff tell the family in person or by
+   phone. Whether staff may post a closing message once the next of kin have been told is for the
+   CSO (H-110).
 4. **Withdrawal hides from then on; what was seen stays seen.** Withdrawing or suspending a decision
    closes its sections at the next request. It cannot undo a view, so every view is kept
    (`feed_view`, with the decision that allowed it and the capacity finding then): `feedExposure`
@@ -399,13 +401,15 @@ by the caller.
     - every person-bound value must belong to the person the letter is about, and a recipient must
       be that person's contact; otherwise the letter is refused (HZ-051);
     - values are formatted in British style (dd/mm/yyyy, 24-hour UK time, pounds and pence);
-    - for HTML email every value and every piece of the template's own text is escaped
+    - for an HTML email every value and every piece of the template's own text is escaped
       (`escapeHtml`), paragraphs become `<p>` and line breaks `<br>`; nothing in a template or value
-      can inject markup;
+      can inject markup (as built, Harbour sends email as plain text through SES, the rendered
+      `text` as the body, checked by the port's guard, `outboundBodyProblem`);
     - the rendered email subject is checked again for header-breaking characters (a value could
       carry one) and must pass the outbound title check (`outboundTitleProblem`);
-    - a letter's text goes to the PDF renderer (Typst) as data, never as markup: values and template
-      text are passed as strings the template prints, so nothing typed can run as Typst code;
+    - a letter's text goes to the PDF writer as data, never as markup: as built, the pack PDF
+      writer of ADR-0040 (Typst is not used) takes the rendered text as plain lines, so nothing
+      typed can run as code;
     - a duty of candour letter needs the candour record's relevant person and the recipient, and
       they must match (rule 21);
     - the result lists the personal-data fields used and whether special category data is present,
@@ -657,3 +661,29 @@ Audit rows hold ids and codes only, never typed reasons (H-223). The email port 
 has a generic subject ("Your code to open an evidence pack") with the code and guidance in the
 body. Tests: `apps/api/test/letter-templates.test.ts`, `adapters.test.ts`, `evidence-link.test.ts`.
 Next, part 2b: preview, sending and the letters list, with the PDF writer.
+
+Slice 11 (letters, API part 2b; `feat/comms-letters-api`): `apps/api/src/routes/letters.ts`,
+`apps/api/src/services/letters.ts`.
+
+| Route | Built as |
+| --- | --- |
+| `POST /v1/people/{id}/letters/preview` | Shows who the letter is about (full name, preferred name, room, photo; rule 25, HZ-001) and returns the version and text hash the send repeats. `comms.letter.manage` in the person's scope with MFA, plus `safety.incident.manage` when an incident is named. The template's version in use rendered with `renderTemplate`: every value from the record (person, recipient, location, provider, sender, today's date, `fee.notice_days` from `cma.fee_review_notice_days`, the incident's date and description) except the admission and fee details the sender types (`SENDER_TYPED_FIELDS`; anything else typed is refused). The recipient is the person or one of their own current contacts (not removed, not past `valid_until`); an incident must be about this person alone (one involving anyone else is refused, `incident_involves_others`, since its account may name them); a person who has died is refused (no template kind is written for after a death yet). Stores nothing; `comms.letter.previewed` with field keys |
+| `POST /v1/people/{id}/letters` | As the preview, with `confirmed` and the preview's `templateVersionId` and `textHash` (SHA-256 of the subject and text): a letter that would differ from what the sender checked (a new version approved, a value changed) is refused with 409 `letter_changed`, audited `preview_changed`. ADR-0051 checked again on what was rendered. A letter is rendered to PDF by the pack PDF writer (ADR-0040; values as text) and stored as a `person_document` about the person. **Email is refused** (422, `email_sending_not_available`, audited) until the worker-based send exists (a pending letter row, a worker job keyed on the letter id, then the provider's id recorded), so an email can never be sent twice or sent unrecorded. The `letter` row keeps the field keys, never the content; `comms.letter.sent` and the outbox `comms.letter.sent` |
+| `GET /v1/people/{id}/letters` | `comms.letter.manage` with MFA (a comms permission, not only the person in scope): template version, recipient, channel, field keys, document; the incident only to holders of `safety.incident.manage`; never content; `comms.letter.listed` |
+
+Not yet: duty of candour letters (refused until the candour record names the relevant person,
+rule 21); sending email (the worker-based send above); a family-facing incident summary for
+incidents involving several people. Tests:
+`apps/api/test/letters.test.ts`.
+
+Slice 12 (the family feed, schema; migration 0061, after #71's 0060; `feat/comms-family-feed`):
+`packages/db/src/schema/comms.ts`.
+
+| Table or function | Built as |
+| --- | --- |
+| `family_portal_user` | Mutable. A portal account, a person and the contact the decisions name; one open link per account and contact; revoked with a reason, never reopened or deleted. A member always reads their own links; staff read and write them in the person's scope with `people.sharing.manage`. The database refuses a person assignment for a linked account, and a link for an assigned one |
+| `feed_item`, `feed_item_withdrawal`, `feed_view` | Append-only, with the section 2 CHECK constraints. Staff follow the person scope; a family session (`app.family` with a member and scope `none`) sees an update only when `app.family_can_see` allows it and, once taken down, only if it saw it before (`app.family_item_shown`); it writes only its own views, for its own contacts and updates it can see. Updates are published by holders of `comms.feed.publish` and taken down by holders of `comms.feed.withdraw` in their own name where the person lives; the database stamps the times |
+| `app.family_can_see` | Section 2.1, as a definer function owned by `harbour_family_reader` (a new NOLOGIN role; `pnpm db:bootstrap` before migrating), fixed search path, reading only the columns the rule needs. `packages/db/test/family-feed.test.ts` runs it and `checkFeedItemVisibility` over the same table of cases |
+
+Next, the API (`feat/comms-family-feed-api`): portal sessions, `GET /v1/family/feed`, the portal
+links, the staff list and withdrawal; then part 1b, publishing from source records.

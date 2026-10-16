@@ -2188,6 +2188,63 @@ manager is linked in the demo tenant (`scripts/demo-seed-guard.ts`, `test/demo-s
 - Start, done, and not done with a reason, for those who record care; a task that needs a record
   links to where it is made; the round opens again saying what was done (HZ-003, H-270).
 
+## 2026-10-17: Members routes for managers (PLAT-004)
+
+- `GET /v1/members`: the invited, active and suspended members `platform.user.manage` reaches
+  (`membersReached`, the batch form of `memberReached`), their roles and where, and the roles the
+  manager may give and where. Never an address.
+- `POST /v1/members`: adds an invited member with one role, with step-up; `app.may_assign_role`
+  and then `app.may_invite` refuse a role beyond the manager's (403 `beyond_inviter`); 409
+  `email_in_use` and `member_id_conflict`; a retry with the same client id answers 200. Audited
+  as `platform.member.created` with ids only, refusals too.
+- Migration 0060 (after 0059): restrictive insert policies on `tenant_user` and
+  `role_assignment` for the application role.
+- Docs: platform.md (As built, members), hazard log HZ-011 row, records of processing, STATUS.
+
+- #71 security review: giving a role counts only the giver's own roles, never an access grant
+  (M1); a retry with another name is 409; follow-ups logged in STATUS.
+
+**Tests**: `apps/api/test/members.test.ts` (16); `packages/db/test/members.test.ts` (4).
+
+## 2026-10-16: Slice 11, letters: preview, sending and the list (COMMS-007, part 2b)
+
+- API: `POST /v1/people/{id}/letters/preview`, `POST /v1/people/{id}/letters`, `GET
+  /v1/people/{id}/letters` (comms.md section 11): comms.letter.manage with MFA, safety.incident.manage
+  for incident letters, values from the record except typed admission and fee details, ADR-0051 on
+  the rendered output, letters as PDF documents about the person, emails through the port with a
+  body, field keys and the provider's message id only.
+- Domain: `outboundBodyProblem`; the email port's guard checks bodies (no link, no NHS number).
+- Docs: comms.md section 11, HZ-051 rows, H-228, records of processing, feature register, STATUS.
+
+**Tests**: `apps/api/test/letters.test.ts` (7); domain `ports.test.ts` 6 new.
+
+## 2026-10-16: Letters, review round 1 of #72 (HZ-051)
+
+- The send repeats the preview's version and text hash and is refused (409) if the letter would
+  differ; the preview shows the person (name, room, photo).
+- Only current contacts; an incident involving anyone else is refused; a person who has died is
+  refused; the list shows incidents only to holders of safety.incident.manage; `sender.role` is
+  chosen in a fixed order.
+- Email sending is refused (422) until the worker-based send exists (STATUS); previews still render.
+- The email body guard also catches hyphenated or spaced NHS numbers and `mailto:`.
+- Docs: comms.md rule 24 (the ADR-0040 writer, plain-text SES) and section 11, HZ-051 causes and
+  rows, STATUS.
+
+**Tests**: `apps/api/test/letters.test.ts` 5 new and 3 changed; domain `ports.test.ts` 2 new.
+
+## 2026-10-17: Slice 12 part 1, the family feed schema (COMMS-001)
+
+- Migration 0061 (after #71's 0060): `family_portal_user`, `feed_item`, `feed_item_withdrawal` and
+  `feed_view` with forced RLS; family sessions (`app.family`, scope `none`); `app.family_can_see`,
+  a definer function owned by the new NOLOGIN role `harbour_family_reader`, mirroring
+  `checkFeedItemVisibility`; an update taken down shows only to a viewer who saw it; no person
+  assignment for a portal account; append-only feed rows (ADR-0061, comms.md section 2.1).
+- Docs: comms.md section 11, HZ-022, records of processing, data standards, the register, STATUS.
+
+**Tests**: `packages/db/test/family-feed.test.ts` (28: 22 table-driven parity cases between the SQL
+and the domain rule, isolation, writes, withdrawals, assignments, constraints); the RLS coverage
+list.
+
 ## 2026-10-17: Slice 13 part 1, the full export's record and routes (PLAT-015)
 
 - Migration 0062: `tenant_export` (forced RLS, the owner and the worker only, one queued or

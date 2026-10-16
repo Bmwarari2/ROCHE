@@ -147,6 +147,27 @@ only when they link spec, code, tests and user documentation; no user guides exi
      exports bucket (`S3_EXPORTS_BUCKET`), streamed both ways; the worker deletes it after the
      download or a cancel (outbox, retried). Interim: the tenant has no `data_purged_at` yet, so
      `checkExportRequest` is given none.
+   - Slice 12 part 1, the family feed schema (`feat/comms-family-feed`, migration 0061, after
+     #71's 0060; COMMS-001, ADR-0061, HZ-022): in review. `family_portal_user`, `feed_item`,
+     `feed_item_withdrawal`, `feed_view`; family sessions (`app.family`, scope `none`);
+     `app.family_can_see` (definer, `harbour_family_reader`, a new NOLOGIN role: run
+     `pnpm db:bootstrap` before migrating) mirrors `checkFeedItemVisibility`, with a parity test.
+     Next, the API part stacked on it (`feat/comms-family-feed-api`), then part 1b, publishing
+     from source records, then part 2, the web.
+   - Follow-ups from the #75 and #76 review (no code yet):
+     - linking a family account rests on a verified email matching the contact's; replace it with
+       an invitation sent to the contact that the family member accepts (the invitation store of
+       0054 with a family kind);
+     - the feed's checks are spread over three transactions (the family read, the system's view of
+       the decisions, the view writes); a decision changed between them is judged on the earlier
+       read; fold them into one or re-check on write;
+     - a family session reads withdrawal rows for every section of its own people, not only the
+       sections a decision opens (ids and reason codes only); narrow the policy;
+     - `feed_view.sharing_decision_id` is not checked against the decision that opened the update
+       (the API supplies it); a definer check that it names the caller's contact and covers the
+       section;
+     - the "as at" time on an empty open feed (HZ-061, for the web part);
+     - closing message after next of kin are told: for the CSO (H-110).
    - Slice 11 part 1, downtime pack and outage schema (`feat/operations-downtime-schema`,
      migrations 0050 and 0051; operations.md section 12): in review. Next, part 2: the
      expand-only back-entry columns on `care_note`, `observation`, `body_map_mark`,
@@ -364,6 +385,27 @@ only when they link spec, code, tests and user documentation; no user guides exi
      409, audited); the letter-only refusal is audited. For part 2b: check an email's body before
      it leaves (no link, and no personal field beyond the approved, rendered template), as
      `guarded` checks the title in `adapters.ts`; run the ADR-0051 check on the rendered body too.
+   - Slice 11, letters part 2b, preview, sending and the list (`feat/comms-letters-api`, stacked
+     on #70; comms.md section 11): built, PR open, with the part 2 must-dos (comms.letter.manage
+     with MFA on every route including reads, safety.incident.manage for incident letters, values
+     from the record except typed admission and fee details, the provider's message id only, field
+     keys only, no email content stored), the body guard and ADR-0051 on the rendered output.
+     Follow-ups: duty of candour letters need the relevant person on the candour record; a letter's
+     PDF document keeps `care_record` retention even when the letter is `serious_incident` (the
+     retention slice); letter PDFs carry no letterhead or address block layout yet (H-228).
+   - #72 review round 1 (security and clinical), fixed in #72: the send must match the preview
+     (version and text hash, 409 otherwise); only current contacts; an incident involving anyone
+     else is refused; email sending refused (422) until the worker-based send; the preview shows the
+     person (name, room, photo); people who have died are refused; the list shows incidents only to
+     holders of `safety.incident.manage`; the body guard catches hyphenated NHS numbers and
+     `mailto:`. Follow-ups:
+     - the worker-based email send: insert a pending `letter` row (an expand change: a status
+       column), a pg-boss job keyed on the letter id sends once (the port's idempotency key is the
+       letter id), then the provider's message id is recorded; an email is never sent twice or
+       unrecorded (HZ-051);
+     - a family-facing incident summary, written for the family and approved, so incidents
+       involving several people can be written about without the internal account;
+     - letters after a death (to the next of kin or the estate), with the template kinds they need.
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature
@@ -706,6 +748,23 @@ only when they link spec, code, tests and user documentation; no user guides exi
     step-up) needs a members list route and a team page, neither of which exists yet; an e2e hook
     to read the API's email outbox so the journey can create a sign-in end to end; the lookup does
     not name the inviter, so the page names only the organisation.
+    - Members routes (`feat/platform-members-api`): `GET /v1/members` (members within the reach
+      of `platform.user.manage`, their roles, and the roles the manager may give and where) and
+      `POST /v1/members` (an invited member with one role, step-up, `app.may_assign_role` then
+      `app.may_invite`, idempotent on the client id, 409 `email_in_use`), with migration 0060
+      (row-level security on adding members and role assignments; numbered after #69's 0059, so
+      it merges after #69). Next: the managers' invitation screens in apps/web
+      (`feat/web-invitation-screens`, stacked). #71 security review: (M1, fixed) giving a role
+      counts only the giver's own roles, never an access grant (`app.holds_role_permission_at`),
+      so acting up never becomes a lasting role. Follow-ups: (1) the members list is narrowed in
+      the application only (`membersReached`), as the invitation routes are; the database lets
+      any `tenant_user` row be read in the organisation's view; (2) within one organisation, 409
+      `email_in_use` tells a manager an address belongs to someone they cannot see (an
+      organisation-wide probe; accepted, as the address must be unique, but logged); (3) no
+      restrictive UPDATE policy yet on `tenant_user` or `role_assignment` for the application
+      role (no route changes either); add them, with `app.may_assign_role`, before any role or
+      member editing route; (4) a giver whose own role assignment ends (`valid_to`) can still give
+      a role with no end; decide whether a given role may outlive the giver's.
     - Routes built in feat/platform-invitation-routes: send, list, withdraw (narrowed to the
       members `platform.user.manage` reaches, with tests), lookup and accept with no session
       (token only as a bound parameter, throttled per address and per token), the operator's

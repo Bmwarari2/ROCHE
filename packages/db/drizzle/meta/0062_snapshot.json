@@ -1,6 +1,6 @@
 {
-  "id": "5aa9aaaf-d9c9-4564-9ec7-153f3efe3e0f",
-  "prevId": "4200e70c-7a21-449a-8193-98dca50bf5dd",
+  "id": "68307852-7348-479c-89a9-ea2a0a1f1e97",
+  "prevId": "b01ad2de-3733-4302-b7eb-d11a1c61ace0",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -5436,6 +5436,837 @@
         "visit_log_times": {
           "name": "visit_log_times",
           "value": "ended_at IS NULL OR ended_at >= occurred_at"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.family_portal_user": {
+      "name": "family_portal_user",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "tenant_user_id": {
+          "name": "tenant_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "person_id": {
+          "name": "person_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contact_id": {
+          "name": "contact_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revoked_by": {
+          "name": "revoked_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revoked_reason": {
+          "name": "revoked_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "family_portal_user_open_key": {
+          "name": "family_portal_user_open_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "tenant_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "contact_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "revoked_at IS NULL AND deleted_at IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "family_portal_user_person_idx": {
+          "name": "family_portal_user_person_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "person_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "family_portal_user_tenant_user_fk": {
+          "name": "family_portal_user_tenant_user_fk",
+          "tableFrom": "family_portal_user",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "tenant_user_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "family_portal_user_revoked_by_fk": {
+          "name": "family_portal_user_revoked_by_fk",
+          "tableFrom": "family_portal_user",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "revoked_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "family_portal_user_contact_fk": {
+          "name": "family_portal_user_contact_fk",
+          "tableFrom": "family_portal_user",
+          "tableTo": "contact",
+          "columnsFrom": [
+            "tenant_id",
+            "person_id",
+            "contact_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "person_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "family_portal_user_revoked": {
+          "name": "family_portal_user_revoked",
+          "value": "(revoked_at IS NULL) = (revoked_by IS NULL) AND (revoked_at IS NULL) = (revoked_reason IS NULL)\n        AND (revoked_reason IS NULL OR btrim(revoked_reason) <> '')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.feed_item": {
+      "name": "feed_item",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "person_id": {
+          "name": "person_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "section": {
+          "name": "section",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "care_plan_domain": {
+          "name": "care_plan_domain",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_kind": {
+          "name": "source_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "composed_at": {
+          "name": "composed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "text": {
+          "name": "text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "photo_document_id": {
+          "name": "photo_document_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "phrase_key": {
+          "name": "phrase_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "composed_by": {
+          "name": "composed_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_user_id()"
+        },
+        "confirmed_by": {
+          "name": "confirmed_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "confirmation_reason": {
+          "name": "confirmation_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "supersedes_item_id": {
+          "name": "supersedes_item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "other_people_identifiable": {
+          "name": "other_people_identifiable",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        }
+      },
+      "indexes": {
+        "feed_item_person_idx": {
+          "name": "feed_item_person_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "person_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "feed_item_person_fk": {
+          "name": "feed_item_person_fk",
+          "tableFrom": "feed_item",
+          "tableTo": "person",
+          "columnsFrom": [
+            "tenant_id",
+            "person_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "feed_item_photo_fk": {
+          "name": "feed_item_photo_fk",
+          "tableFrom": "feed_item",
+          "tableTo": "document",
+          "columnsFrom": [
+            "tenant_id",
+            "photo_document_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "feed_item_supersedes_fk": {
+          "name": "feed_item_supersedes_fk",
+          "tableFrom": "feed_item",
+          "tableTo": "feed_item",
+          "columnsFrom": [
+            "tenant_id",
+            "person_id",
+            "supersedes_item_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "person_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "feed_item_composed_by_fk": {
+          "name": "feed_item_composed_by_fk",
+          "tableFrom": "feed_item",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "composed_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "feed_item_confirmed_by_fk": {
+          "name": "feed_item_confirmed_by_fk",
+          "tableFrom": "feed_item",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "confirmed_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "feed_item_tenant_person_id_key": {
+          "name": "feed_item_tenant_person_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "person_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "feed_item_kind": {
+          "name": "feed_item_kind",
+          "value": "kind IN ('activity', 'visit', 'appointment', 'shared_note', 'photo', 'care_plan_update', 'finance_statement')"
+        },
+        "feed_item_section": {
+          "name": "feed_item_section",
+          "value": "section = CASE kind WHEN 'activity' THEN 'activities_and_visits' WHEN 'visit' THEN 'activities_and_visits' WHEN 'appointment' THEN 'appointments' WHEN 'shared_note' THEN 'daily_updates' WHEN 'photo' THEN 'photos' WHEN 'care_plan_update' THEN 'care_plan' WHEN 'finance_statement' THEN 'finance' END"
+        },
+        "feed_item_source_kind": {
+          "name": "feed_item_source_kind",
+          "value": "source_kind IN ('activity', 'visit', 'shared_note', 'photo', 'care_plan_update', 'finance_statement')"
+        },
+        "feed_item_care_plan_domain": {
+          "name": "feed_item_care_plan_domain",
+          "value": "(kind = 'care_plan_update') = (care_plan_domain IS NOT NULL)"
+        },
+        "feed_item_photo": {
+          "name": "feed_item_photo",
+          "value": "(photo_document_id IS NULL OR kind = 'photo')\n        AND (kind <> 'photo' OR (photo_document_id IS NOT NULL AND other_people_identifiable = false))"
+        },
+        "feed_item_confirmation": {
+          "name": "feed_item_confirmation",
+          "value": "(confirmed_by IS NULL) = (confirmation_reason IS NULL)\n        AND (confirmation_reason IS NULL OR btrim(confirmation_reason) <> '')"
+        },
+        "feed_item_text": {
+          "name": "feed_item_text",
+          "value": "char_length(btrim(text)) BETWEEN 1 AND 1000"
+        },
+        "feed_item_order": {
+          "name": "feed_item_order",
+          "value": "occurred_at <= composed_at"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.feed_item_withdrawal": {
+      "name": "feed_item_withdrawal",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "person_id": {
+          "name": "person_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "feed_item_id": {
+          "name": "feed_item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "withdrawn_by": {
+          "name": "withdrawn_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_user_id()"
+        },
+        "withdrawn_at": {
+          "name": "withdrawn_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        }
+      },
+      "indexes": {
+        "feed_item_withdrawal_once_key": {
+          "name": "feed_item_withdrawal_once_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "feed_item_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "feed_item_withdrawal_item_fk": {
+          "name": "feed_item_withdrawal_item_fk",
+          "tableFrom": "feed_item_withdrawal",
+          "tableTo": "feed_item",
+          "columnsFrom": [
+            "tenant_id",
+            "person_id",
+            "feed_item_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "person_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "feed_item_withdrawal_by_fk": {
+          "name": "feed_item_withdrawal_by_fk",
+          "tableFrom": "feed_item_withdrawal",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "withdrawn_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "feed_item_withdrawal_reason": {
+          "name": "feed_item_withdrawal_reason",
+          "value": "reason IN ('source_corrected', 'published_in_error', 'person_asked', 'photo_consent_withdrawn')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.feed_view": {
+      "name": "feed_view",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "person_id": {
+          "name": "person_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "feed_item_id": {
+          "name": "feed_item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contact_id": {
+          "name": "contact_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sharing_decision_id": {
+          "name": "sharing_decision_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "section": {
+          "name": "section",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "care_plan_domain": {
+          "name": "care_plan_domain",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "person_status": {
+          "name": "person_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "capacity_for_sharing": {
+          "name": "capacity_for_sharing",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "viewed_by": {
+          "name": "viewed_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_user_id()"
+        },
+        "viewed_at": {
+          "name": "viewed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        }
+      },
+      "indexes": {
+        "feed_view_item_idx": {
+          "name": "feed_view_item_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "feed_item_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "viewed_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "feed_view_item_fk": {
+          "name": "feed_view_item_fk",
+          "tableFrom": "feed_view",
+          "tableTo": "feed_item",
+          "columnsFrom": [
+            "tenant_id",
+            "person_id",
+            "feed_item_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "person_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "feed_view_contact_fk": {
+          "name": "feed_view_contact_fk",
+          "tableFrom": "feed_view",
+          "tableTo": "contact",
+          "columnsFrom": [
+            "tenant_id",
+            "person_id",
+            "contact_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "person_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "feed_view_decision_fk": {
+          "name": "feed_view_decision_fk",
+          "tableFrom": "feed_view",
+          "tableTo": "sharing_decision",
+          "columnsFrom": [
+            "tenant_id",
+            "person_id",
+            "sharing_decision_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "person_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "feed_view_viewed_by_fk": {
+          "name": "feed_view_viewed_by_fk",
+          "tableFrom": "feed_view",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "viewed_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "feed_view_capacity": {
+          "name": "feed_view_capacity",
+          "value": "capacity_for_sharing IN ('presumed', 'assessed_has_capacity', 'assessed_lacks_capacity')"
         }
       },
       "isRLSEnabled": false

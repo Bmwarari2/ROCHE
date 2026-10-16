@@ -72,6 +72,7 @@ export async function inContext<T>(
           [context.evidenceLink.linkId, context.evidenceLink.packId],
         );
       }
+      if (context.family) await client.query("SELECT set_config('app.family', 'true', true)");
     }
     const result = await fn(client);
     await client.query("COMMIT");

@@ -27,6 +27,9 @@ async function setTask(page: Page, title: string) {
       personId: BEN,
       locationId: DEMO_LOCATION,
       dueAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+      // Open the task's window now: the round shows the shift running now, and a task due after
+      // the shift ends stays off it unless its window is already open (care.md rule 8).
+      windowStart: new Date(Date.now() - 60_000).toISOString(),
     },
   });
   expect(response.status(), await response.text()).toBe(201);
